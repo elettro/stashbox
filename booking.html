@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stashbox | Booking</title>
+  <meta name="description" content="Stashbox. Music, videos, releases, booking, and partnerships." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="container">
+      <div class="nav">
+        <a class="brand" href="index.html" aria-label="Stashbox home">
+          <span class="logo" aria-hidden="true"></span>
+          <span>STASHBOX</span>
+        </a>
+
+        <nav class="navlinks" aria-label="Primary">
+          <a href="index.html" class="">Home</a>
+          <a href="music.html" class="">Music</a>
+          <a href="videos.html" class="">Videos</a>
+          <a href="booking.html" class="active">Booking</a>
+          <a href="partner.html" class="">Partner</a>
+          <a href="presskit.html" class="">Press Kit</a>
+        </nav>
+
+        <div class="nav-cta">
+          <a class="btn ghost" href="https://stashbox.com" target="_blank" rel="noreferrer">Stashbox.com</a>
+          <button class="btn menuBtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="mobileNav">Menu</button>
+        </div>
+      </div>
+
+      <div class="mobile" id="mobileNav" aria-label="Mobile navigation">
+        <div class="inner">
+          <a href="index.html">Home</a>
+          <a href="music.html">Music</a>
+          <a href="videos.html">Videos</a>
+          <a href="booking.html">Booking</a>
+          <a href="partner.html">Partner</a>
+          <a href="presskit.html">Press Kit</a>
+          <a href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">Subscribe on YouTube</a>
+          <a href="https://stashbox.ai" target="_blank" rel="noreferrer">Merch at Stashbox.ai</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  
+<main class="section">
+  <div class="container">
+    <div class="heroCard" style="padding:22px;">
+      <div class="kicker">Booking</div>
+      <h1 style="margin-top:8px;">Book Stashbox.</h1>
+      <p class="small" style="margin-top:10px;">
+        Use this page as your booking funnel. One primary form. One email. One phone.
+      </p>
+      <div class="heroActions">
+        <a class="btn primary" href="presskit.html">Press kit</a>
+        <a class="btn" href="mailto:booking@stashbox.com">Email booking</a>
+        <a class="btn" href="tel:+13104086687">Call</a>
+      </div>
+      <div class="heroMeta">
+        <span class="badge">Private events</span>
+        <span class="badge">Venues</span>
+        <span class="badge">Corporate</span>
+        <span class="badge">Festivals</span>
+      </div>
+    </div>
+
+    <div class="twoCol" style="margin-top:14px;">
+      <div class="card">
+        <h3>Booking details</h3>
+        <ul class="small" style="margin-top:10px; padding-left:18px;">
+          <li>Location and date</li>
+          <li>Set length and vibe</li>
+          <li>Sound needs</li>
+          <li>Budget range</li>
+          <li>Point of contact</li>
+        </ul>
+        <div class="small" style="margin-top:10px;">
+          Replace phone number with your real booking line.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Send a request</h3>
+        <form class="form" onsubmit="event.preventDefault(); alert('This demo form does not submit. Replace with your form tool or backend.');">
+          <input class="input" type="text" name="name" placeholder="Your name" required />
+          <input class="input" type="email" name="email" placeholder="Email" required />
+          <input class="input" type="text" name="date" placeholder="Event date and city" />
+          <textarea name="message" placeholder="Tell us what you need"></textarea>
+          <button class="btn primary" type="submit">Send request</button>
+          <div class="small">Tip: connect this to Formspree, Netlify Forms, or your WordPress form.</div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footerGrid">
+        <div>
+          <div class="brand" style="margin-bottom:10px;">
+            <span class="logo" aria-hidden="true"></span>
+            <span>STASHBOX</span>
+          </div>
+          <div class="small">
+            Unreleased videos. New releases. Booking and partnerships.
+          </div>
+          <div class="small" style="margin-top:10px;">
+            Contact: <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+          </div>
+        </div>
+        <div>
+          <div class="footerLinks">
+            <a href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">YouTube</a>
+            <a href="https://stashbox.ai" target="_blank" rel="noreferrer">Merch</a>
+            <a href="https://stashbox.com/posts" target="_blank" rel="noreferrer">Posts</a>
+            <a href="https://stashbox.com/music" target="_blank" rel="noreferrer">Stream</a>
+          </div>
+          <div class="small" style="margin-top:10px;">
+            © 2026 Stashbox. All rights reserved.
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function(){
+      var btn = document.getElementById('menuBtn');
+      var mobile = document.getElementById('mobileNav');
+      if(!btn || !mobile) return;
+      btn.addEventListener('click', function(){
+        var open = mobile.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+  </script>
+</body>
+</html>

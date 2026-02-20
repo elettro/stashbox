@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stashbox | Partner</title>
+  <meta name="description" content="Stashbox. Music, videos, releases, booking, and partnerships." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="container">
+      <div class="nav">
+        <a class="brand" href="index.html" aria-label="Stashbox home">
+          <span class="logo" aria-hidden="true"></span>
+          <span>STASHBOX</span>
+        </a>
+
+        <nav class="navlinks" aria-label="Primary">
+          <a href="index.html" class="">Home</a>
+          <a href="music.html" class="">Music</a>
+          <a href="videos.html" class="">Videos</a>
+          <a href="booking.html" class="">Booking</a>
+          <a href="partner.html" class="active">Partner</a>
+          <a href="presskit.html" class="">Press Kit</a>
+        </nav>
+
+        <div class="nav-cta">
+          <a class="btn ghost" href="https://stashbox.com" target="_blank" rel="noreferrer">Stashbox.com</a>
+          <button class="btn menuBtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="mobileNav">Menu</button>
+        </div>
+      </div>
+
+      <div class="mobile" id="mobileNav" aria-label="Mobile navigation">
+        <div class="inner">
+          <a href="index.html">Home</a>
+          <a href="music.html">Music</a>
+          <a href="videos.html">Videos</a>
+          <a href="booking.html">Booking</a>
+          <a href="partner.html">Partner</a>
+          <a href="presskit.html">Press Kit</a>
+          <a href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">Subscribe on YouTube</a>
+          <a href="https://stashbox.ai" target="_blank" rel="noreferrer">Merch at Stashbox.ai</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  
+<main class="section">
+  <div class="container">
+    <div class="heroCard" style="padding:22px;">
+      <div class="kicker">Partner</div>
+      <h1 style="margin-top:8px;">Influencer collabs and branded music.</h1>
+      <p class="small" style="margin-top:10px;">
+        Build drops with creators, brands, and events. Music, video, and merch in one package.
+      </p>
+      <div class="heroActions">
+        <a class="btn primary" href="mailto:partners@stashbox.com">Email partners</a>
+        <a class="btn" href="https://stashbox.com/partner" target="_blank" rel="noreferrer">Official partner page</a>
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:14px;">
+      <div class="card">
+        <h3>Creator drop</h3>
+        <div class="tagline">Custom song and video package.</div>
+        <div class="small" style="margin-top:10px;">Deliverables: hook, full track, cover art, vertical clips, release plan.</div>
+      </div>
+      <div class="card">
+        <h3>Event anthem</h3>
+        <div class="tagline">A theme song for your audience.</div>
+        <div class="small" style="margin-top:10px;">Deliverables: promo clip kit, on-site content plan, CTA links.</div>
+      </div>
+      <div class="card">
+        <h3>Merch launch</h3>
+        <div class="tagline">Song to product in days.</div>
+        <div class="small" style="margin-top:10px;">Deliverables: 5 to 10 designs, storefront, promo assets.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footerGrid">
+        <div>
+          <div class="brand" style="margin-bottom:10px;">
+            <span class="logo" aria-hidden="true"></span>
+            <span>STASHBOX</span>
+          </div>
+          <div class="small">
+            Unreleased videos. New releases. Booking and partnerships.
+          </div>
+          <div class="small" style="margin-top:10px;">
+            Contact: <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+          </div>
+        </div>
+        <div>
+          <div class="footerLinks">
+            <a href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">YouTube</a>
+            <a href="https://stashbox.ai" target="_blank" rel="noreferrer">Merch</a>
+            <a href="https://stashbox.com/posts" target="_blank" rel="noreferrer">Posts</a>
+            <a href="https://stashbox.com/music" target="_blank" rel="noreferrer">Stream</a>
+          </div>
+          <div class="small" style="margin-top:10px;">
+            © 2026 Stashbox. All rights reserved.
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function(){
+      var btn = document.getElementById('menuBtn');
+      var mobile = document.getElementById('mobileNav');
+      if(!btn || !mobile) return;
+      btn.addEventListener('click', function(){
+        var open = mobile.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+  </script>
+</body>
+</html>
