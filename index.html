@@ -48,6 +48,27 @@
 
   
 <main>
+  <section class="videoSpotlight">
+    <div class="container">
+      <div class="kicker">Latest from YouTube</div>
+      <h2 style="margin-top:8px;">Latest video (16:9, not a Short)</h2>
+      <p class="small" style="margin-top:8px;">Top player is sourced from your channel's long-form feed. The three cards below show the latest Shorts.</p>
+
+      <div class="videoFrame" style="margin-top:14px;">
+        <iframe
+          id="latestVideoEmbed"
+          src="https://www.youtube.com/embed/videoseries?list=UU6C6Z_erONmKW67pF5AyYkA"
+          title="Latest Stashbox video"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      </div>
+
+      <div class="shortsRow" id="shortsRow"></div>
+    </div>
+  </section>
+
+
   <section class="hero">
     <div class="container">
       <div class="heroGrid">
@@ -62,6 +83,7 @@
             <a class="btn primary" href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">Subscribe on YouTube</a>
             <a class="btn" href="booking.html">Book Stashbox</a>
             <a class="btn" href="https://stashbox.ai" target="_blank" rel="noreferrer">Shop Merch</a>
+            <a class="btn" href="https://stashbox.ai/collections/all" target="_blank" rel="noreferrer">Explore Shopify Merch</a>
           </div>
 
           <div class="heroMeta">
@@ -150,6 +172,19 @@
             <a class="btn primary" href="booking.html">Go to booking</a>
           </div>
         </div>
+
+        <div class="card">
+          <h3>Merch</h3>
+          <div class="tagline">Featured drops from the Stashbox.ai Shopify shop.</div>
+          <div class="meta">
+            <span class="pill">Shopify</span>
+            <span class="pill">Limited drops</span>
+            <span class="pill">Fan favorites</span>
+          </div>
+          <div style="margin-top:14px;">
+            <a class="btn primary" href="https://stashbox.ai" target="_blank" rel="noreferrer">Shop merch</a>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -225,6 +260,156 @@
         var open = mobile.classList.toggle('open');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
+    })();
+
+    (function(){
+      // Paste your channel config here.
+      // uploadsPlaylistId should be your channel uploads playlist ID (starts with "UU...").
+      const config = {
+        uploadsPlaylistId: "UU6C6Z_erONmKW67pF5AyYkA",
+        shortsVideoIds: []
+      };
+
+      var latestVideoEmbed = document.getElementById('latestVideoEmbed');
+      var shortsRow = document.getElementById('shortsRow');
+
+      function longFormPlaylistIdFromUploads(uploadsPlaylistId){
+        return 'UULF' + uploadsPlaylistId.slice(2);
+      }
+
+      function feedUrlForPlaylist(playlistId){
+        return 'https://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(playlistId);
+      }
+
+      function shortsPlaylistIdFromUploads(uploadsPlaylistId){
+        return 'UUSH' + uploadsPlaylistId.slice(2);
+      }
+
+      function extractFeedEntries(xmlText){
+        var parser = new DOMParser();
+        var xml = parser.parseFromString(xmlText, 'application/xml');
+
+        return Array.prototype.slice.call(xml.getElementsByTagName('entry')).map(function(entry){
+          var idNode = entry.getElementsByTagName('yt:videoId')[0];
+
+          return {
+            id: idNode ? idNode.textContent.trim() : ''
+          };
+        }).filter(function(item){
+          return Boolean(item.id);
+        });
+      }
+
+      async function fetchText(url, timeoutMs){
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function(){ controller.abort(); }, timeoutMs || 4500);
+
+        try {
+          var res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) throw new Error('Failed: ' + url);
+          return await res.text();
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
+
+      async function fetchFeedWithProxyFallback(feedUrl){
+        try {
+          return await fetchText(feedUrl);
+        } catch (directErr) {
+          return await fetchText('https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl));
+        }
+      }
+
+      async function loadLatestUpload(){
+        if (!latestVideoEmbed || !config.uploadsPlaylistId) return;
+
+        var longFormPlaylistId = longFormPlaylistIdFromUploads(config.uploadsPlaylistId);
+        latestVideoEmbed.src = 'https://www.youtube.com/embed/videoseries?list=' + encodeURIComponent(longFormPlaylistId);
+
+        try {
+          var longFormXmlText = await fetchFeedWithProxyFallback(feedUrlForPlaylist(longFormPlaylistId));
+          var longFormEntries = extractFeedEntries(longFormXmlText);
+          if (!longFormEntries.length) return;
+
+          latestVideoEmbed.src = 'https://www.youtube.com/embed/' + encodeURIComponent(longFormEntries[0].id);
+        } catch (err) {
+          // keep long-form playlist fallback already set
+        }
+      }
+
+      function renderShorts(ids){
+        if (!shortsRow) return;
+
+        shortsRow.innerHTML = ids.slice(0, 3).map(function(videoId, index){
+          var videoUrl = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId);
+          return '<article class="shortCard">'
+            + '<div class="shortThumb">'
+            + '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '" title="Latest Short 0' + (index + 1) + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'
+            + '</div>'
+            + '<a class="btn" href="' + videoUrl + '" target="_blank" rel="noreferrer">Watch on YouTube</a>'
+            + '</article>';
+        }).join('');
+      }
+
+      async function fetchShortsFeedXml(shortsPlaylistId){
+        var feedUrl = feedUrlForPlaylist(shortsPlaylistId);
+        var proxyUrls = [
+          'https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl),
+          'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(feedUrl),
+          'https://r.jina.ai/http://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(shortsPlaylistId)
+        ];
+
+        for (var i = 0; i < proxyUrls.length; i += 1) {
+          try {
+            var xmlText = await fetchText(proxyUrls[i]);
+            if (xmlText && xmlText.includes('<feed')) return xmlText;
+          } catch (err) {
+            // try next proxy
+          }
+        }
+
+        throw new Error('Could not fetch shorts feed from proxies');
+      }
+
+      async function loadLatestShorts(){
+        if (!shortsRow || !config.uploadsPlaylistId) return;
+
+        shortsRow.innerHTML = [1, 2, 3].map(function(index){
+          return '<article class="shortCard">'
+            + '<div class="small">Loading latest Shorts...</div>'
+            + '</article>';
+        }).join('');
+
+        var manualIds = (config.shortsVideoIds || []).filter(Boolean);
+        if (manualIds.length) {
+          renderShorts(manualIds);
+          return;
+        }
+
+        var shortsPlaylistId = shortsPlaylistIdFromUploads(config.uploadsPlaylistId);
+
+        try {
+          var xmlText = await fetchShortsFeedXml(shortsPlaylistId);
+          var shortsIds = extractFeedEntries(xmlText).map(function(item){ return item.id; }).slice(0, 3);
+          if (shortsIds.length === 3) {
+            renderShorts(shortsIds);
+            return;
+          }
+        } catch (err) {
+          // fallback below
+        }
+
+        shortsRow.innerHTML = [1, 2, 3].map(function(index){
+          return '<article class="shortCard">'
+            + '<div class="small">Could not auto-load latest Shorts right now.</div>'
+            + '<div style="margin-top:10px;"><a class="btn" href="https://www.youtube.com/@Stashboxband/shorts" target="_blank" rel="noreferrer">Open Shorts feed</a></div>'
+            + '</article>';
+        }).join('');
+      }
+
+      loadLatestUpload();
+      loadLatestShorts();
     })();
   </script>
 </body>
