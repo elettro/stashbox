@@ -48,6 +48,28 @@
 
   
 <main>
+<section class="videoSpotlight">
+    <div class="container">
+      <div class="kicker">Latest from YouTube</div>
+      <h2 style="margin-top:8px;">Latest video (16:9, not a Short)</h2>
+      <p class="small" style="margin-top:8px;">Top player now targets your latest regular YouTube upload (16:9 video). Shorts stay in the row below.</p>
+
+      <div class="videoFrame" style="margin-top:14px;">
+        <iframe
+          id="latestVideoEmbed"
+          src="https://www.youtube.com/embed/videoseries?list=UU6C6Z_erONmKW67pF5AyYkA"
+          title="Latest Stashbox video"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      </div>
+
+      <div class="shortsRow" id="shortsRow"></div>
+    </div>
+  </section>
+
+
+
   <section class="videoSpotlight">
     <div class="container">
       <div class="kicker">Latest from YouTube</div>
@@ -347,6 +369,218 @@
         renderShorts(['dQw4w9WgXcQ', '9bZkp7q19f0', '3JZ_D3ELwOQ']);
       }
 
+      loadLatestShorts();
+    })();
+    
+    (function(){
+      // Paste your channel config here.
+      // uploadsPlaylistId should be your channel uploads playlist ID (starts with "UU...").
+      const config = {
+        uploadsPlaylistId: "UU6C6Z_erONmKW67pF5AyYkA",
+        shortsVideoIds: []
+      };
+
+      var latestVideoEmbed = document.getElementById('latestVideoEmbed');
+      var shortsRow = document.getElementById('shortsRow');
+
+      function feedUrlForUploads(uploadsPlaylistId){
+        return 'https://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(uploadsPlaylistId);
+      }
+
+      function feedUrlForLongFormFromUploads(uploadsPlaylistId){
+        var longFormPlaylistId = 'UULF' + uploadsPlaylistId.slice(2);
+        return 'https://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(longFormPlaylistId);
+      }
+
+      function feedUrlForShortsFromUploads(uploadsPlaylistId){
+        var channelId = 'UC' + uploadsPlaylistId.slice(2);
+        var shortsPlaylistId = 'UUSH' + uploadsPlaylistId.slice(2);
+        return {
+          direct: 'https://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(shortsPlaylistId),
+          fallback: 'https://www.youtube.com/feeds/videos.xml?channel_id=' + encodeURIComponent(channelId)
+        };
+      }
+
+      function extractFeedEntries(xmlText){
+        var parser = new DOMParser();
+        var xml = parser.parseFromString(xmlText, 'application/xml');
+
+        return Array.prototype.slice.call(xml.getElementsByTagName('entry')).map(function(entry){
+          var idNode = entry.getElementsByTagName('yt:videoId')[0];
+          var titleNode = entry.getElementsByTagName('title')[0];
+
+          return {
+            id: idNode ? idNode.textContent.trim() : '',
+            title: titleNode ? titleNode.textContent.trim() : ''
+          };
+        }).filter(function(item){
+          return Boolean(item.id);
+        });
+      }
+
+      function extractVideoIdsFromXml(xmlText){
+        return extractFeedEntries(xmlText).map(function(item){
+          return item.id;
+        });
+      }
+
+      function looksLikeShortTitle(title){
+        var value = (title || '').toLowerCase();
+        return value.includes('#shorts') || value.includes(' youtube short') || value.endsWith(' shorts');
+      }
+
+      async function fetchText(url){
+        var res = await fetch(url);
+        if (!res.ok) throw new Error('Failed: ' + url);
+        return await res.text();
+      }
+
+      async function fetchFeedWithProxyFallback(feedUrl){
+        try {
+          return await fetchText(feedUrl);
+        } catch (directErr) {
+          return await fetchText('https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl));
+        }
+      }
+
+      async function fetchJsonWithProxyFallback(url){
+        try {
+          return JSON.parse(await fetchText(url));
+        } catch (directErr) {
+          var proxied = await fetchText('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
+          return JSON.parse(proxied);
+        }
+      }
+
+      async function looksLikeShortByOEmbed(videoId){
+        var oembedUrl = 'https://www.youtube.com/oembed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + videoId) + '&format=json';
+
+        try {
+          var data = await fetchJsonWithProxyFallback(oembedUrl);
+          var width = Number(data.thumbnail_width || 0);
+          var height = Number(data.thumbnail_height || 0);
+          if (!width || !height) return null;
+          return height > width;
+        } catch (err) {
+          return null;
+        }
+      }
+
+      async function selectLatestNonShortUpload(uploadEntries, shortIdSet){
+        var candidates = uploadEntries.filter(function(entry){
+          return !shortIdSet.has(entry.id) && !looksLikeShortTitle(entry.title);
+        });
+
+        if (!candidates.length) {
+          candidates = uploadEntries.filter(function(entry){
+            return !shortIdSet.has(entry.id);
+          });
+        }
+
+        if (!candidates.length) {
+          candidates = uploadEntries.slice();
+        }
+
+        for (var i = 0; i < Math.min(candidates.length, 6); i += 1) {
+          var isShort = await looksLikeShortByOEmbed(candidates[i].id);
+          if (isShort === false) return candidates[i];
+        }
+
+        return candidates[0];
+      }
+
+      async function loadLatestUpload(){
+        if (!latestVideoEmbed || !config.uploadsPlaylistId) return;
+
+        latestVideoEmbed.src = 'https://www.youtube.com/embed/videoseries?list=' + encodeURIComponent(config.uploadsPlaylistId);
+
+        try {
+          try {
+            var longFormXmlText = await fetchFeedWithProxyFallback(feedUrlForLongFormFromUploads(config.uploadsPlaylistId));
+            var longFormEntries = extractFeedEntries(longFormXmlText);
+            if (longFormEntries.length) {
+              latestVideoEmbed.src = 'https://www.youtube.com/embed/' + encodeURIComponent(longFormEntries[0].id);
+              return;
+            }
+          } catch (longFormErr) {
+            // continue to uploads/shorts fallback logic
+          }
+
+          var uploadsXmlText = await fetchFeedWithProxyFallback(feedUrlForUploads(config.uploadsPlaylistId));
+          var uploadEntries = extractFeedEntries(uploadsXmlText);
+          if (!uploadEntries.length) return;
+
+          var shortIds = [];
+          try {
+            var shortsUrls = feedUrlForShortsFromUploads(config.uploadsPlaylistId);
+            var shortsXmlText;
+            try {
+              shortsXmlText = await fetchFeedWithProxyFallback(shortsUrls.direct);
+            } catch (shortsDirectErr) {
+              shortsXmlText = await fetchFeedWithProxyFallback(shortsUrls.fallback);
+            }
+            shortIds = extractVideoIdsFromXml(shortsXmlText);
+          } catch (shortsErr) {
+            shortIds = [];
+          }
+
+          var shortIdSet = new Set(shortIds);
+          var latestRegularVideo = await selectLatestNonShortUpload(uploadEntries, shortIdSet);
+
+          if (latestRegularVideo && latestRegularVideo.id) {
+            latestVideoEmbed.src = 'https://www.youtube.com/embed/' + encodeURIComponent(latestRegularVideo.id);
+          }
+        } catch (err) {
+          // keep playlist fallback already set
+        }
+      }
+
+      function renderShorts(ids){
+        if (!shortsRow) return;
+
+        shortsRow.innerHTML = ids.slice(0, 3).map(function(videoId, index){
+          var videoUrl = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId);
+          return '<article class="shortCard">'
+            + '<div class="shortThumb">'
+            + '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '" title="Latest Short 0' + (index + 1) + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'
+            + '</div>'
+            + '<a class="btn" href="' + videoUrl + '" target="_blank" rel="noreferrer">Watch on YouTube</a>'
+            + '</article>';
+        }).join('');
+      }
+
+      async function loadLatestShorts(){
+        if (!shortsRow || !config.uploadsPlaylistId) return;
+
+        var manualIds = (config.shortsVideoIds || []).filter(Boolean);
+        if (manualIds.length) {
+          renderShorts(manualIds);
+          return;
+        }
+
+        try {
+          var urls = feedUrlForShortsFromUploads(config.uploadsPlaylistId);
+          var xmlText;
+
+          try {
+            xmlText = await fetchFeedWithProxyFallback(urls.direct);
+          } catch (directErr) {
+            xmlText = await fetchFeedWithProxyFallback(urls.fallback);
+          }
+
+          var ids = extractVideoIdsFromXml(xmlText).slice(0, 3);
+          if (ids.length) {
+            renderShorts(ids);
+            return;
+          }
+        } catch (err) {
+          // fall through to static fallback
+        }
+
+        renderShorts(['dQw4w9WgXcQ', '9bZkp7q19f0', '3JZ_D3ELwOQ']);
+      }
+
+      loadLatestUpload();
       loadLatestShorts();
     })();
   </script>
