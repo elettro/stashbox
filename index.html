@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STASHBOX — YouTube Revenue Projection Grid</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #070C1A;
+    --bg2: #0C1225;
+    --bg3: #111827;
+    --gold: #C9A84C;
+    --gold-l: #E8C97A;
+    --gold-d: #8B6E2A;
+    --white: #F0F4FF;
+    --gray: #5A6580;
+    --gray-l: #9BA8C0;
+    --green: #22C55E;
+    --green-d: #166534;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --red-d: #7F1D1D;
+    --blue: #3B82F6;
+    --teal: #14B8A6;
+    --purple: #A855F7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    border-left: 4px solid var(--gold);
+    padding-left: 20px;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .brand {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    letter-spacing: 8px;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  .brand span { color: var(--gold); }
+
+  .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .header-desc {
+    font-size: 14px;
+    color: var(--gray-l);
+    margin-top: 12px;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  /* Gold divider */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold) 0%, transparent 100%);
+    margin: 32px 0;
+  }
+
+  /* Subscriber column headers */
+  .grid-wrapper {
+    animation: fadeUp 0.6s 0.15s ease both;
+  }
+
+  .col-headers {
+    display: grid;
+    grid-template-columns: 120px repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 6px;
+    padding-left: 0;
+  }
+
+  .col-header {
+    background: var(--bg3);
+    border: 1px solid var(--gold-d);
+    border-bottom: 2px solid var(--gold);
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  .col-header .sub-count {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    letter-spacing: 2px;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  .col-header .sub-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .col-header-empty {
+    background: transparent;
+    border: none;
+  }
+
+  /* Revenue rows */
+  .tier-row {
+    display: grid;
+    grid-template-columns: 120px repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .tier-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border-radius: 2px;
+  }
+
+  .tier-label .tier-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  .tier-label .tier-desc {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    color: var(--gray-l);
+    text-align: center;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+  }
+
+  .tier-low .tier-label   { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); }
+  .tier-mid .tier-label   { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); }
+  .tier-high .tier-label  { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); }
+
+  .tier-low .tier-label .tier-name  { color: var(--red); }
+  .tier-mid .tier-label .tier-name  { color: var(--amber); }
+  .tier-high .tier-label .tier-name { color: var(--green); }
+
+  /* Revenue cells */
+  .rev-cell {
+    position: relative;
+    padding: 14px 12px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    overflow: hidden;
+  }
+
+  .rev-cell::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    transition: height 0.2s ease;
+  }
+
+  .rev-cell:hover {
+    transform: translateY(-2px);
+    z-index: 10;
+  }
+
+  .rev-cell:hover::before { height: 100%; opacity: 0.06; }
+
+  /* Tier color schemes */
+  .tier-low .rev-cell {
+    background: rgba(239,68,68,0.05);
+    border: 1px solid rgba(239,68,68,0.15);
+  }
+  .tier-low .rev-cell::before { background: var(--red); }
+  .tier-low .rev-cell:hover { border-color: rgba(239,68,68,0.5); box-shadow: 0 4px 20px rgba(239,68,68,0.15); }
+
+  .tier-mid .rev-cell {
+    background: rgba(245,158,11,0.05);
+    border: 1px solid rgba(245,158,11,0.15);
+  }
+  .tier-mid .rev-cell::before { background: var(--amber); }
+  .tier-mid .rev-cell:hover { border-color: rgba(245,158,11,0.5); box-shadow: 0 4px 20px rgba(245,158,11,0.15); }
+
+  .tier-high .rev-cell {
+    background: rgba(34,197,94,0.05);
+    border: 1px solid rgba(34,197,94,0.15);
+  }
+  .tier-high .rev-cell::before { background: var(--green); }
+  .tier-high .rev-cell:hover { border-color: rgba(34,197,94,0.5); box-shadow: 0 4px 20px rgba(34,197,94,0.15); }
+
+  .rev-cell .range-low {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--gray-l);
+    line-height: 1;
+  }
+
+  .rev-cell .range-sep {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    color: var(--gray);
+    margin: 3px 0;
+    letter-spacing: 2px;
+  }
+
+  .rev-cell .range-high {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+
+  .tier-low .rev-cell .range-high  { color: var(--red); }
+  .tier-mid .rev-cell .range-high  { color: var(--amber); }
+  .tier-high .rev-cell .range-high { color: var(--green); }
+
+  .rev-cell .range-bar {
+    margin-top: 8px;
+    height: 3px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .rev-cell .range-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .tier-low .range-bar-fill  { background: linear-gradient(90deg, rgba(239,68,68,0.4), var(--red)); }
+  .tier-mid .range-bar-fill  { background: linear-gradient(90deg, rgba(245,158,11,0.4), var(--amber)); }
+  .tier-high .range-bar-fill { background: linear-gradient(90deg, rgba(34,197,94,0.4), var(--green)); }
+
+  /* Highlight pulse on hover */
+  .rev-cell .hover-glow {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .tier-low .rev-cell:hover .hover-glow   { opacity: 1; background: radial-gradient(circle at 50% 0%, rgba(239,68,68,0.08), transparent 70%); }
+  .tier-mid .rev-cell:hover .hover-glow   { opacity: 1; background: radial-gradient(circle at 50% 0%, rgba(245,158,11,0.08), transparent 70%); }
+  .tier-high .rev-cell:hover .hover-glow  { opacity: 1; background: radial-gradient(circle at 50% 0%, rgba(34,197,94,0.08), transparent 70%); }
+
+  /* Reality check section */
+  .reality-check {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    animation: fadeUp 0.6s 0.35s ease both;
+  }
+
+  .reality-card {
+    background: var(--bg2);
+    border: 1px solid var(--bg3);
+    padding: 20px 24px;
+    border-left: 3px solid var(--gold);
+    position: relative;
+  }
+
+  .reality-card .rc-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .reality-card .rc-text {
+    font-size: 13px;
+    color: var(--gray-l);
+    line-height: 1.65;
+  }
+
+  .reality-card .rc-text strong {
+    color: var(--white);
+    font-weight: 600;
+  }
+
+  /* Key stat callout */
+  .key-stat {
+    background: var(--bg2);
+    border: 1px solid var(--gold-d);
+    padding: 20px 28px;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    animation: fadeUp 0.6s 0.45s ease both;
+  }
+
+  .key-stat .ks-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+
+  .key-stat .ks-text {
+    font-size: 13px;
+    color: var(--gray-l);
+    line-height: 1.65;
+  }
+
+  .key-stat .ks-text strong {
+    color: var(--gold);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+
+  /* Footnote */
+  .footnote {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--gray);
+    line-height: 1.8;
+    animation: fadeUp 0.6s 0.55s ease both;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    display: none;
+    position: fixed;
+    background: var(--bg3);
+    border: 1px solid var(--gold-d);
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--gray-l);
+    max-width: 240px;
+    z-index: 999;
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    line-height: 1.5;
+  }
+
+  .tooltip.visible { display: block; }
+
+  .tooltip strong {
+    display: block;
+    color: var(--gold);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* Visual emphasis: the "sweet spot" note */
+  .sweet-spot-note {
+    text-align: center;
+    padding: 10px;
+    margin: 6px 0;
+    background: rgba(201,168,76,0.04);
+    border: 1px dashed rgba(201,168,76,0.2);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--gold-d);
+    text-transform: uppercase;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .col-header .sub-count { font-size: 16px; }
+    .rev-cell .range-high { font-size: 14px; }
+    .rev-cell .range-low { font-size: 9px; }
+    .reality-check { grid-template-columns: 1fr; }
+    .brand { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">STASH<span>BOX</span></div>
+    <div class="subtitle">YouTube Ad Revenue · Monthly Projection Grid</div>
+    <p class="header-desc">
+      Music video channel profile · Reggae-leaning audience · Mixed geographies · Monetized channel · Long-form content.
+      Figures represent <em>monthly</em> ad revenue only — no streaming, merch, or brand deals included.
+    </p>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Grid -->
+  <div class="grid-wrapper">
+
+    <!-- Column headers -->
+    <div class="col-headers">
+      <div class="col-header-empty"></div>
+      <div class="col-header">
+        <div class="sub-count">50K</div>
+        <div class="sub-label">subscribers</div>
+      </div>
+      <div class="col-header">
+        <div class="sub-count">100K</div>
+        <div class="sub-label">subscribers</div>
+      </div>
+      <div class="col-header">
+        <div class="sub-count">200K</div>
+        <div class="sub-label">subscribers</div>
+      </div>
+      <div class="col-header">
+        <div class="sub-count">500K</div>
+        <div class="sub-label">subscribers</div>
+      </div>
+      <div class="col-header">
+        <div class="sub-count">1M</div>
+        <div class="sub-label">subscribers</div>
+      </div>
+    </div>
+
+    <!-- LOW tier -->
+    <div class="tier-row tier-low">
+      <div class="tier-label">
+        <span class="tier-name">LOW</span>
+        <span class="tier-desc">Inconsistent<br>views · Weak<br>RPM</span>
+      </div>
+      <div class="rev-cell" data-tier="low" data-subs="50K" data-context="Monetized but irregular. Views aren't compounding. Typical for channels in early growth phase or with inconsistent upload schedules.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$300</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$1,500</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="10%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="low" data-subs="100K" data-context="Channel has reach but views per video are underperforming. RPM compressed by non-monetizable geographies or low watch time.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$800</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$3,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="14%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="low" data-subs="200K" data-context="200K channel under-monetizing — typically weak geographic mix or content not driving repeat views.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$1,500</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$6,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="20%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="low" data-subs="500K" data-context="At 500K this range reflects a channel with subscriber scale but poor view velocity — the audience isn't returning.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$4,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$15,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="30%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="low" data-subs="1M" data-context="1M subs in the low tier is a cautionary tale — scale without engagement. Still $8K–$30K/mo is a real business, just not the ceiling.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$8,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$30,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="40%"></div></div>
+      </div>
+    </div>
+
+    <!-- MID tier -->
+    <div class="sweet-spot-note">↑ &nbsp; BASELINE &nbsp; · &nbsp; TARGET FLOOR &nbsp; · &nbsp; CEILING ↓</div>
+
+    <div class="tier-row tier-mid">
+      <div class="tier-label">
+        <span class="tier-name">MID</span>
+        <span class="tier-desc">Healthy<br>cadence ·<br>Consistent<br>growth</span>
+      </div>
+      <div class="rev-cell" data-tier="mid" data-subs="50K" data-context="Good content rhythm, decent watch time, mixed geography. This is the realistic Stashbox target for an active 50K channel.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$1,500</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$6,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="28%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="mid" data-subs="100K" data-context="100K channel with solid upload cadence and audience retention. $3K–$12K/mo is achievable and sustainable.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$3,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$12,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="42%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="mid" data-subs="200K" data-context="Strong $6K–$25K range. At this level, production quality and upload consistency are the primary variables.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$6,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$25,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="55%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="mid" data-subs="500K" data-context="$15K–$60K/month is serious money. This is where YouTube alone becomes a meaningful revenue stream, not a bonus.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$15,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$60,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="68%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="mid" data-subs="1M" data-context="$30K–$120K/month from ads alone at 1M subs. This is the base case target for Stashbox at scale — before streaming, merch, or brand deals.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$30,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$120,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="78%"></div></div>
+      </div>
+    </div>
+
+    <!-- HIGH tier -->
+    <div class="tier-row tier-high">
+      <div class="tier-label">
+        <span class="tier-name">HIGH</span>
+        <span class="tier-desc">Strong view<br>engine · High<br>watch time ·<br>Repeat audience</span>
+      </div>
+      <div class="rev-cell" data-tier="high" data-subs="50K" data-context="50K channel punching above its weight — viral content, high US/UK/AU audience mix, exceptional watch time.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$6,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$15,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="45%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="high" data-subs="100K" data-context="A 100K channel generating $12K–$30K/mo has exceptional content performance. RPM likely $8–$15 range, strong US audience.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$12,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$30,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="60%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="high" data-subs="200K" data-context="$25K–$60K/mo from 200K subs is elite tier performance. Content is generating millions of views with strong retention.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$25,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$60,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="74%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="high" data-subs="500K" data-context="$60K–$150K/month at 500K is top-of-class. The channel has strong algorithm support and high-RPM content.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$60,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$150,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="88%"></div></div>
+      </div>
+      <div class="rev-cell" data-tier="high" data-subs="1M" data-context="$120K–$300K/month from YouTube ads alone. This is a media company. At this level the catalog alone generates passive income at scale.">
+        <div class="hover-glow"></div>
+        <div class="range-low">$120,000</div>
+        <div class="range-sep">— to —</div>
+        <div class="range-high">$300,000</div>
+        <div class="range-bar"><div class="range-bar-fill" style="width:0%" data-width="100%"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Reality check cards -->
+  <div class="reality-check">
+    <div class="reality-card">
+      <div class="rc-title">⚡ Critical Reality</div>
+      <p class="rc-text">
+        <strong>Subscriber count does not guarantee revenue.</strong>
+        Views drive revenue. A 50K channel with a heavy view engine
+        can outperform a 200K channel with a stale audience.
+        The goal is to build <strong>view velocity</strong>, not just a follower count.
+      </p>
+    </div>
+    <div class="reality-card">
+      <div class="rc-title">🎯 The Stashbox Target</div>
+      <p class="rc-text">
+        Consistent content cadence + paid subscriber acquisition + AI-managed release campaigns
+        = <strong>Mid tier at minimum</strong>. The paid ads model is specifically designed
+        to build the kind of engaged, returning audience that pushes channels from Low → Mid → High.
+      </p>
+    </div>
+  </div>
+
+  <div class="key-stat">
+    <div class="ks-icon">📊</div>
+    <div class="ks-text">
+      <strong>ADS ONLY · GRID ONE OF TWO</strong><br>
+      This grid shows YouTube ad revenue in isolation. Grid Two adds Spotify streaming + merch + brand deals —
+      the full Stashbox ecosystem model. At scale, YouTube ads typically represent
+      <strong>40–60% of total platform revenue</strong>. The complete picture is significantly larger.
+    </div>
+  </div>
+
+  <div class="footnote">
+    STASHBOX MEDIA · ILLUSTRATIVE PROJECTIONS · ADS ONLY · ENTERTAINMENT/MUSIC CATEGORY · MIXED GEOGRAPHIES ·
+    RPM ASSUMPTIONS $3–$15 RANGE · ACTUAL RESULTS VARY BY CONTENT TYPE, AUDIENCE GEOGRAPHY, AND VIEW VELOCITY ·
+    AT-RISK CAPITAL · NO GUARANTEED RETURN
+  </div>
+
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+  // Animate bars on load
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      document.querySelectorAll('.range-bar-fill').forEach(bar => {
+        bar.style.width = bar.dataset.width;
+      });
+    }, 400);
+  });
+
+  // Tooltip behavior
+  const tooltip = document.getElementById('tooltip');
+
+  const tierLabels = {
+    low:  'LOW TIER — Weak View Velocity',
+    mid:  'MID TIER — Healthy Cadence',
+    high: 'HIGH TIER — Strong View Engine'
+  };
+
+  document.querySelectorAll('.rev-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', (e) => {
+      const tier = cell.dataset.tier;
+      const subs = cell.dataset.subs;
+      const ctx  = cell.dataset.context;
+      tooltip.innerHTML = `<strong>${tierLabels[tier]} · ${subs} SUBS</strong>${ctx}`;
+      tooltip.classList.add('visible');
+    });
+
+    cell.addEventListener('mousemove', (e) => {
+      const x = e.clientX + 16;
+      const y = e.clientY - 8;
+      const tw = tooltip.offsetWidth;
+      const th = tooltip.offsetHeight;
+      tooltip.style.left = (x + tw > window.innerWidth ? x - tw - 32 : x) + 'px';
+      tooltip.style.top  = (y + th > window.innerHeight ? y - th : y) + 'px';
+    });
+
+    cell.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+    });
+  });
+</script>
+
+</body>
+</html>
