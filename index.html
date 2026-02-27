@@ -68,6 +68,37 @@
     </div>
   </section>
 
+  <section class="section" id="merch">
+    <div class="container">
+      <div class="card">
+        <div class="sectionHeader">
+          <h2>OFFICIAL MERCH</h2>
+          <p>Row 1 shows random products from the Stashbox collection. Row 2 shows random products from the full store.</p>
+          <div class="buttonRow">
+            <a class="btn" href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">
+              View Full Collection
+            </a>
+            <a class="btn" href="https://stashbox.ai" target="_blank" rel="noopener noreferrer">
+              Visit Store
+            </a>
+          </div>
+        </div>
+
+        <div class="merchRows">
+          <div>
+            <h3 class="rowLabel">From the Stashbox Collection</h3>
+            <div id="merchCollectionGrid" class="merchGrid"></div>
+          </div>
+
+          <div>
+            <h3 class="rowLabel">From the Full Store</h3>
+            <div id="merchAllGrid" class="merchGrid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 
 
  
@@ -352,6 +383,154 @@
       }
 
       loadLatestShorts();
+    })();
+
+    (function(){
+      function shuffleArray(arr) {
+        var copy = arr.slice();
+        for (var i = copy.length - 1; i > 0; i -= 1) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = copy[i];
+          copy[i] = copy[j];
+          copy[j] = temp;
+        }
+        return copy;
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function formatUsd(price) {
+        var amount = Number(price);
+        if (Number.isNaN(amount)) return '';
+        return '$' + amount.toFixed(2) + ' USD';
+      }
+
+      function getProductImage(product) {
+        if (product && product.image && product.image.src) return product.image.src;
+        if (Array.isArray(product && product.images) && product.images.length) {
+          var first = product.images[0];
+          if (typeof first === 'string') return first;
+          if (first && first.src) return first.src;
+        }
+        return '';
+      }
+
+      function getProductPrice(product) {
+        if (Array.isArray(product && product.variants) && product.variants.length) {
+          var availableVariant = product.variants.find(function(variant){
+            return variant && variant.available;
+          }) || product.variants[0];
+          if (availableVariant && availableVariant.price != null) return availableVariant.price;
+        }
+        return null;
+      }
+
+      function normalizeProducts(data) {
+        var products = Array.isArray(data && data.products) ? data.products : [];
+        return products.filter(function(product){
+          return Boolean(product && product.handle && product.title);
+        });
+      }
+
+      function productUrl(product) {
+        if (product && product.handle) return 'https://stashbox.ai/products/' + product.handle;
+        return 'https://stashbox.ai/collections/stashbox';
+      }
+
+      function renderMerchCards(container, products) {
+        if (!container) return;
+
+        if (!products.length) {
+          container.innerHTML = '<div class="merchMessage">No products available right now.</div>';
+          return;
+        }
+
+        container.innerHTML = products.map(function(product){
+          var title = escapeHtml(product.title || '');
+          var image = getProductImage(product);
+          var price = getProductPrice(product);
+          var href = productUrl(product);
+
+          return '<article class="merchCard">'
+            + '<a class="merchImageLink" href="' + href + '" target="_blank" rel="noopener noreferrer">'
+            + (image ? '<img src="' + image + '" alt="' + title + '" loading="lazy">' : '<div class="merchNoImage">No image</div>')
+            + '</a>'
+            + '<div class="merchBody">'
+            + '<h4 class="merchTitle">' + title + '</h4>'
+            + '<p class="merchPrice">' + (price !== null ? formatUsd(price) : '') + '</p>'
+            + '<a class="merchBtn" href="' + href + '" target="_blank" rel="noopener noreferrer">View product</a>'
+            + '</div>'
+            + '</article>';
+        }).join('');
+      }
+
+      async function fetchProductsJson(url) {
+        var response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return await response.json();
+      }
+
+      async function renderMerchGrids() {
+        var collectionGrid = document.getElementById('merchCollectionGrid');
+        var allGrid = document.getElementById('merchAllGrid');
+
+        if (!collectionGrid || !allGrid) return;
+
+        collectionGrid.innerHTML = '<div class="merchMessage">Loading collection products...</div>';
+        allGrid.innerHTML = '<div class="merchMessage">Loading store products...</div>';
+
+        try {
+          var results = await Promise.all([
+            fetchProductsJson('https://stashbox.ai/collections/stashbox/products.json?limit=250'),
+            fetchProductsJson('https://stashbox.ai/products.json?limit=250')
+          ]);
+
+          var collectionProducts = normalizeProducts(results[0]);
+          var allProducts = normalizeProducts(results[1]);
+
+          var row1 = shuffleArray(collectionProducts).slice(0, 4);
+          var row1Handles = new Set(row1.map(function(product){ return product.handle; }));
+          var allFiltered = allProducts.filter(function(product){
+            return !row1Handles.has(product.handle);
+          });
+          var row2Pool = allFiltered.length >= 4 ? allFiltered : allProducts;
+          var row2 = shuffleArray(row2Pool).slice(0, 4);
+
+          renderMerchCards(collectionGrid, row1);
+          renderMerchCards(allGrid, row2);
+        } catch (error) {
+          console.error('Merch load error:', error);
+
+          var fallback = '<div class="merchMessage merchError">'
+            + 'Could not load products automatically right now. '
+            + '<a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Browse merch here</a>'
+            + '</div>';
+
+          collectionGrid.innerHTML = fallback;
+          allGrid.innerHTML = fallback;
+        }
+      }
+
+      function shrinkTrademarkInLatestWorkHeading() {
+        var headings = Array.prototype.slice.call(document.querySelectorAll('h1, h2, h3'));
+        var target = headings.find(function(heading){
+          return (heading.textContent || '').includes('WATCH ELETTRO® IN ACTION');
+        });
+
+        if (!target || target.querySelector('.tmTiny')) return;
+
+        target.innerHTML = target.innerHTML.replace('®', '<span class="tmTiny">®</span>');
+      }
+
+      renderMerchGrids();
+      shrinkTrademarkInLatestWorkHeading();
     })();
     
     (function(){
