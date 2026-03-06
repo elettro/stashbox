@@ -47,38 +47,42 @@
   </header>
 
   
-<main class="section">
-  <div class="container">
-    <div class="heroCard" style="padding:22px;">
-      <div class="kicker">Videos</div>
-      <h1 style="margin-top:8px;">Watch the latest.</h1>
-      <p class="small" style="margin-top:10px;">
-        Keep this page focused. Newest drop first. Then a short grid of best videos.
-      </p>
-      <div class="heroActions">
-        <a class="btn primary" href="https://stashbox.com/videos" target="_blank" rel="noreferrer">Open videos on Stashbox.com</a>
-        <a class="btn" href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">Subscribe</a>
-      </div>
-    </div>
+<main>
+  <section class="videoSpotlight">
+    <div class="container">
+      <div class="kicker">Latest from YouTube</div>
+      <h1 style="margin-top:8px;">Latest video (16:9, not a Short)</h1>
+      <p class="small" style="margin-top:8px;">Top player is sourced from your channel's long-form feed. The three cards below show the latest Shorts.</p>
 
-    <div class="grid3" style="margin-top:14px;">
-      <div class="card">
-        <h3>Featured video</h3>
-        <div class="tagline">Swap in an embed.</div>
-        <div class="small" style="margin-top:10px;">Tip: use the YouTube embed iframe and keep it 16:9.</div>
+      <div class="videoFrame" style="margin-top:14px;">
+        <iframe
+          id="latestVideoEmbed"
+          src="https://www.youtube.com/embed/videoseries?list=UU6C6Z_erONmKW67pF5AyYkA"
+          title="Latest Stashbox video"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
       </div>
-      <div class="card">
-        <h3>Shorts set</h3>
-        <div class="tagline">3 fast clips.</div>
-        <div class="small" style="margin-top:10px;">Use thumbnails and link to Shorts.</div>
-      </div>
-      <div class="card">
-        <h3>Live set</h3>
-        <div class="tagline">Proof you perform.</div>
-        <div class="small" style="margin-top:10px;">Add 1 to 2 live links. Do not overload.</div>
+
+      <div class="shortsRow" id="shortsRow"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="heroCard" style="padding:22px;">
+        <div class="kicker">Videos</div>
+        <h2 style="margin-top:8px;">Watch the latest.</h2>
+        <p class="small" style="margin-top:10px;">
+          Keep this page focused. Newest drop first. Then a short grid of best videos.
+        </p>
+        <div class="heroActions">
+          <a class="btn primary" href="https://stashbox.com/videos" target="_blank" rel="noreferrer">Open videos on Stashbox.com</a>
+          <a class="btn" href="https://youtube.com/@Stashboxband" target="_blank" rel="noreferrer">Subscribe</a>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 </main>
 
 
@@ -121,6 +125,149 @@
         var open = mobile.classList.toggle('open');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
+    })();
+
+    (function(){
+      const config = {
+        uploadsPlaylistId: "UU6C6Z_erONmKW67pF5AyYkA",
+        shortsVideoIds: []
+      };
+
+      var latestVideoEmbed = document.getElementById('latestVideoEmbed');
+      var shortsRow = document.getElementById('shortsRow');
+
+      function longFormPlaylistIdFromUploads(uploadsPlaylistId){
+        return 'UULF' + uploadsPlaylistId.slice(2);
+      }
+
+      function feedUrlForPlaylist(playlistId){
+        return 'https://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(playlistId);
+      }
+
+      function shortsPlaylistIdFromUploads(uploadsPlaylistId){
+        return 'UUSH' + uploadsPlaylistId.slice(2);
+      }
+
+      function extractFeedEntries(xmlText){
+        var parser = new DOMParser();
+        var xml = parser.parseFromString(xmlText, 'application/xml');
+
+        return Array.prototype.slice.call(xml.getElementsByTagName('entry')).map(function(entry){
+          var idNode = entry.getElementsByTagName('yt:videoId')[0];
+          return { id: idNode ? idNode.textContent.trim() : '' };
+        }).filter(function(item){ return Boolean(item.id); });
+      }
+
+      async function fetchText(url, timeoutMs){
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function(){ controller.abort(); }, timeoutMs || 4500);
+
+        try {
+          var res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) throw new Error('Failed: ' + url);
+          return await res.text();
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
+
+      async function fetchFeedWithProxyFallback(feedUrl){
+        try {
+          return await fetchText(feedUrl);
+        } catch (directErr) {
+          return await fetchText('https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl));
+        }
+      }
+
+      async function loadLatestUpload(){
+        if (!latestVideoEmbed || !config.uploadsPlaylistId) return;
+
+        var longFormPlaylistId = longFormPlaylistIdFromUploads(config.uploadsPlaylistId);
+        latestVideoEmbed.src = 'https://www.youtube.com/embed/videoseries?list=' + encodeURIComponent(longFormPlaylistId);
+
+        try {
+          var longFormXmlText = await fetchFeedWithProxyFallback(feedUrlForPlaylist(longFormPlaylistId));
+          var longFormEntries = extractFeedEntries(longFormXmlText);
+          if (!longFormEntries.length) return;
+
+          latestVideoEmbed.src = 'https://www.youtube.com/embed/' + encodeURIComponent(longFormEntries[0].id);
+        } catch (err) {
+          // keep long-form playlist fallback already set
+        }
+      }
+
+      function renderShorts(ids){
+        if (!shortsRow) return;
+
+        shortsRow.innerHTML = ids.slice(0, 3).map(function(videoId, index){
+          var videoUrl = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId);
+          return '<article class="shortCard">'
+            + '<div class="shortThumb">'
+            + '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '" title="Latest Short 0' + (index + 1) + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'
+            + '</div>'
+            + '<a class="btn" href="' + videoUrl + '" target="_blank" rel="noreferrer">Watch on YouTube</a>'
+            + '</article>';
+        }).join('');
+      }
+
+      async function fetchShortsFeedXml(shortsPlaylistId){
+        var feedUrl = feedUrlForPlaylist(shortsPlaylistId);
+        var proxyUrls = [
+          'https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl),
+          'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(feedUrl),
+          'https://r.jina.ai/http://www.youtube.com/feeds/videos.xml?playlist_id=' + encodeURIComponent(shortsPlaylistId)
+        ];
+
+        for (var i = 0; i < proxyUrls.length; i += 1) {
+          try {
+            var xmlText = await fetchText(proxyUrls[i]);
+            if (xmlText && xmlText.includes('<feed')) return xmlText;
+          } catch (err) {
+            // try next proxy
+          }
+        }
+
+        throw new Error('Could not fetch shorts feed from proxies');
+      }
+
+      async function loadLatestShorts(){
+        if (!shortsRow || !config.uploadsPlaylistId) return;
+
+        shortsRow.innerHTML = [1, 2, 3].map(function(index){
+          return '<article class="shortCard">'
+            + '<div class="small">Loading latest Shorts...</div>'
+            + '</article>';
+        }).join('');
+
+        var manualIds = (config.shortsVideoIds || []).filter(Boolean);
+        if (manualIds.length) {
+          renderShorts(manualIds);
+          return;
+        }
+
+        var shortsPlaylistId = shortsPlaylistIdFromUploads(config.uploadsPlaylistId);
+
+        try {
+          var xmlText = await fetchShortsFeedXml(shortsPlaylistId);
+          var shortsIds = extractFeedEntries(xmlText).map(function(item){ return item.id; }).slice(0, 3);
+          if (shortsIds.length === 3) {
+            renderShorts(shortsIds);
+            return;
+          }
+        } catch (err) {
+          // fallback below
+        }
+
+        shortsRow.innerHTML = [1, 2, 3].map(function(index){
+          return '<article class="shortCard">'
+            + '<div class="small">Could not auto-load latest Shorts right now.</div>'
+            + '<div style="margin-top:10px;"><a class="btn" href="https://www.youtube.com/@Stashboxband/shorts" target="_blank" rel="noreferrer">Open Shorts feed</a></div>'
+            + '</article>';
+        }).join('');
+      }
+
+      loadLatestUpload();
+      loadLatestShorts();
     })();
   </script>
 </body>
