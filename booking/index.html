@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Book Stashbox for your event. Full tribute shows: Stashbox Does Dylan, Stashbox Does Sublime, Classic Reggae. Festivals, resorts, casinos, corporate events. South Florida and beyond.">
+  <title>Book Stashbox — Live Band Booking | Tribute Shows | South Florida</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIj7wn464PC90ZXh0Pjwvc3ZnPg==">
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav class="site-nav" role="navigation" aria-label="Main navigation">
+  <div class="site-nav__inner">
+    <a href="/stashbox/" class="site-nav__logo" aria-label="Stashbox home">
+      <span class="site-nav__logo-text">Stashbox</span>
+    </a>
+    <div class="site-nav__links">
+      <a href="/stashbox/" class="site-nav__link">Home</a>
+      <div class="site-nav__dropdown">
+        <a href="/stashbox/booking/" class="site-nav__link active">Book</a>
+        <div class="site-nav__dropdown-menu">
+          <a href="/stashbox/booking/#dylan" class="site-nav__dropdown-item">Stashbox Does Dylan</a>
+          <a href="/stashbox/booking/#sublime" class="site-nav__dropdown-item">Stashbox Does Sublime</a>
+          <a href="/stashbox/booking/#reggae" class="site-nav__dropdown-item">Classic Reggae Show</a>
+        </div>
+      </div>
+      <a href="/stashbox/music/" class="site-nav__link">Music</a>
+      <div class="site-nav__dropdown">
+        <a href="/stashbox/collabs/" class="site-nav__link">Collabs</a>
+        <div class="site-nav__dropdown-menu">
+          <a href="/stashbox/joshclyde/" class="site-nav__dropdown-item">Josh Clyde</a>
+          <a href="/stashbox/darceyandstaceysilva/" class="site-nav__dropdown-item">Darcey &amp; Stacey Silva</a>
+          <a href="/stashbox/tahiticora/" class="site-nav__dropdown-item">Tahiti Cora</a>
+          <a href="/stashbox/kari-nautique/" class="site-nav__dropdown-item">Kari Nautique</a>
+        </div>
+      </div>
+      <a href="https://stashbox.ai/collections/stashbox" target="_blank" class="site-nav__link">Merch</a>
+      <a href="/stashbox/posts/" class="site-nav__link">Posts</a>
+    </div>
+    <a href="tel:3104086687" class="site-nav__cta">📞 Book Now</a>
+    <button class="site-nav__hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="site-nav__mobile" id="mobile-menu">
+  <a href="/stashbox/" class="site-nav__mobile-link">Home</a>
+  <a href="/stashbox/booking/" class="site-nav__mobile-link">Book the Band</a>
+  <a href="/stashbox/music/" class="site-nav__mobile-link">Music</a>
+  <a href="/stashbox/collabs/" class="site-nav__mobile-link">Collabs</a>
+  <a href="https://stashbox.ai/collections/stashbox" class="site-nav__mobile-link" target="_blank">Merch</a>
+  <a href="/stashbox/posts/" class="site-nav__mobile-link">Posts</a>
+  <a href="tel:3104086687" class="site-nav__mobile-cta">📞 Call to Book · 310.408.6687</a>
+</div>
+<div class="nav-spacer"></div>
+
+
+<!-- ── PAGE HERO ── -->
+<section class="bk-hero">
+  <div class="bk-hero__bg"></div>
+  <div class="container">
+    <div class="bk-hero__inner">
+      <div class="eyebrow reveal">South Florida &amp; Beyond · Will Travel With Budget</div>
+      <h1 class="t-display reveal reveal-delay-1" style="color:var(--white); max-width: 900px; line-height:0.9;">Book<br><span style="color:var(--red);">Stashbox</span></h1>
+      <p class="t-body reveal reveal-delay-2" style="max-width:600px; font-size:18px; margin-top:16px; color:var(--off-white);">A world-class live band available for festivals, casinos, resorts, corporate events, private parties, and more. Full tribute show sets available. 2–8 piece band depending on your event and budget.</p>
+      <div class="bk-hero__actions reveal reveal-delay-3">
+        <a href="tel:3104086687" class="btn btn-primary btn-lg">📞 310.408.6687</a>
+        <a href="mailto:booking@stashbox.com" class="btn btn-secondary btn-lg">booking@stashbox.com</a>
+      </div>
+      <div class="bk-hero__steps reveal reveal-delay-4">
+        <div class="bk-step"><span class="bk-step__num">01</span><span class="bk-step__text">Know your budget</span></div>
+        <div class="bk-step__divider">→</div>
+        <div class="bk-step"><span class="bk-step__num">02</span><span class="bk-step__text">Give us a call</span></div>
+        <div class="bk-step__divider">→</div>
+        <div class="bk-step"><span class="bk-step__num">03</span><span class="bk-step__text">We build the show</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="rasta-stripe" style="position:absolute;bottom:0;left:0;right:0;height:4px;"><span></span><span></span><span></span></div>
+</section>
+
+
+<!-- ── VENUE TYPES ── -->
+<section class="section" id="venues">
+  <div class="container">
+    <div class="eyebrow reveal">We Play Everywhere</div>
+    <h2 class="t-headline reveal reveal-delay-1" style="margin-bottom:var(--gap-md);">We Elevate<br>the Room</h2>
+    <div class="venue-grid reveal">
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🎪</span>
+        <h3 class="venue-tile__title">Festivals &amp; Casinos</h3>
+        <p class="venue-tile__body">High-energy full productions for large crowds and main stage moments.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🏨</span>
+        <h3 class="venue-tile__title">Resorts &amp; Hotels</h3>
+        <p class="venue-tile__body">Upscale atmosphere sets for pool decks, lobbies, and catered events.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🎯</span>
+        <h3 class="venue-tile__title">Corporate Events</h3>
+        <p class="venue-tile__body">Professional, polished, adaptable. We know how to work a mixed crowd.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🚢</span>
+        <h3 class="venue-tile__title">Cruises &amp; Private</h3>
+        <p class="venue-tile__body">Will travel with budget. Perfect for intimate or destination events.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🏙️</span>
+        <h3 class="venue-tile__title">City Concerts</h3>
+        <p class="venue-tile__body">Public concerts, municipal events, and city-run festivals.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🏟️</span>
+        <h3 class="venue-tile__title">Sporting Events</h3>
+        <p class="venue-tile__body">Pre-game, halftime, or post-event entertainment that fires up the crowd.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🍺</span>
+        <h3 class="venue-tile__title">Bars &amp; Lounges</h3>
+        <p class="venue-tile__body">Seasoned bar band with deep roots in South Florida's live music scene.</p>
+      </div>
+      <div class="venue-tile">
+        <span class="venue-tile__icon">🎉</span>
+        <h3 class="venue-tile__title">Parties &amp; Poolside</h3>
+        <p class="venue-tile__body">The groove, the vibe, the energy — we get people moving and keep them there.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── TRIBUTE SHOWS ── -->
+<section class="section" id="tribute-shows" style="background:var(--off-black);">
+  <div class="container">
+    <div class="eyebrow reveal">Full Tribute Show Sets</div>
+    <h2 class="t-headline reveal reveal-delay-1" style="margin-bottom:8px;">A Show<br>Within the Show</h2>
+    <p class="t-body reveal reveal-delay-2" style="max-width:600px; margin-bottom:var(--gap-xl);">Each tribute set is a complete, standalone performance built around a single artist or genre. Book one as your event's centerpiece or weave it into a broader night. Deep catalog knowledge, authentic delivery, crowd-tested night after night.</p>
+
+    <!-- ── DYLAN ── -->
+    <div class="tribute-show" id="dylan">
+      <div class="tribute-show__header">
+        <div>
+          <div class="eyebrow eyebrow--gold reveal">Tribute Show 01</div>
+          <h3 class="tribute-show__title reveal reveal-delay-1">Stashbox<br>Does Dylan</h3>
+          <p class="tribute-show__artist reveal reveal-delay-2">Bob Dylan Tribute · Full Show Available</p>
+          <p class="t-body reveal reveal-delay-3" style="max-width:520px;">A full-band deep dive across six decades of Dylan — folk-rock anthems, electric classics, and late-era masterworks. From Rainy Day Woman to Things Have Changed. The show for Dylan fans who want to hear the catalog played with the respect and energy it deserves.</p>
+          <a href="tel:3104086687" class="btn btn-gold reveal reveal-delay-4" style="margin-top:var(--gap-sm);">Book Stashbox Does Dylan</a>
+        </div>
+        <div class="tribute-show__video reveal">
+          <div class="video-wrap">
+            <iframe src="https://www.youtube.com/embed/sTRh-QrG_Eg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Dylan Full Session"></iframe>
+          </div>
+          <p style="font-size:12px; color:var(--muted); margin-top:8px; font-family:var(--font-ui); letter-spacing:0.1em; text-transform:uppercase;">Full Session · Studio One, Fort Lauderdale · March 18, 2026</p>
+        </div>
+      </div>
+      <div class="setlist-block reveal">
+        <p class="eyebrow" style="margin-bottom:var(--gap-sm);">Setlist</p>
+        <div class="setlist-grid">
+          <div class="setlist-item"><span class="setlist-num">01</span>Rainy Day Woman #12 &amp; 35</div>
+          <div class="setlist-item"><span class="setlist-num">02</span>Tangled Up In Blue</div>
+          <div class="setlist-item"><span class="setlist-num">03</span>Silvio</div>
+          <div class="setlist-item"><span class="setlist-num">04</span>Nobody Gonna Do Me Wrong</div>
+          <div class="setlist-item"><span class="setlist-num">05</span>Night Nurse</div>
+          <div class="setlist-item"><span class="setlist-num">06</span>Positively 4th Street</div>
+          <div class="setlist-item"><span class="setlist-num">07</span>Folsom Prison Blues</div>
+          <div class="setlist-item"><span class="setlist-num">08</span>Cocaine Blues</div>
+          <div class="setlist-item"><span class="setlist-num">09</span>She Belongs To Me</div>
+          <div class="setlist-item"><span class="setlist-num">10</span>Lovesick</div>
+          <div class="setlist-item"><span class="setlist-num">11</span>Things Have Changed</div>
+          <div class="setlist-item"><span class="setlist-num">12</span>Tomorrow Never Knows</div>
+          <div class="setlist-item"><span class="setlist-num">13</span>Billy Maze <span style="color:var(--red);font-size:11px;margin-left:6px;font-family:var(--font-ui);letter-spacing:0.1em;">ORIGINAL</span></div>
+        </div>
+        <p style="font-size:13px; color:var(--muted); font-family:var(--font-ui); letter-spacing:0.1em; text-transform:uppercase; margin-top:var(--gap-sm);">+ Extended sets available · Custom setlists on request</p>
+      </div>
+    </div>
+
+    <div class="tribute-show-divider"><span></span><span></span><span></span></div>
+
+    <!-- ── SUBLIME ── -->
+    <div class="tribute-show" id="sublime">
+      <div class="tribute-show__header tribute-show__header--reverse">
+        <div class="tribute-show__video reveal">
+          <div class="video-wrap">
+            <iframe src="https://www.youtube.com/embed/ygvrFB1cn54" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Sublime"></iframe>
+          </div>
+        </div>
+        <div>
+          <div class="eyebrow eyebrow--gold reveal">Tribute Show 02</div>
+          <h3 class="tribute-show__title reveal reveal-delay-1">Stashbox<br>Does Sublime</h3>
+          <p class="tribute-show__artist reveal reveal-delay-2">Sublime Tribute · Full Show Available</p>
+          <p class="t-body reveal reveal-delay-3" style="max-width:520px;">The ska-punk-reggae hybrid that defined a generation brought back to life with raw energy and real groove. Josh Clyde's improvisational rap style and Dean's reggae roots make this the most authentic Sublime tribute in South Florida. Built for outdoor stages, beach bars, and anywhere the vibe is everything.</p>
+          <a href="tel:3104086687" class="btn btn-primary reveal reveal-delay-4" style="margin-top:var(--gap-sm);">Book Stashbox Does Sublime</a>
+        </div>
+      </div>
+      <div class="setlist-block reveal">
+        <p class="eyebrow" style="margin-bottom:var(--gap-sm);">Sample Setlist</p>
+        <div class="setlist-grid">
+          <div class="setlist-item"><span class="setlist-num">01</span>What I Got</div>
+          <div class="setlist-item"><span class="setlist-num">02</span>Santeria</div>
+          <div class="setlist-item"><span class="setlist-num">03</span>Smoke Two Joints</div>
+          <div class="setlist-item"><span class="setlist-num">04</span>Wrong Way</div>
+          <div class="setlist-item"><span class="setlist-num">05</span>Date Rape</div>
+          <div class="setlist-item"><span class="setlist-num">06</span>Badfish</div>
+          <div class="setlist-item"><span class="setlist-num">07</span>Doin' Time</div>
+          <div class="setlist-item"><span class="setlist-num">08</span>40oz. to Freedom</div>
+          <div class="setlist-item"><span class="setlist-num">09</span>Caress Me Down</div>
+          <div class="setlist-item"><span class="setlist-num">10</span>Garden Grove</div>
+          <div class="setlist-item"><span class="setlist-num">11</span>Summertime</div>
+          <div class="setlist-item"><span class="setlist-num">12</span>April 29, 1992</div>
+        </div>
+        <p style="font-size:13px; color:var(--muted); font-family:var(--font-ui); letter-spacing:0.1em; text-transform:uppercase; margin-top:var(--gap-sm);">+ Extended sets available · Custom setlists on request</p>
+      </div>
+    </div>
+
+    <div class="tribute-show-divider"><span></span><span></span><span></span></div>
+
+    <!-- ── REGGAE ── -->
+    <div class="tribute-show" id="reggae">
+      <div class="tribute-show__header">
+        <div>
+          <div class="eyebrow eyebrow--gold reveal">Tribute Show 03</div>
+          <h3 class="tribute-show__title reveal reveal-delay-1" style="color:var(--green);">Classic<br>Reggae Show</h3>
+          <p class="tribute-show__artist reveal reveal-delay-2">Bob Marley · Toots &amp; The Maytals · Classic Roots Reggae</p>
+          <p class="t-body reveal reveal-delay-3" style="max-width:520px;">Roots, culture, and the real sound of Jamaica. Dean Palermo spent over 15 years playing directly with Toots and the Maytals — the inventors of reggae — making this the most authentic classic reggae show in South Florida. From Bob Marley to Toots, from the roots to the modern era.</p>
+          <a href="tel:3104086687" class="btn btn-primary reveal reveal-delay-4" style="margin-top:var(--gap-sm);">Book the Classic Reggae Show</a>
+        </div>
+        <div class="tribute-show__video reveal">
+          <div class="video-wrap">
+            <iframe src="https://www.youtube.com/embed/W-zqAcTEajg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Classic Reggae"></iframe>
+          </div>
+        </div>
+      </div>
+      <div class="setlist-block reveal">
+        <p class="eyebrow" style="margin-bottom:var(--gap-sm);">Sample Setlist</p>
+        <div class="setlist-grid">
+          <div class="setlist-item"><span class="setlist-num">01</span>Get Up Stand Up</div>
+          <div class="setlist-item"><span class="setlist-num">02</span>No Woman No Cry</div>
+          <div class="setlist-item"><span class="setlist-num">03</span>Pressure Drop</div>
+          <div class="setlist-item"><span class="setlist-num">04</span>Redemption Song</div>
+          <div class="setlist-item"><span class="setlist-num">05</span>Funky Kingston</div>
+          <div class="setlist-item"><span class="setlist-num">06</span>Three Little Birds</div>
+          <div class="setlist-item"><span class="setlist-num">07</span>Monkey Man</div>
+          <div class="setlist-item"><span class="setlist-num">08</span>Is This Love</div>
+          <div class="setlist-item"><span class="setlist-num">09</span>54-46 Was My Number</div>
+          <div class="setlist-item"><span class="setlist-num">10</span>Jamming</div>
+          <div class="setlist-item"><span class="setlist-num">11</span>Rivers of Babylon</div>
+          <div class="setlist-item"><span class="setlist-num">12</span>One Love</div>
+        </div>
+        <p style="font-size:13px; color:var(--muted); font-family:var(--font-ui); letter-spacing:0.1em; text-transform:uppercase; margin-top:var(--gap-sm);">+ Extended sets available · Custom setlists on request</p>
+      </div>
+    </div>
+
+    <!-- Additional tribute sets -->
+    <div class="more-sets reveal">
+      <p class="eyebrow" style="margin-bottom:14px;">Also Available</p>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        <span class="pill">The Beatles</span>
+        <span class="pill">Grateful Dead</span>
+        <span class="pill">Toots &amp; The Maytals</span>
+        <span class="pill">Blues Show</span>
+        <span class="pill">Dance Groove</span>
+        <span class="pill">Classic Rock</span>
+        <span class="pill">Originals Show</span>
+        <span class="pill">Lil Country / Americana</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── THE BAND ── -->
+<section class="section" id="band">
+  <div class="container">
+    <div class="eyebrow reveal">The Players</div>
+    <h2 class="t-headline reveal reveal-delay-1" style="margin-bottom:8px;">Real Musicians.<br>Real Credentials.</h2>
+    <p class="t-body reveal reveal-delay-2" style="max-width:600px; margin-bottom:var(--gap-lg);">A core of seasoned players with deep roots in rock, reggae, blues, and beyond — united by a shared obsession with great music and the moments that only happen live. 2–8 piece band depending on your event and budget.</p>
+
+    <div class="band-grid reveal">
+      <div class="band-card">
+        <div class="band-card__name">Dean Palermo</div>
+        <div class="band-card__role">Guitar / Vocals · Founder</div>
+        <p class="band-card__bio">Primary guitarist and founder. Blistering leads, laid-back funk, Jeff Beck-style invention, and a classic reggae chop developed over 15+ years working directly with Toots and the Maytals. Also produces with Stephen Marley's drummer Squidly Cole. By day, Dean runs Elettro.com — a top South Florida digital agency — meaning every Stashbox booking comes with professional-grade marketing built in.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Josh Clyde</div>
+        <div class="band-card__role">Lead Vocals / Guitar</div>
+        <p class="band-card__bio">Youthful, electric, and impossible to ignore. His signature skill is in-the-moment improvised rap and banter woven around audience interaction — keeping people mystified, engaged, and dancing. Versatile enough to sing, rap, or flow across any genre. By day, the "Sandman" — South Florida's top international corporate sand sculptor.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Michael Hugh</div>
+        <div class="band-card__role">Keyboards / Vocals</div>
+        <p class="band-card__bio">The sonic architect behind the keys. Runs the studio sessions as primary engineer — recording, mixing, and mastering. Tremendous vocal range and the technical depth of a seasoned producer. He's the reason the band sounds as good on tape as they do on stage.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Peter Roland</div>
+        <div class="band-card__role">Guitar</div>
+        <p class="band-card__bio">An absolutely killer guitarist whose playing elevates every room he's in. Deep blues sensibility and serious chops — the kind of player whose solos make people stop mid-conversation and just listen. Also performing with Kat Riggins Blues Revival USA.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Gary "G Money" Williams</div>
+        <div class="band-card__role">Bass</div>
+        <p class="band-card__bio">One of the most jaw-dropping funk bass players you will ever witness live. His bass solos are the kind of once-in-a-room experience that gets audiences wild with excitement — phones out, filming and sharing. A world-class player who organically creates viral moments every time.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">David Nizri</div>
+        <div class="band-card__role">Drums</div>
+        <p class="band-card__bio">The engine of the operation — a drummer with the feel to serve the song and the chops to elevate it. David's groove is the foundation everything else is built on, holding the band in the pocket through genre shifts and improvisational moments.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Mike Ancona</div>
+        <div class="band-card__role">Bass</div>
+        <p class="band-card__bio">Low-end locked and deeply musical. Whether it's a reggae one-drop, a funk pocket, or a blues groove — he's the glue that holds the whole thing together.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Jarvis Jones</div>
+        <div class="band-card__role">Drums</div>
+        <p class="band-card__bio">A pro's pro behind the kit — always gigging, zero stylistic boundaries. Rooted in the church drumming tradition, he carries that deep soul and pocket in everything he plays. His command of funk, soul, and high-energy rhythm keeps the crowd locked in.</p>
+      </div>
+      <div class="band-card">
+        <div class="band-card__name">Bob Cleary</div>
+        <div class="band-card__role">Bass</div>
+        <p class="band-card__bio">A legendary South Florida bassist with decades of stage miles. Most frequently performing with the Bobby Nathan Band. He brings the kind of deep, road-earned groove that only comes from a lifetime of gigging.</p>
+      </div>
+    </div>
+
+    <!-- Sit-ins -->
+    <div class="sit-in-block reveal">
+      <p class="eyebrow eyebrow--gold" style="margin-bottom:var(--gap-sm);">Special Guest Sit-In Musicians · Available With Budget</p>
+      <div class="sit-in-grid">
+        <div class="sit-in-card">
+          <p class="sit-in-card__name">Squidly Cole</p>
+          <p class="sit-in-card__role">Drums</p>
+          <p class="sit-in-card__bio">Jamaica's legendary world-touring drummer for Stephen Marley and the Marley family. When he's off the road and in South Florida, he joins us. An unforgettable night every time.</p>
+        </div>
+        <div class="sit-in-card">
+          <p class="sit-in-card__name">Craig Woloshin</p>
+          <p class="sit-in-card__role">Pedal Steel</p>
+          <p class="sit-in-card__bio">A pedal steel player who takes the show up an entire plateau of excellence. His tone and note choices are so uniquely special they will give you goosebumps. The moment he plugs in, the whole room shifts.</p>
+        </div>
+        <div class="sit-in-card">
+          <p class="sit-in-card__name">Lulu Coelho</p>
+          <p class="sit-in-card__role">Vocals</p>
+          <p class="sit-in-card__bio">A stunning South Florida-based vocalist with a soulful presence that commands every stage she graces. Raw vocal power — the kind of singer who stops a room cold the moment she opens her mouth.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── STATS / SOCIAL PROOF ── -->
+<section class="section section--sm" style="background:var(--off-black);">
+  <div class="container">
+    <div class="proof-grid reveal">
+      <div class="proof-stats">
+        <div class="stat-row">
+          <div class="stat-item">
+            <p class="stat-item__num">200+</p>
+            <p class="stat-item__label">Songs in Repertoire</p>
+          </div>
+          <div class="stat-item">
+            <p class="stat-item__num">10+</p>
+            <p class="stat-item__label">Years Playing Together</p>
+          </div>
+          <div class="stat-item">
+            <p class="stat-item__num">2–8</p>
+            <p class="stat-item__label">Piece Band</p>
+          </div>
+          <div class="stat-item">
+            <p class="stat-item__num">6,200+</p>
+            <p class="stat-item__label">YouTube Subscribers</p>
+          </div>
+          <div class="stat-item">
+            <p class="stat-item__num">1–3</p>
+            <p class="stat-item__label">Sets Available</p>
+          </div>
+        </div>
+      </div>
+      <div class="proof-quote">
+        <p class="t-italic" style="font-size:clamp(17px,2.2vw,22px); color:var(--white); line-height:1.6;">"One of the most genuine, high-energy live acts in South Florida. The musicianship is real, the vibe is undeniable, and the crowd response speaks for itself."</p>
+        <div style="margin-top:var(--gap-sm);">
+          <div class="rasta-stripe" style="width:32px;height:3px;margin-bottom:12px;"><span></span><span></span><span></span></div>
+          <p class="t-label" style="color:var(--white);">Jon Phillips</p>
+          <p style="font-size:13px; color:var(--muted); margin-top:4px; font-family:var(--font-body);">Owner, SilverBack Management LA · Discovered Sublime · Manager: Stephen Marley, Fishbone, Slightly Stoopid</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Venues played -->
+    <div class="venues-played reveal" style="margin-top:var(--gap-lg);">
+      <p class="eyebrow" style="margin-bottom:var(--gap-sm);">Where We've Played</p>
+      <div class="venues-list">
+        <span class="pill">The Funky Biscuit · Boca Raton</span>
+        <span class="pill">Harbor Beach Marriott · Fort Lauderdale</span>
+        <span class="pill">Caribbean Club · Key Largo</span>
+        <span class="pill">Seascape Marina &amp; Resort · Florida Keys</span>
+        <span class="pill">The Fish House · Miami</span>
+        <span class="pill">Atlantic Bay Resort · Tavernier Key</span>
+        <span class="pill">Crazy Uncle Mike's · Boca Raton</span>
+        <span class="pill">Tarpon River Brewery · Fort Lauderdale</span>
+        <span class="pill">Studio One · Fort Lauderdale</span>
+        <span class="pill">Kelly Brothers Pub · Fort Lauderdale</span>
+        <span class="pill">RIP's Music Lounge · Pompano Beach</span>
+        <span class="pill">5 O'Clock Charlies · Fort Lauderdale Beach</span>
+        <span class="pill">Silver Ball Museum · Delray</span>
+        <span class="pill">The Cat Club · Hollywood Blvd, CA</span>
+        <span class="pill">The Joint · Hollywood, CA</span>
+        <span class="pill">Music Over · Montesilvano, Italy</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── PROMO POWER ── -->
+<section class="section section--sm">
+  <div class="container">
+    <div class="eyebrow reveal">We Don't Just Play</div>
+    <h2 class="t-headline reveal reveal-delay-1" style="margin-bottom:var(--gap-md);">We Promote.</h2>
+    <div class="promo-grid reveal">
+      <div class="promo-card">
+        <p class="promo-card__title">Smart Show Promotion</p>
+        <p class="promo-card__eyebrow">Social Media</p>
+        <p class="promo-card__body">Dean runs Elettro.com, a top South Florida digital agency. Every booking benefits from professional-grade social media strategy — targeted, well-crafted, built to drive real attendance.</p>
+      </div>
+      <div class="promo-card">
+        <p class="promo-card__title">Your Venue Keeps Getting Promoted</p>
+        <p class="promo-card__eyebrow">Post-Show Video</p>
+        <p class="promo-card__body">Shows are captured on video and cut into highlight reels shared across social media — with your venue featured. The night ends, but the promotional reach keeps going.</p>
+      </div>
+      <div class="promo-card">
+        <p class="promo-card__title">World-Class Creative Production</p>
+        <p class="promo-card__eyebrow">Production Superpower</p>
+        <p class="promo-card__body">Custom graphics, show videos, full web pages, original songs. Need custom marketing materials for your event? We can produce them. A rare superpower most bands simply don't have.</p>
+      </div>
+      <div class="promo-card promo-card--highlight">
+        <p class="promo-card__title">6,200+ Subscribers &amp; Growing</p>
+        <p class="promo-card__eyebrow">YouTube · @Stashboxband</p>
+        <p class="promo-card__body">The Stashbox YouTube channel has exploded in 2026 — 5,000%+ growth. World-class music videos that build a real audience between shows. Your event connects to a fan base that is actively growing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── FAQ ── -->
+<section class="section" id="faq" style="background:var(--off-black);">
+  <div class="container">
+    <div class="eyebrow reveal">Before You Call</div>
+    <h2 class="t-headline reveal reveal-delay-1" style="margin-bottom:var(--gap-lg);">Common Questions.</h2>
+    <div class="faq-list reveal">
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>What's your process for working with a new venue or booker?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>We start with a phone call — no forms, no fuss. We'll talk through your event details to see if we're a good fit, then discuss the budget and exactly what we can deliver for it. We've done this enough to make the process simple on your end.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>How does pricing work?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Pricing depends on location, date and day of week, show length, meal perks, and the specific music program desired. We provide estimates for our standard trio and four-piece configurations. If our quote is outside your budget, a duo or trio may be an option — which is why we prefer a straightforward conversation first. Know your budget coming in and we can work from there.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>Do you bring your own PA and equipment?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Yes. We have our own professional PA system and arrive ready to set up. No technical headaches on your end.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>Can you tailor the set to our crowd or event theme?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Absolutely — this is one of our defining strengths. We're chameleons. We read the room and shift the show accordingly. With 200+ songs across multiple genres and full tribute sets available for Stashbox Does Dylan, Stashbox Does Sublime, Classic Reggae, Beatles, Grateful Dead, and more — we can structure a night around almost any theme or audience.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>Will you travel outside South Florida?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Yes, with budget. We're based in South Florida but have performed internationally — including Italy and California — and are open to travel for the right gig.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>What advice do you have for someone hiring a live band?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Know your budget before you call. Be clear and honest about it — that single piece of information tells us what size band and what kind of program we can realistically build for you. From there, everything else is a straightforward conversation.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          <span>How did Stashbox come together?</span>
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <p>Dean and Josh have been regularly playing together for over 10 years, bonded by a shared love of reggae and classic rock. The band grew from there — music purists who stuck together because of the creative and improvisational approach they share. Every venue we've played has asked us back. That says everything.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ── FINAL CTA ── -->
+<section class="bk-final-cta">
+  <div class="container">
+    <div class="bk-final-cta__inner reveal">
+      <div class="eyebrow eyebrow--gold">Let's Talk</div>
+      <h2 class="t-display" style="color:var(--black); line-height:0.9;">Book<br>Stashbox</h2>
+      <p style="font-family:var(--font-body); font-size:16px; color:rgba(0,0,0,0.65); margin-top:12px; max-width:480px;">Based in South Florida. Available for every type of event. Will travel with budget. Call to discuss your event — everything gets figured out from there.</p>
+      <div class="bk-final-cta__actions">
+        <a href="tel:3104086687" class="btn btn-lg" style="background:var(--black);color:var(--white);border:2px solid var(--black);">📞 310.408.6687</a>
+        <a href="mailto:booking@stashbox.com" class="btn btn-lg btn-secondary" style="border-color:rgba(0,0,0,0.25);color:var(--black);">booking@stashbox.com</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── FOOTER ── -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__grid">
+      <div class="site-footer__brand">
+        <p class="site-footer__brand-name">Stashbox</p>
+        <div class="rasta-stripe" style="width:60px;height:3px;margin-bottom:14px;"><span></span><span></span><span></span></div>
+        <p class="site-footer__tagline">South Florida's most versatile live band. Available for festivals, resorts, casinos, corporate events, and private bookings.</p>
+        <p class="site-footer__tagline" style="margin-top:10px;color:var(--off-white);">📞 310.408.6687<br>booking@stashbox.com</p>
+        <div class="site-footer__social">
+          <a href="https://www.youtube.com/@stashboxband" target="_blank" class="site-footer__social-link">YouTube</a>
+          <a href="https://www.facebook.com/Stashboxcom/" target="_blank" class="site-footer__social-link">Facebook</a>
+          <a href="https://www.instagram.com/stashboxmusic" target="_blank" class="site-footer__social-link">Instagram</a>
+          <a href="https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa" target="_blank" class="site-footer__social-link">Spotify</a>
+          <a href="https://www.tiktok.com/@stashboxmusic" target="_blank" class="site-footer__social-link">TikTok</a>
+        </div>
+      </div>
+      <div>
+        <p class="site-footer__col-title">Tribute Shows</p>
+        <div class="site-footer__links">
+          <a href="#dylan" class="site-footer__link">Stashbox Does Dylan</a>
+          <a href="#sublime" class="site-footer__link">Stashbox Does Sublime</a>
+          <a href="#reggae" class="site-footer__link">Classic Reggae Show</a>
+        </div>
+      </div>
+      <div>
+        <p class="site-footer__col-title">Navigate</p>
+        <div class="site-footer__links">
+          <a href="/stashbox/" class="site-footer__link">Home</a>
+          <a href="/stashbox/music/" class="site-footer__link">Music &amp; Releases</a>
+          <a href="/stashbox/collabs/" class="site-footer__link">Collaborations</a>
+          <a href="https://stashbox.ai" target="_blank" class="site-footer__link">Merch Store</a>
+          <a href="/stashbox/posts/" class="site-footer__link">Posts &amp; News</a>
+        </div>
+      </div>
+      <div>
+        <p class="site-footer__col-title">Contact</p>
+        <div class="site-footer__links">
+          <a href="tel:3104086687" class="site-footer__link">310.408.6687</a>
+          <a href="mailto:booking@stashbox.com" class="site-footer__link">booking@stashbox.com</a>
+          <a href="https://elettro.com" target="_blank" class="site-footer__link">Elettro.com</a>
+        </div>
+      </div>
+    </div>
+    <div class="site-footer__bottom">
+      <p class="site-footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="site-footer__booking">
+        <a href="tel:3104086687">310.408.6687</a> ·
+        <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+
+<!-- ── PAGE STYLES ── -->
+
+
+<!-- ── JAVASCRIPT ── -->
+<script>
+// Hamburger
+const hamburger = document.getElementById('hamburger');
+const mobileMenu = document.getElementById('mobile-menu');
+hamburger.addEventListener('click', () => {
+  const isOpen = mobileMenu.classList.toggle('open');
+  hamburger.classList.toggle('open', isOpen);
+  hamburger.setAttribute('aria-expanded', isOpen);
+  document.body.style.overflow = isOpen ? 'hidden' : '';
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 1024) {
+    mobileMenu.classList.remove('open');
+    hamburger.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+});
+
+// FAQ accordion
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+// Scroll reveal
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.06 });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// Nav scroll
+window.addEventListener('scroll', () => {
+  const nav = document.querySelector('.site-nav');
+  nav.style.borderBottomColor = window.scrollY > 60 ? 'var(--border-light)' : 'var(--border)';
+}, { passive: true });
+</script>
+
+</body>
+</html>
