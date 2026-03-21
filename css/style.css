@@ -4,6 +4,7 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap');
 
 /* ── RESET ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -98,6 +99,35 @@ h1, h2, h3 {
 h1 { font-size: clamp(56px, 8vw, 72px); line-height: 1.04; }
 h2 { font-size: clamp(36px, 5.2vw, 48px); line-height: 1.14; }
 h3 { font-size: clamp(24px, 3.2vw, 30px); line-height: 1.24; }
+
+/* Enforce legible minimum copy size sitewide */
+small, .small, .meta, .caption, .microcopy,
+[style*="font-size:10px"],
+[style*="font-size:11px"],
+[style*="font-size:12px"],
+[style*="font-size:13px"],
+[style*="font-size:14px"],
+[style*="font-size:15px"] {
+  font-size: 16px !important;
+  line-height: 1.55 !important;
+}
+
+
+p, li {
+  font-size: 18px;
+  line-height: 1.68;
+  color: var(--off-white);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  color: var(--white);
+  letter-spacing: 0.01em;
+}
+
+h1 { font-size: clamp(52px, 7vw, 64px); line-height: 1.08; }
+h2 { font-size: clamp(34px, 4.8vw, 42px); line-height: 1.18; }
+h3 { font-size: clamp(22px, 3vw, 28px); line-height: 1.28; }
 
 /* Enforce legible minimum copy size sitewide */
 small, .small, .meta, .caption, .microcopy,
