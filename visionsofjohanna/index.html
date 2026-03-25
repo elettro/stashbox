@@ -47,9 +47,9 @@
 
         <!-- Overlays -->
         <div id="startOverlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000 no-select">
-            <div class="text-center group pointer-events-none">
+            <div id="statusText" class="text-center group pointer-events-none">
                 <div class="w-20 h-20 mb-6 mx-auto border-4 border-yellow-400 border-t-transparent rounded-full animate-spin group-hover:scale-110 transition-transform"></div>
-                <p class="text-3xl font-black uppercase tracking-[0.3em] text-white group-hover:text-yellow-400 transition-colors">Click to Vibe</p>
+                <p class="text-3xl font-black uppercase tracking-[0.3em] text-white">Click to Vibe</p>
             </div>
         </div>
 
@@ -59,15 +59,11 @@
     </div>
 
     <script>
-        // CONFIG
         const AUDIO_FILE = "visionsofjoanna.mp3";
 
         const vertexShader = `
             varying vec2 vUv;
-            void main() {
-                vUv = uv;
-                gl_Position = vec4(position, 1.0);
-            }
+            void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
         `;
 
         const fragmentShader = `
@@ -80,8 +76,7 @@
             varying vec2 vUv;
 
             float noise(vec2 p) {
-                vec2 i = floor(p);
-                vec2 f = fract(p);
+                vec2 i = floor(p); vec2 f = fract(p);
                 vec2 u = f * f * (3.0 - 2.0 * f);
                 float a = fract(sin(dot(i, vec2(12.7, 31.1))) * 43758.5);
                 float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(12.7, 31.1))) * 43758.5);
@@ -94,31 +89,23 @@
                 float cycle = mod(time, 6.0);
                 float phase = smoothstep(0.0, 2.0, cycle) - smoothstep(4.0, 6.0, cycle);
                 float drift = (cycle > 2.0) ? (cycle - 2.0) * 0.4 : 0.0;
-                vec2 sp = p;
-                sp.y -= drift;
-                sp += noise(sp * 4.0 + time * 0.5) * 0.1;
+                vec2 sp = p; sp.y -= drift; sp += noise(sp * 4.0 + time * 0.5) * 0.1;
                 float d = 100.0;
                 d = min(d, length(sp - vec2(-0.4, 0.0)) - 0.15);
                 d = min(d, length(sp - vec2(0.0, 0.0)) - 0.12);
                 d = min(d, length(sp - vec2(0.4, 0.0)) - 0.15);
-                float blur = 0.05 + drift * 0.5 + (1.0 - phase) * 0.2;
-                return smoothstep(blur, -blur, d) * phase;
+                return smoothstep(0.05 + drift * 0.5, -0.05 - drift * 0.5, d) * phase;
             }
 
             void main() {
                 float bass = texture2D(uData, vec2(0.02, 0.5)).r;
                 float pulse = pow(bass, 2.2);
                 float aspect = uResolution.x / uResolution.y;
-                float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
-                vec2 pan = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
-                
-                vec2 p = (vUv - 0.5) * 2.0;
-                p.x *= aspect;
-                p *= zoom;
-                p += pan;
+                vec2 p = (vUv - 0.5) * 2.0; p.x *= aspect;
+                p *= 1.0 + sin(uTime * 0.1) * 0.12;
+                p += vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
 
-                vec2 m = (uMouse - 0.5) * 2.0;
-                m.x *= aspect;
+                vec2 m = (uMouse - 0.5) * 2.0; m.x *= aspect;
                 float mouseStrength = smoothstep(0.8, 0.0, length(p - m));
                 float swirl = mouseStrength * 5.0;
                 vec2 vp = p - m;
@@ -127,24 +114,21 @@
                 vec2 flowP = (vp + m) * (2.5 - pulse * 0.5);
 
                 vec2 flow = flowP;
-                float t = uTime * 0.4;
                 for(int i = 0; i < 7; i++) {
                     float fi = float(i);
-                    flow.x += (0.5 + pulse) * sin(flow.y * 1.2 + t + fi);
-                    flow.y += (0.4 + pulse) * cos(flow.x * 0.8 - t * 0.7 + fi);
+                    flow.x += (0.5 + pulse) * sin(flow.y * 1.2 + uTime * 0.4 + fi);
+                    flow.y += (0.4 + pulse) * cos(flow.x * 0.8 - uTime * 0.28 + fi);
                 }
 
                 vec3 rRed = vec3(0.85, 0.05, 0.05), rGold = vec3(1.0, 0.8, 0.0), rGreen = vec3(0.0, 0.5, 0.15), rBlack = vec3(0.01);
-                float mixVal = fract(sin(flow.x * 0.4) * cos(flow.y * 0.4) * 0.2 + uTime * 0.02 + pulse * 0.1);
+                float colorCoord = fract(sin(flow.x * 0.4) * cos(flow.y * 0.4) * 0.2 + uTime * 0.02 + pulse * 0.1 + noise(flow * 0.5) * 0.08);
                 
                 vec3 col;
-                float colorCoord = fract(mixVal + noise(flow * 0.5 + t * 0.1) * 0.08);
                 if(colorCoord < 0.33) col = mix(rRed, rGold, smoothstep(0.0, 0.33, colorCoord));
                 else if(colorCoord < 0.66) col = mix(rGold, rGreen, smoothstep(0.33, 0.66, colorCoord));
                 else col = mix(rGreen, rRed, smoothstep(0.66, 1.0, colorCoord));
                 
-                float trim = smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.33)) + smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.66));
-                col = mix(col, rBlack, trim * 0.65);
+                col = mix(col, rBlack, (smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.33)) + smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.66))) * 0.65);
 
                 vec2 trailUv = vUv - 0.5;
                 trailUv *= 0.99 + pulse * 0.02;
@@ -154,9 +138,8 @@
                 prev.b = texture2D(uPrevFrame, trailUv - 0.002).b;
                 col = mix(col, prev, 0.93 + pulse * 0.02);
 
-                float smoke = getSmokeText(p - pan, uTime, bass);
+                float smoke = getSmokeText(p, uTime, bass);
                 col = mix(col, mix(vec3(1.0), rGold, 0.4), smoke * 0.8);
-
                 gl_FragColor = vec4(col * smoothstep(2.5, 0.4, length(vUv - 0.5) * 2.2) + (vec3(1.0, 0.8, 0.5) * smoke * pulse * 0.5), 1.0);
             }
         `;
@@ -177,49 +160,50 @@
         const scene = new THREE.Scene(), camera = new THREE.Camera();
         scene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader })));
 
-        let audio, audioCtx, analyser, dataArray, texture, isPlaying = false;
+        let audioCtx, analyser, dataArray, texture, source, audioBuffer, isPlaying = false, isPaused = false, startTime = 0, pauseOffset = 0;
 
-        async function initAudio() {
-            if (isPlaying) return;
-            
-            overlay.style.opacity = '0';
-            setTimeout(() => overlay.style.display = 'none', 1000);
-
-            audio = new Audio();
-            audio.src = AUDIO_FILE;
-            audio.loop = true;
-            
+        async function loadAudio() {
+            document.getElementById('statusText').querySelector('p').innerText = "Loading Vibe...";
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(audio);
+            const response = await fetch(AUDIO_FILE);
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
             analyser = audioCtx.createAnalyser();
             analyser.fftSize = 256;
-            source.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            
             dataArray = new Uint8Array(analyser.frequencyBinCount);
             texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
             uniforms.uData.value = texture;
-
-            await audioCtx.resume();
-            await audio.play();
+            
+            playBuffer();
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 1000);
             isPlaying = true;
+        }
+
+        function playBuffer() {
+            source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.loop = true;
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            startTime = audioCtx.currentTime - pauseOffset;
+            source.start(0, pauseOffset % audioBuffer.duration);
         }
 
         document.getElementById('container').addEventListener('click', async (e) => {
             if (e.target.closest('button') || e.target.closest('a')) return;
+            if (!isPlaying) { await loadAudio(); return; }
             
-            if (!isPlaying) {
-                await initAudio();
-                return;
-            }
-
-            if (audio.paused) {
-                await audioCtx.resume();
-                audio.play();
-                document.getElementById('pausedOverlay').style.display = 'none';
-            } else {
-                audio.pause();
+            if (!isPaused) {
+                pauseOffset = audioCtx.currentTime - startTime;
+                source.stop();
+                isPaused = true;
                 document.getElementById('pausedOverlay').style.display = 'flex';
+            } else {
+                playBuffer();
+                isPaused = false;
+                document.getElementById('pausedOverlay').style.display = 'none';
             }
         });
 
@@ -240,7 +224,7 @@
         function animate() {
             requestAnimationFrame(animate);
             uniforms.uTime.value += 0.01;
-            if (texture && isPlaying && !audio.paused) {
+            if (texture && isPlaying && !isPaused) {
                 analyser.getByteFrequencyData(dataArray);
                 texture.needsUpdate = true;
             }
