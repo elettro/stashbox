@@ -12,7 +12,7 @@
         .no-select { user-select: none; -webkit-user-select: none; }
         
         #startOverlay {
-            background: radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.9) 100%);
+            background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, black 100%);
             z-index: 200;
         }
 
@@ -40,16 +40,16 @@
 <body>
     <div id="container" class="min-h-screen w-full relative overflow-hidden bg-black text-white font-sans">
         
-        <!-- LAYER 0: Visualizer (Blurred Background) -->
+        <!-- LAYER 0: Visualizer -->
         <div class="absolute inset-0 z-0 blur-xl scale-110">
             <canvas id="visualizer" class="w-full h-full block"></canvas>
         </div>
         
-        <!-- LAYER 1: UI Layer -->
+        <!-- LAYER 1: UI -->
         <div id="uiLayer" class="absolute inset-0 z-[100] pointer-events-none no-select flex flex-col justify-between p-8 opacity-0 transition-opacity duration-1000">
             
-            <!-- Top Left: Title (Lowered to avoid cut-off) -->
-            <div class="select-none pointer-events-auto text-left max-w-[85%] mt-24 md:mt-0">
+            <!-- Top Left: Title -->
+            <div class="select-none pointer-events-auto text-left max-w-[85%] mt-32 md:mt-0">
                 <h1 class="text-3xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] uppercase">
                     STASHBOX DOES DYLAN
                 </h1>
@@ -70,8 +70,8 @@
                 </button>
             </div>
 
-            <!-- YouTube Button (Balanced Height) -->
-            <div class="w-full flex justify-center pb-16 md:pb-8">
+            <!-- YouTube Button -->
+            <div class="w-full flex justify-center pb-20 md:pb-8">
                 <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/90 backdrop-blur-2xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -79,16 +79,16 @@
             </div>
         </div>
 
-        <!-- OVERLAY: Vital for Mobile Audio -->
-        <div id="startOverlay" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm transition-opacity duration-500">
+        <!-- OVERLAY -->
+        <div id="startOverlay" class="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center bg-black/80 transition-opacity duration-500">
              <button onclick="startExperience()" class="px-16 py-8 bg-red-600 hover:bg-red-700 text-white font-black text-2xl uppercase tracking-widest rounded-full border-4 border-white transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_50px_rgba(220,38,38,0.5)]">
-                ENTER
+                ENTER THE VISION
              </button>
         </div>
     </div>
 
-    <!-- AUDIO ELEMENT -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop playsinline></audio>
+    <!-- AUDIO: Using a placeholder for testing layout and visualizer pulse -->
+    <audio id="mainAudio" src="https://storage.googleapis.com/producer-app-public/clips/656867684_2367925573690016_3899857944626274483_n.mp3" loop muted playsinline crossorigin="anonymous"></audio>
 
     <script>
         const canvas = document.getElementById('visualizer');
@@ -99,7 +99,6 @@
         
         let audioCtx, analyser, dataArray, texture;
 
-        // --- ORIGINAL VISUALIZER SHADER ---
         const vertexShader = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`;
         const fragmentShader = `
             precision mediump float;
@@ -115,7 +114,8 @@
             }
             void main() {
                 float bass = texture2D(uData, vec2(0.02, 0.5)).r;
-                float pulse = pow(bass, 2.2), aspect = uResolution.x / uResolution.y;
+                float pulse = pow(bass, 2.2) + 0.05;
+                float aspect = uResolution.x / uResolution.y;
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
                 vec2 pan = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
                 vec2 p = (vUv - 0.5) * 2.0; p.x *= aspect; p *= zoom; p += pan;
@@ -146,15 +146,9 @@
 
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-
         const targetA = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight), targetB = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
         let currentTarget = targetA, prevTarget = targetB;
-
-        const uniforms = {
-            uTime: { value: 0 }, uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-            uMouse: { value: new THREE.Vector2(0.5, 0.5) }, uData: { value: null }, uPrevFrame: { value: null }
-        };
-
+        const uniforms = { uTime: { value: 0 }, uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }, uMouse: { value: new THREE.Vector2(0.5, 0.5) }, uData: { value: null }, uPrevFrame: { value: null } };
         const scene = new THREE.Scene(), camera = new THREE.Camera();
         scene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader })));
 
@@ -176,45 +170,23 @@
         window.startExperience = () => {
             initAudioEngine();
             if (audioCtx.state === "suspended") audioCtx.resume();
-            
-            // Critical: Play AND Unmute synchronously on tap
-            audio.muted = false;
             audio.play();
-
             startOverlay.style.opacity = '0';
-            setTimeout(() => {
-                startOverlay.style.display = 'none';
-                uiLayer.style.opacity = '1';
-            }, 500);
+            setTimeout(() => { startOverlay.style.display = 'none'; uiLayer.style.opacity = '1'; }, 500);
         };
 
         window.toggleMute = (e) => {
             if (e) e.stopPropagation();
             if (!audioCtx) initAudioEngine();
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
             audio.muted = !audio.muted;
-            updateIcon();
+            document.getElementById('muteIcon').innerHTML = audio.muted ? 
+                '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>' : 
+                '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M18.88 18.88A9 9 0 0 1 15 19l-7-7"></path><path d="M11 5L6 9H2v6h4l5 4V5z"></path>';
         };
 
-        function updateIcon() {
-            const icon = document.getElementById('muteIcon');
-            icon.innerHTML = audio.muted ? 
-                '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M18.88 18.88A9 9 0 0 1 15 19l-7-7"></path><path d="M11 5L6 9H2v6h4l5 4V5z"></path>' : 
-                '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
-        }
-
-        window.handleShare = (e) => {
-            if (e) e.stopPropagation();
-            if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
-        };
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            targetA.setSize(window.innerWidth, window.innerHeight); targetB.setSize(window.innerWidth, window.innerHeight);
-            uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
-        });
-
+        window.handleShare = (e) => { if (e) e.stopPropagation(); if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href }); };
+        window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); targetA.setSize(window.innerWidth, window.innerHeight); targetB.setSize(window.innerWidth, window.innerHeight); uniforms.uResolution.value.set(window.innerWidth, window.innerHeight); });
         const updateMouse = (x, y) => uniforms.uMouse.value.set(x / window.innerWidth, 1 - y / window.innerHeight);
         window.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
         window.addEventListener('touchstart', (e) => updateMouse(e.touches[0].clientX, e.touches[0].clientY));
@@ -223,13 +195,7 @@
         function animate() {
             requestAnimationFrame(animate);
             uniforms.uTime.value += 0.01;
-            
-            // Shader pulse reacts when audio data is flowing
-            if (texture && !audio.muted) {
-                analyser.getByteFrequencyData(dataArray);
-                texture.needsUpdate = true;
-            }
-            
+            if (texture) { analyser.getByteFrequencyData(dataArray); texture.needsUpdate = true; }
             uniforms.uPrevFrame.value = prevTarget.texture;
             renderer.setRenderTarget(currentTarget);
             renderer.render(scene, camera);
