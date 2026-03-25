@@ -15,12 +15,12 @@
 <body>
     <div id="container" class="min-h-screen w-full relative overflow-hidden bg-black text-white font-sans">
         
-        <!-- Background Layer (Blurred) -->
+        <!-- Layer 0: The Trippy Background (Blurred) -->
         <div class="absolute inset-0 z-0 blur-xl scale-110">
             <canvas id="visualizer" class="w-full h-full block"></canvas>
         </div>
         
-        <!-- UI Layer (Sharp) -->
+        <!-- Layer 1: Sharp UI elements (Titles, Share, YouTube) -->
         <div class="relative z-50 w-full h-screen pointer-events-none no-select">
             <div class="absolute top-8 left-8 select-none pointer-events-auto text-left">
                 <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
@@ -58,8 +58,8 @@
         </div>
     </div>
 
-    <!-- Hidden Audio -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop></audio>
+    <!-- Hidden Audio Element -->
+    <audio id="mainAudio" src="visionsofjoanna.mp3" loop preload="auto"></audio>
 
     <script>
         const vertexShader = `
