@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elettro Nebula - BloodEyes Auto-Sync</title>
+    <title>Elettro Nebula - BloodEyes Debug</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -18,17 +18,18 @@
         function ElettroNebula() {
             const canvasRef = useRef(null);
             const [isAudioActive, setIsAudioActive] = useState(false);
+            const [error, setError] = useState(null);
             const [sensitivity, setSensitivity] = useState(1.0);
             const [currentLine, setCurrentLine] = useState(0);
             const [burst, setBurst] = useState(0);
-            const [showCopied, setShowCopied] = useState(false);
             const sensitivityRef = useRef(1.0);
             const burstRef = useRef(0);
             const analyserRef = useRef(null);
             const dataArrayRef = useRef(null);
             const audioRef = useRef(null);
 
-            const audioUrl = "BloodEyes.m4a";
+            // Relative path to your file
+            const audioUrl = "./BloodEyes.m4a";
 
             const lyrics = [
                 "Oh, good morning", "Sweet and blue", "Sweet good-looking girl", "And I'm gonna make love to you",
@@ -46,29 +47,20 @@
                 "I said, I don't care what in the world", "I don't care what in the world you do"
             ];
 
-            // Auto-Sync Mapping (approximate seconds for each line based on track analysis)
-            const lineTimestamps = [
-                27, 30, 33, 37, // Verse 1
-                41, 45, 50, 55, 60, 64, // Chorus 1
-                68, 72, 75, 78, // Verse 2
-                82, 86, 91, 96, 101, 104, // Chorus 2
-                154, 158, 161, 165, // Verse 3 (After solo)
-                169, 173, 178, 183, 188, 193, // Chorus 3
-                198, 202, 205, 208, // Verse 4
-                209, 213, 218, 223, 228, 232, 234, 235 // Chorus 4 / Outro
-            ];
-
-            const nextLyric = () => {
-                setCurrentLine((prev) => (prev + 1) % lyrics.length);
-                setBurst(1); burstRef.current = 1.5;
-                setTimeout(() => { setBurst(0); burstRef.current = 0; }, 500);
-            };
+            const lineTimestamps = [27, 30, 33, 37, 41, 45, 50, 55, 60, 64, 68, 72, 75, 78, 82, 86, 91, 96, 101, 104, 154, 158, 161, 165, 169, 173, 178, 183, 188, 193, 198, 202, 205, 208, 209, 213, 218, 223, 228, 232, 234, 235];
 
             const startAudio = async () => {
+                setError(null);
                 try {
                     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const audio = new Audio(audioUrl);
+                    const audio = new Audio();
+                    audio.src = audioUrl;
                     audio.crossOrigin = "anonymous";
+                    
+                    audio.onerror = () => {
+                        setError(`Could not find "${audioUrl}". Check the filename!`);
+                    };
+
                     const source = audioContext.createMediaElementSource(audio);
                     const analyser = audioContext.createAnalyser();
                     analyser.fftSize = 256;
@@ -77,15 +69,13 @@
                     analyserRef.current = analyser;
                     dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
                     audioRef.current = audio;
-                    audio.play();
+                    
+                    await audio.play();
                     setIsAudioActive(true);
-                } catch (err) { console.error(err); }
-            };
-
-            const handleShare = () => {
-                navigator.clipboard.writeText(window.location.href);
-                setShowCopied(true);
-                setTimeout(() => setShowCopied(false), 2000);
+                } catch (err) {
+                    setError("Interaction required or file error. Try clicking again.");
+                    console.error(err);
+                }
             };
 
             useEffect(() => {
@@ -98,34 +88,27 @@
 
                 class Particle {
                     constructor(w, h) {
-                        this.x = Math.random() * w;
-                        this.y = Math.random() * h;
-                        this.vx = (Math.random() - 0.5) * 1.5;
-                        this.vy = (Math.random() - 0.5) * 1.5;
-                        this.baseSize = Math.random() * 1.2 + 0.5;
-                        this.size = this.baseSize;
+                        this.x = Math.random() * w; this.y = Math.random() * h;
+                        this.vx = (Math.random() - 0.5) * 1.5; this.vy = (Math.random() - 0.5) * 1.5;
+                        this.baseSize = Math.random() * 1.2 + 0.5; this.size = this.baseSize;
                         this.hue = Math.random() * 360;
                     }
                     update(w, h, energy) {
                         const mult = sensitivityRef.current;
-                        const burstMult = 1 + burstRef.current * 10;
-                        this.x += this.vx * (1 + energy * 8 * mult) * burstMult;
-                        this.y += this.vy * (1 + energy * 8 * mult) * burstMult;
+                        const bM = 1 + burstRef.current * 10;
+                        this.x += this.vx * (1 + energy * 8 * mult) * bM;
+                        this.y += this.vy * (1 + energy * 8 * mult) * bM;
                         this.size = this.baseSize + energy * 20 * mult + (burstRef.current * 10);
                         if (this.x < 0 || this.x > w) this.vx *= -1;
                         if (this.y < 0 || this.y > h) this.vy *= -1;
                     }
                     draw(context, energy, globalHue) {
-                        context.beginPath();
-                        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        context.beginPath(); context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                         let h = (this.hue + globalHue + energy * 120) % 360;
                         if (h > 270 && h < 330) h = h < 300 ? 270 : 330;
                         context.fillStyle = `hsla(${h}, 100%, 50%, ${0.5 + energy * 0.5})`;
                         context.fill();
-                        if (energy > 0.4) {
-                            context.shadowBlur = energy * 30;
-                            context.shadowColor = `hsla(${h}, 100%, 60%, 0.9)`;
-                        } else { context.shadowBlur = 0; }
+                        if (energy > 0.4) { context.shadowBlur = energy * 30; context.shadowColor = `hsla(${h}, 100%, 60%, 0.9)`; }
                     }
                 }
 
@@ -137,8 +120,6 @@
                 const render = () => {
                     let avgEnergy = 0;
                     hueOffset = (hueOffset + 0.3) % 360;
-
-                    // Auto-sync logic
                     if (audioRef.current && !audioRef.current.paused) {
                         const time = audioRef.current.currentTime;
                         const targetLine = lineTimestamps.findIndex(t => t > time) - 1;
@@ -149,27 +130,23 @@
                             setTimeout(() => { setBurst(0); burstRef.current = 0; }, 500);
                         }
                     }
-
                     if (analyserRef.current && dataArrayRef.current) {
                         analyserRef.current.getByteFrequencyData(dataArrayRef.current);
                         let sum = 0;
                         for (let i = 0; i < dataArrayRef.current.length; i++) sum += dataArrayRef.current[i];
                         avgEnergy = sum / dataArrayRef.current.length / 255;
                     }
-                    ctx.fillStyle = "rgba(5, 5, 5, 0.25)";
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = "rgba(5, 5, 5, 0.25)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
                     particles.forEach(p => { p.update(canvas.width, canvas.height, avgEnergy); p.draw(ctx, avgEnergy, hueOffset); });
                     const mult = sensitivityRef.current;
                     const maxDist = 90 + avgEnergy * 220 * mult;
                     ctx.lineWidth = 0.4 + avgEnergy * 3 * mult;
                     for (let i = 0; i < particles.length; i++) {
                         for (let j = i + 1; j < particles.length; j++) {
-                            const dx = particles[i].x - particles[j].x;
-                            const dy = particles[i].y - particles[j].y;
+                            const dx = particles[i].x - particles[j].x; const dy = particles[i].y - particles[j].y;
                             const dist = Math.sqrt(dx * dx + dy * dy);
                             if (dist < maxDist) {
-                                let lh = (hueOffset + 180) % 360;
-                                if (lh > 270 && lh < 330) lh = lh < 300 ? 270 : 330;
+                                let lh = (hueOffset + 180) % 360; if (lh > 270 && lh < 330) lh = lh < 300 ? 270 : 330;
                                 ctx.strokeStyle = `hsla(${lh}, 100%, 55%, ${(1 - dist / maxDist) * (0.25 + avgEnergy * 0.6)})`;
                                 ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
                             }
@@ -185,35 +162,25 @@
             }, [currentLine]);
 
             return (
-                <div className="min-h-screen w-full bg-black flex items-center justify-center p-8 select-none" onKeyDown={(e) => { if (e.code === "Space") { e.preventDefault(); nextLyric(); } }} tabIndex={0}>
-                    <div onClick={nextLyric} className="relative w-full max-w-4xl aspect-video bg-[#050505] rounded-3xl overflow-hidden shadow-2xl border border-white/5 cursor-pointer active:scale-[0.995] transition-transform">
+                <div className="min-h-screen w-full bg-black flex items-center justify-center p-8 select-none" tabIndex={0}>
+                    <div className="relative w-full max-w-4xl aspect-video bg-[#050505] rounded-3xl overflow-hidden shadow-2xl border border-white/5">
                         <canvas ref={canvasRef} className="w-full h-full" />
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-12 text-center">
                             {isAudioActive && (
                                 <div className={`transition-all duration-300 transform ${burst > 0 ? 'scale-110 opacity-100' : 'scale-100 opacity-60'}`}>
                                     <p className="text-white text-3xl md:text-5xl font-light tracking-wide uppercase italic drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">{lyrics[currentLine]}</p>
-                                    <p className="text-white/10 text-[10px] uppercase tracking-[0.4em] mt-8 font-mono">Auto-Sync Active</p>
+                                    <p className="text-white/10 text-[10px] uppercase tracking-[0.4em] mt-8 font-mono italic">BloodEyes Auto-Sync</p>
                                 </div>
                             )}
+                            {error && <p className="text-red-500 font-mono text-xs bg-black/80 p-4 rounded-lg border border-red-500/20">{error}</p>}
                         </div>
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            {!isAudioActive && (
+                            {!isAudioActive && !error && (
                                 <button onClick={startAudio} className="pointer-events-auto px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-full text-white font-medium transition-all active:scale-95">Launch BloodEyes</button>
                             )}
-                        </div>
-                        <div className="absolute top-8 left-8 text-white pointer-events-none">
-                            <h2 className="text-2xl font-light tracking-widest opacity-90 uppercase">Elettro Nebula</h2>
-                            <div className="flex items-center gap-2 mt-2">
-                                <div className={`w-2 h-2 rounded-full ${isAudioActive ? 'bg-cyan-400 animate-pulse' : 'bg-white/20'}`} />
-                                <p className="text-xs font-mono opacity-40 uppercase tracking-tighter">{isAudioActive ? 'Neural Link Synced' : 'Offline'}</p>
-                            </div>
-                        </div>
-                        <div className="absolute top-8 right-8 pointer-events-auto">
-                            <button onClick={handleShare} className="px-4 py-2 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[10px] text-white/60 uppercase tracking-widest transition-all">{showCopied ? 'Link Copied' : 'Share Space'}</button>
-                        </div>
-                        <div className="absolute bottom-8 right-8 flex flex-col items-end gap-2 pointer-events-auto">
-                            <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em]">Intensity Gain</p>
-                            <input type="range" min="0.5" max="5" step="0.1" value={sensitivity} onChange={(e) => { const val = parseFloat(e.target.value); setSensitivity(val); sensitivityRef.current = val; }} className="w-48 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-cyan-400" />
+                            {error && (
+                                <button onClick={() => window.location.reload()} className="pointer-events-auto px-8 py-4 bg-red-500/20 hover:bg-red-500/40 backdrop-blur-md border border-red-500/40 rounded-full text-white font-medium transition-all active:scale-95">Restart & Check File</button>
+                            )}
                         </div>
                     </div>
                 </div>
