@@ -12,7 +12,7 @@
         .no-select { user-select: none; -webkit-user-select: none; }
         
         #startOverlay {
-            background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, black 100%);
+            background: radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.9) 100%);
             z-index: 200;
         }
 
@@ -35,22 +35,30 @@
                 flex-direction: row;
             }
         }
+
+        /* SAFE AREA INSETS FOR MOBILE NOTCH & BARS */
+        #uiLayer {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
     </style>
 </head>
 <body>
     <div id="container" class="min-h-screen w-full relative overflow-hidden bg-black text-white font-sans">
         
-        <!-- LAYER 0: Visualizer -->
+        <!-- LAYER 0: Visualizer (Blurred Background) -->
         <div class="absolute inset-0 z-0 blur-xl scale-110">
             <canvas id="visualizer" class="w-full h-full block"></canvas>
         </div>
         
-        <!-- LAYER 1: UI Layer -->
+        <!-- LAYER 1: Sharp UI (Top Layer) -->
         <div id="uiLayer" class="absolute inset-0 z-[100] pointer-events-none no-select flex flex-col justify-between p-8 opacity-0 transition-opacity duration-1000">
             
-            <!-- Top Left: Title (Heavy margin for notch clearance) -->
-            <div class="select-none pointer-events-auto text-left max-w-[85%] mt-36 md:mt-0">
-                <h1 class="text-3xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] uppercase">
+            <!-- Top Left: Title (Cleared from notch via padding) -->
+            <div class="select-none pointer-events-auto text-left max-w-[85%] mt-8 md:mt-0">
+                <h1 class="text-3xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] uppercase leading-none">
                     STASHBOX DOES DYLAN
                 </h1>
                 <p class="text-lg md:text-2xl font-bold mt-1 text-red-500 drop-shadow-[0_2px_2px_rgba(0,0,0,1)] uppercase">
@@ -58,7 +66,7 @@
                 </p>
             </div>
 
-            <!-- Sidebar Controls -->
+            <!-- Sidebar / Top Right Controls -->
             <div class="sidebar-controls pointer-events-auto">
                 <button id="muteToggle" onclick="toggleMute(event)" class="p-5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 shadow-2xl active:scale-95 transition-all">
                     <svg id="muteIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white">
@@ -70,7 +78,7 @@
                 </button>
             </div>
 
-            <!-- YouTube Button (Bottom clearance) -->
+            <!-- Bottom Center: YouTube Link (Balanced bottom clearance) -->
             <div class="w-full flex justify-center pb-6 md:pb-8">
                 <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/90 backdrop-blur-2xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
@@ -79,8 +87,8 @@
             </div>
         </div>
 
-        <!-- OVERLAY: Mobile Tap to Start -->
-        <div id="startOverlay" class="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm transition-opacity duration-500">
+        <!-- MOBILE START OVERLAY -->
+        <div id="startOverlay" class="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center bg-black/60 backdrop-blur-md transition-opacity duration-500">
              <button onclick="startExperience()" class="px-16 py-8 bg-red-600 hover:bg-red-700 text-white font-black text-2xl uppercase tracking-widest rounded-full border-4 border-white transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_50px_rgba(220,38,38,0.5)]">
                 ENTER THE VISION
              </button>
@@ -169,19 +177,26 @@
             } catch (err) { console.error("Web Audio fail:", err); }
         }
 
-        window.startExperience = () => {
+        window.startExperience = async () => {
             initAudioEngine();
-            if (audioCtx.state === "suspended") audioCtx.resume();
+            if (audioCtx.state === "suspended") await audioCtx.resume();
+            
+            // Critical sequence for mobile audio unlock
+            audio.muted = false;
             audio.play().then(() => {
                 startOverlay.style.opacity = '0';
-                setTimeout(() => { startOverlay.style.display = 'none'; uiLayer.style.opacity = '1'; }, 500);
-            }).catch(e => console.error("Play error:", e));
+                setTimeout(() => {
+                    startOverlay.style.display = 'none';
+                    uiLayer.style.opacity = '1';
+                }, 500);
+            }).catch(e => console.error("Audio playback error:", e));
         };
 
-        window.toggleMute = (e) => {
+        window.toggleMute = async (e) => {
             if (e) e.stopPropagation();
             if (!audioCtx) initAudioEngine();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+            
             audio.muted = !audio.muted;
             document.getElementById('muteIcon').innerHTML = audio.muted ? 
                 '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>' : 
@@ -189,7 +204,14 @@
         };
 
         window.handleShare = (e) => { if (e) e.stopPropagation(); if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href }); };
-        window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); targetA.setSize(window.innerWidth, window.innerHeight); targetB.setSize(window.innerWidth, window.innerHeight); uniforms.uResolution.value.set(window.innerWidth, window.innerHeight); });
+        
+        window.addEventListener('resize', () => { 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+            targetA.setSize(window.innerWidth, window.innerHeight); 
+            targetB.setSize(window.innerWidth, window.innerHeight); 
+            uniforms.uResolution.value.set(window.innerWidth, window.innerHeight); 
+        });
+        
         const updateMouse = (x, y) => uniforms.uMouse.value.set(x / window.innerWidth, 1 - y / window.innerHeight);
         window.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
         window.addEventListener('touchstart', (e) => updateMouse(e.touches[0].clientX, e.touches[0].clientY));
@@ -198,7 +220,10 @@
         function animate() {
             requestAnimationFrame(animate);
             uniforms.uTime.value += 0.01;
-            if (texture) { analyser.getByteFrequencyData(dataArray); texture.needsUpdate = true; }
+            if (texture) {
+                analyser.getByteFrequencyData(dataArray);
+                texture.needsUpdate = true;
+            }
             uniforms.uPrevFrame.value = prevTarget.texture;
             renderer.setRenderTarget(currentTarget);
             renderer.render(scene, camera);
