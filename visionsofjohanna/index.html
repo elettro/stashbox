@@ -58,10 +58,10 @@
         </div>
     </div>
 
-    <!-- Hidden Audio Element -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop preload="auto"></audio>
-
     <script>
+        // CONFIG
+        const AUDIO_FILE = "visionsofjoanna.mp3";
+
         const vertexShader = `
             varying vec2 vUv;
             void main() {
@@ -106,7 +106,7 @@
             }
 
             void main() {
-                float bass = texture2D(uData, vec2(0.02, 0.0)).r;
+                float bass = texture2D(uData, vec2(0.02, 0.5)).r;
                 float pulse = pow(bass, 2.2);
                 float aspect = uResolution.x / uResolution.y;
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
@@ -162,7 +162,7 @@
         `;
 
         const canvas = document.getElementById('visualizer'), overlay = document.getElementById('startOverlay');
-        const audio = document.getElementById('mainAudio'), renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -177,37 +177,50 @@
         const scene = new THREE.Scene(), camera = new THREE.Camera();
         scene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader })));
 
-        let audioCtx, analyser, dataArray, texture, isPlaying = false;
+        let audio, audioCtx, analyser, dataArray, texture, isPlaying = false;
 
-        async function start() {
+        async function initAudio() {
             if (isPlaying) return;
+            
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
+
+            audio = new Audio();
+            audio.src = AUDIO_FILE;
+            audio.loop = true;
             
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioCtx.createMediaElementSource(audio);
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-                analyser.connect(audioCtx.destination);
-                
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-                texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
-                uniforms.uData.value = texture;
-                
-                audio.play();
-                isPlaying = true;
-            } catch (err) {
-                console.log("Audio load error:", err);
-            }
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaElementSource(audio);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
+            uniforms.uData.value = texture;
+
+            await audioCtx.resume();
+            await audio.play();
+            isPlaying = true;
         }
 
-        document.getElementById('container').addEventListener('click', (e) => {
+        document.getElementById('container').addEventListener('click', async (e) => {
             if (e.target.closest('button') || e.target.closest('a')) return;
-            if (!isPlaying) { start(); return; }
-            audio.paused ? audio.play() : audio.pause();
-            document.getElementById('pausedOverlay').style.display = audio.paused ? 'flex' : 'none';
+            
+            if (!isPlaying) {
+                await initAudio();
+                return;
+            }
+
+            if (audio.paused) {
+                await audioCtx.resume();
+                audio.play();
+                document.getElementById('pausedOverlay').style.display = 'none';
+            } else {
+                audio.pause();
+                document.getElementById('pausedOverlay').style.display = 'flex';
+            }
         });
 
         window.addEventListener('resize', () => {
