@@ -55,7 +55,6 @@
 
             <!-- Sidebar / Top Right Controls -->
             <div class="sidebar-controls pointer-events-auto">
-                <!-- Volume Toggle -->
                 <button id="muteButton" onclick="handleUnmute(event)" class="p-5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 shadow-2xl active:scale-95 transition-all">
                     <svg id="muteIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white">
                         <line x1="1" y1="1" x2="23" y2="23"></line>
@@ -63,88 +62,74 @@
                         <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
                     </svg>
                 </button>
-                <!-- Share -->
                 <button onclick="handleShare(event)" class="p-5 bg-green-600 rounded-full border border-white/20 shadow-2xl active:scale-95 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                 </button>
             </div>
 
-            <!-- Bottom Center: YouTube Link (Moved up for mobile) -->
-            <div class="w-full flex justify-center pb-24 md:pb-4">
+            <!-- Bottom Center: YouTube Link (BUMPED UP FOR MOBILE) -->
+            <div class="w-full flex justify-center pb-36 md:pb-4">
                 <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/90 backdrop-blur-2xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 </a>
             </div>
         </div>
+
+        <div id="pausedOverlay" class="absolute inset-0 z-30 hidden items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none no-select">
+            <p class="text-5xl font-black uppercase tracking-[0.5em] text-white/30">PAUSED</p>
+        </div>
     </div>
 
-    <!-- The Song File -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop preload="auto"></audio>
+    <!-- MAIN AUDIO: Standard Autoplay Muted (Works on all mobile browsers) -->
+    <audio id="mainAudio" src="visionsofjoanna.mp3" loop muted autoplay playsinline></audio>
 
     <script>
         const canvas = document.getElementById('visualizer');
         const audio = document.getElementById('mainAudio');
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         
-        let isMuted = true;
         let audioCtx, analyser, dataArray, texture;
-
         const vertexShader = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`;
         const fragmentShader = `
             precision mediump float;
             uniform vec2 uResolution; uniform float uTime; uniform sampler2D uData; uniform vec2 uMouse; uniform sampler2D uPrevFrame;
             varying vec2 vUv;
-
             float noise(vec2 p) {
-                vec2 i = floor(p), f = fract(p);
-                vec2 u = f * f * (3.0 - 2.0 * f);
+                vec2 i = floor(p), f = fract(p), u = f*f*(3.0-2.0*f);
                 float a = fract(sin(dot(i, vec2(12.7, 31.1))) * 43758.5);
                 float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(12.7, 31.1))) * 43758.5);
                 float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(12.7, 31.1))) * 43758.5);
                 float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(12.7, 31.1))) * 43758.5);
                 return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
             }
-
             void main() {
                 float bass = texture2D(uData, vec2(0.02, 0.5)).r;
                 float pulse = pow(bass, 2.2), aspect = uResolution.x / uResolution.y;
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
                 vec2 pan = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
                 vec2 p = (vUv - 0.5) * 2.0; p.x *= aspect; p *= zoom; p += pan;
-
                 vec2 m = (uMouse - 0.5) * 2.0; m.x *= aspect;
                 float mouseStrength = smoothstep(0.8, 0.0, length(p - m));
                 float swirl = mouseStrength * 5.0;
                 vec2 vp = p - m;
                 vp = vec2(vp.x * cos(swirl) - vp.y * sin(swirl), vp.x * sin(swirl) + vp.y * cos(swirl));
                 vp *= (1.0 + mouseStrength * 2.5);
-                vec2 flowP = (vp + m) * (2.5 - pulse * 0.5);
-
-                vec2 flow = flowP;
+                vec2 flow = (vp + m) * (2.5 - pulse * 0.5);
                 for(int i = 0; i < 7; i++) {
                     float fi = float(i);
                     flow.x += (0.5 + pulse) * sin(flow.y * 1.2 + uTime * 0.4 + fi);
                     flow.y += (0.4 + pulse) * cos(flow.x * 0.8 - uTime * 0.28 + fi);
                 }
-
                 vec3 rRed = vec3(0.85, 0.05, 0.05), rGold = vec3(1.0, 0.8, 0.0), rGreen = vec3(0.0, 0.5, 0.15), rBlack = vec3(0.01);
                 float mixVal = fract(sin(flow.x * 0.4) * cos(flow.y * 0.4) * 0.2 + uTime * 0.02 + pulse * 0.1 + noise(flow * 0.5) * 0.08);
-                
-                vec3 col;
-                if(mixVal < 0.33) col = mix(rRed, rGold, smoothstep(0.0, 0.33, mixVal));
-                else if(mixVal < 0.66) col = mix(rGold, rGreen, smoothstep(0.33, 0.66, mixVal));
-                else col = mix(rGreen, rRed, smoothstep(0.66, 1.0, mixVal));
-                
+                vec3 col = (mixVal < 0.33) ? mix(rRed, rGold, smoothstep(0.0, 0.33, mixVal)) : (mixVal < 0.66) ? mix(rGold, rGreen, smoothstep(0.33, 0.66, mixVal)) : mix(rGreen, rRed, smoothstep(0.66, 1.0, mixVal));
                 col = mix(col, rBlack, (smoothstep(0.06 + pulse * 0.1, 0.0, abs(mixVal - 0.33)) + smoothstep(0.06 + pulse * 0.1, 0.0, abs(mixVal - 0.66))) * 0.65);
-
-                vec2 trailUv = vUv - 0.5;
-                trailUv *= 0.99 + pulse * 0.02;
+                vec2 trailUv = vUv - 0.5; trailUv *= 0.99 + pulse * 0.02;
                 trailUv = vec2(trailUv.x * cos(0.01) - trailUv.y * sin(0.01), trailUv.x * sin(0.01) + trailUv.y * cos(0.01)) + 0.5;
                 vec3 prev = texture2D(uPrevFrame, trailUv).rgb;
                 prev.r = texture2D(uPrevFrame, trailUv + 0.002).r; prev.b = texture2D(uPrevFrame, trailUv - 0.002).b;
                 col = mix(col, prev, 0.93 + pulse * 0.02);
-
                 gl_FragColor = vec4(col * smoothstep(2.5, 0.4, length(vUv - 0.5) * 2.2), 1.0);
             }
         `;
@@ -163,7 +148,7 @@
         const scene = new THREE.Scene(), camera = new THREE.Camera();
         scene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader })));
 
-        function initAudio() {
+        function initAudioEngine() {
             if (audioCtx) return;
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -175,23 +160,19 @@
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
                 texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
                 uniforms.uData.value = texture;
-            } catch (err) {}
+            } catch (err) { console.error("Web Audio fail:", err); }
         }
 
         window.handleUnmute = async (e) => {
             if (e) e.stopPropagation();
-            if (!audioCtx) initAudio();
+            initAudioEngine();
             
-            isMuted = !isMuted;
-            audio.muted = isMuted;
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
             
-            // Explicitly play on unmute to handle mobile gesture requirements
-            if (!isMuted) {
-                await audioCtx.resume();
-                audio.play();
-            }
+            audio.muted = !audio.muted;
+            if (!audio.muted) audio.play();
 
-            document.getElementById('muteIcon').innerHTML = isMuted ? 
+            document.getElementById('muteIcon').innerHTML = audio.muted ? 
                 '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M18.88 18.88A9 9 0 0 1 15 19l-7-7"></path><path d="M11 5L6 9H2v6h4l5 4V5z"></path>' : 
                 '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
         };
@@ -200,6 +181,14 @@
             if (e) e.stopPropagation();
             if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
         };
+
+        document.getElementById('container').addEventListener('click', (e) => {
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            if (window.innerWidth > 768) {
+                audio.paused ? audio.play() : audio.pause();
+                document.getElementById('pausedOverlay').style.display = audio.paused ? 'flex' : 'none';
+            }
+        });
 
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
