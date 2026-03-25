@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elettro Nebula - BloodEyes Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-black text-white m-0 p-0 overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useRef, useEffect, useState } = React;
+
+        function ElettroNebula() {
+            const canvasRef = useRef(null);
+            const [isAudioActive, setIsAudioActive] = useState(false);
+            const [sensitivity, setSensitivity] = useState(1.5);
+            const [showCopied, setShowCopied] = useState(false);
+            const sensitivityRef = useRef(1.5);
+            const analyserRef = useRef(null);
+            const dataArrayRef = useRef(null);
+            const audioRef = useRef(null);
+
+            // Points to the local file in your GitHub folder
+            const audioUrl = "BloodEyes.m4a";
+
+            const startAudio = async () => {
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const audio = new Audio(audioUrl);
+                    audio.crossOrigin = "anonymous";
+                    
+                    const source = audioContext.createMediaElementSource(audio);
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    
+                    analyserRef.current = analyser;
+                    dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    audioRef.current = audio;
+                    audio.play();
+                    setIsAudioActive(true);
+                } catch (err) {
+                    console.error("Audio playback failed:", err);
+                    alert("Ensure 'BloodEyes.m4a' is in the same folder as this file!");
+                }
+            };
+
+            const handleShare = () => {
+                navigator.clipboard.writeText(window.location.href);
+                setShowCopied(true);
+                setTimeout(() => setShowCopied(false), 2000);
+            };
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext("2d");
+                let animationFrameId;
+                let particles = [];
+                let hueOffset = 0;
+                const numParticles = 120;
+
+                class Particle {
+                    constructor(w, h) {
+                        this.x = Math.random() * w;
+                        this.y = Math.random() * h;
+                        this.vx = (Math.random() - 0.5) * 2.5; // Hyper Speed
+                        this.vy = (Math.random() - 0.5) * 2.5;
+                        this.baseSize = Math.random() * 2 + 1;
+                        this.size = this.baseSize;
+                        this.hue = Math.random() * 360;
+                    }
+                    update(w, h, energy) {
+                        const mult = sensitivityRef.current;
+                        this.x += this.vx * (1 + energy * 15 * mult);
+                        this.y += this.vy * (1 + energy * 15 * mult);
+                        this.size = this.baseSize + energy * 40 * mult;
+                        if (this.x < 0 || this.x > w) this.vx *= -1;
+                        if (this.y < 0 || this.y > h) this.vy *= -1;
+                    }
+                    draw(context, energy, globalHue) {
+                        context.beginPath();
+                        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        const currentHue = (this.hue + globalHue + energy * 100) % 360;
+                        context.fillStyle = `hsla(${currentHue}, 90%, ${60 + energy * 20}%, ${0.4 + energy * 0.6})`;
+                        context.fill();
+                        if (energy > 0.5) {
+                            context.shadowBlur = energy * 25;
+                            context.shadowColor = `hsla(${currentHue}, 90%, 70%, 0.8)`;
+                        } else {
+                            context.shadowBlur = 0;
+                        }
+                    }
+                }
+
+                const init = () => {
+                    particles = [];
+                    for (let i = 0; i < numParticles; i++) particles.push(new Particle(canvas.width, canvas.height));
+                };
+
+                const render = () => {
+                    let avgEnergy = 0;
+                    hueOffset = (hueOffset + 0.5) % 360; // Psychedelic Color Cycle
+                    if (analyserRef.current && dataArrayRef.current) {
+                        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+                        let sum = 0;
+                        for (let i = 0; i < dataArrayRef.current.length; i++) sum += dataArrayRef.current[i];
+                        avgEnergy = sum / dataArrayRef.current.length / 255;
+                    }
+                    
+                    // Hyper Trail Motion Blur
+                    ctx.fillStyle = "rgba(5, 5, 5, 0.05)";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    particles.forEach(p => {
+                        p.update(canvas.width, canvas.height, avgEnergy);
+                        p.draw(ctx, avgEnergy, hueOffset);
+                    });
+
+                    const mult = sensitivityRef.current;
+                    const maxDist = 100 + avgEnergy * 300 * mult;
+                    ctx.lineWidth = 0.5 + avgEnergy * 4 * mult;
+                    for (let i = 0; i < particles.length; i++) {
+                        for (let j = i + 1; j < particles.length; j++) {
+                            const dx = particles[i].x - particles[j].x;
+                            const dy = particles[i].y - particles[j].y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            if (dist < maxDist) {
+                                const opacity = (1 - dist / maxDist) * (0.3 + avgEnergy);
+                                const lineHue = (hueOffset + 180) % 360;
+                                ctx.strokeStyle = `hsla(${lineHue}, 80%, 70%, ${opacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(particles[i].x, particles[i].y);
+                                ctx.lineTo(particles[j].x, particles[j].y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    animationFrameId = requestAnimationFrame(render);
+                };
+
+                const handleResize = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    init();
+                };
+
+                window.addEventListener("resize", handleResize);
+                handleResize();
+                render();
+                return () => {
+                    window.removeEventListener("resize", handleResize);
+                    cancelAnimationFrame(animationFrameId);
+                };
+            }, []);
+
+            return (
+                <div className="relative w-screen h-screen bg-[#050505] overflow-hidden">
+                    <canvas ref={canvasRef} className="w-full h-full block" />
+                    
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        {!isAudioActive && (
+                            <button onClick={startAudio} className="pointer-events-auto px-10 py-5 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 rounded-full text-white font-light tracking-widest transition-all active:scale-95 uppercase text-sm">
+                                Launch BloodEyes
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="absolute top-10 left-10 text-white pointer-events-none">
+                        <h1 className="text-3xl font-extralight tracking-[0.3em] opacity-90 uppercase">Elettro Nebula</h1>
+                        <div className="flex items-center gap-3 mt-3">
+                            <div className={`w-2 h-2 rounded-full ${isAudioActive ? 'bg-cyan-400 animate-pulse' : 'bg-white/20'}`} />
+                            <p className="text-[10px] font-mono opacity-40 uppercase tracking-[0.2em]">
+                                {isAudioActive ? 'System Synchronized' : 'Ready for Launch'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="absolute top-10 right-10 pointer-events-auto">
+                        <button onClick={handleShare} className="px-6 py-2 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-full text-[10px] text-white/60 uppercase tracking-widest transition-all">
+                            {showCopied ? 'Link Copied' : 'Share Space'}
+                        </button>
+                    </div>
+
+                    <div className="absolute bottom-10 right-10 flex flex-col items-end gap-3 pointer-events-auto">
+                        <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em]">Intensity Gain</p>
+                        <input type="range" min="0.5" max="5" step="0.1" value={sensitivity} onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setSensitivity(val);
+                            sensitivityRef.current = val;
+                        }} className="w-64 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-cyan-400" />
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ElettroNebula />);
+    </script>
+</body>
