@@ -15,14 +15,13 @@
 <body>
     <div id="container" class="min-h-screen w-full relative overflow-hidden bg-black text-white font-sans">
         
-        <!-- Background Visualizer Layer (Blurred) -->
+        <!-- Layer 0: The Trippy Background (Blurred) -->
         <div class="absolute inset-0 z-0 blur-xl scale-110">
             <canvas id="visualizer" class="w-full h-full block"></canvas>
         </div>
         
-        <!-- Sharp UI Layer (Above everything else) -->
+        <!-- Layer 1: Sharp UI elements (Titles, Share, YouTube) -->
         <div class="relative z-50 w-full h-screen pointer-events-none no-select">
-            <!-- Top Left Title -->
             <div class="absolute top-8 left-8 select-none pointer-events-auto text-left">
                 <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
                     STASHBOX DOES DYLAN
@@ -32,14 +31,12 @@
                 </p>
             </div>
 
-            <!-- Top Right Share -->
             <div class="absolute top-8 right-8 pointer-events-auto">
                 <button id="shareButton" class="p-4 bg-green-600 hover:bg-green-500 rounded-full transition-all duration-300 shadow-2xl border border-white/10 group">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white group-hover:scale-110"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                 </button>
             </div>
 
-            <!-- Bottom YouTube Link -->
             <div class="absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto">
                 <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
@@ -61,8 +58,8 @@
         </div>
     </div>
 
-    <!-- Hidden Audio Element -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop crossorigin="anonymous"></audio>
+    <!-- CLEAN AUDIO TAG -->
+    <audio id="mainAudio" src="./visionsofjoanna.mp3" loop prefetch="auto"></audio>
 
     <script>
         const vertexShader = `
@@ -184,22 +181,36 @@
 
         async function start() {
             if (isPlaying) return;
+
+            // Diagnostic check: Test if file exists
+            try {
+                const response = await fetch(audio.src, { method: 'HEAD' });
+                if (!response.ok) {
+                    alert("ERROR: The song file 'visionsofjoanna.mp3' was not found in this folder.");
+                    return;
+                }
+            } catch (e) {}
+
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
             
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(audio);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
-            texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
-            uniforms.uData.value = texture;
-            
-            audio.play();
-            isPlaying = true;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaElementSource(audio);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
+                uniforms.uData.value = texture;
+                
+                audio.play();
+                isPlaying = true;
+            } catch (err) {
+                alert("Audio Blocked: Please ensure you are viewing this on a web server (http://) and not as a local file (file://)");
+            }
         }
 
         document.getElementById('container').addEventListener('click', (e) => {
