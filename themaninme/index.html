@@ -16,7 +16,7 @@
         <canvas id="visualizer" class="absolute inset-0 block"></canvas>
         
         <!-- Top Left: Titles -->
-        <div class="absolute top-8 left-8 z-10 select-none">
+        <div class="absolute top-8 left-8 z-10 select-none pointer-events-none">
             <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
                 STASHBOX DOES DYLAN
             </h1>
@@ -26,31 +26,37 @@
         </div>
 
         <!-- Top Right: Share -->
-        <div class="absolute top-8 right-8 z-10">
+        <div class="absolute top-8 right-8 z-30">
             <button id="shareButton" class="p-3 bg-green-600 hover:bg-green-500 rounded-full transition-all duration-300 shadow-2xl group border border-white/10">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white group-hover:scale-110"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
             </button>
         </div>
 
         <!-- Bottom: YouTube Link -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 text-center">
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 text-center">
             <a href="https://www.youtube.com/watch?v=OaNd1lYS1Rg" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 px-8 py-4 bg-black/50 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                 <span>Watch on YouTube</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </a>
         </div>
 
-        <!-- Start Overlay -->
-        <div id="overlay" class="absolute inset-0 z-20 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000">
+        <!-- Initial Start Overlay -->
+        <div id="overlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000">
             <div class="text-center group">
                 <div class="w-20 h-20 mb-6 mx-auto border-4 border-yellow-400 border-t-transparent rounded-full animate-spin group-hover:scale-110 transition-transform"></div>
                 <p class="text-3xl font-black uppercase tracking-[0.3em] text-white group-hover:text-yellow-400 transition-colors">Click to Vibe</p>
             </div>
         </div>
+
+        <!-- Paused Indicator -->
+        <div id="pausedOverlay" class="absolute inset-0 z-20 hidden items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+            <p class="text-4xl font-black uppercase tracking-[0.5em] text-white/50">PAUSED</p>
+        </div>
     </div>
 
     <script>
-        const AUDIO_URL = "https://storage.googleapis.com/producer-app-private/clips/0e4dd276-2127-4f8b-8bfa-211ad4477f6b.m4a?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=webserver-backend%40circular-beacon-375520.iam.gserviceaccount.com%2F20260325%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260325T024014Z&X-Goog-Expires=21600&X-Goog-SignedHeaders=host&X-Goog-Signature=60aedeee276922f72f15cb62eb36e02e8305cc1464568b5aacbe04af24c7d5372de1b8264d7df9fcfaec7089f0d77cfeff891a7de5722d8cb290c603668c9ca9c2540018a86020708807a50ad77efc0b0c57d3e7b7316c4b6d8312b0dad3d7225ee29d3da68f87e45b28f4407c4757f3542cac4e3623ddff311c336ff411fe9a4796ea4c7453ba50d148e557ec998c931c1ad4ecfddea30312ee493f0adc6448440bfea7482db9c84ce494769f18dd6253de7c3319799f9bc45e9ba5bfc7ca0a6ea51544890a9dcb465ba0df5b09a8ab9f95d1c5dca5c42639cfd2ed62b77ec2769503c38b2dccefc589189fd6fcc245bd75c20cfe00f12a8db6e9ece087e56e";
+        // Set this to "song.m4a" once you've named your file
+        const AUDIO_URL = "song.m4a"; 
 
         const vertexShader = `
             varying vec2 vUv;
@@ -106,7 +112,7 @@
                 float pulse = pow(bass, 2.2);
                 float aspect = uResolution.x / uResolution.y;
                 
-                // Ken Burns: movement & zoom
+                // Ken Burns
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
                 vec2 panOffset = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
                 
@@ -126,7 +132,6 @@
                 vec2 flowP = vp + m;
                 flowP *= (2.5 - pulse * 0.5);
 
-                // Melting Engine
                 vec2 flow = flowP;
                 float t = uTime * 0.4;
                 for(int i = 0; i < 7; i++) {
@@ -135,7 +140,6 @@
                     flow.y += (0.4 + pulse) * cos(flow.x * 0.8 - t * 0.7 + fi);
                 }
 
-                // Rasta Colors
                 vec3 rRed = vec3(0.85, 0.05, 0.05);
                 vec3 rGold = vec3(1.0, 0.8, 0.0);
                 vec3 rGreen = vec3(0.0, 0.5, 0.15);
@@ -158,7 +162,6 @@
                 }
                 col = mix(col, rBlack, clamp(boundary * 1.4, 0.0, 1.0));
 
-                // Smoke Lyrics
                 float smoke = getSmokeText(p - panOffset, uTime, bass);
                 col = mix(col, mix(vec3(1.0), rGold, 0.4), smoke * 0.8);
 
@@ -169,6 +172,8 @@
 
         const canvas = document.getElementById('visualizer');
         const overlay = document.getElementById('overlay');
+        const pausedOverlay = document.getElementById('pausedOverlay');
+        const container = document.getElementById('container');
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -185,14 +190,14 @@
         const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader }));
         scene.add(mesh);
 
-        let audioCtx, analyser, dataArray, texture;
+        let audioCtx, analyser, dataArray, texture, audio;
 
         async function start() {
-            if (audioCtx) return;
+            if (audio) return; // Already started
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
 
-            const audio = new Audio(AUDIO_URL);
+            audio = new Audio(AUDIO_URL);
             audio.crossOrigin = "anonymous";
             audio.loop = true;
             
@@ -210,23 +215,44 @@
             audio.play();
         }
 
-        overlay.addEventListener('click', start);
+        function togglePlayback(e) {
+            // Don't toggle if we are clicking UI elements like share or link
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            
+            if (!audio) {
+                start();
+                return;
+            }
+
+            if (audio.paused) {
+                audio.play();
+                pausedOverlay.style.display = 'none';
+            } else {
+                audio.pause();
+                pausedOverlay.style.display = 'flex';
+            }
+        }
+
+        container.addEventListener('click', togglePlayback);
+        
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
             uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
         });
+        
         window.addEventListener('mousemove', (e) => {
             uniforms.uMouse.value.set(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight);
         });
 
-        document.getElementById('shareButton').addEventListener('click', () => {
+        document.getElementById('shareButton').addEventListener('click', (e) => {
+            e.stopPropagation();
             if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
         });
 
         function animate() {
             requestAnimationFrame(animate);
             uniforms.uTime.value += 0.01;
-            if (texture) {
+            if (texture && audio && !audio.paused) {
                 analyser.getByteFrequencyData(dataArray);
                 texture.needsUpdate = true;
             }
