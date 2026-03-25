@@ -15,12 +15,12 @@
 <body>
     <div id="container" class="min-h-screen w-full relative overflow-hidden bg-black text-white font-sans">
         
-        <!-- Layer 0: The Trippy Background (Blurred) -->
+        <!-- Background Layer (Blurred) -->
         <div class="absolute inset-0 z-0 blur-xl scale-110">
             <canvas id="visualizer" class="w-full h-full block"></canvas>
         </div>
         
-        <!-- Layer 1: Sharp UI elements (Titles, Share, YouTube) -->
+        <!-- UI Layer (Sharp) -->
         <div class="relative z-50 w-full h-screen pointer-events-none no-select">
             <div class="absolute top-8 left-8 select-none pointer-events-auto text-left">
                 <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
@@ -58,8 +58,8 @@
         </div>
     </div>
 
-    <!-- CLEAN AUDIO TAG -->
-    <audio id="mainAudio" src="./visionsofjoanna.mp3" loop prefetch="auto"></audio>
+    <!-- Hidden Audio -->
+    <audio id="mainAudio" src="visionsofjoanna.mp3" loop></audio>
 
     <script>
         const vertexShader = `
@@ -181,16 +181,6 @@
 
         async function start() {
             if (isPlaying) return;
-
-            // Diagnostic check: Test if file exists
-            try {
-                const response = await fetch(audio.src, { method: 'HEAD' });
-                if (!response.ok) {
-                    alert("ERROR: The song file 'visionsofjoanna.mp3' was not found in this folder.");
-                    return;
-                }
-            } catch (e) {}
-
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
             
@@ -209,7 +199,7 @@
                 audio.play();
                 isPlaying = true;
             } catch (err) {
-                alert("Audio Blocked: Please ensure you are viewing this on a web server (http://) and not as a local file (file://)");
+                console.log("Audio load error:", err);
             }
         }
 
