@@ -11,14 +11,17 @@
         canvas { display: block; }
         .no-select { user-select: none; -webkit-user-select: none; }
         
+        #startOverlay {
+            background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, black 100%);
+        }
+
         .sidebar-controls {
             display: flex;
             flex-direction: column;
             gap: 1.25rem;
             position: absolute;
             right: 1.5rem;
-            top: 50%;
-            transform: translateY(-50%);
+            top: 1.5rem;
             z-index: 100;
         }
 
@@ -41,10 +44,10 @@
         </div>
         
         <!-- LAYER 1: Sharp UI (Top Layer) -->
-        <div class="absolute inset-0 z-[100] pointer-events-none no-select flex flex-col justify-between p-8">
+        <div id="uiLayer" class="absolute inset-0 z-[100] pointer-events-none no-select flex flex-col justify-between p-8 opacity-0 transition-opacity duration-1000">
             
             <!-- Top Left: Title -->
-            <div class="select-none pointer-events-auto text-left max-w-[85%]">
+            <div class="select-none pointer-events-auto text-left max-w-[85%] mt-20 md:mt-0">
                 <h1 class="text-3xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] uppercase">
                     STASHBOX DOES DYLAN
                 </h1>
@@ -55,11 +58,9 @@
 
             <!-- Sidebar / Top Right Controls -->
             <div class="sidebar-controls pointer-events-auto">
-                <button id="muteButton" onclick="handleUnmute(event)" class="p-5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 shadow-2xl active:scale-95 transition-all">
-                    <svg id="muteIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white">
-                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                        <path d="M9 9v6a3 3 0 0 0 5.12 2.12M18.88 18.88A9 9 0 0 1 15 19l-7-7"></path>
-                        <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                <button id="playPauseButton" onclick="togglePlayback(event)" class="p-5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 shadow-2xl active:scale-95 transition-all">
+                    <svg id="playPauseIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
                     </svg>
                 </button>
                 <button onclick="handleShare(event)" class="p-5 bg-green-600 rounded-full border border-white/20 shadow-2xl active:scale-95 transition-transform">
@@ -67,8 +68,8 @@
                 </button>
             </div>
 
-            <!-- Bottom Center: YouTube Link (BUMPED UP FOR MOBILE) -->
-            <div class="w-full flex justify-center pb-36 md:pb-4">
+            <!-- Bottom Center: YouTube Link -->
+            <div class="w-full flex justify-center pb-12 md:pb-8">
                 <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/90 backdrop-blur-2xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -76,17 +77,26 @@
             </div>
         </div>
 
+        <!-- MOBILE START OVERLAY -->
+        <div id="startOverlay" class="absolute inset-0 z-[200] flex flex-col items-center justify-center p-8 text-center transition-opacity duration-500">
+             <h2 class="text-4xl md:text-7xl font-black text-yellow-400 uppercase mb-8 tracking-tighter">Ready?</h2>
+             <button onclick="startExperience()" class="px-12 py-6 bg-red-600 hover:bg-red-700 text-white font-black text-2xl uppercase tracking-widest rounded-full border-4 border-white transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+                Enter the Vision
+             </button>
+        </div>
+
         <div id="pausedOverlay" class="absolute inset-0 z-30 hidden items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none no-select">
             <p class="text-5xl font-black uppercase tracking-[0.5em] text-white/30">PAUSED</p>
         </div>
     </div>
 
-    <!-- MAIN AUDIO: Standard Autoplay Muted (Works on all mobile browsers) -->
-    <audio id="mainAudio" src="visionsofjoanna.mp3" loop muted autoplay playsinline></audio>
+    <audio id="mainAudio" src="visionsofjoanna.mp3" loop playsinline crossorigin="anonymous"></audio>
 
     <script>
         const canvas = document.getElementById('visualizer');
         const audio = document.getElementById('mainAudio');
+        const startOverlay = document.getElementById('startOverlay');
+        const uiLayer = document.getElementById('uiLayer');
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         
         let audioCtx, analyser, dataArray, texture;
@@ -163,32 +173,45 @@
             } catch (err) { console.error("Web Audio fail:", err); }
         }
 
-        window.handleUnmute = async (e) => {
-            if (e) e.stopPropagation();
+        window.startExperience = () => {
             initAudioEngine();
+            if (audioCtx.state === "suspended") audioCtx.resume();
             
-            if (audioCtx.state === 'suspended') await audioCtx.resume();
-            
-            audio.muted = !audio.muted;
-            if (!audio.muted) audio.play();
-
-            document.getElementById('muteIcon').innerHTML = audio.muted ? 
-                '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M18.88 18.88A9 9 0 0 1 15 19l-7-7"></path><path d="M11 5L6 9H2v6h4l5 4V5z"></path>' : 
-                '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+            audio.play().then(() => {
+                startOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    startOverlay.style.display = 'none';
+                    uiLayer.style.opacity = '1';
+                }, 500);
+                updatePlayPauseIcon();
+            }).catch(e => console.error("Playback failed", e));
         };
+
+        window.togglePlayback = (e) => {
+            if (e) e.stopPropagation();
+            if (!audioCtx) initAudioEngine();
+            if (audioCtx.state === "suspended") audioCtx.resume();
+
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+            updatePlayPauseIcon();
+        };
+
+        function updatePlayPauseIcon() {
+            const icon = document.getElementById('playPauseIcon');
+            icon.innerHTML = audio.paused ? 
+                '<polygon points="5 3 19 12 5 21 5 3"></polygon>' : 
+                '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+            document.getElementById('pausedOverlay').style.display = audio.paused ? 'flex' : 'none';
+        }
 
         window.handleShare = (e) => {
             if (e) e.stopPropagation();
             if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
         };
-
-        document.getElementById('container').addEventListener('click', (e) => {
-            if (e.target.closest('button') || e.target.closest('a')) return;
-            if (window.innerWidth > 768) {
-                audio.paused ? audio.play() : audio.pause();
-                document.getElementById('pausedOverlay').style.display = audio.paused ? 'flex' : 'none';
-            }
-        });
 
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
