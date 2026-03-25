@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Stashbox Does Dylan | The Man In Me</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { margin: 0; overflow: hidden; background: black; cursor: crosshair; }
         canvas { display: block; }
+        /* Prevent selection of UI text */
+        .no-select { user-select: none; -webkit-user-select: none; }
     </style>
 </head>
 <body>
@@ -16,7 +18,7 @@
         <canvas id="visualizer" class="absolute inset-0 block"></canvas>
         
         <!-- Top Left: Titles -->
-        <div class="absolute top-8 left-8 z-10 select-none pointer-events-none">
+        <div class="absolute top-8 left-8 z-10 select-none pointer-events-none no-select">
             <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
                 STASHBOX DOES DYLAN
             </h1>
@@ -32,16 +34,16 @@
             </button>
         </div>
 
-        <!-- Bottom: YouTube Link -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 text-center">
-            <a href="https://www.youtube.com/watch?v=OaNd1lYS1Rg" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 px-8 py-4 bg-black/50 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
+        <!-- Bottom: YouTube Link (Bumped up on mobile: bottom-24) -->
+        <div class="absolute bottom-24 md:bottom-12 left-1/2 -translate-x-1/2 z-30 text-center w-full px-4">
+            <a href="https://www.youtube.com/watch?v=OaNd1lYS1Rg" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-3 px-8 py-4 bg-black/50 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                 <span>Watch on YouTube</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </a>
         </div>
 
         <!-- Initial Start Overlay -->
-        <div id="overlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000">
+        <div id="overlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000 no-select">
             <div class="text-center group">
                 <div class="w-20 h-20 mb-6 mx-auto border-4 border-yellow-400 border-t-transparent rounded-full animate-spin group-hover:scale-110 transition-transform"></div>
                 <p class="text-3xl font-black uppercase tracking-[0.3em] text-white group-hover:text-yellow-400 transition-colors">Click to Vibe</p>
@@ -49,13 +51,12 @@
         </div>
 
         <!-- Paused Indicator -->
-        <div id="pausedOverlay" class="absolute inset-0 z-20 hidden items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+        <div id="pausedOverlay" class="absolute inset-0 z-20 hidden items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none no-select">
             <p class="text-4xl font-black uppercase tracking-[0.5em] text-white/50">PAUSED</p>
         </div>
     </div>
 
     <script>
-        // Set this to "song.m4a" once you've named your file
         const AUDIO_URL = "song.m4a"; 
 
         const vertexShader = `
@@ -112,7 +113,6 @@
                 float pulse = pow(bass, 2.2);
                 float aspect = uResolution.x / uResolution.y;
                 
-                // Ken Burns
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
                 vec2 panOffset = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
                 
@@ -121,7 +121,6 @@
                 p *= zoom;
                 p += panOffset;
 
-                // Mouse Vortex
                 vec2 m = (uMouse - 0.5) * 2.0;
                 m.x *= aspect;
                 float mouseStrength = smoothstep(0.8, 0.0, length(p - m));
@@ -193,7 +192,7 @@
         let audioCtx, analyser, dataArray, texture, audio;
 
         async function start() {
-            if (audio) return; // Already started
+            if (audio) return; 
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
 
@@ -216,13 +215,8 @@
         }
 
         function togglePlayback(e) {
-            // Don't toggle if we are clicking UI elements like share or link
             if (e.target.closest('button') || e.target.closest('a')) return;
-            
-            if (!audio) {
-                start();
-                return;
-            }
+            if (!audio) { start(); return; }
 
             if (audio.paused) {
                 audio.play();
@@ -246,7 +240,11 @@
 
         document.getElementById('shareButton').addEventListener('click', (e) => {
             e.stopPropagation();
-            if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
+            if (navigator.share) {
+                navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
+            } else {
+                alert("URL: " + window.location.href);
+            }
         });
 
         function animate() {
