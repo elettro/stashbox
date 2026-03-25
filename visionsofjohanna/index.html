@@ -22,8 +22,7 @@
         
         <!-- Layer 1: Sharp UI elements (Titles, Share, YouTube) -->
         <div class="relative z-50 w-full h-screen pointer-events-none no-select">
-            <!-- Top Left: Title and Song -->
-            <div class="absolute top-8 left-8 select-none pointer-events-auto">
+            <div class="absolute top-8 left-8 select-none pointer-events-auto text-left">
                 <h1 class="text-4xl md:text-6xl font-black tracking-tighter text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.9)] uppercase">
                     STASHBOX DOES DYLAN
                 </h1>
@@ -32,16 +31,14 @@
                 </p>
             </div>
 
-            <!-- Top Right: Share Button -->
             <div class="absolute top-8 right-8 pointer-events-auto">
                 <button id="shareButton" class="p-4 bg-green-600 hover:bg-green-500 rounded-full transition-all duration-300 shadow-2xl border border-white/10 group">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white group-hover:scale-110"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                 </button>
             </div>
 
-            <!-- Bottom Center: YouTube Link -->
             <div class="absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto">
-                <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19&pp=8AUB0gcJCdgKAYcqIYzv" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
+                <a href="https://www.youtube.com/watch?v=pDAoszT31UU&list=OLAK5uy_mTxa7EUb2bprobpr4r-s-cmy6AymkYcdA&index=19" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 px-8 py-4 bg-black/60 hover:bg-black/80 backdrop-blur-xl rounded-full border border-white/20 text-sm font-black tracking-widest uppercase hover:border-yellow-400 transition-all duration-500 shadow-2xl">
                     <span>Watch on YouTube</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 </a>
@@ -49,8 +46,8 @@
         </div>
 
         <!-- Layer 2: Overlays (Start & Pause) -->
-        <div id="startOverlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-md cursor-pointer transition-opacity duration-1000 no-select">
-            <div class="text-center group">
+        <div id="startOverlay" class="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md cursor-pointer transition-opacity duration-1000 no-select">
+            <div class="text-center group pointer-events-none">
                 <div class="w-20 h-20 mb-6 mx-auto border-4 border-yellow-400 border-t-transparent rounded-full animate-spin group-hover:scale-110 transition-transform"></div>
                 <p class="text-3xl font-black uppercase tracking-[0.3em] text-white group-hover:text-yellow-400 transition-colors">Click to Vibe</p>
             </div>
@@ -61,9 +58,10 @@
         </div>
     </div>
 
-    <script>
-        const AUDIO_URL = "visionsofjoanna.mp3"; 
+    <!-- Hidden Audio Element -->
+    <audio id="mainAudio" src="visionsofjoanna.mp3" loop crossorigin="anonymous"></audio>
 
+    <script>
         const vertexShader = `
             varying vec2 vUv;
             void main() {
@@ -81,19 +79,15 @@
             uniform sampler2D uPrevFrame;
             varying vec2 vUv;
 
-            vec2 hash(vec2 p) {
-                p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-                return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-            }
-
             float noise(vec2 p) {
                 vec2 i = floor(p);
                 vec2 f = fract(p);
                 vec2 u = f * f * (3.0 - 2.0 * f);
-                return mix(mix(dot(hash(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
-                               dot(hash(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
-                           mix(dot(hash(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
-                               dot(hash(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x), u.y);
+                float a = fract(sin(dot(i, vec2(12.7, 31.1))) * 43758.5);
+                float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(12.7, 31.1))) * 43758.5);
+                float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(12.7, 31.1))) * 43758.5);
+                float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(12.7, 31.1))) * 43758.5);
+                return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
             }
 
             float getSmokeText(vec2 p, float time, float bass) {
@@ -102,33 +96,27 @@
                 float drift = (cycle > 2.0) ? (cycle - 2.0) * 0.4 : 0.0;
                 vec2 sp = p;
                 sp.y -= drift;
-                float n = noise(sp * 4.0 + time * 0.5) * 0.1;
-                sp += n;
+                sp += noise(sp * 4.0 + time * 0.5) * 0.1;
                 float d = 100.0;
                 d = min(d, length(sp - vec2(-0.4, 0.0)) - 0.15);
                 d = min(d, length(sp - vec2(0.0, 0.0)) - 0.12);
                 d = min(d, length(sp - vec2(0.4, 0.0)) - 0.15);
                 float blur = 0.05 + drift * 0.5 + (1.0 - phase) * 0.2;
-                float alpha = smoothstep(blur, -blur, d);
-                float turbulence = noise(p * 8.0 - time) * 0.5 + 0.5;
-                return alpha * phase * (0.4 + turbulence * 0.6);
+                return smoothstep(blur, -blur, d) * phase;
             }
 
             void main() {
                 float bass = texture2D(uData, vec2(0.02, 0.0)).r;
                 float pulse = pow(bass, 2.2);
                 float aspect = uResolution.x / uResolution.y;
-                
-                // Ken Burns Effect
                 float zoom = 1.0 + sin(uTime * 0.1) * 0.12;
-                vec2 panOffset = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
+                vec2 pan = vec2(sin(uTime * 0.08), cos(uTime * 0.07)) * 0.2;
                 
                 vec2 p = (vUv - 0.5) * 2.0;
                 p.x *= aspect;
                 p *= zoom;
-                p += panOffset;
+                p += pan;
 
-                // Mouse Vortex Interaction
                 vec2 m = (uMouse - 0.5) * 2.0;
                 m.x *= aspect;
                 float mouseStrength = smoothstep(0.8, 0.0, length(p - m));
@@ -136,10 +124,8 @@
                 vec2 vp = p - m;
                 vp = vec2(vp.x * cos(swirl) - vp.y * sin(swirl), vp.x * sin(swirl) + vp.y * cos(swirl));
                 vp *= (1.0 + mouseStrength * 2.5);
-                vec2 flowP = vp + m;
-                flowP *= (2.5 - pulse * 0.5);
+                vec2 flowP = (vp + m) * (2.5 - pulse * 0.5);
 
-                // Melting Engine Logic
                 vec2 flow = flowP;
                 float t = uTime * 0.4;
                 for(int i = 0; i < 7; i++) {
@@ -148,92 +134,55 @@
                     flow.y += (0.4 + pulse) * cos(flow.x * 0.8 - t * 0.7 + fi);
                 }
 
-                // Rasta Color Palette
-                vec3 rRed = vec3(0.85, 0.05, 0.05);
-                vec3 rGold = vec3(1.0, 0.8, 0.0);
-                vec3 rGreen = vec3(0.0, 0.5, 0.15);
-                vec3 rBlack = vec3(0.01);
-
-                float pattern = sin(flow.x * 0.4) * cos(flow.y * 0.4) + noise(flow * 0.3) * 2.0;
-                float mixVal = fract(pattern * 0.2 + uTime * 0.02 + pulse * 0.1);
+                vec3 rRed = vec3(0.85, 0.05, 0.05), rGold = vec3(1.0, 0.8, 0.0), rGreen = vec3(0.0, 0.5, 0.15), rBlack = vec3(0.01);
+                float mixVal = fract(sin(flow.x * 0.4) * cos(flow.y * 0.4) * 0.2 + uTime * 0.02 + pulse * 0.1);
                 
-                // Bleeding Color logic
                 vec3 col;
-                float bleed = noise(flow * 0.5 + t * 0.1) * 0.08; 
-                float colorCoord = fract(mixVal + bleed);
+                float colorCoord = fract(mixVal + noise(flow * 0.5 + t * 0.1) * 0.08);
+                if(colorCoord < 0.33) col = mix(rRed, rGold, smoothstep(0.0, 0.33, colorCoord));
+                else if(colorCoord < 0.66) col = mix(rGold, rGreen, smoothstep(0.33, 0.66, colorCoord));
+                else col = mix(rGreen, rRed, smoothstep(0.66, 1.0, colorCoord));
                 
-                if(colorCoord < 0.33) {
-                    col = mix(rRed, rGold, smoothstep(0.0, 0.33, colorCoord));
-                } else if(colorCoord < 0.66) {
-                    col = mix(rGold, rGreen, smoothstep(0.33, 0.66, colorCoord));
-                } else {
-                    col = mix(rGreen, rRed, smoothstep(0.66, 1.0, colorCoord));
-                }
-                
-                // Shadows and Trim
-                float trimEdge = 0.06 + pulse * 0.1;
-                float trim = smoothstep(0.33 - trimEdge, 0.33, colorCoord) * (1.0 - smoothstep(0.33, 0.33 + trimEdge, colorCoord));
-                trim += smoothstep(0.66 - trimEdge, 0.66, colorCoord) * (1.0 - smoothstep(0.66, 0.66 + trimEdge, colorCoord));
-                trim += smoothstep(1.0 - trimEdge, 1.0, colorCoord) + (1.0 - smoothstep(0.0, trimEdge, colorCoord));
+                float trim = smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.33)) + smoothstep(0.06 + pulse * 0.1, 0.0, abs(colorCoord - 0.66));
                 col = mix(col, rBlack, trim * 0.65);
 
-                // Trippy Trail Sampling
                 vec2 trailUv = vUv - 0.5;
                 trailUv *= 0.99 + pulse * 0.02;
-                float rot = 0.01;
-                trailUv = vec2(trailUv.x * cos(rot) - trailUv.y * sin(rot), trailUv.x * sin(rot) + trailUv.y * cos(rot));
-                trailUv += 0.5;
-
+                trailUv = vec2(trailUv.x * cos(0.01) - trailUv.y * sin(0.01), trailUv.x * sin(0.01) + trailUv.y * cos(0.01)) + 0.5;
                 vec3 prev = texture2D(uPrevFrame, trailUv).rgb;
-                prev.r = texture2D(uPrevFrame, trailUv + vec2(0.002, 0.0)).r;
-                prev.b = texture2D(uPrevFrame, trailUv - vec2(0.002, 0.0)).b;
+                prev.r = texture2D(uPrevFrame, trailUv + 0.002).r;
+                prev.b = texture2D(uPrevFrame, trailUv - 0.002).b;
                 col = mix(col, prev, 0.93 + pulse * 0.02);
 
-                // Smoke Lyrics
-                float smoke = getSmokeText(p - panOffset, uTime, bass);
+                float smoke = getSmokeText(p - pan, uTime, bass);
                 col = mix(col, mix(vec3(1.0), rGold, 0.4), smoke * 0.8);
 
-                float vignette = smoothstep(2.5, 0.4, length(vUv - 0.5) * 2.2);
-                gl_FragColor = vec4(col * vignette + (vec3(1.0, 0.8, 0.5) * smoke * pulse * 0.5), 1.0);
+                gl_FragColor = vec4(col * smoothstep(2.5, 0.4, length(vUv - 0.5) * 2.2) + (vec3(1.0, 0.8, 0.5) * smoke * pulse * 0.5), 1.0);
             }
         `;
 
-        const canvas = document.getElementById('visualizer');
-        const startOverlay = document.getElementById('startOverlay');
-        const pausedOverlay = document.getElementById('pausedOverlay');
-        const container = document.getElementById('container');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        const canvas = document.getElementById('visualizer'), overlay = document.getElementById('startOverlay');
+        const audio = document.getElementById('mainAudio'), renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        const targetA = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
-        const targetB = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
-        let currentTarget = targetA;
-        let prevTarget = targetB;
+        const targetA = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight), targetB = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+        let currentTarget = targetA, prevTarget = targetB;
 
         const uniforms = {
-            uTime: { value: 0 },
-            uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-            uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-            uData: { value: null },
-            uPrevFrame: { value: null }
+            uTime: { value: 0 }, uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uMouse: { value: new THREE.Vector2(0.5, 0.5) }, uData: { value: null }, uPrevFrame: { value: null }
         };
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.Camera();
-        const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader }));
-        scene.add(mesh);
+        const scene = new THREE.Scene(), camera = new THREE.Camera();
+        scene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader })));
 
-        let audioCtx, analyser, dataArray, texture, audio, isPlaying = false;
+        let audioCtx, analyser, dataArray, texture, isPlaying = false;
 
         async function start() {
             if (isPlaying) return;
-            startOverlay.style.opacity = '0';
-            setTimeout(() => startOverlay.style.display = 'none', 1000);
-
-            audio = new Audio(AUDIO_URL);
-            audio.crossOrigin = "anonymous";
-            audio.loop = true;
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 1000);
             
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaElementSource(audio);
@@ -250,17 +199,11 @@
             isPlaying = true;
         }
 
-        container.addEventListener('click', (e) => {
+        document.getElementById('container').addEventListener('click', (e) => {
             if (e.target.closest('button') || e.target.closest('a')) return;
             if (!isPlaying) { start(); return; }
-
-            if (audio.paused) {
-                audio.play();
-                pausedOverlay.style.display = 'none';
-            } else {
-                audio.pause();
-                pausedOverlay.style.display = 'flex';
-            }
+            audio.paused ? audio.play() : audio.pause();
+            document.getElementById('pausedOverlay').style.display = audio.paused ? 'flex' : 'none';
         });
 
         window.addEventListener('resize', () => {
@@ -269,37 +212,27 @@
             targetB.setSize(window.innerWidth, window.innerHeight);
             uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
         });
-        
-        window.addEventListener('mousemove', (e) => {
-            uniforms.uMouse.value.set(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight);
-        });
 
+        window.addEventListener('mousemove', (e) => uniforms.uMouse.value.set(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight));
+        
         document.getElementById('shareButton').addEventListener('click', (e) => {
             e.stopPropagation();
-            if (navigator.share) {
-                navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
-            } else {
-                alert("URL: " + window.location.href);
-            }
+            if (navigator.share) navigator.share({ title: 'Stashbox Does Dylan', url: window.location.href });
         });
 
         function animate() {
             requestAnimationFrame(animate);
             uniforms.uTime.value += 0.01;
-            if (texture && audio && !audio.paused) {
+            if (texture && isPlaying && !audio.paused) {
                 analyser.getByteFrequencyData(dataArray);
                 texture.needsUpdate = true;
             }
-
             uniforms.uPrevFrame.value = prevTarget.texture;
             renderer.setRenderTarget(currentTarget);
             renderer.render(scene, camera);
             renderer.setRenderTarget(null);
             renderer.render(scene, camera);
-
-            let tmp = currentTarget;
-            currentTarget = prevTarget;
-            prevTarget = tmp;
+            let tmp = currentTarget; currentTarget = prevTarget; prevTarget = tmp;
         }
         animate();
     </script>
