@@ -183,8 +183,15 @@
     <div class="tribute-show" id="sublime">
       <div class="tribute-show__header tribute-show__header--reverse">
         <div class="tribute-show__video reveal">
-          <div class="video-wrap">
-            <iframe src="https://www.youtube.com/embed/ygvrFB1cn54" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Sublime"></iframe>
+          <div class="video-wrap sublime-video-wrap">
+            <iframe
+              id="sublime-video-player"
+              src="https://www.youtube.com/embed/0GKeOZ3fDgw"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              title="Stashbox Does Sublime"
+            ></iframe>
+            <button id="sublime-next-btn" class="sublime-next-btn" type="button" aria-label="Play next Sublime video">Next ▶</button>
           </div>
         </div>
         <div>
@@ -639,6 +646,31 @@ const revealObserver = new IntersectionObserver((entries) => {
   });
 }, { threshold: 0.06 });
 document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+
+// Sublime tribute video rotation
+const sublimeVideoPlayer = document.getElementById('sublime-video-player');
+const sublimeNextBtn = document.getElementById('sublime-next-btn');
+const sublimeVideos = [
+  '0GKeOZ3fDgw',
+  'rbZ_dBZv-7E',
+  '0GKeOZ3fDgw',
+  'CIV_s42AnMs'
+];
+let sublimeVideoIndex = 0;
+
+function playSublimeVideo(index) {
+  if (!sublimeVideoPlayer) return;
+  const videoId = sublimeVideos[index];
+  sublimeVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+}
+
+if (sublimeVideoPlayer && sublimeNextBtn) {
+  sublimeNextBtn.addEventListener('click', () => {
+    sublimeVideoIndex = (sublimeVideoIndex + 1) % sublimeVideos.length;
+    playSublimeVideo(sublimeVideoIndex);
+  });
+}
 
 // Nav scroll
 window.addEventListener('scroll', () => {
