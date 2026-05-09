@@ -151,8 +151,9 @@
           <a href="tel:3104086687" class="btn btn-gold reveal reveal-delay-4" style="margin-top:var(--gap-sm);">Book Stashbox Does Dylan</a>
         </div>
         <div class="tribute-show__video reveal">
-          <div class="video-wrap">
-            <iframe src="https://www.youtube.com/embed/sTRh-QrG_Eg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Dylan Full Session"></iframe>
+          <div class="video-wrap sublime-video-wrap">
+            <iframe id="dylan-video-player" src="https://www.youtube.com/embed/sTRh-QrG_Eg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Dylan Full Session"></iframe>
+            <button id="dylan-next-btn" class="sublime-next-btn" type="button" aria-label="Play next Dylan video">Next ▶</button>
           </div>
           <p style="font-size:12px; color:var(--muted); margin-top:8px; font-family:var(--font-ui); letter-spacing:0.1em; text-transform:uppercase;">Full Session · Studio One, Fort Lauderdale · March 18, 2026</p>
         </div>
@@ -647,6 +648,33 @@ const revealObserver = new IntersectionObserver((entries) => {
 }, { threshold: 0.06 });
 document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
+
+// Sublime tribute video rotation
+const dylanVideoPlayer = document.getElementById('dylan-video-player');
+const dylanNextBtn = document.getElementById('dylan-next-btn');
+const dylanVideos = [
+  'sTRh-QrG_Eg',
+  'CttZI-IiAl8',
+  '7IIB63ZAeH0',
+  'jL-wnMeXa5c',
+  '7OAnkBqhqWM',
+  '6dnPu0tR4vc',
+  'W-zqAcTEajg'
+];
+let dylanVideoIndex = 0;
+
+function playDylanVideo(index) {
+  if (!dylanVideoPlayer) return;
+  const videoId = dylanVideos[index];
+  dylanVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+}
+
+if (dylanVideoPlayer && dylanNextBtn) {
+  dylanNextBtn.addEventListener('click', () => {
+    dylanVideoIndex = (dylanVideoIndex + 1) % dylanVideos.length;
+    playDylanVideo(dylanVideoIndex);
+  });
+}
 
 // Sublime tribute video rotation
 const sublimeVideoPlayer = document.getElementById('sublime-video-player');
