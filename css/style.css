@@ -1346,6 +1346,38 @@ small, .small, .meta, .caption, .microcopy,
   color: rgba(255,255,255,0.74);
 }
 
+.hero__content,
+.hero__copy,
+.hero__title,
+.hero__subtitle,
+.hero__ctas,
+.hero__badge,
+.hero__name,
+.hero__sub,
+.hero__actions,
+.hero__pills,
+.hero__rasta,
+.hero__contact {
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.hero.hero-text-hidden .hero__content,
+.hero.hero-text-hidden .hero__copy,
+.hero.hero-text-hidden .hero__title,
+.hero.hero-text-hidden .hero__subtitle,
+.hero.hero-text-hidden .hero__ctas,
+.hero.hero-text-hidden .hero__badge,
+.hero.hero-text-hidden .hero__name,
+.hero.hero-text-hidden .hero__sub,
+.hero.hero-text-hidden .hero__actions,
+.hero.hero-text-hidden .hero__pills,
+.hero.hero-text-hidden .hero__rasta,
+.hero.hero-text-hidden .hero__contact {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .hero__controls { position: absolute; top: 20px; right: 40px; z-index: 10; display: flex; gap: 10px; }
 
 .hero__vid-btn {
