@@ -236,8 +236,9 @@
           <a href="tel:3104086687" class="btn btn-primary reveal reveal-delay-4" style="margin-top:var(--gap-sm);">Book the Classic Reggae Show</a>
         </div>
         <div class="tribute-show__video reveal">
-          <div class="video-wrap">
-            <iframe src="https://www.youtube.com/embed/W-zqAcTEajg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Classic Reggae"></iframe>
+          <div class="video-wrap sublime-video-wrap">
+            <iframe id="reggae-video-player" src="https://www.youtube.com/embed/ygvrFB1cn54" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Classic Reggae"></iframe>
+            <button id="reggae-next-btn" class="sublime-next-btn" type="button" aria-label="Play next Reggae video">Next ▶</button>
           </div>
         </div>
       </div>
@@ -697,6 +698,31 @@ if (sublimeVideoPlayer && sublimeNextBtn) {
   sublimeNextBtn.addEventListener('click', () => {
     sublimeVideoIndex = (sublimeVideoIndex + 1) % sublimeVideos.length;
     playSublimeVideo(sublimeVideoIndex);
+  });
+}
+
+
+// Reggae tribute video rotation
+const reggaeVideoPlayer = document.getElementById('reggae-video-player');
+const reggaeNextBtn = document.getElementById('reggae-next-btn');
+const reggaeVideos = [
+  'ygvrFB1cn54',
+  'CIV_s42AnMs',
+  'v1E2_q27wwo',
+  '3_1hN8DCHQI'
+];
+let reggaeVideoIndex = 0;
+
+function playReggaeVideo(index) {
+  if (!reggaeVideoPlayer) return;
+  const videoId = reggaeVideos[index];
+  reggaeVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+}
+
+if (reggaeVideoPlayer && reggaeNextBtn) {
+  reggaeNextBtn.addEventListener('click', () => {
+    reggaeVideoIndex = (reggaeVideoIndex + 1) % reggaeVideos.length;
+    playReggaeVideo(reggaeVideoIndex);
   });
 }
 
