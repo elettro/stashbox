@@ -117,6 +117,7 @@
 
   <div class="hero__controls">
     <button class="hero__vid-btn" id="hero-next" onclick="heroNext()">Next ▶</button>
+    <button class="hero__vid-btn" type="button" data-hero-hide-text aria-pressed="false">Hide Text</button>
     <button class="hero__vid-btn" id="hero-mute" onclick="heroToggleMute()">🔇 Unmute</button>
   </div>
 </section>
@@ -519,6 +520,17 @@ const heroVideos = [
 let heroIndex = 0;
 let heroMuted = true;
 
+
+const heroSection = document.querySelector('.hero, .site-hero, .video-hero');
+const hideTextBtn = document.querySelector('[data-hero-hide-text]');
+
+if (heroSection && hideTextBtn) {
+  hideTextBtn.addEventListener('click', () => {
+    const isHidden = heroSection.classList.toggle('hero-text-hidden');
+    hideTextBtn.textContent = isHidden ? 'Show Text' : 'Hide Text';
+    hideTextBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+  });
+}
 function heroNext() {
   heroIndex = (heroIndex + 1) % heroVideos.length;
   heroMuted = true;
