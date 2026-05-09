@@ -952,6 +952,33 @@ small, .small, .meta, .caption, .microcopy,
 
 .setlist-num { font-size: 16px; font-weight: 300; color: var(--muted); min-width: 20px; }
 
+
+.sublime-video-wrap {
+  position: relative;
+}
+
+.sublime-next-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.75);
+  color: var(--white);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.sublime-next-btn:hover {
+  background: rgba(0,0,0,0.9);
+  border-color: rgba(255,255,255,0.55);
+}
+
 .tribute-show-divider {
   display: flex;
   height: 3px;
