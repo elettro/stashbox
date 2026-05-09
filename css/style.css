@@ -480,18 +480,27 @@ small, .small, .meta, .caption, .microcopy,
   position: relative;
 }
 
-.site-nav__link:hover { color: var(--white); }
-.site-nav__link.active { color: var(--white); }
-
-.site-nav__link.active::after {
+.site-nav__link::after {
   content: '';
   position: absolute;
-  bottom: 2px;
   left: 14px;
   right: 14px;
+  bottom: 2px;
   height: 1px;
   background: var(--red);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 220ms ease;
 }
+
+.site-nav__link:hover { color: var(--white); }
+.site-nav__link:hover::after,
+.site-nav__link:focus-visible::after,
+.site-nav__link.active::after {
+  transform: scaleX(1);
+}
+
+.site-nav__link.active { color: var(--white); }
 
 /* Dropdown */
 .site-nav__dropdown {
