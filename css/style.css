@@ -3,7 +3,7 @@
    style.css
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ── RESET ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +41,7 @@ html { scroll-behavior: smooth; }
   --rasta-green:  #2db84b;
 
   /* Typography */
-  --font-display: 'Syne', sans-serif;
+  --font-display: 'Papyrus', fantasy;
   --font-ui:      'Inter', sans-serif;
   --font-body:    'Inter', sans-serif;
   --font-italic:  'Inter', sans-serif;
