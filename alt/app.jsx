@@ -4,7 +4,7 @@ const { useState, useEffect, useRef } = React;
 const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accentMode": "gold",
   "showGrain": true,
-  "subscriberCount": "12.4K"
+  "subscriberCount": "6.5K+"
 }/*EDITMODE-END*/;
 
 /* === SUNBURST (decorative behind hero) === */
@@ -64,7 +64,7 @@ function Hero({ playing, setPlaying, subCount, onSubscribe }) {
           <div className="hero-eyebrow">
             <span className="chip">
               <span className="dot"></span>
-              South Florida · Est. 2019
+              South Florida · Tribute + Originals
             </span>
           </div>
           <h1 className="hero-title">
@@ -73,9 +73,9 @@ function Hero({ playing, setPlaying, subCount, onSubscribe }) {
             <span className="hero-scribble">good vibes only ✦</span>
           </h1>
           <div className="hero-tagline">
-            <span><span className="star">★</span> Sun-soaked Reggae Rock</span>
-            <span><span className="star">★</span> Saltwater &amp; Smoke</span>
-            <span><span className="star">★</span> Loud as Hell</span>
+            <span><span className="star">★</span> Rock · Reggae · Blues · Funk</span>
+            <span><span className="star">★</span> Bob Dylan · Sublime · Classic Reggae</span>
+            <span><span className="star">★</span> South Florida + Beyond</span>
           </div>
           <div className="hero-ctas">
             <a href="#" className="btn btn-yt" onClick={onSubscribe}>
@@ -104,7 +104,7 @@ function Hero({ playing, setPlaying, subCount, onSubscribe }) {
           <div className="video-card-frame video-frame">
             {playing ? (
               <iframe
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+                src="https://www.youtube.com/embed/KWE3M2XVYZY?autoplay=1&rel=0"
                 title="Stashbox - Latest"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -112,14 +112,14 @@ function Hero({ playing, setPlaying, subCount, onSubscribe }) {
             ) : (
               <div className="placeholder" onClick={() => setPlaying(true)}>
                 <div className="play-btn"></div>
-                <div className="placeholder-title">"Saltwater Sermon"</div>
-                <div className="placeholder-sub">OFFICIAL VIDEO · 4:12</div>
+                <div className="placeholder-title">Stashbox Live Reel</div>
+                <div className="placeholder-sub">BOOKING HIGHLIGHTS · YOUTUBE</div>
               </div>
             )}
           </div>
           <div className="video-card-meta">
-            <span className="new">NEW VIDEO · MAY '26</span>
-            <span>STASHBOX OFFICIAL</span>
+            <span className="new">FEATURED VIDEO</span>
+            <span>@stashboxband</span>
           </div>
         </div>
       </div>
@@ -148,7 +148,7 @@ function About() {
           </div>
           <span className="chip">
             <span className="dot"></span>
-            Hollywood Beach · 2019
+            Available for Booking
           </span>
         </div>
         <div className="about-grid">
@@ -158,24 +158,24 @@ function About() {
           </div>
           <div className="about-text">
             <p className="lead">
-              Four kids from the wrong side of the bridge, born of <span className="highlight">cheap beer</span>,
-              salt-rusted Telecasters, and a stubborn refusal to play anything
-              that didn't make the floor sweat.
+              Stashbox is a South Florida live band blending <span className="highlight">rock, reggae, blues, funk</span>,
+              and original songs into a high-energy show built for festivals, venues,
+              resorts, and private events.
             </p>
             <p>
-              Stashbox plays <span className="hand">sun-soaked</span> reggae-rock —
-              equal parts dive-bar gospel and front-porch reverie. We grew up between
-              Hollywood Beach and Little Haiti, raised on classic FM radio and the kind
-              of sets that don't end until somebody's crying or kissing.
+              The band is known for crowd-favorite tribute sets including
+              <span className="hand"> Stashbox Does Dylan</span>, a full Sublime set, and classic reggae
+              featuring Bob Marley and Toots &amp; The Maytals. Every booking can be
+              tailored from a mixed dance set to a full tribute-night format.
             </p>
             <p>
-              Our records are made the same way: slow, warm, a little crooked, mixed loud.
-              See you in the pit.
+              From club stages to destination events, Stashbox delivers a full-band
+              production and a flexible setlist designed for the room.
             </p>
             <div className="about-stats">
-              <div className="stat"><strong>4</strong><span>Members</span></div>
-              <div className="stat"><strong>2</strong><span>LPs Out</span></div>
-              <div className="stat"><strong>187</strong><span>Shows Played</span></div>
+              <div className="stat"><strong>6.5K+</strong><span>YouTube Subs</span></div>
+              <div className="stat"><strong>3</strong><span>Tribute Formats</span></div>
+              <div className="stat"><strong>South FL</strong><span>Home Base</span></div>
             </div>
           </div>
         </div>
@@ -197,11 +197,11 @@ function Shows({ onBook }) {
         <div className="section-head">
           <div>
             <span className="section-num">03 / Catch Us Live</span>
-            <h2 className="section-title">No Dates <span className="red">Yet</span></h2>
+            <h2 className="section-title">Now <span className="red">Booking</span></h2>
           </div>
           <span className="chip">
             <span className="dot"></span>
-            Off the road · Booking now
+            Festivals · Resorts · Clubs · Private Events
           </span>
         </div>
         <div className="shows-empty">
@@ -209,15 +209,15 @@ function Shows({ onBook }) {
             <span>★</span>
           </div>
           <div className="shows-empty-copy">
-            <h3>Between tours.</h3>
-            <p>We're holed up writing the next record. No public dates on the books — but we're saying yes to the right rooms, festivals, and weird private parties.</p>
-            <p className="shows-empty-sub">Want to be the first to know when we announce? Drop your email in the footer, or pitch us a show below.</p>
+            <h3>Built for live crowds.</h3>
+            <p>Book Stashbox for a full-night live set or a centerpiece tribute show. Ideal for music rooms, beach venues, cruise entertainment, branded events, and community festivals.</p>
+            <p className="shows-empty-sub">Call 310.408.6687 or send your event details below for availability and production needs.</p>
           </div>
         </div>
         <div className="shows-cta-block" id="booking">
           <div>
-            <h3>Want us at <span className="accent">your</span> venue, festival, or backyard luau?</h3>
-            <p>Wide open calendar · will travel for tacos</p>
+            <h3>Need a <span className="accent">headline-ready</span> live band for your event?</h3>
+            <p>Tribute sets + originals · full production · travel available with budget</p>
           </div>
           <button className="btn btn-gold" onClick={onBook}>
             Book Stashbox →
@@ -230,11 +230,11 @@ function Shows({ onBook }) {
 
 /* === MUSIC === */
 const VIDEOS = [
-  { title: 'Saltwater Sermon (Official Video)', views: '482K views · 3 weeks ago', dur: '4:12', featured: true },
-  { title: 'Last Bus to Hollywood', views: '218K views · 2 mo ago', dur: '3:48' },
-  { title: 'Live at Revolution', views: '94K views · 5 mo ago', dur: '5:21' },
-  { title: 'Backseat Hymn (Acoustic)', views: '156K views · 7 mo ago', dur: '3:02' },
-  { title: 'Studio Sessions Vol. 2', views: '63K views · 9 mo ago', dur: '6:44' }
+  { title: 'Sublime Highlight Reel — Stashbox', views: 'Featured channel reel', dur: '3:38', featured: true, url: 'https://www.youtube.com/watch?v=0GKeOZ3fDgw' },
+  { title: 'Fish House, Miami', views: 'Live performance', dur: '4:08', url: 'https://www.youtube.com/watch?v=ygvrFB1cn54' },
+  { title: 'Dylan Tribute · Peter Roland', views: 'Stashbox Does Dylan', dur: '5:13', url: 'https://www.youtube.com/watch?v=7IIB63ZAeH0' },
+  { title: 'Stashbox Live Performance', views: 'Full band set clip', dur: '4:28', url: 'https://www.youtube.com/watch?v=W-zqAcTEajg' },
+  { title: 'Reggae & Rock Set', views: 'Live room energy', dur: '4:19', url: 'https://www.youtube.com/watch?v=CIV_s42AnMs' }
 ];
 
 function Music({ onSubscribe, subCount }) {
@@ -248,12 +248,12 @@ function Music({ onSubscribe, subCount }) {
           </div>
           <span className="chip">
             <span className="dot"></span>
-            New Video Every Month
+            Real clips from @stashboxband
           </span>
         </div>
         <div className="music-grid">
           {VIDEOS.map((v, i) => (
-            <div key={i} className={`video-tile ${v.featured ? 'featured' : ''}`}>
+            <a key={i} href={v.url} target="_blank" rel="noreferrer" className={`video-tile ${v.featured ? 'featured' : ''}`}>
               <div className="thumb">
                 <div className="play"></div>
                 <span className="duration">{v.dur}</span>
@@ -262,7 +262,7 @@ function Music({ onSubscribe, subCount }) {
                 <h4>{v.title}</h4>
                 <div className="views">{v.views}</div>
               </div>
-            </div>
+            </a>
           ))}
         </div>
 
@@ -272,7 +272,7 @@ function Music({ onSubscribe, subCount }) {
             <h3>Don't miss a single drop.</h3>
             <p>{subCount} subscribers strong · new tracks · live cuts · backstage chaos</p>
           </div>
-          <a href="#" className="btn" onClick={onSubscribe}>
+          <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" target="_blank" rel="noreferrer" className="btn" onClick={onSubscribe}>
             Subscribe Now →
           </a>
         </div>
@@ -283,10 +283,10 @@ function Music({ onSubscribe, subCount }) {
 
 /* === MERCH === */
 const MERCH = [
-  { title: 'Saltwater Sermon Tee', sub: 'Heavyweight · Oatmeal', price: '$28', tag: 'NEW' },
-  { title: "Tour Poster '26", sub: '18×24 · Letterpress', price: '$22', tag: null },
-  { title: 'Pelican Trucker Hat', sub: 'Snapback · Faded Red', price: '$34', tag: 'LOW STOCK' },
-  { title: 'Stashbox LP — Vinyl', sub: '180g · Amber Splatter', price: '$32', tag: null }
+  { title: 'Official Stashbox Collection', sub: 'Apparel + accessories', price: 'Shop', tag: 'LIVE' },
+  { title: 'Tribute Show Promos', sub: 'Dylan · Reggae · Sublime', price: 'Media', tag: null },
+  { title: 'Band Branding Assets', sub: 'Logos + social-ready art', price: 'Assets', tag: null },
+  { title: 'Channel + Event Drops', sub: 'New releases & collabs', price: 'Updates', tag: null }
 ];
 
 function Merch() {
@@ -298,7 +298,7 @@ function Merch() {
             <span className="section-num">05 / Pack the Tour Van</span>
             <h2 className="section-title">The <span className="turquoise">Goods</span></h2>
           </div>
-          <a href="#" className="btn btn-ghost" onClick={(e) => e.preventDefault()}>
+          <a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noreferrer" className="btn btn-ghost">
             Full Shop →
           </a>
         </div>
@@ -346,11 +346,11 @@ function Footer({ onBook, onSubscribe }) {
               <span className="sun"></span>
               STASHBOX
             </div>
-            <p>Sun-soaked reggae rock from the broken edge of South Florida. Salt in the strings, sand in the snare.</p>
+            <p>South Florida live band performing rock, reggae, blues, funk, and originals — plus full tribute formats for Dylan, Sublime, and classic reggae nights.</p>
             <div className="footer-social">
-              <a href="#" className="social-btn" title="YouTube">YT</a>
-              <a href="#" className="social-btn" title="Instagram">IG</a>
-              <a href="#" className="social-btn" title="Spotify">SP</a>
+              <a href="https://www.youtube.com/@stashboxband" target="_blank" rel="noreferrer" className="social-btn" title="YouTube">YT</a>
+              <a href="https://stashbox.ai" target="_blank" rel="noreferrer" className="social-btn" title="Stashbox">SB</a>
+              <a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noreferrer" className="social-btn" title="Merch">ME</a>
               <a href="#" className="social-btn" title="Bandcamp">BC</a>
               <a href="#" className="social-btn" title="TikTok">TT</a>
             </div>
@@ -367,19 +367,19 @@ function Footer({ onBook, onSubscribe }) {
           <div>
             <h5>Listen</h5>
             <ul>
-              <li><a href="#">YouTube</a></li>
-              <li><a href="#">Spotify</a></li>
-              <li><a href="#">Apple Music</a></li>
-              <li><a href="#">Bandcamp</a></li>
+              <li><a href="https://www.youtube.com/@stashboxband" target="_blank" rel="noreferrer">YouTube</a></li>
+              <li><a href="/stashbox/themaninme/" target="_blank" rel="noreferrer">The Man In Me</a></li>
+              <li><a href="/stashbox/bloodinmyeyes/" target="_blank" rel="noreferrer">Blood In My Eyes</a></li>
+              <li><a href="/stashbox/visionsofjohanna/" target="_blank" rel="noreferrer">Visions of Johanna</a></li>
             </ul>
           </div>
           <div>
             <h5>Booking</h5>
             <ul>
-              <li><a href="mailto:book@stashbox.com">book@stashbox.com</a></li>
-              <li><a href="mailto:press@stashbox.com">press@stashbox.com</a></li>
+              <li><a href="mailto:booking@stashbox.com">booking@stashbox.com</a></li>
+              <li><a href="tel:3104086687">310.408.6687</a></li>
               <li><a href="#" onClick={(e) => { e.preventDefault(); onBook(); }}>Inquiry Form →</a></li>
-              <li><a href="tel:+19545550114">(954) 555-0114</a></li>
+              <li><a href="/stashbox/booking/" target="_blank" rel="noreferrer">Booking Page →</a></li>
             </ul>
           </div>
         </div>
@@ -514,7 +514,7 @@ function App() {
     if (e) e.preventDefault();
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3200);
-    window.open('https://youtube.com', '_blank', 'noopener');
+    window.open('https://www.youtube.com/@stashboxband?sub_confirmation=1', '_blank', 'noopener');
   };
 
   return (
