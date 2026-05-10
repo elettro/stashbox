@@ -81,7 +81,7 @@
   <div class="hero__video-wrap">
     <iframe
       id="hero-video"
-      src="https://www.youtube.com/embed/KWE3M2XVYZY?autoplay=1&mute=1&loop=1&playlist=KWE3M2XVYZY&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1"
+      src="https://www.youtube.com/embed/KWE3M2XVYZY?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1"
       allow="autoplay; encrypted-media"
       allowfullscreen>
     </iframe>
@@ -517,6 +517,7 @@ const heroVideos = [
 ];
 let heroIndex = 0;
 let heroMuted = true;
+const YT_STATE_ENDED = 0;
 
 
 const heroSection = document.querySelector('.hero, .site-hero, .video-hero');
@@ -531,7 +532,6 @@ if (heroSection && hideTextBtn) {
 }
 function heroNext() {
   heroIndex = (heroIndex + 1) % heroVideos.length;
-  heroMuted = true;
   syncHeroMuteUI();
   const wrap = document.getElementById('hero-video').parentNode;
   const newIframe = document.createElement('iframe');
@@ -540,7 +540,9 @@ function heroNext() {
   newIframe.setAttribute('allowfullscreen', '');
   newIframe.setAttribute('playsinline', '');
   newIframe.style.cssText = 'position:absolute;top:50%;left:50%;width:177.78vh;height:100vh;min-width:100%;min-height:56.25vw;transform:translate(-50%,-50%);border:none;pointer-events:none;';
-  newIframe.src = `https://www.youtube.com/embed/${heroVideos[heroIndex]}?autoplay=1&mute=1&loop=1&playlist=${heroVideos[heroIndex]}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1`;
+  const muteParam = heroMuted ? 1 : 0;
+  newIframe.src = `https://www.youtube.com/embed/${heroVideos[heroIndex]}?autoplay=1&mute=${muteParam}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1`;
+  newIframe.addEventListener('load', () => registerHeroPlayerListeners(newIframe), { once: true });
   const old = document.getElementById('hero-video');
   wrap.replaceChild(newIframe, old);
 }
@@ -561,6 +563,35 @@ function syncHeroMuteUI() {
   if (btn) btn.textContent = heroMuted ? '🔇 Unmute' : '🔊 Mute';
 }
 
+
+function registerHeroPlayerListeners(iframe) {
+  if (!iframe || !iframe.contentWindow) return;
+  iframe.contentWindow.postMessage(JSON.stringify({
+    event: 'command',
+    func: 'addEventListener',
+    args: ['onStateChange']
+  }), '*');
+}
+
+window.addEventListener('message', (event) => {
+  if (!event.data || typeof event.data !== 'string') return;
+  let data;
+  try {
+    data = JSON.parse(event.data);
+  } catch (error) {
+    return;
+  }
+
+  if (data?.event !== 'onStateChange') return;
+  if (Number(data.info) === YT_STATE_ENDED) {
+    heroNext();
+  }
+});
+
+const initialHeroVideo = document.getElementById('hero-video');
+if (initialHeroVideo) {
+  initialHeroVideo.addEventListener('load', () => registerHeroPlayerListeners(initialHeroVideo), { once: true });
+}
 
 // ── FEATURED VIDEO THUMBNAILS ──
 const featuredVideoPlayer = document.getElementById('featured-video-player');
