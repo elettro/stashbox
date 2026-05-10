@@ -1635,7 +1635,6 @@ body {
 
 .hero-title,
 .hero-logo,
-.stashbox-wordmark,
 .hero h1 {
   font-size: clamp(3rem, 18vw, 10rem);
   line-height: 0.9;
@@ -1735,7 +1734,6 @@ body {
 
   .hero-title,
   .hero-logo,
-  .stashbox-wordmark,
   .hero h1,
   .hero__name,
   .bk-hero h1 {
