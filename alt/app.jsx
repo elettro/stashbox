@@ -230,14 +230,17 @@ function Shows({ onBook }) {
 
 /* === MUSIC === */
 const VIDEOS = [
-  { title: 'Sublime Highlight Reel — Stashbox', views: 'Featured channel reel', dur: '3:38', featured: true, url: 'https://www.youtube.com/watch?v=0GKeOZ3fDgw' },
-  { title: 'Fish House, Miami', views: 'Live performance', dur: '4:08', url: 'https://www.youtube.com/watch?v=ygvrFB1cn54' },
-  { title: 'Dylan Tribute · Peter Roland', views: 'Stashbox Does Dylan', dur: '5:13', url: 'https://www.youtube.com/watch?v=7IIB63ZAeH0' },
-  { title: 'Stashbox Live Performance', views: 'Full band set clip', dur: '4:28', url: 'https://www.youtube.com/watch?v=W-zqAcTEajg' },
-  { title: 'Reggae & Rock Set', views: 'Live room energy', dur: '4:19', url: 'https://www.youtube.com/watch?v=CIV_s42AnMs' }
+  { title: 'Sublime Highlight Reel — Stashbox', views: 'Featured channel reel', dur: '3:38', featured: true, youtubeId: '0GKeOZ3fDgw' },
+  { title: 'Fish House, Miami', views: 'Live performance', dur: '4:08', youtubeId: 'ygvrFB1cn54' },
+  { title: 'Dylan Tribute · Peter Roland', views: 'Stashbox Does Dylan', dur: '5:13', youtubeId: '7IIB63ZAeH0' },
+  { title: 'Stashbox Live Performance', views: 'Full band set clip', dur: '4:28', youtubeId: 'W-zqAcTEajg' },
+  { title: 'Reggae & Rock Set', views: 'Live room energy', dur: '4:19', youtubeId: 'CIV_s42AnMs' }
 ];
 
 function Music({ onSubscribe, subCount }) {
+  const [activeVideoId, setActiveVideoId] = useState(VIDEOS[0].youtubeId);
+  const activeVideo = VIDEOS.find((v) => v.youtubeId === activeVideoId) || VIDEOS[0];
+
   return (
     <section className="music" id="music" data-screen-label="04 Music">
       <div className="container">
@@ -251,19 +254,38 @@ function Music({ onSubscribe, subCount }) {
             Real clips from @stashboxband
           </span>
         </div>
-        <div className="music-grid">
-          {VIDEOS.map((v, i) => (
-            <a key={i} href={v.url} target="_blank" rel="noreferrer" className={`video-tile ${v.featured ? 'featured' : ''}`}>
-              <div className="thumb">
-                <div className="play"></div>
-                <span className="duration">{v.dur}</span>
-              </div>
-              <div className="meta">
-                <h4>{v.title}</h4>
-                <div className="views">{v.views}</div>
-              </div>
-            </a>
-          ))}
+        <div className="music-grid music-player-layout">
+          <article className="video-tile featured active-player">
+            <div className="thumb">
+              <iframe
+                src={`https://www.youtube.com/embed/${activeVideo.youtubeId}?rel=0&autoplay=1`}
+                title={activeVideo.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+              <span className="duration">{activeVideo.dur}</span>
+            </div>
+            <div className="meta">
+              <h4>{activeVideo.title}</h4>
+              <div className="views">{activeVideo.views}</div>
+            </div>
+          </article>
+
+          <div className="video-list">
+            {VIDEOS.map((v, i) => (
+              <button key={i} className={`video-tile video-select ${v.youtubeId === activeVideoId ? 'is-active' : ''}`} onClick={() => setActiveVideoId(v.youtubeId)}>
+                <div className="thumb">
+                  <img src={`https://img.youtube.com/vi/${v.youtubeId}/hqdefault.jpg`} alt={`${v.title} thumbnail`} loading="lazy" />
+                  <div className="play"></div>
+                  <span className="duration">{v.dur}</span>
+                </div>
+                <div className="meta">
+                  <h4>{v.title}</h4>
+                  <div className="views">{v.views}</div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="youtube-banner">
