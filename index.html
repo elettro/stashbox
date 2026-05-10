@@ -144,7 +144,7 @@
     <div class="videos-grid reveal">
       <div class="videos-grid__featured">
         <div class="video-wrap">
-          <iframe src="https://www.youtube.com/embed/0GKeOZ3fDgw" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Dylan Full Session"></iframe>
+          <iframe id="featured-video-player" src="https://www.youtube.com/embed/0GKeOZ3fDgw" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="Stashbox Does Dylan Full Session"></iframe>
         </div>
         <div class="video-meta">
           <span class="pill pill--red" style="margin-bottom:8px;">Stashbox Does Dylan</span>
@@ -155,7 +155,7 @@
 
       <div class="videos-grid__side">
         <div class="video-thumb">
-          <a href="https://www.youtube.com/watch?v=ygvrFB1cn54" target="_blank" class="video-thumb__link">
+          <a href="https://www.youtube.com/watch?v=ygvrFB1cn54" class="video-thumb__link" data-video-id="ygvrFB1cn54">
             <img src="https://img.youtube.com/vi/ygvrFB1cn54/maxresdefault.jpg" alt="Stashbox Fish House Jam" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
@@ -163,7 +163,7 @@
           <span class="pill pill--gold" style="font-size:10px;">Live</span>
         </div>
         <div class="video-thumb">
-          <a href="https://www.youtube.com/watch?v=7IIB63ZAeH0" target="_blank" class="video-thumb__link">
+          <a href="https://www.youtube.com/watch?v=7IIB63ZAeH0" class="video-thumb__link" data-video-id="7IIB63ZAeH0">
             <img src="https://img.youtube.com/vi/7IIB63ZAeH0/maxresdefault.jpg" alt="Stashbox Peter Roland Bob Dylan" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
@@ -171,7 +171,7 @@
           <span class="pill" style="font-size:10px;">Blues</span>
         </div>
         <div class="video-thumb">
-          <a href="https://www.youtube.com/watch?v=W-zqAcTEajg" target="_blank" class="video-thumb__link">
+          <a href="https://www.youtube.com/watch?v=W-zqAcTEajg" class="video-thumb__link" data-video-id="W-zqAcTEajg">
             <img src="https://img.youtube.com/vi/W-zqAcTEajg/maxresdefault.jpg" alt="Stashbox Live" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
@@ -179,7 +179,7 @@
           <span class="pill" style="font-size:10px;">Live</span>
         </div>
         <div class="video-thumb">
-          <a href="https://www.youtube.com/watch?v=CIV_s42AnMs" target="_blank" class="video-thumb__link">
+          <a href="https://www.youtube.com/watch?v=CIV_s42AnMs" class="video-thumb__link" data-video-id="CIV_s42AnMs">
             <img src="https://img.youtube.com/vi/CIV_s42AnMs/maxresdefault.jpg" alt="Stashbox Rock Fish House" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
@@ -561,6 +561,22 @@ function heroToggleMute() {
 function syncHeroMuteUI() {
   const btn = document.getElementById('hero-mute');
   if (btn) btn.textContent = heroMuted ? '🔇 Unmute' : '🔊 Mute';
+}
+
+
+// ── FEATURED VIDEO THUMBNAILS ──
+const featuredVideoPlayer = document.getElementById('featured-video-player');
+const featuredVideoThumbs = document.querySelectorAll('.video-thumb__link[data-video-id]');
+
+if (featuredVideoPlayer && featuredVideoThumbs.length) {
+  featuredVideoThumbs.forEach((thumb) => {
+    thumb.addEventListener('click', (event) => {
+      event.preventDefault();
+      const { videoId } = thumb.dataset;
+      if (!videoId) return;
+      featuredVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    });
+  });
 }
 
 // ── SCROLL REVEAL ──
