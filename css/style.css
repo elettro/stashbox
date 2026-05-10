@@ -3,7 +3,7 @@
    style.css
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Special+Elite&family=Syne:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&display=swap');
 
 /* ── RESET ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1343,7 +1343,7 @@ small, .small, .meta, .caption, .microcopy,
 .hero__rasta span:nth-child(3) { flex: 1; background: var(--rasta-green); }
 
 .hero__name {
-  font-family: "Special Elite", "Courier Prime", "Courier New", monospace;
+  font-family: var(--font-display);
   font-size: clamp(88px, 14vw, 170px);
   line-height: 0.92;
   color: var(--white);
@@ -1354,7 +1354,7 @@ small, .small, .meta, .caption, .microcopy,
 .stashbox-wordmark,
 .site-nav__logo-text,
 .site-footer__brand-name {
-  font-family: "Special Elite", "Courier Prime", "Courier New", monospace !important;
+  font-family: var(--font-display) !important;
   font-weight: 400 !important;
   letter-spacing: 0.02em;
   text-transform: none;
