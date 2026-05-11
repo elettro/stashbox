@@ -64,26 +64,14 @@ nav{position:sticky;top:0;z-index:100;background:rgba(12,12,14,0.92);backdrop-fi
 /* ── NOW PLAYING BANNER ── */
 #now-banner{
   background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  padding:1.25rem 1.5rem;margin-bottom:1.5rem;
-  display:none;align-items:center;gap:1.25rem;flex-wrap:wrap;
-  position:sticky;top:60px;z-index:90;
-  backdrop-filter:blur(12px);
+  margin-bottom:1.5rem;overflow:hidden;
 }
-.banner-art{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;display:none}
-.banner-vis{width:56px;height:56px;border-radius:8px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.banner-info{flex:1;min-width:0}
-.banner-title{font-family:var(--fh);font-size:20px;letter-spacing:0.04em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.banner-meta{font-size:12px;color:var(--muted);margin-top:2px}
-.banner-genre{display:inline-block;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-left:8px}
-.banner-controls{display:flex;align-items:center;gap:8px}
 .b-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;font-size:14px}
 .b-btn:hover{border-color:var(--border-h);color:var(--text)}
 .b-btn.play-pause{width:44px;height:44px;background:var(--accent);border-color:var(--accent);color:#0c0c0e;font-size:18px}
 .b-btn.play-pause:hover{opacity:0.88}
 .b-btn.radio-on{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
-audio{flex:1;min-width:180px;max-width:320px;height:32px;accent-color:var(--accent)}
 audio::-webkit-media-controls-panel{background:var(--surface2)}
-.banner-notes{font-size:11px;color:var(--muted);font-style:italic;width:100%;margin-top:4px;display:none}
 
 /* ── VIDEO MODAL ── */
 #video-modal{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;padding:2rem}
@@ -103,6 +91,68 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 .section-shuffle{margin-left:auto;height:30px;padding:0 14px;font-size:11px;font-weight:600;font-family:var(--fb);letter-spacing:0.06em;text-transform:uppercase;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s}
 .section-shuffle:hover{border-color:var(--border-h);color:var(--text)}
 .section-empty{padding:1.5rem;text-align:center;color:var(--muted);font-size:13px;background:var(--surface);border-radius:10px;border:1px dashed var(--border)}
+
+/* ── SHUFFLE ALL HERO ── */
+.shuffle-hero{
+  background:linear-gradient(135deg,rgba(240,165,0,0.12) 0%,rgba(224,92,42,0.08) 100%);
+  border:1px solid rgba(240,165,0,0.25);border-radius:14px;
+  padding:1.75rem 2rem;margin-bottom:1.75rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;
+}
+.shuffle-hero-text{}
+.shuffle-hero-title{font-family:var(--fh);font-size:clamp(28px,5vw,44px);letter-spacing:0.05em;color:var(--text);line-height:1}
+.shuffle-hero-sub{font-size:13px;color:var(--muted);margin-top:6px;letter-spacing:0.04em}
+.shuffle-hero-btns{display:flex;gap:10px;flex-wrap:wrap}
+.btn-shuffle-all{
+  font-family:var(--fh);font-size:22px;letter-spacing:0.08em;
+  padding:12px 36px;background:var(--accent);color:#0c0c0e;
+  border:none;border-radius:10px;cursor:pointer;
+  transition:opacity 0.2s,transform 0.15s;white-space:nowrap;
+}
+.btn-shuffle-all:hover{opacity:0.88;transform:translateY(-1px)}
+.btn-shuffle-all:active{transform:translateY(0)}
+.btn-shuffle-filtered{
+  font-family:var(--fh);font-size:18px;letter-spacing:0.06em;
+  padding:12px 24px;background:transparent;color:var(--accent);
+  border:1px solid var(--accent);border-radius:10px;cursor:pointer;
+  transition:all 0.2s;white-space:nowrap;display:none;
+}
+.btn-shuffle-filtered:hover{background:var(--accent-d)}
+
+/* ── EXPANDED NOW-PLAYING PLAYER ── */
+#now-banner{
+  flex-direction:column;align-items:stretch;padding:0;overflow:hidden;
+  border-radius:14px;
+}
+.player-media{
+  width:100%;position:relative;background:#000;
+  display:none;max-height:380px;overflow:hidden;
+  border-radius:14px 14px 0 0;
+}
+.player-media img{width:100%;max-height:380px;object-fit:contain;display:block;background:#000}
+.player-media iframe{width:100%;aspect-ratio:16/9;border:none;display:block}
+.player-vis-wrap{
+  display:none;width:100%;height:120px;
+  border-radius:14px 14px 0 0;background:var(--surface2);
+  align-items:flex-end;justify-content:center;padding:0 0 8px;overflow:hidden;
+  position:relative;
+}
+.player-vis-title{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-family:var(--fh);font-size:clamp(18px,4vw,32px);letter-spacing:0.04em;
+  color:rgba(255,255,255,0.18);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:90%;text-align:center;
+}
+#vis-canvas-full{width:100%;height:80px;display:block}
+.player-bottom{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap}
+.player-info{flex:1;min-width:0}
+.player-title{font-family:var(--fh);font-size:18px;letter-spacing:0.04em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.player-genre-tag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-left:6px}
+.player-notes{font-size:11px;color:var(--muted);font-style:italic;margin-top:3px}
+.player-controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.player-audio-wrap{width:100%;padding:0 16px 12px;display:none}
+.player-audio-wrap audio{width:100%;height:32px;accent-color:var(--accent)}
 
 /* ── TRACK CARDS ── */
 .tracks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
@@ -185,27 +235,51 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 <div id="app">
   <div class="page">
 
-    <!-- Now Playing Banner -->
-    <div id="now-banner">
-      <img id="banner-art" class="banner-art" src="" alt=""/>
-      <div id="banner-vis" class="banner-vis">
-        <canvas id="vis-canvas" width="40" height="40"></canvas>
+    <!-- Shuffle All Hero CTA -->
+    <div class="shuffle-hero" id="shuffle-hero">
+      <div class="shuffle-hero-text">
+        <div class="shuffle-hero-title">STASHBOX RADIO</div>
+        <div class="shuffle-hero-sub" id="shuffle-sub">Loading your catalog…</div>
       </div>
-      <div class="banner-info">
-        <div class="banner-title" id="banner-title">—</div>
-        <div class="banner-meta">
-          <span id="banner-artist"></span>
-          <span class="banner-genre" id="banner-genre"></span>
+      <div class="shuffle-hero-btns">
+        <button class="btn-shuffle-all" onclick="shuffleAll()">⇄ SHUFFLE ALL</button>
+        <button class="btn-shuffle-filtered" id="btn-shuffle-filtered" onclick="shuffleFiltered()">⇄ SHUFFLE FILTERED</button>
+      </div>
+    </div>
+
+    <!-- Now Playing Player -->
+    <div id="now-banner" style="display:none">
+      <!-- Media: image or video -->
+      <div class="player-media" id="player-media">
+        <img id="player-img" src="" alt="" style="display:none"/>
+        <iframe id="player-vid" src="" allow="autoplay; encrypted-media" allowfullscreen style="display:none"></iframe>
+      </div>
+      <!-- Visualizer fallback -->
+      <div class="player-vis-wrap" id="player-vis-wrap">
+        <div class="player-vis-title" id="player-vis-title"></div>
+        <canvas id="vis-canvas-full"></canvas>
+      </div>
+      <!-- Bottom strip: info + controls -->
+      <div class="player-bottom">
+        <div class="player-info">
+          <div class="player-title" id="banner-title">—</div>
+          <div class="player-meta">
+            <span id="banner-artist"></span>
+            <span class="player-genre-tag" id="banner-genre"></span>
+          </div>
+          <div class="player-notes" id="banner-notes" style="display:none"></div>
         </div>
-        <div class="banner-notes" id="banner-notes"></div>
+        <div class="player-controls">
+          <button class="b-btn" onclick="playPrev()" title="Previous">&#9664;</button>
+          <button class="b-btn play-pause" id="play-pause-btn" onclick="togglePause()">&#9654;</button>
+          <button class="b-btn" onclick="playNext()" title="Next">&#9654;&#9654;</button>
+          <button class="b-btn" id="radio-btn" onclick="toggleRadio()" title="Radio mode">&#9678;</button>
+        </div>
       </div>
-      <div class="banner-controls">
-        <button class="b-btn" onclick="playPrev()" title="Previous">&#9664;</button>
-        <button class="b-btn play-pause" id="play-pause-btn" onclick="togglePause()">&#9654;</button>
-        <button class="b-btn" onclick="playNext()" title="Next">&#9654;&#9654;</button>
-        <button class="b-btn" id="radio-btn" onclick="toggleRadio()" title="Radio mode">&#9678;</button>
+      <!-- Audio scrubber (only shown when no video) -->
+      <div class="player-audio-wrap" id="player-audio-wrap">
+        <audio id="audio" controls preload="metadata"></audio>
       </div>
-      <audio id="audio" controls preload="metadata" style="flex:1;min-width:180px;max-width:320px;height:32px;accent-color:var(--accent)"></audio>
     </div>
 
     <!-- Sections directory -->
@@ -349,6 +423,17 @@ function bootApp() {
   document.getElementById('app').style.display = 'block';
   buildGenreChips();
   render();
+  updateShuffleSub();
+}
+
+function updateShuffleSub() {
+  const filtered = getFiltered();
+  const isFiltered = activeGenre !== 'ALL' || videoOnly || searchQ;
+  document.getElementById('shuffle-sub').textContent =
+    isFiltered
+      ? `${filtered.length} of ${allTracks.length} tracks match your filters`
+      : `${allTracks.length} tracks · Reggae, Rock, Blues & more`;
+  document.getElementById('btn-shuffle-filtered').style.display = isFiltered ? 'inline-block' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -421,6 +506,7 @@ function render() {
     else groups['Other'].push(t);
   });
 
+  updateShuffleSub();
   wrap.innerHTML = SECTIONS.map((sec, si) => {
     const tracks = groups[sec.key];
     if (tracks.length === 0) return '';
@@ -479,6 +565,21 @@ function playCard(trackIdx, sectionKey) {
   loadTrack(queue[qIdx]);
 }
 
+function shuffleAll() {
+  queue = shuffle([...allTracks]);
+  queueSection = null;
+  qIdx = 0;
+  loadTrack(queue[0]);
+}
+
+function shuffleFiltered() {
+  const filtered = getFiltered();
+  queue = shuffle([...filtered]);
+  queueSection = null;
+  qIdx = 0;
+  loadTrack(queue[0]);
+}
+
 function shuffleSection(sectionKey) {
   const filtered = getFiltered();
   const sectionTracks = shuffle([...filtered.filter(t => t.sectionKey === sectionKey)]);
@@ -510,7 +611,7 @@ function toggleRadio() {
   document.getElementById('radio-btn').classList.toggle('radio-on', radioMode);
 }
 
-audio.addEventListener('ended', () => { if (radioMode) playNext(); });
+audio.addEventListener('ended', () => { playNext(); });
 audio.addEventListener('play',  () => updatePlayBtn(false));
 audio.addEventListener('pause', () => updatePlayBtn(true));
 function updatePlayBtn(paused) {
@@ -520,45 +621,68 @@ function updatePlayBtn(paused) {
 function loadTrack(t) {
   if (!t) return;
 
-  // Audio
-  if (t.audioUrl) {
-    audio.src = t.audioUrl;
-    audio.play().catch(()=>{});
-  } else {
-    audio.src = '';
-  }
-
-  // Banner
-  const banner = document.getElementById('now-banner');
-  banner.style.display = 'flex';
-
+  // ── Info strip ──
   document.getElementById('banner-title').textContent  = t.title;
   document.getElementById('banner-artist').textContent = t.artist || '';
-
   const sec = SECTIONS.find(s => s.key === t.sectionKey) || SECTIONS[SECTIONS.length-1];
   const genreEl = document.getElementById('banner-genre');
   genreEl.textContent = t.genre || '';
   genreEl.style.background = sec.color + '22';
-  genreEl.style.color       = sec.color;
-
+  genreEl.style.color = sec.color;
   const notesEl = document.getElementById('banner-notes');
   notesEl.textContent = t.notes || '';
   notesEl.style.display = t.notes ? 'block' : 'none';
 
-  // Art
-  const artEl = document.getElementById('banner-art');
-  const visEl = document.getElementById('banner-vis');
-  if (t.imageUrl) {
-    artEl.src = t.imageUrl;
-    artEl.style.display = 'block';
-    visEl.style.display = 'none';
+  // ── Media display: VIDEO > IMAGE > VISUALIZER ──
+  const mediaWrap  = document.getElementById('player-media');
+  const imgEl      = document.getElementById('player-img');
+  const vidEl      = document.getElementById('player-vid');
+  const visWrap    = document.getElementById('player-vis-wrap');
+  const audioWrap  = document.getElementById('player-audio-wrap');
+
+  // reset all
+  imgEl.style.display = 'none';
+  vidEl.style.display = 'none'; vidEl.src = '';
+  mediaWrap.style.display = 'none';
+  visWrap.style.display   = 'none';
+  audioWrap.style.display = 'none';
+  if (visAnim) { cancelAnimationFrame(visAnim); visAnim = null; }
+
+  if (t.videoUrl) {
+    // Embed YouTube — pause audio, video is the player
+    audio.pause(); audio.src = '';
+    let embed = t.videoUrl;
+    if (embed.includes('youtube.com/watch')) {
+      try { embed = 'https://www.youtube.com/embed/' + new URL(embed).searchParams.get('v') + '?autoplay=1'; } catch(e){}
+    } else if (embed.includes('youtu.be/')) {
+      embed = 'https://www.youtube.com/embed/' + embed.split('youtu.be/')[1].split('?')[0] + '?autoplay=1';
+    }
+    vidEl.src = embed;
+    vidEl.style.display = 'block';
+    mediaWrap.style.display = 'block';
+    // No audio scrubber when video plays
+
+  } else if (t.imageUrl) {
+    // Show artwork + audio player
+    imgEl.src = t.imageUrl;
+    imgEl.style.display = 'block';
+    mediaWrap.style.display = 'block';
+    audioWrap.style.display = 'block';
+    if (t.audioUrl) { audio.src = t.audioUrl; audio.play().catch(()=>{}); }
+
   } else {
-    artEl.style.display = 'none';
-    visEl.style.display = 'flex';
+    // Visualizer fallback + audio player
+    document.getElementById('player-vis-title').textContent = t.title;
+    visWrap.style.display = 'flex';
+    audioWrap.style.display = 'block';
     startVis();
+    if (t.audioUrl) { audio.src = t.audioUrl; audio.play().catch(()=>{}); }
   }
 
-  // Re-render cards to update playing state
+  // Show the player banner
+  document.getElementById('now-banner').style.display = 'block';
+
+  // Re-render cards to update playing highlight
   render();
 }
 
@@ -566,17 +690,22 @@ function loadTrack(t) {
 //  VISUALIZER
 // ══════════════════════════════════════════════
 function startVis() {
-  const canvas = document.getElementById('vis-canvas');
+  const canvas = document.getElementById('vis-canvas-full');
+  canvas.width  = canvas.offsetWidth  || 800;
+  canvas.height = canvas.offsetHeight || 80;
   const ctx = canvas.getContext('2d');
   if (visAnim) cancelAnimationFrame(visAnim);
   let phase = 0;
   function draw() {
-    ctx.clearRect(0,0,40,40);
-    const bars = 8;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    const bars = 48;
+    const bw = (w / bars) - 1;
     for (let i=0;i<bars;i++) {
-      const h = 6 + 14 * Math.abs(Math.sin(i * 0.8 + phase));
-      ctx.fillStyle = `rgba(240,165,0,${0.5 + h/28})`;
-      ctx.fillRect(i*5, 40-h, 4, h);
+      const amp = 0.3 + 0.7 * Math.abs(Math.sin(i * 0.22 + phase));
+      const bh  = amp * h * 0.9;
+      ctx.fillStyle = `rgba(240,165,0,${0.35 + amp * 0.55})`;
+      ctx.fillRect(i*(bw+1), h-bh, bw, bh);
     }
     phase += 0.07;
     visAnim = requestAnimationFrame(draw);
