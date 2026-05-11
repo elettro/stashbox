@@ -184,7 +184,7 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 .card-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;display:none;background:var(--surface3)}
 .card-thumb-placeholder{width:40px;height:40px;border-radius:6px;background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
 .card-info{flex:1;min-width:0}
-.card-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-title{font-size:13px;font-weight:600;color:var(--text);white-space:normal;overflow:visible;word-break:break-word;line-height:1.25}
 .card-artist{font-size:11px;color:var(--muted);margin-top:1px}
 .card-date{font-size:10px;color:var(--muted2);margin-top:1px}
 .card-badges{display:flex;gap:4px;align-items:center;flex-shrink:0}
@@ -644,7 +644,7 @@ function renderCard(t, i, sec) {
   const hasImg    = !!t.imageUrl;
   const hasVid    = !!t.videoUrl;
   const videoThumbUrl = hasVid ? getVideoThumbnailUrl(t.videoUrl) : '';
-  const thumbSrc  = videoThumbUrl || t.imageUrl;
+  const thumbSrc  = t.imageUrl || videoThumbUrl;
   const hasThumb  = !!thumbSrc;
   const thumb     = hasThumb
     ? `<img class="card-thumb" src="${thumbSrc}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:flex"/><div class="card-thumb-placeholder" style="display:none">${sec.emoji}</div>`
