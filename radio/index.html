@@ -832,25 +832,50 @@ function loadTrack(t) {
   audioWrap.style.display = 'none';
   if (visAnim) { cancelAnimationFrame(visAnim); visAnim = null; }
 
-  if (t.videoUrl) {
-    // Pause audio whenever a track is using video playback
+  const hasAudio = !!t.audioUrl;
+
+  if (hasAudio && t.imageUrl) {
+    // Prefer reliable audio playback for song rows, especially on mobile browsers.
+    imgEl.onerror = () => {
+      imgEl.onerror = null;
+      imgEl.style.display = 'none';
+      mediaWrap.style.display = 'none';
+      document.getElementById('player-vis-title').textContent = t.title;
+      visWrap.style.display = 'flex';
+      startVis();
+    };
+    imgEl.src = t.imageUrl;
+    imgEl.style.display = 'block';
+    mediaWrap.style.display = 'block';
+    audioWrap.style.display = 'block';
+    audio.src = t.audioUrl;
+    audio.play().catch(()=>{});
+
+  } else if (hasAudio) {
+    // Visualizer fallback + audio player
+    document.getElementById('player-vis-title').textContent = t.title;
+    visWrap.style.display = 'flex';
+    audioWrap.style.display = 'block';
+    startVis();
+    audio.src = t.audioUrl;
+    audio.play().catch(()=>{});
+
+  } else if (t.videoUrl) {
+    // If no audio source exists, fall back to video playback.
     audio.pause();
     audio.src = '';
 
     if (isYouTubeUrl(t.videoUrl)) {
-      // YouTube embed playback
       vidEl.src = toYouTubeEmbed(t.videoUrl);
       vidEl.style.display = 'block';
       mediaWrap.style.display = 'block';
       attachVideoEndedHandling(vidEl);
     } else {
-      // Native video playback for non-YouTube URLs (mobile-safe)
       nativeVidEl.src = fixDropbox(t.videoUrl);
       nativeVidEl.style.display = 'block';
       mediaWrap.style.display = 'block';
       nativeVidEl.play().catch(()=>{});
     }
-    // No audio scrubber when video plays
 
   } else if (t.imageUrl) {
     // Show artwork + audio player
