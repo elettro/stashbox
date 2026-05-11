@@ -456,7 +456,26 @@ function splitCSV(line) {
 function clean(s){return (s||'').trim().replace(/^"|"$/g,'')}
 function fixDropbox(u){
   if(!u)return '';
-  return u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'').replace(/\?raw=1/,'');
+  const raw = (u || '').trim();
+  if (!raw) return '';
+  let normalized = raw;
+
+  try {
+    const parsed = new URL(raw);
+
+    if (parsed.hostname === 'www.dropbox.com' || parsed.hostname === 'dropbox.com') {
+      parsed.hostname = 'dl.dropboxusercontent.com';
+    }
+
+    parsed.searchParams.delete('dl');
+    parsed.searchParams.delete('raw');
+
+    normalized = parsed.toString();
+  } catch (e) {
+    normalized = raw;
+  }
+
+  return encodeURI(normalized);
 }
 
 function toYouTubeEmbed(url) {
