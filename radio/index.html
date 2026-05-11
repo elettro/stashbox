@@ -207,7 +207,7 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 /* ── RESPONSIVE ── */
 @media(max-width:700px){
   .nav-inner{padding:10px;position:relative;overflow:visible}
-  .nav-filters{width:min(86vw,340px);order:2;position:absolute;right:0;top:56px;z-index:120;border-radius:10px 0 0 10px;transform:translateX(0);transition:transform 0.25s ease,opacity 0.2s ease}
+  .nav-filters{width:min(86vw,340px);order:2;position:absolute;right:0;top:56px;z-index:120;border-radius:10px 0 0 10px;padding-left:42px;transform:translateX(0);transition:transform 0.25s ease,opacity 0.2s ease}
   .nav-filters.drawer-hidden{transform:translateX(calc(100% - 34px));opacity:0.96}
   .filter-drawer-tab{display:flex;order:2;position:absolute;right:0;top:56px;width:34px;height:46px;align-items:center;justify-content:center;border:none;border-radius:8px 0 0 8px;background:var(--accent);color:#0c0c0e;font-size:20px;font-weight:700;z-index:121;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
   .filter-drawer-tab.open{right:calc(min(86vw,340px) - 34px)}
