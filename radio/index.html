@@ -784,8 +784,13 @@ function playPrev() {
   loadTrack(queue[qIdx]);
 }
 
+function safePlayAudio() {
+  const p = audio.play();
+  if (p && typeof p.catch === 'function') p.catch(() => {});
+}
+
 function togglePause() {
-  if (audio.paused) audio.play();
+  if (audio.paused) safePlayAudio();
   else audio.pause();
 }
 
@@ -846,7 +851,7 @@ function loadTrack(t) {
     mediaWrap.style.display = 'block';
     audioWrap.style.display = 'block';
     audio.src = t.audioUrl;
-    audio.play().catch(()=>{});
+    safePlayAudio();
 
   } else if (hasAudio) {
     // Visualizer fallback + audio player
@@ -855,7 +860,7 @@ function loadTrack(t) {
     audioWrap.style.display = 'block';
     startVis();
     audio.src = t.audioUrl;
-    audio.play().catch(()=>{});
+    safePlayAudio();
 
   } else if (t.videoUrl) {
     // If no audio source exists, fall back to video playback.
@@ -888,7 +893,7 @@ function loadTrack(t) {
     imgEl.style.display = 'block';
     mediaWrap.style.display = 'block';
     audioWrap.style.display = 'block';
-    if (t.audioUrl) { audio.src = t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src = t.audioUrl; safePlayAudio(); }
 
   } else {
     // Visualizer fallback + audio player
@@ -896,7 +901,7 @@ function loadTrack(t) {
     visWrap.style.display = 'flex';
     audioWrap.style.display = 'block';
     startVis();
-    if (t.audioUrl) { audio.src = t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src = t.audioUrl; safePlayAudio(); }
   }
 
   // Show the player banner
