@@ -327,7 +327,6 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
           <button class="b-btn" onclick="playPrev()" title="Previous">&#9664;</button>
           <button class="b-btn play-pause" id="play-pause-btn" onclick="togglePause()">&#9654;</button>
           <button class="b-btn" onclick="playNext()" title="Next">&#9654;&#9654;</button>
-          <button class="b-btn" id="radio-btn" onclick="toggleRadio()" title="Radio mode">&#9678;</button>
         </div>
       </div>
       <!-- Audio scrubber (only shown when no video) -->
@@ -398,7 +397,6 @@ let searchQ       = '';
 let queue         = [];
 let queueSection  = null;
 let qIdx          = -1;
-let radioMode     = false;
 let visAnim       = null;
 let youtubeStatePoll = null;
 let youtubeMessageBound = false;
@@ -772,7 +770,7 @@ function shuffleSection(sectionKey) {
 
 function playNext() {
   if (!queue.length) return;
-  qIdx = radioMode ? Math.floor(Math.random() * queue.length) : (qIdx + 1) % queue.length;
+  qIdx = (qIdx + 1) % queue.length;
   loadTrack(queue[qIdx]);
 }
 
@@ -785,11 +783,6 @@ function playPrev() {
 function togglePause() {
   if (audio.paused) audio.play();
   else audio.pause();
-}
-
-function toggleRadio() {
-  radioMode = !radioMode;
-  document.getElementById('radio-btn').classList.toggle('radio-on', radioMode);
 }
 
 function handleTrackEnded() { playNextRandomSong(); }
