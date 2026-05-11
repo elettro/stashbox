@@ -399,6 +399,7 @@ let searchQ       = '';
 let queue         = [];
 let queueSection  = null;
 let qIdx          = -1;
+let recentRandomHistory = [];
 let visAnim       = null;
 let youtubeStatePoll = null;
 let youtubeMessageBound = false;
@@ -744,7 +745,14 @@ function getCurrentPool() {
 function getRandomSongFromCurrentPool(excludeIdx = null) {
   const pool = getCurrentPool();
   if (!pool.length) return null;
-  const candidates = (excludeIdx !== null && pool.length > 1) ? pool.filter(t => t.idx !== excludeIdx) : pool;
+  const historyLimit = Math.max(1, Math.min(pool.length - 1, Math.floor(pool.length * 0.35)));
+  const recentSet = new Set(recentRandomHistory.slice(-historyLimit));
+  let candidates = pool.filter(t => !recentSet.has(t.idx));
+  if (!candidates.length) candidates = [...pool];
+  if (excludeIdx !== null && candidates.length > 1) {
+    const noCurrent = candidates.filter(t => t.idx !== excludeIdx);
+    if (noCurrent.length) candidates = noCurrent;
+  }
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 function playSong(track) {
@@ -752,6 +760,11 @@ function playSong(track) {
   queue = getCurrentPool();
   qIdx = queue.findIndex(t => t.idx === track.idx);
   if (qIdx < 0) { queue = [track]; qIdx = 0; }
+  recentRandomHistory.push(track.idx);
+  const maxHistory = Math.max(12, queue.length * 2);
+  if (recentRandomHistory.length > maxHistory) {
+    recentRandomHistory = recentRandomHistory.slice(-maxHistory);
+  }
   loadTrack(track);
 }
 function playNextRandomSong() {
