@@ -436,7 +436,7 @@ function parseCSV(csv) {
       sectionKey: resolveSection(genre),
       date:       clean(c[3]),
       wavFile:    clean(c[4]),
-      audioUrl:   fixDropbox(clean(c[5])),
+      audioUrl:   pickAudioUrl(clean(c[5]), clean(c[4])),
       artFile:    clean(c[6]),
       imageUrl:   pickImageUrl(clean(c[7]), clean(c[6])),
       videoUrl:   clean(c[8]),
@@ -447,6 +447,16 @@ function parseCSV(csv) {
   return out;
 }
 
+
+
+function pickAudioUrl(audioUrl, wavFile) {
+  const primary = fixDropbox(audioUrl);
+  if (primary) return primary;
+
+  const fallback = fixDropbox(wavFile);
+  if (/^https?:\/\//i.test(fallback)) return fallback;
+  return fallback || '';
+}
 
 function pickImageUrl(imageUrl, artFile) {
   const primary = fixDropbox(imageUrl);
