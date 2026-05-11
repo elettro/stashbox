@@ -185,6 +185,7 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 .card-thumb-placeholder{width:40px;height:40px;border-radius:6px;background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
 .card-info{flex:1;min-width:0;padding-right:4px}
 .card-title{font-size:13px;font-weight:600;color:var(--text);white-space:normal;overflow:visible;word-break:break-word;line-height:1.25}
+.media-type-badge{display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1;margin-left:6px;vertical-align:middle;opacity:0.9}
 .card-artist{font-size:11px;color:var(--muted);margin-top:1px}
 .card-date{font-size:10px;color:var(--muted2);margin-top:1px}
 .play-icon{font-size:16px;color:var(--muted);flex-shrink:0;transition:color 0.15s}
@@ -645,18 +646,21 @@ function render() {
 function renderCard(t, i, sec) {
   const isPlaying = queue[qIdx] && queue[qIdx].idx === t.idx;
   const hasVid    = !!t.videoUrl;
+  const isMobile  = window.matchMedia('(max-width: 700px)').matches;
   const videoThumbUrl = hasVid ? getVideoThumbnailUrl(t.videoUrl) : '';
-  const thumbSrc  = t.imageUrl || videoThumbUrl;
+  // Mobile requirement: always prefer song artwork for video tracks when Artwork Link exists
+  const thumbSrc  = (isMobile && hasVid && t.imageUrl) ? t.imageUrl : (t.imageUrl || videoThumbUrl);
   const hasThumb  = !!thumbSrc;
   const thumb     = hasThumb
     ? `<img class="card-thumb" src="${thumbSrc}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:flex"/><div class="card-thumb-placeholder" style="display:none">${sec.emoji}</div>`
     : `<div class="card-thumb-placeholder">${sec.emoji}</div>`;
+  const mediaBadge = hasVid ? '<span class="media-type-badge" aria-label="Video track" title="Video track">🎬</span>' : '';
 
   return `<div class="track-card ${isPlaying?'playing':''}" data-idx="${t.idx}" onclick="playCard(${t.idx},'${sec.key}')">
     <div class="card-num">${isPlaying ? '♪' : i+1}</div>
     ${thumb}
     <div class="card-info">
-      <div class="card-title">${t.title}</div>
+      <div class="card-title">${t.title} ${mediaBadge}</div>
       <div class="card-artist">${t.artist||''}</div>
       <div class="card-date">${t.date||''}</div>
     </div>
