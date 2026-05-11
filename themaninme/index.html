@@ -11,6 +11,20 @@
         canvas { display: block; }
         /* Prevent selection of UI text */
         .no-select { user-select: none; -webkit-user-select: none; }
+        .song-art {
+            position: absolute;
+            top: 110px;
+            right: 16px;
+            width: 88px;
+            height: 88px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.35);
+            z-index: 25;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+        }
+        .song-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        @media (min-width: 768px) { .song-art { display: none; } }
     </style>
 </head>
 <body>
@@ -32,6 +46,9 @@
             <button id="shareButton" class="p-3 bg-green-600 hover:bg-green-500 rounded-full transition-all duration-300 shadow-2xl group border border-white/10">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white group-hover:scale-110"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
             </button>
+        </div>
+        <div class="song-art">
+            <img src="/stashbox/images/releases/Album-Artwork-StashboxDoesDylan-v2-1.jpg" alt="Stashbox Does Dylan artwork">
         </div>
 
         <!-- Bottom: YouTube Link (Bumped up on mobile: bottom-24) -->
@@ -174,7 +191,8 @@
         const pausedOverlay = document.getElementById('pausedOverlay');
         const container = document.getElementById('container');
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
 
         const uniforms = {
@@ -190,28 +208,42 @@
         scene.add(mesh);
 
         let audioCtx, analyser, dataArray, texture, audio;
+        let audioBooting = false;
 
         async function start() {
-            if (audio) return; 
+            if (audio || audioBooting) return;
+            audioBooting = true;
             overlay.style.opacity = '0';
             setTimeout(() => overlay.style.display = 'none', 1000);
 
-            audio = new Audio(AUDIO_URL);
-            audio.crossOrigin = "anonymous";
-            audio.loop = true;
-            
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(audio);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
-            texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
-            uniforms.uData.value = texture;
-            
-            audio.play();
+            try {
+                audio = new Audio(AUDIO_URL);
+                audio.crossOrigin = "anonymous";
+                audio.loop = true;
+                audio.preload = "auto";
+                audio.playsInline = true;
+
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === "suspended") await audioCtx.resume();
+                const source = audioCtx.createMediaElementSource(audio);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = isMobile ? 128 : 256;
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                texture = new THREE.DataTexture(dataArray, analyser.frequencyBinCount, 1, THREE.LuminanceFormat);
+                uniforms.uData.value = texture;
+
+                await audio.play();
+            } catch (err) {
+                console.error("Playback startup failed:", err);
+                overlay.style.display = 'flex';
+                overlay.style.opacity = '1';
+                audio = null;
+            } finally {
+                audioBooting = false;
+            }
         }
 
         function togglePlayback(e) {
