@@ -456,7 +456,25 @@ function splitCSV(line) {
 function clean(s){return (s||'').trim().replace(/^"|"$/g,'')}
 function fixDropbox(u){
   if(!u)return '';
-  return u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'');
+  return u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'').replace(/\?raw=1/,'');
+}
+
+function toYouTubeEmbed(url) {
+  if (!url) return '';
+  let embed = url.trim();
+  const applyParams = (base) => `${base}${base.includes('?') ? '&' : '?'}autoplay=1&playsinline=1&rel=0&enablejsapi=1`;
+  try {
+    if (embed.includes('youtube.com/embed/')) return applyParams(embed);
+    if (embed.includes('youtube.com/watch')) {
+      const videoId = new URL(embed).searchParams.get('v');
+      if (videoId) return applyParams(`https://www.youtube.com/embed/${videoId}`);
+    }
+    if (embed.includes('youtu.be/')) {
+      const videoId = embed.split('youtu.be/')[1].split(/[?&#]/)[0];
+      if (videoId) return applyParams(`https://www.youtube.com/embed/${videoId}`);
+    }
+  } catch(e) {}
+  return applyParams(embed);
 }
 
 // ══════════════════════════════════════════════
@@ -741,14 +759,7 @@ function loadTrack(t) {
   if (t.videoUrl) {
     // Embed YouTube — pause audio, video is the player
     audio.pause(); audio.src = '';
-    let embed = t.videoUrl;
-    if (embed.includes('youtube.com/watch')) {
-      try { embed = 'https://www.youtube.com/embed/' + new URL(embed).searchParams.get('v') + '?autoplay=1'; } catch(e){}
-    } else if (embed.includes('youtu.be/')) {
-      embed = 'https://www.youtube.com/embed/' + embed.split('youtu.be/')[1].split('?')[0] + '?autoplay=1';
-    }
-    if (!embed.includes('enablejsapi=1')) embed += (embed.includes('?') ? '&' : '?') + 'enablejsapi=1';
-    vidEl.src = embed;
+    vidEl.src = toYouTubeEmbed(t.videoUrl);
     vidEl.style.display = 'block';
     mediaWrap.style.display = 'block';
     attachVideoEndedHandling(vidEl);
@@ -756,6 +767,14 @@ function loadTrack(t) {
 
   } else if (t.imageUrl) {
     // Show artwork + audio player
+    imgEl.onerror = () => {
+      imgEl.onerror = null;
+      imgEl.style.display = 'none';
+      mediaWrap.style.display = 'none';
+      document.getElementById('player-vis-title').textContent = t.title;
+      visWrap.style.display = 'flex';
+      startVis();
+    };
     imgEl.src = t.imageUrl;
     imgEl.style.display = 'block';
     mediaWrap.style.display = 'block';
@@ -811,14 +830,8 @@ function startVis() {
 function openVideo(trackIdx) {
   const t = allTracks.find(tr => tr.idx === trackIdx);
   if (!t || !t.videoUrl) return;
-  let embed = t.videoUrl;
-  if (embed.includes('youtube.com/watch')) {
-    try { embed = 'https://www.youtube.com/embed/' + new URL(embed).searchParams.get('v') + '?autoplay=1'; } catch(e){}
-  } else if (embed.includes('youtu.be/')) {
-    embed = 'https://www.youtube.com/embed/' + embed.split('youtu.be/')[1].split('?')[0] + '?autoplay=1';
-  }
   document.getElementById('modal-title').textContent = t.title;
-  document.getElementById('modal-iframe').src = embed;
+  document.getElementById('modal-iframe').src = toYouTubeEmbed(t.videoUrl);
   document.getElementById('video-modal').style.display = 'flex';
   // Pause audio while watching video
   audio.pause();
