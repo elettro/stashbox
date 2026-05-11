@@ -622,10 +622,14 @@ function shuffleAll() {
 
 function shuffleFiltered() {
   const filtered = getFiltered();
+  if (!filtered.length) {
+    updateShuffleSub();
+    return;
+  }
   queue = shuffle([...filtered]);
   queueSection = null;
   qIdx = 0;
-  loadTrack(queue[0]);
+  playSong(queue[0]);
 }
 function getCurrentPool() {
   return getFiltered();
