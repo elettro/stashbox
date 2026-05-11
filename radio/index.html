@@ -187,6 +187,20 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 .card-title{font-size:13px;font-weight:600;color:var(--text);white-space:normal;overflow:visible;word-break:break-word;line-height:1.25}
 .card-artist{font-size:11px;color:var(--muted);margin-top:1px}
 .card-date{font-size:10px;color:var(--muted2);margin-top:1px}
+.card-video-btn{
+  border:1px solid var(--accent);
+  background:rgba(62,207,110,0.08);
+  color:var(--accent);
+  border-radius:999px;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  padding:4px 8px;
+  margin-top:6px;
+  cursor:pointer;
+}
+.card-video-btn:hover{background:rgba(62,207,110,0.18)}
 .play-icon{font-size:16px;color:var(--muted);flex-shrink:0;transition:color 0.15s}
 .track-card:hover .play-icon{color:var(--accent)}
 .track-card.playing .play-icon{color:var(--accent)}
@@ -218,6 +232,7 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
   #now-banner{top:auto;position:relative}
   .player-bottom{flex-direction:column;align-items:center;text-align:center}
   .player-controls{justify-content:center}
+  .card-video-btn{display:none}
 }
 
 @media(max-width:700px) and (orientation:landscape){
@@ -652,6 +667,10 @@ function renderCard(t, i, sec) {
     ? `<img class="card-thumb" src="${thumbSrc}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:flex"/><div class="card-thumb-placeholder" style="display:none">${sec.emoji}</div>`
     : `<div class="card-thumb-placeholder">${sec.emoji}</div>`;
 
+  const videoBtn = hasVid
+    ? `<button class="card-video-btn" type="button" onclick="event.stopPropagation();openVideo(${t.idx})">Vid</button>`
+    : '';
+
   return `<div class="track-card ${isPlaying?'playing':''}" data-idx="${t.idx}" onclick="playCard(${t.idx},'${sec.key}')">
     <div class="card-num">${isPlaying ? '♪' : i+1}</div>
     ${thumb}
@@ -659,6 +678,7 @@ function renderCard(t, i, sec) {
       <div class="card-title">${t.title}</div>
       <div class="card-artist">${t.artist||''}</div>
       <div class="card-date">${t.date||''}</div>
+      ${videoBtn}
     </div>
     <div class="play-icon">${isPlaying ? '♪' : '▶'}</div>
   </div>`;
