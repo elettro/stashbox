@@ -206,20 +206,31 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 
 /* ── RESPONSIVE ── */
 @media(max-width:700px){
-  .nav-inner{padding:10px;position:relative;overflow:visible}
-  .nav-filters{width:min(86vw,340px);order:2;position:absolute;right:0;top:56px;z-index:120;border-radius:10px 0 0 10px;padding-left:42px;transform:translateX(0);transition:transform 0.25s ease,opacity 0.2s ease}
+  .nav-inner{padding:10px;position:relative;overflow:visible;height:auto;min-height:58px;padding-bottom:66px}
+  .nav-logo{font-size:clamp(24px,7vw,30px);line-height:1}
+  .nav-filters{width:min(86vw,340px);order:2;position:absolute;right:0;top:56px;z-index:120;border-radius:10px 0 0 10px;padding-left:42px;transform:translateX(0);transition:transform 0.25s ease,opacity 0.2s ease;max-height:calc(100vh - 84px);overflow-y:auto}
   .nav-filters.drawer-hidden{transform:translateX(calc(100% - 34px));opacity:0.96}
   .filter-drawer-tab{display:flex;order:2;position:absolute;right:0;top:56px;width:34px;height:46px;align-items:center;justify-content:center;border:none;border-radius:8px 0 0 8px;background:var(--accent);color:#0c0c0e;font-size:20px;font-weight:700;z-index:121;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
   .filter-drawer-tab.open{right:calc(min(86vw,340px) - 34px)}
   .filter-label{width:100%}
-  .nav-right{width:100%;order:3;margin-left:0;justify-content:space-between;margin-top:56px}
+  .nav-right{position:absolute;left:10px;right:10px;top:64px;width:auto;order:3;margin-left:0;justify-content:space-between;gap:8px;align-items:center}
+  .track-total{font-size:11px;max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tracks-grid{grid-template-columns:1fr}
-  .search-inp{width:140px}
-  .search-inp:focus{width:160px}
+  .search-inp{width:138px}
+  .search-inp:focus{width:154px}
   audio{min-width:120px}
   #now-banner{top:auto;position:relative}
   .player-bottom{flex-direction:column;align-items:center;text-align:center}
   .player-controls{justify-content:center}
+}
+
+@media(max-width:700px) and (orientation:landscape){
+  .nav-inner{padding-bottom:56px}
+  .nav-right{top:60px}
+  .nav-filters{width:min(72vw,420px)}
+  .filter-drawer-tab.open{right:calc(min(72vw,420px) - 34px)}
+  .search-inp{width:180px}
+  .search-inp:focus{width:220px}
 }
 @media(max-width:900px){
   .page{padding:1rem}
