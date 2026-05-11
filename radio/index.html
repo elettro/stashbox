@@ -478,22 +478,37 @@ function fixDropbox(u){
   return encodeURI(normalized);
 }
 
+function getYouTubeVideoId(url) {
+  if (!url) return '';
+  const raw = url.trim();
+  if (!raw) return '';
+  try {
+    if (raw.includes('youtube.com/embed/')) {
+      return raw.split('youtube.com/embed/')[1].split(/[?&#/]/)[0] || '';
+    }
+    if (raw.includes('youtube.com/watch')) {
+      return new URL(raw).searchParams.get('v') || '';
+    }
+    if (raw.includes('youtu.be/')) {
+      return raw.split('youtu.be/')[1].split(/[?&#/]/)[0] || '';
+    }
+  } catch (e) {}
+  return '';
+}
+
 function toYouTubeEmbed(url) {
   if (!url) return '';
   let embed = url.trim();
   const applyParams = (base) => `${base}${base.includes('?') ? '&' : '?'}autoplay=1&playsinline=1&rel=0&enablejsapi=1`;
-  try {
-    if (embed.includes('youtube.com/embed/')) return applyParams(embed);
-    if (embed.includes('youtube.com/watch')) {
-      const videoId = new URL(embed).searchParams.get('v');
-      if (videoId) return applyParams(`https://www.youtube.com/embed/${videoId}`);
-    }
-    if (embed.includes('youtu.be/')) {
-      const videoId = embed.split('youtu.be/')[1].split(/[?&#]/)[0];
-      if (videoId) return applyParams(`https://www.youtube.com/embed/${videoId}`);
-    }
-  } catch(e) {}
+  const videoId = getYouTubeVideoId(embed);
+  if (videoId) return applyParams(`https://www.youtube.com/embed/${videoId}`);
   return applyParams(embed);
+}
+
+function getVideoThumbnailUrl(videoUrl) {
+  const videoId = getYouTubeVideoId(videoUrl);
+  if (videoId) return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  return '';
 }
 
 // ══════════════════════════════════════════════
@@ -628,8 +643,11 @@ function renderCard(t, i, sec) {
   const hasAudio  = !!t.audioUrl;
   const hasImg    = !!t.imageUrl;
   const hasVid    = !!t.videoUrl;
-  const thumb     = hasImg
-    ? `<img class="card-thumb" src="${t.imageUrl}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:flex"/><div class="card-thumb-placeholder" style="display:none">${sec.emoji}</div>`
+  const videoThumbUrl = hasVid ? getVideoThumbnailUrl(t.videoUrl) : '';
+  const thumbSrc  = videoThumbUrl || t.imageUrl;
+  const hasThumb  = !!thumbSrc;
+  const thumb     = hasThumb
+    ? `<img class="card-thumb" src="${thumbSrc}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:flex"/><div class="card-thumb-placeholder" style="display:none">${sec.emoji}</div>`
     : `<div class="card-thumb-placeholder">${sec.emoji}</div>`;
 
   return `<div class="track-card ${isPlaying?'playing':''}" data-idx="${t.idx}" onclick="playCard(${t.idx},'${sec.key}')">
