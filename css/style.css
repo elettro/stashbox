@@ -1635,6 +1635,7 @@ body {
 
 .hero-title,
 .hero-logo,
+.stashbox-wordmark,
 .hero h1 {
   font-size: clamp(3rem, 18vw, 10rem);
   line-height: 0.9;
@@ -1734,6 +1735,7 @@ body {
 
   .hero-title,
   .hero-logo,
+  .stashbox-wordmark,
   .hero h1,
   .hero__name,
   .bk-hero h1 {
@@ -1797,37 +1799,5 @@ body {
   p {
     font-size: 1rem;
     line-height: 1.55;
-  }
-}
-
-/* Audio-only hero mode */
-.hero__audio-art {
-  display: grid;
-  place-items: center;
-  background: radial-gradient(circle at center, rgba(232,37,26,0.18), rgba(7,7,7,0.95));
-}
-.hero__audio-art img {
-  width: min(70vw, 560px);
-  height: auto;
-  opacity: 0.88;
-}
-.hero__audio-player {
-  position: absolute;
-  left: 40px;
-  right: 40px;
-  bottom: 20px;
-  z-index: 11;
-}
-.hero__audio-player audio {
-  width: min(620px, 100%);
-  max-width: 100%;
-}
-@media (max-width: 768px) {
-  .hero__audio-player {
-    position: static;
-    margin: 0 20px 24px;
-  }
-  .hero__audio-player audio {
-    width: 100%;
   }
 }
