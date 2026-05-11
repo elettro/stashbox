@@ -143,7 +143,7 @@
       <div class="videos-grid__side">
         <div class="video-thumb">
           <a href="https://www.youtube.com/watch?v=ygvrFB1cn54" class="video-thumb__link" data-video-id="ygvrFB1cn54">
-            <img src="https://img.youtube.com/vi/ygvrFB1cn54/maxresdefault.jpg" alt="Stashbox Fish House Jam" class="video-thumb__img" loading="lazy">
+            <img src="https://img.youtube.com/vi/ygvrFB1cn54/hqdefault.jpg" alt="Stashbox Fish House Jam" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
           <p class="video-thumb__title">Fish House, Miami</p>
@@ -151,7 +151,7 @@
         </div>
         <div class="video-thumb">
           <a href="https://www.youtube.com/watch?v=7IIB63ZAeH0" class="video-thumb__link" data-video-id="7IIB63ZAeH0">
-            <img src="https://img.youtube.com/vi/7IIB63ZAeH0/maxresdefault.jpg" alt="Stashbox Peter Roland Bob Dylan" class="video-thumb__img" loading="lazy">
+            <img src="https://img.youtube.com/vi/7IIB63ZAeH0/hqdefault.jpg" alt="Stashbox Peter Roland Bob Dylan" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
           <p class="video-thumb__title">Dylan · Peter Roland</p>
@@ -159,7 +159,7 @@
         </div>
         <div class="video-thumb">
           <a href="https://www.youtube.com/watch?v=W-zqAcTEajg" class="video-thumb__link" data-video-id="W-zqAcTEajg">
-            <img src="https://img.youtube.com/vi/W-zqAcTEajg/maxresdefault.jpg" alt="Stashbox Live" class="video-thumb__img" loading="lazy">
+            <img src="https://img.youtube.com/vi/W-zqAcTEajg/hqdefault.jpg" alt="Stashbox Live" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
           <p class="video-thumb__title">Live Performance</p>
@@ -167,7 +167,7 @@
         </div>
         <div class="video-thumb">
           <a href="https://www.youtube.com/watch?v=CIV_s42AnMs" class="video-thumb__link" data-video-id="CIV_s42AnMs">
-            <img src="https://img.youtube.com/vi/CIV_s42AnMs/maxresdefault.jpg" alt="Stashbox Rock Fish House" class="video-thumb__img" loading="lazy">
+            <img src="https://img.youtube.com/vi/CIV_s42AnMs/hqdefault.jpg" alt="Stashbox Rock Fish House" class="video-thumb__img" loading="lazy">
             <div class="video-thumb__play">▶</div>
           </a>
           <p class="video-thumb__title">Reggae &amp; Rock</p>
@@ -592,6 +592,31 @@ if (featuredVideoPlayer && featuredVideoThumbs.length) {
     });
   });
 }
+
+// ── THUMBNAIL FALLBACKS (mobile-safe) ──
+const ytThumbImgs = document.querySelectorAll('.video-thumb__img');
+
+ytThumbImgs.forEach((imgEl) => {
+  const match = imgEl.src.match(/\/vi\/([^/]+)\//);
+  const videoId = match?.[1];
+  if (!videoId) return;
+
+  const candidates = [
+    `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+  ];
+
+  let idx = Math.max(0, candidates.indexOf(imgEl.src));
+
+  imgEl.addEventListener('error', () => {
+    idx += 1;
+    if (idx < candidates.length) {
+      imgEl.src = candidates[idx];
+    }
+  });
+});
 
 // ── SCROLL REVEAL ──
 const revealObserver = new IntersectionObserver((entries) => {
