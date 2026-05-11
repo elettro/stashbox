@@ -186,8 +186,9 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 .card-info{flex:1;min-width:0;padding-right:4px}
 .card-title{font-size:13px;font-weight:600;color:var(--text);white-space:normal;overflow:visible;word-break:break-word;line-height:1.25}
 .media-type-badge{display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1;margin-left:6px;vertical-align:middle;opacity:0.9}
-.card-artist{font-size:11px;color:var(--muted);margin-top:1px}
-.card-date{font-size:10px;color:var(--muted2);margin-top:1px}
+.card-meta-row{display:flex;align-items:center;gap:8px;margin-top:2px;min-height:20px}
+.card-artist{font-size:11px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-date{font-size:10px;color:var(--muted2);white-space:nowrap}
 .card-video-btn{
   border:1px solid var(--accent);
   background:rgba(62,207,110,0.08);
@@ -198,7 +199,8 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
   letter-spacing:0.08em;
   text-transform:uppercase;
   padding:4px 8px;
-  margin-top:6px;
+  margin-top:0;
+  margin-left:auto;
   cursor:pointer;
 }
 .card-video-btn:hover{background:rgba(62,207,110,0.18)}
@@ -694,9 +696,11 @@ function renderCard(t, i, sec) {
     ${thumb}
     <div class="card-info">
       <div class="card-title">${t.title} ${mediaBadge}</div>
-      <div class="card-artist">${t.artist||''}</div>
-      <div class="card-date">${t.date||''}</div>
-      ${videoBtn}
+      <div class="card-meta-row">
+        <div class="card-artist">${t.artist||''}</div>
+        <div class="card-date">${t.date||''}</div>
+        ${videoBtn}
+      </div>
     </div>
     <div class="play-icon">${isPlaying ? '♪' : '▶'}</div>
   </div>`;
