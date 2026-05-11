@@ -68,13 +68,8 @@
      HERO — Video Background
      ============================================================ -->
 <section class="hero" id="hero">
-  <div class="hero__video-wrap">
-    <iframe
-      id="hero-video"
-      src="https://www.youtube.com/embed/KWE3M2XVYZY?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1"
-      allow="autoplay; encrypted-media"
-      allowfullscreen>
-    </iframe>
+  <div class="hero__video-wrap hero__audio-art">
+    <img src="images/branding/Stashbox-Logo-Transparent-RastaColors.png" alt="Stashbox artwork" loading="eager">
   </div>
   <div class="hero__overlay"></div>
 
@@ -105,9 +100,15 @@
   </div>
 
   <div class="hero__controls">
-    <button class="hero__vid-btn" id="hero-next" onclick="heroNext()">Next ▶</button>
     <button class="hero__vid-btn" type="button" data-hero-hide-text aria-pressed="false">Hide Text</button>
-    <button class="hero__vid-btn" id="hero-mute" onclick="heroToggleMute()">🔇 Unmute</button>
+  </div>
+
+  <div class="hero__audio-player" aria-label="Audio player">
+    <audio id="hero-audio" controls playsinline preload="metadata">
+      <source src="visionsofjohanna/visionsofjohanna.mp3" type="audio/mpeg">
+      <source src="themaninme/song.m4a" type="audio/mp4">
+      Your browser does not support the audio element.
+    </audio>
   </div>
 </section>
 
@@ -118,6 +119,7 @@
 <!-- ============================================================
      FEATURED VIDEOS — Drive YouTube Watch Time
      ============================================================ -->
+<!-- Video section hidden for audio-only experience.
 <section class="section" id="watch">
   <div class="container">
     <div class="flex-between" style="margin-bottom: var(--gap-md);">
@@ -188,6 +190,7 @@
     </div>
   </div>
 </section>
+-->
 
 
 <!-- ============================================================
@@ -494,20 +497,9 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ── HERO VIDEO PLAYLIST ──
-const heroVideos = [
-  'KWE3M2XVYZY', 'ygvrFB1cn54', '7IIB63ZAeH0',
-  'W-zqAcTEajg', 'CIV_s42AnMs', 'T7iV0TRFWO8',
-  'nD28USW8F4c', 'pLgZTyCqGpQ', 'qlJ0374PZSY', 'Y6mnIwwH0rA'
-];
-let heroIndex = 0;
-let heroMuted = true;
-const YT_STATE_ENDED = 0;
-
-
+// ── HERO TEXT TOGGLE ──
 const heroSection = document.querySelector('.hero, .site-hero, .video-hero');
 const hideTextBtn = document.querySelector('[data-hero-hide-text]');
-
 if (heroSection && hideTextBtn) {
   hideTextBtn.addEventListener('click', () => {
     const isHidden = heroSection.classList.toggle('hero-text-hidden');
@@ -515,138 +507,9 @@ if (heroSection && hideTextBtn) {
     hideTextBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
   });
 }
-function heroNext() {
-  heroIndex = (heroIndex + 1) % heroVideos.length;
-  syncHeroMuteUI();
-  const wrap = document.getElementById('hero-video').parentNode;
-  const newIframe = document.createElement('iframe');
-  newIframe.id = 'hero-video';
-  newIframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
-  newIframe.setAttribute('allowfullscreen', '');
-  newIframe.setAttribute('playsinline', '');
-  newIframe.style.cssText = 'position:absolute;top:50%;left:50%;width:177.78vh;height:100vh;min-width:100%;min-height:56.25vw;transform:translate(-50%,-50%);border:none;pointer-events:none;';
-  const muteParam = heroMuted ? 1 : 0;
-  newIframe.src = `https://www.youtube.com/embed/${heroVideos[heroIndex]}?autoplay=1&mute=${muteParam}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1`;
-  newIframe.addEventListener('load', () => registerHeroPlayerListeners(newIframe), { once: true });
-  const old = document.getElementById('hero-video');
-  wrap.replaceChild(newIframe, old);
-}
 
-function heroToggleMute() {
-  heroMuted = !heroMuted;
-  const iframe = document.getElementById('hero-video');
-  if (iframe && iframe.contentWindow) {
-    iframe.contentWindow.postMessage(
-      JSON.stringify({ event: 'command', func: heroMuted ? 'mute' : 'unMute', args: [] }), '*'
-    );
-  }
-  syncHeroMuteUI();
-}
-
-function syncHeroMuteUI() {
-  const btn = document.getElementById('hero-mute');
-  if (btn) btn.textContent = heroMuted ? '🔇 Unmute' : '🔊 Mute';
-}
-
-
-function registerHeroPlayerListeners(iframe) {
-  if (!iframe || !iframe.contentWindow) return;
-  iframe.contentWindow.postMessage(JSON.stringify({
-    event: 'command',
-    func: 'addEventListener',
-    args: ['onStateChange']
-  }), '*');
-}
-
-window.addEventListener('message', (event) => {
-  if (!event.data || typeof event.data !== 'string') return;
-  let data;
-  try {
-    data = JSON.parse(event.data);
-  } catch (error) {
-    return;
-  }
-
-  if (data?.event !== 'onStateChange') return;
-
-  const ended = Number(data.info) === YT_STATE_ENDED;
-  if (!ended) return;
-
-  const heroIframe = document.getElementById('hero-video');
-  if (heroIframe && event.source === heroIframe.contentWindow) {
-    heroNext();
-    return;
-  }
-
-  const featuredIframe = document.getElementById('featured-video-player');
-  if (featuredIframe && event.source === featuredIframe.contentWindow) {
-    playNextFeaturedVideo();
-  }
-});
-
-const initialHeroVideo = document.getElementById('hero-video');
-if (initialHeroVideo) {
-  initialHeroVideo.addEventListener('load', () => registerHeroPlayerListeners(initialHeroVideo), { once: true });
-}
-
-// ── FEATURED VIDEO THUMBNAILS ──
-const featuredVideoPlayer = document.getElementById('featured-video-player');
-const featuredVideoThumbs = document.querySelectorAll('.video-thumb__link[data-video-id]');
-const featuredVideoIds = Array.from(featuredVideoThumbs)
-  .map((thumb) => thumb.dataset.videoId)
-  .filter(Boolean);
-let featuredVideoIdx = 0;
-
-function playFeaturedVideoByIndex(index) {
-  if (!featuredVideoPlayer || !featuredVideoIds.length) return;
-  const nextIdx = ((index % featuredVideoIds.length) + featuredVideoIds.length) % featuredVideoIds.length;
-  featuredVideoIdx = nextIdx;
-  const videoId = featuredVideoIds[featuredVideoIdx];
-  featuredVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
-}
-
-function playNextFeaturedVideo() {
-  if (!featuredVideoIds.length) return;
-  playFeaturedVideoByIndex(featuredVideoIdx + 1);
-}
-
-if (featuredVideoPlayer && featuredVideoThumbs.length) {
-  featuredVideoPlayer.src = `https://www.youtube.com/embed/${featuredVideoIds[featuredVideoIdx]}?rel=0&enablejsapi=1`;
-  featuredVideoPlayer.addEventListener('load', () => registerHeroPlayerListeners(featuredVideoPlayer));
-
-  featuredVideoThumbs.forEach((thumb, idx) => {
-    thumb.addEventListener('click', (event) => {
-      event.preventDefault();
-      playFeaturedVideoByIndex(idx);
-    });
-  });
-}
-
-// ── THUMBNAIL FALLBACKS (mobile-safe) ──
-const ytThumbImgs = document.querySelectorAll('.video-thumb__img');
-
-ytThumbImgs.forEach((imgEl) => {
-  const match = imgEl.src.match(/\/vi\/([^/]+)\//);
-  const videoId = match?.[1];
-  if (!videoId) return;
-
-  const candidates = [
-    `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-    `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
-    `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
-  ];
-
-  let idx = Math.max(0, candidates.indexOf(imgEl.src));
-
-  imgEl.addEventListener('error', () => {
-    idx += 1;
-    if (idx < candidates.length) {
-      imgEl.src = candidates[idx];
-    }
-  });
-});
-
+// ── HERO VIDEO PLAYLIST ──
+// Video logic disabled for audio-only mode.
 // ── SCROLL REVEAL ──
 const revealObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
