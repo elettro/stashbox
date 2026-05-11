@@ -40,6 +40,7 @@
             const analyserRef = useRef(null);
             const dataArrayRef = useRef(null);
             const audioRef = useRef(null);
+            const audioContextRef = useRef(null);
 
             const audioUrl = "BloodEyes.m4a";
 
@@ -66,22 +67,32 @@
 
             const startAudio = async () => {
                 try {
+                    if (audioRef.current) {
+                        if (audioContextRef.current?.state === "suspended") await audioContextRef.current.resume();
+                        await audioRef.current.play();
+                        setIsAudioActive(true);
+                        return;
+                    }
                     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    audioContextRef.current = audioContext;
                     const audio = new Audio(audioUrl);
                     audio.crossOrigin = "anonymous";
+                    audio.preload = "auto";
+                    audio.playsInline = true;
                     const source = audioContext.createMediaElementSource(audio);
                     const analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 256;
+                    analyser.fftSize = window.innerWidth <= 768 ? 128 : 256;
                     source.connect(analyser);
                     analyser.connect(audioContext.destination);
                     analyserRef.current = analyser;
                     dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
                     audioRef.current = audio;
+                    if (audioContext.state === "suspended") await audioContext.resume();
                     await audio.play();
                     setIsAudioActive(true);
                 } catch (err) {
                     console.error("Audio error:", err);
-                    alert("Ensure BloodEyes.m4a is in the same folder and try again!");
+                    alert("Playback failed to start on this device. Please tap Play again.");
                 }
             };
 

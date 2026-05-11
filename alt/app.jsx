@@ -239,7 +239,14 @@ const VIDEOS = [
 
 function Music({ onSubscribe, subCount }) {
   const [activeVideoId, setActiveVideoId] = useState(VIDEOS[0].youtubeId);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const activeVideo = VIDEOS.find((v) => v.youtubeId === activeVideoId) || VIDEOS[0];
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   return (
     <section className="music" id="music" data-screen-label="04 Music">
@@ -258,7 +265,7 @@ function Music({ onSubscribe, subCount }) {
           <article className="video-tile featured active-player">
             <div className="thumb">
               <iframe
-                src={`https://www.youtube.com/embed/${activeVideo.youtubeId}?rel=0&autoplay=1`}
+                src={`https://www.youtube.com/embed/${activeVideo.youtubeId}?rel=0${isMobile ? '' : '&autoplay=1'}`}
                 title={activeVideo.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
