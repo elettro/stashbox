@@ -27,8 +27,8 @@
   --fh:'Bebas Neue',sans-serif;
   --fb:'Karla',sans-serif;
 }
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px;min-height:100vh;overflow-x:hidden}
+html{scroll-behavior:smooth;width:100%;max-width:100%;overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px;min-height:100vh;overflow-x:hidden;width:100%;max-width:100%}
 body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px)}
 
 /* ── LOADING ── */
@@ -44,11 +44,14 @@ nav{position:sticky;top:0;z-index:100;background:rgba(12,12,14,0.92);backdrop-fi
 .nav-logo span{color:var(--text)}
 .nav-divider{width:1px;height:24px;background:var(--border);flex-shrink:0}
 .nav-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1}
+.radio-filter-strip{background:var(--accent);padding:10px;border-radius:10px}
+#genre-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .filter-label{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
-.chip{height:32px;padding:0 14px;border-radius:100px;font-size:12px;font-weight:600;font-family:var(--fb);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap;letter-spacing:0.04em}
+.chip{min-height:44px;padding:0 14px;border-radius:100px;font-size:12px;font-weight:600;font-family:var(--fb);border:1px solid var(--border);background:rgba(0,0,0,0.08);color:#2b210d;cursor:pointer;transition:all 0.15s;white-space:nowrap;letter-spacing:0.04em}
 .chip:hover{border-color:var(--border-h);color:var(--text)}
-.chip.active{background:var(--accent-d);border-color:var(--accent);color:var(--accent)}
+.chip.active{background:#0c0c0e;border-color:#0c0c0e;color:var(--accent)}
 .chip.video-chip.active{background:rgba(62,207,110,0.1);border-color:var(--green);color:var(--green)}
+.chip-reset{background:#0c0c0e;color:var(--text);border-color:#0c0c0e}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .track-total{font-size:12px;color:var(--muted);white-space:nowrap}
 .search-wrap{position:relative}
@@ -194,11 +197,26 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
 
 /* ── RESPONSIVE ── */
 @media(max-width:700px){
+  .nav-inner{padding:10px}
+  .nav-filters{width:100%;order:2}
+  .nav-right{width:100%;order:3;margin-left:0;justify-content:space-between}
+  .radio-filter-strip{width:100%}
+  .filter-label{width:100%}
   .tracks-grid{grid-template-columns:1fr}
   .search-inp{width:140px}
   .search-inp:focus{width:160px}
   audio{min-width:120px}
   #now-banner{top:auto;position:relative}
+  .player-bottom{flex-direction:column;align-items:center;text-align:center}
+  .player-controls{justify-content:center}
+}
+@media(max-width:900px){
+  .page{padding:1rem}
+}
+@media(max-width:640px){
+  .shuffle-hero{padding:1rem}
+  .section-header{flex-wrap:wrap}
+  .section-shuffle{margin-left:0}
 }
 </style>
 </head>
@@ -215,11 +233,11 @@ audio::-webkit-media-controls-panel{background:var(--surface2)}
   <div class="nav-inner">
     <div class="nav-logo">STASH<span>BOX</span></div>
     <div class="nav-divider"></div>
-    <div class="nav-filters">
+    <div class="nav-filters radio-filter-strip">
       <span class="filter-label">Genre</span>
       <div id="genre-chips"></div>
-      <div class="nav-divider"></div>
       <button class="chip video-chip" id="video-chip" onclick="toggleVideoFilter()">▶ Has Video</button>
+      <button class="chip chip-reset" id="reset-filters-btn" onclick="resetFilters()">Reset Filters</button>
     </div>
     <div class="nav-right">
       <span class="track-total" id="track-total"></span>
@@ -346,6 +364,8 @@ let queueSection  = null;
 let qIdx          = -1;
 let radioMode     = false;
 let visAnim       = null;
+let youtubeStatePoll = null;
+let youtubeMessageBound = false;
 
 const audio = document.getElementById('audio');
 
@@ -450,20 +470,36 @@ function buildGenreChips() {
 
 function setGenre(g, btn) {
   activeGenre = g;
-  document.querySelectorAll('#genre-chips .chip').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  updateFilterUI(btn);
   render();
 }
 
 function toggleVideoFilter() {
   videoOnly = !videoOnly;
-  document.getElementById('video-chip').classList.toggle('active', videoOnly);
+  updateFilterUI();
   render();
 }
 
 function onSearch() {
   searchQ = document.getElementById('search-inp').value.toLowerCase();
   render();
+}
+function updateFilterUI(activeBtn=null){
+  document.querySelectorAll('#genre-chips .chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.genre === activeGenre);
+  });
+  if (activeBtn && activeBtn.dataset && activeBtn.dataset.genre) activeBtn.classList.add('active');
+  document.getElementById('video-chip').classList.toggle('active', videoOnly);
+}
+function resetFilters() {
+  activeGenre = 'ALL';
+  videoOnly = false;
+  searchQ = '';
+  document.getElementById('search-inp').value = '';
+  updateFilterUI();
+  render();
+  const nextSong = getRandomSongFromCurrentPool();
+  if (nextSong) playSong(nextSong);
 }
 
 // ══════════════════════════════════════════════
@@ -579,6 +615,30 @@ function shuffleFiltered() {
   qIdx = 0;
   loadTrack(queue[0]);
 }
+function getCurrentPool() {
+  return getFiltered();
+}
+function getRandomSongFromCurrentPool(excludeIdx = null) {
+  const pool = getCurrentPool();
+  if (!pool.length) return null;
+  const candidates = (excludeIdx !== null && pool.length > 1) ? pool.filter(t => t.idx !== excludeIdx) : pool;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+function playSong(track) {
+  if (!track) return;
+  queue = getCurrentPool();
+  qIdx = queue.findIndex(t => t.idx === track.idx);
+  if (qIdx < 0) { queue = [track]; qIdx = 0; }
+  loadTrack(track);
+}
+function playNextRandomSong() {
+  const next = getRandomSongFromCurrentPool(queue[qIdx]?.idx ?? null);
+  if (!next) {
+    document.getElementById('shuffle-sub').textContent = 'No tracks available for current filters.';
+    return;
+  }
+  playSong(next);
+}
 
 function shuffleSection(sectionKey) {
   const filtered = getFiltered();
@@ -611,7 +671,8 @@ function toggleRadio() {
   document.getElementById('radio-btn').classList.toggle('radio-on', radioMode);
 }
 
-audio.addEventListener('ended', () => { playNext(); });
+function handleTrackEnded() { playNextRandomSong(); }
+audio.addEventListener('ended', handleTrackEnded);
 audio.addEventListener('play',  () => updatePlayBtn(false));
 audio.addEventListener('pause', () => updatePlayBtn(true));
 function updatePlayBtn(paused) {
@@ -657,9 +718,11 @@ function loadTrack(t) {
     } else if (embed.includes('youtu.be/')) {
       embed = 'https://www.youtube.com/embed/' + embed.split('youtu.be/')[1].split('?')[0] + '?autoplay=1';
     }
+    if (!embed.includes('enablejsapi=1')) embed += (embed.includes('?') ? '&' : '?') + 'enablejsapi=1';
     vidEl.src = embed;
     vidEl.style.display = 'block';
     mediaWrap.style.display = 'block';
+    attachVideoEndedHandling(vidEl);
     // No audio scrubber when video plays
 
   } else if (t.imageUrl) {
@@ -756,6 +819,28 @@ function shuffle(a) {
 //  START
 // ══════════════════════════════════════════════
 init();
+function attachVideoEndedHandling(iframeEl) {
+  if (youtubeStatePoll) { clearInterval(youtubeStatePoll); youtubeStatePoll = null; }
+  if (!iframeEl || !iframeEl.src) return;
+  let endedSeen = false;
+  youtubeStatePoll = setInterval(() => {
+    try {
+      iframeEl.contentWindow.postMessage(JSON.stringify({event:'command',func:'getPlayerState',args:[]}), '*');
+    } catch(e) {}
+  }, 1500);
+  if (!youtubeMessageBound) {
+    window.addEventListener('message', function(ev) {
+      if (typeof ev.data !== 'string') return;
+      if (ev.data.includes('"info":0') && !endedSeen) {
+        endedSeen = true;
+        handleTrackEnded();
+      } else if (ev.data.includes('"info":1')) {
+        endedSeen = false;
+      }
+    });
+    youtubeMessageBound = true;
+  }
+}
 </script>
 </body>
 </html>
