@@ -568,8 +568,19 @@ window.addEventListener('message', (event) => {
   }
 
   if (data?.event !== 'onStateChange') return;
-  if (Number(data.info) === YT_STATE_ENDED) {
+
+  const ended = Number(data.info) === YT_STATE_ENDED;
+  if (!ended) return;
+
+  const heroIframe = document.getElementById('hero-video');
+  if (heroIframe && event.source === heroIframe.contentWindow) {
     heroNext();
+    return;
+  }
+
+  const featuredIframe = document.getElementById('featured-video-player');
+  if (featuredIframe && event.source === featuredIframe.contentWindow) {
+    playNextFeaturedVideo();
   }
 });
 
@@ -581,14 +592,32 @@ if (initialHeroVideo) {
 // ── FEATURED VIDEO THUMBNAILS ──
 const featuredVideoPlayer = document.getElementById('featured-video-player');
 const featuredVideoThumbs = document.querySelectorAll('.video-thumb__link[data-video-id]');
+const featuredVideoIds = Array.from(featuredVideoThumbs)
+  .map((thumb) => thumb.dataset.videoId)
+  .filter(Boolean);
+let featuredVideoIdx = 0;
+
+function playFeaturedVideoByIndex(index) {
+  if (!featuredVideoPlayer || !featuredVideoIds.length) return;
+  const nextIdx = ((index % featuredVideoIds.length) + featuredVideoIds.length) % featuredVideoIds.length;
+  featuredVideoIdx = nextIdx;
+  const videoId = featuredVideoIds[featuredVideoIdx];
+  featuredVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
+}
+
+function playNextFeaturedVideo() {
+  if (!featuredVideoIds.length) return;
+  playFeaturedVideoByIndex(featuredVideoIdx + 1);
+}
 
 if (featuredVideoPlayer && featuredVideoThumbs.length) {
-  featuredVideoThumbs.forEach((thumb) => {
+  featuredVideoPlayer.src = `https://www.youtube.com/embed/${featuredVideoIds[featuredVideoIdx]}?rel=0&enablejsapi=1`;
+  featuredVideoPlayer.addEventListener('load', () => registerHeroPlayerListeners(featuredVideoPlayer));
+
+  featuredVideoThumbs.forEach((thumb, idx) => {
     thumb.addEventListener('click', (event) => {
       event.preventDefault();
-      const { videoId } = thumb.dataset;
-      if (!videoId) return;
-      featuredVideoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+      playFeaturedVideoByIndex(idx);
     });
   });
 }
