@@ -609,7 +609,6 @@ function dCard(t, i, sec) {
       <div class="dcard-date">${t.date||''}</div>
     </div>
     <div class="dcard-badges">
-      ${t.videoUrl?`<span class="badge bvid bvid-click" onclick="event.stopPropagation();dOpenVid(${t.idx})">▶ VID</span>`:''}
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
       ${t.imageUrl&&!t.videoUrl?'<span class="badge bimg">IMG</span>':''}
     </div>
@@ -712,7 +711,6 @@ function mRow(t, i, sec) {
       <div class="mtrack-date">${t.date||''}</div>
     </div>
     <div class="mtrack-badges">
-      ${t.videoUrl?'<span class="badge bvid">VID</span>':''}
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
     </div>
     <div class="mplay-icon">${pl?'♪':'▶'}</div>
@@ -786,7 +784,7 @@ function loadTrack(t) {
   dpImg.style.display='none'; dpVid.style.display='none'; dpVid.src='';
   dpMedia.style.display='none'; dpVis.style.display='none'; dpAudio.style.display='none';
 
-  if (t.videoUrl) {
+  if (false && t.videoUrl) {
     audio.pause(); audio.src='';
     dpVid.src = ytEmbed(t.videoUrl);
     dpVid.style.display='block'; dpMedia.style.display='block';
@@ -834,9 +832,9 @@ function loadTrack(t) {
   const mAudio = document.getElementById('m-now-audio');
   mAudio.style.display = 'none';
 
-  if (t.videoUrl) {
+  /* if (t.videoUrl) {
     mMedia.innerHTML = `<iframe src="${ytEmbed(t.videoUrl)}" allow="autoplay;encrypted-media" allowfullscreen playsinline style="width:100%;height:100%;border:none"></iframe>`;
-  } else if (t.imageUrl) {
+  } else */ if (t.imageUrl) {
     mMedia.innerHTML = `<img src="${t.imageUrl}" alt="${t.title}" style="max-width:100%;max-height:100%;object-fit:contain" loading="lazy"/>`;
     mAudio.style.display='block'; mAudio.appendChild(audio);
     if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
