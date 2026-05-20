@@ -48,6 +48,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .d-nav-inner{max-width:1400px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:10px;min-height:58px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
 .d-logo{font-family:var(--fh);font-size:30px;letter-spacing:0.06em;color:var(--accent);white-space:nowrap;line-height:1}
 .d-logo span{color:var(--text)}
+.logo-link{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 .d-div{width:1px;height:22px;background:var(--border);flex-shrink:0}
 .d-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:1}
 .d-flabel{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
@@ -269,7 +270,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 <div id="desktop">
   <nav id="d-nav">
     <div class="d-nav-inner">
-      <div class="d-logo">STASH<span>BOX</span></div>
+      <a class="logo-link" href="https://stashbox.com" target="_blank" rel="noopener noreferrer"><div class="d-logo">STASH<span>BOX</span></div></a>
       <div class="d-div"></div>
       <div class="d-filters">
         <span class="d-flabel">Genre</span>
@@ -348,7 +349,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 <!-- ══════════════ MOBILE ══════════════ -->
 <div id="mobile">
   <div id="m-nav">
-    <div class="m-logo">STASH<span>BOX</span></div>
+    <a class="logo-link" href="https://stashbox.com" target="_blank" rel="noopener noreferrer"><div class="m-logo">STASH<span>BOX</span></div></a>
     <span class="m-total" id="m-total"></span>
     <button class="m-reset-btn" id="m-reset" onclick="resetAll()">✕ Reset</button>
     <button class="m-srch-btn" onclick="mOpenSearch()">
