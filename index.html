@@ -186,6 +186,13 @@
         <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" target="_blank" class="btn btn-secondary">Subscribe</a>
       </div>
     </div>
+
+    <div class="lowprice-widget reveal">
+      <h3 class="lowprice-widget__title">On Sale Now - Lowest Price Featured T-Shirts</h3>
+      <p class="lowprice-widget__sub">Catch a deal. Latest collection of popular shirts on sale.</p>
+      <a href="https://stashbox.ai" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Shop Stashbox.ai</a>
+      <div id="stashbox-lowprice-shirts-grid" class="lowprice-widget__grid" aria-live="polite"></div>
+    </div>
   </div>
 </section>
 
@@ -784,7 +791,141 @@ const revealObserver = new IntersectionObserver((entries) => {
       entry.target.classList.add('visible');
       revealObserver.unobserve(entry.target);
     }
-  });
+});
+
+(function () {
+  const config = {
+    storeUrl: "https://stashbox.ai",
+    productsJson: "https://stashbox.ai/products.json?limit=250",
+    sourcePoolSize: 50,
+    displayCount: 5
+  };
+
+  const grid = document.getElementById("stashbox-lowprice-shirts-grid");
+  if (!grid) return;
+
+  function esc(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function messageHtml(text) {
+    return `<div class="lowprice-widget__message">${text}</div>`;
+  }
+
+  function normalizeProducts(data) {
+    const products = (data && Array.isArray(data.products)) ? data.products : [];
+    return products.filter((p) => p && p.handle && p.title);
+  }
+
+  function getProductImage(product) {
+    if (product?.image?.src) return product.image.src;
+    if (Array.isArray(product?.images) && product.images.length) {
+      const first = product.images[0];
+      if (typeof first === "string") return first;
+      if (first?.src) return first.src;
+    }
+    return "";
+  }
+
+  function getLowestVariantPrice(product) {
+    if (!Array.isArray(product?.variants) || !product.variants.length) return null;
+    const prices = product.variants
+      .map((v) => Number(v?.price))
+      .filter((n) => !Number.isNaN(n));
+    if (!prices.length) return null;
+    return Math.min(...prices);
+  }
+
+  function formatUsd(price) {
+    const n = Number(price);
+    if (Number.isNaN(n)) return "";
+    return `$${n.toFixed(2)} USD`;
+  }
+
+  function productUrl(product) {
+    return `${config.storeUrl}/products/${encodeURIComponent(product.handle)}`;
+  }
+
+  function looksLikeShirt(product) {
+    const title = String(product?.title || "").toLowerCase();
+    const type = String(product?.product_type || "").toLowerCase();
+    const tags = Array.isArray(product?.tags)
+      ? product.tags.join(" ").toLowerCase()
+      : String(product?.tags || "").toLowerCase();
+    const text = `${title} ${type} ${tags}`;
+
+    const shirtHits = ["t-shirt", "tshirt", "tee", "heavy cotton tee", "unisex tee", "shirt"];
+    const notShirtHits = ["hoodie", "mug", "pint glass", "glass", "hat", "cap", "sticker", "poster", "tank", "sweatshirt"];
+    return shirtHits.some((k) => text.includes(k)) && !notShirtHits.some((k) => text.includes(k));
+  }
+
+  function renderCards(products) {
+    if (!products.length) {
+      grid.innerHTML = messageHtml('No matching shirt products found. <a href="https://stashbox.ai" target="_blank" rel="noopener noreferrer">Open store</a>.');
+      return;
+    }
+
+    grid.innerHTML = products.map((p) => {
+      const title = esc(p.title || "");
+      const img = getProductImage(p);
+      const price = getLowestVariantPrice(p);
+      const href = productUrl(p);
+      return `
+        <article class="lowprice-card">
+          <a href="${href}" target="_blank" rel="noopener noreferrer" class="lowprice-card__image-link">
+            ${img
+              ? `<img src="${esc(img)}" alt="${title}" loading="lazy" class="lowprice-card__image">`
+              : '<div class="lowprice-card__placeholder">No image</div>'}
+          </a>
+          <div class="lowprice-card__body">
+            <p class="lowprice-card__title">${title}</p>
+            <p class="lowprice-card__price">${price !== null ? formatUsd(price) : "&nbsp;"}</p>
+            <a href="${href}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm lowprice-card__cta">View Product</a>
+          </div>
+        </article>`;
+    }).join("");
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function renderLowestPriceShirts() {
+    grid.innerHTML = messageHtml("Loading shirts...");
+    try {
+      const data = await fetchJson(config.productsJson);
+      const products = normalizeProducts(data);
+      const shirts = products
+        .filter(looksLikeShirt)
+        .map((p) => ({ product: p, minPrice: getLowestVariantPrice(p) }))
+        .filter((x) => x.minPrice !== null)
+        .sort((a, b) => a.minPrice - b.minPrice);
+      const lowestPool = shirts.slice(0, config.sourcePoolSize).map((x) => x.product);
+      renderCards(shuffle(lowestPool).slice(0, config.displayCount));
+    } catch (err) {
+      grid.innerHTML = messageHtml('Could not load products right now. <a href="https://stashbox.ai" target="_blank" rel="noopener noreferrer">Open store</a>.');
+      console.error("Lowest-price shirts widget error:", err);
+    }
+  }
+
+  renderLowestPriceShirts();
+}());
 }, { threshold: 0.08 });
 
 document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));

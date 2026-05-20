@@ -1520,6 +1520,27 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
   flex-wrap: wrap;
 }
 
+.lowprice-widget {
+  margin-top: var(--gap-md);
+  padding: var(--gap-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.lowprice-widget__title { margin: 0 0 8px; font-family: var(--font-display); font-size: clamp(28px, 3.2vw, 42px); line-height: 1.05; color: var(--white); }
+.lowprice-widget__sub { margin: 0 0 12px; color: var(--off-white); }
+.lowprice-widget__grid { margin-top: 14px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.lowprice-widget__message { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: var(--off-white); background: var(--surface-2); }
+.lowprice-widget__message a { color: var(--white); text-decoration: underline; }
+.lowprice-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+.lowprice-card__image-link { display: block; aspect-ratio: 1 / 1; background: #101010; }
+.lowprice-card__image { width: 100%; height: 100%; object-fit: contain; display: block; }
+.lowprice-card__placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: var(--muted); }
+.lowprice-card__body { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.lowprice-card__title { margin: 0; font-size: 15px; line-height: 1.25; min-height: 2.5em; color: var(--off-white); }
+.lowprice-card__price { margin: 0; font-size: 14px; font-weight: 700; color: var(--white); }
+.lowprice-card__cta { margin-top: auto; width: 100%; }
+
 /* ── TRIBUTE CARDS ── */
 .tribute-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-sm); margin-bottom: var(--gap-md); }
 
@@ -1648,6 +1669,7 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
 @media (max-width: 1024px) {
   .videos-grid { grid-template-columns: 1fr; }
   .videos-grid__side { grid-template-columns: repeat(4, 1fr); }
+  .lowprice-widget__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .shorts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tribute-cards { grid-template-columns: 1fr; }
   .testimonial-block { grid-template-columns: 1fr; }
@@ -1684,6 +1706,7 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
     justify-content: flex-start;
   }
   .videos-grid__side { grid-template-columns: 1fr 1fr; }
+  .lowprice-widget__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .booking-strip__inner { flex-direction: column; align-items: flex-start; }
   .hero__name { font-size: clamp(52px, 12vw, 64px); }
   .hero__sub { font-size: 19px; }
@@ -1691,6 +1714,7 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
 
 @media (max-width: 480px) {
   .videos-grid__side { grid-template-columns: 1fr; }
+  .lowprice-widget__grid { grid-template-columns: 1fr; }
   .shorts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .shorts-card { padding: 5px; gap: 5px; border-radius: 10px; }
   .shorts-card__btn { min-height: 28px; padding: 5px 4px; border-radius: 7px; font-size: 10px; line-height: 1.2; }
