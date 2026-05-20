@@ -954,6 +954,14 @@ small, .small, .meta, .caption, .microcopy,
 
 
 
+#dylan .tribute-show__header {
+  grid-template-columns: 0.95fr 1.05fr;
+}
+
+#dylan .tribute-show__title.stashbox-wordmark {
+  font-size: clamp(46px, 6vw, 76px);
+}
+
 #sublime .tribute-show__header {
   grid-template-columns: 1.12fr 0.88fr;
 }
