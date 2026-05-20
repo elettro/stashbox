@@ -262,6 +262,25 @@
   </div>
 </section>
 
+<!-- ============================================================
+     LATEST YOUTUBE SHORTS
+     ============================================================ -->
+<section class="section section--sm" id="shorts">
+  <div class="container">
+    <div class="flex-between" style="margin-bottom: var(--gap-md);">
+      <div>
+        <div class="eyebrow reveal">Latest YouTube Shorts</div>
+        <h2 class="t-headline reveal reveal-delay-1">Latest YouTube Shorts</h2>
+      </div>
+      <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer" class="btn btn-secondary reveal">
+        View all Shorts on YouTube
+      </a>
+    </div>
+
+    <div id="stashbox-shorts-6-grid" class="shorts-grid reveal"></div>
+  </div>
+</section>
+
 
 <!-- ============================================================
      BOOKING CTA STRIP
@@ -646,6 +665,117 @@ ytThumbImgs.forEach((imgEl) => {
     }
   });
 });
+
+
+
+// ── LATEST YOUTUBE SHORTS ──
+(function () {
+  const uploadsPlaylistId = "UU6C6Z_erONmKW67pF5AyYkA";
+  const manualShortIds = [];
+  const grid = document.getElementById("stashbox-shorts-6-grid");
+  if (!grid) return;
+
+  function showMessage(html) {
+    grid.innerHTML = `<div class="shorts-grid__message">${html}</div>`;
+  }
+
+  function renderShorts(ids) {
+    const limit = window.innerWidth <= 640 ? 3 : 6;
+    const list = (ids || []).filter(Boolean).slice(0, limit);
+
+    if (!list.length) {
+      showMessage("No Shorts found right now.");
+      return;
+    }
+
+    grid.innerHTML = list.map((videoId, index) => {
+      const shortsUrl = `https://www.youtube.com/shorts/${encodeURIComponent(videoId)}`;
+
+      return `
+        <article class="shorts-card">
+          <div class="shorts-card__frame-wrap">
+            <iframe
+              src="https://www.youtube.com/embed/${encodeURIComponent(videoId)}"
+              title="Latest YouTube Short ${index + 1}"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              class="shorts-card__frame"></iframe>
+          </div>
+          <a href="${shortsUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary shorts-card__btn">Watch On YouTube</a>
+        </article>`;
+    }).join("");
+  }
+
+  function extractVideoIdsFromXml(xmlText) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, "application/xml");
+    return Array.from(xml.getElementsByTagName("yt:videoId"))
+      .map((node) => (node.textContent || "").trim())
+      .filter(Boolean);
+  }
+
+  function feedUrlForShortsFromUploads(uploadsId) {
+    const channelSuffix = uploadsId.slice(2);
+    const channelId = `UC${channelSuffix}`;
+    const shortsPlaylistId = `UUSH${channelSuffix}`;
+
+    return {
+      direct: `https://www.youtube.com/feeds/videos.xml?playlist_id=${encodeURIComponent(shortsPlaylistId)}`,
+      fallback: `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`
+    };
+  }
+
+  async function fetchText(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed: ${url}`);
+    return res.text();
+  }
+
+  async function fetchFeedWithProxyFallback(url) {
+    try {
+      return await fetchText(url);
+    } catch (error) {
+      return fetchText(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+    }
+  }
+
+  async function loadLatestShorts() {
+    if (manualShortIds.length) {
+      renderShorts(manualShortIds);
+      return;
+    }
+
+    if (!uploadsPlaylistId) {
+      showMessage("Missing uploads playlist ID.");
+      return;
+    }
+
+    showMessage("Loading latest Shorts...");
+
+    try {
+      const urls = feedUrlForShortsFromUploads(uploadsPlaylistId);
+      let xmlText;
+
+      try {
+        xmlText = await fetchFeedWithProxyFallback(urls.direct);
+      } catch (error) {
+        xmlText = await fetchFeedWithProxyFallback(urls.fallback);
+      }
+
+      const ids = extractVideoIdsFromXml(xmlText).slice(0, 6);
+      if (ids.length) {
+        renderShorts(ids);
+      } else {
+        showMessage('Could not find Shorts in the feed. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer">Open Shorts on YouTube</a>.');
+      }
+    } catch (error) {
+      showMessage('Could not load Shorts automatically right now. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer">Open Shorts on YouTube</a>.');
+    }
+  }
+
+  loadLatestShorts();
+})();
 
 // ── SCROLL REVEAL ──
 const revealObserver = new IntersectionObserver((entries) => {
