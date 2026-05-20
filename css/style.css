@@ -1540,6 +1540,63 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
 .tribute-card__genres { display: flex; flex-wrap: wrap; gap: 6px; }
 .tribute-more { padding: var(--gap-md); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
 
+
+
+/* ── LATEST SHORTS ── */
+.shorts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.shorts-card {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255,255,255,0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shorts-card__frame-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 177.78%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+
+.shorts-card__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.shorts-card__btn {
+  min-height: 42px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.shorts-grid__message {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+  color: var(--off-white);
+}
+
+.shorts-grid__message a {
+  color: var(--off-white);
+  text-decoration: underline;
+}
+
 /* ── BOOKING STRIP ── */
 .booking-strip { background: var(--gold); padding: var(--gap-lg) 0; }
 .booking-strip__inner { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); flex-wrap: wrap; }
@@ -1583,6 +1640,7 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
 @media (max-width: 1024px) {
   .videos-grid { grid-template-columns: 1fr; }
   .videos-grid__side { grid-template-columns: repeat(4, 1fr); }
+  .shorts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tribute-cards { grid-template-columns: 1fr; }
   .testimonial-block { grid-template-columns: 1fr; }
 }
@@ -1625,6 +1683,9 @@ section > .container > :is(h1, h2, h3, .t-headline, .t-title) + .t-body {
 
 @media (max-width: 480px) {
   .videos-grid__side { grid-template-columns: 1fr; }
+  .shorts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .shorts-card { padding: 5px; gap: 5px; border-radius: 10px; }
+  .shorts-card__btn { min-height: 28px; padding: 5px 4px; border-radius: 7px; font-size: 10px; line-height: 1.2; }
   .grid-4 { grid-template-columns: 1fr 1fr; }
 }
 
