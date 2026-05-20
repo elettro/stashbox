@@ -953,6 +953,15 @@ small, .small, .meta, .caption, .microcopy,
 .setlist-num { font-size: 16px; font-weight: 300; color: var(--muted); min-width: 20px; }
 
 
+
+#sublime .tribute-show__header {
+  grid-template-columns: 1.12fr 0.88fr;
+}
+
+#sublime .tribute-show__title.stashbox-wordmark {
+  font-size: clamp(46px, 6vw, 76px);
+}
+
 .sublime-video-wrap {
   position: relative;
 }
