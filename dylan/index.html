@@ -73,30 +73,11 @@
     </div>
   </div>
 </section>
-<section class="stashbox-yt-glitch-hero" id="stashbox-release-hero-2">
-  <div class="yt-glitch-bg">
-    <iframe
-      id="glitch-yt-2"
-      src="https://www.youtube.com/embed/N92iE0h6s0M?autoplay=1&mute=1&controls=0&loop=1&playlist=N92iE0h6s0M&modestbranding=1&playsinline=1&rel=0&enablejsapi=1"
-      title="Stashbox background video"
-      frameborder="0"
-      allow="autoplay; encrypted-media"
-      referrerpolicy="strict-origin-when-cross-origin">
-    </iframe>
-  </div>
-  <div class="yt-glitch-overlay"></div>
-  <button class="glitch-mute-btn" id="glitch-mute-btn-2" onclick="glitchToggleMute2()">
-    <span id="glitch-mute-icon-2">🔇</span>
-    <span id="glitch-mute-label-2">Unmute</span>
-  </button>
-  <div class="yt-glitch-inner"><div class="yt-glitch-copy"><div class="hero-eyebrow">New Release · Stashbox</div><p class="hero-kicker">STASHBOX DOES DYLAN</p><h1 class="glitch-title" data-text="STASHBOX DOES DYLAN">STASHBOX DOES DYLAN</h1><p class="hero-subtext">A cinematic release presentation with live video energy, bold typography, and a sharp call to action.</p><div class="hero-actions"><a class="hero-btn hero-btn-primary" href="https://youtube.com/@stashboxand" target="_blank" rel="noopener">Streaming Music</a><a class="hero-btn hero-btn-secondary" href="https://www.youtube.com/watch?v=N92iE0h6s0M&list=RDN92iE0h6s0M&start_radio=1&pp=ygUMc3Rhc2hib3hiYW5koAcB" target="_blank" rel="noopener">Watch Video</a></div></div></div>
-</section>
+
 <footer>&copy; 2026 <a href="https://stashbox.com">Stashbox</a></footer>
 <script>
   var glitchMuted = true;
   function glitchToggleMute(){glitchMuted=!glitchMuted;var iframe=document.getElementById('glitch-yt');var icon=document.getElementById('glitch-mute-icon');var label=document.getElementById('glitch-mute-label');iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:glitchMuted?'mute':'unMute',args:[]}), '*');icon.textContent=glitchMuted?'🔇':'🔊';label.textContent=glitchMuted?'Unmute':'Mute';}
 
-  var glitchMuted2 = true;
-  function glitchToggleMute2(){glitchMuted2=!glitchMuted2;var iframe=document.getElementById('glitch-yt-2');var icon=document.getElementById('glitch-mute-icon-2');var label=document.getElementById('glitch-mute-label-2');iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:glitchMuted2?'mute':'unMute',args:[]}), '*');icon.textContent=glitchMuted2?'🔇':'🔊';label.textContent=glitchMuted2?'Unmute':'Mute';}
 </script>
 </body></html>
