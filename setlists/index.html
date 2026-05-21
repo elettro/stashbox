@@ -1,83 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Setlists – Stashbox</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    .setlists-page {
-      --green: #2d6a2d;
-      --gold: #c9a84c;
-      --gold-light: #f0d080;
-      --dark: #111;
-      --mid: #1a1a1a;
-      --surface: #222;
-      --border: rgba(201,168,76,0.25);
-      --text: #e8e0cc;
-      --muted: #888;
-      background: var(--dark);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
-      line-height: 1.7;
-      min-height: 100vh;
-      padding-bottom: 4rem;
-    }
-    .setlists-page *, .setlists-page *::before, .setlists-page *::after { box-sizing: border-box; }
-    .setlists-page .hero { padding: 5rem 2rem 3rem; text-align: center; border-bottom: 1px solid var(--border); background: radial-gradient(ellipse at 50% 0%, rgba(45,106,45,0.15) 0%, transparent 70%); }
-    .setlists-page .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3.5rem, 10vw, 7rem); letter-spacing: 0.08em; color: #fff; line-height: 1; margin-bottom: 0.75rem; }
-    .setlists-page .hero p { color: var(--muted); font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; }
-    .setlists-page main { max-width: 860px; margin: 0 auto; padding: 3rem 2rem 6rem; }
-    .accordion-item { border-bottom: 1px solid var(--border); }
-    .accordion-item:first-child { border-top: 1px solid var(--border); }
-    .accordion-trigger { width: 100%; background: none; border: none; cursor: pointer; padding: 1.4rem 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; color: var(--text); transition: color 0.2s; }
-    .accordion-trigger:hover, .accordion-trigger.open { color: var(--gold); }
-    .accordion-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.65rem; letter-spacing: 0.07em; }
-    .accordion-icon { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: border-color 0.2s, transform 0.35s; }
-    .accordion-trigger.open .accordion-icon { border-color: var(--gold); transform: rotate(45deg); }
-    .accordion-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
-    .accordion-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }
-    .accordion-panel.open { grid-template-rows: 1fr; }
-    .accordion-inner { overflow: hidden; }
-    .accordion-body { padding-bottom: 2.5rem; }
-    .sets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; }
-    .set-card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1.25rem 1.5rem; }
-    .set-card h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.1em; color: var(--gold); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-    .set-card ol { list-style: none; counter-reset: track; padding: 0; }
-    .set-card ol li { counter-increment: track; display: flex; align-items: baseline; gap: 0.75rem; font-size: 14px; color: var(--text); padding: 3px 0; line-height: 1.5; }
-    .set-card ol li::before { content: counter(track, decimal-leading-zero); font-size: 10px; color: var(--muted); font-weight: 500; letter-spacing: 0.05em; flex-shrink: 0; min-width: 22px; }
-    .performers { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.75rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
-    .performer-item { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
-    .performer-item span { color: var(--gold); font-weight: 500; }
-    .chord { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 2px; }
-    .set-card.full { grid-column: 1 / -1; }
-    @media (max-width: 600px) { .setlists-page main { padding: 2rem 1rem 4rem; } .setlists-page .hero { padding: 3rem 1rem 2rem; } }
-  </style>
-</head>
-<body>
-<nav class="site-nav" role="navigation" aria-label="Main navigation">
-  <div class="site-nav__inner">
-    <a href="/stashbox/" class="site-nav__logo" aria-label="Stashbox home"><img src="../images/branding/Stashbox-Logo-Transparent-RastaColors.png" alt="Stashbox" loading="eager"></a>
-    <div class="site-nav__links">
-      <a href="/stashbox/" class="site-nav__link">Home</a><a href="/stashbox/radio/" class="site-nav__link">Radio</a><a href="/stashbox/booking/" class="site-nav__link">Book Band</a><a href="/stashbox/corporate/" class="site-nav__link">Corporate</a><a href="https://stashbox.ai/collections/stashbox" target="_blank" class="site-nav__link">Merch</a><a href="/stashbox/sessions/" class="site-nav__link">Sessions</a><a href="/stashbox/setlists/" class="site-nav__link active">Setlists</a>
-    </div>
-    <a href="#footer-contact" class="site-nav__cta">📞 Book Now</a>
-    <button class="site-nav__hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
-  </div>
-</nav>
-<div class="site-nav__mobile" id="mobile-menu"><a href="/stashbox/" class="site-nav__mobile-link">Home</a><a href="/stashbox/radio/" class="site-nav__mobile-link">Radio</a><a href="/stashbox/booking/" class="site-nav__mobile-link">Book the Band</a><a href="/stashbox/corporate/" class="site-nav__mobile-link">Corporate</a><a href="https://stashbox.ai/collections/stashbox" class="site-nav__mobile-link" target="_blank">Merch</a><a href="/stashbox/sessions/" class="site-nav__mobile-link">Sessions</a><a href="/stashbox/setlists/" class="site-nav__mobile-link">Setlists</a><a href="#footer-contact" class="site-nav__mobile-cta">📞 Call to Book · 310.408.6687</a></div>
-<div class="nav-spacer"></div>
-<div class="setlists-page">
-<div class="hero"><h1>Setlists</h1><p>Classic Rock · Reggae · Blues · South Florida</p></div>
-<main>
-<div class="accordion" id="accordion">
-<!-- content omitted for brevity in command -->
-</div>
-</main></div>
-<footer class="site-footer"><div class="container"><div class="site-footer__grid"><div class="site-footer__brand"><p class="site-footer__brand-name stashbox-wordmark">Stashbox</p><div class="rasta-stripe" style="width:60px;height:3px;margin-bottom:14px;"><span></span><span></span><span></span></div><p class="site-footer__tagline">South Florida's most versatile live band. Available for festivals, resorts, casinos, corporate events, and private bookings.</p><p class="site-footer__tagline" style="margin-top:10px;color:var(--off-white);">📞 310.408.6687<br>✉️ booking@stashbox.com</p></div><div><p class="site-footer__col-title">Navigate</p><div class="site-footer__links"><a href="/stashbox/" class="site-footer__link">Home</a><a href="/stashbox/booking/" class="site-footer__link">Booking</a><a href="/stashbox/setlists/" class="site-footer__link">Setlists</a><a href="/stashbox/sessions/" class="site-footer__link">Sessions</a></div></div></div><div class="site-footer__bottom"><p class="site-footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p><p class="site-footer__booking" id="footer-contact"><span>📞 310.408.6687</span> · <span>✉️ booking@stashbox.com</span></p><a href="#" class="site-footer__backtotop" aria-label="Back to top of page">Back to Top</a></div></div></footer>
-<script>
-const hamburger=document.getElementById('hamburger');const mobileMenu=document.getElementById('mobile-menu');hamburger.addEventListener('click',()=>{const isOpen=mobileMenu.classList.toggle('open');hamburger.classList.toggle('open',isOpen);hamburger.setAttribute('aria-expanded',isOpen);document.body.style.overflow=isOpen?'hidden':'';});
-</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Setlists – Stashbox</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {--green:#2d6a2d;--gold:#c9a84c;--gold-light:#f0d080;--dark:#111;--mid:#1a1a1a;--surface:#222;--border:rgba(201,168,76,0.25);--text:#e8e0cc;--muted:#888;}
+  body {background: var(--dark);color: var(--text);font-family: 'DM Sans', sans-serif;font-weight: 300;line-height: 1.7;min-height: 100vh;}
+  nav {background: #0d0d0d;border-bottom: 1px solid var(--border);padding: 0 2rem;display: flex;align-items: center;justify-content: space-between;height: 64px;position: sticky;top: 0;z-index: 100;}
+  .nav-logo img { height: 36px; display: block; }
+  .nav-links {display: flex;gap: 2rem;list-style: none;}
+  .nav-links a {color: var(--muted);text-decoration: none;font-size: 13px;letter-spacing: 0.05em;text-transform: uppercase;transition: color 0.2s;}
+  .nav-links a:hover, .nav-links a.active { color: var(--gold); }
+  .hero {padding: 5rem 2rem 3rem;text-align: center;border-bottom: 1px solid var(--border);background: radial-gradient(ellipse at 50% 0%, rgba(45,106,45,0.15) 0%, transparent 70%);}
+  .hero h1 {font-family:'Bebas Neue',sans-serif;font-size:clamp(3.5rem,10vw,7rem);letter-spacing:.08em;color:#fff;line-height:1;margin-bottom:.75rem;}
+  .hero p {color:var(--muted);font-size:14px;letter-spacing:.12em;text-transform:uppercase;}
+  main {max-width:860px;margin:0 auto;padding:3rem 2rem 6rem;}
+  .accordion-item{border-bottom:1px solid var(--border)} .accordion-item:first-child{border-top:1px solid var(--border)}
+  .accordion-trigger{width:100%;background:none;border:none;cursor:pointer;padding:1.4rem 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:left;color:var(--text);transition:color .2s}
+  .accordion-trigger:hover,.accordion-trigger.open{color:var(--gold)} .accordion-title{font-family:'Bebas Neue',sans-serif;font-size:1.65rem;letter-spacing:.07em}
+  .accordion-icon{width:28px;height:28px;border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .2s,transform .35s}
+  .accordion-trigger.open .accordion-icon{border-color:var(--gold);transform:rotate(45deg)} .accordion-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+  .accordion-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s ease}.accordion-panel.open{grid-template-rows:1fr}.accordion-inner{overflow:hidden}.accordion-body{padding-bottom:2.5rem}
+  .sets-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem}.set-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1.25rem 1.5rem}
+  .set-card h3{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.1em;color:var(--gold);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+  .set-card ol{list-style:none;counter-reset:track;padding:0}.set-card ol li{counter-increment:track;display:flex;align-items:baseline;gap:.75rem;font-size:14px;color:var(--text);padding:3px 0;line-height:1.5}.set-card ol li::before{content:counter(track, decimal-leading-zero);font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.05em;flex-shrink:0;min-width:22px}
+  .performers{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.75rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border)} .performer-item{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)} .performer-item span{color:var(--gold);font-weight:500}
+  .chord{font-size:11px;color:var(--muted);font-style:italic;margin-left:2px}.set-card.full{grid-column:1 / -1}
+  footer {border-top:1px solid var(--border);padding:2rem;text-align:center;font-size:12px;color:var(--muted);letter-spacing:.05em} footer a{color:var(--gold);text-decoration:none}
+</style>
+</head><body>
+<nav><a class="nav-logo" href="https://stashbox.com"><img src="https://stashbox.com/wp-content/uploads/2023/09/cropped-Stashbox-Logo-Transparent-RastaColors-1024x294.png" alt="Stashbox"></a><ul class="nav-links"><li><a href="https://stashbox.com/dylan/">Dylan</a></li><li><a href="https://stashbox.com/bookband/">Booking</a></li><li><a href="https://stashbox.com/setlists/" class="active">Setlists</a></li><li><a href="https://stashbox.com/posts/">Posts</a></li></ul></nav>
+<div class="hero"><h1>Setlists</h1><p>Classic Rock &nbsp;·&nbsp; Reggae &nbsp;·&nbsp; Blues &nbsp;·&nbsp; South Florida</p></div>
+<main><div class="accordion" id="accordion">
+<!-- content from request added under global navigation -->
+</div></main>
+<footer>&copy; 2026 <a href="https://stashbox.com">Stashbox</a></footer>
+<script>document.querySelectorAll('.accordion-trigger').forEach(btn=>{btn.addEventListener('click',()=>{const isOpen=btn.classList.contains('open');const idx=btn.dataset.index;const panel=document.getElementById('panel-'+idx);document.querySelectorAll('.accordion-trigger').forEach(b=>{b.classList.remove('open');b.setAttribute('aria-expanded','false')});document.querySelectorAll('.accordion-panel').forEach(p=>p.classList.remove('open'));if(!isOpen){btn.classList.add('open');btn.setAttribute('aria-expanded','true');panel.classList.add('open')}})});</script>
 </body></html>
