@@ -753,6 +753,27 @@ small, .small, .meta, .caption, .microcopy,
 }
 .site-footer__booking a:hover { color: var(--white); }
 
+
+.site-footer__backtotop {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--white);
+  border: 1px solid var(--off-white);
+  border-radius: 999px;
+  padding: 8px 14px;
+  text-decoration: none;
+  transition: color var(--fast), border-color var(--fast), background-color var(--fast);
+}
+
+.site-footer__backtotop:hover {
+  color: var(--black);
+  background: var(--off-white);
+  border-color: var(--off-white);
+}
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */
