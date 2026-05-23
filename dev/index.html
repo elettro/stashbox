@@ -56,7 +56,10 @@
     <div class="hero__static-fallback" role="img" aria-label="Stashbox live performance"></div>
   </div>
 
-  <button class="hero__unmute" id="unmuteBtn" aria-label="Unmute video" title="Toggle sound">🔇</button>
+  <div class="hero__video-controls" role="group" aria-label="Hero video controls">
+    <button class="hero__unmute" id="unmuteBtn" aria-label="Unmute video" title="Toggle sound">🔇</button>
+    <button class="hero__next" id="nextVideoBtn" aria-label="Play next video" title="Next video">⏭</button>
+  </div>
 
   <div class="hero__content">
     <p class="hero__eyebrow">South Florida Live Music</p>
@@ -374,24 +377,44 @@
 
 <script src="main.js"></script>
 <script>
-/* ── Hero: unmute toggle ── */
+/* ── Hero: mute toggle + next video ── */
 (function () {
-  const btn = document.getElementById('unmuteBtn');
+  const muteBtn = document.getElementById('unmuteBtn');
+  const nextBtn = document.getElementById('nextVideoBtn');
   const iframe = document.getElementById('hero-iframe');
-  if (!btn || !iframe) return;
+  if (!muteBtn || !nextBtn || !iframe) return;
 
-  const muteParam = 'mute=1';
-  const unmuteParam = 'mute=0';
+  const videoIds = [
+    'ygvrFB1cn54',
+    '7IIB63ZAeH0',
+    'KWE3M2XVYZY',
+    'W-zqAcTEajg',
+    'CIV_s42AnMs',
+    'T7iV0TRFWO8',
+    'nD28USW8F4c',
+    'pLgZTyCqGpQ',
+    'qlJ0374PZSY',
+    'Y6mnIwwH0rA'
+  ];
+
   let muted = true;
+  let currentVideoIndex = 0;
 
-  btn.addEventListener('click', function () {
+  function updateIframe() {
+    const params = `autoplay=1&mute=${muted ? 1 : 0}&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1&playlist=${videoIds[currentVideoIndex]}&enablejsapi=1`;
+    iframe.src = `https://www.youtube-nocookie.com/embed/${videoIds[currentVideoIndex]}?${params}`;
+  }
+
+  muteBtn.addEventListener('click', function () {
     muted = !muted;
-    const src = iframe.src;
-    iframe.src = muted
-      ? src.replace(unmuteParam, muteParam)
-      : src.replace(muteParam, unmuteParam);
-    btn.textContent = muted ? '🔇' : '🔊';
-    btn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
+    updateIframe();
+  });
+
+  nextBtn.addEventListener('click', function () {
+    currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+    updateIframe();
   });
 })();
 </script>
