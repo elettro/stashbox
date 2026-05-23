@@ -600,7 +600,7 @@ h1, h2, h3, h4, h5, h6 {
 ================================================================ */
 .tribute-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-6);
   margin-top: var(--space-10);
 }
@@ -1756,7 +1756,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Large desktop */
 @media (max-width: 1200px) {
-  .tribute-grid,
+  .tribute-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tribute-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .video-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .music-strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
