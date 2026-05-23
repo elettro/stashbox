@@ -1,0 +1,78 @@
+/* Hallmark · macrostructure: Marquee Hero · tone: concert-poster maximalism · anchor hue: amber
+ * theme: custom (vibe: "dark stage amber gold South Florida" · paper oklch(8% 0 0) · accent oklch(73% 0.16 65) amber)
+ * fonts: Barlow Condensed 800 + Barlow 300/400 + JetBrains Mono
+ * axes: dark / display-condensed-heavy / warm-amber
+ * Pre-emit critique: P5 H5 E5 S5 R4 V4
+ */
+
+:root {
+  /* ── Colour ──────────────────────────────────────────────── */
+  --color-bg:           oklch(8% 0 0);        /* #0d0d0d */
+  --color-surface:      oklch(10% 0 0);       /* #161616 */
+  --color-surface-2:    oklch(13% 0 0);       /* #202020 */
+  --color-border:       oklch(18% 0 0);       /* #2a2a2a */
+  --color-border-hover: oklch(30% 0 0);
+  --color-text:         oklch(95% 0 0);       /* #f0f0f0 */
+  --color-muted:        oklch(57% 0 0);       /* #888 */
+  --color-accent:       oklch(73% 0.16 65);   /* #f5a623 amber */
+  --color-accent-hover: oklch(80% 0.14 70);   /* #ffc044 */
+  --color-accent-dim:   oklch(73% 0.16 65 / 0.12);
+  --color-focus:        oklch(73% 0.16 65);
+
+  /* Tribute accents — used sparingly on tribute-section badges only */
+  --color-dylan:        oklch(73% 0.16 65);   /* amber — consistent */
+  --color-sublime:      oklch(62% 0.14 230);  /* sky blue */
+  --color-reggae:       oklch(58% 0.14 150);  /* leaf green */
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Barlow', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Roboto Mono', monospace;
+
+  /* Scale */
+  --text-xs:        0.75rem;
+  --text-sm:        0.875rem;
+  --text-base:      1rem;
+  --text-lg:        1.125rem;
+  --text-xl:        1.25rem;
+  --text-2xl:       1.5rem;
+  --text-3xl:       2rem;
+  --text-4xl:       2.75rem;
+  --text-display-s: 3.5rem;
+  --text-display:   5rem;
+  --text-display-l: 7rem;
+
+  /* ── Spacing (4pt scale) ─────────────────────────────────── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  --max-width:    1280px;
+  --nav-height:   64px;
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --radius-pill:  9999px;
+
+  /* ── Shadow ─────────────────────────────────────────────── */
+  --shadow-card:       0 2px 12px oklch(0% 0 0 / 0.4);
+  --shadow-card-hover: 0 8px 40px oklch(0% 0 0 / 0.7), 0 0 0 1px var(--color-accent);
+
+  /* ── Motion ─────────────────────────────────────────────── */
+  --dur-fast:    150ms;
+  --dur-base:    300ms;
+  --dur-slow:    500ms;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.83, 0, 0.17, 1);
+}
