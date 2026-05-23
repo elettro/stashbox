@@ -49,9 +49,12 @@
   <section class="section" aria-label="Shop">
     <div class="container">
 
-      <div class="shop-section-head fade-in">
-        <p class="section-label" style="color:var(--color-accent); margin-bottom:var(--space-4);">STASHBOX.AI MERCH</p>
-        <h2 class="section-title" style="font-size:var(--text-display-s);">Stashbox Music Merch</h2>
+      <div class="shop-section-head shop-section-head--with-action fade-in">
+        <div>
+          <p class="section-label" style="color:var(--color-accent); margin-bottom:var(--space-4);">STASHBOX.AI MERCH</p>
+          <h2 class="section-title" style="font-size:var(--text-display-s);">Stashbox Music Merch</h2>
+        </div>
+        <button type="button" id="refreshProductsBtn" class="btn shop-refresh-btn" aria-label="Refresh and randomize products">Refresh Products</button>
       </div>
       <p class="section-sub" style="margin-bottom:var(--space-5);">Real products pulled from the Stashbox merch collection.</p>
       <section id="stashbox-merch-widget">
@@ -112,6 +115,24 @@
   margin-bottom: var(--space-10);
 }
 .shop-status { margin: 0 0 var(--space-5) 0; }
+.shop-section-head--with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.shop-refresh-btn {
+  flex-shrink: 0;
+}
+@media (max-width: 768px) {
+  .shop-section-head--with-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .shop-refresh-btn {
+    width: 100%;
+  }
+}
 .shop-product-card {
   height: 100%;
   display: flex;
@@ -175,6 +196,7 @@
   const gridAll = document.getElementById('stashbox-merch-grid-all');
   const featuredStatusEl = document.getElementById('featuredStatus');
   const newestStatusEl = document.getElementById('newestStatus');
+  const refreshProductsBtn = document.getElementById('refreshProductsBtn');
 
   console.log("Collection grid:", gridCollection);
   console.log("All products grid:", gridAll);
@@ -273,8 +295,25 @@
     newestStatusEl.textContent = `Showing ${allSlice.length} products.`;
   }
 
-  async function renderMerch() {
+  function reshuffleAndRender() {
+    if (!displayedState.collection.length || !displayedState.all.length) return false;
+    displayedState.collection = shuffleProducts(displayedState.collection);
+    displayedState.all = shuffleProducts(displayedState.all);
+    rerenderForViewport();
+    return true;
+  }
+
+  async function renderMerch(forceFetch = false) {
     console.log("renderMerch started");
+    if (!forceFetch && reshuffleAndRender()) {
+      featuredStatusEl.textContent += " · Randomized";
+      newestStatusEl.textContent += " · Randomized";
+      return;
+    }
+
+    featuredStatusEl.textContent = "Refreshing products...";
+    newestStatusEl.textContent = "Refreshing products...";
+
     try {
       const [collectionData, allData] = await Promise.all([
         fetchJson(COLLECTION_ENDPOINT),
@@ -302,7 +341,14 @@
   }
 
   window.addEventListener('resize', rerenderForViewport);
-  renderMerch();
+
+  if (refreshProductsBtn) {
+    refreshProductsBtn.addEventListener('click', () => {
+      renderMerch();
+    });
+  }
+
+  renderMerch(true);
 })();
 </script>
 
