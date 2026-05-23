@@ -232,7 +232,7 @@
     grid.innerHTML = '';
     products.forEach((product) => {
       const card = document.createElement('article');
-      card.className = 'music-card fade-in shop-product-card';
+      card.className = 'music-card shop-product-card';
       const url = `${STORE_URL}/products/${product.handle}`;
       card.innerHTML = `
         <a href="${url}" class="shop-product-link" target="_blank" rel="noopener noreferrer">
