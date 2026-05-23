@@ -404,11 +404,18 @@
     iframe.src = `https://www.youtube-nocookie.com/embed/${videoIds[currentVideoIndex]}?${params}`;
   }
 
+  function sendYouTubeCommand(command) {
+    iframe.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func: command, args: [] }),
+      'https://www.youtube-nocookie.com'
+    );
+  }
+
   muteBtn.addEventListener('click', function () {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
     muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
-    updateIframe();
+    sendYouTubeCommand(muted ? 'mute' : 'unMute');
   });
 
   nextBtn.addEventListener('click', function () {
