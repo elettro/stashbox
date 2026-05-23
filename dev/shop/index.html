@@ -51,15 +51,15 @@
 
       <div class="shop-section-head fade-in">
         <p class="section-label" style="color:var(--color-accent); margin-bottom:var(--space-4);">STASHBOX.AI MERCH</p>
-        <h2 class="section-title" style="font-size:var(--text-display-s);">Featured Collection</h2>
+        <h2 class="section-title" style="font-size:var(--text-display-s);">Stashbox Music Merch</h2>
       </div>
-      <p id="featuredStatus" class="music-card__meta shop-status">Loading featured products…</p>
+      <p id="featuredStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
       <div id="featuredGrid" class="shop-product-grid" aria-live="polite"></div>
 
       <div class="shop-section-head fade-in" style="margin-top:var(--space-14);">
-        <h2 class="section-title" style="font-size:var(--text-display-s);">Newest Products</h2>
+        <h2 class="section-title" style="font-size:var(--text-display-s);">Newest Stashbox.ai Products</h2>
       </div>
-      <p id="newestStatus" class="music-card__meta shop-status">Loading newest products…</p>
+      <p id="newestStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
       <div id="newestGrid" class="shop-product-grid" aria-live="polite"></div>
 
       <div class="shop-hero fade-in">
@@ -161,43 +161,37 @@
 </style>
 <script>
 (function () {
-  const STASHBOX_COLLECTION_HANDLE = "REPLACE_WITH_COLLECTION_HANDLE";
-  const SHOPIFY_STOREFRONT_TOKEN = "REPLACE_WITH_STOREFRONT_ACCESS_TOKEN";
+  const STORE_URL = 'https://stashbox.ai';
+  const COLLECTION_ENDPOINT = `${STORE_URL}/collections/stashbox/products.json?limit=6`;
+  const NEWEST_ENDPOINT = `${STORE_URL}/products.json?limit=6`;
   const featuredGridEl = document.getElementById('featuredGrid');
   const newestGridEl = document.getElementById('newestGrid');
   const featuredStatusEl = document.getElementById('featuredStatus');
   const newestStatusEl = document.getElementById('newestStatus');
 
-  if (SHOPIFY_STOREFRONT_TOKEN === 'REPLACE_WITH_STOREFRONT_ACCESS_TOKEN') {
-    console.warn('Shopify Storefront token is missing. Add a valid Storefront API token to SHOPIFY_STOREFRONT_TOKEN.');
+  function formatPrice(value) {
+    const num = Number.parseFloat(value);
+    if (Number.isNaN(num)) return 'Price unavailable';
+    return `$${num.toFixed(2)} USD`;
   }
 
-  const featuredProducts = [
-    { title: 'Stashbox Vintage Logo Tee', image: 'https://stashbox.ai/cdn/shop/files/stashbox-vintage-logo-tee.jpg', url: 'https://stashbox.ai/products/stashbox-vintage-logo-tee', price: '$32.00' },
-    { title: 'Stashbox Raglan Guitar Tee', image: 'https://stashbox.ai/cdn/shop/files/stashbox-raglan-guitar-tee.jpg', url: 'https://stashbox.ai/products/stashbox-raglan-guitar-tee', price: '$36.00' },
-    { title: 'Stashbox Lightning Pullover', image: 'https://stashbox.ai/cdn/shop/files/stashbox-lightning-pullover.jpg', url: 'https://stashbox.ai/products/stashbox-lightning-pullover', price: '$54.00' },
-    { title: 'Stashbox Flame Embroidered Hat', image: 'https://stashbox.ai/cdn/shop/files/stashbox-flame-embroidered-hat.jpg', url: 'https://stashbox.ai/products/stashbox-flame-embroidered-hat', price: '$30.00' },
-    { title: 'Stashbox Stage Poster Print', image: 'https://stashbox.ai/cdn/shop/files/stashbox-stage-poster-print.jpg', url: 'https://stashbox.ai/products/stashbox-stage-poster-print', price: '$28.00' },
-    { title: 'Stashbox Rock Reggae Blues Hoodie', image: 'https://stashbox.ai/cdn/shop/files/stashbox-rock-reggae-blues-hoodie.jpg', url: 'https://stashbox.ai/products/stashbox-rock-reggae-blues-hoodie', price: '$58.00' }
-  ];
-
-  const newestProducts = [
-    { title: 'Stashbox Neon Crest Tee', image: 'https://stashbox.ai/cdn/shop/files/stashbox-neon-crest-tee.jpg', url: 'https://stashbox.ai/products/stashbox-neon-crest-tee', price: '$34.00' },
-    { title: 'Stashbox Palm Tour Tee', image: 'https://stashbox.ai/cdn/shop/files/stashbox-palm-tour-tee.jpg', url: 'https://stashbox.ai/products/stashbox-palm-tour-tee', price: '$33.00' },
-    { title: 'Stashbox Live Session Tank', image: 'https://stashbox.ai/cdn/shop/files/stashbox-live-session-tank.jpg', url: 'https://stashbox.ai/products/stashbox-live-session-tank', price: '$30.00' },
-    { title: 'Stashbox Summer Jam Shorts', image: 'https://stashbox.ai/cdn/shop/files/stashbox-summer-jam-shorts.jpg', url: 'https://stashbox.ai/products/stashbox-summer-jam-shorts', price: '$40.00' },
-    { title: 'Stashbox Tour Tote', image: 'https://stashbox.ai/cdn/shop/files/stashbox-tour-tote.jpg', url: 'https://stashbox.ai/products/stashbox-tour-tote', price: '$24.00' },
-    { title: 'Stashbox Sunset Sticker Pack', image: 'https://stashbox.ai/cdn/shop/files/stashbox-sunset-sticker-pack.jpg', url: 'https://stashbox.ai/products/stashbox-sunset-sticker-pack', price: '$12.00' }
-  ];
+  function normalizeProduct(product) {
+    return {
+      title: product?.title || 'Stashbox Product',
+      handle: product?.handle || '',
+      image: product?.images?.[0]?.src || '',
+      price: formatPrice(product?.variants?.[0]?.price)
+    };
+  }
 
   function productCard(product) {
     const card = document.createElement('article');
     card.className = 'music-card fade-in shop-product-card';
 
-    const title = product?.title || 'Stashbox Product';
-    const url = product?.url || 'https://stashbox.ai';
-    const image = product?.image || '';
-    const price = product?.price || 'Price available on Stashbox.ai';
+    const title = product.title;
+    const url = `${STORE_URL}/products/${product.handle}`;
+    const image = product.image;
+    const price = product.price;
 
     card.innerHTML = `
       <a href="${url}" class="shop-product-link" target="_blank" rel="noopener noreferrer">
@@ -219,38 +213,56 @@
     return card;
   }
 
-  function renderProducts(gridEl, statusEl, products, label, logText) {
-    if (!gridEl || !statusEl) {
-      console.error('Product container not found');
-      return;
-    }
-
-    console.log(logText);
-
-    if (!Array.isArray(products) || !products.length) {
-      statusEl.textContent = 'Products are currently unavailable.';
-      gridEl.innerHTML = '<p class="shop-fallback">Products are currently unavailable.</p>';
-      return;
-    }
-
+  function renderProducts(gridEl, statusEl, products, label) {
     gridEl.innerHTML = '';
-    products.slice(0, 6).forEach((product) => gridEl.appendChild(productCard(product)));
-    statusEl.textContent = `Showing ${Math.min(products.length, 6)} ${label}.`;
+    products.forEach((product) => gridEl.appendChild(productCard(product)));
+    statusEl.textContent = `Showing ${products.length} ${label}.`;
   }
 
-  try {
-    renderProducts(featuredGridEl, featuredStatusEl, featuredProducts, 'featured products', 'Rendering featured Stashbox products');
-    renderProducts(newestGridEl, newestStatusEl, newestProducts, 'newest products', 'Rendering newest Stashbox products');
-  } catch (error) {
-    console.error('Shopify product fetch failed', error);
-    if (featuredStatusEl) featuredStatusEl.textContent = 'Products are currently unavailable.';
-    if (newestStatusEl) newestStatusEl.textContent = 'Products are currently unavailable.';
+  function renderFallback(gridEl, statusEl) {
+    statusEl.textContent = 'Products could not load right now.';
+    gridEl.innerHTML = `
+      <div class="shop-fallback">
+        <p>Products could not load right now.</p>
+        <a href="https://stashbox.ai" class="btn" target="_blank" rel="noopener noreferrer" style="margin-top:var(--space-4);">Shop All at Stashbox.ai</a>
+      </div>
+    `;
   }
 
-  console.info('Static product data is manually managed until Shopify Storefront API access is configured.');
-  console.info(`Set STASHBOX_COLLECTION_HANDLE to a live collection handle (current: ${STASHBOX_COLLECTION_HANDLE}).`);
+  async function fetchProducts(url, logMessage) {
+    console.log(logMessage);
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const products = Array.isArray(data?.products) ? data.products.slice(0, 6) : [];
+    return products.map(normalizeProduct).filter((item) => item.handle);
+  }
+
+  async function initShop() {
+    try {
+      const [collectionProducts, newestProducts] = await Promise.all([
+        fetchProducts(COLLECTION_ENDPOINT, 'Fetching Stashbox collection products'),
+        fetchProducts(NEWEST_ENDPOINT, 'Fetching newest Stashbox products')
+      ]);
+
+      if (!collectionProducts.length || !newestProducts.length) {
+        throw new Error('No products returned from Shopify endpoint');
+      }
+
+      renderProducts(featuredGridEl, featuredStatusEl, collectionProducts, 'collection products');
+      renderProducts(newestGridEl, newestStatusEl, newestProducts, 'products');
+      console.log('Stashbox products loaded');
+    } catch (error) {
+      console.error('Stashbox product fetch failed', error);
+      renderFallback(featuredGridEl, featuredStatusEl);
+      renderFallback(newestGridEl, newestStatusEl);
+    }
+  }
+
+  initShop();
 })();
 </script>
+
 
 
 <script src="/stashbox/dev/main.js"></script>
