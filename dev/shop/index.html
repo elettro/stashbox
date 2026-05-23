@@ -54,6 +54,7 @@
         <h2 class="section-title" style="font-size:var(--text-display-s);">Stashbox Music Merch</h2>
       </div>
       <p class="section-sub" style="margin-bottom:var(--space-5);">Real products pulled from the Stashbox merch collection.</p>
+      <section id="stashbox-merch-widget">
       <p id="featuredStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
       <div id="stashbox-merch-grid-collection" class="shop-product-grid" aria-live="polite"></div>
 
@@ -63,6 +64,7 @@
       <p class="section-sub" style="margin-bottom:var(--space-5);">More real products pulled from the full Stashbox.ai store.</p>
       <p id="newestStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
       <div id="stashbox-merch-grid-all" class="shop-product-grid" aria-live="polite"></div>
+      </section>
 
       <div class="shop-hero fade-in">
         <h2 class="section-title" style="font-size:var(--text-display-s);">See More Stashbox Merch</h2>
@@ -164,16 +166,22 @@
 </style>
 <script>
 (function () {
-  // Reference the uploaded working merch widget code.
-  // This code successfully pulls real Stashbox.ai products from Shopify public JSON endpoints.
-  // Implement that same logic on /stashbox/dev/shop/.
+  console.log("Stashbox shop product script loaded");
+
   const STORE_URL = 'https://stashbox.ai';
   const COLLECTION_ENDPOINT = `${STORE_URL}/collections/stashbox/products.json?limit=250`;
   const ALL_PRODUCTS_ENDPOINT = `${STORE_URL}/products.json?limit=250`;
-  const collectionGridEl = document.getElementById('stashbox-merch-grid-collection');
-  const allGridEl = document.getElementById('stashbox-merch-grid-all');
+  const gridCollection = document.getElementById('stashbox-merch-grid-collection');
+  const gridAll = document.getElementById('stashbox-merch-grid-all');
   const featuredStatusEl = document.getElementById('featuredStatus');
   const newestStatusEl = document.getElementById('newestStatus');
+
+  console.log("Collection grid:", gridCollection);
+  console.log("All products grid:", gridAll);
+  if (!gridCollection || !gridAll) {
+    console.error("Missing product grid container IDs");
+    return;
+  }
 
   const displayedState = { collection: [], all: [] };
 
@@ -198,48 +206,55 @@
     return copy;
   }
 
-  function normalizeProduct(product) {
-    const image = product?.image?.src || product?.images?.[0]?.src || '';
-    return {
-      title: product?.title || '',
-      handle: product?.handle || '',
-      image,
-      price: formatPrice(product?.variants?.[0]?.price)
-    };
+  async function fetchJson(url) {
+    console.log("Fetching URL:", url);
+    const res = await fetch(url);
+    console.log("Fetch status:", res.status, res.statusText);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    console.log("JSON loaded:", data);
+    return data;
   }
 
-  function productCard(product) {
-    const card = document.createElement('article');
-    card.className = 'music-card fade-in shop-product-card';
-    const url = `${STORE_URL}/products/${product.handle}`;
+  function normalizeProducts(data) {
+    return (Array.isArray(data?.products) ? data.products : [])
+      .map((product) => ({
+        title: product?.title || '',
+        handle: product?.handle || '',
+        image: product?.image?.src || product?.images?.[0]?.src || '',
+        price: formatPrice(product?.variants?.[0]?.price)
+      }))
+      .filter((product) => product.title && product.handle);
+  }
 
-    card.innerHTML = `
-      <a href="${url}" class="shop-product-link" target="_blank" rel="noopener noreferrer">
-        <div class="shop-product-image-wrap">
-          ${product.image ? `<img src="${product.image}" alt="${product.title}" loading="lazy" class="shop-product-image">` : '<p class="shop-fallback">[Product image unavailable]</p>'}
+  function renderCards(grid, products) {
+    console.log("Rendering cards into:", grid, "Product count:", products.length);
+    grid.innerHTML = '';
+    products.forEach((product) => {
+      const card = document.createElement('article');
+      card.className = 'music-card shop-product-card';
+      const url = `${STORE_URL}/products/${product.handle}`;
+      card.innerHTML = `
+        <a href="${url}" class="shop-product-link" target="_blank" rel="noopener noreferrer">
+          <div class="shop-product-image-wrap">
+            ${product.image ? `<img src="${product.image}" alt="${product.title}" loading="lazy" class="shop-product-image">` : '<p class="shop-fallback">[Product image unavailable]</p>'}
+          </div>
+        </a>
+        <div class="music-card__info shop-card-body">
+          <h3 class="music-card__title">${product.title}</h3>
+          <p class="shop-card-price">${product.price}</p>
+          <div class="shop-card-actions">
+            <a href="${url}" class="btn" target="_blank" rel="noopener noreferrer">View Product</a>
+          </div>
         </div>
-      </a>
-      <div class="music-card__info shop-card-body">
-        <h3 class="music-card__title">${product.title}</h3>
-        <p class="shop-card-price">${product.price}</p>
-        <div class="shop-card-actions">
-          <a href="${url}" class="btn" target="_blank" rel="noopener noreferrer">View Product</a>
-        </div>
-      </div>
-    `;
-
-    return card;
+      `;
+      grid.appendChild(card);
+    });
   }
 
-  function renderProducts(gridEl, statusEl, products) {
-    gridEl.innerHTML = '';
-    products.forEach((product) => gridEl.appendChild(productCard(product)));
-    statusEl.textContent = `Showing ${products.length} products.`;
-  }
-
-  function renderFallback(gridEl, statusEl) {
+  function renderFallback(grid, statusEl) {
     statusEl.textContent = 'Products could not load automatically right now.';
-    gridEl.innerHTML = `
+    grid.innerHTML = `
       <div class="shop-fallback">
         <p>Products could not load automatically right now.</p>
         <a href="https://stashbox.ai" class="btn" target="_blank" rel="noopener noreferrer" style="margin-top:var(--space-4);">Shop All at Stashbox.ai</a>
@@ -247,49 +262,47 @@
     `;
   }
 
-  async function fetchProducts(url, logMessage) {
-    console.log(logMessage);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return (Array.isArray(data?.products) ? data.products : [])
-      .map(normalizeProduct)
-      .filter((product) => product.title && product.handle);
-  }
-
   function rerenderForViewport() {
     if (!displayedState.collection.length || !displayedState.all.length) return;
     const count = getDisplayCount();
-    renderProducts(collectionGridEl, featuredStatusEl, displayedState.collection.slice(0, count));
-    renderProducts(allGridEl, newestStatusEl, displayedState.all.slice(0, count));
+    const collectionSlice = displayedState.collection.slice(0, count);
+    const allSlice = displayedState.all.slice(0, count);
+    renderCards(gridCollection, collectionSlice);
+    featuredStatusEl.textContent = `Showing ${collectionSlice.length} products.`;
+    renderCards(gridAll, allSlice);
+    newestStatusEl.textContent = `Showing ${allSlice.length} products.`;
   }
 
-  async function initShop() {
+  async function renderMerch() {
+    console.log("renderMerch started");
     try {
-      console.log('Rendering Stashbox products');
-      const [collectionProducts, allProducts] = await Promise.all([
-        fetchProducts(COLLECTION_ENDPOINT, 'Fetching Stashbox collection products'),
-        fetchProducts(ALL_PRODUCTS_ENDPOINT, 'Fetching full Stashbox.ai products')
+      const [collectionData, allData] = await Promise.all([
+        fetchJson(COLLECTION_ENDPOINT),
+        fetchJson(ALL_PRODUCTS_ENDPOINT)
       ]);
+
+      const collectionProducts = normalizeProducts(collectionData);
+      const allProducts = normalizeProducts(allData);
+      console.log("Collection products:", collectionProducts.length, collectionProducts.slice(0, 3));
+      console.log("All products:", allProducts.length, allProducts.slice(0, 3));
 
       const shuffledCollection = shuffleProducts(collectionProducts);
       const collectionHandles = new Set(shuffledCollection.map((p) => p.handle));
       const shuffledAll = shuffleProducts(allProducts).filter((p) => !collectionHandles.has(p.handle));
-      const fallbackAll = shuffledAll.length ? shuffledAll : shuffleProducts(allProducts);
 
       displayedState.collection = shuffledCollection;
-      displayedState.all = fallbackAll;
+      displayedState.all = shuffledAll.length ? shuffledAll : shuffleProducts(allProducts);
 
       rerenderForViewport();
     } catch (err) {
       console.error('Stashbox merch widget error:', err);
-      renderFallback(collectionGridEl, featuredStatusEl);
-      renderFallback(allGridEl, newestStatusEl);
+      renderFallback(gridCollection, featuredStatusEl);
+      renderFallback(gridAll, newestStatusEl);
     }
   }
 
   window.addEventListener('resize', rerenderForViewport);
-  initShop();
+  renderMerch();
 })();
 </script>
 
