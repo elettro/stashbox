@@ -1784,12 +1784,15 @@ body {
   .nav a,
   .navbar a,
   .site-header a,
-  .site-nav a,
   .site-nav__link,
   .site-nav__mobile-link {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
+  }
+
+  .site-nav__cta {
+    display: none;
   }
 
   .site-nav__mobile-links {
