@@ -143,7 +143,8 @@ function embedHtml(v){
   return `<iframe src="https://www.youtube-nocookie.com/embed/${id}" title="${esc(v.song || 'Stashbox video')}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
 }
 
-function typeLabel(v){ return v['type.1'] || v.type || 'Video'; }
+function typeLabel(v){ return v.type || 'Video'; }
+function genreLabel(v){ return v['type.1'] || 'Uncategorized'; }
 function isOriginal(v){ return String(v.original || '').toLowerCase().startsWith('y'); }
 function dateText(v){ return v.date || ''; }
 function venueText(v){ return [v.venue, v.location].filter(Boolean).join(' · '); }
@@ -164,7 +165,7 @@ function select(name, options){ return `<select class="filter-select"><option>${
 
 async function initHeaders(){
   const rows = await loadVideos();
-  const genres = countsBy(rows,'genre').slice(0,8);
+  const genres = countsBy(rows,'type.1').slice(0,8);
   const artists = countsBy(rows,'songby').slice(0,8);
   const venues = countsBy(rows,'venue').slice(0,8);
   const types = countsBy(rows,'type').slice(0,5);

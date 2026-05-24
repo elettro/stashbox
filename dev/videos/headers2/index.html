@@ -504,8 +504,9 @@ h1 {
       <p class="small-copy">This style automatically highlights the top genres, artists, and venues from the sheet.</p>
       <input class="search" placeholder="Search first, then refine below...">
       <table class="facet-table" id="facet-table">
-        <tr><td>Top Types</td><td><button class="pill is-active">Original</button> <button class="pill">Genre Options</button> <button class="pill">Live Show</button></td></tr>
+        <tr><td>Top Types</td><td data-type-options><button class="pill is-active">Original</button> <button class="pill">Genre Options</button> <button class="pill">Live Show</button></td></tr>
         <tr><td>Top Artists</td><td id="top-artists"></td></tr>
+        <tr><td>Top Genres</td><td data-genre-options></td></tr>
         <tr><td>Top Venues</td><td id="top-venues"></td></tr>
       </table>
       <button class="reset" style="margin-top:10px">Reset Filters</button>
@@ -595,7 +596,8 @@ function tile(row) {
   const by = val(row, 'songby') || val(row, 'type') || 'Stashbox';
   const venue = val(row, 'venue') || 'Live Video';
   const loc = val(row, 'location') || '';
-  return `<div class="video-tile"><b>${escapeHtml(song)}</b><span>${escapeHtml(by)}</span><span>${escapeHtml(venue)}${loc ? ' · ' + escapeHtml(loc) : ''}</span></div>`;
+  const notes = val(row, 'notes');
+  return `<div class="video-tile"><b>${escapeHtml(song)}</b><span>${escapeHtml(by)}</span><span>${escapeHtml(venue)}${loc ? ' · ' + escapeHtml(loc) : ''}</span>${notes ? `<span>${escapeHtml(notes)}</span>` : ''}</div>`;
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -634,6 +636,12 @@ loadRows().then(rows => {
   });
   document.getElementById('top-artists').innerHTML = topValues(rows, 'songby', 5).map(buttonHtml).join(' ');
   document.getElementById('top-venues').innerHTML = topValues(rows, 'venue', 5).map(buttonHtml).join(' ');
+  document.querySelectorAll('[data-type-options]').forEach(el => {
+    el.innerHTML = topValues(rows, 'type', 6).map(buttonHtml).join(' ');
+  });
+  document.querySelectorAll('[data-genre-options]').forEach(el => {
+    el.innerHTML = topValues(rows, 'type.1', 8).map(buttonHtml).join(' ');
+  });
   activateDemoClicks();
 });
 </script>
