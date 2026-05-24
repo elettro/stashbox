@@ -299,6 +299,47 @@
       flex: 1;
     }
 
+    .setlist-card__actions {
+      margin-top: auto;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .share-btn-04 {
+      --rg-green: #009b3a;
+      --rg-yellow: #fed100;
+      --rg-red: #ce1126;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      min-height: 38px;
+      font: 900 12px "Barlow Condensed", sans-serif;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: #040404;
+      cursor: pointer;
+      background: linear-gradient(115deg, var(--rg-green) 0 33%, var(--rg-yellow) 33% 66%, var(--rg-red) 66% 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.36),
+        0 8px 16px rgba(0,0,0,.25);
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    }
+
+    .share-btn-04:hover {
+      transform: translateY(-1px);
+      filter: saturate(1.07);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.42),
+        0 12px 22px rgba(0,0,0,.3);
+    }
+
+    .share-btn-04:active {
+      transform: translateY(0);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.25),
+        0 5px 12px rgba(0,0,0,.24);
+    }
+
     .setlist-card h2 {
       margin: 0;
       font-family: "Barlow Condensed", sans-serif;
@@ -729,6 +770,11 @@ function videoIdFromRow(video) {
   return "";
 }
 
+function videoUrlFromRow(video) {
+  const id = videoIdFromRow(video);
+  return id ? `https://www.youtube.com/watch?v=${id}` : "";
+}
+
 function embedHtml(video) {
   const videoId = videoIdFromRow(video);
 
@@ -862,6 +908,8 @@ function cardHtml(video) {
   const date = val(video, "date") || "TBD";
   const notes = val(video, "notes") || val(video, "k");
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
+  const shareUrl = videoUrlFromRow(video);
+  const shareLabel = shareUrl ? "Share" : "No Link";
 
   return `
     <article class="setlist-card">
@@ -884,6 +932,16 @@ function cardHtml(video) {
           <dd>${esc(date)}</dd>
         </dl>
         ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
+        <div class="setlist-card__actions">
+          <button
+            class="share-btn-04"
+            type="button"
+            data-share-url="${esc(shareUrl)}"
+            aria-label="Copy YouTube video URL for ${esc(song)}"
+            ${shareUrl ? "" : "disabled"}>
+            ${shareLabel}
+          </button>
+        </div>
       </div>
     </article>
   `;
@@ -974,6 +1032,35 @@ function showLoadError(err) {
 
 els.search.addEventListener("input", render);
 els.reset.addEventListener("click", resetFilters);
+els.grid.addEventListener("click", async (event) => {
+  const button = event.target.closest(".share-btn-04[data-share-url]");
+  if (!button) return;
+
+  const url = button.dataset.shareUrl;
+  if (!url) return;
+
+  const previousLabel = button.textContent.trim();
+
+  try {
+    await navigator.clipboard.writeText(url);
+    button.textContent = "Copied";
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = url;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "absolute";
+    fallback.style.left = "-9999px";
+    document.body.appendChild(fallback);
+    fallback.select();
+    document.execCommand("copy");
+    fallback.remove();
+    button.textContent = "Copied";
+  }
+
+  window.setTimeout(() => {
+    button.textContent = previousLabel;
+  }, 1100);
+});
 
 loadVideos()
   .then(rows => {
