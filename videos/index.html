@@ -826,6 +826,12 @@ function renderFilterChips() {
   const genreRows = countValues(allVideos, "genre", 40);
   const artistRows = countValues(allVideos, "songby", 5);
   const venueRows = countValues(allVideos, "venue", 5);
+  const studioOneCount = allVideos.filter(row => val(row, "venue") === "Studio One").length;
+
+  if (studioOneCount && !venueRows.some(([name]) => name === "Studio One")) {
+    venueRows.push(["Studio One", studioOneCount]);
+    venueRows.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
 
   const containers = {
     type: document.getElementById("type-filters"),
