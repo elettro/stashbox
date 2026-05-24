@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stashbox Video Filter Header Concepts - Round 2</title>
+<meta name="description" content="Ten stronger multi-filter header concepts for the Stashbox video page.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300;0,500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#030303;
+  --panel:#0b0b0b;
+  --panel2:#111;
+  --text:#f6f6f6;
+  --muted:#a5a5a5;
+  --line:rgba(255,255,255,.12);
+  --amber:#ff9d00;
+  --green:#73b652;
+  --blue:#2da8ff;
+  --red:#ff3d3d;
+  --radius:22px;
+  --shadow:0 22px 70px rgba(0,0,0,.35);
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:
+    radial-gradient(circle at top left, rgba(255,157,0,.16), transparent 32rem),
+    radial-gradient(circle at top right, rgba(115,182,82,.12), transparent 34rem),
+    #030303;
+  color:var(--text);
+  font-family:Barlow, system-ui, sans-serif;
+}
+a { color:inherit; }
+.page {
+  width:min(1440px, calc(100% - 32px));
+  margin:0 auto;
+  padding:42px 0 80px;
+}
+.hero {
+  padding:34px 0 28px;
+}
+.eyebrow {
+  font-family:"JetBrains Mono", monospace;
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  color:var(--amber);
+  font-size:12px;
+}
+h1 {
+  font-family:"Barlow Condensed", sans-serif;
+  font-size:clamp(46px, 7vw, 104px);
+  line-height:.88;
+  text-transform:uppercase;
+  margin:12px 0 14px;
+  letter-spacing:-.035em;
+}
+.lead {
+  max-width:820px;
+  color:var(--muted);
+  font-size:clamp(18px, 2.2vw, 24px);
+  line-height:1.35;
+  margin:0;
+}
+.meta {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:22px;
+}
+.meta span {
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.045);
+  color:#d8d8d8;
+  border-radius:999px;
+  padding:8px 12px;
+  font-family:"JetBrains Mono", monospace;
+  font-size:12px;
+}
+.concept {
+  margin-top:40px;
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+  border-radius:28px;
+  overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.concept__label {
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:center;
+  padding:14px 18px;
+  border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.38);
+  font-family:"JetBrains Mono", monospace;
+  font-size:12px;
+  color:#cfcfcf;
+}
+.concept__label strong {
+  color:#fff;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.filter-demo {
+  padding:24px;
+}
+.filter-row {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+.search {
+  width:100%;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.38);
+  color:#fff;
+  border-radius:999px;
+  padding:14px 18px;
+  font:500 16px Barlow, sans-serif;
+  outline:none;
+}
+.search::placeholder { color:#7f7f7f; }
+.pill {
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.045);
+  color:#e5e5e5;
+  border-radius:999px;
+  padding:10px 13px;
+  font-family:"JetBrains Mono", monospace;
+  font-size:12px;
+  letter-spacing:.04em;
+  cursor:pointer;
+  transition:.18s ease;
+  user-select:none;
+}
+.pill:hover, .pill.is-active {
+  border-color:rgba(255,157,0,.8);
+  background:rgba(255,157,0,.14);
+  color:#fff;
+}
+.pill.green.is-active, .pill.green:hover { border-color:rgba(115,182,82,.9); background:rgba(115,182,82,.16); }
+.pill.blue.is-active, .pill.blue:hover { border-color:rgba(45,168,255,.9); background:rgba(45,168,255,.16); }
+.reset {
+  border:1px solid rgba(255,255,255,.22);
+  background:#fff;
+  color:#000;
+  border-radius:999px;
+  padding:11px 16px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  cursor:pointer;
+}
+.counter {
+  margin-left:auto;
+  color:var(--muted);
+  font-family:"JetBrains Mono", monospace;
+  font-size:12px;
+}
+.small-title {
+  font-family:"Barlow Condensed", sans-serif;
+  font-size:30px;
+  line-height:1;
+  text-transform:uppercase;
+  margin:0 0 10px;
+}
+.small-copy {
+  color:#a9a9a9;
+  margin:0 0 16px;
+  max-width:720px;
+}
+.select {
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.055);
+  color:#fff;
+  border-radius:12px;
+  padding:12px 14px;
+  min-width:170px;
+  font:600 14px Barlow, sans-serif;
+}
+.option-grid {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:10px;
+}
+.option-card {
+  padding:16px;
+  border-radius:18px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.04);
+  cursor:pointer;
+}
+.option-card strong {
+  display:block;
+  font-family:"Barlow Condensed", sans-serif;
+  text-transform:uppercase;
+  font-size:24px;
+  line-height:1;
+}
+.option-card span {
+  display:block;
+  color:var(--muted);
+  margin-top:6px;
+  font-size:13px;
+}
+.option-card.is-active {
+  border-color:var(--amber);
+  box-shadow:inset 0 0 0 1px rgba(255,157,0,.45);
+}
+.preview-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-top:18px;
+}
+.video-tile {
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.36);
+  border-radius:18px;
+  padding:12px;
+  min-height:116px;
+}
+.video-tile b {
+  display:block;
+  font-size:16px;
+  line-height:1.15;
+}
+.video-tile span {
+  display:block;
+  color:var(--muted);
+  margin-top:6px;
+  font-size:13px;
+}
+.bar {
+  height:8px;
+  border-radius:999px;
+  background:linear-gradient(90deg,var(--amber),var(--green),var(--blue));
+  margin:18px 0;
+}
+.split {
+  display:grid;
+  grid-template-columns:340px 1fr;
+  gap:18px;
+}
+.side {
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:16px;
+  background:rgba(0,0,0,.28);
+}
+.side h3 {
+  font-family:"Barlow Condensed", sans-serif;
+  text-transform:uppercase;
+  font-size:26px;
+  margin:0 0 12px;
+}
+.topline {
+  display:flex;
+  gap:12px;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:14px;
+}
+.tabbar {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  padding:8px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.32);
+}
+.tabbar .pill {
+  border-color:transparent;
+  background:transparent;
+}
+.tabbar .pill.is-active {
+  background:#fff;
+  color:#000;
+}
+.command {
+  border:1px solid rgba(255,157,0,.35);
+  background:rgba(255,157,0,.08);
+  border-radius:18px;
+  padding:16px;
+}
+.command-line {
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:12px;
+  align-items:center;
+}
+.facet-table {
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0 8px;
+}
+.facet-table td {
+  padding:10px 12px;
+  background:rgba(255,255,255,.045);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+.facet-table td:first-child {
+  border-left:1px solid var(--line);
+  border-radius:12px 0 0 12px;
+  font-weight:700;
+}
+.facet-table td:last-child {
+  border-right:1px solid var(--line);
+  border-radius:0 12px 12px 0;
+  text-align:right;
+  color:var(--muted);
+}
+.mobile-stack {
+  display:grid;
+  gap:12px;
+}
+@media (max-width: 900px) {
+  .option-grid, .preview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .split { grid-template-columns:1fr; }
+  .counter { width:100%; margin-left:0; }
+}
+@media (max-width: 620px) {
+  .page { width:min(100% - 20px, 1440px); padding-top:24px; }
+  .filter-demo { padding:16px; }
+  .option-grid, .preview-grid { grid-template-columns:1fr; }
+  .search { border-radius:18px; }
+  .reset { width:100%; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="hero">
+    <div class="eyebrow">Stashbox video CMS · round 2</div>
+    <h1>10 Multi-Filter Header Concepts</h1>
+    <p class="lead">These versions focus on selecting multiple filters at the same time. Each one includes search, active states, and a reset filter button. They are designed for your /stashbox/dev/videos/ page.</p>
+    <div class="meta">
+      <span id="data-count">Loading CSV...</span>
+      <span>Multi-select filters</span>
+      <span>Reset button included</span>
+      <span>Built from Google Sheet fields</span>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 1</strong><span>Hero search + quick chips</span></div>
+    <div class="filter-demo" data-concept="1">
+      <h2 class="small-title">Find the right Stashbox video</h2>
+      <p class="small-copy">Big search first. Then the most useful quick chips below it.</p>
+      <input class="search" placeholder="Search song, artist, venue, city, notes...">
+      <div class="filter-row" style="margin-top:14px">
+        <button class="pill is-active">Originals</button>
+        <button class="pill">Genre Options</button>
+        <button class="pill">Live Shows</button>
+        <button class="pill green">Reggae</button>
+        <button class="pill green">Rock</button>
+        <button class="pill blue">Fish House</button>
+        <button class="pill blue">South Florida</button>
+        <button class="reset">Reset Filters</button>
+        <span class="counter">Showing <b data-count>24</b> videos</span>
+      </div>
+      <div class="preview-grid" data-preview></div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 2</strong><span>Filter command center</span></div>
+    <div class="filter-demo command" data-concept="2">
+      <div class="command-line">
+        <input class="search" placeholder="Type anything: Dylan, reggae, Miami, originals...">
+        <button class="reset">Reset</button>
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <button class="pill is-active">Type: Live Show</button>
+        <button class="pill is-active">Original: Yes</button>
+        <button class="pill green">Genre: Reggae</button>
+        <button class="pill green">Genre: Blues</button>
+        <button class="pill blue">Venue: Fish House</button>
+        <button class="pill blue">Artist: Bob Dylan</button>
+        <span class="counter">Multi-select on</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 3</strong><span>Category cards</span></div>
+    <div class="filter-demo" data-concept="3">
+      <div class="topline">
+        <div>
+          <h2 class="small-title">Browse by video purpose</h2>
+          <p class="small-copy">Strong visual filter blocks. Good for users who do not know what to search.</p>
+        </div>
+        <button class="reset">Reset Filters</button>
+      </div>
+      <div class="option-grid">
+        <div class="option-card is-active"><strong>Originals</strong><span>Stashbox-written songs</span></div>
+        <div class="option-card"><strong>Genre Options</strong><span>Reggae, rock, blues, folk</span></div>
+        <div class="option-card"><strong>Live Shows</strong><span>Venue and festival footage</span></div>
+        <div class="option-card"><strong>Most Viewed</strong><span>Best-performing videos</span></div>
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <input class="search" placeholder="Search within selected categories...">
+      </div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 4</strong><span>Left rail filters + results header</span></div>
+    <div class="filter-demo split" data-concept="4">
+      <aside class="side">
+        <h3>Filters</h3>
+        <div class="mobile-stack">
+          <button class="pill is-active">Originals</button>
+          <button class="pill">Genre Options</button>
+          <button class="pill">Live Shows</button>
+          <button class="pill green">Reggae</button>
+          <button class="pill green">Rock</button>
+          <button class="pill green">Blues</button>
+          <button class="pill blue">Fish House</button>
+          <button class="reset">Reset Filters</button>
+        </div>
+      </aside>
+      <div>
+        <input class="search" placeholder="Search song, artist, venue, city...">
+        <div class="bar"></div>
+        <div class="preview-grid" data-preview></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 5</strong><span>Top tabs + subfilters</span></div>
+    <div class="filter-demo" data-concept="5">
+      <div class="tabbar">
+        <button class="pill is-active">All Videos</button>
+        <button class="pill">Originals</button>
+        <button class="pill">Genre Options</button>
+        <button class="pill">Live Shows</button>
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <input class="search" placeholder="Search the current view...">
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <button class="pill green">Reggae</button>
+        <button class="pill green">Classic Rock</button>
+        <button class="pill green">Blues</button>
+        <button class="pill blue">Bob Dylan</button>
+        <button class="pill blue">Fish House</button>
+        <button class="reset">Reset Filters</button>
+        <span class="counter">3 active filters</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 6</strong><span>Dropdown filter bar</span></div>
+    <div class="filter-demo" data-concept="6">
+      <h2 class="small-title">Filter the video library</h2>
+      <div class="filter-row">
+        <input class="search" style="flex:1 1 320px;width:auto" placeholder="Search all video info...">
+        <select class="select"><option>All Types</option><option>Original</option><option>Genre Option</option><option>Live Show</option></select>
+        <select class="select"><option>All Genres</option><option>Reggae</option><option>Rock</option><option>Blues</option></select>
+        <select class="select"><option>All Artists</option><option>Bob Dylan</option><option>Toots and the Maytals</option></select>
+        <select class="select"><option>All Venues</option><option>Fish House</option><option>Galuppi's</option></select>
+        <button class="reset">Reset</button>
+      </div>
+      <p class="small-copy" style="margin-top:14px">Best when you want the cleanest professional header, less visual noise, and easy mobile stacking.</p>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 7</strong><span>Active filter tray</span></div>
+    <div class="filter-demo" data-concept="7">
+      <input class="search" placeholder="Search videos...">
+      <div class="filter-row" style="margin-top:14px">
+        <span class="eyebrow">Active filters</span>
+        <button class="pill is-active">Originals ×</button>
+        <button class="pill is-active green">Reggae ×</button>
+        <button class="pill is-active blue">Fish House ×</button>
+        <button class="reset">Clear All</button>
+        <span class="counter">Click a chip to remove it</span>
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <span class="eyebrow">Add filters</span>
+        <button class="pill">Genre Options</button>
+        <button class="pill">Live Shows</button>
+        <button class="pill green">Rock</button>
+        <button class="pill green">Blues</button>
+        <button class="pill blue">Bob Dylan</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 8</strong><span>Most common filter buttons</span></div>
+    <div class="filter-demo" data-concept="8">
+      <h2 class="small-title">Popular ways to browse</h2>
+      <p class="small-copy">This style automatically highlights the top genres, artists, and venues from the sheet.</p>
+      <input class="search" placeholder="Search first, then refine below...">
+      <table class="facet-table" id="facet-table">
+        <tr><td>Top Types</td><td><button class="pill is-active">Original</button> <button class="pill">Genre Options</button> <button class="pill">Live Show</button></td></tr>
+        <tr><td>Top Artists</td><td id="top-artists"></td></tr>
+        <tr><td>Top Venues</td><td id="top-venues"></td></tr>
+      </table>
+      <button class="reset" style="margin-top:10px">Reset Filters</button>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 9</strong><span>Compact sticky toolbar style</span></div>
+    <div class="filter-demo" data-concept="9">
+      <div class="filter-row" style="position:relative">
+        <input class="search" style="flex:1 1 280px;width:auto" placeholder="Search videos...">
+        <button class="pill is-active">Originals</button>
+        <button class="pill">Genres</button>
+        <button class="pill">Artists</button>
+        <button class="pill">Venues</button>
+        <button class="pill">Most Viewed</button>
+        <button class="reset">Reset</button>
+      </div>
+      <p class="small-copy" style="margin-top:14px">Good choice if the header should stay short while users scroll through many videos.</p>
+    </div>
+  </section>
+
+  <section class="concept">
+    <div class="concept__label"><strong>Option 10</strong><span>Performance database header</span></div>
+    <div class="filter-demo" data-concept="10">
+      <div class="topline">
+        <div>
+          <h2 class="small-title">Stashbox performance video database</h2>
+          <p class="small-copy">More serious and data-driven. Strong for a large CMS-driven video archive.</p>
+        </div>
+        <span class="counter"><b id="total-videos">0</b> videos indexed</span>
+      </div>
+      <div class="filter-row">
+        <input class="search" style="flex:2 1 320px;width:auto" placeholder="Search song, artist, venue, location, date, notes...">
+        <select class="select"><option>Type</option></select>
+        <select class="select"><option>Original</option></select>
+        <select class="select"><option>Artist</option></select>
+        <select class="select"><option>Venue</option></select>
+        <button class="reset">Reset All</button>
+      </div>
+      <div class="filter-row" style="margin-top:14px">
+        <button class="pill is-active">Original: Yes</button>
+        <button class="pill green">Genre: Reggae</button>
+        <button class="pill blue">Venue: Fish House</button>
+        <button class="pill">Sort: Most Viewed</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
+const FALLBACK_ROWS = [{"id": 1.0, "type": "Live Show", "original": "No", "url": "Stashbox performing Jam Rock at The Fish House Miami August 15, 2019", "song": "Jam Rock", "songby": "Damien Marley", "type.1": "Reggae", "venue": "Fish House", "location": "Miami, FL", "date": "8/15/2019", "notes": ""}, {"id": 2.0, "type": "Live Show", "original": "No", "url": "Simple Twist Of Fate  - TRIBUTE BOB DYLAN - Jan 8th 2020 Kelly Brothers Pub Ft. Lauderdale, FL", "song": "Simple Twist of Fate", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Kellys", "location": "Fort Lauderdale, FL", "date": "01/08/2020", "notes": ""}, {"id": 3.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/KWE3M2XVYZY", "song": "Tomorrow Never Knows", "songby": "Beatles", "type.1": "Classic Rock", "venue": "Mickeys", "location": "Pompano Beach, FL", "date": "12/02/2022", "notes": ""}, {"id": 4.0, "type": "Live Show", "original": "No", "url": "Serve Somebody - TRIBUTE BOB DYLAN - Jan 8th 2020 Kelly Brothers Pub Ft. Lauderdale, FL", "song": "Serve Somebody", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Kellys", "location": "Fort Lauderdale, FL", "date": "01/08/2020", "notes": ""}, {"id": 5.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/CIV_s42AnMs", "song": "Full Show", "songby": "Reggae Mix", "type.1": "Reggae", "venue": "Kahuna Bar", "location": "Deerfiled Beach, FL", "date": "8/11/2019", "notes": ""}, {"id": 6.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/T7iV0TRFWO8", "song": "Sweat", "songby": "Inner Circle", "type.1": "Reggae", "venue": "Fish House", "location": "Miami, FL", "date": "8/15/2019", "notes": ""}, {"id": 7.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/nD28USW8F4c", "song": "Ballad of a Thin Man", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Kellys", "location": "Fort Lauderdale, FL", "date": "01/08/2020", "notes": ""}, {"id": 8.0, "type": "Live Show", "original": "No", "url": "Silvio  - TRIBUTE BOB DYLAN - Jan 29th 2020 Kelly Brothers Pub Ft. Lauderdale, FL", "song": "Silvio", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Kellys", "location": "Fort Lauderdale, FL", "date": "01/08/2020", "notes": ""}, {"id": 9.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/qlJ0374PZSY", "song": "Masters of War", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "8/14/2021", "notes": ""}, {"id": 10.0, "type": "Live Show", "original": "No", "url": "Stashbox performs Positively 4th Street by Bob Dylan at Black Flamingo Brew Co in Pompano Beach, FL", "song": "Positively 4th Street", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "8/14/2021", "notes": ""}, {"id": 11.0, "type": "Studio", "original": "No", "url": "Stashbox Does Dylan 3.31.26 | Rehearsal Session 02 | Studio One | Fort Lauderdale", "song": "Bob Dylan Mix", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Studio One", "location": "Pompano Beach, FL", "date": "3/31/2026", "notes": ""}, {"id": 12.0, "type": "Studio", "original": "No", "url": "Stashbox Does Dylan | Full Session | Studio One | Fort Lauderdale, FL | 03.18.26", "song": "Bob Dylan Mix", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Studio One", "location": "Pompano Beach, FL", "date": "3/18/2026", "notes": ""}, {"id": 13.0, "type": "Music Video", "original": "No", "url": "Masters of War | Bob Dylan | A Song That Still Speaks to Power and War Today", "song": "Masters of War", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "4/1/2026", "notes": ""}, {"id": 14.0, "type": "Music Video", "original": "Yes", "url": "Ode to a Legend: Reggae Tribute to Ninja Man - Lyrical General - YouTube", "song": "Ode to a Legend", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "5/1/2026", "notes": ""}, {"id": 15.0, "type": "Music Video", "original": "No", "url": "She Belongs to Me \u2013 Stashbox | Stashbox Does Dylan (Bob Dylan Tribute) - YouTube", "song": "She Belongs To Me", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/10/2026", "notes": ""}, {"id": 16.0, "type": "Music Video", "original": "No", "url": "West L.A. Fadeaway. 4 Psychedelic Video Versions. Produced by Stashbox - YouTube", "song": "West LA Fadeaway", "songby": "Grateful Dead", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/5/2026", "notes": ""}, {"id": 17.0, "type": "Music Video", "original": "No", "url": "The Man in Me \u2013 Stashbox | Stashbox Does Dylan (Bob Dylan Tribute) - YouTubeg", "song": "The Man In Me", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2/28/2026", "notes": ""}, {"id": 18.0, "type": "Music Video", "original": "Yes", "url": "Mister Top Me Up. Blocked Number Anthem. Abruzzo Italian", "song": "Mr Top Me Up", "songby": "Stashbox", "type.1": "Italian", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/15/2026", "notes": ""}, {"id": 19.0, "type": "Music Video", "original": "Yes", "url": "Tangled Up In Blue (Bob Dylan Cover) \u2013 Stashbox | From the Stashbox Does Dylan LP - YouTube", "song": "Tangled Up In Blue", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/19/2026", "notes": ""}, {"id": 20.0, "type": "Music Video", "original": "No", "url": "Silvio - Stashbox (Written by Bob Dylan) - YouTube", "song": "Silvio", "songby": "Bob Dylan", "type.1": "Classic Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2/20/2026", "notes": ""}, {"id": 21.0, "type": "Music Video", "original": "No", "url": "Funky Kingston \u2013 Stashbox | A Deep Tribute to Toots and the Maytals, Roots Reggae", "song": "Funky Kingston", "songby": "Toots and the Maytals", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2/15/2026", "notes": ""}, {"id": 22.0, "type": "Music Video", "original": "Yes", "url": "Amsterdam Vibes: Girls on Bikes Official Video", "song": "Girls on Bikes", "songby": "Stashbox", "type.1": "", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2/15/2026", "notes": ""}, {"id": 23.0, "type": "Music Video", "original": "No", "url": "Sweat  - Stashbox  Music Video  (ALT VERSION)", "song": "Sweat", "songby": "Inner Circle", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "1/26/2026", "notes": ""}, {"id": 24.0, "type": "Music Video", "original": "No", "url": "https://www.youtube.com/watch?v=6QDsxGIVSwQ", "song": "Jam Rock", "songby": "Damien Marley", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "1/15/2026", "notes": "Most viewed"}, {"id": 25.0, "type": "Music Video", "original": "No", "url": "Stashbox \u2013 Get Up Stand Up (Toots & The Maytals Cover) | Official Video", "song": "Get Up Stand Up", "songby": "Toots and the Maytals", "type.1": "", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "1/20/2026", "notes": ""}, {"id": 26.0, "type": "Music Video", "original": "Yes", "url": "https://www.youtube.com/watch?v=qR_AtKteRwc", "song": "Mr. Top Mi Up", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "12/30/2025", "notes": ""}, {"id": 27.0, "type": "Music Video", "original": "Yes", "url": "Stashbox \u2013 Funky Reggae (Official Roots Tribute to Toots & The Maytals) | Modern Jamaican Pop Reggae - YouTube", "song": "Funky Reggae", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "12/26/2025", "notes": ""}, {"id": 28.0, "type": "Music Video", "original": "Yes", "url": "Stashbox \u2013 I Was Right (Vintage Reggae)", "song": "I Was Right", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "12/18/2025", "notes": ""}, {"id": 29.0, "type": "Music Video", "original": "Yes", "url": "Help Jamaica Now Official Music Video by Stashbox 4k Video - YouTube", "song": "Help Jamaica Now", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "12/10/2025", "notes": ""}, {"id": 30.0, "type": "Music Video", "original": "Yes", "url": "https://www.youtube.com/watch?v=n9v_KxrEiPc", "song": "Meditation World Breathing", "songby": "Stashbox", "type.1": "World", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "11/26/2025", "notes": ""}, {"id": 31.0, "type": "Music Video", "original": "Yes", "url": "She\u2019s My Guru \u2013 Stashbox | Classic Dallas Rock Performance (25 Years Later) - YouTube", "song": "She's My Guru", "songby": "Stashbox", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "11/16/2025", "notes": ""}, {"id": 32.0, "type": "Music Video", "original": "Yes", "url": "Sexy Tu \u2014 Stashbox | Latin Dance-Pop Classic | 20+ Year Dance Class Favorite - YouTube", "song": "Sexy Tu", "songby": "Stashbox", "type.1": "EDM", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "11/10/2025", "notes": ""}, {"id": 33.0, "type": "Music Video", "original": "Yes", "url": "Heaven by Stashbox (Soul Song) Stream Now - YouTube", "song": "Heaven", "songby": "Stashbox", "type.1": "Soul", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "10/26/2025", "notes": ""}, {"id": 34.0, "type": "Music Video", "original": "Yes", "url": "LA After London\u201d \u2013 New Song and Official Music Video - YouTube", "song": "LA After London", "songby": "Stashbox", "type.1": "Pop", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "8/17/2025", "notes": ""}, {"id": 35.0, "type": "Music Video", "original": "Yes", "url": "In Love With You - Stashbox by Dean Palermo Stream on Spotify - YouTube", "song": "In Love With You", "songby": "Stashbox", "type.1": "Pop", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "7/29/2025", "notes": ""}, {"id": 36.0, "type": "Music Video", "original": "Yes", "url": "https://www.youtube.com/watch?v=UoAuZifsgK8", "song": "I Should Be Back In a Week or So", "songby": "Stashbox", "type.1": "Pop Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "7/25/2025", "notes": ""}, {"id": 37.0, "type": "Music Video", "original": "Yes", "url": "'Ras Ras Ras Seen Seen Seen' by Stashbox - Reggae Lyric Video", "song": "Ras Ras Ras Seen Seen Seen", "songby": "Stashbox", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "5/5/2025", "notes": ""}, {"id": "", "type": "Music Video", "original": "Yes", "url": "My Balls Smell Awesome Trap - Funny - YouTube", "song": "My Balls Smell Awesome", "songby": "Stashbox", "type.1": "Trap Rap", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "5/20/2025", "notes": ""}, {"id": 38.0, "type": "Studio", "original": "Yes", "url": "Stashbox Live - I'm In Love in Studio Girl Guitarist Art Montage - YouTube", "song": "I'm In Love", "songby": "Stashbox", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "5/15/2025", "notes": ""}, {"id": 39.0, "type": "Studio", "original": "Yes", "url": "RIP Joey Gilmore Legendary Blues Guitarist, Singer and Songwriter. We love you. - YouTube", "song": "Blues Jam", "songby": "Joey Gilmore & Friends", "type.1": "Blues", "venue": "Miramar Moon", "location": "Miramar, FL", "date": "5/10/2025", "notes": ""}, {"id": 40.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=z7-BaxTq-XI", "song": "I'm in Love ", "songby": "Stashbox", "type.1": "Soul", "venue": "Stashbox Studios", "location": "Davie, Fl", "date": "5/4/2025", "notes": ""}, {"id": 41.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=PHoxJFMt4NE", "song": "Tomorrow Never Knows", "songby": "Beatles", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, Fl", "date": "5/2/2025", "notes": ""}, {"id": 42.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=ysLdalgzN0Y", "song": "Live Jam", "songby": "Stashbox", "type.1": "Instrumental", "venue": "Stashbox Studios", "location": "Davie, Fl", "date": "5/1/2025", "notes": ""}, {"id": 43.0, "type": "Live Show", "original": "No", "url": "Dont Look Back Stashbox Concert @Flamingo Gardens Mar 31 2024 Easter - YouTube", "song": "Don't Look Back", "songby": "Peter Tosh", "type.1": "Reggae", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "3/31/2024", "notes": ""}, {"id": 44.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=TEW2N3qqtOk", "song": "Soul Shakedown Party", "songby": "Bob Marley", "type.1": "Reggae", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "4/1/2024", "notes": ""}, {"id": 45.0, "type": "Live Show", "original": "No", "url": "Ain't No Sunshine - Stashbox Concert @Flamingo Gardens Mar 31 2024 Easter - YouTube", "song": "Ain't No Sunshine", "songby": "Bill Withers", "type.1": "Soul", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "4/2/2024", "notes": ""}, {"id": 46.0, "type": "Live Show", "original": "No", "url": "Knockin on Heavens Door - Stashbox @Flamingo Gardens Mar 31 2024 Easter - YouTube", "song": "Knocking on Heaven's Door", "songby": "Bob Dylan", "type.1": "Reggae", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "4/3/2024", "notes": ""}, {"id": 47.0, "type": "Live Show", "original": "No", "url": "Night Nurse Live Reggae Music Stashbox @ Flamingo Gardens Orchid Festival Mar 31 2024 - YouTube", "song": "Night Nurse", "songby": "Gregory Isaacs", "type.1": "Reggae", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "4/4/2024", "notes": ""}, {"id": 48.0, "type": "Live Show", "original": "No", "url": "True Love is Hard To Find - Stashbox by Toots - Flamingo Gardens Orchid Festival Mar 31 2024", "song": "True Love Is Hard To Find", "songby": "Toots and the Maytals", "type.1": "Reggae", "venue": "Flamingo Gardens", "location": "Davie, FL", "date": "4/5/2024", "notes": ""}, {"id": 49.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=mfsx88Ngvws", "song": "Visions of Johanna", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/8/2021", "notes": "w/Craig Woloshin on Peddle Steel"}, {"id": 50.0, "type": "Live Show", "original": "No", "url": "Isis with Craig WoloShin on Lapsteel 2023 03 08 21", "song": "Isis", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "3/8/2021", "notes": "w/Craig Woloshin on Peddle Steel"}, {"id": 51.0, "type": "Live Show", "original": "Yes", "url": "I'm In Love by Stashbox - YouTube", "song": "I'm in Love ", "songby": "Stashbox", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2023", "notes": "w/ Squidly Cole (Legendary Reggae Drummer)"}, {"id": 52.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=u1PCCq2kU8E", "song": "Love Sick", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Private Party", "location": "Jupiter Farms, FL", "date": "2023", "notes": "w/ Bob Cleary on Bass"}, {"id": 53.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=JEjOEMv6flM", "song": "Knocking on Heaven's Door", "songby": "Bob Dylan", "type.1": "Reggae", "venue": "Mickey's Tiki Bar", "location": "Pompano Beach, FL ", "date": "2023", "notes": "w/ Cheryl Arena"}, {"id": 54.0, "type": "Studio", "original": "Yes", "url": "Travelling by Stashbox - Elettro Productions - YouTube", "song": "Travelling ", "songby": "Stashbox", "type.1": "Soul", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2023", "notes": "w/ Maurice Dules & Ron DeSaram"}, {"id": 55.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=e3LGyKSuv6E", "song": "Billy Maze", "songby": "Stashbox", "type.1": "Rap Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2022", "notes": ""}, {"id": 56.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=qlJ0374PZSY", "song": "Masters of War", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 57.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=RJAWHsLumJ8", "song": "Ballad of John and Yoko", "songby": "John Lennon", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 58.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=9Ju-saGKhO8", "song": "Serve Somebody", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 59.0, "type": "Live Show", "original": "No", "url": "I Know You Rider (Grateful Dead) performed by Stashbox at Black Flamingo Brew Co", "song": "I Know You Rider", "songby": "Grateful Dead", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 60.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=bSOiubOU1x4", "song": "Everybody's Tryin To Be My Baby", "songby": "Beatles", "type.1": "Rock n Roll", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 61.0, "type": "Live Show", "original": "No", "url": "Stashbox performs Positively 4th Street by Bob Dylan at Black Flamingo Brew Co in Pompano Beach, FL - YouTube", "song": "Positively Fourth Street", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 62.0, "type": "Live Show", "original": "No", "url": "Stashbox perform Ballad of a Thin Man by Bob Dylan at Black Flamingo Brew Co in Pompano Beach, FL - YouTube", "song": "Ballad of a Thin Man", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 63.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=YQEtskDhu9A", "song": "Instant Karma", "songby": "Beatles", "type.1": "Rock", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 64.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=02gUw5C48GQ", "song": "Tomorrow Never Knows", "songby": "Beatles", "type.1": "Rock", "venue": "Black Flamingo", "location": "Oakland Park, FL", "date": "2022", "notes": ""}, {"id": 65.0, "type": "Live Show", "original": "No", "url": "https://youtu.be/7OAnkBqhqWM?si=FpD2xSw6qIq388Gf&t=206", "song": "Rainy Day Woman", "songby": "Bob Dylan", "type.1": "Folk", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2020", "notes": "w/ Peter Roland Rainy Day Women, All Along The Watchtower, She Belong To Me, Like a Rolling Stone, Standing in the Doorway, Senor, Not Dark Yet, That's Alright Mama, I'm Only Bleeding, God Knows, I Shall Be Released, That's Alright Mama, I'm Only Bleeding"}, {"id": 66.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=HxclCa1bXts", "song": "Highway Funk", "songby": "Stashbox", "type.1": "Instrumental", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2020", "notes": ""}, {"id": 67.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=J4qZBURZ0q8&pp=0gcJCQMLAYcqIYzv", "song": "Space Jam", "songby": "Stashbox", "type.1": "Instrumental", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2020", "notes": ""}, {"id": 68.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=1IfqxgUJEm0", "song": "Ocean Jam", "songby": "Stashbox", "type.1": "Instrumental", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2020", "notes": ""}, {"id": 69.0, "type": "Studio", "original": "Yes", "url": "Band: Stashbox Song: 'Billy Maze' Music Video - YouTube", "song": "Billy Maze", "songby": "Stashbox", "type.1": "Rap Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2019", "notes": "w/ Alana Davis on Bass"}, {"id": 70.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=rbZ_dBZv-7E", "song": "Summertime", "songby": "Sublime", "type.1": "Rock", "venue": "Rips", "location": "Pompano Beach, FL ", "date": "2020", "notes": "w/ G Money, Jermane Dukes, Peter Roland"}, {"id": 71.0, "type": "Live Show", "original": "No", "url": "Pass The Dutchie by Mighty Diamonds jam by Stashbox Mar 14 2020 Rips Music Lounge Pompano Beach, FL - YouTube", "song": "Pass The Dutchie", "songby": "Mighty Diamonds", "type.1": "Reggae", "venue": "Rips", "location": "Pompano Beach, FL ", "date": "2020", "notes": "w/ G Money, Jermane Dukes, Peter Roland"}, {"id": 72.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=V5ROkuXQy74", "song": "Stop That Train", "songby": "Peter Tosh", "type.1": "Reggae", "venue": "5 O'Clock Charlies", "location": "Fort Lauderdale Beach, FL ", "date": "11/11/2017", "notes": "Trio, Dean, Flash, Chaz"}, {"id": 73.0, "type": "Live Show", "original": "No", "url": "Road House Blues Sweet Home Alabama (STASHBOX) 5OC OCT1", "song": "Road House Blues, Sweet Home Alabama", "songby": "The Doors / Skynard", "type.1": "Rock", "venue": "5 O'Clock Charlies", "location": "Fort Lauderdale Beach, FL ", "date": "10/1/2017", "notes": ""}, {"id": 74.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=VsLOjSshTCU", "song": "Crowd of Two", "songby": "Stashbox", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "6/3/2018", "notes": "Trio, Dean, Eric, "}, {"id": 75.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=IGr6ZAnS-rk", "song": "I Got Id", "songby": "Pearl Jam", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "6/3/2018", "notes": "Trio, Dean, Eric, "}, {"id": 76.0, "type": "Studio", "original": "Yes", "url": "Traveling: Original Song by Dean Palermo West Palm Stashbox Studios", "song": "Travelling ", "songby": "Stashbox", "type.1": "Rock", "venue": "West Palm Studio", "location": "West Palm Beach, FL", "date": "4/29/2018", "notes": ""}, {"id": 77.0, "type": "Live Show", "original": "No", "url": "http://youtube.com/watch?v=w3PV9hqLcZU", "song": "EPK Montage", "songby": "Stashbox", "type.1": "Rock", "venue": "South Florida", "location": "South Florida", "date": "12/1/2017", "notes": "Band EPK "}, {"id": 78.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=HWlpQOsadUA", "song": "Folsom Prison Blues", "songby": "Johnny Cash", "type.1": "Rock", "venue": "5 O'Clock Charlies", "location": "Ft. Lauderdale Beach, FL ", "date": "10/1/2017", "notes": ""}, {"id": 79.0, "type": "Live Show", "original": "No", "url": "What I Got, Bad Boys Medley Stashbox - July 6, 2017 O'Malley's in Margate, FL Reggae", "song": "What I Got, Bad Boys, Hooch", "songby": "Sublime", "type.1": "Rock", "venue": "O'Malleys", "location": "Margate, FL ", "date": "7/6/2017", "notes": "w/ Steve on Bass"}, {"id": 80.0, "type": "Live Show", "original": "No", "url": "What I Got Bad Boys Hooch (STASHBOX) Oct1 2017", "song": "What I Got, Bad Boys, Hooch", "songby": "Subime", "type.1": "Reggae", "venue": "5 O'Clock Charlies", "location": "Ft. Lauderdale Beach, FL ", "date": "10/1/2017", "notes": ""}, {"id": 81.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=qWhOlvV0W0M", "song": "Can't You See, Pass The Dutchie", "songby": "Marshall Tucker Band", "type.1": "Rock", "venue": "5 O'Clock Charlies", "location": "Ft. Lauderdale Beach, FL ", "date": "10/1/2017", "notes": ""}, {"id": 82.0, "type": "Live Show", "original": "Yes", "url": "Stashbox Live performs original 'Billy Maze' at O'malleys - YouTube", "song": "Billy Maze", "songby": "Stashbox", "type.1": "Rap Rock", "venue": "O'Malleys", "location": "Margate, FL ", "date": "2017", "notes": "w/ First Josh / Dean Gig "}, {"id": 83.0, "type": "Studio", "original": "No", "url": "Badfish Montage by Stashbox - YouTube", "song": "Bad Fish ", "songby": "Sublime", "type.1": "Reggae", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 84.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=S8GaDcmmFjQ&pp=0gcJCQMLAYcqIYzv", "song": "Mix", "songby": "Mix", "type.1": "Blues Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": "Dean Trio"}, {"id": 85.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=ZSUoBDnCQ0A", "song": "They Call Me The Breeze", "songby": "Lynard Skynard", "type.1": "Blues", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 86.0, "type": "Live Show", "original": "No", "url": "Stashbox Live - SummerTime by Sublime at Silver Ball Museum Delray, Florida - YouTube", "song": "Summertime", "songby": "Sublime", "type.1": "Reggae Rock", "venue": "Silverball Museum", "location": "Delyray Beach, FL", "date": "2017", "notes": ""}, {"id": 87.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=F-KRHgq_sw8", "song": "Cocaine Blues", "songby": "Johnny Cash", "type.1": "Country Rock", "venue": "Silverball Museum", "location": "Delyray Beach, FL", "date": "2017", "notes": ""}, {"id": 88.0, "type": "Live Show", "original": "No", "url": "https://www.youtube.com/watch?v=_YtTAIcRuCw", "song": "Ain't Seen Nothing Yet", "songby": "BTO", "type.1": "Rock", "venue": "Silverball Museum", "location": "Delyray Beach, FL", "date": "2017", "notes": ""}, {"id": 89.0, "type": "Studio", "original": "No", "url": "'Billy Mays' Rap performed by Stashbox 2017 - YouTube", "song": "Billy Maze", "songby": "Stashbox", "type.1": "Rap Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 90.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=amcm7lfqtuc", "song": "Get Ready", "songby": "Sublime", "type.1": "Reggae Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 91.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=4gBV1XHUHHk", "song": "Down By The River", "songby": "Neil Young", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 92.0, "type": "Studio", "original": "No", "url": "https://www.youtube.com/watch?v=y_0Vuhlrafc", "song": "Roadhouse Blues   ", "songby": "The Doors  ", "type.1": "Rock", "venue": "Stashbox Studios", "location": "Davie, FL", "date": "2017", "notes": ""}, {"id": 93.0, "type": "Studio", "original": "Yes", "url": "https://www.youtube.com/watch?v=DTJrJRQlo-Q", "song": "Beat The Clock", "songby": "Stashbox", "type.1": "Rap Rock", "venue": "Stashbox Studios", "location": "Fort Lauderdale Beach, FL ", "date": "2014", "notes": "First Recorded Stashbox Florida Jam Dean Josh"}];
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', quote = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (quote) {
+      if (c === '"' && n === '"') { field += '"'; i++; }
+      else if (c === '"') quote = false;
+      else field += c;
+    } else {
+      if (c === '"') quote = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c !== '\r') field += c;
+    }
+  }
+  row.push(field); rows.push(row);
+  const headers = rows.shift().map(h => h.trim());
+  return rows.filter(r => r.some(Boolean)).map(r => Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
+}
+function val(row, key) { return (row[key] || '').toString().trim(); }
+function topValues(rows, key, limit=5) {
+  const map = new Map();
+  rows.forEach(r => {
+    const v = val(r, key);
+    if (!v) return;
+    map.set(v, (map.get(v) || 0) + 1);
+  });
+  return [...map.entries()].sort((a,b) => b[1]-a[1]).slice(0,limit);
+}
+function tile(row) {
+  const song = val(row, 'song') || 'Untitled Video';
+  const by = val(row, 'songby') || val(row, 'type') || 'Stashbox';
+  const venue = val(row, 'venue') || 'Live Video';
+  const loc = val(row, 'location') || '';
+  return `<div class="video-tile"><b>${escapeHtml(song)}</b><span>${escapeHtml(by)}</span><span>${escapeHtml(venue)}${loc ? ' · ' + escapeHtml(loc) : ''}</span></div>`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function buttonHtml([name,count]) {
+  return `<button class="pill">${escapeHtml(name)} <small>(${count})</small></button>`;
+}
+async function loadRows() {
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) throw new Error(res.status);
+    return parseCSV(await res.text());
+  } catch(e) {
+    console.warn('Using fallback rows', e);
+    return FALLBACK_ROWS;
+  }
+}
+function activateDemoClicks() {
+  document.querySelectorAll('.pill').forEach(btn => {
+    btn.addEventListener('click', () => btn.classList.toggle('is-active'));
+  });
+  document.querySelectorAll('.reset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const scope = btn.closest('.filter-demo') || document;
+      scope.querySelectorAll('.pill').forEach(p => p.classList.remove('is-active'));
+      scope.querySelectorAll('input').forEach(i => i.value = '');
+      scope.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+    });
+  });
+}
+loadRows().then(rows => {
+  document.getElementById('data-count').textContent = rows.length + ' CSV rows loaded';
+  document.getElementById('total-videos').textContent = rows.length;
+  document.querySelectorAll('[data-preview]').forEach(grid => {
+    grid.innerHTML = rows.slice(0,3).map(tile).join('');
+  });
+  document.getElementById('top-artists').innerHTML = topValues(rows, 'songby', 5).map(buttonHtml).join(' ');
+  document.getElementById('top-venues').innerHTML = topValues(rows, 'venue', 5).map(buttonHtml).join(' ');
+  activateDemoClicks();
+});
+</script>
+</body>
+</html>
