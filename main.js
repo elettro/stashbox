@@ -45,10 +45,12 @@
   }
 
   /* ── Nav: mark active page ── */
-  const currentPage = location.pathname.split('/').pop() || 'index.html';
+  const normalizePath = path => (path || '/').replace(/index\.html$/, '').replace(/\/+$/, '') || '/';
+  const currentPath = normalizePath(location.pathname);
   document.querySelectorAll('.nav__links a').forEach(a => {
     const href = a.getAttribute('href');
-    if (href === currentPage || (currentPage === '' && href === 'index.html')) {
+    if (!href || href.startsWith('http') || href.startsWith('#')) return;
+    if (normalizePath(href) === currentPath) {
       a.classList.add('active');
       a.setAttribute('aria-current', 'page');
     }
