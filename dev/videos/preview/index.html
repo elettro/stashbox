@@ -739,7 +739,7 @@ function isOriginal(video) {
 }
 
 function genre(video) {
-  return val(video, "type.1") || val(video, "type") || "Video";
+  return val(video, "type.1") || "Uncategorized";
 }
 
 function countValues(rows, key, limit = 5) {
@@ -840,7 +840,7 @@ function cardHtml(video) {
   const venue = val(video, "venue") || "Live Performance";
   const location = val(video, "location") || "South Florida";
   const date = val(video, "date") || "TBD";
-  const notes = val(video, "notes");
+  const notes = val(video, "notes") || val(video, "k");
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
 
   return `
