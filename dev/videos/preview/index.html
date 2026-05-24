@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Videos — Stashbox</title>
+  <meta name="description" content="Browse Stashbox live videos, originals, covers, genre options, venues, artists, and performances pulled from the Stashbox Google Sheet video CMS.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/dev/styles.css">
+
+  <style>
+    :root {
+      --sb-bg: #030303;
+      --sb-panel: #0b0b0b;
+      --sb-panel-2: #121212;
+      --sb-text: #ffffff;
+      --sb-muted: rgba(255,255,255,.66);
+      --sb-line: rgba(255,255,255,.12);
+      --sb-amber: #ff9d00;
+      --sb-green: #73b652;
+      --sb-blue: #2da8ff;
+      --sb-radius: 22px;
+      --sb-shadow: 0 24px 70px rgba(0,0,0,.38);
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(255,157,0,.14), transparent 34rem),
+        radial-gradient(circle at top right, rgba(115,182,82,.12), transparent 35rem),
+        linear-gradient(180deg, #050505 0%, #0a0a0a 45%, #030303 100%);
+      color: var(--sb-text);
+    }
+
+    .videos-page {
+      width: min(1400px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 42px 0 88px;
+    }
+
+    .videos-hero {
+      padding: clamp(32px, 6vw, 76px) 0 28px;
+    }
+
+    .videos-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--sb-amber);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .videos-hero h1 {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: clamp(58px, 10vw, 148px);
+      line-height: .84;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: -.045em;
+    }
+
+    .videos-hero p {
+      max-width: 860px;
+      color: var(--sb-muted);
+      font-size: clamp(18px, 2.1vw, 25px);
+      line-height: 1.35;
+      margin: 18px 0 0;
+    }
+
+    .filter-panel {
+      border: 1px solid var(--sb-line);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.025)),
+        rgba(0,0,0,.28);
+      box-shadow: var(--sb-shadow);
+      border-radius: 30px;
+      padding: clamp(16px, 2.5vw, 26px);
+      margin: 28px 0 34px;
+      position: sticky;
+      top: 10px;
+      z-index: 10;
+      backdrop-filter: blur(18px);
+    }
+
+    .filter-topline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .filter-title {
+      margin: 0;
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: .95;
+      text-transform: uppercase;
+      letter-spacing: -.02em;
+    }
+
+    .filter-count {
+      color: var(--sb-muted);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .video-search {
+      width: 100%;
+      min-height: 52px;
+      border-radius: 999px;
+      border: 1px solid var(--sb-line);
+      background: rgba(0,0,0,.34);
+      color: #fff;
+      padding: 14px 18px;
+      font: 600 16px Barlow, system-ui, sans-serif;
+      outline: none;
+    }
+
+    .video-search::placeholder {
+      color: rgba(255,255,255,.45);
+    }
+
+    .reset-btn {
+      min-height: 52px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 20px;
+      background: #fff;
+      color: #000;
+      font: 900 13px "Barlow Condensed", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      cursor: pointer;
+    }
+
+    .filter-groups {
+      display: grid;
+      gap: 10px;
+    }
+
+    .filter-group {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .filter-label {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      color: rgba(255,255,255,.78);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-chip {
+      border: 1px solid var(--sb-line);
+      background: rgba(255,255,255,.05);
+      color: #e9e9e9;
+      border-radius: 999px;
+      padding: 9px 12px;
+      font: 700 12px "JetBrains Mono", monospace;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .filter-chip small {
+      color: rgba(255,255,255,.52);
+      font-size: 10px;
+    }
+
+    .filter-chip:hover,
+    .filter-chip.is-active {
+      border-color: rgba(255,157,0,.85);
+      background: rgba(255,157,0,.16);
+      color: #fff;
+    }
+
+    .filter-chip[data-group="genre"]:hover,
+    .filter-chip[data-group="genre"].is-active {
+      border-color: rgba(115,182,82,.92);
+      background: rgba(115,182,82,.17);
+    }
+
+    .filter-chip[data-group="artist"]:hover,
+    .filter-chip[data-group="artist"].is-active {
+      border-color: rgba(45,168,255,.92);
+      background: rgba(45,168,255,.17);
+    }
+
+    .filter-chip[data-group="venue"]:hover,
+    .filter-chip[data-group="venue"].is-active {
+      border-color: rgba(255,255,255,.72);
+      background: rgba(255,255,255,.12);
+    }
+
+    .active-tray {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--sb-line);
+    }
+
+    .active-tray.is-visible {
+      display: block;
+    }
+
+    .active-tray__label {
+      color: var(--sb-muted);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin: 0 0 8px;
+    }
+
+    .video-grid-final {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .setlist-card {
+      border: 1px solid var(--sb-line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 18px 55px rgba(0,0,0,.34);
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .setlist-card__video {
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-bottom: 1px solid var(--sb-line);
+    }
+
+    .setlist-card__video iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+
+    .video-placeholder {
+      height: 100%;
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background:
+        linear-gradient(135deg, rgba(255,157,0,.15), rgba(115,182,82,.1)),
+        #070707;
+      color: rgba(255,255,255,.76);
+      padding: 24px;
+    }
+
+    .video-placeholder strong {
+      display: block;
+      color: #fff;
+      font-family: "Barlow Condensed", sans-serif;
+      text-transform: uppercase;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .setlist-card__body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    .setlist-card h2 {
+      margin: 0;
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: clamp(28px, 3vw, 38px);
+      line-height: .94;
+      text-transform: uppercase;
+      letter-spacing: -.02em;
+    }
+
+    .setlist-card__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .badge {
+      border: 1px solid var(--sb-line);
+      border-radius: 999px;
+      padding: 6px 9px;
+      color: rgba(255,255,255,.82);
+      background: rgba(255,255,255,.045);
+      font: 700 11px "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .badge--accent {
+      color: #fff;
+      border-color: rgba(255,157,0,.65);
+      background: rgba(255,157,0,.13);
+    }
+
+    .setlist-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 82px 1fr;
+      gap: 8px 12px;
+      border-top: 1px solid var(--sb-line);
+      padding-top: 14px;
+    }
+
+    .setlist-card dt {
+      color: rgba(255,255,255,.5);
+      font: 700 11px "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .setlist-card dd {
+      margin: 0;
+      color: rgba(255,255,255,.86);
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .setlist-card__notes {
+      margin: 0;
+      color: var(--sb-muted);
+      font-size: 14px;
+      line-height: 1.35;
+      border-top: 1px solid var(--sb-line);
+      padding-top: 12px;
+    }
+
+    .empty-state,
+    .error-state {
+      display: none;
+      border: 1px solid var(--sb-line);
+      background: rgba(255,255,255,.04);
+      border-radius: 24px;
+      padding: 28px;
+      color: var(--sb-muted);
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    .empty-state.is-visible,
+    .error-state.is-visible {
+      display: block;
+    }
+
+    .error-state strong {
+      display: block;
+      color: #fff;
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 34px;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .loading {
+      color: var(--sb-muted);
+      font-family: "JetBrains Mono", monospace;
+      padding: 30px 0;
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 1100px) {
+      .video-grid-final {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .filter-panel {
+        position: relative;
+        top: auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .videos-page {
+        width: min(100% - 20px, 1400px);
+        padding-top: 24px;
+      }
+
+      .filter-topline,
+      .search-row,
+      .filter-group {
+        grid-template-columns: 1fr;
+      }
+
+      .filter-label {
+        min-height: auto;
+      }
+
+      .reset-btn {
+        width: 100%;
+      }
+
+      .video-grid-final {
+        grid-template-columns: 1fr;
+      }
+
+      .setlist-card dl {
+        grid-template-columns: 74px 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/dev/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/dev/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/dev/videos/">Live Videos</a></li>
+      <li><a href="/stashbox/dev/music/">Music</a></li>
+      <li><a href="/stashbox/dev/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/dev/shop/">Shop</a></li>
+      <li><a href="/stashbox/dev/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/dev/booking/">Book Band</a></li>
+      <li><a href="/stashbox/dev/custom/">Custom Music</a></li>
+    </ul>
+
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<main class="videos-page">
+  <header class="videos-hero">
+    <div class="videos-kicker">Stashbox video archive</div>
+    <h1>Live Videos</h1>
+    <p>Search and filter Stashbox performances, originals, covers, genre options, venues, artists, and studio videos from the live Google Sheet CMS.</p>
+  </header>
+
+  <section class="filter-panel" aria-label="Video filters">
+    <div class="filter-topline">
+      <h2 class="filter-title">Popular ways to browse</h2>
+      <div class="filter-count"><span id="visible-count">0</span> of <span id="total-count">0</span> videos</div>
+    </div>
+
+    <div class="search-row">
+      <input id="video-search" class="video-search" type="search" placeholder="Search song, artist, venue, city, date, notes...">
+      <button id="reset-filters" class="reset-btn" type="button">Reset Filters</button>
+    </div>
+
+    <div class="filter-groups">
+      <div class="filter-group">
+        <div class="filter-label">Type</div>
+        <div id="type-filters" class="chip-row"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label">Genre</div>
+        <div id="genre-filters" class="chip-row"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label">Song By</div>
+        <div id="artist-filters" class="chip-row"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label">Venue</div>
+        <div id="venue-filters" class="chip-row"></div>
+      </div>
+    </div>
+
+    <div id="active-tray" class="active-tray">
+      <p class="active-tray__label">Active filters</p>
+      <div id="active-chips" class="chip-row"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="videos-heading">
+    <h2 id="videos-heading" class="sr-only">Filtered Stashbox Videos</h2>
+
+    <div id="video-grid" class="video-grid-final">
+      <div class="loading">Loading videos from live Google Sheet...</div>
+    </div>
+
+    <div id="empty-state" class="empty-state">
+      No videos match those filters. Use Reset Filters to see the full archive.
+    </div>
+
+    <div id="error-state" class="error-state">
+      <strong>Video data could not load</strong>
+      Video data could not load from the Google Sheet right now. Please refresh the page.
+    </div>
+  </section>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/dev/" class="footer__logo" aria-label="Stashbox">
+        <img src="/stashbox/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="footer__logo-text" style="display:none">STASHBOX</span>
+      </a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact">
+        <a href="tel:3104086687">310.408.6687</a>
+        <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+      </div>
+    </div>
+
+    <div class="footer__nav-cols">
+      <div class="footer__col">
+        <h4 class="footer__col-title">Tribute Shows</h4>
+        <ul>
+          <li><a href="/stashbox/dev/booking/">Stashbox Does Dylan</a></li>
+          <li><a href="/stashbox/dev/booking/">Stashbox Does Sublime</a></li>
+          <li><a href="/stashbox/dev/booking/">Classic Reggae Show</a></li>
+        </ul>
+      </div>
+
+      <div class="footer__col">
+        <h4 class="footer__col-title">Music</h4>
+        <ul>
+          <li><a href="/stashbox/dev/music/">Albums &amp; Singles</a></li>
+          <li><a href="/stashbox/dev/videos/">Live Videos</a></li>
+          <li><a href="/stashbox/dev/sessions/">Sessions</a></li>
+          <li><a href="/stashbox/dev/setlists/">Setlists</a></li>
+        </ul>
+      </div>
+
+      <div class="footer__col">
+        <h4 class="footer__col-title">More</h4>
+        <ul>
+          <li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li>
+          <li><a href="/stashbox/dev/custom/">Custom Music</a></li>
+          <li><a href="/stashbox/dev/sessions/">Sessions</a></li>
+          <li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
+
+let allVideos = [];
+
+const state = {
+  search: "",
+  type: new Set(),
+  genre: new Set(),
+  artist: new Set(),
+  venue: new Set()
+};
+
+const els = {
+  search: document.getElementById("video-search"),
+  reset: document.getElementById("reset-filters"),
+  grid: document.getElementById("video-grid"),
+  empty: document.getElementById("empty-state"),
+  error: document.getElementById("error-state"),
+  visibleCount: document.getElementById("visible-count"),
+  totalCount: document.getElementById("total-count"),
+  activeTray: document.getElementById("active-tray"),
+  activeChips: document.getElementById("active-chips")
+};
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quote = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const n = text[i + 1];
+
+    if (quote) {
+      if (c === '"' && n === '"') {
+        field += '"';
+        i++;
+      } else if (c === '"') {
+        quote = false;
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') {
+        quote = true;
+      } else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else if (c !== "\r") {
+        field += c;
+      }
+    }
+  }
+
+  row.push(field);
+  rows.push(row);
+
+  const headers = rows.shift().map(h => h.trim());
+
+  return rows
+    .filter(r => r.some(Boolean))
+    .map(r => Object.fromEntries(headers.map((h, i) => [h, (r[i] || "").trim()])));
+}
+
+async function loadVideos() {
+  console.log("Fetching live Stashbox video CSV");
+
+  const res = await fetch(CSV_URL, { cache: "no-store" });
+
+  if (!res.ok) {
+    throw new Error("Google Sheet CSV failed with status " + res.status);
+  }
+
+  const rows = parseCSV(await res.text()).filter(row => row.song || row.url);
+
+  console.log("Live video rows loaded:", rows.length);
+
+  return rows;
+}
+
+function esc(value) {
+  return String(value || "").replace(/[&<>"']/g, m => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
+}
+
+function val(row, key) {
+  return String(row[key] || "").trim();
+}
+
+function videoIdFromUrl(value) {
+  const s = String(value || "").trim();
+
+  let m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+  if (m) return m[1];
+
+  m = s.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+  if (m) return m[1];
+
+  m = s.match(/embed\/([a-zA-Z0-9_-]{6,})/);
+  if (m) return m[1];
+
+  if (/^[a-zA-Z0-9_-]{6,}$/.test(s)) return s;
+
+  return "";
+}
+
+function embedHtml(video) {
+  const videoId = videoIdFromUrl(val(video, "url"));
+
+  if (!videoId) {
+    return `
+      <div class="video-placeholder">
+        <div>
+          <strong>Video Link Needed</strong>
+          <span>${esc(val(video, "url") || "Add a YouTube URL in the sheet")}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <iframe
+      src="https://www.youtube-nocookie.com/embed/${videoId}"
+      title="${esc(val(video, "song") || "Stashbox video")}"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen
+      loading="lazy">
+    </iframe>
+  `;
+}
+
+function isOriginal(video) {
+  return val(video, "original").toLowerCase().startsWith("y");
+}
+
+function genre(video) {
+  return val(video, "type.1") || val(video, "type") || "Video";
+}
+
+function countValues(rows, key, limit = 5) {
+  const counts = new Map();
+
+  rows.forEach(row => {
+    const item = val(row, key);
+    if (!item) return;
+    counts.set(item, (counts.get(item) || 0) + 1);
+  });
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit);
+}
+
+function makeChip(group, label, count) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "filter-chip";
+  button.dataset.group = group;
+  button.dataset.value = label;
+  button.innerHTML = `${esc(label)} <small>(${count})</small>`;
+
+  button.addEventListener("click", () => {
+    if (state[group].has(label)) {
+      state[group].delete(label);
+    } else {
+      state[group].add(label);
+    }
+
+    render();
+  });
+
+  return button;
+}
+
+function renderFilterChips() {
+  const typeRows = countValues(allVideos, "type", 6);
+  const genreRows = countValues(allVideos, "type.1", 8);
+  const artistRows = countValues(allVideos, "songby", 5);
+  const venueRows = countValues(allVideos, "venue", 5);
+
+  const containers = {
+    type: document.getElementById("type-filters"),
+    genre: document.getElementById("genre-filters"),
+    artist: document.getElementById("artist-filters"),
+    venue: document.getElementById("venue-filters")
+  };
+
+  containers.type.innerHTML = "";
+  containers.genre.innerHTML = "";
+  containers.artist.innerHTML = "";
+  containers.venue.innerHTML = "";
+
+  typeRows.forEach(([name, count]) => containers.type.appendChild(makeChip("type", name, count)));
+  genreRows.forEach(([name, count]) => containers.genre.appendChild(makeChip("genre", name, count)));
+  artistRows.forEach(([name, count]) => containers.artist.appendChild(makeChip("artist", name, count)));
+  venueRows.forEach(([name, count]) => containers.venue.appendChild(makeChip("venue", name, count)));
+}
+
+function rowMatchesSet(row, group, key) {
+  if (!state[group].size) return true;
+  return state[group].has(val(row, key));
+}
+
+function searchableText(row) {
+  return [
+    val(row, "type"),
+    val(row, "original"),
+    val(row, "url"),
+    val(row, "song"),
+    val(row, "songby"),
+    val(row, "type.1"),
+    val(row, "venue"),
+    val(row, "location"),
+    val(row, "date"),
+    val(row, "notes")
+  ].join(" ").toLowerCase();
+}
+
+function filterVideos() {
+  const q = state.search.trim().toLowerCase();
+
+  return allVideos.filter(row => {
+    if (q && !searchableText(row).includes(q)) return false;
+    if (!rowMatchesSet(row, "type", "type")) return false;
+    if (!rowMatchesSet(row, "genre", "type.1")) return false;
+    if (!rowMatchesSet(row, "artist", "songby")) return false;
+    if (!rowMatchesSet(row, "venue", "venue")) return false;
+    return true;
+  });
+}
+
+function cardHtml(video) {
+  const song = val(video, "song") || "Untitled Video";
+  const artist = val(video, "songby") || "Stashbox";
+  const venue = val(video, "venue") || "Live Performance";
+  const location = val(video, "location") || "South Florida";
+  const date = val(video, "date") || "TBD";
+  const notes = val(video, "notes");
+  const originalLabel = isOriginal(video) ? "Original" : "Cover";
+
+  return `
+    <article class="setlist-card">
+      <div class="setlist-card__video">${embedHtml(video)}</div>
+      <div class="setlist-card__body">
+        <div class="setlist-card__badges">
+          <span class="badge badge--accent">${esc(genre(video))}</span>
+          <span class="badge">${esc(val(video, "type") || "Video")}</span>
+          <span class="badge">${esc(originalLabel)}</span>
+        </div>
+        <h2>${esc(song)}</h2>
+        <dl>
+          <dt>Artist</dt>
+          <dd>${esc(artist)}</dd>
+          <dt>Venue</dt>
+          <dd>${esc(venue)}</dd>
+          <dt>Location</dt>
+          <dd>${esc(location)}</dd>
+          <dt>Date</dt>
+          <dd>${esc(date)}</dd>
+        </dl>
+        ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function activeFilters() {
+  const items = [];
+
+  ["type", "genre", "artist", "venue"].forEach(group => {
+    state[group].forEach(value => {
+      items.push({ group, value });
+    });
+  });
+
+  return items;
+}
+
+function syncChipStates() {
+  document.querySelectorAll(".filter-chip[data-group]").forEach(chip => {
+    const group = chip.dataset.group;
+    const value = chip.dataset.value;
+    chip.classList.toggle("is-active", state[group] && state[group].has(value));
+  });
+}
+
+function renderActiveTray() {
+  const active = activeFilters();
+  els.activeChips.innerHTML = "";
+
+  active.forEach(item => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "filter-chip is-active";
+    button.dataset.group = item.group;
+    button.textContent = `${item.value} ×`;
+    button.addEventListener("click", () => {
+      state[item.group].delete(item.value);
+      render();
+    });
+
+    els.activeChips.appendChild(button);
+  });
+
+  els.activeTray.classList.toggle("is-visible", active.length > 0 || state.search.trim().length > 0);
+}
+
+function render() {
+  state.search = els.search.value || "";
+
+  const filtered = filterVideos();
+
+  els.visibleCount.textContent = filtered.length;
+  els.totalCount.textContent = allVideos.length;
+
+  syncChipStates();
+  renderActiveTray();
+
+  if (!filtered.length) {
+    els.grid.innerHTML = "";
+    els.empty.classList.add("is-visible");
+    return;
+  }
+
+  els.empty.classList.remove("is-visible");
+  els.error.classList.remove("is-visible");
+  els.grid.innerHTML = filtered.map(cardHtml).join("");
+}
+
+function resetFilters() {
+  state.search = "";
+  state.type.clear();
+  state.genre.clear();
+  state.artist.clear();
+  state.venue.clear();
+  els.search.value = "";
+  render();
+}
+
+function showLoadError(err) {
+  console.error("Google Sheet video CSV failed:", err);
+
+  els.grid.innerHTML = "";
+  els.empty.classList.remove("is-visible");
+  els.error.classList.add("is-visible");
+  els.visibleCount.textContent = "0";
+  els.totalCount.textContent = "0";
+}
+
+els.search.addEventListener("input", render);
+els.reset.addEventListener("click", resetFilters);
+
+loadVideos()
+  .then(rows => {
+    allVideos = rows;
+    renderFilterChips();
+    render();
+  })
+  .catch(showLoadError);
+</script>
+
+<script src="/stashbox/dev/main.js"></script>
+</body>
+</html>
