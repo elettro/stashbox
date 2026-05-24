@@ -843,7 +843,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ================================================================
-   VIDEO GRID (live-videos page, music page)
+   VIDEO GRID (videos page, music page)
 ================================================================ */
 .video-grid {
   display: grid;
