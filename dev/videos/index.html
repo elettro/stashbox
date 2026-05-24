@@ -363,6 +363,24 @@
       padding-top: 12px;
     }
 
+    .share-btn {
+      align-self: flex-start;
+      border: 1px solid var(--sb-line);
+      background: rgba(255,255,255,.05);
+      color: #fff;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font: 700 11px "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      cursor: pointer;
+    }
+
+    .share-btn:hover {
+      border-color: rgba(255,157,0,.85);
+      background: rgba(255,157,0,.16);
+    }
+
     .empty-state,
     .error-state {
       display: none;
@@ -729,6 +747,12 @@ function videoIdFromRow(video) {
   return "";
 }
 
+function videoShareUrlFromRow(video) {
+  const videoId = videoIdFromRow(video);
+  if (videoId) return `https://youtu.be/${videoId}`;
+  return val(video, "url") || "";
+}
+
 function embedHtml(video) {
   const videoId = videoIdFromRow(video);
 
@@ -862,6 +886,7 @@ function cardHtml(video) {
   const date = val(video, "date") || "TBD";
   const notes = val(video, "notes") || val(video, "k");
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
+  const shareUrl = videoShareUrlFromRow(video);
 
   return `
     <article class="setlist-card">
@@ -883,6 +908,7 @@ function cardHtml(video) {
           <dt>Date</dt>
           <dd>${esc(date)}</dd>
         </dl>
+        ${shareUrl ? `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>` : ""}
         ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
       </div>
     </article>
@@ -974,6 +1000,24 @@ function showLoadError(err) {
 
 els.search.addEventListener("input", render);
 els.reset.addEventListener("click", resetFilters);
+els.grid.addEventListener("click", async (event) => {
+  const button = event.target.closest(".share-btn");
+  if (!button) return;
+
+  const shareUrl = button.dataset.shareUrl;
+  if (!shareUrl) return;
+
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    const originalLabel = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => {
+      button.textContent = originalLabel;
+    }, 1200);
+  } catch (err) {
+    console.warn("Clipboard copy failed", err);
+  }
+});
 
 loadVideos()
   .then(rows => {
