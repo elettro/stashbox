@@ -381,6 +381,77 @@
       background: rgba(255,157,0,.16);
     }
 
+    .share-reggae-zone {
+      position: relative;
+      display: inline-block;
+      isolation: isolate;
+      overflow: visible;
+      align-self: flex-start;
+    }
+
+    .share-video-btn.share-btn-reggae-dub-night-ash {
+      --green: #2f9e44;
+      --green-dark: #0f5f2a;
+      --yellow-gold: #ffcc33;
+      --red-dark: #a61e1e;
+      --text-color: #fff;
+      --hover-text: #fff;
+      --glow: rgba(166,30,30,.30);
+      --border-glow: rgba(255,204,51,.22);
+      --shine: rgba(255,255,255,.42);
+      position: relative;
+      z-index: 3;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-width: 255px;
+      padding: 16px 28px;
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background: linear-gradient(#0b0b0b, #0b0b0b) padding-box, linear-gradient(90deg, #0b0b0b 0 8%, var(--green) 8% 36%, #f4c430 36% 66%, #d62828 66% 92%, #0b0b0b 92% 100%) border-box;
+      color: var(--text-color);
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      overflow: visible;
+      transition: color .28s ease, box-shadow .28s ease, transform .22s ease, filter .28s ease;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 0 24px rgba(0,0,0,.30);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .share-btn-reggae-dub-night-ash::before { content:""; position:absolute; inset:0; border-radius:inherit; background:linear-gradient(90deg,var(--green-dark) 0%,var(--yellow-gold) 50%,var(--red-dark) 100%); transform:scaleY(0); transform-origin:bottom center; transition:transform .34s ease; z-index:-2; }
+    .share-btn-reggae-dub-night-ash::after { content:""; position:absolute; top:-120%; left:-35%; width:45%; height:320%; background:linear-gradient(90deg,transparent,var(--shine),transparent); transform:rotate(24deg) translateX(-120%); transition:transform .58s ease; z-index:-1; opacity:.85; border-radius:inherit; }
+    .share-btn-reggae-dub-night-ash:hover, .share-btn-reggae-dub-night-ash.is-touch-active { color:var(--hover-text); transform:translateY(-2px); filter:saturate(1.15); box-shadow:0 0 0 1px var(--border-glow),0 12px 40px var(--glow),0 0 46px rgba(47,158,68,.16),0 0 52px rgba(214,40,40,.14); }
+    .share-btn-reggae-dub-night-ash:hover::before, .share-btn-reggae-dub-night-ash.is-touch-active::before { transform:scaleY(1); }
+    .share-btn-reggae-dub-night-ash:hover::after, .share-btn-reggae-dub-night-ash.is-touch-active::after { transform:rotate(24deg) translateX(280%); }
+    .share-btn-reggae-dub-night-ash .label, .share-btn-reggae-dub-night-ash .arrow { position:relative; z-index:8; }
+    .share-btn-reggae-dub-night-ash .arrow { display:inline-block; transition:transform .22s ease; font-size:16px; }
+    .share-btn-reggae-dub-night-ash:hover .arrow, .share-btn-reggae-dub-night-ash.is-touch-active .arrow { transform:translateX(5px); }
+    .share-reggae-smoke-field { position:absolute; left:-110px; right:-110px; bottom:-48px; height:230px; pointer-events:none; z-index:1; overflow:visible; opacity:1; mix-blend-mode:screen; }
+    .share-reggae-puff { position:absolute; left:50%; bottom:42px; width:var(--size,40px); height:var(--size,40px); border-radius:999px; background:radial-gradient(circle at 44% 45%,rgba(255,255,255,.58) 0 17%,rgba(210,210,210,.36) 32%,rgba(150,150,150,.20) 54%,transparent 77%); filter:blur(var(--blur,13px)); opacity:0; transform:translate(-50%,0) scale(.5); animation:shareReggaeSmokeDrift var(--dur,8s) ease-out var(--delay,0s) infinite; }
+    @keyframes shareReggaeSmokeDrift { 0% { opacity:0; transform:translate(calc(-50% + var(--x0,0px)),0) scale(.42);} 7%{opacity:.86;} 22%{opacity:.68;} 52%{opacity:.42;} 100% { opacity:0; transform:translate(calc(-50% + var(--x1,0px)),-112px) scale(var(--scale,3.05)); } }
+    .share-reggae-hover-smoke { position:absolute; left:50%; top:55%; width:36px; height:36px; border-radius:999px; background:radial-gradient(circle,rgba(255,255,255,.76) 0 14%,rgba(220,220,220,.46) 32%,rgba(155,155,155,.24) 58%,transparent 78%); filter:blur(14px); opacity:0; pointer-events:none; z-index:1; transform:translate(-50%,-50%) scale(.3); }
+    .share-reggae-zone:hover .share-reggae-hover-smoke, .share-reggae-zone.is-touch-active .share-reggae-hover-smoke { animation:shareReggaeBurstSmoke var(--burstDur,1.6s) ease-out infinite; animation-delay:var(--burstDelay,0s); }
+    .share-reggae-zone:hover .share-reggae-puff, .share-reggae-zone.is-touch-active .share-reggae-puff { animation-duration:2.1s; filter:blur(calc(var(--blur,13px) + 4px)); }
+    @keyframes shareReggaeBurstSmoke { 0%{opacity:0;transform:translate(-50%,-50%) scale(.25);} 15%{opacity:.86;} 100%{opacity:0;transform:translate(calc(-50% + var(--burstX,0px)),calc(-50% + var(--burstY,-65px))) scale(var(--burstScale,5.3));}}
+    .share-reggae-ember-line { position:absolute; left:18px; right:18px; top:-2px; height:7px; border-radius:999px; background:radial-gradient(circle at 50% 50%,rgba(255,245,170,.9),transparent 32%),linear-gradient(90deg,rgba(255,75,31,0),rgba(255,120,24,.58),rgba(255,224,105,.88),rgba(255,75,31,.66),rgba(255,75,31,0)); filter:blur(2.6px); opacity:.18; transform:scaleX(.36); transform-origin:center; z-index:4; pointer-events:none; transition:opacity .35s ease,transform .35s ease; }
+    .share-reggae-ash-cap { position:absolute; left:30%; right:30%; top:-4px; height:5px; border-radius:999px; background:linear-gradient(90deg,transparent,rgba(230,230,230,.35),rgba(255,255,255,.76),rgba(180,180,180,.45),transparent); filter:blur(1.4px); opacity:0; transform:translateY(0) scaleX(.45); transform-origin:center; z-index:5; pointer-events:none; }
+    .share-reggae-ash-dust { position:absolute; left:50%; top:-4px; width:8px; height:8px; border-radius:999px; background:radial-gradient(circle,rgba(230,230,230,.75),transparent 70%); filter:blur(2px); opacity:0; pointer-events:none; z-index:6; }
+    .share-reggae-zone:hover .share-reggae-ember-line, .share-reggae-zone.is-touch-active .share-reggae-ember-line { opacity:.96; transform:scaleX(1); animation:shareReggaeEmberFlare 1.8s ease-in-out infinite alternate; }
+    .share-reggae-zone:hover .share-reggae-ash-cap, .share-reggae-zone.is-touch-active .share-reggae-ash-cap { opacity:.78; animation:shareReggaeAshGrow 4s ease-out forwards; }
+    .share-reggae-zone:not(:hover) .share-reggae-ash-cap { animation:shareReggaeAshBlowoff .8s ease-out; }
+    .share-reggae-zone:not(:hover) .share-reggae-ash-dust { animation:shareReggaeAshDustBlow .9s ease-out; animation-delay:var(--dustDelay,0s); }
+    @keyframes shareReggaeEmberFlare { 0%{filter:blur(2.3px); box-shadow:0 0 10px rgba(255,75,31,.26);} 100%{filter:blur(3.6px); box-shadow:0 0 28px rgba(255,133,24,.72),0 0 46px rgba(255,204,51,.38);} }
+    @keyframes shareReggaeAshGrow { 0%{opacity:.28;transform:translateY(0) scaleX(.35);} 45%{opacity:.72;transform:translateY(-1px) scaleX(.78);} 100%{opacity:.86;transform:translateY(-2px) scaleX(1.08);} }
+    @keyframes shareReggaeAshBlowoff { 0%{opacity:.86;transform:translateY(-2px) scaleX(1.08);} 100%{opacity:0;transform:translate(42px,-26px) rotate(8deg) scaleX(.45);} }
+    @keyframes shareReggaeAshDustBlow { 0%{opacity:.7;transform:translate(-50%,0) scale(.7);} 100%{opacity:0;transform:translate(calc(-50% + var(--dustX,40px)),var(--dustY,-40px)) scale(2.2);} }
+
     .empty-state,
     .error-state {
       display: none;
@@ -453,6 +524,10 @@
       .setlist-card dl {
         grid-template-columns: 74px 1fr;
       }
+
+      .share-reggae-zone,
+      .share-video-btn.share-btn-reggae-dub-night-ash { width: 100%; }
+      .share-video-btn.share-btn-reggae-dub-night-ash { min-width: 0; }
     }
   </style>
 </head>
@@ -786,6 +861,15 @@ function genre(video) {
   return val(video, "genre") || "Uncategorized";
 }
 
+function normalizeGenre(value) {
+  return String(value || "").trim().toLowerCase().replace(/&/g, "and").replace(/-/g, " ").replace(/\s+/g, " ");
+}
+
+function isReggaeGenre(video) {
+  const genreValue = normalizeGenre(val(video, "genre") || val(video, "type"));
+  return ["reggae", "rock reggae", "reggae rock"].includes(genreValue);
+}
+
 function countValues(rows, key, limit = 5) {
   const counts = new Map();
 
@@ -893,6 +977,9 @@ function cardHtml(video) {
   const notes = val(video, "notes") || val(video, "k");
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
   const shareUrl = videoShareUrlFromRow(video);
+  const reggae = isReggaeGenre(video);
+  const reggaeSmoke = reggae ? `<div class="share-reggae-smoke-field" aria-hidden="true"><span class="share-reggae-puff" style="left:12%; --delay:.10s; --dur:6.2s; --size:42px; --blur:13px; --x0:-18px; --x1:-58px; --scale:3.0;"></span><span class="share-reggae-puff" style="left:24%; --delay:.62s; --dur:7.1s; --size:52px; --blur:15px; --x0:14px; --x1:42px; --scale:3.2;"></span><span class="share-reggae-puff" style="left:38%; --delay:1.08s; --dur:5.8s; --size:46px; --blur:14px; --x0:-8px; --x1:-28px; --scale:2.9;"></span><span class="share-reggae-puff" style="left:52%; --delay:.34s; --dur:6.8s; --size:60px; --blur:17px; --x0:8px; --x1:62px; --scale:3.35;"></span><span class="share-reggae-puff" style="left:66%; --delay:.86s; --dur:7.4s; --size:48px; --blur:14px; --x0:-16px; --x1:-44px; --scale:3.1;"></span><span class="share-reggae-puff" style="left:80%; --delay:1.36s; --dur:6.4s; --size:54px; --blur:16px; --x0:12px; --x1:50px; --scale:3.25;"></span><span class="share-reggae-hover-smoke" style="--burstX:-92px; --burstY:-58px; --burstScale:5.7; --burstDelay:0s; --burstDur:1.35s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-60px; --burstY:-105px; --burstScale:5.3; --burstDelay:.04s; --burstDur:1.52s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-18px; --burstY:-122px; --burstScale:5.9; --burstDelay:.08s; --burstDur:1.68s;"></span><span class="share-reggae-hover-smoke" style="--burstX:20px; --burstY:-116px; --burstScale:5.5; --burstDelay:.12s; --burstDur:1.44s;"></span><span class="share-reggae-hover-smoke" style="--burstX:64px; --burstY:-92px; --burstScale:5.7; --burstDelay:.16s; --burstDur:1.60s;"></span><span class="share-reggae-hover-smoke" style="--burstX:98px; --burstY:-50px; --burstScale:5.8; --burstDelay:.20s; --burstDur:1.70s;"></span><span class="share-reggae-ash-dust" style="left:18%; --dustX:-62px; --dustY:-38px; --dustDelay:0s;"></span><span class="share-reggae-ash-dust" style="left:30%; --dustX:-34px; --dustY:-54px; --dustDelay:.03s;"></span><span class="share-reggae-ash-dust" style="left:42%; --dustX:12px; --dustY:-46px; --dustDelay:.06s;"></span><span class="share-reggae-ash-dust" style="left:54%; --dustX:36px; --dustY:-62px; --dustDelay:.09s;"></span><span class="share-reggae-ash-dust" style="left:66%; --dustX:58px; --dustY:-40px; --dustDelay:.12s;"></span></div>` : "";
+  const reggaeButtonExtras = reggae ? `<span class="share-reggae-ember-line" aria-hidden="true"></span><span class="share-reggae-ash-cap" aria-hidden="true"></span>` : "";
 
   return `
     <article class="setlist-card">
@@ -914,7 +1001,7 @@ function cardHtml(video) {
           <dt>Date</dt>
           <dd>${esc(date)}</dd>
         </dl>
-        ${shareUrl ? `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>` : ""}
+        ${shareUrl ? (reggae ? `<div class="share-reggae-zone">${reggaeSmoke}<button type="button" class="share-btn share-video-btn share-btn-reggae-dub-night-ash" data-share-url="${esc(shareUrl)}">${reggaeButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>`) : ""}
         ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
       </div>
     </article>
@@ -1006,6 +1093,32 @@ function showLoadError(err) {
 
 els.search.addEventListener("input", render);
 els.reset.addEventListener("click", resetFilters);
+document.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest(".share-video-btn");
+  if (!button) return;
+  button.classList.add("is-touch-active");
+  const reggaeZone = button.closest(".share-reggae-zone");
+  if (reggaeZone) reggaeZone.classList.add("is-touch-active");
+  window.clearTimeout(button._touchTimer);
+  button._touchTimer = window.setTimeout(() => {
+    button.classList.remove("is-touch-active");
+    if (reggaeZone) reggaeZone.classList.remove("is-touch-active");
+  }, 1400);
+});
+document.addEventListener("pointerup", (event) => {
+  const button = event.target.closest(".share-video-btn");
+  if (!button) return;
+  const reggaeZone = button.closest(".share-reggae-zone");
+  window.clearTimeout(button._touchTimer);
+  button._touchTimer = window.setTimeout(() => {
+    button.classList.remove("is-touch-active");
+    if (reggaeZone) reggaeZone.classList.remove("is-touch-active");
+  }, 450);
+});
+document.addEventListener("pointercancel", () => {
+  document.querySelectorAll(".share-video-btn.is-touch-active").forEach((button) => button.classList.remove("is-touch-active"));
+  document.querySelectorAll(".share-reggae-zone.is-touch-active").forEach((zone) => zone.classList.remove("is-touch-active"));
+});
 els.grid.addEventListener("click", async (event) => {
   const button = event.target.closest(".share-btn");
   if (!button) return;
