@@ -421,7 +421,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 <script>
 // ════════ CONFIG ════════
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv';
+const SHEET_CSV_URLS = [
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
+];
 
 const SECTIONS = [
   {key:'Reggae',emoji:'🌴',color:'#3ecf6e'},{key:'Rock',emoji:'🎸',color:'#f0a500'},
@@ -441,9 +445,8 @@ const isMob = () => window.innerWidth < 768;
 // ════════ FETCH ════════
 async function init() {
   try {
-    const res = await fetch(SHEET_CSV_URL);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    allTracks = parseCSV(await res.text());
+    const csvText = await fetchSheetCSV();
+    allTracks = parseCSV(csvText);
     boot();
   } catch(e) {
     document.getElementById('loading').innerHTML =
@@ -452,9 +455,25 @@ async function init() {
   }
 }
 
+async function fetchSheetCSV() {
+  let lastErr = null;
+  for (const url of SHEET_CSV_URLS) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if (text && text.trim()) return text;
+      throw new Error('Empty CSV response');
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Unable to fetch sheet CSV');
+}
+
 function parseCSV(csv) {
-  return csv.trim().split('\n').slice(1).map((line, i) => {
-    const c = splitCSV(line);
+  const rows = parseCSVRows(csv).filter(r => r.some(col => cl(col)));
+  return rows.slice(1).map((c, i) => {
     if (!cl(c[0])) return null;
     // Columns: Song Name(0) | Album(1) | Artist(2) | Genre(3) | Date(4)
     //           WAV File(5) | WAV Link(6) | Artwork File(7) | Artwork Link(8) | Video Link(9) | Notes(10)
@@ -467,7 +486,43 @@ function parseCSV(csv) {
   }).filter(Boolean);
 }
 function resSec(g){return SECTIONS.find(s=>s.key.toLowerCase()===(g||'').toLowerCase())?.key||'Other';}
-function splitCSV(line){const r=[];let cur='',inQ=false;for(const ch of line){if(ch==='"'){inQ=!inQ;continue}if(ch===','&&!inQ){r.push(cur);cur='';continue}cur+=ch;}r.push(cur);return r;}
+function parseCSVRows(csv){
+  const rows=[];
+  let row=[];
+  let cur='';
+  let inQ=false;
+
+  for(let i=0;i<csv.length;i++){
+    const ch=csv[i];
+    const next=csv[i+1];
+
+    if(ch==='"'){
+      if(inQ && next==='"'){ cur+='"'; i++; }
+      else inQ=!inQ;
+      continue;
+    }
+
+    if(ch===',' && !inQ){ row.push(cur); cur=''; continue; }
+
+    if((ch==='\n' || ch==='\r') && !inQ){
+      if(ch==='\r' && next==='\n') i++;
+      row.push(cur);
+      rows.push(row);
+      row=[];
+      cur='';
+      continue;
+    }
+
+    cur+=ch;
+  }
+
+  if(cur.length || row.length){
+    row.push(cur);
+    rows.push(row);
+  }
+
+  return rows;
+}
 const cl = s => (s||'').trim().replace(/^"|"$/g,'');
 const fixDb = u => u ? u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'') : '';
 const ytEmbed = url => {
