@@ -1788,12 +1788,15 @@ h1, h2, h3, h4, h5, h6 {
     left: 0;
     right: 0;
     bottom: 0;
-    background: oklch(8% 0 0 / 0.98);
+    background: oklch(8% 0 0 / 0.5);
     backdrop-filter: blur(20px);
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: var(--space-2);
+    padding: calc(var(--space-10) + env(safe-area-inset-top)) var(--space-4) calc(var(--space-10) + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     transform: translateX(100%);
     transition: transform var(--dur-base) var(--ease-out);
     pointer-events: none;
