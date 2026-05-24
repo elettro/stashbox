@@ -490,6 +490,39 @@
     @keyframes shareTieDyeButtonBreath { 0% { filter: saturate(1.05); box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 0 26px rgba(0,0,0,.26);} 100% { filter: saturate(1.24); box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 32px rgba(55,211,255,.16), 0 0 38px rgba(133,255,88,.10);} }
     @keyframes shareTieDyeDriftPulse { 0% { transform: translateY(0) scale(.8); opacity: .2;} 100% { transform: translateY(-8px) scale(1.15); opacity: .66;} }
 
+    .share-video-btn.share-btn-italian-lounge-neon {
+      --hidden: 42px; --smokeOpacity: .58; --smokeLift: -92px; --smokeBlur: 16px; --accentA: rgba(23,134,74,.18); --accentB: rgba(247,243,235,.16); --speed: .36s; --out: .16s;
+      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-width: 320px; padding: 18px 36px; border-radius: 999px; border: 2px solid rgba(255,255,255,.22); color: #f7f3eb; text-decoration: none; text-transform: uppercase; font-size: 15px; font-weight: 900; letter-spacing: .08em; overflow: visible; isolation: isolate;
+      background: linear-gradient(92deg, rgba(23,134,74,.22) 0%, rgba(247,243,235,.10) 48%, rgba(191,32,48,.22) 100%), linear-gradient(180deg, rgba(22,25,33,.96), rgba(13,15,20,.96));
+      box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 0 26px rgba(0,0,0,.26);
+      transition: transform .22s ease, color .22s ease, border-color .22s ease, box-shadow .22s ease, filter .22s ease;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
+    }
+    .share-btn-italian-lounge-neon::before { content:""; position:absolute; inset:2px; border-radius:inherit; z-index:-3; background:linear-gradient(90deg, rgba(23,134,74,.75) 0 23%, rgba(247,243,235,.28) 40% 60%, rgba(191,32,48,.75) 77% 100%); opacity:.10; }
+    .share-btn-italian-lounge-neon::after { content:""; position:absolute; inset:0; border-radius:inherit; z-index:-4; background:radial-gradient(circle at 22% 50%, var(--accentA), transparent 28%), radial-gradient(circle at 78% 50%, var(--accentB), transparent 28%); opacity:.9; }
+    .share-btn-italian-lounge-neon:hover, .share-btn-italian-lounge-neon.is-touch-active {
+      color:#11161c; transform:translateY(-2px); border-color:rgba(255,255,255,.44); box-shadow:0 14px 34px rgba(0,0,0,.28), 0 0 28px var(--accentA), 0 0 34px var(--accentB), 0 0 30px rgba(191,32,48,.10);
+      background: linear-gradient(92deg, rgba(23,134,74,.34) 0%, rgba(247,243,235,.34) 48%, rgba(191,32,48,.34) 100%), linear-gradient(180deg, rgba(23,25,30,.96), rgba(16,18,22,.96));
+    }
+    .share-btn-italian-lounge-neon .label, .share-btn-italian-lounge-neon .arrow { position: relative; z-index: 8; }
+    .share-btn-italian-lounge-neon .arrow { transition: transform .22s ease; }
+    .share-btn-italian-lounge-neon:hover .arrow, .share-btn-italian-lounge-neon.is-touch-active .arrow { transform: translateX(5px); }
+    .share-btn-italian-lounge-neon .italian-css-colosseum { position:absolute; left:50%; bottom:calc(100% - 2px); width:82%; max-width:calc(100% - 16px); height:78px; transform:translateX(-50%) translateY(var(--hidden)); transform-origin:center bottom; opacity:0; pointer-events:none; z-index:5; filter:drop-shadow(0 10px 16px rgba(0,0,0,.24)) saturate(1.05); }
+    .share-btn-italian-lounge-neon:hover .italian-css-colosseum, .share-btn-italian-lounge-neon.is-touch-active .italian-css-colosseum { opacity:.62; transform:translateX(-50%) translateY(0); transition: transform var(--speed) cubic-bezier(.2,.86,.2,1), opacity .14s ease; }
+    .share-btn-italian-lounge-neon:not(:hover) .italian-css-colosseum { transition: transform var(--out) ease, opacity .10s linear; }
+    .italian-colosseum-back, .italian-colosseum-front { position:absolute; left:50%; bottom:0; transform:translateX(-50%); display:block; }
+    .italian-colosseum-back { width:100%; height:50px; border-radius:52% 52% 10px 10px / 46% 46% 10px 10px; background:linear-gradient(90deg, rgba(208,169,93,.92), rgba(236,222,197,.94), rgba(188,151,87,.92)); clip-path:ellipse(50% 48% at 50% 58%); }
+    .italian-colosseum-front { width:92%; height:62px; border-radius:48% 48% 12px 12px / 28% 28% 12px 12px; background:linear-gradient(90deg, rgba(43,47,54,.92) 0 34%, rgba(239,228,211,.92) 34% 100%); overflow:hidden; }
+    .italian-colosseum-front::before { content:""; position:absolute; left:9%; right:9%; top:11px; height:14px; border-radius:999px; background:radial-gradient(ellipse at center, rgba(19,22,27,.84) 0 45%, rgba(239,228,211,.72) 46% 66%, transparent 68%); }
+    .italian-arch { position:absolute; bottom:8px; width:12%; height:25px; border-radius:999px 999px 4px 4px; background:rgba(16,18,24,.76); }
+    .italian-arch.arch-1 { left:9%; height:20px; } .italian-arch.arch-2 { left:25%; height:25px; } .italian-arch.arch-3 { left:43%; height:29px; } .italian-arch.arch-4 { left:61%; height:25px; } .italian-arch.arch-5 { left:77%; height:20px; }
+    .italian-tier { position:absolute; left:6%; right:6%; height:3px; border-radius:999px; background:rgba(255,255,255,.58); }
+    .italian-tier.tier-1 { top:18px; } .italian-tier.tier-2 { top:33px; opacity:.72; } .italian-tier.tier-3 { top:48px; opacity:.62; }
+    .share-btn-italian-lounge-neon .italian-smoke-field { position:absolute; left:50%; bottom:calc(100% - 2px); width:100%; height:144px; transform:translateX(-50%); pointer-events:none; z-index:6; overflow:visible; }
+    .share-btn-italian-lounge-neon .italian-smoke { position:absolute; left:var(--x, 50%); bottom:0; width:var(--w, 48px); height:var(--h, 32px); border-radius:999px; opacity:0; filter:blur(var(--smokeBlur)); background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.66) 0 10%, rgba(218,218,218,.46) 26%, rgba(145,145,145,.24) 52%, transparent 74%); transform:translate(-50%, 6px) scale(.62); }
+    .share-btn-italian-lounge-neon:hover .italian-smoke, .share-btn-italian-lounge-neon.is-touch-active .italian-smoke { animation: italianSmokeLift 1.04s ease-out forwards; animation-delay: var(--delay, 0s); }
+    @keyframes italianSmokeLift { 0% { opacity:calc(var(--smokeOpacity) * .16); transform:translate(-50%, 6px) scale(.62); } 16% { opacity: var(--smokeOpacity); } 100% { opacity:0; transform:translate(calc(-50% + var(--drift)), var(--smokeLift)) scale(var(--scale)); } }
+
     .empty-state,
     .error-state {
       display: none;
@@ -569,6 +602,8 @@
       .share-tiedye-zone,
       .share-video-btn.share-btn-tiedye-blue-sky-melt { width: 100%; }
       .share-video-btn.share-btn-tiedye-blue-sky-melt { min-width: 0; }
+      .share-video-btn.share-btn-italian-lounge-neon { width: 100%; min-width: 0; }
+      .share-btn-italian-lounge-neon .italian-css-colosseum { max-width: calc(100% - 12px); }
     }
   </style>
 </head>
@@ -915,13 +950,29 @@ function firstVal(row, keys) {
 }
 
 function isReggaeGenre(video) {
-  const genreValue = normalizeGenre(val(video, "genre") || val(video, "type"));
+  const genreValue = normalizeGenre(firstVal(video, ["genre", "Genre", "type", "Type"]));
   return ["reggae", "rock reggae", "reggae rock"].includes(genreValue);
 }
 
 function isRockGenre(video) {
   const genreValue = normalizeGenre(firstVal(video, ["genre", "Genre", "type", "Type", "style", "Style", "category", "Category"]));
   return ["classic rock", "rock", "blues", "soul", "folk", "rock n roll", "rock and roll", "instrumental", "country rock", "rap rock"].includes(genreValue);
+function firstVal(row, keys) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function isItalianGenre(video) {
+  const genreValue = normalizeGenre(
+    firstVal(video, ["genre", "Genre", "type", "Type", "style", "Style", "category", "Category"])
+  );
+
+  return genreValue === "italian";
 }
 
 function countValues(rows, key, limit = 5) {
@@ -1033,8 +1084,11 @@ function cardHtml(video) {
   const shareUrl = videoShareUrlFromRow(video);
   const reggae = isReggaeGenre(video);
   const rock = isRockGenre(video);
+  const isItalian = isItalianGenre(video);
   const reggaeSmoke = reggae ? `<div class="share-reggae-smoke-field" aria-hidden="true"><span class="share-reggae-puff" style="left:12%; --delay:.10s; --dur:6.2s; --size:42px; --blur:13px; --x0:-18px; --x1:-58px; --scale:3.0;"></span><span class="share-reggae-puff" style="left:24%; --delay:.62s; --dur:7.1s; --size:52px; --blur:15px; --x0:14px; --x1:42px; --scale:3.2;"></span><span class="share-reggae-puff" style="left:38%; --delay:1.08s; --dur:5.8s; --size:46px; --blur:14px; --x0:-8px; --x1:-28px; --scale:2.9;"></span><span class="share-reggae-puff" style="left:52%; --delay:.34s; --dur:6.8s; --size:60px; --blur:17px; --x0:8px; --x1:62px; --scale:3.35;"></span><span class="share-reggae-puff" style="left:66%; --delay:.86s; --dur:7.4s; --size:48px; --blur:14px; --x0:-16px; --x1:-44px; --scale:3.1;"></span><span class="share-reggae-puff" style="left:80%; --delay:1.36s; --dur:6.4s; --size:54px; --blur:16px; --x0:12px; --x1:50px; --scale:3.25;"></span><span class="share-reggae-hover-smoke" style="--burstX:-92px; --burstY:-58px; --burstScale:5.7; --burstDelay:0s; --burstDur:1.35s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-60px; --burstY:-105px; --burstScale:5.3; --burstDelay:.04s; --burstDur:1.52s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-18px; --burstY:-122px; --burstScale:5.9; --burstDelay:.08s; --burstDur:1.68s;"></span><span class="share-reggae-hover-smoke" style="--burstX:20px; --burstY:-116px; --burstScale:5.5; --burstDelay:.12s; --burstDur:1.44s;"></span><span class="share-reggae-hover-smoke" style="--burstX:64px; --burstY:-92px; --burstScale:5.7; --burstDelay:.16s; --burstDur:1.60s;"></span><span class="share-reggae-hover-smoke" style="--burstX:98px; --burstY:-50px; --burstScale:5.8; --burstDelay:.20s; --burstDur:1.70s;"></span><span class="share-reggae-ash-dust" style="left:18%; --dustX:-62px; --dustY:-38px; --dustDelay:0s;"></span><span class="share-reggae-ash-dust" style="left:30%; --dustX:-34px; --dustY:-54px; --dustDelay:.03s;"></span><span class="share-reggae-ash-dust" style="left:42%; --dustX:12px; --dustY:-46px; --dustDelay:.06s;"></span><span class="share-reggae-ash-dust" style="left:54%; --dustX:36px; --dustY:-62px; --dustDelay:.09s;"></span><span class="share-reggae-ash-dust" style="left:66%; --dustX:58px; --dustY:-40px; --dustDelay:.12s;"></span></div>` : "";
   const reggaeButtonExtras = reggae ? `<span class="share-reggae-ember-line" aria-hidden="true"></span><span class="share-reggae-ash-cap" aria-hidden="true"></span>` : "";
+  const italianButtonExtras = isItalian ? `<span class="italian-css-colosseum" aria-hidden="true"><span class="italian-colosseum-back"></span><span class="italian-colosseum-front"><span class="italian-arch arch-1"></span><span class="italian-arch arch-2"></span><span class="italian-arch arch-3"></span><span class="italian-arch arch-4"></span><span class="italian-arch arch-5"></span><span class="italian-tier tier-1"></span><span class="italian-tier tier-2"></span><span class="italian-tier tier-3"></span></span></span><span class="italian-smoke-field" aria-hidden="true"><span class="italian-smoke" style="--x:5%;--w:40px;--h:24px;--delay:0s;--drift:-8px;--scale:1.2;"></span><span class="italian-smoke" style="--x:12%;--w:48px;--h:28px;--delay:.02s;--drift:6px;--scale:1.3;"></span><span class="italian-smoke" style="--x:20%;--w:54px;--h:32px;--delay:.04s;--drift:-10px;--scale:1.42;"></span><span class="italian-smoke" style="--x:30%;--w:62px;--h:38px;--delay:.06s;--drift:8px;--scale:1.58;"></span><span class="italian-smoke" style="--x:40%;--w:58px;--h:34px;--delay:.08s;--drift:-12px;--scale:1.48;"></span><span class="italian-smoke" style="--x:50%;--w:68px;--h:42px;--delay:.1s;--drift:10px;--scale:1.72;"></span><span class="italian-smoke" style="--x:60%;--w:58px;--h:34px;--delay:.12s;--drift:-9px;--scale:1.5;"></span><span class="italian-smoke" style="--x:70%;--w:62px;--h:38px;--delay:.14s;--drift:12px;--scale:1.6;"></span><span class="italian-smoke" style="--x:80%;--w:54px;--h:32px;--delay:.16s;--drift:-7px;--scale:1.4;"></span><span class="italian-smoke" style="--x:88%;--w:48px;--h:28px;--delay:.18s;--drift:5px;--scale:1.28;"></span><span class="italian-smoke" style="--x:95%;--w:40px;--h:24px;--delay:.2s;--drift:-5px;--scale:1.18;"></span></span>` : "";
+  const shareButtonClass = isItalian ? "share-btn share-video-btn share-btn-italian-lounge-neon" : "share-btn";
 
   return `
     <article class="setlist-card">
