@@ -389,6 +389,14 @@
       align-self: flex-start;
     }
 
+    .share-tiedye-zone {
+      position: relative;
+      display: inline-block;
+      isolation: isolate;
+      overflow: visible;
+      align-self: flex-start;
+    }
+
     .share-video-btn.share-btn-reggae-dub-night-ash {
       --green: #2f9e44;
       --green-dark: #0f5f2a;
@@ -451,6 +459,36 @@
     @keyframes shareReggaeAshGrow { 0%{opacity:.28;transform:translateY(0) scaleX(.35);} 45%{opacity:.72;transform:translateY(-1px) scaleX(.78);} 100%{opacity:.86;transform:translateY(-2px) scaleX(1.08);} }
     @keyframes shareReggaeAshBlowoff { 0%{opacity:.86;transform:translateY(-2px) scaleX(1.08);} 100%{opacity:0;transform:translate(42px,-26px) rotate(8deg) scaleX(.45);} }
     @keyframes shareReggaeAshDustBlow { 0%{opacity:.7;transform:translate(-50%,0) scale(.7);} 100%{opacity:0;transform:translate(calc(-50% + var(--dustX,40px)),var(--dustY,-40px)) scale(2.2);} }
+    .share-video-btn.share-btn-tiedye-blue-sky-melt { position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-width: 272px; padding: 16px 28px; border-radius: 999px; border: 2px solid rgba(56, 211, 255, .38); color: #fffef8; text-decoration: none; text-transform: uppercase; font-size: 15px; font-weight: 900; letter-spacing: .08em; overflow: hidden; isolation: isolate; background: radial-gradient(circle at 18% 28%, rgba(123,92,255,.32), transparent 34%), radial-gradient(circle at 70% 32%, rgba(55,211,255,.28), transparent 32%), radial-gradient(circle at 42% 78%, rgba(133,255,88,.22), transparent 34%), rgba(13,13,20,.78); box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 0 26px rgba(0,0,0,.26), 0 0 28px rgba(55,211,255,.10); transition: transform .22s ease, color .26s ease, box-shadow .26s ease, border-color .26s ease, filter .26s ease; animation: shareTieDyeButtonBreath 3.4s ease-in-out infinite alternate; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; cursor: pointer; }
+    .share-btn-tiedye-blue-sky-melt::before { content: ""; position: absolute; inset: 2px; border-radius: inherit; background: rgba(10,10,16,.38); z-index: -2; transition: background .28s ease; }
+    .share-btn-tiedye-blue-sky-melt:hover, .share-btn-tiedye-blue-sky-melt.is-touch-active { color: #081018; transform: translateY(-2px); border-color: rgba(255,255,255,.46); filter: saturate(1.18); box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 12px 36px rgba(56,189,248,.22), 0 0 42px rgba(133,255,88,.13), 0 0 42px rgba(255,226,74,.12); }
+    .share-btn-tiedye-blue-sky-melt:hover::before, .share-btn-tiedye-blue-sky-melt.is-touch-active::before { background: rgba(10,10,16,.04); }
+    .share-btn-tiedye-blue-sky-melt .label, .share-btn-tiedye-blue-sky-melt .arrow { position: relative; z-index: 5; }
+    .share-btn-tiedye-blue-sky-melt .arrow { display: inline-block; font-size: 16px; transition: transform .22s ease; }
+    .share-btn-tiedye-blue-sky-melt:hover .arrow, .share-btn-tiedye-blue-sky-melt.is-touch-active .arrow { transform: translateX(5px); }
+    .share-tiedye-pattern, .share-tiedye-pattern-hover { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; z-index: -3; }
+    .share-tiedye-pattern-hover { opacity: 0; transition: opacity .28s ease; }
+    .share-btn-tiedye-blue-sky-melt:hover .share-tiedye-pattern-hover, .share-btn-tiedye-blue-sky-melt.is-touch-active .share-tiedye-pattern-hover { opacity: 1; }
+    .share-tiedye-blob { position: absolute; left: var(--x, 50%); top: var(--y, 50%); width: var(--size, 140px); height: var(--size, 140px); border-radius: 999px; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,.32) 0 7%, transparent 18%), radial-gradient(circle, var(--color) 0 34%, transparent 70%); filter: blur(var(--fblur, 8px)) saturate(1.9) contrast(1.14); opacity: var(--opacity, .9); transform: translate(-50%, -50%); mix-blend-mode: screen; animation: shareTieDyeBlobDrift var(--dur, 4.2s) ease-in-out var(--delay, 0s) infinite alternate, shareTieDyeColorPulse var(--pulseDur, 3.4s) ease-in-out var(--delay, 0s) infinite alternate; }
+    .share-tiedye-pattern-hover .share-tiedye-blob { filter: blur(var(--fblur, 8px)) saturate(2.1) contrast(1.18); opacity: calc(var(--opacity, .9) + .08); }
+    .share-tiedye-fracture { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(110px 40px at 18% 30%, rgba(255,255,255,.12), transparent 62%), radial-gradient(120px 50px at 78% 68%, rgba(255,255,255,.10), transparent 60%), linear-gradient(120deg, rgba(255,255,255,.06), transparent 34%), linear-gradient(310deg, rgba(255,255,255,.05), transparent 30%); mix-blend-mode: overlay; opacity: .85; z-index: 1; pointer-events: none; }
+    .share-tiedye-sparkle { position: absolute; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .28s ease; }
+    .share-tiedye-sparkle::before, .share-tiedye-sparkle::after { content: ""; position: absolute; width: 52px; height: 52px; border-radius: 999px; background: radial-gradient(circle, rgba(255,255,255,.36), transparent 68%); filter: blur(8px); animation: shareTieDyeDriftPulse 2.8s ease-in-out infinite alternate; }
+    .share-tiedye-sparkle::before { top: -12px; left: 18%; }
+    .share-tiedye-sparkle::after { right: 18%; bottom: -12px; animation-delay: .8s; }
+    .share-btn-tiedye-blue-sky-melt:hover .share-tiedye-sparkle, .share-btn-tiedye-blue-sky-melt.is-touch-active .share-tiedye-sparkle { opacity: .72; }
+    .share-tiedye-smoke-field { position: absolute; left: -44px; right: -44px; top: -160px; height: 190px; pointer-events: none; z-index: 1; overflow: visible; mix-blend-mode: screen; }
+    .share-tiedye-smoke-idle { opacity: .9; } .share-tiedye-smoke-hover { opacity: 1; }
+    .share-tiedye-smoke { position: absolute; left: var(--left, 50%); bottom: 0; width: var(--size, 20px); height: var(--size, 20px); border-radius: 999px; background: radial-gradient(circle at 45% 45%, rgba(255,255,255,.38) 0 17%, rgba(210,210,210,.18) 35%, rgba(145,145,145,.08) 56%, transparent 76%); filter: blur(var(--blur, 8px)); opacity: 0; transform: translate(-50%, 0) scale(.35); }
+    .share-tiedye-smoke-idle .share-tiedye-smoke { animation: shareTieDyeIdleSmoke var(--dur, 8s) ease-out var(--delay, 0s) infinite; }
+    .share-tiedye-smoke-hover .share-tiedye-smoke { animation: shareTieDyeHoverSmoke var(--dur, 1.1s) ease-out var(--delay, 0s) infinite; animation-play-state: paused; opacity: 0; }
+    .share-tiedye-zone:hover .share-tiedye-smoke-hover .share-tiedye-smoke, .share-tiedye-zone.is-touch-active .share-tiedye-smoke-hover .share-tiedye-smoke { animation-play-state: running; }
+    @keyframes shareTieDyeIdleSmoke { 0% { opacity: 0; transform: translate(calc(-50% + var(--x0, 0px)), 0) scale(.34);} 10% { opacity: .46;} 24% { opacity: .32;} 100% { opacity: 0; transform: translate(calc(-50% + var(--x1, 0px)), calc(-1 * var(--rise, 78px))) scale(var(--scale, 2.0)); } }
+    @keyframes shareTieDyeHoverSmoke { 0% { opacity: 0; transform: translate(calc(-50% + var(--x0, 0px)), 0) scale(.28);} 10% { opacity: .64;} 26% { opacity: .46;} 100% { opacity: 0; transform: translate(calc(-50% + var(--x1, 0px)), calc(-1 * var(--rise, 150px))) scale(var(--scale, 3.1)); } }
+    @keyframes shareTieDyeBlobDrift { 0% { transform: translate(-50%, -50%) translate(0px, 0px) scale(1);} 33% { transform: translate(-50%, -50%) translate(var(--dx1, 18px), var(--dy1, -18px)) scale(var(--s1, 1.18));} 66% { transform: translate(-50%, -50%) translate(var(--dxMid, -16px), var(--dyMid, 14px)) scale(var(--sMid, .88));} 100% { transform: translate(-50%, -50%) translate(var(--dx2, -20px), var(--dy2, 18px)) scale(var(--s2, 1.08)); } }
+    @keyframes shareTieDyeColorPulse { 0% { filter: blur(var(--fblur, 8px)) saturate(1.65) contrast(1.08) hue-rotate(var(--hueStart, -10deg)); opacity: calc(var(--opacity, .9) * .78);} 50% { filter: blur(calc(var(--fblur, 8px) + 1px)) saturate(2.25) contrast(1.22) hue-rotate(var(--hueMid, 16deg)); opacity: min(1, calc(var(--opacity, .9) + .12));} 100% { filter: blur(var(--fblur, 8px)) saturate(1.85) contrast(1.14) hue-rotate(var(--hueEnd, 28deg)); opacity: calc(var(--opacity, .9) * .92);} }
+    @keyframes shareTieDyeButtonBreath { 0% { filter: saturate(1.05); box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 0 26px rgba(0,0,0,.26);} 100% { filter: saturate(1.24); box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 32px rgba(55,211,255,.16), 0 0 38px rgba(133,255,88,.10);} }
+    @keyframes shareTieDyeDriftPulse { 0% { transform: translateY(0) scale(.8); opacity: .2;} 100% { transform: translateY(-8px) scale(1.15); opacity: .66;} }
 
     .empty-state,
     .error-state {
@@ -528,6 +566,9 @@
       .share-reggae-zone,
       .share-video-btn.share-btn-reggae-dub-night-ash { width: 100%; }
       .share-video-btn.share-btn-reggae-dub-night-ash { min-width: 0; }
+      .share-tiedye-zone,
+      .share-video-btn.share-btn-tiedye-blue-sky-melt { width: 100%; }
+      .share-video-btn.share-btn-tiedye-blue-sky-melt { min-width: 0; }
     }
   </style>
 </head>
@@ -865,9 +906,22 @@ function normalizeGenre(value) {
   return String(value || "").trim().toLowerCase().replace(/&/g, "and").replace(/-/g, " ").replace(/\s+/g, " ");
 }
 
+function firstVal(row, keys) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
 function isReggaeGenre(video) {
   const genreValue = normalizeGenre(val(video, "genre") || val(video, "type"));
   return ["reggae", "rock reggae", "reggae rock"].includes(genreValue);
+}
+
+function isRockGenre(video) {
+  const genreValue = normalizeGenre(firstVal(video, ["genre", "Genre", "type", "Type", "style", "Style", "category", "Category"]));
+  return ["classic rock", "rock", "blues", "soul", "folk", "rock n roll", "rock and roll", "instrumental", "country rock", "rap rock"].includes(genreValue);
 }
 
 function countValues(rows, key, limit = 5) {
@@ -978,6 +1032,7 @@ function cardHtml(video) {
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
   const shareUrl = videoShareUrlFromRow(video);
   const reggae = isReggaeGenre(video);
+  const rock = isRockGenre(video);
   const reggaeSmoke = reggae ? `<div class="share-reggae-smoke-field" aria-hidden="true"><span class="share-reggae-puff" style="left:12%; --delay:.10s; --dur:6.2s; --size:42px; --blur:13px; --x0:-18px; --x1:-58px; --scale:3.0;"></span><span class="share-reggae-puff" style="left:24%; --delay:.62s; --dur:7.1s; --size:52px; --blur:15px; --x0:14px; --x1:42px; --scale:3.2;"></span><span class="share-reggae-puff" style="left:38%; --delay:1.08s; --dur:5.8s; --size:46px; --blur:14px; --x0:-8px; --x1:-28px; --scale:2.9;"></span><span class="share-reggae-puff" style="left:52%; --delay:.34s; --dur:6.8s; --size:60px; --blur:17px; --x0:8px; --x1:62px; --scale:3.35;"></span><span class="share-reggae-puff" style="left:66%; --delay:.86s; --dur:7.4s; --size:48px; --blur:14px; --x0:-16px; --x1:-44px; --scale:3.1;"></span><span class="share-reggae-puff" style="left:80%; --delay:1.36s; --dur:6.4s; --size:54px; --blur:16px; --x0:12px; --x1:50px; --scale:3.25;"></span><span class="share-reggae-hover-smoke" style="--burstX:-92px; --burstY:-58px; --burstScale:5.7; --burstDelay:0s; --burstDur:1.35s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-60px; --burstY:-105px; --burstScale:5.3; --burstDelay:.04s; --burstDur:1.52s;"></span><span class="share-reggae-hover-smoke" style="--burstX:-18px; --burstY:-122px; --burstScale:5.9; --burstDelay:.08s; --burstDur:1.68s;"></span><span class="share-reggae-hover-smoke" style="--burstX:20px; --burstY:-116px; --burstScale:5.5; --burstDelay:.12s; --burstDur:1.44s;"></span><span class="share-reggae-hover-smoke" style="--burstX:64px; --burstY:-92px; --burstScale:5.7; --burstDelay:.16s; --burstDur:1.60s;"></span><span class="share-reggae-hover-smoke" style="--burstX:98px; --burstY:-50px; --burstScale:5.8; --burstDelay:.20s; --burstDur:1.70s;"></span><span class="share-reggae-ash-dust" style="left:18%; --dustX:-62px; --dustY:-38px; --dustDelay:0s;"></span><span class="share-reggae-ash-dust" style="left:30%; --dustX:-34px; --dustY:-54px; --dustDelay:.03s;"></span><span class="share-reggae-ash-dust" style="left:42%; --dustX:12px; --dustY:-46px; --dustDelay:.06s;"></span><span class="share-reggae-ash-dust" style="left:54%; --dustX:36px; --dustY:-62px; --dustDelay:.09s;"></span><span class="share-reggae-ash-dust" style="left:66%; --dustX:58px; --dustY:-40px; --dustDelay:.12s;"></span></div>` : "";
   const reggaeButtonExtras = reggae ? `<span class="share-reggae-ember-line" aria-hidden="true"></span><span class="share-reggae-ash-cap" aria-hidden="true"></span>` : "";
 
@@ -1001,7 +1056,7 @@ function cardHtml(video) {
           <dt>Date</dt>
           <dd>${esc(date)}</dd>
         </dl>
-        ${shareUrl ? (reggae ? `<div class="share-reggae-zone">${reggaeSmoke}<button type="button" class="share-btn share-video-btn share-btn-reggae-dub-night-ash" data-share-url="${esc(shareUrl)}">${reggaeButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>`) : ""}
+        ${shareUrl ? (reggae ? `<div class="share-reggae-zone">${reggaeSmoke}<button type="button" class="share-btn share-video-btn share-btn-reggae-dub-night-ash" data-share-url="${esc(shareUrl)}">${reggaeButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : rock ? `<div class="share-tiedye-zone"><div class="share-tiedye-smoke-field share-tiedye-smoke-idle" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:12%;--size:22px;--blur:8px;--delay:.2s;--dur:6.4s;--x0:-10px;--x1:-26px;--rise:74px;--scale:1.9;"></span><span class="share-tiedye-smoke" style="--left:28%;--size:24px;--blur:9px;--delay:1.1s;--dur:7.2s;--x0:8px;--x1:24px;--rise:86px;--scale:2.1;"></span><span class="share-tiedye-smoke" style="--left:44%;--size:20px;--blur:8px;--delay:.6s;--dur:6.8s;--x0:-6px;--x1:-18px;--rise:78px;--scale:1.85;"></span><span class="share-tiedye-smoke" style="--left:62%;--size:26px;--blur:10px;--delay:1.5s;--dur:7.6s;--x0:10px;--x1:28px;--rise:92px;--scale:2.18;"></span><span class="share-tiedye-smoke" style="--left:82%;--size:22px;--blur:9px;--delay:.9s;--dur:6.9s;--x0:-8px;--x1:-22px;--rise:82px;--scale:1.98;"></span></div><div class="share-tiedye-smoke-field share-tiedye-smoke-hover" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:8%;--size:28px;--blur:10px;--delay:0s;--dur:1.05s;--x0:-8px;--x1:-38px;--rise:142px;--scale:2.8;"></span><span class="share-tiedye-smoke" style="--left:22%;--size:34px;--blur:12px;--delay:.08s;--dur:1.12s;--x0:4px;--x1:22px;--rise:154px;--scale:3.1;"></span><span class="share-tiedye-smoke" style="--left:38%;--size:30px;--blur:11px;--delay:.16s;--dur:1.18s;--x0:-6px;--x1:-26px;--rise:148px;--scale:2.95;"></span><span class="share-tiedye-smoke" style="--left:55%;--size:36px;--blur:13px;--delay:.04s;--dur:1.22s;--x0:8px;--x1:34px;--rise:160px;--scale:3.2;"></span><span class="share-tiedye-smoke" style="--left:72%;--size:31px;--blur:11px;--delay:.12s;--dur:1.10s;--x0:-4px;--x1:-30px;--rise:150px;--scale:2.9;"></span><span class="share-tiedye-smoke" style="--left:90%;--size:28px;--blur:10px;--delay:.2s;--dur:1.16s;--x0:6px;--x1:36px;--rise:144px;--scale:2.75;"></span></div><button type="button" class="share-btn share-video-btn share-btn-tiedye-blue-sky-melt" data-share-url="${esc(shareUrl)}"><span class="share-tiedye-pattern" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#7b5cff;--size:150px;--x:18%;--y:32%;--dx1:24px;--dy1:-18px;--dxMid:-22px;--dyMid:16px;--dx2:-28px;--dy2:20px;--s1:1.22;--sMid:.86;--s2:1.08;--dur:3.8s;--delay:.1s;--opacity:.84;--fblur:7px;--pulseDur:3.1s;--hueStart:-8deg;--hueMid:18deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#37d3ff;--size:165px;--x:36%;--y:68%;--dx1:-26px;--dy1:16px;--dxMid:28px;--dyMid:-18px;--dx2:22px;--dy2:-22px;--s1:1.26;--sMid:.82;--s2:1.12;--dur:4.2s;--delay:.4s;--opacity:.88;--fblur:8px;--pulseDur:3.5s;--hueStart:-4deg;--hueMid:22deg;--hueEnd:18deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:145px;--x:62%;--y:28%;--dx1:28px;--dy1:18px;--dxMid:-30px;--dyMid:-14px;--dx2:-24px;--dy2:22px;--s1:1.24;--sMid:.84;--s2:1.1;--dur:3.6s;--delay:.2s;--opacity:.86;--fblur:7px;--pulseDur:2.9s;--hueStart:0deg;--hueMid:26deg;--hueEnd:20deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:155px;--x:78%;--y:72%;--dx1:-24px;--dy1:-20px;--dxMid:20px;--dyMid:16px;--dx2:30px;--dy2:-18px;--s1:1.28;--sMid:.88;--s2:1.14;--dur:4.6s;--delay:.6s;--opacity:.82;--fblur:8px;--pulseDur:3.7s;--hueStart:-12deg;--hueMid:14deg;--hueEnd:26deg;"></span><span class="share-tiedye-blob" style="--color:#ff77c7;--size:128px;--x:50%;--y:48%;--dx1:20px;--dy1:-14px;--dxMid:-24px;--dyMid:18px;--dx2:18px;--dy2:16px;--s1:1.18;--sMid:.9;--s2:1.06;--dur:3.9s;--delay:.8s;--opacity:.74;--fblur:8px;--pulseDur:3.2s;--hueStart:-10deg;--hueMid:16deg;--hueEnd:22deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-pattern-hover" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#37d3ff;--size:170px;--x:22%;--y:40%;--dx1:-30px;--dy1:-20px;--dxMid:32px;--dyMid:20px;--dx2:28px;--dy2:-22px;--s1:1.3;--sMid:.8;--s2:1.16;--dur:3.4s;--delay:.1s;--opacity:.94;--fblur:7px;--pulseDur:2.8s;--hueStart:-6deg;--hueMid:24deg;--hueEnd:30deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:175px;--x:56%;--y:32%;--dx1:30px;--dy1:18px;--dxMid:-34px;--dyMid:-20px;--dx2:-28px;--dy2:24px;--s1:1.3;--sMid:.78;--s2:1.18;--dur:3.2s;--delay:.3s;--opacity:.95;--fblur:7px;--pulseDur:2.6s;--hueStart:-2deg;--hueMid:28deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:165px;--x:82%;--y:62%;--dx1:-28px;--dy1:-18px;--dxMid:26px;--dyMid:18px;--dx2:30px;--dy2:-20px;--s1:1.28;--sMid:.82;--s2:1.14;--dur:3.6s;--delay:.5s;--opacity:.9;--fblur:7px;--pulseDur:3s;--hueStart:-10deg;--hueMid:18deg;--hueEnd:28deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-sparkle" aria-hidden="true"></span><span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>`) : ""}
         ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
       </div>
     </article>
@@ -1098,26 +1153,32 @@ document.addEventListener("pointerdown", (event) => {
   if (!button) return;
   button.classList.add("is-touch-active");
   const reggaeZone = button.closest(".share-reggae-zone");
+  const tieDyeZone = button.closest(".share-tiedye-zone");
   if (reggaeZone) reggaeZone.classList.add("is-touch-active");
+  if (tieDyeZone) tieDyeZone.classList.add("is-touch-active");
   window.clearTimeout(button._touchTimer);
   button._touchTimer = window.setTimeout(() => {
     button.classList.remove("is-touch-active");
     if (reggaeZone) reggaeZone.classList.remove("is-touch-active");
+    if (tieDyeZone) tieDyeZone.classList.remove("is-touch-active");
   }, 1400);
 });
 document.addEventListener("pointerup", (event) => {
   const button = event.target.closest(".share-video-btn");
   if (!button) return;
   const reggaeZone = button.closest(".share-reggae-zone");
+  const tieDyeZone = button.closest(".share-tiedye-zone");
   window.clearTimeout(button._touchTimer);
   button._touchTimer = window.setTimeout(() => {
     button.classList.remove("is-touch-active");
     if (reggaeZone) reggaeZone.classList.remove("is-touch-active");
+    if (tieDyeZone) tieDyeZone.classList.remove("is-touch-active");
   }, 450);
 });
 document.addEventListener("pointercancel", () => {
   document.querySelectorAll(".share-video-btn.is-touch-active").forEach((button) => button.classList.remove("is-touch-active"));
   document.querySelectorAll(".share-reggae-zone.is-touch-active").forEach((zone) => zone.classList.remove("is-touch-active"));
+  document.querySelectorAll(".share-tiedye-zone.is-touch-active").forEach((zone) => zone.classList.remove("is-touch-active"));
 });
 els.grid.addEventListener("click", async (event) => {
   const button = event.target.closest(".share-btn");
