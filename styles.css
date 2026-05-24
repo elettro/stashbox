@@ -1814,7 +1814,7 @@ h1, h2, h3, h4, h5, h6 {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding: var(--space-3) var(--space-6);
-    color: var(--color-muted);
+    color: var(--color-text);
   }
 
   .nav__links a:hover,
