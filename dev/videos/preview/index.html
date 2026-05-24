@@ -667,6 +667,8 @@ async function loadVideos() {
 
   const rows = parseCSV(await res.text()).filter(row => row.song || row.url);
 
+  console.log("CSV headers:", Object.keys(rows[0] || {}));
+  console.log("Genre values:", [...new Set(rows.map(row => row.genre).filter(Boolean))]);
   console.log("Live video rows loaded:", rows.length);
 
   return rows;
@@ -757,7 +759,7 @@ function isOriginal(video) {
 }
 
 function genre(video) {
-  return val(video, "type.1") || "Uncategorized";
+  return val(video, "genre") || "Uncategorized";
 }
 
 function countValues(rows, key, limit = 5) {
@@ -797,7 +799,7 @@ function makeChip(group, label, count) {
 
 function renderFilterChips() {
   const typeRows = countValues(allVideos, "type", 6);
-  const genreRows = countValues(allVideos, "type.1", 40);
+  const genreRows = countValues(allVideos, "genre", 40);
   const artistRows = countValues(allVideos, "songby", 5);
   const venueRows = countValues(allVideos, "venue", 5);
 
@@ -831,7 +833,7 @@ function searchableText(row) {
     val(row, "url"),
     val(row, "song"),
     val(row, "songby"),
-    val(row, "type.1"),
+    val(row, "genre"),
     val(row, "venue"),
     val(row, "location"),
     val(row, "date"),
@@ -845,7 +847,7 @@ function filterVideos() {
   return allVideos.filter(row => {
     if (q && !searchableText(row).includes(q)) return false;
     if (!rowMatchesSet(row, "type", "type")) return false;
-    if (!rowMatchesSet(row, "genre", "type.1")) return false;
+    if (!rowMatchesSet(row, "genre", "genre")) return false;
     if (!rowMatchesSet(row, "artist", "songby")) return false;
     if (!rowMatchesSet(row, "venue", "venue")) return false;
     return true;
