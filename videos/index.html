@@ -957,14 +957,6 @@ function isReggaeGenre(video) {
 function isRockGenre(video) {
   const genreValue = normalizeGenre(firstVal(video, ["genre", "Genre", "type", "Type", "style", "Style", "category", "Category"]));
   return ["classic rock", "rock", "blues", "soul", "folk", "rock n roll", "rock and roll", "instrumental", "country rock", "rap rock"].includes(genreValue);
-function firstVal(row, keys) {
-  for (const key of keys) {
-    const value = row?.[key];
-    if (value !== undefined && value !== null && String(value).trim()) {
-      return String(value).trim();
-    }
-  }
-  return "";
 }
 
 function isItalianGenre(video) {
