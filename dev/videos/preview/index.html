@@ -698,6 +698,12 @@ function videoIdFromUrl(value) {
   m = s.match(/embed\/([a-zA-Z0-9_-]{6,})/);
   if (m) return m[1];
 
+  m = s.match(/shorts\/([a-zA-Z0-9_-]{6,})/);
+  if (m) return m[1];
+
+  m = s.match(/live\/([a-zA-Z0-9_-]{6,})/);
+  if (m) return m[1];
+
   if (/^[a-zA-Z0-9_-]{6,}$/.test(s)) return s;
 
   return "";
