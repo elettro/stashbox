@@ -686,7 +686,7 @@ function val(row, key) {
   return String(row[key] || "").trim();
 }
 
-function videoIdFromUrl(value) {
+function videoIdFromText(value) {
   const s = String(value || "").trim();
 
   let m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
@@ -709,8 +709,26 @@ function videoIdFromUrl(value) {
   return "";
 }
 
+function videoIdFromRow(video) {
+  const candidates = [
+    val(video, "url"),
+    val(video, "youtube"),
+    val(video, "youtube_url"),
+    val(video, "link"),
+    val(video, "video"),
+    val(video, "notes")
+  ];
+
+  for (const text of candidates) {
+    const videoId = videoIdFromText(text);
+    if (videoId) return videoId;
+  }
+
+  return "";
+}
+
 function embedHtml(video) {
-  const videoId = videoIdFromUrl(val(video, "url"));
+  const videoId = videoIdFromRow(video);
 
   if (!videoId) {
     return `
@@ -779,7 +797,7 @@ function makeChip(group, label, count) {
 
 function renderFilterChips() {
   const typeRows = countValues(allVideos, "type", 6);
-  const genreRows = countValues(allVideos, "type.1", 8);
+  const genreRows = countValues(allVideos, "type.1", 40);
   const artistRows = countValues(allVideos, "songby", 5);
   const venueRows = countValues(allVideos, "venue", 5);
 
