@@ -3,66 +3,214 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Setlists for Stashbox tribute and themed live shows.">
-  <title>Setlists – Stashbox</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    .setlists-page{background:#111;color:#e8e0cc;font-family:'DM Sans',sans-serif;font-weight:300;line-height:1.7;min-height:100vh}
-    .setlists-hero{padding:5rem 2rem 3rem;text-align:center;border-bottom:1px solid rgba(201,168,76,.25);background:radial-gradient(ellipse at 50% 0%, rgba(45,106,45,0.15) 0%, transparent 70%)}
-    .setlists-hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(3.5rem,10vw,7rem);letter-spacing:.08em;color:#fff;line-height:1;margin-bottom:.75rem}
-    .setlists-hero p{color:#888;font-size:14px;letter-spacing:.12em;text-transform:uppercase}
-    .setlists-main{max-width:860px;margin:0 auto;padding:3rem 2rem 6rem}
-    .accordion-item{border-bottom:1px solid rgba(201,168,76,.25)} .accordion-item:first-child{border-top:1px solid rgba(201,168,76,.25)}
-    .accordion-trigger{width:100%;background:none;border:none;cursor:pointer;padding:1.4rem 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:left;color:#e8e0cc;transition:color .2s}
-    .accordion-trigger:hover,.accordion-trigger.open{color:#c9a84c}
-    .accordion-title{font-family:'Bebas Neue',sans-serif;font-size:1.65rem;letter-spacing:.07em}
-    .accordion-icon{width:28px;height:28px;border:1px solid rgba(201,168,76,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .2s,transform .35s}
-    .accordion-trigger.open .accordion-icon{border-color:#c9a84c;transform:rotate(45deg)}
-    .accordion-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
-    .accordion-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s ease}.accordion-panel.open{grid-template-rows:1fr}.accordion-inner{overflow:hidden}.accordion-body{padding-bottom:2.5rem}
-    .sets-grid{display:grid;grid-template-columns:repeat(2,minmax(320px,1fr));gap:1.5rem;align-items:start}
-    .set-card{background:linear-gradient(90deg,rgba(40,40,40,.9),rgba(35,35,35,.9));border:1px solid rgba(201,168,76,.25);border-radius:6px;padding:1.4rem 1.5rem}.set-card h3{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.06em;color:#c9a84c;margin-bottom:1rem;padding-bottom:.55rem;border-bottom:1px solid rgba(201,168,76,.25)}
-    .set-card ol{list-style:none;counter-reset:track;padding:0}.set-card ol li{counter-increment:track;display:flex;align-items:baseline;gap:.8rem;font-size:1.05rem;color:#f0e6ce;padding:.16rem 0;line-height:1.4}.set-card ol li::before{content:counter(track, decimal-leading-zero);font-size:.9rem;color:#99a4b3;font-weight:500;letter-spacing:.08em;flex-shrink:0;min-width:2.2em}
-    #panel-0 .set-card ol li{font-size:.98rem;line-height:1.3}
-    .performers{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.75rem;padding-bottom:1.25rem;border-bottom:1px solid rgba(201,168,76,.25)} .performer-item{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:#888}.performer-item span{color:#c9a84c;font-weight:500}
-    .chord{font-size:.92em;color:#8a93a4;font-style:italic;margin-left:.35rem}.set-card.full{grid-column:1 / -1}
-    @media (max-width: 900px){.sets-grid{grid-template-columns:1fr}}@media (max-width: 600px){.setlists-main{padding:2rem 1rem 4rem}.setlists-hero{padding:3rem 1rem 2rem}.set-card{padding:1.2rem 1.15rem}.set-card h3{font-size:1.55rem}.set-card ol li{font-size:1rem}}
-  </style>
+  <title>Setlists — Stashbox · 200+ Songs · Rock, Reggae, Blues &amp; More</title>
+  <meta name="description" content="Stashbox plays 200+ songs across rock, reggae, blues, funk, and originals. Bob Dylan tribute, Sublime tribute, Classic Reggae, and more. Fully customizable for your event.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/dev/styles.css">
 </head>
-<body class="setlists-page">
-<nav class="site-nav" role="navigation" aria-label="Main navigation">
-  <div class="site-nav__inner">
-    <a href="/stashbox/" class="site-nav__logo" aria-label="Stashbox home"><img src="../images/branding/Stashbox-Logo-Transparent-RastaColors.png" alt="Stashbox" loading="eager"></a>
-    <div class="site-nav__links">
-      <a href="/stashbox/" class="site-nav__link">Home</a><a href="/stashbox/radio/" class="site-nav__link">Radio</a><a href="/stashbox/booking/" class="site-nav__link">Book Band</a><a href="/stashbox/corporate/" class="site-nav__link">Custom Branded Music</a><a href="https://stashbox.ai/collections/stashbox" target="_blank" class="site-nav__link">Shop</a><a href="/stashbox/sessions/" class="site-nav__link">Sessions</a><a href="/stashbox/setlists/" class="site-nav__link active">Setlists</a>
-    </div>
-    <a href="#footer-contact" class="site-nav__cta">📞 Book Now</a>
-    <button class="site-nav__hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+<body>
+
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/dev/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/dev/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/dev/videos/">Videos</a></li>
+      <li><a href="/stashbox/dev/songs/">Songs</a></li>
+      <li><a href="/stashbox/dev/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/dev/shop/">Shop</a></li>
+      <li><a href="/stashbox/dev/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/dev/booking/">Book Band</a></li>
+      <li><a href="/stashbox/dev/custom/">Custom Music</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
   </div>
 </nav>
-<div class="site-nav__mobile" id="mobile-menu"><a href="/stashbox/" class="site-nav__mobile-link">Home</a><a href="/stashbox/radio/" class="site-nav__mobile-link">Radio</a><a href="/stashbox/corporate/" class="site-nav__mobile-link">Custom Branded Music</a><a href="https://stashbox.ai/collections/stashbox" class="site-nav__mobile-link" target="_blank">Shop</a><a href="/stashbox/sessions/" class="site-nav__mobile-link">Sessions</a><a href="/stashbox/setlists/" class="site-nav__mobile-link">Setlists</a><a href="#footer-contact" class="site-nav__mobile-cta">📞 Call to Book · 310.408.6687</a></div>
-<div class="nav-spacer"></div>
 
-<section class="setlists-hero"><h1>Setlists</h1><p>Classic Rock &nbsp;·&nbsp; Reggae &nbsp;·&nbsp; Blues &nbsp;·&nbsp; South Florida</p></section>
-<main class="setlists-main">
-  <div class="accordion" id="accordion">
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="0"><span class="accordion-title">Stashbox Does Dylan</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-0"><div class="accordion-inner"><div class="accordion-body"><div class="sets-grid"><div class="set-card"><h3>1ST SET</h3><ol><li>Love Sick <span class="chord">F# / Em</span></li><li>Things Have Changed <span class="chord">G</span></li><li>Tangled Up In Blue <span class="chord">A</span></li><li>Masters of War <span class="chord">Am</span></li><li>Silvio <span class="chord">B</span></li><li>Positively 4th Street <span class="chord">G</span></li><li>Rainy Day Woman <span class="chord">E</span></li><li>Ballad of a Thin Man <span class="chord">Bm</span></li><li>Shooting Star <span class="chord">E</span></li><li>Highway 61 <span class="chord">A</span></li><li>Ain't Going Nowhere <span class="chord">G</span></li></ol></div><div class="set-card"><h3>2ND SET</h3><ol><li>Serve Somebody <span class="chord">A</span></li><li>She Belongs to Me <span class="chord">A</span></li><li>Knocking on Heaven's Door <span class="chord">G</span></li><li>Shelter From The Storm <span class="chord">F</span></li><li>Simple Twist of Fate <span class="chord">C</span></li><li>Sugar Baby <span class="chord">C</span></li><li>The Man in Me <span class="chord">G</span></li><li>Tomorrow Never Knows <span class="chord">Bb</span></li><li>Across the Universe <span class="chord">D</span></li><li>I Know You Rider <span class="chord">D</span></li><li>Slow Train Coming <span class="chord">Am</span></li></ol></div><div class="set-card"><h3>3RD SET</h3><ol><li>Not Dark Yet <span class="chord">E</span></li><li>God Knows <span class="chord">G</span></li><li>West LA Fadeaway <span class="chord">A</span></li><li>Don't Fall Apart on Me Tonight <span class="chord">C</span></li><li>Senor <span class="chord">Am</span></li><li>I'll Remember You <span class="chord">C</span></li><li>Standing in the Doorway <span class="chord">E</span></li><li>Isis <span class="chord">A</span></li><li>Shining Star <span class="chord">B</span></li><li>Jokerman <span class="chord">A</span></li><li>Like A Rolling Stone <span class="chord">C</span></li><li>All Along The Watchtower <span class="chord">A</span></li><li>I Shall Be Released <span class="chord">G</span></li><li>Wagon Wheel <span class="chord">G</span></li></ol></div></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="1"><span class="accordion-title">Rock &amp; Reggae Mix Show</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-1"><div class="accordion-inner"><div class="accordion-body"><div class="performers"><div class="performer-item">Lead Vocals &nbsp;<span>Josh Clyde</span></div><div class="performer-item">Lead Guitar &nbsp;<span>Dean Palermo</span></div></div><div class="set-card"><h3>Set A – Opening 1st Set</h3><ol><li>Folsom Prison Blues <span class="chord">Johnny Cash</span></li><li>Summertime <span class="chord">Sublime</span></li><li>Hands of Time <span class="chord">Groove Armada</span></li><li>Sweat <span class="chord">Inner Circle</span></li><li>I Shot the Sheriff <span class="chord">Clapton</span></li><li>Waiting in Vain <span class="chord">Bob Marley</span></li></ol></div><div class="set-card"><h3>2nd Set</h3><ol><li>Tenament Yard <span class="chord">Jacob Miller</span></li><li>Into the Mystic <span class="chord">Van Morrison</span></li><li>Franklin's Tower <span class="chord">Grateful Dead</span></li><li>Riders on the Storm <span class="chord">The Doors</span></li><li>Badfish <span class="chord">Sublime</span></li></ol></div><div class="set-card"><h3>3rd Set</h3><ol><li>Get Low</li><li>Time Tough <span class="chord">Toots &amp; the Maytals</span></li><li>Cocaine <span class="chord">Eric Clapton</span></li><li>Jammin' <span class="chord">Bob Marley</span></li><li>40 Oz to Freedom <span class="chord">Sublime</span></li></ol></div><div class="set-card"><h3>4th Set</h3><ol><li>Smoke Two Joints <span class="chord">Sublime</span></li><li>Bend Down Low <span class="chord">Bob Marley</span></li><li>Get Up Stand Up <span class="chord">Bob Marley</span></li><li>Murder She Wrote</li><li>Billy Maze <span class="chord">Stashbox Original</span></li></ol></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="2"><span class="accordion-title">All Reggae Show</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-2"><div class="accordion-inner"><div class="accordion-body"><div class="set-card"><h3>1st Set</h3><ol><li>What I Got <span class="chord">Sublime</span></li><li>Bad Boys <span class="chord">Inner Circle</span></li><li>Houch <span class="chord">Everybody</span></li><li>Bend Down Low <span class="chord">Bob Marley</span></li><li>April 29, 1992 <span class="chord">Sublime</span></li><li>Tenament Yard <span class="chord">Inner Circle</span></li><li>Three Little Birds <span class="chord">Bob Marley</span></li><li>Soul Shake Down Party <span class="chord">Bob Marley</span></li><li>Caress Me Down <span class="chord">Sublime</span></li><li>Ignition <span class="chord">R. Kelly</span></li><li>Jail House <span class="chord">Sublime</span></li><li>Don't Look Back <span class="chord">Peter Tosh &amp; Mick Jagger</span></li></ol></div><div class="set-card"><h3>2nd Set</h3><ol><li>Get Up Stand Up <span class="chord">Bob Marley</span></li><li>Pawn Shop <span class="chord">Sublime</span></li><li>Knocking on Heaven's Door <span class="chord">Bob Dylan</span></li><li>Smoke Two Joints <span class="chord">Sublime</span></li><li>Stir It Up <span class="chord">Bob Marley</span></li><li>Time Tough <span class="chord">Toots &amp; the Maytals</span></li><li>Franklin's Tower <span class="chord">Grateful Dead</span></li><li>I Shot The Sheriff <span class="chord">Bob Marley</span></li><li>Get Ready <span class="chord">Sublime</span></li><li>Get Low <span class="chord">Lil' Jon</span></li><li>Amish Paradise <span class="chord">Weird Al</span></li></ol></div><div class="set-card"><h3>3rd Set</h3><ol><li>Summertime <span class="chord">Sublime</span></li><li>Night Nurse <span class="chord">Gregory Isaacs</span></li><li>Badfish <span class="chord">Sublime</span></li><li>Pass The Dutchie <span class="chord">Mighty Diamonds</span></li><li>It Wasn't Me <span class="chord">Shaggy</span></li><li>Sweat <span class="chord">Inner Circle</span></li><li>Garden Grove <span class="chord">Sublime</span></li><li>Boombastic <span class="chord">Shaggy</span></li><li>40 Oz to Freedom <span class="chord">Sublime</span></li><li>Jamrock <span class="chord">Damian Marley</span></li><li>Billy Maze <span class="chord">Stashbox Original</span></li></ol></div><div class="set-card full"><h3>Extra Songs</h3><ol><li>Waiting in Vain <span class="chord">Bob Marley</span></li><li>Murder She Wrote</li><li>Girl I Want To Lay You Down <span class="chord">Jack Johnson</span></li></ol></div></div></div></div></div>
-
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="3"><span class="accordion-title">Grateful Dead Tribute Set</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-3"><div class="accordion-inner"><div class="accordion-body"><div class="set-card full"><h3>Tribute Set</h3><ol><li>Casey Jones</li><li>Deal</li><li>Franklin's Tower</li><li>I Know You Rider</li><li>Shining Star</li><li>Sugaree</li><li>Touch of Grey</li><li>Turn on Your Love Lights</li><li>West LA Fadeaway</li></ol></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="4"><span class="accordion-title">Dean Palermo Trio Show</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-4"><div class="accordion-inner"><div class="accordion-body"><div class="set-card"><h3>1st Set</h3><ol><li>Tomorrow Never Knows <span class="chord">Beatles</span></li><li>Blue On Black <span class="chord">Kenny Wayne Sheppard</span></li><li>Everybody's Trying To Be My Baby <span class="chord">Beatles</span></li><li>Ain't Seen Nothing Yet <span class="chord">BTO</span></li><li>Crowd of Two <span class="chord">Stashbox Original</span></li><li>Play With Fire <span class="chord">Rolling Stones</span></li><li>I Shot The Sheriff <span class="chord">Bob Marley</span></li><li>Werewolves of London <span class="chord">Warren Zevon</span></li><li>Cocaine <span class="chord">Eric Clapton</span></li><li>Pass The Dutchie <span class="chord">Mighty Diamonds</span></li></ol></div><div class="set-card"><h3>2nd Set</h3><ol><li>Get Up Stand Up <span class="chord">Bob Marley</span></li><li>Stop That Train <span class="chord">Peter Tosh</span></li><li>Don't Look Back <span class="chord">Peter Tosh &amp; Mick Jagger</span></li><li>Praise You <span class="chord">Fatboy Slim</span></li><li>Folsom Prison Blues <span class="chord">Johnny Cash</span></li><li>Into The Mystic <span class="chord">Van Morrison</span></li><li>Can't You See <span class="chord">Marshall Tucker Band</span></li><li>Riders On The Storm <span class="chord">The Doors</span></li><li>Helter Skelter <span class="chord">Beatles</span></li><li>Garden Grove <span class="chord">Sublime</span></li></ol></div><div class="set-card"><h3>3rd Set</h3><ol><li>I Got Id <span class="chord">Pearl Jam</span></li><li>Get Ready <span class="chord">Sublime</span></li><li>Pretending <span class="chord">Eric Clapton</span></li><li>Dear Mr Fantasy <span class="chord">Steve Winwood</span></li><li>Gimme Shelter <span class="chord">Rolling Stones</span></li><li>Down By The River <span class="chord">Neil Young</span></li><li>Voodoo Chile <span class="chord">Jimi Hendrix</span></li><li>Hey Joe <span class="chord">Jimi Hendrix</span></li><li>Instant Karma <span class="chord">John Lennon</span></li><li>Midnight Rider <span class="chord">Allman Brothers</span></li><li>Waiting In Vain <span class="chord">Bob Marley</span></li><li>Rollin' &amp; Tumblin' <span class="chord">Blues</span></li></ol></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="5"><span class="accordion-title">Beatles Set</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-5"><div class="accordion-inner"><div class="accordion-body"><div class="set-card"><h3>Beatles Songs</h3><ol><li>Dear Prudence</li><li>Helter Skelter</li><li>Norwegian Wood</li><li>Tomorrow Never Knows</li></ol></div><div class="set-card"><h3>George Harrison</h3><ol><li>Got My Mind Set On You</li><li>Isn't It A Pity</li></ol></div><div class="set-card"><h3>John Lennon</h3><ol><li>Instant Karma</li><li>Watching the Wheels</li><li>Ballad of John and Yoko</li></ol></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="6"><span class="accordion-title">Rolling Stones Set</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-6"><div class="accordion-inner"><div class="accordion-body"><div class="set-card full"><h3>Rolling Stones Songs</h3><ol><li>Beast of Burden</li><li>Gimme Shelter</li><li>Honky Tonk Women</li><li>Playing With Fire</li><li>You Can't Always Get What You Want</li></ol></div></div></div></div></div>
-    <div class="accordion-item"><button class="accordion-trigger" aria-expanded="false" data-index="7"><span class="accordion-title">Originals Set</span><span class="accordion-icon"><svg viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg></span></button><div class="accordion-panel" id="panel-7"><div class="accordion-inner"><div class="accordion-body"><div class="set-card full"><h3>Originals by Stashbox</h3><ol><li>Billy Maze</li><li>Travelling</li><li>I'm in Love</li><li>Crowd of Two</li><li>Through the Door</li><li>Sun Ra</li><li>House On The Hill</li><li>Smokin'</li><li>I'm Waiting</li></ol></div></div></div></div></div>
+<header class="page-header">
+  <div class="container">
+    <h1 class="page-header__title">WHAT WE PLAY</h1>
+    <p class="page-header__sub">200+ songs across rock, reggae, blues, funk, and originals</p>
   </div>
+</header>
+
+<main>
+  <section class="section" aria-label="Setlists by genre">
+    <div class="container">
+
+      <p class="setlist-intro fade-in">
+        200+ songs across rock, reggae, blues, funk, and originals. Fully customizable for your event.
+      </p>
+
+      <div class="accordion-list">
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Stashbox Does Dylan</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Rock &amp; Reggae Mix Show</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">All Reggae Show</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Grateful Dead Tribute Set</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Dean Palermo Trio Show</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Beatles Set</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Rolling Stones Set</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+        <details class="accordion">
+          <summary>
+            <span class="accordion__title">Originals Set</span>
+            <span class="accordion__icon" aria-hidden="true">+</span>
+          </summary>
+        </details>
+
+      </div>
+
+      <!-- CTA -->
+      <div class="setlist-cta-row fade-in" style="margin-top:var(--space-12); display:flex; gap:var(--space-4); flex-wrap:wrap;">
+        <a href="/stashbox/dev/booking/" class="btn btn--accent btn--lg btn--neon-tunnel">Book the Band</a>
+      </div>
+
+    </div>
+  </section>
 </main>
 
-<footer class="site-footer"><div class="container"><div class="site-footer__bottom"><p class="site-footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p><p class="site-footer__booking" id="footer-contact"><span>📞 310.408.6687</span> · <span>✉️ booking@stashbox.com</span></p><a href="#" class="site-footer__backtotop" aria-label="Back to top of page">Back to Top</a></div></div></footer>
-<script>
-const hamburger=document.getElementById('hamburger');const mobileMenu=document.getElementById('mobile-menu');hamburger.addEventListener('click',()=>{const isOpen=mobileMenu.classList.toggle('open');hamburger.classList.toggle('open',isOpen);hamburger.setAttribute('aria-expanded',isOpen);document.body.style.overflow=isOpen?'hidden':''});window.addEventListener('resize',()=>{if(window.innerWidth>1024){mobileMenu.classList.remove('open');hamburger.classList.remove('open');document.body.style.overflow=''}});
-document.querySelectorAll('.accordion-trigger').forEach(btn=>{btn.addEventListener('click',()=>{const isOpen=btn.classList.contains('open');const panel=document.getElementById('panel-'+btn.dataset.index);document.querySelectorAll('.accordion-trigger').forEach(b=>{b.classList.remove('open');b.setAttribute('aria-expanded','false')});document.querySelectorAll('.accordion-panel').forEach(p=>p.classList.remove('open'));if(!isOpen){btn.classList.add('open');btn.setAttribute('aria-expanded','true');panel.classList.add('open')}})});
-</script>
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/dev/" class="footer__logo" aria-label="Stashbox"><img src="/stashbox/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'"><span class="footer__logo-text" style="display:none">STASHBOX</span></a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact"><a href="tel:3104086687">310.408.6687</a><a href="mailto:booking@stashbox.com">booking@stashbox.com</a></div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col"><h4 class="footer__col-title">Tribute Shows</h4><ul><li><a href="/stashbox/dev/booking/">Stashbox Does Dylan</a></li><li><a href="/stashbox/dev/booking/">Stashbox Does Sublime</a></li><li><a href="/stashbox/dev/booking/">Classic Reggae Show</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">Music</h4><ul><li><a href="/stashbox/dev/songs/">Albums &amp; Singles</a></li><li><a href="/stashbox/dev/videos/">Videos</a></li><li><a href="/stashbox/dev/sessions/">Sessions</a></li><li><a href="/stashbox/dev/setlists/">Setlists</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">More</h4><ul><li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li><li><a href="/stashbox/dev/custom/">Custom Music</a></li><li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li></ul></div>
+    </div>
+    <div class="footer__social" aria-label="Social links">
+      <a href="https://www.youtube.com/@stashboxband" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+      <a href="https://www.instagram.com/stashboxmusic" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .btn--neon-tunnel {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: linear-gradient(140deg, #ffe866 0%, #ffd43b 52%, #ffc107 100%);
+    border-color: rgba(255, 238, 120, 0.7);
+    color: #121212;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.25) inset,
+      0 14px 24px rgba(255, 193, 7, 0.32),
+      0 0 24px rgba(255, 213, 59, 0.25);
+    transition: transform 260ms ease, box-shadow 260ms ease, filter 260ms ease;
+  }
+
+  .btn--neon-tunnel::before {
+    content: "";
+    position: absolute;
+    inset: -150% -45%;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0) 0,
+        rgba(0, 0, 0, 0) 16px,
+        rgba(0, 0, 0, 0.18) 17px,
+        rgba(0, 0, 0, 0) 20px
+      );
+    opacity: 0.35;
+    animation: neonTunnelShift 5s linear infinite;
+    pointer-events: none;
+  }
+
+  .btn--neon-tunnel::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(110deg, transparent 38%, rgba(255, 255, 255, 0.92) 50%, transparent 62%);
+    transform: translateX(-160%);
+    mix-blend-mode: screen;
+    animation: scanPass 2.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .btn--neon-tunnel:hover,
+  .btn--neon-tunnel:focus-visible {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.35) inset,
+      0 18px 28px rgba(255, 193, 7, 0.4),
+      0 0 32px rgba(255, 225, 104, 0.42);
+    filter: saturate(1.08);
+  }
+
+  @keyframes neonTunnelShift {
+    from { transform: translate3d(-5%, -5%, 0) rotate(0deg); }
+    to { transform: translate3d(5%, 5%, 0) rotate(0.5deg); }
+  }
+
+  @keyframes scanPass {
+    0% { transform: translateX(-160%); opacity: 0; }
+    20% { opacity: 0.95; }
+    60% { opacity: 0.55; }
+    100% { transform: translateX(170%); opacity: 0; }
+  }
+</style>
+
+<script src="/stashbox/dev/main.js"></script>
 </body>
 </html>
