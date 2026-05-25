@@ -353,7 +353,7 @@
 <script>
 (function () {
   var uploadsPlaylistId = "UU6C6Z_erONmKW67pF5AyYkA";
-  var manualShortIds = [];
+  var manualShortIds = ["Y6mnIwwH0rA", "qlJ0374PZSY", "pLgZTyCqGpQ"];
 
   var widget = document.getElementById("stashbox-shorts-3-widget");
   var grid = document.getElementById("stashbox-shorts-3-grid");
@@ -434,13 +434,8 @@
   async function loadLatestShorts() {
     applyResponsiveGrid();
 
-    if (manualShortIds && manualShortIds.filter(Boolean).length) {
-      renderShorts(manualShortIds);
-      return;
-    }
-
     if (!uploadsPlaylistId) {
-      showMessage("Missing uploads playlist ID.");
+      renderShorts(manualShortIds);
       return;
     }
 
@@ -463,9 +458,9 @@
         return;
       }
 
-      showMessage('Could not find Shorts in the feed. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">Open Shorts on YouTube</a>.');
+      renderShorts(ids.length ? ids : manualShortIds);
     } catch (err) {
-      showMessage('Could not load Shorts automatically right now. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">Open Shorts on YouTube</a>.');
+      renderShorts(manualShortIds);
     }
   }
 
