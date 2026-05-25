@@ -5,22 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dylan – Stashbox</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/stashbox/styles.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {--gold:#c9a84c;--border:rgba(201,168,76,0.25);--muted:#888;}
   body {background:#050505;color:#fff;font-family:'DM Sans',sans-serif;min-height:100vh;}
-  nav {background:#0d0d0d;border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;}
-  .nav-logo img { height: 36px; display:block; }
-  .nav-links {display:flex;gap:2rem;list-style:none;}
-  .nav-links a {color:var(--muted);text-decoration:none;font-size:13px;letter-spacing:.05em;text-transform:uppercase;transition:color .2s;}
-  .nav-links a:hover, .nav-links a.active { color: var(--gold); }
   .stashbox-yt-glitch-hero {position:relative;min-height:100vh;overflow:hidden;background:#050505;color:#fff;isolation:isolate;}
   .yt-glitch-bg {position:absolute;inset:0;z-index:0;overflow:hidden;background:#000;}
   .yt-glitch-bg iframe {position:absolute;top:50%;left:50%;width:177.77777778vh;height:56.25vw;min-width:100%;min-height:100%;transform:translate(-50%,-50%) scale(1.14);pointer-events:none;opacity:.82;filter:contrast(1.08) saturate(1.1);}
   .yt-glitch-overlay {position:absolute;inset:0;z-index:1;background:radial-gradient(circle at 20% 20%, rgba(255,0,102,.18), transparent 24%),radial-gradient(circle at 80% 18%, rgba(0,212,255,.16), transparent 22%),linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.72));}
   .glitch-mute-btn {position:absolute;top:20px;right:20px;z-index:10;display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.9);font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:0 16px;height:38px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);transition:background .2s,border-color .2s,color .2s;}
   .glitch-mute-btn:hover {background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4);color:#fff;}
-  .yt-glitch-inner {position:relative;z-index:2;min-height:100vh;max-width:1320px;margin:0 auto;padding:120px 24px 80px;display:flex;align-items:center;}
+  .yt-glitch-inner {position:relative;z-index:2;min-height:calc(100vh - 72px);max-width:1320px;margin:0 auto;padding:24px 24px 56px;display:flex;align-items:center;}
   .yt-glitch-copy {max-width:860px;}
   .hero-eyebrow {display:inline-block;margin-bottom:16px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);font:700 12px/1.1 Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;}
   .hero-kicker {margin:0 0 12px;font:700 14px/1.2 Arial,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.82);}
@@ -35,12 +31,34 @@
   .hero-btn-primary {color:#0b0b0f;background:linear-gradient(135deg,#fff,#d7d7d7);} .hero-btn-secondary {color:#fff;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);} .hero-btn-secondary:hover {background:rgba(255,255,255,.14);}
   @keyframes glitchShiftA {0%{clip-path:inset(0 0 0 0);transform:translate(2px,0);}20%{clip-path:inset(8% 0 72% 0);transform:translate(6px,-1px);}40%{clip-path:inset(62% 0 14% 0);transform:translate(1px,1px);}60%{clip-path:inset(32% 0 38% 0);transform:translate(5px,0);}80%{clip-path:inset(78% 0 6% 0);transform:translate(2px,-1px);}100%{clip-path:inset(0 0 0 0);transform:translate(3px,0);}}
   @keyframes glitchShiftB {0%{clip-path:inset(0 0 0 0);transform:translate(-2px,0);}20%{clip-path:inset(60% 0 10% 0);transform:translate(-6px,1px);}40%{clip-path:inset(12% 0 70% 0);transform:translate(-2px,0);}60%{clip-path:inset(40% 0 34% 0);transform:translate(-5px,-1px);}80%{clip-path:inset(76% 0 8% 0);transform:translate(-3px,1px);}100%{clip-path:inset(0 0 0 0);transform:translate(-3px,0);}}
-  footer {border-top:1px solid var(--border);padding:2rem;text-align:center;font-size:12px;color:var(--muted);letter-spacing:.05em} footer a{color:var(--gold);text-decoration:none}
-  @media (max-width:768px){.yt-glitch-inner{padding:110px 18px 72px;}.glitch-mute-btn{top:14px;right:14px;}.hero-actions{flex-direction:column;align-items:stretch;}.hero-btn{width:100%;}}
+  @media (max-width:768px){.yt-glitch-inner{min-height:calc(100vh - 64px);padding:20px 18px 40px;}.glitch-mute-btn{top:14px;right:14px;}.hero-actions{flex-direction:column;align-items:stretch;}.hero-btn{width:100%;}}
 </style>
 </head>
 <body>
-<nav><a class="nav-logo" href="https://stashbox.com"><img src="https://stashbox.com/wp-content/uploads/2023/09/cropped-Stashbox-Logo-Transparent-RastaColors-1024x294.png" alt="Stashbox"></a><ul class="nav-links"><li><a href="https://stashbox.com/dylan/" class="active">Dylan</a></li><li><a href="https://stashbox.com/bookband/">Booking</a></li><li><a href="https://stashbox.com/setlists/">Setlists</a></li><li><a href="https://stashbox.com/posts/">Posts</a></li></ul></nav>
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
 <section class="stashbox-yt-glitch-hero" id="stashbox-release-hero">
   <div class="yt-glitch-bg">
     <iframe
@@ -74,10 +92,28 @@
   </div>
 </section>
 
-<footer>&copy; 2026 <a href="https://stashbox.com">Stashbox</a></footer>
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/" class="footer__logo" aria-label="Stashbox"><img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'"><span class="footer__logo-text" style="display:none">STASHBOX</span></a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact"><a href="tel:3104086687">310.408.6687</a><a href="mailto:booking@stashbox.com">booking@stashbox.com</a></div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col"><h4 class="footer__col-title">Tribute Shows</h4><ul><li><a href="/stashbox/booking/">Stashbox Does Dylan</a></li><li><a href="/stashbox/booking/">Stashbox Does Sublime</a></li><li><a href="/stashbox/booking/">Classic Reggae Show</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">Music</h4><ul><li><a href="/stashbox/videos/">Videos</a></li><li><a href="/stashbox/sessions/">Sessions</a></li><li><a href="/stashbox/setlists/">Setlists</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">More</h4><ul><li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li><li><a href="/stashbox/custom/">Custom Music</a></li><li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li></ul></div>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
 <script>
   var glitchMuted = true;
   function glitchToggleMute(){glitchMuted=!glitchMuted;var iframe=document.getElementById('glitch-yt');var icon=document.getElementById('glitch-mute-icon');var label=document.getElementById('glitch-mute-label');iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:glitchMuted?'mute':'unMute',args:[]}), '*');icon.textContent=glitchMuted?'🔇':'🔊';label.textContent=glitchMuted?'Unmute':'Mute';}
 
 </script>
+<script src="/stashbox/main.js"></script>
 </body></html>
