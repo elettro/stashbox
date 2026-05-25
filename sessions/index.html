@@ -9,6 +9,21 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/stashbox/styles.css">
+
+<style>
+.page-header--sessions-timeline .page-header__title { text-transform: none; }
+.sessions-timeline { padding-top: var(--space-8); }
+.session-timeline-card { display:grid; grid-template-columns:minmax(260px,40%) 1fr; background:linear-gradient(135deg,rgba(201,168,76,.08),rgba(45,106,45,.14)); border:1px solid rgba(255,255,255,.12); border-radius:1.75rem; overflow:hidden; margin-bottom:var(--space-10); }
+.session-timeline-card__media { background:#0f0f0f; min-height:320px; }
+.session-timeline-card__media iframe { width:100%; height:100%; min-height:320px; border:0; display:block; }
+.session-timeline-card__content { background:rgba(8,9,12,.92); padding:var(--space-10); }
+.session-timeline-card__label { display:inline-block; padding:.35rem .85rem; border-radius:999px; font-size:var(--text-xs); letter-spacing:.12em; text-transform:uppercase; color:#f3d168; background:rgba(201,168,76,.18); font-weight:700; margin-bottom:var(--space-5); }
+.session-timeline-card__title { font-size:clamp(2rem,3.8vw,3rem); line-height:1; margin-bottom:var(--space-3); }
+.session-timeline-card__meta { color:#f3d168; letter-spacing:.08em; text-transform:uppercase; font-weight:700; margin-bottom:var(--space-6); }
+.session-timeline-card__setlist { margin:0 0 var(--space-8) 1.25rem; }
+.session-timeline-card__setlist li { padding:.25rem 0; border-bottom:1px solid rgba(255,255,255,.08); }
+@media (max-width:900px){ .session-timeline-card{grid-template-columns:1fr;} .session-timeline-card__media,.session-timeline-card__media iframe{min-height:240px;} }
+</style>
 </head>
 <body>
 
@@ -38,91 +53,47 @@
   </div>
 </nav>
 
-<header class="page-header">
+<header class="page-header page-header--sessions-timeline">
   <div class="container">
-    <h1 class="page-header__title">SESSIONS</h1>
-    <p class="page-header__sub">Raw, unfiltered — the band in the room.</p>
+    <h1 class="page-header__title">Studio Sessions</h1>
+    <p class="page-header__sub">A running archive of jams, rehearsals, and live-in-the-room studio sessions.</p>
   </div>
 </header>
 
 <main>
-
-  <!-- Feature Session -->
-  <section class="section" aria-labelledby="session-heading">
+  <section class="section section--flush-top sessions-timeline" aria-label="Studio Sessions Timeline">
     <div class="container">
-      <div class="session-feature fade-in">
-        <div class="session-feature__content">
-          <p class="session-feature__label">FEATURED SESSION</p>
-          <h2 class="session-feature__title" id="session-heading">STASHBOX DOES DYLAN<br>STUDIO ONE</h2>
-          <p class="session-feature__desc">A full-band recording session documenting the Dylan tribute repertoire. Tracked live in Studio One, March 2026. No overdubs. No fixes. The room sound, the dynamics, the communication between players — all of it preserved as-is.</p>
-          <div style="margin-top:var(--space-8);">
-            <dl class="session-credits">
-              <dt>Director</dt>
-              <dd>[Director — coming soon]</dd>
-              <dt>Engineer</dt>
-              <dd>[Engineer — coming soon]</dd>
-              <dt>Studio</dt>
-              <dd>Studio One · South Florida</dd>
-              <dt>Date</dt>
-              <dd>March 2026</dd>
-            </dl>
-          </div>
+      <article class="session-timeline-card fade-in">
+        <div class="session-timeline-card__media">
+          <iframe src="https://www.youtube-nocookie.com/embed/sTRh-QrG_Eg" title="Session 01 video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
         </div>
-        <div class="video-card" style="border:none; background:var(--color-surface-2);">
-          <div class="video-card__embed">
-            <iframe
-              src="https://www.youtube-nocookie.com/embed/ygvrFB1cn54"
-              title="Stashbox Does Dylan — Studio One, March 2026"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen
-              loading="lazy"
-            ></iframe>
-          </div>
-          <div class="video-card__info">
-            <p class="mono" style="font-size:var(--text-xs);">[Session footage coming soon — placeholder]</p>
-          </div>
+        <div class="session-timeline-card__content">
+          <span class="session-timeline-card__label">Archive Session</span>
+          <h2 class="session-timeline-card__title">Session 01 · Studio One</h2>
+          <p class="session-timeline-card__meta">Fort Lauderdale, FL · March 18, 2026</p>
+          <ol class="session-timeline-card__setlist">
+            <li>Rainy Day Woman</li><li>Tangled Up In Blue</li><li>Silvio</li><li>Nobody Gonna Do Me Wrong</li><li>Night Nurse</li><li>Positively 4th Street</li><li>Folsom Prison</li><li>Cocaine Blues</li><li>She Belongs To Me</li><li>Lovesick</li><li>Things Have Changed</li><li>Tomorrow Never Knows</li><li>Billy Maze [Original]</li>
+          </ol>
+          <a class="btn btn--accent btn--lg" href="/stashbox/sessions/01/">View Session</a>
         </div>
-      </div>
+      </article>
+      <article class="session-timeline-card fade-in">
+        <div class="session-timeline-card__media">
+          <iframe src="https://www.youtube-nocookie.com/embed/RMaJJUBH5pE" title="Session 02 video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+        </div>
+        <div class="session-timeline-card__content">
+          <span class="session-timeline-card__label">Archive Session</span>
+          <h2 class="session-timeline-card__title">Session 02 · Studio One</h2>
+          <p class="session-timeline-card__meta">Fort Lauderdale, FL · March 31, 2026</p>
+          <ol class="session-timeline-card__setlist">
+            <li>Positively 4th Street</li><li>Tomorrow Never Knows</li><li>Simple Twist of Fate</li><li>Tangled Up In Blue</li><li>Love Sick</li><li>Things Have Changed</li><li>Ballad of a Thin Man</li><li>Standing in the Doorway</li><li>Serve Somebody</li>
+          </ol>
+          <a class="btn btn--accent btn--lg" href="/stashbox/sessions/02/">View Session</a>
+        </div>
+      </article>
     </div>
   </section>
-
-  <!-- Session clips grid -->
-  <section class="section section--flush-top" aria-label="Session clips">
-    <div class="container">
-      <h2 class="section-title fade-in" style="font-size:var(--text-3xl); margin-bottom:var(--space-10);">SESSION CLIPS</h2>
-      <div class="video-grid">
-        <article class="video-card fade-in">
-          <div class="video-card__embed">
-            <iframe src="https://www.youtube-nocookie.com/embed/7IIB63ZAeH0" title="Stashbox Session Clip" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-          </div>
-          <div class="video-card__info"><p class="video-card__venue">Session Clip</p><p class="video-card__city">[Session footage — coming soon]</p></div>
-        </article>
-        <article class="video-card fade-in">
-          <div class="video-card__embed">
-            <iframe src="https://www.youtube-nocookie.com/embed/KWE3M2XVYZY" title="Stashbox Session Clip" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-          </div>
-          <div class="video-card__info"><p class="video-card__venue">Session Clip</p><p class="video-card__city">[Session footage — coming soon]</p></div>
-        </article>
-        <article class="video-card fade-in">
-          <div class="video-card__embed">
-            <iframe src="https://www.youtube-nocookie.com/embed/W-zqAcTEajg" title="Stashbox Session Clip" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-          </div>
-          <div class="video-card__info"><p class="video-card__venue">Session Clip</p><p class="video-card__city">[Session footage — coming soon]</p></div>
-        </article>
-      </div>
-
-      <!-- CTA -->
-      <div class="subscribe-cta fade-in" style="margin-top:var(--space-16);">
-        <h2 class="section-title" style="font-size:var(--text-3xl);">BOOK A SESSION OR PRIVATE SHOW</h2>
-        <p class="subscribe-cta__sub">Private sessions and exclusive performances available. Contact us to discuss availability and details.</p>
-        <a href="/stashbox/booking/" class="btn btn--accent btn--lg">Book Now</a>
-      </div>
-
-    </div>
-  </section>
-
 </main>
-
 <footer class="footer" role="contentinfo">
   <div class="footer__inner container">
     <div class="footer__brand">
