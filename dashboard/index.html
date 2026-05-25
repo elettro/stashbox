@@ -158,6 +158,9 @@ async function loadData(){
   }catch(e){
     console.info('[dashboard] fallback sample data loaded', e.message);
     updateStatus('fallback', 'Fallback sample data mode · Live API unavailable or returned empty dataset');
+    return { radio, videos, meta };
+  }catch(e){
+    console.info('[dashboard] fallback sample data loaded', e.message);
     return {
       radio: fallbackSongs,
       videos: fallbackVideos,

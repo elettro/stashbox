@@ -104,6 +104,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .bb.ron{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
 .dp-awrap{width:100%;padding:0 16px 12px;display:none}
 .dp-awrap audio{width:100%;height:32px;accent-color:var(--accent)}
+.dp-scrub{width:100%;padding:0 16px 12px;display:none}
+.dp-scrub-row{display:flex;align-items:center;gap:12px}
+.dp-scrub-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:42px}
+.dp-scrub-time.end{text-align:right}
+.dp-scrubber{flex:1;appearance:none;height:4px;border-radius:999px;background:var(--surface3);outline:none;cursor:pointer}
+.dp-scrubber::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none}
+.dp-scrubber::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
+.dp-typical{font-size:10px;color:var(--muted2);margin-top:6px;letter-spacing:.05em;text-transform:uppercase}
 
 /* desktop sections */
 .dsec{margin-bottom:2rem}
@@ -353,6 +361,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       <div class="dp-awrap" id="dp-awrap">
         <audio id="audio" controls preload="metadata" style="width:100%;height:32px;accent-color:var(--accent)"></audio>
       </div>
+      <div class="dp-scrub" id="dp-scrub">
+        <div class="dp-scrub-row">
+          <span class="dp-scrub-time" id="dp-cur">0:00</span>
+          <input class="dp-scrubber" id="dp-scrubber" type="range" min="0" max="100" value="0" step="0.1"/>
+          <span class="dp-scrub-time end" id="dp-dur">0:00</span>
+        </div>
+        <div class="dp-typical" id="dp-typical">Typical song length: 3:00–5:00</div>
+      </div>
     </div>
 
     <div id="d-secs"></div>
@@ -471,6 +487,11 @@ let activeListenSession = null;
 let listenTimeSentSessions = new Set();
 let fullPlaySessions = new Set();
 const audio = document.getElementById('audio');
+const dpScrubber = document.getElementById('dp-scrubber');
+const dpCur = document.getElementById('dp-cur');
+const dpDur = document.getElementById('dp-dur');
+const dpTypical = document.getElementById('dp-typical');
+let isScrubbingDesktop = false;
 const isMob = () => window.innerWidth < 768;
 
 // ════════ FETCH ════════
@@ -983,6 +1004,25 @@ function toggleRadio() {
   document.getElementById('m-radio')?.classList.toggle('ron', radioMode);
 }
 
+
+function fmtTime(totalSeconds){
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '0:00';
+  const s = Math.floor(totalSeconds);
+  const m = Math.floor(s/60);
+  const sec = String(s%60).padStart(2,'0');
+  return `${m}:${sec}`;
+}
+function updateDesktopTimes(){
+  if (!dpCur || !dpDur) return;
+  dpCur.textContent = fmtTime(audio.currentTime || 0);
+  dpDur.textContent = fmtTime(audio.duration || 0);
+  if (dpTypical && audio.duration) {
+    const mins = audio.duration / 60;
+    const lo = Math.max(1, Math.floor(mins - 1));
+    const hi = Math.ceil(mins + 1);
+    dpTypical.textContent = `Typical song length: ${lo}:00–${hi}:00`;
+  }
+}
 audio.addEventListener('ended', () => {
   sendListenTime('ended');
   recordSongFullPlay(currentTrack, playSessionId);
@@ -999,8 +1039,11 @@ audio.addEventListener('pause', () => {
 });
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
+  const pct = (audio.currentTime/audio.duration*100);
   const el = document.getElementById('m-prog');
-  if (el) el.style.width = (audio.currentTime/audio.duration*100)+'%';
+  if (el) el.style.width = pct+'%';
+  if (dpScrubber && !isScrubbingDesktop) dpScrubber.value = String(pct);
+  updateDesktopTimes();
 });
 function setPlayBtns(paused) {
   const icon = paused ? '&#9654;' : '&#9646;&#9646;';
@@ -1212,10 +1255,11 @@ function loadTrack(t) {
   const dpVid   = document.getElementById('dp-vid');
   const dpVis   = document.getElementById('dp-vis');
   const dpAudio = document.getElementById('dp-awrap');
+  const dpScrub = document.getElementById('dp-scrub');
 
   dpEl.style.display='block';
   dpImg.style.display='none'; dpVid.style.display='none'; dpVid.src='';
-  dpMedia.style.display='none'; dpVis.style.display='none'; dpAudio.style.display='none';
+  dpMedia.style.display='none'; dpVis.style.display='none'; dpAudio.style.display='none'; if (dpScrub) dpScrub.style.display='none';
   dpMedia.classList.remove('toggleable');
   dpVis.classList.remove('toggleable');
 
@@ -1226,11 +1270,11 @@ function loadTrack(t) {
   } else if (t.imageUrl) {
     dpImg.src=t.imageUrl; dpImg.style.display='block'; dpMedia.style.display='block';
     dpMedia.classList.add('toggleable');
-    dpAudio.style.display='block'; dpAudio.appendChild(audio);
+    dpAudio.style.display='block'; if (dpScrub) dpScrub.style.display='block'; dpAudio.appendChild(audio);
     if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
   } else {
     document.getElementById('dp-vis-title').textContent = t.title;
-    dpVis.style.display='flex'; dpAudio.style.display='block'; dpAudio.appendChild(audio);
+    dpVis.style.display='flex'; dpAudio.style.display='block'; if (dpScrub) dpScrub.style.display='block'; dpAudio.appendChild(audio);
     dpVis.classList.add('toggleable');
     if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
     dStartVis();
@@ -1377,6 +1421,27 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ════════ START ════════
+if (dpScrubber) {
+  const seekFromInput = () => {
+    if (!audio.duration) return;
+    const pct = Number(dpScrubber.value || 0) / 100;
+    audio.currentTime = pct * audio.duration;
+    updateDesktopTimes();
+  };
+  dpScrubber.addEventListener('input', () => {
+    isScrubbingDesktop = true;
+    seekFromInput();
+  });
+  dpScrubber.addEventListener('change', () => {
+    isScrubbingDesktop = false;
+    seekFromInput();
+  });
+}
+audio.addEventListener('loadedmetadata', () => {
+  if (dpScrubber) dpScrubber.value = '0';
+  updateDesktopTimes();
+});
+
 init();
 </script>
 </body>
