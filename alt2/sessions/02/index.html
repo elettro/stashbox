@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stashbox Does Dylan — Full Width Session</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .site-header { border-bottom: 1px solid #2e2e2e; padding: 22px 40px; display: flex; align-items: baseline; justify-content: space-between; gap: 20px; width: 100%; background: #0a0a0a; }
+  .site-header .brand { font-family: 'Special Elite', monospace; font-size: 22px; letter-spacing: 0.06em; color: #f5f1e8; text-decoration: none; }
+  .site-header .sub { font-size: 11px; font-weight: 300; letter-spacing: 0.3em; text-transform: uppercase; color: #888; }
+  footer { border-top: 1px solid #2e2e2e; padding: 28px 40px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; width: 100%; background: #0a0a0a; }
+  footer .foot-brand { font-family: 'Special Elite', monospace; font-size: 14px; color: #555; letter-spacing: 0.06em; }
+  footer a { font-size: 11px; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: #c8a84b; text-decoration: none; }
+</style>
+</head>
+<body>
+<header class="site-header"><a href="https://stashbox.com" class="brand">Stashbox</a><span class="sub">Stashbox Does Dylan</span></header>
+
+<!-- STASHBOX DOES DYLAN – FULL WIDTH SESSION PAGE -->
+
+<style>
+.stashbox-page{
+  font-family:Arial, Helvetica, sans-serif;
+  color:#151515;
+}
+.stashbox-controls-bar{width:100vw;margin-left:calc(-50vw + 50%);display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:14px 22px;background:#050505;border-bottom:1px solid rgba(255,255,255,0.08);} 
+.stashbox-btn{appearance:none;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:#fff;padding:11px 16px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;cursor:pointer;transition:background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;}
+.stashbox-btn:hover{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.28);transform:translateY(-1px);} 
+.stashbox-sound-btn{width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;}
+.stashbox-sound-btn svg{width:20px;height:20px;display:block;}
+.stashbox-video-wrap{width:100vw;margin-left:calc(-50vw + 50%);background:#000;}
+.stashbox-video-shell{position:relative;width:100%;padding-top:56.25%;background:#000;}
+.stashbox-video-shell iframe,.stashbox-video-shell #player{position:absolute;inset:0;width:100%;height:100%;}
+.stashbox-content{max-width:1180px;margin:0 auto;padding:54px 24px 80px;}
+.stashbox-hero{margin-bottom:34px;}.stashbox-kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#8a6a2f;margin-bottom:14px;}
+.stashbox-title{margin:0 0 12px;font-size:clamp(34px,5vw,62px);line-height:1.02;color:#111;}
+.stashbox-sub{font-size:18px;line-height:1.6;color:#5c5c63;max-width:900px;margin:0;}
+.stashbox-top-grid{display:grid;grid-template-columns:1.2fr 0.8fr;gap:22px;margin:0 0 24px;}
+.stashbox-card{background:linear-gradient(180deg,#ffffff 0%, #f6f4ef 100%);border:1px solid rgba(0,0,0,0.08);border-radius:22px;padding:26px;box-shadow:0 18px 40px rgba(0,0,0,0.06);} 
+.stashbox-card-dark{background:linear-gradient(180deg,#121212 0%, #1d1b18 100%);color:#fff;border:1px solid rgba(255,255,255,0.08);} 
+.stashbox-card h2,.stashbox-card h3{margin:0 0 14px;line-height:1.1;}
+.stashbox-card-dark p,.stashbox-card-dark li{color:rgba(255,255,255,0.84);} 
+.stashbox-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px;} .stashbox-meta-item{padding:14px 16px;border-radius:16px;background:rgba(0,0,0,0.04);} .stashbox-card-dark .stashbox-meta-item{background:rgba(255,255,255,0.06);} .stashbox-meta-label{display:block;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:6px;color:#8a6a2f;}
+.stashbox-player-list,.stashbox-setlist{list-style:none;padding:0;margin:0;} .stashbox-player-list li,.stashbox-setlist li{padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.08);} .stashbox-card-dark .stashbox-player-list li{border-bottom:1px solid rgba(255,255,255,0.1);} .stashbox-player-list li:last-child,.stashbox-setlist li:last-child{border-bottom:0;padding-bottom:0;} .stashbox-player-list strong{display:block;margin-bottom:3px;}
+.stashbox-section-title{margin:34px 0 18px;font-size:28px;color:#111;} .stashbox-setlist{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;} .stashbox-setlist li{display:flex;justify-content:space-between;gap:14px;} .stashbox-track-time{color:#8a6a2f;font-weight:700;white-space:nowrap;}
+.stashbox-songs{display:grid;gap:18px;margin-top:10px;} .stashbox-song{background:linear-gradient(180deg,#ffffff 0%, #f7f7f7 100%);border:1px solid rgba(0,0,0,0.08);border-radius:22px;padding:24px;box-shadow:0 14px 34px rgba(0,0,0,0.05);} .stashbox-song-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:12px;} .stashbox-song h3{margin:0;font-size:28px;line-height:1.08;} .stashbox-badge{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#8a6a2f;background:#f2ead8;white-space:nowrap;} .stashbox-song p{margin:0 0 12px;line-height:1.68;color:#44484f;} .stashbox-song p:last-child{margin-bottom:0;}
+.stashbox-highlight-band{margin:30px 0 0;padding:24px 26px;border-radius:22px;background:linear-gradient(135deg,#181512 0%, #312619 100%);color:#fff;box-shadow:0 18px 44px rgba(0,0,0,0.14);} .stashbox-highlight-band h3{margin:0 0 10px;font-size:24px;} .stashbox-highlight-band p{margin:0;color:rgba(255,255,255,0.84);line-height:1.65;}
+@media(max-width:980px){.stashbox-top-grid{grid-template-columns:1fr;}.stashbox-setlist{grid-template-columns:1fr;}}
+@media(max-width:767px){.stashbox-controls-bar{padding:12px 14px;gap:8px;}.stashbox-btn{padding:10px 12px;font-size:12px;}.stashbox-sound-btn{width:40px;height:40px;}.stashbox-content{padding:38px 16px 60px;}.stashbox-card,.stashbox-song{padding:20px;border-radius:18px;}.stashbox-meta{grid-template-columns:1fr;}.stashbox-song-top{flex-direction:column;gap:10px;}.stashbox-song h3{font-size:24px;}}
+</style>
+
+<div class="stashbox-page"><div class="stashbox-controls-bar"><button class="stashbox-btn" type="button" onclick="prevVideo()">Back</button><button class="stashbox-btn" type="button" onclick="nextVideo()">Next</button><button class="stashbox-btn stashbox-sound-btn" type="button" onclick="toggleMute()" id="muteBtn" aria-label="Toggle sound"><span id="muteIconWrap"><svg id="soundOnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon><path d="M15.5 8.5a5 5 0 0 1 0 7"></path><path d="M18.5 5.5a9 9 0 0 1 0 13"></path></svg><svg id="soundOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon><line x1="22" y1="2" x2="2" y2="22"></line></svg></span></button></div><div class="stashbox-video-wrap"><div class="stashbox-video-shell"><div id="player"></div></div></div><div class="stashbox-content">
+    <section class="stashbox-hero">
+      <div class="stashbox-kicker">Live Band Session</div>
+      <h1 class="stashbox-title">Stashbox Does Dylan</h1>
+      <p class="stashbox-sub">Bob Dylan tribute session recorded at Studio One in Fort Lauderdale, Florida. This page presents the full performance with chapter-based video navigation, a stronger visual presentation below the player, full session details, complete setlist, and expanded song notes built to read more like liner notes than basic captions.</p>
+    </section>
+
+    <section class="stashbox-top-grid">
+      <div class="stashbox-card"><h2>Session Overview</h2><p>This session leans into interpretation over imitation. The band stays close to the writing, the mood, and the emotional center of each song while letting the room, the players, and the live energy shape the performance. The result is grounded, spacious, and focused on songcraft first.</p></div>
+      <div class="stashbox-card stashbox-card-dark"><h2>The Players</h2><ul class="stashbox-player-list"><li><strong>Dean Palermo</strong>Guitar / Vocals</li><li><strong>Michael Hugh</strong>Keyboards / Vocals</li><li><strong>David Nizri</strong>Drums</li><li><strong>Mike Ancona</strong>Bass</li><li><strong>Ron Ben Haim</strong>Guitar / Vocals</li></ul></div>
+    </section>
+
+    <section class="stashbox-card"><h2>Setlist</h2><ol class="stashbox-setlist"><li><span>01 Positively 4th Street</span><span class="stashbox-track-time">00:00</span></li><li><span>02 Tomorrow Never Knows</span><span class="stashbox-track-time">09:06</span></li><li><span>03 Simple Twist of Fate</span><span class="stashbox-track-time">16:48</span></li><li><span>04 Tangled Up In Blue</span><span class="stashbox-track-time">24:32</span></li><li><span>05 Love Sick</span><span class="stashbox-track-time">33:24</span></li><li><span>06 Things Have Changed</span><span class="stashbox-track-time">39:16</span></li><li><span>07 Ballad of a Thin Man</span><span class="stashbox-track-time">46:43</span></li><li><span>08 Standing in the Doorway</span><span class="stashbox-track-time">53:21</span></li><li><span>09 Serve Somebody</span><span class="stashbox-track-time">56:32</span></li></ol></section>
+  </div></div></div>
+
+<script>
+var videos=[{id:"RMaJJUBH5pE",start:0},{id:"RMaJJUBH5pE",start:546},{id:"RMaJJUBH5pE",start:1008},{id:"RMaJJUBH5pE",start:1472},{id:"RMaJJUBH5pE",start:2004},{id:"RMaJJUBH5pE",start:2356},{id:"RMaJJUBH5pE",start:2803},{id:"RMaJJUBH5pE",start:3201},{id:"RMaJJUBH5pE",start:3392}];
+var current=0,player,muted=true;function updateMuteIcon(){var onIcon=document.getElementById('soundOnIcon');var offIcon=document.getElementById('soundOffIcon');if(muted){offIcon.style.display='block';onIcon.style.display='none';}else{offIcon.style.display='none';onIcon.style.display='block';}}
+function onYouTubeIframeAPIReady(){player=new YT.Player('player',{videoId:videos[0].id,playerVars:{autoplay:1,mute:1,controls:1,rel:0,start:videos[0].start,playsinline:1},events:{onReady:function(e){muted=true;updateMuteIcon();e.target.mute();e.target.playVideo();}}});}
+function loadVideo(i){current=(i+videos.length)%videos.length;var next=videos[current];if(player&&typeof player.loadVideoById==='function'){player.loadVideoById({videoId:next.id,startSeconds:next.start});if(muted){player.mute();}else{player.unMute();}}}
+function nextVideo(){loadVideo(current+1);} function prevVideo(){loadVideo(current-1);} function toggleMute(){if(!player)return;if(muted){player.unMute();muted=false;}else{player.mute();muted=true;}updateMuteIcon();}
+var tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.body.appendChild(tag);
+</script>
+
+<footer><span class="foot-brand">Stashbox — Stashbox Does Dylan</span><a href="https://stashbox.com/260318" target="_blank">stashbox.com/260318</a></footer>
+</body>
+</html>
