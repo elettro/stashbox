@@ -851,9 +851,26 @@
 
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
-const VIDEO_STATS_TRACKING_URL = "PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+const VIDEO_STATS_TRACKING_URL = "";
 
 let allVideos = [];
+
+
+function saveStatsEndpointFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("videoStatsUrl") || "").trim();
+    if (fromQuery) {
+      localStorage.setItem("stashbox-video-stats-url", fromQuery);
+      console.info("Saved video stats endpoint from URL query param.");
+    }
+  } catch (err) {
+    console.warn("Could not read videoStatsUrl query param", err);
+  }
+}
+
+saveStatsEndpointFromUrl();
+
 
 const state = {
   search: "",
@@ -1115,7 +1132,7 @@ function trackVideoStat(key, type, meta = {}) {
   });
 
   const endpoint = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || VIDEO_STATS_TRACKING_URL;
-  if (!endpoint || endpoint.includes("PASTE_")) {
+  if (!endpoint) {
     console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
     return;
   }
