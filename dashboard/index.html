@@ -95,6 +95,7 @@
   </main>
 
 <script>
+const DASHBOARD_API_BASE = 'PASTE THE TESTED WEB APP URL HERE WITHOUT &debug=1';
 const RADIO_SOURCES = [
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
@@ -105,6 +106,7 @@ const scoreRows = [
 ];
 const actions = ['Promote Top Shared Songs', 'Boost songs with high average listening time', 'Add schema to radio and video pages', 'Create dedicated song pages for the strongest tracks', 'Add internal links from /stashbox/ to top songs', 'Improve thumbnails for songs with plays but low shares', 'Add FAQ schema to custom music pages', 'Create weekly session recap posts'];
 const fallbackSongs = Array.from({length:12}, (_,i)=>({title:`Stashbox Midnight Echo ${i+1}`,artist:`Stash Artist ${i+1}`,plays:200-i*11,'full plays':120-i*7,shares:32-i,'average seconds':95+i*6,thumbnail:''}));
+const fallbackVideos = Array.from({length:8}, (_,i)=>({title:`Stashbox Live Session ${i+1}`,artist:`Stash Artist ${i+1}`,likes:80-i*6,clicks:260-i*14,shares:14-i,thumbnail:'',url:'../videos/'}));
 
 const keys = {
   plays:['plays','Plays','total plays','Total Plays','play_count'],
@@ -128,6 +130,46 @@ const sortByMetric = (rows, metric) => [...rows].sort((a,b)=>parseNumber(metric(
 const sumMetric = (rows, metric) => rows.reduce((n,r)=>n+parseNumber(metric(r)),0);
 
 function parseCSV(text){ const lines=[]; let row=[],cell='',q=false; for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1]; if(c==='"'){if(q&&n==='"'){cell+='"';i++;} else q=!q;} else if(c===','&&!q){row.push(cell);cell='';} else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n') i++; row.push(cell);lines.push(row);row=[];cell='';} else cell+=c;} if(cell||row.length){row.push(cell);lines.push(row);} const [h,...rows]=lines; return rows.filter(r=>r.some(v=>v.trim())).map(r=>Object.fromEntries(h.map((k,i)=>[k.trim(),(r[i]||'').trim()]))); }
+async function fetchDashboardAPI(){
+  const base = DASHBOARD_API_BASE.trim();
+  if(!base || base.includes('PASTE THE TESTED WEB APP URL HERE')) throw new Error('Dashboard API URL is not configured');
+  const sep = base.includes('?') ? '&' : '?';
+  const url = `${base}${sep}dashboard=1&type=all`;
+  const r = await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error('dashboard api fetch failed');
+  return r.json();
+}
+async function loadData(){
+  try{
+    const data = await fetchDashboardAPI();
+    const radio = Array.isArray(data?.radio) ? data.radio : [];
+    const videos = Array.isArray(data?.videos) ? data.videos : [];
+    const meta = data?.meta || {};
+    if(!radio.length && !videos.length) throw new Error('Dashboard API returned no rows');
+    return { radio, videos, meta };
+  }catch(e){
+    console.info('[dashboard] fallback sample data loaded', e.message);
+    return {
+      radio: fallbackSongs,
+      videos: fallbackVideos,
+      meta: {
+        radioTotals: {
+          totalSongPlays: sumMetric(fallbackSongs, r=>r.plays),
+          totalFullSongPlays: sumMetric(fallbackSongs, r=>r['full plays']),
+          totalPlaySeconds: 0,
+          totalShares: sumMetric(fallbackSongs, r=>r.shares)
+        },
+        videoTotals: {
+          totalVideosTracked: fallbackVideos.length,
+          totalVideoLikes: sumMetric(fallbackVideos, v=>v.likes)
+        }
+      }
+    };
+  }
+}
+
+function normalizeSong(r){ const title=(r?.title||pick(r,keys.title)||'Untitled Song').trim(); const artist=(r?.artist||pick(r,keys.artist)||'Unknown Artist').trim(); const plays=parseNumber(r?.plays ?? pick(r,keys.plays)); const full=parseNumber(r?.fullPlays ?? pick(r,keys.full)); const secs=parseNumber(r?.playSeconds ?? pick(r,keys.seconds)); const avgRaw=r?.averageSeconds ?? pick(r,keys.avg); const avg=avgRaw!==''?parseNumber(avgRaw):(plays?secs/plays:0); const shares=parseNumber(r?.shares ?? pick(r,keys.shares)); const shareClicks=parseNumber(r?.shareClicks ?? pick(r,keys.shareClicks)); const thumb=(r?.thumbnail||getThumbnail(r)||'').trim(); const apiSongUrl=(r?.songUrl||'').trim(); return {raw:r,title,artist,plays,full,secs,avg,shares,shareClicks,thumb,link:apiSongUrl||buildSongLink(title,artist)}; }
+function normalizeVideo(r){ return {title:(r?.title||pick(r,keys.videoTitle)||'Untitled Video').trim(),artist:(r?.artist||pick(r,keys.artist)||'Unknown Artist').trim(),likes:parseNumber(r?.likes ?? pick(r,keys.likes)),clicks:parseNumber(r?.clicks ?? pick(r,keys.clicks)),shares:parseNumber(r?.shares ?? pick(r,['shares','Shares'])),views:parseNumber(r?.views ?? pick(r,['views','Views'])),thumb:(r?.thumbnail||getThumbnail(r)||'').trim(),url:(r?.url||pick(r,['youtube url','YouTube URL','url','URL'])||'#').trim(),videoKey:(r?.videoKey||'').trim()}; }
 async function fetchCSV(url){const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error('fetch failed'); return r.text();}
 async function loadData(){
   let radio=[]; let video=[];
