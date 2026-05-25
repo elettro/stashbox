@@ -453,6 +453,7 @@ let mGenre='ALL', mAlbum='ALL', mVideoOnly=false;
 let queue=[], qIdx=-1, radioMode=false, currentTrack=null, visAnim=null;
 let playSessionId = 0;
 let trackedPlaySessions = new Set();
+let fullPlaySessions = new Set();
 const audio = document.getElementById('audio');
 const isMob = () => window.innerWidth < 768;
 
@@ -831,7 +832,10 @@ function toggleRadio() {
   document.getElementById('m-radio')?.classList.toggle('ron', radioMode);
 }
 
-audio.addEventListener('ended', () => playNext());
+audio.addEventListener('ended', () => {
+  recordSongFullPlay(currentTrack, playSessionId);
+  playNext();
+});
 audio.addEventListener('play', () => {
   setPlayBtns(false);
   recordSongPlay(currentTrack, playSessionId);
@@ -890,6 +894,42 @@ function recordSongPlay(t, sessionId) {
   });
 }
 
+
+function recordSongFullPlay(t, sessionId) {
+  if (!PLAY_TRACKING_URL || !t || !sessionId) return;
+
+  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
+
+  if (fullPlaySessions.has(sessionKey)) return;
+
+  fullPlaySessions.add(sessionKey);
+
+  const payload = {
+    type: 'radio_full_play',
+    title: t.title || '',
+    artist: t.artist || '',
+    album: t.album || '',
+    genre: t.genre || '',
+    audioUrl: t.audioUrl || '',
+    page: window.location.pathname,
+    timestamp: new Date().toISOString()
+  };
+
+  if (debugPlays()) {
+    console.log('[Radio Full Play Tracking] payload:', payload);
+  }
+
+  fetch(PLAY_TRACKING_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload)
+  }).catch(err => {
+    if (debugPlays()) {
+      console.warn('[Radio Full Play Tracking] failed:', err);
+    }
 function updateCurrentPlaysDisplay(t) {
   if (!t) return;
 
