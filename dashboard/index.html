@@ -125,7 +125,7 @@ const keys = {
   thumb:['thumbnail','Thumbnail','image','Image','cover','Cover','artwork','Artwork'],
   likes:['likes','Likes'], clicks:['clicks','Clicks','views','Views','plays','Plays'], videoTitle:['video title','Video Title','title','Title']
 };
-const parseNumber = v => Number(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
+const parseNumber = v => Number(String((v === undefined || v === null) ? '' : v).replace(/[^\d.-]/g, '')) || 0;
 const updateStatus = (mode, msg) => {
   const el = document.getElementById('api-status');
   if(!el) return;
@@ -135,7 +135,7 @@ const updateStatus = (mode, msg) => {
 };
 const formatSeconds = s => { s=Math.max(0,Math.floor(parseNumber(s))); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; };
 const formatAvg = s => parseNumber(s)>=3600?formatSeconds(s):`${String(Math.floor(parseNumber(s)/60)).padStart(2,'0')}:${String(Math.floor(parseNumber(s)%60)).padStart(2,'0')}`;
-const pick = (row, opts) => opts.map(k=>row[k]).find(v => v !== undefined && v !== null && `${v}`.trim() !== '') ?? '';
+const pick = (row, opts) => opts.map(k=>row[k]).find(v => v !== undefined && v !== null && `${v}`.trim() !== '') || '';
 const buildSongLink = (songTitle, artist) => `../radio/?song=${encodeURIComponent(songTitle||'Unknown Song')}&artist=${encodeURIComponent(artist||'Unknown Artist')}`;
 const getThumbnail = row => pick(row, keys.thumb);
 const sortByMetric = (rows, metric) => [...rows].sort((a,b)=>parseNumber(metric(b))-parseNumber(metric(a)));
@@ -154,9 +154,9 @@ async function fetchDashboardAPI(){
 async function loadData(){
   try{
     const data = await fetchDashboardAPI();
-    const radio = Array.isArray(data?.radio) ? data.radio : [];
-    const videos = Array.isArray(data?.videos) ? data.videos : [];
-    const meta = data?.meta || {};
+    const radio = (data && Array.isArray(data.radio)) ? data.radio : [];
+    const videos = (data && Array.isArray(data.videos)) ? data.videos : [];
+    const meta = (data && data.meta) || {};
     if(!radio.length && !videos.length) throw new Error('Dashboard API returned no rows');
     updateStatus('live', `Live API connected · ${radio.length} radio rows · ${videos.length} video rows`);
     return { radio, videos, meta };
@@ -182,8 +182,8 @@ async function loadData(){
   }
 }
 
-function normalizeSong(r){ const title=(r?.title||pick(r,keys.title)||'Untitled Song').trim(); const artist=(r?.artist||pick(r,keys.artist)||'Unknown Artist').trim(); const plays=parseNumber(r?.plays ?? pick(r,keys.plays)); const full=parseNumber(r?.fullPlays ?? pick(r,keys.full)); const secs=parseNumber(r?.playSeconds ?? pick(r,keys.seconds)); const avgRaw=r?.averageSeconds ?? pick(r,keys.avg); const avg=avgRaw!==''?parseNumber(avgRaw):(plays?secs/plays:0); const shares=parseNumber(r?.shares ?? pick(r,keys.shares)); const shareClicks=parseNumber(r?.shareClicks ?? pick(r,keys.shareClicks)); const thumb=(r?.thumbnail||getThumbnail(r)||'').trim(); const apiSongUrl=(r?.songUrl||'').trim(); return {raw:r,title,artist,plays,full,secs,avg,shares,shareClicks,thumb,link:apiSongUrl||buildSongLink(title,artist)}; }
-function normalizeVideo(r){ return {title:(r?.title||pick(r,keys.videoTitle)||'Untitled Video').trim(),artist:(r?.artist||pick(r,keys.artist)||'Unknown Artist').trim(),likes:parseNumber(r?.likes ?? pick(r,keys.likes)),clicks:parseNumber(r?.clicks ?? pick(r,keys.clicks)),shares:parseNumber(r?.shares ?? pick(r,['shares','Shares'])),views:parseNumber(r?.views ?? pick(r,['views','Views'])),thumb:(r?.thumbnail||getThumbnail(r)||'').trim(),url:(r?.url||pick(r,['youtube url','YouTube URL','url','URL'])||'#').trim(),videoKey:(r?.videoKey||'').trim()}; }
+function normalizeSong(r){ const title=((r && r.title) || pick(r,keys.title) || 'Untitled Song').trim(); const artist=((r && r.artist) || pick(r,keys.artist) || 'Unknown Artist').trim(); const plays=parseNumber((r && r.plays)!=null ? r.plays : pick(r,keys.plays)); const full=parseNumber((r && r.fullPlays)!=null ? r.fullPlays : pick(r,keys.full)); const secs=parseNumber((r && r.playSeconds)!=null ? r.playSeconds : pick(r,keys.seconds)); const avgRaw=(r && r.averageSeconds)!=null ? r.averageSeconds : pick(r,keys.avg); const avg=avgRaw!==''?parseNumber(avgRaw):(plays?secs/plays:0); const shares=parseNumber((r && r.shares)!=null ? r.shares : pick(r,keys.shares)); const shareClicks=parseNumber((r && r.shareClicks)!=null ? r.shareClicks : pick(r,keys.shareClicks)); const thumb=(((r && r.thumbnail) || getThumbnail(r) || '') + '').trim(); const apiSongUrl=(((r && r.songUrl) || '') + '').trim(); return {raw:r,title,artist,plays,full,secs,avg,shares,shareClicks,thumb,link:apiSongUrl||buildSongLink(title,artist)}; }
+function normalizeVideo(r){ return {title:(((r && r.title) || pick(r,keys.videoTitle) || 'Untitled Video') + '').trim(),artist:(((r && r.artist) || pick(r,keys.artist) || 'Unknown Artist') + '').trim(),likes:parseNumber((r && r.likes)!=null ? r.likes : pick(r,keys.likes)),clicks:parseNumber((r && r.clicks)!=null ? r.clicks : pick(r,keys.clicks)),shares:parseNumber((r && r.shares)!=null ? r.shares : pick(r,['shares','Shares'])),views:parseNumber((r && r.views)!=null ? r.views : pick(r,['views','Views'])),thumb:(((r && r.thumbnail) || getThumbnail(r) || '') + '').trim(),url:((((r && r.url) || pick(r,['youtube url','YouTube URL','url','URL']) || '#')) + '').trim(),videoKey:(((r && r.videoKey) || '') + '').trim()}; }
 
 function songList(items, metricLabel, metricFn){ return `<div class="leaderboard">${items.map(s=>`<article class="row card"><div class="thumb">${s.thumb?`<img src="${s.thumb}" alt="${s.title} thumbnail">`:''}</div><div><div class="title"><a href="${s.link}">${s.title}</a></div><div class="meta">${s.artist}</div></div><div class="stat">${metricLabel}: ${metricFn(s)}</div></article>`).join('')}</div>`; }
 function scoreCards(){ return `<div class="grid three-col">${scoreRows.map(([n,seo,ai])=>`<article class="card"><h4>${n}</h4><div class="grid" style="grid-template-columns:auto 1fr;align-items:center;gap:.7rem"><div class="ring" style="--p:${(seo/10)*100}%"><b>${seo}</b></div><div class="bars"><div class="bar"><label>SEO</label><span><i style="width:${seo*10}%"></i></span></div><div class="bar"><label>AI Search</label><span><i style="width:${ai*10}%"></i></span></div></div></div></article>`).join('')}</div><p class="meta">Scores are planning indicators for SEO, schema, content depth, crawl quality, internal linking, and AI search readiness.</p>`; }
@@ -192,14 +192,14 @@ function actionCards(){ return `<h3>Recommended Next Actions</h3><div class="gri
 function render(data){
   const songs = data.radio.map(normalizeSong);
   const vids = (data.videos || []).map(normalizeVideo);
-  const radioTotals = data.meta?.radioTotals || {};
-  const videoTotals = data.meta?.videoTotals || {};
+  const radioTotals = (data && data.meta && data.meta.radioTotals) || {};
+  const videoTotals = (data && data.meta && data.meta.videoTotals) || {};
   const byPlays = sortByMetric(songs, s=>s.plays); const byAvg = sortByMetric(songs,s=>s.avg); const byShares = sortByMetric(songs,s=>s.shares);
-  const totalPlays=parseNumber(radioTotals.totalSongPlays ?? sumMetric(songs,s=>s.plays));
-  const totalFull=parseNumber(radioTotals.totalFullSongPlays ?? sumMetric(songs,s=>s.full));
-  const totalSecs=parseNumber(radioTotals.totalPlaySeconds ?? sumMetric(songs,s=>s.secs));
-  const totalShares=parseNumber(radioTotals.totalShares ?? sumMetric(songs,s=>s.shares));
-  const totalShareClicks=parseNumber(radioTotals.totalShareClicks ?? sumMetric(songs,s=>s.shareClicks));
+  const totalPlays=parseNumber((radioTotals.totalSongPlays != null ? radioTotals.totalSongPlays : sumMetric(songs,s=>s.plays)));
+  const totalFull=parseNumber((radioTotals.totalFullSongPlays != null ? radioTotals.totalFullSongPlays : sumMetric(songs,s=>s.full)));
+  const totalSecs=parseNumber((radioTotals.totalPlaySeconds != null ? radioTotals.totalPlaySeconds : sumMetric(songs,s=>s.secs)));
+  const totalShares=parseNumber((radioTotals.totalShares != null ? radioTotals.totalShares : sumMetric(songs,s=>s.shares)));
+  const totalShareClicks=parseNumber((radioTotals.totalShareClicks != null ? radioTotals.totalShareClicks : sumMetric(songs,s=>s.shareClicks)));
   const topLikes=sortByMetric(vids,v=>v.likes)[0], topClicks=sortByMetric(vids,v=>v.clicks)[0];
   const kpiHTML = `<div class="grid kpis">
     <div class="card"><div class="label">Total Song Plays</div><div class="value">${totalPlays.toLocaleString()}</div></div>
@@ -209,13 +209,13 @@ function render(data){
     <div class="card"><div class="label">Total Shares</div><div class="value">${totalShares.toLocaleString()}</div></div>
     <div class="card"><div class="label">Total Share Clicks</div><div class="value">${totalShareClicks.toLocaleString()}</div></div>
     <div class="card"><div class="label">Total Songs Tracked</div><div class="value">${songs.length}</div></div>
-    <div class="card"><div class="label">Top Song by Plays</div><div class="value">${byPlays[0]?.title||'—'}</div></div>
-    <div class="card"><div class="label">Top Song by Avg Seconds</div><div class="value">${byAvg[0]?.title||'—'}</div></div>
-    <div class="card"><div class="label">Top Shared Song</div><div class="value">${byShares[0]?.title||'—'}</div></div>
+    <div class="card"><div class="label">Top Song by Plays</div><div class="value">${(byPlays[0] && byPlays[0].title) || '—'}</div></div>
+    <div class="card"><div class="label">Top Song by Avg Seconds</div><div class="value">${(byAvg[0] && byAvg[0].title) || '—'}</div></div>
+    <div class="card"><div class="label">Top Shared Song</div><div class="value">${(byShares[0] && byShares[0].title) || '—'}</div></div>
   </div>`;
 
   const topVideos = sortByMetric(vids, v=>v.likes).slice(0,8).map(v=>({ ...v, link: v.url || '#' }));
-  const videoBoard = `<div class="grid two-col"><div class="card"><h3>Video KPI</h3><div class="grid kpis"><div class="card"><div class="label">Total Videos Tracked</div><div class="value">${parseNumber(videoTotals.totalVideosTracked ?? vids.length)}</div></div><div class="card"><div class="label">Total Video Likes</div><div class="value">${parseNumber(videoTotals.totalVideoLikes ?? sumMetric(vids,v=>v.likes))}</div></div><div class="card"><div class="label">Total Video Clicks</div><div class="value">${sumMetric(vids,v=>v.clicks)}</div></div><div class="card"><div class="label">Total Video Shares</div><div class="value">${sumMetric(vids,v=>v.shares)}</div></div><div class="card"><div class="label">Top Video by Likes</div><div class="value">${topLikes?.title||'—'}</div></div><div class="card"><div class="label">Top Video by Clicks</div><div class="value">${topClicks?.title||'—'}</div></div></div></div><div class="card"><h3>Top Videos</h3>${songList(topVideos,'Likes',v=>v.likes)}</div></div>`;
+  const videoBoard = `<div class="grid two-col"><div class="card"><h3>Video KPI</h3><div class="grid kpis"><div class="card"><div class="label">Total Videos Tracked</div><div class="value">${parseNumber((videoTotals.totalVideosTracked != null ? videoTotals.totalVideosTracked : vids.length))}</div></div><div class="card"><div class="label">Total Video Likes</div><div class="value">${parseNumber((videoTotals.totalVideoLikes != null ? videoTotals.totalVideoLikes : sumMetric(vids,v=>v.likes)))}</div></div><div class="card"><div class="label">Total Video Clicks</div><div class="value">${sumMetric(vids,v=>v.clicks)}</div></div><div class="card"><div class="label">Total Video Shares</div><div class="value">${sumMetric(vids,v=>v.shares)}</div></div><div class="card"><div class="label">Top Video by Likes</div><div class="value">${(topLikes && topLikes.title) || '—'}</div></div><div class="card"><div class="label">Top Video by Clicks</div><div class="value">${(topClicks && topClicks.title) || '—'}</div></div></div></div><div class="card"><h3>Top Videos</h3>${songList(topVideos,'Likes',v=>v.likes)}</div></div>`;
 
   const versions = Array.from({length:10}, (_,i)=>i+1).map(v=> {
     let body='';
