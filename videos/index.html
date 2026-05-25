@@ -852,7 +852,6 @@
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
 const VIDEO_STATS_TRACKING_URL = "PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
-const VIDEO_STATS_TRACKING_URL_RUNTIME = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || "";
 
 let allVideos = [];
 
@@ -1039,10 +1038,21 @@ function normalizeGenre(value) {
 }
 
 function firstVal(row, keys) {
+  if (!row || !keys || !keys.length) return "";
+
+  const rowKeys = Object.keys(row);
+  const normalizedMap = new Map(rowKeys.map((k) => [String(k).trim().toLowerCase(), k]));
+
   for (const key of keys) {
-    const value = row?.[key];
+    const direct = row[key];
+    if (direct !== undefined && direct !== null && String(direct).trim()) return String(direct).trim();
+
+    const mappedKey = normalizedMap.get(String(key).trim().toLowerCase());
+    if (!mappedKey) continue;
+    const value = row[mappedKey];
     if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
   }
+
   return "";
 }
 
@@ -1073,7 +1083,7 @@ function getVideoStatsKey(video) {
 }
 
 function getLikeCount(video) {
-  return Number(firstVal(video, ["likeCount", "Like Count", "likes", "Likes"])) || 0;
+  return Number(String(firstVal(video, ["likeCount", "Like Count", "like count", "likes", "Likes", "votes", "Votes", "voteCount", "Vote Count"]).replace(/,/g, "")).trim()) || 0;
 }
 
 function hasLikedVideo(key) {
@@ -1104,7 +1114,7 @@ function trackVideoStat(key, type, meta = {}) {
     artist: meta.artist || ""
   });
 
-  const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
+  const endpoint = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || VIDEO_STATS_TRACKING_URL;
   if (!endpoint || endpoint.includes("PASTE_")) {
     console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
     return;
