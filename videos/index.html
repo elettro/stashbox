@@ -852,7 +852,6 @@
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
 const VIDEO_STATS_TRACKING_URL = "https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec";
-const VIDEO_STATS_TRACKING_URL_RUNTIME = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || "";
 const LIKES_DEBUG_MODE = new URLSearchParams(window.location.search || "").get("debugLikes") === "1";
 let likesDebugBox = null;
 
@@ -895,22 +894,6 @@ function likesDebugLog(message) {
   box.appendChild(line);
   box.scrollTop = box.scrollHeight;
 }
-
-
-function saveStatsEndpointFromUrl() {
-  try {
-    const params = new URLSearchParams(window.location.search || "");
-    const fromQuery = (params.get("videoStatsUrl") || "").trim();
-    if (fromQuery) {
-      localStorage.setItem("stashbox-video-stats-url", fromQuery);
-      console.info("Saved video stats endpoint from URL query param.");
-    }
-  } catch (err) {
-    console.warn("Could not read videoStatsUrl query param", err);
-  }
-}
-
-saveStatsEndpointFromUrl();
 
 
 const state = {
@@ -1165,7 +1148,7 @@ function getVideoKey(video) {
 }
 
 function buildVideoStatUrl(video, type = "like") {
-  const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
+  const endpoint = VIDEO_STATS_TRACKING_URL;
 
   if (!endpoint) {
     console.warn("No video stats endpoint set.");
@@ -1185,8 +1168,7 @@ function buildVideoStatUrl(video, type = "like") {
     + "?key=" + encodeURIComponent(key)
     + "&type=like"
     + "&title=" + encodeURIComponent(title)
-    + "&artist=" + encodeURIComponent(artist)
-    + "&t=" + Date.now();
+    + "&artist=" + encodeURIComponent(artist);
 }
 
 function sendVideoStat(video, type = "like") {
@@ -1509,7 +1491,7 @@ document.addEventListener("click", (event) => {
     likeButton.setAttribute("aria-pressed", "true");
     likeButton.setAttribute("aria-label", "You liked this video");
     likesDebugLog("final tracking URL: (blocked, not sent)");
-    likesDebugLog(`localStorage blocked vote: ${localStorageBlocked}`);
+    likesDebugLog(`localStorage blocked: ${localStorageBlocked ? "yes" : "no"}`);
     return;
   }
 
@@ -1535,7 +1517,7 @@ document.addEventListener("click", (event) => {
 
   const finalTrackingUrl = sendVideoStat(video, "like");
   likesDebugLog(`final tracking URL: ${finalTrackingUrl}`);
-  likesDebugLog(`localStorage blocked vote: ${localStorageBlocked}`);
+  likesDebugLog(`localStorage blocked: ${localStorageBlocked ? "yes" : "no"}`);
   if (finalTrackingUrl) {
     console.log("Like tracking URL:", finalTrackingUrl);
   }
