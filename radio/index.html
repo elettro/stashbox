@@ -342,7 +342,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
           <div class="dp-notes" id="dp-notes" style="display:none"></div>
         </div>
         <div class="now-plays" id="dp-plays">▶ 0 Plays</div>
-        <button class="song-share-main" id="dp-share" onclick="shareCurrentSong(event)" style="display:none">⤴ Share</button>
+        <button class="song-share-main" id="dp-share" onclick="copyCurrentSongLink(event)" style="display:none">⤴ Copy Link</button>
         <div class="dp-ctrl">
           <button class="bb" onclick="playPrev()">&#9664;</button>
           <button class="bb pp" id="d-pp" onclick="togglePause()">&#9654;</button>
@@ -420,7 +420,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       <div class="m-now-meta"><span id="m-now-artist"></span><span id="m-now-album" style="font-style:italic;color:var(--muted);font-size:12px"></span><span class="m-now-gtag" id="m-now-gtag"></span></div>
       <div class="m-now-notes" id="m-now-notes" style="display:none"></div>
       <div class="m-now-plays" id="m-now-plays">▶ 0 Plays</div>
-      <button class="m-song-share-main" id="m-now-share" onclick="shareCurrentSong(event)" style="display:none">⤴ Share</button>
+      <button class="m-song-share-main" id="m-now-share" onclick="copyCurrentSongLink(event)" style="display:none">⤴ Copy Link</button>
     </div>
     <div class="m-now-audio" id="m-now-audio" style="display:none"></div>
     <div class="m-now-ctrl">
@@ -852,6 +852,23 @@ function shareCurrentSong(event) {
   if (!currentTrack) return;
   shareSong(event, currentTrack.idx);
 }
+async function copyCurrentSongLink(event) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  if (!currentTrack) return;
+  const link = getSongShareUrl(currentTrack);
+  recordSongShare(currentTrack);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(link);
+      showShareToast('Song link copied');
+    } else {
+      window.prompt('Copy this song link:', link);
+    }
+  } catch (err) {
+    if (debugPlays()) console.warn('[Song Copy] failed:', err);
+    window.prompt('Copy this song link:', link);
+  }
+}
 function showShareToast(message) {
   let toast = document.getElementById('share-toast');
   if (!toast) { toast = document.createElement('div'); toast.id = 'share-toast'; toast.className = 'share-toast'; document.body.appendChild(toast); }
@@ -1164,6 +1181,8 @@ function loadTrack(t) {
   dn.textContent=t.notes||''; dn.style.display=t.notes?'block':'none';
   const dpPlays = document.getElementById('dp-plays');
   if (dpPlays) dpPlays.textContent = `▶ ${t.plays || 0} Plays`;
+  const dpShare = document.getElementById('dp-share');
+  if (dpShare) dpShare.style.display = 'inline-flex';
 
   // ── Mobile bar ──
   document.getElementById('m-bar').classList.add('vis');
@@ -1187,6 +1206,8 @@ function loadTrack(t) {
   mn.textContent=t.notes||''; mn.style.display=t.notes?'block':'none';
   const mNowPlays = document.getElementById('m-now-plays');
   if (mNowPlays) mNowPlays.textContent = `▶ ${t.plays || 0} Plays`;
+  const mNowShare = document.getElementById('m-now-share');
+  if (mNowShare) mNowShare.style.display = 'inline-flex';
   document.getElementById('m-qlabel').textContent = queue.length ? `${qIdx+1} of ${queue.length} in queue` : '';
 
   const mMedia = document.getElementById('m-now-media');
