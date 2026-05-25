@@ -1944,31 +1944,31 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .hotspot-youtube {
-  left: 3.5%;
-  top: 57.5%;
-  width: 15.5%;
-  height: 25%;
+  left: 8.2%;
+  top: 66.2%;
+  width: 9.8%;
+  height: 15.8%;
 }
 
 .hotspot-spotify {
-  left: 19.5%;
-  top: 57.5%;
-  width: 15.5%;
-  height: 25%;
+  left: 20.1%;
+  top: 66.2%;
+  width: 9.8%;
+  height: 15.8%;
 }
 
 .hotspot-apple {
-  left: 35.5%;
-  top: 57.5%;
-  width: 15.5%;
-  height: 25%;
+  left: 32%;
+  top: 66.2%;
+  width: 9.8%;
+  height: 15.8%;
 }
 
 .hotspot-youtube-music {
-  left: 51.5%;
-  top: 57.5%;
-  width: 15.5%;
-  height: 25%;
+  left: 43.9%;
+  top: 66.2%;
+  width: 11.2%;
+  height: 15.8%;
 }
 
 @keyframes streamPopupIn {
