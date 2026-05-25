@@ -300,6 +300,176 @@
 </section>
 
 
+
+<section class="section" aria-labelledby="shorts-heading" style="background:var(--color-bg);">
+  <div id="stashbox-shorts-3-widget" style="max-width:1200px;margin:0 auto;padding:20px;color:#fff;">
+    <h2 id="shorts-heading" style="margin:0 0 14px;font-size:32px;line-height:1.1;font-weight:800;">
+      LATEST YOUTUBE SHORTS @Stashboxband
+    </h2>
+
+    <div id="stashbox-shorts-3-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;"></div>
+
+    <div style="margin-top:14px;">
+      <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer"
+         style="display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:#fff;text-decoration:none;font-weight:600;">
+        View all Shorts on YouTube
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+@media (max-width: 640px) {
+  #stashbox-shorts-3-widget {
+    padding: 12px 8px !important;
+  }
+  #stashbox-shorts-3-widget h2 {
+    font-size: 18px !important;
+    margin-bottom: 10px !important;
+  }
+  #stashbox-shorts-3-grid {
+    gap: 6px !important;
+  }
+  #stashbox-shorts-3-grid article {
+    padding: 5px !important;
+    gap: 5px !important;
+    border-radius: 10px !important;
+  }
+  #stashbox-shorts-3-grid a.watch-btn {
+    font-size: 10px !important;
+    min-height: 28px !important;
+    padding: 5px 4px !important;
+    border-radius: 7px !important;
+    line-height: 1.2 !important;
+  }
+}
+</style>
+
+<script>
+(function () {
+  var uploadsPlaylistId = "UU6C6Z_erONmKW67pF5AyYkA";
+  var manualShortIds = [];
+
+  var widget = document.getElementById("stashbox-shorts-3-widget");
+  var grid = document.getElementById("stashbox-shorts-3-grid");
+  if (!widget || !grid) return;
+
+  function applyResponsiveGrid() {
+    grid.style.gridTemplateColumns = "repeat(3,1fr)";
+  }
+
+  function showMessage(html) {
+    grid.innerHTML = '<div style="grid-column:1 / -1;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;background:rgba(255,255,255,.03);opacity:.9;">' + html + '</div>';
+  }
+
+  function renderShorts(ids) {
+    var list = (ids || []).filter(Boolean).slice(0, 3);
+
+    if (!list.length) {
+      showMessage('No Shorts found right now.');
+      return;
+    }
+
+    grid.innerHTML = list.map(function (videoId, index) {
+      var shortsUrl = "https://www.youtube.com/shorts/" + encodeURIComponent(videoId);
+
+      return '' +
+        '<article style="border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="position:relative;width:100%;padding-top:177.78%;border-radius:12px;overflow:hidden;background:#000;">' +
+            '<iframe ' +
+              'src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '" ' +
+              'title="Latest Short 0' + (index + 1) + '" ' +
+              'loading="lazy" ' +
+              'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
+              'allowfullscreen ' +
+              'style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;">' +
+            '</iframe>' +
+          '</div>' +
+          '<a href="' + shortsUrl + '" target="_blank" rel="noopener noreferrer" class="watch-btn" ' +
+             'style="display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 12px;border-radius:10px;border:1px solid #b91c1c;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:700;">' +
+             'Watch On YouTube' +
+          '</a>' +
+        '</article>';
+    }).join("");
+  }
+
+  function extractVideoIdsFromXml(xmlText) {
+    var parser = new DOMParser();
+    var xml = parser.parseFromString(xmlText, "application/xml");
+    return Array.prototype.slice.call(xml.getElementsByTagName("yt:videoId"))
+      .map(function (node) { return (node.textContent || "").trim(); })
+      .filter(Boolean);
+  }
+
+  function feedUrlForShortsFromUploads(uploadsId) {
+    var channelSuffix = uploadsId.slice(2);
+    var channelId = "UC" + channelSuffix;
+    var shortsPlaylistId = "UUSH" + channelSuffix;
+
+    return {
+      direct: "https://www.youtube.com/feeds/videos.xml?playlist_id=" + encodeURIComponent(shortsPlaylistId),
+      fallback: "https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(channelId)
+    };
+  }
+
+  async function fetchText(url) {
+    var res = await fetch(url);
+    if (!res.ok) throw new Error("Failed: " + url);
+    return await res.text();
+  }
+
+  async function fetchFeedWithProxyFallback(url) {
+    try {
+      return await fetchText(url);
+    } catch (e1) {
+      return await fetchText("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+    }
+  }
+
+  async function loadLatestShorts() {
+    applyResponsiveGrid();
+
+    if (manualShortIds && manualShortIds.filter(Boolean).length) {
+      renderShorts(manualShortIds);
+      return;
+    }
+
+    if (!uploadsPlaylistId) {
+      showMessage("Missing uploads playlist ID.");
+      return;
+    }
+
+    showMessage("Loading latest Shorts...");
+
+    try {
+      var urls = feedUrlForShortsFromUploads(uploadsPlaylistId);
+      var xmlText;
+
+      try {
+        xmlText = await fetchFeedWithProxyFallback(urls.direct);
+      } catch (directErr) {
+        xmlText = await fetchFeedWithProxyFallback(urls.fallback);
+      }
+
+      var ids = extractVideoIdsFromXml(xmlText).slice(0, 3);
+
+      if (ids.length) {
+        renderShorts(ids);
+        return;
+      }
+
+      showMessage('Could not find Shorts in the feed. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">Open Shorts on YouTube</a>.');
+    } catch (err) {
+      showMessage('Could not load Shorts automatically right now. <a href="https://youtube.com/@stashboxband/shorts" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">Open Shorts on YouTube</a>.');
+    }
+  }
+
+  applyResponsiveGrid();
+  window.addEventListener("resize", applyResponsiveGrid);
+  loadLatestShorts();
+})();
+</script>
+
 <section class="container" aria-label="Spotify player" style="margin-bottom: var(--space-10);">
   <iframe data-testid="embed-iframe" style="border-radius:12px" src="https://open.spotify.com/embed/artist/0QMZNPEj7A2MFnT9zJGERa?utm_source=generator" width="100%" height="552" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
 </section>
