@@ -1171,14 +1171,35 @@ function buildVideoStatUrl(video, type = "like") {
     + "&artist=" + encodeURIComponent(artist);
 }
 
+window.STASHBOX_VIDEO_STAT_BEACONS = window.STASHBOX_VIDEO_STAT_BEACONS || [];
+
+function sendVideoStatUrl(url) {
+  console.log("Sending video stat iframe beacon:", url);
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "absolute";
+  iframe.style.left = "-9999px";
+  iframe.style.top = "-9999px";
+  iframe.width = "1";
+  iframe.height = "1";
+  iframe.src = url;
+
+  document.body.appendChild(iframe);
+  window.STASHBOX_VIDEO_STAT_BEACONS.push(iframe);
+
+  setTimeout(() => {
+    iframe.remove();
+    window.STASHBOX_VIDEO_STAT_BEACONS = window.STASHBOX_VIDEO_STAT_BEACONS.filter(item => item !== iframe);
+  }, 15000);
+}
+
 function sendVideoStat(video, type = "like") {
   const url = buildVideoStatUrl(video, type);
   if (!url) return "";
 
   console.log("Sending video stat beacon:", url);
 
-  const img = new Image();
-  img.src = url;
+  sendVideoStatUrl(url);
   return url;
 }
 
