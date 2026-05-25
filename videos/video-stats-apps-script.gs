@@ -9,6 +9,24 @@ const RADIO_TOTAL_SECONDS_COL = 14; // Column N
 const RADIO_AVG_SECONDS_COL = 15; // Column O
 const RADIO_SONG_SHARES_COL = 16; // Column P
 
+
+function getSpreadsheet() {
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+
+  const props = PropertiesService.getScriptProperties();
+  const spreadsheetId =
+    String(props.getProperty("SPREADSHEET_ID") || "").trim() ||
+    String(props.getProperty("SHEET_ID") || "").trim() ||
+    String(props.getProperty("RADIO_SPREADSHEET_ID") || "").trim();
+
+  if (!spreadsheetId) {
+    throw new Error("No active spreadsheet and no spreadsheet ID configured in script properties");
+  }
+
+  return SpreadsheetApp.openById(spreadsheetId);
+}
+
 function doGet(e) {
   const action = String(e.parameter.action || "");
   if (action !== "increment") {
@@ -28,7 +46,7 @@ function doGet(e) {
   lock.waitLock(10000);
 
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
     const sheet = ss.getSheetByName(SHEET_NAME);
 
     if (!sheet) {
@@ -217,7 +235,7 @@ function handleRadioListenTime(data) {
 }
 
 function findRadioRow(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(RADIO_SHEET_NAME);
   if (!sheet) throw new Error("Missing Radio sheet");
 
@@ -225,14 +243,19 @@ function findRadioRow(data) {
   if (lastRow < 2) return { sheet: sheet, row: null, matchMethod: null };
 
   const numRows = lastRow - 1;
-  const values = sheet.getRange(2, 1, numRows, Math.max(RADIO_SONG_SHARES_COL, RADIO_WAV_LINK_COL)).getValues();
+  const width = Math.max(RADIO_SONG_SHARES_COL, RADIO_WAV_LINK_COL);
+  const range = sheet.getRange(2, 1, numRows, width);
+  const values = range.getValues();
+  const formulas = range.getFormulas();
   const audioUrl = normalizeAudioUrl(data.audioUrl);
   const tl = String(data.title || "").trim().toLowerCase();
   const al = String(data.artist || "").trim().toLowerCase();
 
   if (audioUrl) {
     for (let i = 0; i < values.length; i++) {
-      const rowAudio = normalizeAudioUrl(values[i][RADIO_WAV_LINK_COL - 1]);
+      const rowAudioValue = normalizeAudioUrl(values[i][RADIO_WAV_LINK_COL - 1]);
+      const rowAudioFormula = extractHyperlinkUrl(formulas[i][RADIO_WAV_LINK_COL - 1]);
+      const rowAudio = rowAudioValue || rowAudioFormula;
       if (rowAudio && rowAudio === audioUrl) {
         return { sheet: sheet, row: i + 2, matchMethod: "audioUrl" };
       }
@@ -241,16 +264,24 @@ function findRadioRow(data) {
 
   if (tl || al) {
     for (let j = 0; j < values.length; j++) {
-      if (
-        String(values[j][RADIO_SONG_NAME_COL - 1] || "").trim().toLowerCase() === tl &&
-        String(values[j][RADIO_ARTIST_COL - 1] || "").trim().toLowerCase() === al
-      ) {
+      const rowTitle = String(values[j][RADIO_SONG_NAME_COL - 1] || "").trim().toLowerCase();
+      const rowArtist = String(values[j][RADIO_ARTIST_COL - 1] || "").trim().toLowerCase();
+      const titleMatches = tl ? rowTitle === tl : true;
+      const artistMatches = al ? rowArtist === al : true;
+      if (titleMatches && artistMatches) {
         return { sheet: sheet, row: j + 2, matchMethod: "title_artist" };
       }
     }
   }
 
   return { sheet: sheet, row: null, matchMethod: null };
+}
+
+function extractHyperlinkUrl(formula) {
+  const src = String(formula || "").trim();
+  if (!src) return "";
+  const match = src.match(/^=HYPERLINK\("([^"\n]+)"/i);
+  return match ? normalizeAudioUrl(match[1]) : "";
 }
 
 function normalizeAudioUrl(value) {
