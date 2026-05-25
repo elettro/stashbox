@@ -852,6 +852,7 @@
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
 const VIDEO_STATS_TRACKING_URL = "PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+const VIDEO_STATS_TRACKING_URL_RUNTIME = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || "";
 
 let allVideos = [];
 
@@ -1103,10 +1104,18 @@ function trackVideoStat(key, type, meta = {}) {
     artist: meta.artist || ""
   });
 
-  if (VIDEO_STATS_TRACKING_URL && !VIDEO_STATS_TRACKING_URL.includes("PASTE_")) {
-    const img = new Image();
-    img.src = `${VIDEO_STATS_TRACKING_URL}?${params.toString()}&t=${Date.now()}`;
+  const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
+  if (!endpoint || endpoint.includes("PASTE_")) {
+    console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
+    return;
   }
+
+  const url = `${endpoint}?${params.toString()}&t=${Date.now()}`;
+
+  fetch(url, { method: "GET", mode: "no-cors", cache: "no-store", keepalive: true }).catch(() => {});
+
+  const img = new Image();
+  img.src = url;
 }
 
 function isReggaeGenre(video) {
