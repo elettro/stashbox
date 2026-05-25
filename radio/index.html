@@ -992,18 +992,6 @@ function sendListenTime(reason) {
 
   const payload = {
     type: 'radio_listen_time',
-
-function recordSongFullPlay(t, sessionId) {
-  if (!PLAY_TRACKING_URL || !t || !sessionId) return;
-
-  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
-
-  if (fullPlaySessions.has(sessionKey)) return;
-
-  fullPlaySessions.add(sessionKey);
-
-  const payload = {
-    type: 'radio_full_play',
     title: t.title || '',
     artist: t.artist || '',
     album: t.album || '',
@@ -1037,11 +1025,6 @@ function recordSongFullPlay(t, sessionId) {
   activeListenSession = null;
 }
 
-    body: JSON.stringify(payload)
-  }).catch(err => {
-    if (debugPlays()) {
-      console.warn('[Radio Full Play Tracking] failed:', err);
-    }
 function updateCurrentPlaysDisplay(t) {
   if (!t) return;
 
