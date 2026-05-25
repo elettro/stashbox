@@ -68,10 +68,6 @@
     footer { margin-top:2.5rem; padding:1.2rem; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.04); }
     .footer-links { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:.8rem; }
     .footer-links a { color: var(--text); text-decoration:none; background:rgba(135,83,255,.18); border:1px solid var(--line); border-radius:999px; padding:.45rem .7rem; }
-    .api-status { margin: .7rem 0 0; font-size:.85rem; color:var(--muted); }
-    .api-dot { display:inline-block; width:.6rem; height:.6rem; border-radius:50%; margin-right:.4rem; vertical-align:middle; }
-    .api-live .api-dot { background:#5dd8a1; box-shadow:0 0 0 4px rgba(93,216,161,.16); }
-    .api-fallback .api-dot { background:#f2bc55; box-shadow:0 0 0 4px rgba(242,188,85,.16); }
     @media (max-width: 900px){ .two-col,.three-col { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -158,6 +154,9 @@ async function loadData(){
   }catch(e){
     console.info('[dashboard] fallback sample data loaded', e.message);
     updateStatus('fallback', 'Fallback sample data mode · Live API unavailable or returned empty dataset');
+    return { radio, videos, meta };
+  }catch(e){
+    console.info('[dashboard] fallback sample data loaded', e.message);
     return {
       radio: fallbackSongs,
       videos: fallbackVideos,
