@@ -94,48 +94,68 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  const data = parsePostBody(e);
+  const type = String(data.type || "").toLowerCase();
+
+  if (type === "radio_play") return handleRadioPlay(data);
+  if (type === "radio_full_play") return handleRadioFullPlay(data);
+  if (type === "radio_listen_time") return handleRadioListenTime(data);
+  if (type === "radio_song_share") return handleRadioSongShare(data);
+
+  return jsonOut({ ok: false, success: false, error: "Unsupported type", type });
+}
+
+function parsePostBody(e) {
+  if (!e || !e.postData || !e.postData.contents) return {};
   try {
-    const data = JSON.parse((e && e.postData && e.postData.contents) || "{}");
-    const type = String(data.type || "").toLowerCase();
-
-    if (type === "radio_play") {
-      return handleRadioPlay(data);
-    }
-    if (type === "radio_full_play") {
-      return handleRadioFullPlay(data);
-    }
-    if (type === "radio_listen_time") {
-      return handleRadioListenTime(data);
-    }
-
-    return jsonOut({ success: false, error: "Unsupported type", type: type || null });
+    return JSON.parse(e.postData.contents);
   } catch (err) {
-    return jsonOut({ success: false, error: String(err) });
+    return {};
   }
 }
 
 function handleRadioPlay(data) {
-  return incrementRadioCounter(data, RADIO_CLICKS_COL, "radio_play");
+  return handleRadioMetric(data, RADIO_CLICKS_COL, "Clicks", "radio_play", "clicksColumn");
 }
 
 function handleRadioFullPlay(data) {
-  return incrementRadioCounter(data, RADIO_FULL_PLAYS_COL, "radio_full_play");
+  return handleRadioMetric(data, RADIO_FULL_PLAYS_COL, "fullPlays", "radio_full_play", "fullPlaysColumn");
 }
 
-function incrementRadioCounter(data, targetCol, type) {
+function handleRadioSongShare(data) {
+  return handleRadioMetric(data, RADIO_SONG_SHARES_COL, "songShares", "radio_song_share", "songSharesColumn");
+}
+
+function handleRadioMetric(data, countCol, expectedHeader, type, colKey) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
+
   try {
     const match = findRadioRow(data);
-    if (!match.row) return jsonOut({ success: false, type, error: "Radio row not found" });
+    if (!match.row) {
+      return jsonOut({ success: false, type, sheet: RADIO_SHEET_NAME, error: "Radio track not found" });
+    }
 
     const sheet = match.sheet;
-    const cell = sheet.getRange(match.row, targetCol);
-    const current = Number(cell.getValue()) || 0;
-    const next = current + 1;
-    cell.setValue(next);
+    const row = match.row;
+    const headerCell = sheet.getRange(1, countCol);
+    if (String(headerCell.getValue() || "").trim() !== expectedHeader) {
+      headerCell.setValue(expectedHeader);
+    }
 
-    return jsonOut({ success: true, type, sheet: RADIO_SHEET_NAME, row: match.row, count: next, matchMethod: match.matchMethod });
+    const countCell = sheet.getRange(row, countCol);
+    const next = (Number(countCell.getValue()) || 0) + 1;
+    countCell.setValue(next);
+
+    return jsonOut({
+      success: true,
+      type,
+      sheet: RADIO_SHEET_NAME,
+      row,
+      count: next,
+      matchMethod: match.matchMethod,
+      [colKey]: countCol
+    });
   } catch (err) {
     return jsonOut({ success: false, type, error: String(err) });
   } finally {
@@ -146,6 +166,7 @@ function incrementRadioCounter(data, targetCol, type) {
 function handleRadioListenTime(data) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
+
   try {
     const match = findRadioRow(data);
     if (!match.row) return jsonOut({ success: false, type: "radio_listen_time", error: "Radio row not found" });
@@ -204,23 +225,22 @@ function findRadioRow(data) {
   if (lastRow < 2) return { sheet: sheet, row: null, matchMethod: null };
 
   const numRows = lastRow - 1;
-  const values = sheet.getRange(2, 1, numRows, Math.max(RADIO_AVG_SECONDS_COL, RADIO_WAV_LINK_COL)).getValues();
-  const audioUrl = String(data.audioUrl || "").trim();
-  const title = String(data.title || "").trim();
-  const artist = String(data.artist || "").trim();
+  const values = sheet.getRange(2, 1, numRows, Math.max(RADIO_SONG_SHARES_COL, RADIO_WAV_LINK_COL)).getValues();
+  const audioUrl = normalizeAudioUrl(data.audioUrl);
+  const tl = String(data.title || "").trim().toLowerCase();
+  const al = String(data.artist || "").trim().toLowerCase();
 
   if (audioUrl) {
-    for (var i = 0; i < values.length; i++) {
-      if (String(values[i][RADIO_WAV_LINK_COL - 1] || "").trim() === audioUrl) {
+    for (let i = 0; i < values.length; i++) {
+      const rowAudio = normalizeAudioUrl(values[i][RADIO_WAV_LINK_COL - 1]);
+      if (rowAudio && rowAudio === audioUrl) {
         return { sheet: sheet, row: i + 2, matchMethod: "audioUrl" };
       }
     }
   }
 
-  if (title || artist) {
-    const tl = title.toLowerCase();
-    const al = artist.toLowerCase();
-    for (var j = 0; j < values.length; j++) {
+  if (tl || al) {
+    for (let j = 0; j < values.length; j++) {
       if (
         String(values[j][RADIO_SONG_NAME_COL - 1] || "").trim().toLowerCase() === tl &&
         String(values[j][RADIO_ARTIST_COL - 1] || "").trim().toLowerCase() === al
@@ -231,6 +251,15 @@ function findRadioRow(data) {
   }
 
   return { sheet: sheet, row: null, matchMethod: null };
+}
+
+function normalizeAudioUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
 }
 
 function cleanKey(value) {
@@ -246,125 +275,4 @@ function jsonOut(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-
-function doPost(e) {
-  const data = parsePostBody(e);
-  const type = String(data.type || "").toLowerCase();
-
-  if (type === "radio_play") {
-    return handleRadioPlay(data);
-  }
-
-  if (type === "radio_full_play") {
-    return handleRadioFullPlay(data);
-  }
-  if (type === "radio_listen_time") {
-    return handleRadioListenTime(data);
-  }
-  if (type === "radio_song_share") {
-    return handleRadioSongShare(data);
-  }
-
-  return jsonOut({ ok: false, success: false, error: "Unsupported type", type });
-}
-
-function parsePostBody(e) {
-  if (!e || !e.postData || !e.postData.contents) return {};
-  try {
-    return JSON.parse(e.postData.contents);
-  } catch (err) {
-    return {};
-  }
-}
-
-function handleRadioPlay(data) {
-  return handleRadioMetric(data, RADIO_CLICKS_COL, "Clicks", "radio_play", "clicksColumn");
-}
-
-function handleRadioFullPlay(data) {
-  return handleRadioMetric(data, RADIO_FULL_PLAYS_COL, "fullPlays", "radio_full_play", "fullPlaysColumn");
-}
-
-function handleRadioSongShare(data) {
-  return handleRadioMetric(data, RADIO_SONG_SHARES_COL, "songShares", "radio_song_share", "songSharesColumn");
-}
-
-function handleRadioMetric(data, countCol, expectedHeader, type, colKey) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(RADIO_SHEET_NAME);
-
-    if (!sheet) {
-      return jsonOut({ success: false, type, error: "Missing radio sheet" });
-    }
-
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      return jsonOut({ success: false, type, sheet: RADIO_SHEET_NAME, error: "No radio rows" });
-    }
-
-    const rows = sheet.getRange(2, 1, lastRow - 1, Math.max(RADIO_FULL_PLAYS_COL, RADIO_WAV_LINK_COL)).getValues();
-    const title = String(data.title || "").trim();
-    const artist = String(data.artist || "").trim();
-    const audioUrl = String(data.audioUrl || "").trim();
-
-    let rowOffset = -1;
-    let matchMethod = "";
-
-    if (audioUrl) {
-      for (let i = 0; i < rows.length; i++) {
-        if (String(rows[i][RADIO_WAV_LINK_COL - 1] || "").trim() === audioUrl) {
-          rowOffset = i;
-          matchMethod = "wavLink";
-          break;
-        }
-      }
-    }
-
-    if (rowOffset === -1 && title && artist) {
-      for (let i = 0; i < rows.length; i++) {
-        if (
-          String(rows[i][RADIO_SONG_NAME_COL - 1] || "").trim() === title &&
-          String(rows[i][RADIO_ARTIST_COL - 1] || "").trim() === artist
-        ) {
-          rowOffset = i;
-          matchMethod = "songArtist";
-          break;
-        }
-      }
-    }
-
-    if (rowOffset === -1) {
-      return jsonOut({ success: false, type, sheet: RADIO_SHEET_NAME, error: "Radio track not found" });
-    }
-
-    const row = rowOffset + 2;
-    const headerCell = sheet.getRange(1, countCol);
-    if (String(headerCell.getValue() || "").trim() !== expectedHeader) {
-      headerCell.setValue(expectedHeader);
-    }
-
-    const countCell = sheet.getRange(row, countCol);
-    const next = (Number(countCell.getValue()) || 0) + 1;
-    countCell.setValue(next);
-
-    return jsonOut({
-      success: true,
-      type,
-      sheet: RADIO_SHEET_NAME,
-      row,
-      count: next,
-      matchMethod,
-      [colKey]: countCol
-    });
-  } catch (err) {
-    return jsonOut({ success: false, type, error: String(err) });
-  } finally {
-    lock.releaseLock();
-  }
 }
