@@ -122,7 +122,21 @@ const keys = {
   likes:['likes','Likes'], clicks:['clicks','Clicks','views','Views','plays','Plays'], videoTitle:['video title','Video Title','title','Title']
 };
 
-function parseNumber(v){ return Number(String(v === undefined || v === null ? '' : v).replace(/[^\d.-]/g, '')) || 0; }
+function parseNumber(v){
+  if(v === undefined || v === null) return 0;
+  if(typeof v === 'number' && Number.isFinite(v)) return v;
+  var raw = String(v).trim();
+  if(!raw) return 0;
+  var compact = raw.replace(/,/g,'');
+  var match = compact.match(/^(-?\d*\.?\d+)\s*([kKmMbB])$/);
+  if(match){
+    var n = Number(match[1]) || 0;
+    var unit = match[2].toLowerCase();
+    var mult = unit === 'k' ? 1e3 : (unit === 'm' ? 1e6 : 1e9);
+    return n * mult;
+  }
+  return Number(compact.replace(/[^\d.-]/g, '')) || 0;
+}
 function pick(row, opts){
   var i, k, v;
   for(i=0;i<opts.length;i++){
