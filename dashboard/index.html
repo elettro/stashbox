@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stashbox Performance Dashboard</title>
+  <meta name="description" content="Stashbox performance dashboard for radio, videos, SEO, and AI search visibility.">
+  <link rel="stylesheet" href="/stashbox/styles.css">
+  <style>
+    :root {
+      --bg: #07050d;
+      --bg-soft: #121020;
+      --glass: rgba(255, 255, 255, 0.06);
+      --line: rgba(255, 255, 255, 0.14);
+      --text: #f4f1ff;
+      --muted: rgba(244, 241, 255, 0.72);
+      --purple: #8753ff;
+      --deep-purple: #4f2aa7;
+      --gold: #f2bc55;
+      --green: #5dd8a1;
+      --radius: 22px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:
+        radial-gradient(circle at 12% 6%, rgba(135, 83, 255, .28), transparent 28rem),
+        radial-gradient(circle at 90% 2%, rgba(242, 188, 85, .14), transparent 22rem),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap { width: min(1280px, calc(100% - 2rem)); margin: 0 auto; padding: 2rem 0 5rem; }
+    .hero { padding: 2rem 0 1.25rem; }
+    .hero h1 { font-size: clamp(2rem, 5.7vw, 4.4rem); margin: 0 0 .4rem; }
+    .hero p { margin: 0; color: var(--muted); font-size: clamp(1rem, 1.8vw, 1.25rem); }
+    .version-nav { display: flex; flex-wrap: wrap; gap: .6rem; padding: 1.2rem 0 2rem; }
+    .version-nav a {
+      text-decoration: none; color: var(--text); background: rgba(135,83,255,.18); border: 1px solid var(--line);
+      padding: .55rem .9rem; border-radius: 999px; font-size: .88rem;
+    }
+    .dashboard-version { background: linear-gradient(150deg, var(--glass), rgba(255,255,255,.03)); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem; margin: 1rem 0 1.6rem; }
+    .dashboard-version h2 { margin: 0 0 .8rem; font-size: clamp(1.3rem, 2.6vw, 2rem); }
+    .grid { display: grid; gap: .9rem; }
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card { background: rgba(5,5,8,.5); border: 1px solid var(--line); border-radius: 16px; padding: .9rem; }
+    .label { color: var(--muted); font-size: .8rem; }
+    .value { font-size: 1.45rem; font-weight: 700; margin-top: .25rem; }
+    .leaderboard { display: grid; gap: .6rem; }
+    .row { display: grid; grid-template-columns: 56px 1fr auto; gap: .7rem; align-items: center; }
+    .thumb, .thumb img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: #191725; }
+    .title a { color: var(--text); text-decoration: none; }
+    .meta { color: var(--muted); font-size: .8rem; }
+    .stat { text-align: right; font-weight: 700; color: var(--gold); font-size: .9rem; }
+    .two-col { grid-template-columns: 1.2fr .8fr; }
+    .three-col { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .bars .bar { margin: .45rem 0; }
+    .bars label { display:block; font-size: .8rem; color:var(--muted); }
+    .bars span { display:block; height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow:hidden; }
+    .bars i { display:block; height:100%; background: linear-gradient(90deg,var(--purple),var(--gold)); }
+    .ring { width: 92px; height:92px; border-radius:50%; display:grid; place-items:center; background: conic-gradient(var(--purple) var(--p), rgba(255,255,255,.09) 0); }
+    .ring b { width:68px;height:68px;border-radius:50%;display:grid;place-items:center;background:var(--bg-soft);font-size:.95rem; }
+    .action-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+    .action-card { padding: .9rem; border-radius: 14px; border:1px solid var(--line); background: rgba(242,188,85,.08); }
+    .dense table { width:100%; border-collapse: collapse; font-size: .85rem; }
+    .dense th, .dense td { border-bottom: 1px solid var(--line); padding: .45rem; text-align:left; }
+    footer { margin-top:2.5rem; padding:1.2rem; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.04); }
+    .footer-links { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:.8rem; }
+    .footer-links a { color: var(--text); text-decoration:none; background:rgba(135,83,255,.18); border:1px solid var(--line); border-radius:999px; padding:.45rem .7rem; }
+    @media (max-width: 900px){ .two-col,.three-col { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <h1>Stashbox Performance Dashboard</h1>
+      <p>Radio, video, sharing, listening, SEO, and AI search visibility in one master view.</p>
+    </header>
+
+    <nav class="version-nav" aria-label="Dashboard versions">
+      <a href="#dashboard-version-1">Version 1</a><a href="#dashboard-version-2">Version 2</a><a href="#dashboard-version-3">Version 3</a><a href="#dashboard-version-4">Version 4</a><a href="#dashboard-version-5">Version 5</a>
+      <a href="#dashboard-version-6">Version 6</a><a href="#dashboard-version-7">Version 7</a><a href="#dashboard-version-8">Version 8</a><a href="#dashboard-version-9">Version 9</a><a href="#dashboard-version-10">Version 10</a>
+    </nav>
+
+    <div id="dash-root"></div>
+
+    <footer>
+      <h3>Stashbox Performance Dashboard</h3>
+      <p>Radio, video, SEO, and AI Search reporting for the Stashbox ecosystem.</p>
+      <div class="footer-links">
+        <a href="../">Back to Stashbox</a><a href="../radio/">Radio</a><a href="../videos/">Videos</a><a href="../custom/">Custom Music</a><a href="../sessions/">Sessions</a>
+      </div>
+    </footer>
+  </main>
+
+<script>
+const RADIO_SOURCES = [
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
+];
+const VIDEO_SOURCE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv';
+const scoreRows = [
+  ['Stashbox.com Main Site', 7.6, 6.8], ['/stashbox/', 7.4, 6.9], ['/stashbox/radio/', 6.8, 6.4], ['/stashbox/videos/', 6.9, 6.3], ['/stashbox/custom/', 7.2, 6.6], ['/stashbox/sessions/', 6.5, 5.9]
+];
+const actions = ['Promote Top Shared Songs', 'Boost songs with high average listening time', 'Add schema to radio and video pages', 'Create dedicated song pages for the strongest tracks', 'Add internal links from /stashbox/ to top songs', 'Improve thumbnails for songs with plays but low shares', 'Add FAQ schema to custom music pages', 'Create weekly session recap posts'];
+const fallbackSongs = Array.from({length:12}, (_,i)=>({title:`Stashbox Midnight Echo ${i+1}`,artist:`Stash Artist ${i+1}`,plays:200-i*11,'full plays':120-i*7,shares:32-i,'average seconds':95+i*6,thumbnail:''}));
+
+const keys = {
+  plays:['plays','Plays','total plays','Total Plays','play_count'],
+  full:['full plays','Full Plays','full_song_plays','completed plays','Completed Plays'],
+  seconds:['play seconds','Play Seconds','total seconds','Total Seconds','seconds'],
+  avg:['average seconds','Average Seconds','avg seconds','Avg Seconds','avg_listen_seconds'],
+  shares:['shares','Shares','share count','Share Count','share_clicks','Share Clicks'],
+  shareClicks:['share clicks','Share Clicks','share_clicks'],
+  title:['title','Title','song','Song','song title','Song Title'],
+  artist:['artist','Artist','artist name','Artist Name'],
+  thumb:['thumbnail','Thumbnail','image','Image','cover','Cover','artwork','Artwork'],
+  likes:['likes','Likes'], clicks:['clicks','Clicks','views','Views','plays','Plays'], videoTitle:['video title','Video Title','title','Title']
+};
+const parseNumber = v => Number(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
+const formatSeconds = s => { s=Math.max(0,Math.floor(parseNumber(s))); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; };
+const formatAvg = s => parseNumber(s)>=3600?formatSeconds(s):`${String(Math.floor(parseNumber(s)/60)).padStart(2,'0')}:${String(Math.floor(parseNumber(s)%60)).padStart(2,'0')}`;
+const pick = (row, opts) => opts.map(k=>row[k]).find(v => v !== undefined && v !== null && `${v}`.trim() !== '') ?? '';
+const buildSongLink = (songTitle, artist) => `../radio/?song=${encodeURIComponent(songTitle||'Unknown Song')}&artist=${encodeURIComponent(artist||'Unknown Artist')}`;
+const getThumbnail = row => pick(row, keys.thumb);
+const sortByMetric = (rows, metric) => [...rows].sort((a,b)=>parseNumber(metric(b))-parseNumber(metric(a)));
+const sumMetric = (rows, metric) => rows.reduce((n,r)=>n+parseNumber(metric(r)),0);
+
+function parseCSV(text){ const lines=[]; let row=[],cell='',q=false; for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1]; if(c==='"'){if(q&&n==='"'){cell+='"';i++;} else q=!q;} else if(c===','&&!q){row.push(cell);cell='';} else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n') i++; row.push(cell);lines.push(row);row=[];cell='';} else cell+=c;} if(cell||row.length){row.push(cell);lines.push(row);} const [h,...rows]=lines; return rows.filter(r=>r.some(v=>v.trim())).map(r=>Object.fromEntries(h.map((k,i)=>[k.trim(),(r[i]||'').trim()]))); }
+async function fetchCSV(url){const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error('fetch failed'); return r.text();}
+async function loadData(){
+  let radio=[]; let video=[];
+  for(const u of RADIO_SOURCES){ try{ radio=parseCSV(await fetchCSV(u)); if(radio.length) break; }catch(e){} }
+  try{ video=parseCSV(await fetchCSV(VIDEO_SOURCE)); }catch(e){}
+  if(!radio.length){ console.info('[dashboard] fallback sample song data loaded'); radio=fallbackSongs; }
+  return {radio, video};
+}
+
+function normalizeSong(r){ const title=pick(r,keys.title)||'Untitled Song'; const artist=pick(r,keys.artist)||'Unknown Artist'; const plays=parseNumber(pick(r,keys.plays)); const full=parseNumber(pick(r,keys.full)); const secs=parseNumber(pick(r,keys.seconds)); const avgRaw=pick(r,keys.avg); const avg=avgRaw!==''?parseNumber(avgRaw):(plays?secs/plays:0); const shares=parseNumber(pick(r,keys.shares)); const shareClicks=parseNumber(pick(r,keys.shareClicks)); return {raw:r,title,artist,plays,full,secs,avg,shares,shareClicks,thumb:getThumbnail(r),link:buildSongLink(title,artist)}; }
+function normalizeVideo(r){ return {title:pick(r,keys.videoTitle)||'Untitled Video',artist:pick(r,keys.artist)||'Unknown Artist',likes:parseNumber(pick(r,keys.likes)),clicks:parseNumber(pick(r,keys.clicks)),shares:parseNumber(pick(r,['shares','Shares'])),thumb:getThumbnail(r),url:pick(r,['youtube url','YouTube URL','url','URL'])}; }
+
+function songList(items, metricLabel, metricFn){ return `<div class="leaderboard">${items.map(s=>`<article class="row card"><div class="thumb">${s.thumb?`<img src="${s.thumb}" alt="${s.title} thumbnail">`:''}</div><div><div class="title"><a href="${s.link}">${s.title}</a></div><div class="meta">${s.artist}</div></div><div class="stat">${metricLabel}: ${metricFn(s)}</div></article>`).join('')}</div>`; }
+function scoreCards(){ return `<div class="grid three-col">${scoreRows.map(([n,seo,ai])=>`<article class="card"><h4>${n}</h4><div class="grid" style="grid-template-columns:auto 1fr;align-items:center;gap:.7rem"><div class="ring" style="--p:${(seo/10)*100}%"><b>${seo}</b></div><div class="bars"><div class="bar"><label>SEO</label><span><i style="width:${seo*10}%"></i></span></div><div class="bar"><label>AI Search</label><span><i style="width:${ai*10}%"></i></span></div></div></div></article>`).join('')}</div><p class="meta">Scores are planning indicators for SEO, schema, content depth, crawl quality, internal linking, and AI search readiness.</p>`; }
+function actionCards(){ return `<h3>Recommended Next Actions</h3><div class="grid action-grid">${actions.map(a=>`<article class="action-card">${a}</article>`).join('')}</div>`; }
+
+function render(data){
+  const songs = data.radio.map(normalizeSong);
+  const vids = data.video.map(normalizeVideo);
+  const byPlays = sortByMetric(songs, s=>s.plays); const byAvg = sortByMetric(songs,s=>s.avg); const byShares = sortByMetric(songs,s=>s.shares);
+  const totalPlays=sumMetric(songs,s=>s.plays), totalFull=sumMetric(songs,s=>s.full), totalSecs=sumMetric(songs,s=>s.secs), totalShares=sumMetric(songs,s=>s.shares), totalShareClicks=sumMetric(songs,s=>s.shareClicks);
+  const topLikes=sortByMetric(vids,v=>v.likes)[0], topClicks=sortByMetric(vids,v=>v.clicks)[0];
+  const kpiHTML = `<div class="grid kpis">
+    <div class="card"><div class="label">Total Song Plays</div><div class="value">${totalPlays.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Full Song Plays</div><div class="value">${totalFull.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Play Seconds</div><div class="value">${totalSecs.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Play Time</div><div class="value">${formatSeconds(totalSecs)}</div></div>
+    <div class="card"><div class="label">Total Shares</div><div class="value">${totalShares.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Share Clicks</div><div class="value">${totalShareClicks.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Songs Tracked</div><div class="value">${songs.length}</div></div>
+    <div class="card"><div class="label">Top Song by Plays</div><div class="value">${byPlays[0]?.title||'—'}</div></div>
+    <div class="card"><div class="label">Top Song by Avg Seconds</div><div class="value">${byAvg[0]?.title||'—'}</div></div>
+    <div class="card"><div class="label">Top Shared Song</div><div class="value">${byShares[0]?.title||'—'}</div></div>
+  </div>`;
+
+  const topVideos = sortByMetric(vids, v=>v.likes).slice(0,8).map(v=>({ ...v, link: v.url || '#' }));
+  const videoBoard = `<div class="grid two-col"><div class="card"><h3>Video KPI</h3><div class="grid kpis"><div class="card"><div class="label">Total Videos Tracked</div><div class="value">${vids.length}</div></div><div class="card"><div class="label">Total Video Likes</div><div class="value">${sumMetric(vids,v=>v.likes)}</div></div><div class="card"><div class="label">Total Video Clicks</div><div class="value">${sumMetric(vids,v=>v.clicks)}</div></div><div class="card"><div class="label">Total Video Shares</div><div class="value">${sumMetric(vids,v=>v.shares)}</div></div><div class="card"><div class="label">Top Video by Likes</div><div class="value">${topLikes?.title||'—'}</div></div><div class="card"><div class="label">Top Video by Clicks</div><div class="value">${topClicks?.title||'—'}</div></div></div></div><div class="card"><h3>Top Videos</h3>${songList(topVideos,'Likes',v=>v.likes)}</div></div>`;
+
+  const versions = Array.from({length:10}, (_,i)=>i+1).map(v=> {
+    let body='';
+    if(v===1) body = `${kpiHTML}<h3>Top 10 Songs by Plays</h3>${songList(byPlays.slice(0,10),'Plays',s=>s.plays)}<h3>Top 20 Highest Average Seconds</h3>${songList(byAvg.slice(0,20),'Avg',s=>`${Math.round(s.avg)}s (${formatAvg(s.avg)})`)}<h3>Top 20 Most Shared Songs</h3>${songList(byShares.slice(0,20),'Shares',s=>s.shares)}${videoBoard}<h3>SEO & AI Scores</h3>${scoreCards()}`;
+    else if(v===2) body = `${kpiHTML}<h3>Radio Leaderboard Centerpiece</h3>${songList(byPlays.slice(0,20),'Plays',s=>s.plays)}${scoreCards()}`;
+    else if(v===3) body = `<h3>SEO and AI Search Visibility</h3>${scoreCards()}${kpiHTML}${videoBoard}`;
+    else if(v===4) body = `<h3>Artist / Music Catalog Performance</h3><div class="grid action-grid">${byPlays.slice(0,20).map(s=>`<article class="card"><div class="thumb">${s.thumb?`<img src="${s.thumb}" alt="${s.title} thumbnail">`:''}</div><h4><a href="${s.link}">${s.title}</a></h4><p class="meta">${s.artist}</p><p class="meta">Plays ${s.plays} · Shares ${s.shares} · Avg ${formatAvg(s.avg)}</p></article>`).join('')}</div>${scoreCards()}`;
+    else if(v===5) body = `<div class="dense card"><h3>Compact Operations View</h3><table><thead><tr><th>Song</th><th>Artist</th><th>Plays</th><th>Full</th><th>Avg</th><th>Shares</th></tr></thead><tbody>${byPlays.slice(0,30).map(s=>`<tr><td><a href="${s.link}">${s.title}</a></td><td>${s.artist}</td><td>${s.plays}</td><td>${s.full}</td><td>${Math.round(s.avg)}</td><td>${s.shares}</td></tr>`).join('')}</tbody></table></div>${videoBoard}`;
+    else if(v===6) body = `${kpiHTML}${scoreCards()}${actionCards()}`;
+    else if(v===7) body = `<h3>Investor / Sponsor Growth Signals</h3>${kpiHTML}<h3>Top Content Leaders</h3>${songList(byPlays.slice(0,12),'Plays',s=>s.plays)}${actionCards()}`;
+    else if(v===8) body = `<h3>Content Strategy Dashboard</h3><div class="grid two-col"><div class="card"><h4>What is working</h4>${songList(byPlays.slice(0,8),'Plays',s=>s.plays)}</div><div class="card"><h4>Songs with strong retention</h4>${songList(byAvg.slice(0,8),'Avg',s=>Math.round(s.avg))}</div></div><div class="card"><h4>Pages needing SEO improvement</h4>${scoreRows.sort((a,b)=>a[1]-b[1]).map(r=>`<p class="meta">${r[0]} SEO ${r[1]} / AI ${r[2]}</p>`).join('')}</div>${actionCards()}`;
+    else if(v===9) body = `<h3>AI Search Optimization Dashboard</h3>${scoreCards()}<div class="card bars"><h4>AI/SEO Readiness Dimensions</h4><div class="bar"><label>Schema Readiness</label><span><i style="width:66%"></i></span></div><div class="bar"><label>Internal Linking Score</label><span><i style="width:64%"></i></span></div><div class="bar"><label>Content Depth Score</label><span><i style="width:71%"></i></span></div><div class="bar"><label>Crawl/Indexing Readiness</label><span><i style="width:69%"></i></span></div></div>${actionCards()}`;
+    else body = `${kpiHTML}${videoBoard}<h3>Top Content</h3>${songList(byPlays.slice(0,10),'Plays',s=>s.plays)}${scoreCards()}${actionCards()}`;
+    return `<section id="dashboard-version-${v}" class="dashboard-version version-${v}"><h2>Version ${v}</h2>${body}</section>`;
+  }).join('');
+  document.getElementById('dash-root').innerHTML = versions;
+}
+
+loadData().then(render).catch(err => { console.error('[dashboard] render failed', err); render({ radio: fallbackSongs, video: [] }); });
+</script>
+</body>
+</html>
