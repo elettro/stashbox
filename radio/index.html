@@ -453,6 +453,8 @@ let mGenre='ALL', mAlbum='ALL', mVideoOnly=false;
 let queue=[], qIdx=-1, radioMode=false, currentTrack=null, visAnim=null;
 let playSessionId = 0;
 let trackedPlaySessions = new Set();
+let activeListenSession = null;
+let listenTimeSentSessions = new Set();
 let fullPlaySessions = new Set();
 const audio = document.getElementById('audio');
 const isMob = () => window.innerWidth < 768;
@@ -558,6 +560,7 @@ function boot() {
 
 // ════════ RESET ALL ════════
 function resetAll() {
+  sendListenTime('reset');
   // Stop audio + video
   audio.pause(); audio.src = '';
   const dpVid = document.getElementById('dp-vid');
@@ -833,14 +836,19 @@ function toggleRadio() {
 }
 
 audio.addEventListener('ended', () => {
+  sendListenTime('ended');
   recordSongFullPlay(currentTrack, playSessionId);
   playNext();
 });
 audio.addEventListener('play', () => {
   setPlayBtns(false);
+  resumeListenClock();
   recordSongPlay(currentTrack, playSessionId);
 });
-audio.addEventListener('pause', () => setPlayBtns(true));
+audio.addEventListener('pause', () => {
+  setPlayBtns(true);
+  pauseListenClock();
+});
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   const el = document.getElementById('m-prog');
@@ -894,15 +902,8 @@ function recordSongPlay(t, sessionId) {
   });
 }
 
-
 function recordSongFullPlay(t, sessionId) {
   if (!PLAY_TRACKING_URL || !t || !sessionId) return;
-
-  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
-
-  if (fullPlaySessions.has(sessionKey)) return;
-
-  fullPlaySessions.add(sessionKey);
 
   const payload = {
     type: 'radio_full_play',
@@ -925,6 +926,117 @@ function recordSongFullPlay(t, sessionId) {
     headers: {
       'Content-Type': 'text/plain;charset=utf-8'
     },
+    body: JSON.stringify(payload)
+  }).catch(err => {
+    if (debugPlays()) {
+      console.warn('[Radio Full Play Tracking] failed:', err);
+    }
+  });
+}
+
+function startListenSession(t, sessionId) {
+  if (!t || !sessionId) return;
+
+  activeListenSession = {
+    track: t,
+    sessionId: sessionId,
+    startedAt: Date.now(),
+    accumulatedMs: 0,
+    lastPlayStartedAt: audio && !audio.paused ? Date.now() : null
+  };
+}
+
+function pauseListenClock() {
+  if (!activeListenSession || !activeListenSession.lastPlayStartedAt) return;
+
+  activeListenSession.accumulatedMs += Date.now() - activeListenSession.lastPlayStartedAt;
+  activeListenSession.lastPlayStartedAt = null;
+}
+
+function resumeListenClock() {
+  if (!activeListenSession) return;
+
+  if (!activeListenSession.lastPlayStartedAt) {
+    activeListenSession.lastPlayStartedAt = Date.now();
+  }
+}
+
+function getActiveListenedSeconds() {
+  if (!activeListenSession) return 0;
+
+  let totalMs = activeListenSession.accumulatedMs || 0;
+
+  if (activeListenSession.lastPlayStartedAt) {
+    totalMs += Date.now() - activeListenSession.lastPlayStartedAt;
+  }
+
+  return Math.round(totalMs / 1000);
+}
+
+function sendListenTime(reason) {
+  if (!PLAY_TRACKING_URL || !activeListenSession || !activeListenSession.track) return;
+
+  pauseListenClock();
+
+  const t = activeListenSession.track;
+  const sessionId = activeListenSession.sessionId;
+  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
+
+  if (listenTimeSentSessions.has(sessionKey)) return;
+
+  const listenedSeconds = getActiveListenedSeconds();
+
+  if (!listenedSeconds || listenedSeconds <= 0) return;
+
+  listenTimeSentSessions.add(sessionKey);
+
+  const payload = {
+    type: 'radio_listen_time',
+
+function recordSongFullPlay(t, sessionId) {
+  if (!PLAY_TRACKING_URL || !t || !sessionId) return;
+
+  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
+
+  if (fullPlaySessions.has(sessionKey)) return;
+
+  fullPlaySessions.add(sessionKey);
+
+  const payload = {
+    type: 'radio_full_play',
+    title: t.title || '',
+    artist: t.artist || '',
+    album: t.album || '',
+    genre: t.genre || '',
+    audioUrl: t.audioUrl || '',
+    listenedSeconds: listenedSeconds,
+    reason: reason || '',
+    page: window.location.pathname,
+    timestamp: new Date().toISOString()
+  };
+
+  if (debugPlays()) {
+    console.log('[Radio Listen Time Tracking] payload:', payload);
+    console.log('[Radio Full Play Tracking] payload:', payload);
+  }
+
+  fetch(PLAY_TRACKING_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload),
+    keepalive: true
+  }).catch(err => {
+    if (debugPlays()) {
+      console.warn('[Radio Listen Time Tracking] failed:', err);
+    }
+  });
+
+  activeListenSession = null;
+}
+
     body: JSON.stringify(payload)
   }).catch(err => {
     if (debugPlays()) {
@@ -953,8 +1065,12 @@ function updateCurrentPlaysDisplay(t) {
 // ════════ LOAD TRACK ════════
 function loadTrack(t) {
   if (!t) return;
+  if (currentTrack && activeListenSession) {
+    sendListenTime('track_changed');
+  }
   currentTrack = t;
   playSessionId++;
+  startListenSession(t, playSessionId);
   const sec = SECTIONS.find(s=>s.key===t.sectionKey)||SECTIONS[SECTIONS.length-1];
   if (visAnim) { cancelAnimationFrame(visAnim); visAnim=null; }
 
@@ -1120,6 +1236,10 @@ function mDoSearch() {
       }).join('');
   }).join('');
 }
+
+window.addEventListener('beforeunload', () => {
+  sendListenTime('page_exit');
+});
 
 // ════════ START ════════
 init();
