@@ -426,6 +426,7 @@ const SHEET_CSV_URLS = [
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
 ];
+const PLAY_TRACKING_URL = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec';
 
 const SECTIONS = [
   {key:'Reggae',emoji:'🌴',color:'#3ecf6e'},{key:'Rock',emoji:'🎸',color:'#f0a500'},
@@ -439,6 +440,8 @@ const SECTIONS = [
 let allTracks=[], dGenre='ALL', dAlbum='ALL', dVideoOnly=false, dSearchQ='';
 let mGenre='ALL', mAlbum='ALL', mVideoOnly=false;
 let queue=[], qIdx=-1, radioMode=false, currentTrack=null, visAnim=null;
+let playSessionId = 0;
+let trackedPlaySessions = new Set();
 const audio = document.getElementById('audio');
 const isMob = () => window.innerWidth < 768;
 
@@ -816,7 +819,10 @@ function toggleRadio() {
 }
 
 audio.addEventListener('ended', () => playNext());
-audio.addEventListener('play',  () => setPlayBtns(false));
+audio.addEventListener('play', () => {
+  setPlayBtns(false);
+  recordSongPlay(currentTrack, playSessionId);
+});
 audio.addEventListener('pause', () => setPlayBtns(true));
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
@@ -828,10 +834,52 @@ function setPlayBtns(paused) {
   ['d-pp','m-bar-pp','m-nc-pp'].forEach(id => { const el=document.getElementById(id); if(el) el.innerHTML=icon; });
 }
 
+function debugPlays() {
+  return new URLSearchParams(window.location.search).has('debugPlays');
+}
+
+function recordSongPlay(t, sessionId) {
+  if (!PLAY_TRACKING_URL || !t || !sessionId) return;
+
+  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
+  if (trackedPlaySessions.has(sessionKey)) return;
+
+  trackedPlaySessions.add(sessionKey);
+
+  const payload = {
+    type: 'radio_play',
+    title: t.title || '',
+    artist: t.artist || '',
+    album: t.album || '',
+    genre: t.genre || '',
+    audioUrl: t.audioUrl || '',
+    page: window.location.pathname,
+    timestamp: new Date().toISOString()
+  };
+
+  if (debugPlays()) {
+    console.log('[Radio Play Tracking] payload:', payload);
+  }
+
+  fetch(PLAY_TRACKING_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload)
+  }).catch(err => {
+    if (debugPlays()) {
+      console.warn('[Radio Play Tracking] failed:', err);
+    }
+  });
+}
+
 // ════════ LOAD TRACK ════════
 function loadTrack(t) {
   if (!t) return;
   currentTrack = t;
+  playSessionId++;
   const sec = SECTIONS.find(s=>s.key===t.sectionKey)||SECTIONS[SECTIONS.length-1];
   if (visAnim) { cancelAnimationFrame(visAnim); visAnim=null; }
 
