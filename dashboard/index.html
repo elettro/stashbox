@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stashbox Performance Dashboard</title>
   <meta name="description" content="Stashbox performance dashboard for radio, videos, SEO, and AI search visibility.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/stashbox/styles.css">
   <style>
     :root {
@@ -31,8 +34,8 @@
         var(--bg);
       color: var(--text);
     }
-    .wrap { width: min(1280px, calc(100% - 2rem)); margin: 0 auto; padding: 2rem 0 5rem; }
-    .hero { padding: 2rem 0 1.25rem; }
+    .wrap { width: min(1280px, calc(100% - 2rem)); margin: 0 auto; padding: calc(var(--nav-height) + .35rem) 0 5rem; }
+    .hero { padding: 0 0 1.25rem; }
     .hero h1 { font-size: clamp(2rem, 5.7vw, 4.4rem); margin: 0 0 .4rem; }
     .hero p { margin: 0; color: var(--muted); font-size: clamp(1rem, 1.8vw, 1.25rem); }
     .version-nav { display: flex; flex-wrap: wrap; gap: .6rem; padding: 1.2rem 0 2rem; }
@@ -76,6 +79,35 @@
   </style>
 </head>
 <body>
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png"
+           alt="Stashbox"
+           class="nav__logo-img"
+           onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
+      <li><a href="/stashbox/dashboard/" aria-current="page">Dashboard</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
   <main class="wrap">
     <header class="hero">
       <h1>Stashbox Performance Dashboard</h1>
@@ -323,5 +355,6 @@ loadData().then(function(data){
   updateStatus('fallback', 'Fallback sample mode · Boot error');
 });
 </script>
+<script src="/stashbox/main.js" defer></script>
 </body>
 </html>
