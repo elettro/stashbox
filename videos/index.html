@@ -1164,9 +1164,13 @@ function buildVideoStatUrl(video, type = "like") {
     return "";
   }
 
+  const statType = ["like", "share", "play"].includes(String(type).toLowerCase())
+    ? String(type).toLowerCase()
+    : "like";
+
   return endpoint
     + "?key=" + encodeURIComponent(key)
-    + "&type=like"
+    + "&type=" + encodeURIComponent(statType)
     + "&title=" + encodeURIComponent(title)
     + "&artist=" + encodeURIComponent(artist);
 }
