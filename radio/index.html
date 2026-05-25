@@ -455,6 +455,7 @@ let playSessionId = 0;
 let trackedPlaySessions = new Set();
 let activeListenSession = null;
 let listenTimeSentSessions = new Set();
+let fullPlaySessions = new Set();
 const audio = document.getElementById('audio');
 const isMob = () => window.innerWidth < 768;
 
@@ -991,6 +992,18 @@ function sendListenTime(reason) {
 
   const payload = {
     type: 'radio_listen_time',
+
+function recordSongFullPlay(t, sessionId) {
+  if (!PLAY_TRACKING_URL || !t || !sessionId) return;
+
+  const sessionKey = `${sessionId}:${t.idx}:${t.title}:${t.artist}`;
+
+  if (fullPlaySessions.has(sessionKey)) return;
+
+  fullPlaySessions.add(sessionKey);
+
+  const payload = {
+    type: 'radio_full_play',
     title: t.title || '',
     artist: t.artist || '',
     album: t.album || '',
@@ -1004,6 +1017,7 @@ function sendListenTime(reason) {
 
   if (debugPlays()) {
     console.log('[Radio Listen Time Tracking] payload:', payload);
+    console.log('[Radio Full Play Tracking] payload:', payload);
   }
 
   fetch(PLAY_TRACKING_URL, {
@@ -1023,6 +1037,11 @@ function sendListenTime(reason) {
   activeListenSession = null;
 }
 
+    body: JSON.stringify(payload)
+  }).catch(err => {
+    if (debugPlays()) {
+      console.warn('[Radio Full Play Tracking] failed:', err);
+    }
 function updateCurrentPlaysDisplay(t) {
   if (!t) return;
 

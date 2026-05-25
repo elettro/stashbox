@@ -246,3 +246,114 @@ function jsonOut(obj) {
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+
+function doPost(e) {
+  const data = parsePostBody(e);
+  const type = String(data.type || "").toLowerCase();
+
+  if (type === "radio_play") {
+    return handleRadioPlay(data);
+  }
+
+  if (type === "radio_full_play") {
+    return handleRadioFullPlay(data);
+  }
+
+  return jsonOut({ ok: false, success: false, error: "Unsupported type", type });
+}
+
+function parsePostBody(e) {
+  if (!e || !e.postData || !e.postData.contents) return {};
+  try {
+    return JSON.parse(e.postData.contents);
+  } catch (err) {
+    return {};
+  }
+}
+
+function handleRadioPlay(data) {
+  return handleRadioMetric(data, RADIO_CLICKS_COL, "Clicks", "radio_play", "clicksColumn");
+}
+
+function handleRadioFullPlay(data) {
+  return handleRadioMetric(data, RADIO_FULL_PLAYS_COL, "fullPlays", "radio_full_play", "fullPlaysColumn");
+}
+
+function handleRadioMetric(data, countCol, expectedHeader, type, colKey) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(RADIO_SHEET_NAME);
+
+    if (!sheet) {
+      return jsonOut({ success: false, type, error: "Missing radio sheet" });
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOut({ success: false, type, sheet: RADIO_SHEET_NAME, error: "No radio rows" });
+    }
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, Math.max(RADIO_FULL_PLAYS_COL, RADIO_WAV_LINK_COL)).getValues();
+    const title = String(data.title || "").trim();
+    const artist = String(data.artist || "").trim();
+    const audioUrl = String(data.audioUrl || "").trim();
+
+    let rowOffset = -1;
+    let matchMethod = "";
+
+    if (audioUrl) {
+      for (let i = 0; i < rows.length; i++) {
+        if (String(rows[i][RADIO_WAV_LINK_COL - 1] || "").trim() === audioUrl) {
+          rowOffset = i;
+          matchMethod = "wavLink";
+          break;
+        }
+      }
+    }
+
+    if (rowOffset === -1 && title && artist) {
+      for (let i = 0; i < rows.length; i++) {
+        if (
+          String(rows[i][RADIO_SONG_NAME_COL - 1] || "").trim() === title &&
+          String(rows[i][RADIO_ARTIST_COL - 1] || "").trim() === artist
+        ) {
+          rowOffset = i;
+          matchMethod = "songArtist";
+          break;
+        }
+      }
+    }
+
+    if (rowOffset === -1) {
+      return jsonOut({ success: false, type, sheet: RADIO_SHEET_NAME, error: "Radio track not found" });
+    }
+
+    const row = rowOffset + 2;
+    const headerCell = sheet.getRange(1, countCol);
+    if (String(headerCell.getValue() || "").trim() !== expectedHeader) {
+      headerCell.setValue(expectedHeader);
+    }
+
+    const countCell = sheet.getRange(row, countCol);
+    const next = (Number(countCell.getValue()) || 0) + 1;
+    countCell.setValue(next);
+
+    return jsonOut({
+      success: true,
+      type,
+      sheet: RADIO_SHEET_NAME,
+      row,
+      count: next,
+      matchMethod,
+      [colKey]: countCol
+    });
+  } catch (err) {
+    return jsonOut({ success: false, type, error: String(err) });
+  } finally {
+    lock.releaseLock();
+  }
+}
