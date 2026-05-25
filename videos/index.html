@@ -523,6 +523,89 @@
     .share-btn-italian-lounge-neon:hover .italian-smoke, .share-btn-italian-lounge-neon.is-touch-active .italian-smoke { animation: italianSmokeLift 1.04s ease-out forwards; animation-delay: var(--delay, 0s); }
     @keyframes italianSmokeLift { 0% { opacity:calc(var(--smokeOpacity) * .16); transform:translate(-50%, 6px) scale(.62); } 16% { opacity: var(--smokeOpacity); } 100% { opacity:0; transform:translate(calc(-50% + var(--drift)), var(--smokeLift)) scale(var(--scale)); } }
 
+    .video-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 18px;
+    }
+
+    .video-like-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.18);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+      color: #fff;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition:
+        transform .2s ease,
+        background .2s ease,
+        border-color .2s ease,
+        box-shadow .2s ease,
+        color .2s ease;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .video-like-btn:hover {
+      transform: translateY(-2px);
+      background: rgba(255,204,51,.12);
+      border-color: rgba(255,204,51,.48);
+      box-shadow:
+        0 0 0 1px rgba(255,204,51,.10),
+        0 0 28px rgba(255,204,51,.14);
+    }
+
+    .video-like-btn.is-liked {
+      background:
+        linear-gradient(180deg, rgba(255,204,51,.24), rgba(255,133,24,.14));
+      border-color: rgba(255,204,51,.62);
+      color: #ffdf73;
+      box-shadow:
+        0 0 0 1px rgba(255,204,51,.14),
+        0 0 30px rgba(255,204,51,.18);
+    }
+
+    .video-like-btn .like-icon {
+      font-size: 17px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-like-btn .like-icon-filled {
+      display: none;
+    }
+
+    .video-like-btn.is-liked .like-icon-empty {
+      display: none;
+    }
+
+    .video-like-btn.is-liked .like-icon-filled {
+      display: inline-flex;
+    }
+
+    .video-like-btn .like-count {
+      min-width: 1.2em;
+      text-align: center;
+      font-size: 14px;
+      color: currentColor;
+    }
+
+
     .empty-state,
     .error-state {
       display: none;
@@ -604,6 +687,18 @@
       .share-video-btn.share-btn-tiedye-blue-sky-melt { min-width: 0; }
       .share-video-btn.share-btn-italian-lounge-neon { width: 100%; min-width: 0; }
       .share-btn-italian-lounge-neon .italian-css-colosseum { max-width: calc(100% - 12px); }
+
+      .video-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .video-actions .share-video-btn,
+      .video-actions .share-reggae-zone,
+      .video-actions .share-tiedye-zone,
+      .video-like-btn {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -756,6 +851,7 @@
 
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
+const VIDEO_STATS_TRACKING_URL = "PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 let allVideos = [];
 
@@ -942,11 +1038,94 @@ function normalizeGenre(value) {
 }
 
 function firstVal(row, keys) {
+  if (!row || !keys || !keys.length) return "";
+
+  const rowKeys = Object.keys(row);
+  const normalizedMap = new Map(rowKeys.map((k) => [String(k).trim().toLowerCase(), k]));
+
   for (const key of keys) {
-    const value = row?.[key];
+    const direct = row[key];
+    if (direct !== undefined && direct !== null && String(direct).trim()) return String(direct).trim();
+
+    const mappedKey = normalizedMap.get(String(key).trim().toLowerCase());
+    if (!mappedKey) continue;
+    const value = row[mappedKey];
     if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
   }
+
   return "";
+}
+
+function normalizeStatsKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/https?:\/\//g, "")
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function extractYouTubeId(url) {
+  return videoIdFromText(url);
+}
+
+function getVideoStatsKey(video) {
+  const key = firstVal(video, ["videoKey", "Video Key", "VideoKey", "video_key"]);
+  if (key) return normalizeStatsKey(key);
+
+  const url = firstVal(video, ["url", "URL", "youtube", "YouTube", "videoUrl", "Video URL"]);
+  const idFromUrl = extractYouTubeId(url);
+  if (idFromUrl) return normalizeStatsKey(idFromUrl);
+
+  const title = firstVal(video, ["song", "Song", "title", "Title", "name", "Name"]);
+  const artist = firstVal(video, ["songby", "Song By", "artist", "Artist"]);
+  return normalizeStatsKey(`${title}-${artist}`);
+}
+
+function getLikeCount(video) {
+  return Number(String(firstVal(video, ["likeCount", "Like Count", "like count", "likes", "Likes", "votes", "Votes", "voteCount", "Vote Count"]).replace(/,/g, "")).trim()) || 0;
+}
+
+function hasLikedVideo(key) {
+  return localStorage.getItem(`stashbox-video-liked-${key}`) === "1";
+}
+
+function markVideoLiked(key) {
+  localStorage.setItem(`stashbox-video-liked-${key}`, "1");
+}
+
+function getVideoTitle(video) {
+  return firstVal(video, ["song", "Song", "title", "Title", "name", "Name"]);
+}
+
+function getVideoArtist(video) {
+  return firstVal(video, ["songby", "Song By", "artist", "Artist"]);
+}
+
+function trackVideoStat(key, type, meta = {}) {
+  key = normalizeStatsKey(key);
+  if (!key || !type) return;
+
+  const params = new URLSearchParams({
+    action: "increment",
+    key,
+    type,
+    title: meta.title || "",
+    artist: meta.artist || ""
+  });
+
+  const endpoint = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || VIDEO_STATS_TRACKING_URL;
+  if (!endpoint || endpoint.includes("PASTE_")) {
+    console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
+    return;
+  }
+
+  const url = `${endpoint}?${params.toString()}&t=${Date.now()}`;
+
+  fetch(url, { method: "GET", mode: "no-cors", cache: "no-store", keepalive: true }).catch(() => {});
+
+  const img = new Image();
+  img.src = url;
 }
 
 function isReggaeGenre(video) {
@@ -1074,6 +1253,9 @@ function cardHtml(video) {
   const notes = val(video, "notes") || val(video, "k");
   const originalLabel = isOriginal(video) ? "Original" : "Cover";
   const shareUrl = videoShareUrlFromRow(video);
+  const statsKey = getVideoStatsKey(video);
+  const likeCount = getLikeCount(video);
+  const liked = hasLikedVideo(statsKey);
   const reggae = isReggaeGenre(video);
   const rock = isRockGenre(video);
   const isItalian = isItalianGenre(video);
@@ -1100,7 +1282,19 @@ function cardHtml(video) {
           <dt>Date</dt>
           <dd>${esc(date)}</dd>
         </dl>
-        ${shareUrl ? (reggae ? `<div class="share-reggae-zone">${reggaeSmoke}<button type="button" class="share-btn share-video-btn share-btn-reggae-dub-night-ash" data-share-url="${esc(shareUrl)}">${reggaeButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : rock ? `<div class="share-tiedye-zone"><div class="share-tiedye-smoke-field share-tiedye-smoke-idle" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:12%;--size:22px;--blur:8px;--delay:.2s;--dur:6.4s;--x0:-10px;--x1:-26px;--rise:74px;--scale:1.9;"></span><span class="share-tiedye-smoke" style="--left:28%;--size:24px;--blur:9px;--delay:1.1s;--dur:7.2s;--x0:8px;--x1:24px;--rise:86px;--scale:2.1;"></span><span class="share-tiedye-smoke" style="--left:44%;--size:20px;--blur:8px;--delay:.6s;--dur:6.8s;--x0:-6px;--x1:-18px;--rise:78px;--scale:1.85;"></span><span class="share-tiedye-smoke" style="--left:62%;--size:26px;--blur:10px;--delay:1.5s;--dur:7.6s;--x0:10px;--x1:28px;--rise:92px;--scale:2.18;"></span><span class="share-tiedye-smoke" style="--left:82%;--size:22px;--blur:9px;--delay:.9s;--dur:6.9s;--x0:-8px;--x1:-22px;--rise:82px;--scale:1.98;"></span></div><div class="share-tiedye-smoke-field share-tiedye-smoke-hover" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:8%;--size:28px;--blur:10px;--delay:0s;--dur:1.05s;--x0:-8px;--x1:-38px;--rise:142px;--scale:2.8;"></span><span class="share-tiedye-smoke" style="--left:22%;--size:34px;--blur:12px;--delay:.08s;--dur:1.12s;--x0:4px;--x1:22px;--rise:154px;--scale:3.1;"></span><span class="share-tiedye-smoke" style="--left:38%;--size:30px;--blur:11px;--delay:.16s;--dur:1.18s;--x0:-6px;--x1:-26px;--rise:148px;--scale:2.95;"></span><span class="share-tiedye-smoke" style="--left:55%;--size:36px;--blur:13px;--delay:.04s;--dur:1.22s;--x0:8px;--x1:34px;--rise:160px;--scale:3.2;"></span><span class="share-tiedye-smoke" style="--left:72%;--size:31px;--blur:11px;--delay:.12s;--dur:1.10s;--x0:-4px;--x1:-30px;--rise:150px;--scale:2.9;"></span><span class="share-tiedye-smoke" style="--left:90%;--size:28px;--blur:10px;--delay:.2s;--dur:1.16s;--x0:6px;--x1:36px;--rise:144px;--scale:2.75;"></span></div><button type="button" class="share-btn share-video-btn share-btn-tiedye-blue-sky-melt" data-share-url="${esc(shareUrl)}"><span class="share-tiedye-pattern" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#7b5cff;--size:150px;--x:18%;--y:32%;--dx1:24px;--dy1:-18px;--dxMid:-22px;--dyMid:16px;--dx2:-28px;--dy2:20px;--s1:1.22;--sMid:.86;--s2:1.08;--dur:3.8s;--delay:.1s;--opacity:.84;--fblur:7px;--pulseDur:3.1s;--hueStart:-8deg;--hueMid:18deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#37d3ff;--size:165px;--x:36%;--y:68%;--dx1:-26px;--dy1:16px;--dxMid:28px;--dyMid:-18px;--dx2:22px;--dy2:-22px;--s1:1.26;--sMid:.82;--s2:1.12;--dur:4.2s;--delay:.4s;--opacity:.88;--fblur:8px;--pulseDur:3.5s;--hueStart:-4deg;--hueMid:22deg;--hueEnd:18deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:145px;--x:62%;--y:28%;--dx1:28px;--dy1:18px;--dxMid:-30px;--dyMid:-14px;--dx2:-24px;--dy2:22px;--s1:1.24;--sMid:.84;--s2:1.1;--dur:3.6s;--delay:.2s;--opacity:.86;--fblur:7px;--pulseDur:2.9s;--hueStart:0deg;--hueMid:26deg;--hueEnd:20deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:155px;--x:78%;--y:72%;--dx1:-24px;--dy1:-20px;--dxMid:20px;--dyMid:16px;--dx2:30px;--dy2:-18px;--s1:1.28;--sMid:.88;--s2:1.14;--dur:4.6s;--delay:.6s;--opacity:.82;--fblur:8px;--pulseDur:3.7s;--hueStart:-12deg;--hueMid:14deg;--hueEnd:26deg;"></span><span class="share-tiedye-blob" style="--color:#ff77c7;--size:128px;--x:50%;--y:48%;--dx1:20px;--dy1:-14px;--dxMid:-24px;--dyMid:18px;--dx2:18px;--dy2:16px;--s1:1.18;--sMid:.9;--s2:1.06;--dur:3.9s;--delay:.8s;--opacity:.74;--fblur:8px;--pulseDur:3.2s;--hueStart:-10deg;--hueMid:16deg;--hueEnd:22deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-pattern-hover" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#37d3ff;--size:170px;--x:22%;--y:40%;--dx1:-30px;--dy1:-20px;--dxMid:32px;--dyMid:20px;--dx2:28px;--dy2:-22px;--s1:1.3;--sMid:.8;--s2:1.16;--dur:3.4s;--delay:.1s;--opacity:.94;--fblur:7px;--pulseDur:2.8s;--hueStart:-6deg;--hueMid:24deg;--hueEnd:30deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:175px;--x:56%;--y:32%;--dx1:30px;--dy1:18px;--dxMid:-34px;--dyMid:-20px;--dx2:-28px;--dy2:24px;--s1:1.3;--sMid:.78;--s2:1.18;--dur:3.2s;--delay:.3s;--opacity:.95;--fblur:7px;--pulseDur:2.6s;--hueStart:-2deg;--hueMid:28deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:165px;--x:82%;--y:62%;--dx1:-28px;--dy1:-18px;--dxMid:26px;--dyMid:18px;--dx2:30px;--dy2:-20px;--s1:1.28;--sMid:.82;--s2:1.14;--dur:3.6s;--delay:.5s;--opacity:.9;--fblur:7px;--pulseDur:3s;--hueStart:-10deg;--hueMid:18deg;--hueEnd:28deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-sparkle" aria-hidden="true"></span><span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : isItalian ? `<button type="button" class="share-btn share-video-btn share-btn-italian-lounge-neon" data-share-url="${esc(shareUrl)}">${italianButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button>` : `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}">Share</button>`) : ""}
+        ${shareUrl ? `<div class="video-actions">${reggae ? `<div class="share-reggae-zone">${reggaeSmoke}<button type="button" class="share-btn share-video-btn share-btn-reggae-dub-night-ash" data-share-url="${esc(shareUrl)}" data-stats-key="${esc(statsKey)}">${reggaeButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : rock ? `<div class="share-tiedye-zone"><div class="share-tiedye-smoke-field share-tiedye-smoke-idle" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:12%;--size:22px;--blur:8px;--delay:.2s;--dur:6.4s;--x0:-10px;--x1:-26px;--rise:74px;--scale:1.9;"></span><span class="share-tiedye-smoke" style="--left:28%;--size:24px;--blur:9px;--delay:1.1s;--dur:7.2s;--x0:8px;--x1:24px;--rise:86px;--scale:2.1;"></span><span class="share-tiedye-smoke" style="--left:44%;--size:20px;--blur:8px;--delay:.6s;--dur:6.8s;--x0:-6px;--x1:-18px;--rise:78px;--scale:1.85;"></span><span class="share-tiedye-smoke" style="--left:62%;--size:26px;--blur:10px;--delay:1.5s;--dur:7.6s;--x0:10px;--x1:28px;--rise:92px;--scale:2.18;"></span><span class="share-tiedye-smoke" style="--left:82%;--size:22px;--blur:9px;--delay:.9s;--dur:6.9s;--x0:-8px;--x1:-22px;--rise:82px;--scale:1.98;"></span></div><div class="share-tiedye-smoke-field share-tiedye-smoke-hover" aria-hidden="true"><span class="share-tiedye-smoke" style="--left:8%;--size:28px;--blur:10px;--delay:0s;--dur:1.05s;--x0:-8px;--x1:-38px;--rise:142px;--scale:2.8;"></span><span class="share-tiedye-smoke" style="--left:22%;--size:34px;--blur:12px;--delay:.08s;--dur:1.12s;--x0:4px;--x1:22px;--rise:154px;--scale:3.1;"></span><span class="share-tiedye-smoke" style="--left:38%;--size:30px;--blur:11px;--delay:.16s;--dur:1.18s;--x0:-6px;--x1:-26px;--rise:148px;--scale:2.95;"></span><span class="share-tiedye-smoke" style="--left:55%;--size:36px;--blur:13px;--delay:.04s;--dur:1.22s;--x0:8px;--x1:34px;--rise:160px;--scale:3.2;"></span><span class="share-tiedye-smoke" style="--left:72%;--size:31px;--blur:11px;--delay:.12s;--dur:1.10s;--x0:-4px;--x1:-30px;--rise:150px;--scale:2.9;"></span><span class="share-tiedye-smoke" style="--left:90%;--size:28px;--blur:10px;--delay:.2s;--dur:1.16s;--x0:6px;--x1:36px;--rise:144px;--scale:2.75;"></span></div><button type="button" class="share-btn share-video-btn share-btn-tiedye-blue-sky-melt" data-share-url="${esc(shareUrl)}" data-stats-key="${esc(statsKey)}"><span class="share-tiedye-pattern" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#7b5cff;--size:150px;--x:18%;--y:32%;--dx1:24px;--dy1:-18px;--dxMid:-22px;--dyMid:16px;--dx2:-28px;--dy2:20px;--s1:1.22;--sMid:.86;--s2:1.08;--dur:3.8s;--delay:.1s;--opacity:.84;--fblur:7px;--pulseDur:3.1s;--hueStart:-8deg;--hueMid:18deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#37d3ff;--size:165px;--x:36%;--y:68%;--dx1:-26px;--dy1:16px;--dxMid:28px;--dyMid:-18px;--dx2:22px;--dy2:-22px;--s1:1.26;--sMid:.82;--s2:1.12;--dur:4.2s;--delay:.4s;--opacity:.88;--fblur:8px;--pulseDur:3.5s;--hueStart:-4deg;--hueMid:22deg;--hueEnd:18deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:145px;--x:62%;--y:28%;--dx1:28px;--dy1:18px;--dxMid:-30px;--dyMid:-14px;--dx2:-24px;--dy2:22px;--s1:1.24;--sMid:.84;--s2:1.1;--dur:3.6s;--delay:.2s;--opacity:.86;--fblur:7px;--pulseDur:2.9s;--hueStart:0deg;--hueMid:26deg;--hueEnd:20deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:155px;--x:78%;--y:72%;--dx1:-24px;--dy1:-20px;--dxMid:20px;--dyMid:16px;--dx2:30px;--dy2:-18px;--s1:1.28;--sMid:.88;--s2:1.14;--dur:4.6s;--delay:.6s;--opacity:.82;--fblur:8px;--pulseDur:3.7s;--hueStart:-12deg;--hueMid:14deg;--hueEnd:26deg;"></span><span class="share-tiedye-blob" style="--color:#ff77c7;--size:128px;--x:50%;--y:48%;--dx1:20px;--dy1:-14px;--dxMid:-24px;--dyMid:18px;--dx2:18px;--dy2:16px;--s1:1.18;--sMid:.9;--s2:1.06;--dur:3.9s;--delay:.8s;--opacity:.74;--fblur:8px;--pulseDur:3.2s;--hueStart:-10deg;--hueMid:16deg;--hueEnd:22deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-pattern-hover" aria-hidden="true"><span class="share-tiedye-blob" style="--color:#37d3ff;--size:170px;--x:22%;--y:40%;--dx1:-30px;--dy1:-20px;--dxMid:32px;--dyMid:20px;--dx2:28px;--dy2:-22px;--s1:1.3;--sMid:.8;--s2:1.16;--dur:3.4s;--delay:.1s;--opacity:.94;--fblur:7px;--pulseDur:2.8s;--hueStart:-6deg;--hueMid:24deg;--hueEnd:30deg;"></span><span class="share-tiedye-blob" style="--color:#85ff58;--size:175px;--x:56%;--y:32%;--dx1:30px;--dy1:18px;--dxMid:-34px;--dyMid:-20px;--dx2:-28px;--dy2:24px;--s1:1.3;--sMid:.78;--s2:1.18;--dur:3.2s;--delay:.3s;--opacity:.95;--fblur:7px;--pulseDur:2.6s;--hueStart:-2deg;--hueMid:28deg;--hueEnd:24deg;"></span><span class="share-tiedye-blob" style="--color:#ffe24a;--size:165px;--x:82%;--y:62%;--dx1:-28px;--dy1:-18px;--dxMid:26px;--dyMid:18px;--dx2:30px;--dy2:-20px;--s1:1.28;--sMid:.82;--s2:1.14;--dur:3.6s;--delay:.5s;--opacity:.9;--fblur:7px;--pulseDur:3s;--hueStart:-10deg;--hueMid:18deg;--hueEnd:28deg;"></span><span class="share-tiedye-fracture"></span></span><span class="share-tiedye-sparkle" aria-hidden="true"></span><span class="label">Share This Video</span><span class="arrow">→</span></button></div>` : isItalian ? `<button type="button" class="share-btn share-video-btn share-btn-italian-lounge-neon" data-share-url="${esc(shareUrl)}" data-stats-key="${esc(statsKey)}">${italianButtonExtras}<span class="label">Share This Video</span><span class="arrow">→</span></button>` : `<button type="button" class="share-btn" data-share-url="${esc(shareUrl)}" data-stats-key="${esc(statsKey)}">Share</button>`}<button
+  type="button"
+  class="video-like-btn${liked ? " is-liked" : ""}"
+  data-stats-key="${esc(statsKey)}"
+  data-title="${esc(getVideoTitle(video))}"
+  data-artist="${esc(getVideoArtist(video))}"
+  aria-label="${liked ? "You liked this video" : "Like this video"}"
+  aria-pressed="${liked ? "true" : "false"}"
+>
+  <span class="like-icon like-icon-empty" aria-hidden="true">♡</span>
+  <span class="like-icon like-icon-filled" aria-hidden="true">👍</span>
+  <span class="like-count" data-like-count="${esc(statsKey)}">${likeCount}</span>
+</button></div>` : ""}
         ${notes ? `<p class="setlist-card__notes">${esc(notes)}</p>` : ""}
       </div>
     </article>
@@ -1224,6 +1418,39 @@ document.addEventListener("pointercancel", () => {
   document.querySelectorAll(".share-reggae-zone.is-touch-active").forEach((zone) => zone.classList.remove("is-touch-active"));
   document.querySelectorAll(".share-tiedye-zone.is-touch-active").forEach((zone) => zone.classList.remove("is-touch-active"));
 });
+
+document.addEventListener("click", (event) => {
+  const likeButton = event.target.closest(".video-like-btn");
+  if (!likeButton) return;
+
+  const key = normalizeStatsKey(likeButton.dataset.statsKey);
+  if (!key) return;
+
+  if (hasLikedVideo(key)) {
+    likeButton.classList.add("is-liked");
+    likeButton.setAttribute("aria-pressed", "true");
+    likeButton.setAttribute("aria-label", "You liked this video");
+    return;
+  }
+
+  markVideoLiked(key);
+
+  likeButton.classList.add("is-liked");
+  likeButton.setAttribute("aria-pressed", "true");
+  likeButton.setAttribute("aria-label", "You liked this video");
+
+  const countEls = document.querySelectorAll(`[data-like-count="${CSS.escape(key)}"]`);
+  countEls.forEach((el) => {
+    const current = Number(el.textContent) || 0;
+    el.textContent = String(current + 1);
+  });
+
+  trackVideoStat(key, "like", {
+    title: likeButton.dataset.title || "",
+    artist: likeButton.dataset.artist || ""
+  });
+});
+
 els.grid.addEventListener("click", async (event) => {
   const button = event.target.closest(".share-btn");
   if (!button) return;
