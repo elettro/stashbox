@@ -236,6 +236,17 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-now-gtag{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:4px}
 .m-now-notes{font-size:12px;color:var(--muted);font-style:italic;margin-top:6px}
 .m-now-plays{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:rgba(240,165,0,.14);color:var(--accent);border:1px solid rgba(240,165,0,.3);padding:6px 10px;font-size:12px;font-weight:800;border-radius:999px;white-space:nowrap;margin-top:8px}
+
+.song-share-btn{width:30px;height:30px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;font-size:15px;line-height:1;}
+.song-share-btn:hover{border-color:rgba(240,165,0,.45);color:var(--accent);background:rgba(240,165,0,.1);}
+.song-share-btn:active{transform:scale(.96);}
+.song-share-main{height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(240,165,0,.35);background:rgba(240,165,0,.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;font-weight:800;font-family:var(--fb);font-size:12px;letter-spacing:.04em;white-space:nowrap;flex-shrink:0;transition:all .15s;}
+.song-share-main:hover{background:var(--accent);color:#111;}
+.m-song-share-btn{width:32px;height:32px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:15px;}
+.m-song-share-btn:active{background:rgba(240,165,0,.12);color:var(--accent);}
+.m-song-share-main{height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(240,165,0,.35);background:rgba(240,165,0,.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-weight:800;font-size:12px;white-space:nowrap;}
+.share-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;background:rgba(19,19,22,.96);color:var(--text);border:1px solid rgba(240,165,0,.35);border-radius:999px;padding:10px 16px;font-size:13px;font-weight:700;box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;}
+.share-toast.visible{opacity:1;transform:translateX(-50%) translateY(-4px);}
 .m-now-audio{flex-shrink:0;padding:0 20px 8px}
 .m-now-audio audio{width:100%;height:36px;accent-color:var(--accent)}
 .m-now-ctrl{flex-shrink:0;padding:8px 20px;display:flex;align-items:center;justify-content:space-between}
@@ -262,7 +273,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
    RESPONSIVE SWITCH
 ══════════════════════════════════════ */
 @media(min-width:768px){#desktop{display:block}#mobile{display:none!important}}
-@media(max-width:767px){#desktop{display:none!important}#mobile{display:flex}body{overflow:hidden;height:100vh}
+@media(max-width:767px){
+  .song-share-main{height:36px;padding:0 12px;font-size:11px;}#desktop{display:none!important}#mobile{display:flex}body{overflow:hidden;height:100vh}
   .play-badge{padding:5px 8px;font-size:11px}
   .now-plays{padding:7px 10px;font-size:12px}
 }
@@ -330,6 +342,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
           <div class="dp-notes" id="dp-notes" style="display:none"></div>
         </div>
         <div class="now-plays" id="dp-plays">▶ 0 Plays</div>
+        <button class="song-share-main" id="dp-share" onclick="shareCurrentSong(event)" style="display:none">⤴ Share</button>
         <div class="dp-ctrl">
           <button class="bb" onclick="playPrev()">&#9664;</button>
           <button class="bb pp" id="d-pp" onclick="togglePause()">&#9654;</button>
@@ -407,6 +420,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       <div class="m-now-meta"><span id="m-now-artist"></span><span id="m-now-album" style="font-style:italic;color:var(--muted);font-size:12px"></span><span class="m-now-gtag" id="m-now-gtag"></span></div>
       <div class="m-now-notes" id="m-now-notes" style="display:none"></div>
       <div class="m-now-plays" id="m-now-plays">▶ 0 Plays</div>
+      <button class="m-song-share-main" id="m-now-share" onclick="shareCurrentSong(event)" style="display:none">⤴ Share</button>
     </div>
     <div class="m-now-audio" id="m-now-audio" style="display:none"></div>
     <div class="m-now-ctrl">
@@ -498,7 +512,7 @@ function parseCSV(csv) {
     return {
       title:cl(c[0]), album:cl(c[1]), artist:cl(c[2]), genre, sectionKey:resSec(genre),
       date:cl(c[4]), audioUrl:fixDb(cl(c[6])), imageUrl:fixDb(cl(c[8])),
-      videoUrl:cl(c[9]), notes:cl(c[10]), plays:Number(cl(c[11]))||0, idx:i
+      videoUrl:cl(c[9]), notes:cl(c[10]), plays:Number(cl(c[11]))||0, songShares:Number(cl(c[15]))||0, idx:i
     };
   }).filter(Boolean);
 }
@@ -685,6 +699,7 @@ function dCard(t, i, sec) {
       <div class="dcard-date">${t.date||''}</div>
     </div>
     <div class="play-badge" data-track-plays="${t.idx}">▶ ${t.plays || 0} Plays</div>
+    <button class="song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">⤴</button>
     <div class="dcard-badges">
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
       ${t.imageUrl&&!t.videoUrl?'<span class="badge bimg">IMG</span>':''}
@@ -788,11 +803,62 @@ function mRow(t, i, sec) {
       <div class="mtrack-date">${t.date||''}</div>
     </div>
     <div class="m-play-badge" data-track-plays="${t.idx}">▶ ${t.plays || 0}</div>
+    <button class="m-song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">⤴</button>
     <div class="mtrack-badges">
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
     </div>
     <div class="mplay-icon">${pl?'♪':'▶'}</div>
   </div>`;
+}
+
+function getSongShareUrl(t) {
+  const baseUrl = window.location.origin + window.location.pathname;
+  const params = new URLSearchParams();
+  if (t && t.title) params.set('song', t.title);
+  if (t && t.artist) params.set('artist', t.artist);
+  return `${baseUrl}?${params.toString()}`;
+}
+function getShareText(t) {
+  const title = t?.title || 'Stashbox Radio';
+  const artist = t?.artist || 'Stashbox';
+  return { title: `${title} by ${artist}`, text: `Listen to ${title} by ${artist} on Stashbox Radio.`, url: getSongShareUrl(t) };
+}
+function updateSongSharesDisplay(t) {
+  if (!t) return;
+  document.querySelectorAll(`[data-track-shares="${t.idx}"]`).forEach(el => { el.textContent = `${Number(t.songShares) || 0}`; });
+}
+function recordSongShare(t) {
+  if (!PLAY_TRACKING_URL || !t) return;
+  t.songShares = (Number(t.songShares) || 0) + 1;
+  updateSongSharesDisplay(t);
+  const payload = { type:'radio_song_share', title:t.title||'', artist:t.artist||'', album:t.album||'', genre:t.genre||'', audioUrl:t.audioUrl||'', shareUrl:getSongShareUrl(t), page:window.location.pathname, timestamp:new Date().toISOString() };
+  if (debugPlays()) console.log('[Radio Song Share Tracking] payload:', payload);
+  fetch(PLAY_TRACKING_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload), keepalive:true }).catch(err => { if (debugPlays()) console.warn('[Radio Song Share Tracking] failed:', err); });
+}
+async function shareSong(event, trackIdx) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  const t = allTracks.find(track => Number(track.idx) === Number(trackIdx));
+  if (!t) return;
+  recordSongShare(t);
+  const shareData = getShareText(t);
+  try {
+    if (navigator.share) { await navigator.share(shareData); showShareToast('Share opened'); }
+    else if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(shareData.url); showShareToast('Song link copied'); }
+    else { window.prompt('Copy this song link:', shareData.url); }
+  } catch (err) { if (debugPlays()) console.warn('[Song Share] cancelled or failed:', err); }
+}
+function shareCurrentSong(event) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  if (!currentTrack) return;
+  shareSong(event, currentTrack.idx);
+}
+function showShareToast(message) {
+  let toast = document.getElementById('share-toast');
+  if (!toast) { toast = document.createElement('div'); toast.id = 'share-toast'; toast.className = 'share-toast'; document.body.appendChild(toast); }
+  toast.textContent = message || 'Song link copied';
+  toast.classList.add('visible');
+  clearTimeout(window.__shareToastTimer);
+  window.__shareToastTimer = setTimeout(() => { toast.classList.remove('visible'); }, 1800);
 }
 
 // ════════ SHARED PLAYBACK ════════
