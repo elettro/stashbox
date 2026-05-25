@@ -22,43 +22,521 @@
     --accent: #c8a84b;
     --accent-dim: #8a7030;
   }
+
   html { scroll-behavior: smooth; }
-  body { background-color: var(--black); color: var(--off-white); font-family: 'Oswald', sans-serif; font-weight: 300; min-height: 100vh; overflow-x: hidden; width: 100%; max-width: 100%; }
-  .site-header { border-bottom: 1px solid var(--rule); padding: 22px 40px; display: flex; align-items: baseline; justify-content: space-between; gap: 20px; width: 100%; animation: fadeDown 0.6s ease both; }
-  .site-header .brand { font-family: 'Special Elite', monospace; font-size: 22px; letter-spacing: 0.06em; color: var(--white); text-decoration: none; }
-  .site-header .sub { font-size: 11px; font-weight: 300; letter-spacing: 0.3em; text-transform: uppercase; color: var(--dim); }
-  .page { width: 100%; max-width: 100%; padding: 0 40px 80px; }
-  .title-block { padding: 52px 0 36px; border-bottom: 1px solid var(--rule); margin-bottom: 40px; animation: fadeUp 0.7s ease 0.1s both; }
-  .eyebrow { font-size: 11px; font-weight: 400; letter-spacing: 0.35em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
-  .main-title { font-family: 'Special Elite', monospace; font-size: clamp(32px, 5vw, 52px); line-height: 1.05; color: var(--white); letter-spacing: 0.02em; margin-bottom: 10px; }
-  .sub-title { font-size: 14px; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dim); margin-bottom: 22px; }
-  .meta-row { display: flex; gap: 28px; flex-wrap: wrap; font-size: 12px; font-weight: 300; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+
+  body {
+    background-color: var(--black);
+    color: var(--off-white);
+    font-family: 'Oswald', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    border-bottom: 1px solid var(--rule);
+    padding: 22px 40px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .site-header .brand {
+    font-family: 'Special Elite', monospace;
+    font-size: 22px;
+    letter-spacing: 0.06em;
+    color: var(--white);
+    text-decoration: none;
+  }
+
+  .site-header .sub {
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ── MAIN WRAPPER ── */
+  .page {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 40px 80px;
+  }
+
+  /* ── TITLE BLOCK ── */
+  .title-block {
+    padding: 52px 0 36px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 40px;
+    animation: fadeUp 0.7s ease 0.1s both;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+
+  .main-title {
+    font-family: 'Special Elite', monospace;
+    font-size: clamp(32px, 5vw, 52px);
+    line-height: 1.05;
+    color: var(--white);
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+
+  .sub-title {
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 22px;
+  }
+
+  .meta-row {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
   .meta-row span { position: relative; }
-  .meta-row span:not(:last-child)::after { content: '·'; position: absolute; right: -16px; color: var(--rule); }
-  .video-wrap { position: relative; width: 100%; padding-bottom: 56.25%; background: var(--off-black); border: 1px solid var(--rule); margin-bottom: 48px; animation: fadeUp 0.7s ease 0.2s both; }
-  .video-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
-  .intro { font-family: 'EB Garamond', serif; font-size: 18px; line-height: 1.8; color: var(--light); margin-bottom: 52px; padding-bottom: 40px; border-bottom: 1px solid var(--rule); animation: fadeUp 0.7s ease 0.3s both; }
-  .section-label { font-size: 10px; font-weight: 500; letter-spacing: 0.4em; text-transform: uppercase; color: var(--accent-dim); margin-bottom: 20px; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-bottom: 52px; padding-bottom: 52px; border-bottom: 1px solid var(--rule); animation: fadeUp 0.7s ease 0.35s both; }
-  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; gap: 36px; } }
-  .setlist,.players { list-style: none; }
-  .setlist li, .players li { padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
-  .setlist li { display: flex; align-items: baseline; gap: 14px; font-weight: 400; letter-spacing: 0.03em; }
-  .setlist li:last-child,.players li:last-child { border-bottom: none; }
-  .track-num { font-size: 10px; font-weight: 300; color: var(--muted); min-width: 20px; letter-spacing: 0.05em; }
+  .meta-row span:not(:last-child)::after {
+    content: '·';
+    position: absolute;
+    right: -16px;
+    color: var(--rule);
+  }
+
+  /* ── VIDEO ── */
+  .video-wrap {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%;
+    background: var(--off-black);
+    border: 1px solid var(--rule);
+    margin-bottom: 48px;
+    animation: fadeUp 0.7s ease 0.2s both;
+  }
+
+  .video-wrap iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: none;
+  }
+
+  /* ── INTRO ── */
+  .intro {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    line-height: 1.8;
+    color: var(--light);
+    margin-bottom: 52px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--rule);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--accent-dim);
+    margin-bottom: 20px;
+  }
+
+  /* ── TWO COL ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 52px;
+    padding-bottom: 52px;
+    border-bottom: 1px solid var(--rule);
+    animation: fadeUp 0.7s ease 0.35s both;
+  }
+
+  @media (max-width: 600px) {
+    .two-col { grid-template-columns: 1fr; gap: 36px; }
+  }
+
+  /* ── SETLIST ── */
+  .setlist { list-style: none; }
+
+  .setlist li {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.03em;
+  }
+
+  .setlist li:last-child { border-bottom: none; }
+
+  .track-num {
+    font-size: 10px;
+    font-weight: 300;
+    color: var(--muted);
+    min-width: 20px;
+    letter-spacing: 0.05em;
+  }
+
   .track-name { color: var(--off-white); }
-  .track-orig { font-size: 9px; font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-dim); padding: 2px 5px; border-radius: 2px; margin-left: auto; white-space: nowrap; }
-  .player-name { font-weight: 500; color: var(--white); display: block; margin-bottom: 2px; }
-  .player-role { font-size: 12px; font-weight: 300; color: var(--dim); letter-spacing: 0.08em; }
-  .song-note { padding: 32px 0; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 48px 1fr; gap: 0 20px; }
+
+  .track-orig {
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    padding: 2px 5px;
+    border-radius: 2px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  /* ── PLAYERS ── */
+  .players { list-style: none; }
+
+  .players li {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 14px;
+  }
+
+  .players li:last-child { border-bottom: none; }
+
+  .player-name {
+    font-weight: 500;
+    color: var(--white);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .player-role {
+    font-size: 12px;
+    font-weight: 300;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── SONG NOTES ── */
+  .song-notes { animation: fadeUp 0.7s ease 0.4s both; }
+
+  .song-note {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 0 20px;
+  }
+
   .song-note:last-child { border-bottom: none; }
-  .note-num { font-size: 11px; font-weight: 300; color: var(--accent-dim); padding-top: 3px; letter-spacing: 0.05em; }
-  .note-title { font-family: 'Special Elite', monospace; font-size: 17px; color: var(--white); letter-spacing: 0.03em; margin-bottom: 10px; line-height: 1.3; }
-  .note-orig-badge { display: inline-block; font-family: 'Oswald', sans-serif; font-size: 9px; font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-dim); padding: 2px 6px; border-radius: 2px; margin-left: 10px; vertical-align: middle; position: relative; top: -2px; }
-  .note-body { font-family: 'EB Garamond', serif; font-size: 16px; line-height: 1.8; color: var(--dim); }
-  footer { border-top: 1px solid var(--rule); padding: 28px 40px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; width: 100%; }
-  footer .foot-brand { font-family: 'Special Elite', monospace; font-size: 14px; color: var(--muted); letter-spacing: 0.06em; }
-  footer a { font-size: 11px; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); text-decoration: none; }
+
+  .note-num {
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--accent-dim);
+    padding-top: 3px;
+    letter-spacing: 0.05em;
+  }
+
+  .note-title {
+    font-family: 'Special Elite', monospace;
+    font-size: 17px;
+    color: var(--white);
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+
+  .note-orig-badge {
+    display: inline-block;
+    font-family: 'Oswald', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-left: 10px;
+    vertical-align: middle;
+    position: relative;
+    top: -2px;
+  }
+
+  .note-body {
+    font-family: 'EB Garamond', serif;
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--dim);
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 28px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  footer .foot-brand {
+    font-family: 'Special Elite', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  footer a {
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  footer a:hover { color: var(--white); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .accent-rule {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin-bottom: 18px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .site-header { padding: 18px 20px; }
+    .page { padding: 0 20px 60px; }
+    .title-block { padding: 36px 0 28px; }
+    footer { padding: 24px 20px; }
+    .song-note { grid-template-columns: 36px 1fr; gap: 0 12px; }
+  }
 </style>
 </head>
-<body><header class="site-header"><a href="https://stashbox.com" class="brand">Stashbox</a><span class="sub">Stashbox Does Dylan</span></header><main class="page"><div class="title-block"><div class="eyebrow">Bob Dylan Tribute</div><h1 class="main-title">Stashbox Does Dylan</h1><div class="sub-title">Full Session Recording</div><div class="meta-row"><span>Studio One</span><span>Fort Lauderdale, FL</span><span>March 18, 2026</span></div></div><div class="video-wrap"><iframe src="https://www.youtube.com/embed/sTRh-QrG_Eg" title="Stashbox Does Dylan — Full Session | Studio One | Fort Lauderdale FL | 03.18.26" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div><p class="intro">A full rehearsal and recording session at Studio One in Fort Lauderdale, Florida, capturing Stashbox preparing for their <em>Stashbox Does Dylan</em> Bob Dylan tribute show. The band worked through a 13-song set spanning Dylan's catalog — early folk-rock, mid-period classics, and later-era gems — with outlaw country detours and a Stashbox original to close. The session crackled with the loose, lived-in energy of a band that knows these songs from the inside out.</p></main><footer><span class="foot-brand">Stashbox — Stashbox Does Dylan</span></footer></body></html>
+<body>
+
+<header class="site-header">
+  <a href="https://stashbox.com" class="brand">Stashbox</a>
+  <span class="sub">Stashbox Does Dylan</span>
+</header>
+
+<main class="page">
+
+  <div class="title-block">
+    <div class="eyebrow">Bob Dylan Tribute</div>
+    <h1 class="main-title">Stashbox Does Dylan</h1>
+    <div class="sub-title">Full Session Recording</div>
+    <div class="meta-row">
+      <span>Studio One</span>
+      <span>Fort Lauderdale, FL</span>
+      <span>March 18, 2026</span>
+      
+    </div>
+  </div>
+
+  <div class="video-wrap">
+    <iframe
+      src="https://www.youtube.com/embed/sTRh-QrG_Eg"
+      title="Stashbox Does Dylan — Full Session | Studio One | Fort Lauderdale FL | 03.18.26"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen>
+    </iframe>
+  </div>
+
+  <p class="intro">
+    A full rehearsal and recording session at Studio One in Fort Lauderdale, Florida, capturing Stashbox preparing for their <em>Stashbox Does Dylan</em> Bob Dylan tribute show. The band worked through a 13-song set spanning Dylan's catalog — early folk-rock, mid-period classics, and later-era gems — with outlaw country detours and a Stashbox original to close. The session crackled with the loose, lived-in energy of a band that knows these songs from the inside out.
+  </p>
+
+  <div class="two-col">
+    <div>
+      <div class="section-label">Setlist</div>
+      <ul class="setlist">
+        <li><span class="track-num">01</span><span class="track-name">Rainy Day Woman</span></li>
+        <li><span class="track-num">02</span><span class="track-name">Tangled Up In Blue</span></li>
+        <li><span class="track-num">03</span><span class="track-name">Silvio</span></li>
+        <li><span class="track-num">04</span><span class="track-name">Nobody Gonna Do Me Wrong</span></li>
+        <li><span class="track-num">05</span><span class="track-name">Night Nurse</span></li>
+        <li><span class="track-num">06</span><span class="track-name">Positively 4th Street</span></li>
+        <li><span class="track-num">07</span><span class="track-name">Folsom Prison</span></li>
+        <li><span class="track-num">08</span><span class="track-name">Cocaine Blues</span></li>
+        <li><span class="track-num">09</span><span class="track-name">She Belongs To Me</span></li>
+        <li><span class="track-num">10</span><span class="track-name">Lovesick</span></li>
+        <li><span class="track-num">11</span><span class="track-name">Things Have Changed</span></li>
+        <li><span class="track-num">12</span><span class="track-name">Tomorrow Never Knows</span></li>
+        <li><span class="track-num">13</span><span class="track-name">Billy Maze <span class="track-orig">Original</span></span></li>
+      </ul>
+    </div>
+    <div>
+      <div class="section-label">Players</div>
+      <ul class="players">
+        <li><span class="player-name">Dean Palermo</span><span class="player-role">Guitar / Vocals</span></li>
+        <li><span class="player-name">Michael Hugh</span><span class="player-role">Keyboards / Vocals</span></li>
+        <li><span class="player-name">Josh Clyde</span><span class="player-role">Guitar / Vocals</span></li>
+        <li><span class="player-name">David Nizri</span><span class="player-role">Drums</span></li>
+        <li><span class="player-name">Mike Ancona</span><span class="player-role">Bass</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="song-notes">
+    <div class="section-label">Song Notes</div>
+    <div class="accent-rule"></div>
+
+    <div class="song-note">
+      <div class="note-num">01</div>
+      <div class="note-content">
+        <div class="note-title">Rainy Day Woman #12 &amp; 35</div>
+        <p class="note-body">A carnival of deliberate chaos — tuba-drunk, tambourine-rattled, gleefully unhinged. Dylan built this like a New Orleans funeral parade that wandered into a protest and stayed. A loping two-chord shuffle that sounds like it could fall apart but never does. That refrain lands again and again like a punchline that gets funnier every time. A room-unifier — the moment everyone shares the same grin.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">02</div>
+      <div class="note-content">
+        <div class="note-title">Tangled Up In Blue</div>
+        <p class="note-body">One of the great American road songs, told from a perspective that shifts like a dream you're still inside. A few chords cycling with patient inevitability, but lyrically a five-act novel in five minutes. That folky upward pull on the chorus feels like hope mixed with restlessness. The song breathes best when the arrangement leaves room for the words to land.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">03</div>
+      <div class="note-content">
+        <div class="note-title">Silvio</div>
+        <p class="note-body">Co-written with Robert Hunter, Silvio is Dylan in full road-dog swagger — a rolling mid-tempo rocker with a hook that refuses to leave. The lyric has the loose, aphoristic quality of a man tossing philosophical grenades out a car window. A natural crowd-mover — the kind of song that sounds better in a room full of people.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">04</div>
+      <div class="note-content">
+        <div class="note-title">Nobody Gonna Do Me Wrong</div>
+        <p class="note-body">A declarative swagger — a song that stands with its chest out. The title is a mantra that sounds better the third time than the first. Locks into a hard shuffle groove the rhythm section can really dig into, while the guitars trade licks over a foundation that feels earned rather than decorative.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">05</div>
+      <div class="note-content">
+        <div class="note-title">Night Nurse</div>
+        <p class="note-body">A detour into reggae-soul — smooth, unhurried, smoldering. Originally by Gregory Isaacs, it moves like a slow tide: patient, inevitable, deeply felt. Built around a one-drop groove that pulls you in rather than pushing forward. In a Dylan-heavy set it's the palate cleanser — the moment the room exhales.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">06</div>
+      <div class="note-content">
+        <div class="note-title">Positively 4th Street</div>
+        <p class="note-body">The coldest song in the Dylan catalog — controlled venom at its finest. The melody is almost pleasant, which makes the words land harder. The arrangement is almost cheerful — which is exactly the point. Play it right and the audience starts squirming in the best possible way.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">07</div>
+      <div class="note-content">
+        <div class="note-title">Folsom Prison Blues</div>
+        <p class="note-body">Johnny Cash's signature — the snap of a snare and the cold rumble of a freight train that isn't stopping. The boom-chicka-boom is one of the most imitated feels in American music. Cinematic and brutal: a man behind bars watching that train roll by, calculating the distance between himself and freedom.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">08</div>
+      <div class="note-content">
+        <div class="note-title">Cocaine Blues</div>
+        <p class="note-body">Cash's outlaw ballad gives this pairing its narrative coherence: the crime and the consequence, back to back. Lopes along in a dark minor-key groove, each verse a step further down a road that only goes one direction. A blues in the oldest sense — not self-pity, but a clear-eyed accounting of how a man gets from here to gone.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">09</div>
+      <div class="note-content">
+        <div class="note-title">She Belongs To Me</div>
+        <p class="note-body">One of Dylan's most painterly character sketches — a portrait of a woman so singular she operates outside the laws governing ordinary people. The harmonica-laced melody is hypnotic. Pure impressionism: images stacked on images, none resolving into conventional narrative. A song you inhabit, not one you attack.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">10</div>
+      <div class="note-content">
+        <div class="note-title">Lovesick</div>
+        <p class="note-body">The opening track from Time Out of Mind — one of the most haunted things Dylan ever recorded. Spare and spectral, a slow drag through a minor-key landscape that feels like a deserted street at three in the morning. Unadorned and devastating. Requires restraint bordering on discipline — this song needs air and darkness in equal measure.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">11</div>
+      <div class="note-content">
+        <div class="note-title">Things Have Changed</div>
+        <p class="note-body">Written for Wonder Boys — dark, sardonic, utterly alive. Where Lovesick is haunted, Things Have Changed is armored. A swaggering, slightly bent rocker with a lyric that piles up images of a world gone sideways with the detachment of someone who has already made their peace. Heartbreak turned inward, then turned into armor.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">12</div>
+      <div class="note-content">
+        <div class="note-title">Tomorrow Never Knows</div>
+        <p class="note-body">The Beatles' psychedelic landmark — Lennon's words over Ringo's hypnotic one-chord drone. One of the few songs that genuinely sounds like a new world being opened up. The lyric draws from the Tibetan Book of the Dead. The philosophical kinship between Lennon and Dylan makes this inclusion feel completely natural.</p>
+      </div>
+    </div>
+
+    <div class="song-note">
+      <div class="note-num">13</div>
+      <div class="note-content">
+        <div class="note-title">Billy Maze <span class="note-orig-badge">Stashbox Original</span></div>
+        <p class="note-body">The closer — a Stashbox original crashing funk, rap, and hard rock together. The groove is thick and percussive, the rhythm section locks deep, and just when the pocket gets comfortable the guitars detonate and everything shifts gear. The rap cuts through the low-end with precision. This band doesn't end shows by fading out — they end them by reminding you what they're capable of when the leash comes off.</p>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  <span class="foot-brand">Stashbox — Stashbox Does Dylan</span>
+  <a href="https://stashbox.com/260318" target="_blank">stashbox.com/260318</a>
+</footer>
+
+</body>
+</html>
