@@ -853,8 +853,48 @@
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
 const VIDEO_STATS_TRACKING_URL = "https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec";
 const VIDEO_STATS_TRACKING_URL_RUNTIME = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || "";
+const LIKES_DEBUG_MODE = new URLSearchParams(window.location.search || "").get("debugLikes") === "1";
+let likesDebugBox = null;
 
 let allVideos = [];
+
+function ensureLikesDebugBox() {
+  if (!LIKES_DEBUG_MODE) return null;
+  if (likesDebugBox) return likesDebugBox;
+
+  likesDebugBox = document.createElement("div");
+  likesDebugBox.id = "likes-debug-box";
+  likesDebugBox.setAttribute("aria-live", "polite");
+  likesDebugBox.style.cssText = [
+    "position:fixed",
+    "right:12px",
+    "bottom:12px",
+    "width:min(460px,calc(100vw - 24px))",
+    "max-height:38vh",
+    "overflow:auto",
+    "z-index:999999",
+    "background:rgba(0,0,0,.88)",
+    "color:#b8ffb9",
+    "font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
+    "padding:10px",
+    "border:1px solid rgba(184,255,185,.4)",
+    "border-radius:8px",
+    "box-shadow:0 8px 26px rgba(0,0,0,.45)",
+    "white-space:pre-wrap"
+  ].join(";");
+  document.body.appendChild(likesDebugBox);
+  return likesDebugBox;
+}
+
+function likesDebugLog(message) {
+  if (!LIKES_DEBUG_MODE) return;
+  const box = ensureLikesDebugBox();
+  if (!box) return;
+  const line = document.createElement("div");
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
 
 
 function saveStatsEndpointFromUrl() {
@@ -1124,12 +1164,12 @@ function getVideoKey(video) {
   return getVideoStatsKey(video);
 }
 
-function sendVideoStat(video, type = "like") {
+function buildVideoStatUrl(video, type = "like") {
   const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
 
   if (!endpoint) {
     console.warn("No video stats endpoint set.");
-    return;
+    return "";
   }
 
   const key = getVideoKey(video);
@@ -1138,20 +1178,26 @@ function sendVideoStat(video, type = "like") {
 
   if (!key) {
     console.warn("Missing video key for stat tracking", video);
-    return;
+    return "";
   }
 
-  const url = endpoint
+  return endpoint
     + "?key=" + encodeURIComponent(key)
-    + "&type=" + encodeURIComponent(type)
+    + "&type=like"
     + "&title=" + encodeURIComponent(title)
     + "&artist=" + encodeURIComponent(artist)
     + "&t=" + Date.now();
+}
+
+function sendVideoStat(video, type = "like") {
+  const url = buildVideoStatUrl(video, type);
+  if (!url) return "";
 
   console.log("Sending video stat beacon:", url);
 
   const img = new Image();
   img.src = url;
+  return url;
 }
 
 
@@ -1452,15 +1498,24 @@ document.addEventListener("click", (event) => {
 
   const key = normalizeStatsKey(likeButton.dataset.statsKey);
   if (!key) return;
+  const localStorageBlocked = hasLikedVideo(key);
 
-  if (hasLikedVideo(key)) {
+  likesDebugLog("thumb clicked");
+  likesDebugLog(`video key: ${key}`);
+  likesDebugLog(`title: ${likeButton.dataset.title || ""}`);
+
+  if (localStorageBlocked && !LIKES_DEBUG_MODE) {
     likeButton.classList.add("is-liked");
     likeButton.setAttribute("aria-pressed", "true");
     likeButton.setAttribute("aria-label", "You liked this video");
+    likesDebugLog("final tracking URL: (blocked, not sent)");
+    likesDebugLog(`localStorage blocked vote: ${localStorageBlocked}`);
     return;
   }
 
-  markVideoLiked(key);
+  if (!LIKES_DEBUG_MODE) {
+    markVideoLiked(key);
+  }
 
   likeButton.classList.add("is-liked");
   likeButton.setAttribute("aria-pressed", "true");
@@ -1478,7 +1533,12 @@ document.addEventListener("click", (event) => {
     artist: likeButton.dataset.artist || ""
   };
 
-  sendVideoStat(video, "like");
+  const finalTrackingUrl = sendVideoStat(video, "like");
+  likesDebugLog(`final tracking URL: ${finalTrackingUrl}`);
+  likesDebugLog(`localStorage blocked vote: ${localStorageBlocked}`);
+  if (finalTrackingUrl) {
+    console.log("Like tracking URL:", finalTrackingUrl);
+  }
 });
 
 els.grid.addEventListener("click", async (event) => {
