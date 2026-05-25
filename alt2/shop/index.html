@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop — Stashbox Store · T-Shirts, Art Prints &amp; More</title>
+  <meta name="description" content="Shop Stashbox merch — T-shirts, art prints, and more. Secure checkout at Stashbox.ai.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/styles.css">
+</head>
+<body>
+
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/songs/">Songs</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<header class="page-header">
+  <div class="container">
+    <h1 class="page-header__title">STASHBOX STORE</h1>
+    <p class="page-header__sub">T-shirts, art prints, and more.</p>
+  </div>
+</header>
+
+<main>
+  <section class="section" aria-label="Shop">
+    <div class="container">
+
+      <div class="shop-section-head shop-section-head--with-action fade-in">
+        <div>
+          <p class="section-label" style="color:var(--color-accent); margin-bottom:var(--space-4);">STASHBOX.AI MERCH</p>
+          <h2 class="section-title" style="font-size:var(--text-display-s);">Stashbox Music Merch</h2>
+        </div>
+        <button type="button" id="refreshProductsBtn" class="btn shop-refresh-btn" aria-label="Refresh and randomize products">Refresh Products</button>
+      </div>
+      <p class="section-sub" style="margin-bottom:var(--space-5);">Real products pulled from the Stashbox merch collection.</p>
+      <section id="stashbox-merch-widget">
+      <p id="featuredStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
+      <div id="stashbox-merch-grid-collection" class="shop-product-grid" aria-live="polite"></div>
+
+      <div class="shop-section-head fade-in" style="margin-top:var(--space-14);">
+        <h2 class="section-title" style="font-size:var(--text-display-s);">Latest Products from Stashbox.ai</h2>
+      </div>
+      <p class="section-sub" style="margin-bottom:var(--space-5);">More real products pulled from the full Stashbox.ai store.</p>
+      <p id="newestStatus" class="music-card__meta shop-status">Loading Stashbox products...</p>
+      <div id="stashbox-merch-grid-all" class="shop-product-grid" aria-live="polite"></div>
+      </section>
+
+      <div class="shop-hero fade-in">
+        <h2 class="section-title" style="font-size:var(--text-display-s);">See More Stashbox Merch</h2>
+        <p class="shop-hero__sub">Browse the complete Stashbox.ai catalog for the latest drops and fan favorites.</p>
+        <a href="https://stashbox.ai"
+           class="btn btn--accent btn--lg"
+           target="_blank" rel="noopener noreferrer">
+          Shop All at Stashbox.ai
+        </a>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/" class="footer__logo" aria-label="Stashbox"><img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'"><span class="footer__logo-text" style="display:none">STASHBOX</span></a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact"><a href="tel:3104086687">310.408.6687</a><a href="mailto:booking@stashbox.com">booking@stashbox.com</a></div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col"><h4 class="footer__col-title">Tribute Shows</h4><ul><li><a href="/stashbox/booking/">Stashbox Does Dylan</a></li><li><a href="/stashbox/booking/">Stashbox Does Sublime</a></li><li><a href="/stashbox/booking/">Classic Reggae Show</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">Music</h4><ul><li><a href="/stashbox/songs/">Albums &amp; Singles</a></li><li><a href="/stashbox/videos/">Videos</a></li><li><a href="/stashbox/sessions/">Sessions</a></li><li><a href="/stashbox/setlists/">Setlists</a></li></ul></div>
+      <div class="footer__col"><h4 class="footer__col-title">More</h4><ul><li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li><li><a href="/stashbox/custom/">Custom Music</a></li><li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li></ul></div>
+    </div>
+    <div class="footer__social" aria-label="Social links">
+      <a href="https://www.youtube.com/@stashboxband" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+      <a href="https://www.instagram.com/stashboxmusic" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>
+      <a href="https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Spotify"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg></a>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<style>
+.shop-product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-10);
+}
+.shop-status { margin: 0 0 var(--space-5) 0; }
+.shop-section-head--with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.shop-refresh-btn {
+  flex-shrink: 0;
+}
+@media (max-width: 768px) {
+  .shop-section-head--with-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .shop-refresh-btn {
+    width: 100%;
+  }
+}
+.shop-product-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.shop-product-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.shop-product-image-wrap {
+  min-height: 240px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+}
+.shop-product-image {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  object-fit: contain;
+  padding: var(--space-4);
+}
+.shop-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.shop-card-price {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.shop-card-actions { margin-top: auto; }
+.shop-fallback {
+  font-size: var(--text-xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  padding: var(--space-5);
+  text-align: center;
+}
+@media (max-width: 1024px) and (min-width: 769px) {
+  .shop-product-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 768px) {
+  .shop-product-grid { grid-template-columns: 1fr; }
+}
+</style>
+<script>
+(function () {
+  console.log("Stashbox shop product script loaded");
+
+  const STORE_URL = 'https://stashbox.ai';
+  const COLLECTION_ENDPOINT = `${STORE_URL}/collections/stashbox/products.json?limit=250`;
+  const ALL_PRODUCTS_ENDPOINT = `${STORE_URL}/products.json?limit=250`;
+  const gridCollection = document.getElementById('stashbox-merch-grid-collection');
+  const gridAll = document.getElementById('stashbox-merch-grid-all');
+  const featuredStatusEl = document.getElementById('featuredStatus');
+  const newestStatusEl = document.getElementById('newestStatus');
+  const refreshProductsBtn = document.getElementById('refreshProductsBtn');
+
+  console.log("Collection grid:", gridCollection);
+  console.log("All products grid:", gridAll);
+  if (!gridCollection || !gridAll) {
+    console.error("Missing product grid container IDs");
+    return;
+  }
+
+  const displayedState = { collection: [], all: [] };
+
+  function getDisplayCount() {
+    if (window.matchMedia('(max-width: 768px)').matches) return 3;
+    if (window.matchMedia('(max-width: 1024px)').matches) return 4;
+    return 6;
+  }
+
+  function formatPrice(value) {
+    const num = Number.parseFloat(value);
+    if (Number.isNaN(num)) return 'Price unavailable';
+    return `$${num.toFixed(2)} USD`;
+  }
+
+  function shuffleProducts(products) {
+    const copy = [...products];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  async function fetchJson(url) {
+    console.log("Fetching URL:", url);
+    const res = await fetch(url);
+    console.log("Fetch status:", res.status, res.statusText);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    console.log("JSON loaded:", data);
+    return data;
+  }
+
+  function normalizeProducts(data) {
+    return (Array.isArray(data?.products) ? data.products : [])
+      .map((product) => ({
+        title: product?.title || '',
+        handle: product?.handle || '',
+        image: product?.image?.src || product?.images?.[0]?.src || '',
+        price: formatPrice(product?.variants?.[0]?.price)
+      }))
+      .filter((product) => product.title && product.handle);
+  }
+
+  function renderCards(grid, products) {
+    console.log("Rendering cards into:", grid, "Product count:", products.length);
+    grid.innerHTML = '';
+    products.forEach((product) => {
+      const card = document.createElement('article');
+      card.className = 'music-card shop-product-card';
+      const url = `${STORE_URL}/products/${product.handle}`;
+      card.innerHTML = `
+        <a href="${url}" class="shop-product-link" target="_blank" rel="noopener noreferrer">
+          <div class="shop-product-image-wrap">
+            ${product.image ? `<img src="${product.image}" alt="${product.title}" loading="lazy" class="shop-product-image">` : '<p class="shop-fallback">[Product image unavailable]</p>'}
+          </div>
+        </a>
+        <div class="music-card__info shop-card-body">
+          <h3 class="music-card__title">${product.title}</h3>
+          <p class="shop-card-price">${product.price}</p>
+          <div class="shop-card-actions">
+            <a href="${url}" class="btn" target="_blank" rel="noopener noreferrer">View Product</a>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  function renderFallback(grid, statusEl) {
+    statusEl.textContent = 'Products could not load automatically right now.';
+    grid.innerHTML = `
+      <div class="shop-fallback">
+        <p>Products could not load automatically right now.</p>
+        <a href="https://stashbox.ai" class="btn" target="_blank" rel="noopener noreferrer" style="margin-top:var(--space-4);">Shop All at Stashbox.ai</a>
+      </div>
+    `;
+  }
+
+  function rerenderForViewport() {
+    if (!displayedState.collection.length || !displayedState.all.length) return;
+    const count = getDisplayCount();
+    const collectionSlice = displayedState.collection.slice(0, count);
+    const allSlice = displayedState.all.slice(0, count);
+    renderCards(gridCollection, collectionSlice);
+    featuredStatusEl.textContent = `Showing ${collectionSlice.length} products.`;
+    renderCards(gridAll, allSlice);
+    newestStatusEl.textContent = `Showing ${allSlice.length} products.`;
+  }
+
+  function reshuffleAndRender() {
+    if (!displayedState.collection.length || !displayedState.all.length) return false;
+    displayedState.collection = shuffleProducts(displayedState.collection);
+    displayedState.all = shuffleProducts(displayedState.all);
+    rerenderForViewport();
+    return true;
+  }
+
+  async function renderMerch(forceFetch = false) {
+    console.log("renderMerch started");
+    if (!forceFetch && reshuffleAndRender()) {
+      featuredStatusEl.textContent += " · Randomized";
+      newestStatusEl.textContent += " · Randomized";
+      return;
+    }
+
+    featuredStatusEl.textContent = "Refreshing products...";
+    newestStatusEl.textContent = "Refreshing products...";
+
+    try {
+      const [collectionData, allData] = await Promise.all([
+        fetchJson(COLLECTION_ENDPOINT),
+        fetchJson(ALL_PRODUCTS_ENDPOINT)
+      ]);
+
+      const collectionProducts = normalizeProducts(collectionData);
+      const allProducts = normalizeProducts(allData);
+      console.log("Collection products:", collectionProducts.length, collectionProducts.slice(0, 3));
+      console.log("All products:", allProducts.length, allProducts.slice(0, 3));
+
+      const shuffledCollection = shuffleProducts(collectionProducts);
+      const collectionHandles = new Set(shuffledCollection.map((p) => p.handle));
+      const shuffledAll = shuffleProducts(allProducts).filter((p) => !collectionHandles.has(p.handle));
+
+      displayedState.collection = shuffledCollection;
+      displayedState.all = shuffledAll.length ? shuffledAll : shuffleProducts(allProducts);
+
+      rerenderForViewport();
+    } catch (err) {
+      console.error('Stashbox merch widget error:', err);
+      renderFallback(gridCollection, featuredStatusEl);
+      renderFallback(gridAll, newestStatusEl);
+    }
+  }
+
+  window.addEventListener('resize', rerenderForViewport);
+
+  if (refreshProductsBtn) {
+    refreshProductsBtn.addEventListener('click', () => {
+      renderMerch();
+    });
+  }
+
+  renderMerch(true);
+})();
+</script>
+
+
+
+<script src="/stashbox/main.js"></script>
+</body>
+</html>
