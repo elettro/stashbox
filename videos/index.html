@@ -852,6 +852,7 @@
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1505372790&single=true&output=csv";
 const VIDEO_STATS_TRACKING_URL = "https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec";
+const VIDEO_STATS_TRACKING_URL_RUNTIME = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || "";
 
 let allVideos = [];
 
@@ -1131,19 +1132,34 @@ function trackVideoStat(key, type, meta = {}) {
     artist: meta.artist || ""
   });
 
-  const endpoint = window.STASHBOX_VIDEO_STATS_TRACKING_URL || localStorage.getItem("stashbox-video-stats-url") || VIDEO_STATS_TRACKING_URL;
+  const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
   if (!endpoint) {
     console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
     return;
   }
 
   const url = `${endpoint}?${params.toString()}&t=${Date.now()}`;
+  console.log("Video stats write-back request URL:", url);
 
-  fetch(url, { method: "GET", mode: "no-cors", cache: "no-store", keepalive: true }).catch(() => {});
+  fetch(url, { method: "GET", cache: "no-store", keepalive: true })
+    .then(async (res) => {
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        data = { parseError: String(parseErr) };
+      }
+      console.log("Video stats write-back JSON response:", data);
 
-  const img = new Image();
-  img.src = url;
+      if (!res.ok) {
+        console.error("Video stats write-back failed:", { status: res.status, statusText: res.statusText, url, response: data });
+      }
+    })
+    .catch((err) => {
+      console.error("Video stats write-back failed:", { url, error: String(err) });
+    });
 }
+
 
 function isReggaeGenre(video) {
   const genreValue = normalizeGenre(firstVal(video, ["genre", "Genre", "type", "Type"]));
