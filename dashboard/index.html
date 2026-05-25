@@ -182,7 +182,7 @@ function render(data){
   document.getElementById('dash-root').innerHTML = versions;
 }
 
-loadData().then(render);
+loadData().then(render).catch(err => { console.error('[dashboard] render failed', err); render({ radio: fallbackSongs, video: [] }); });
 </script>
 </body>
 </html>
