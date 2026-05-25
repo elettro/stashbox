@@ -148,6 +148,21 @@ function getThumbnail(row){ return pick(row, keys.thumb); }
 function sortByMetric(rows, metric){ return rows.slice().sort(function(a,b){ return parseNumber(metric(b))-parseNumber(metric(a)); }); }
 function sumMetric(rows, metric){ return rows.reduce(function(n,r){ return n+parseNumber(metric(r)); },0); }
 
+var root = document.getElementById('dash-root');
+if (!root) {
+  var hero = document.querySelector('.hero');
+  root = document.createElement('div');
+  root.id = 'dash-root';
+  root.className = 'dashboard-version';
+  root.innerHTML = '<section class="card"><h2>Dashboard loading...</h2><p>Fallback sample mode</p></section>' ;
+  if (hero && hero.parentNode) {
+    hero.parentNode.insertBefore(root, hero.nextSibling);
+  } else {
+    document.body.appendChild(root);
+  }
+}
+document.getElementById('dash-root').innerHTML = '<section class="card"><h2>Dashboard loading...</h2><p>Fallback sample mode</p></section>';
+
 function getFallbackPayload(){
   return {
     radio: fallbackSongs,
@@ -261,61 +276,38 @@ function safeRender(payload){
 
 
 async function loadData(){
-  try {
-    var data = await fetchDashboardAPI();
+  var data = await fetchDashboardAPI();
 
-    var radio = Array.isArray(data.radio) ? data.radio : [];
-    var videos = Array.isArray(data.videos) ? data.videos : [];
-    var meta = data.meta || {};
+  var radio = Array.isArray(data.radio) ? data.radio : [];
+  var videos = Array.isArray(data.videos) ? data.videos : [];
+  var meta = data.meta || {};
 
-    if (!radio.length && !videos.length) {
-      throw new Error('Dashboard API returned no rows');
-    }
-
-    updateStatus('live', 'Live API connected · ' + radio.length + ' radio rows · ' + videos.length + ' video rows');
-
-    return {
-      radio: radio,
-      videos: videos,
-      meta: meta
-    };
-
-  } catch(e) {
-    console.info('[dashboard] fallback sample data loaded', e.message);
-    updateStatus('fallback', 'Fallback sample mode · Live API unavailable or returned empty dataset');
-
-    return {
-      radio: fallbackSongs,
-      videos: fallbackVideos,
-      meta: {
-        radioTotals: {
-          totalSongPlays: sumMetric(fallbackSongs, function(r){ return r.plays; }),
-          totalFullSongPlays: sumMetric(fallbackSongs, function(r){ return r.fullPlays || r['full plays']; }),
-          totalPlaySeconds: 0,
-          totalShares: sumMetric(fallbackSongs, function(r){ return r.shares; }),
-          totalShareClicks: 0
-        },
-        videoTotals: {
-          totalVideosTracked: fallbackVideos.length,
-          totalVideoLikes: sumMetric(fallbackVideos, function(v){ return v.likes; })
-        }
-      }
-    };
+  if (!radio.length && !videos.length) {
+    throw new Error('Dashboard API returned no rows');
   }
+
+  updateStatus('live', 'Live API connected · ' + radio.length + ' radio rows · ' + videos.length + ' video rows');
+
+  return {
+    radio: radio,
+    videos: videos,
+    meta: meta
+  };
 }
 
-function boot(){
-  loadData().then(function(payload){
-    safeRender(payload);
-  }).catch(function(err){
-    console.error('[dashboard] boot crash', err);
-    safeRender(getFallbackPayload());
-    updateStatus('fallback', 'Fallback sample mode');
-  });
-}
 
+safeRender({
+  radio: fallbackSongs,
+  videos: fallbackVideos,
+  meta: {}
+});
 
-boot();
+loadData().then(function(data){
+  safeRender(data);
+}).catch(function(err){
+  console.error('[dashboard] boot failed', err);
+  updateStatus('fallback', 'Fallback sample mode · Boot error');
+});
 </script>
 </body>
 </html>
