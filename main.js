@@ -111,4 +111,65 @@
     });
   });
 
+  /* ── Timed streaming popup ── */
+  (function initStreamPopup() {
+    const popupDelays = [10000, 60000, 300000];
+
+    const overlay = document.createElement('div');
+    overlay.id = 'stream-popup-overlay';
+    overlay.className = 'stream-popup-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.innerHTML = `
+      <div class="stream-popup-modal" role="dialog" aria-label="Stream Stashbox music">
+        <button class="stream-popup-close" type="button" aria-label="Close streaming popup">×</button>
+        <div class="stream-popup-image-wrap">
+          <img
+            src="/stashbox/images/streamon-horizontal-1.png"
+            alt="Stream Stashbox on YouTube, Spotify, Apple Music, and YouTube Music"
+            class="stream-popup-image"
+          >
+          <a class="stream-hotspot hotspot-youtube" href="https://youtube.com/@stashboxband" target="_blank" rel="noopener" aria-label="Open Stashbox on YouTube"></a>
+          <a class="stream-hotspot hotspot-spotify" href="https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa" target="_blank" rel="noopener" aria-label="Open Stashbox on Spotify"></a>
+          <a class="stream-hotspot hotspot-apple" href="https://music.apple.com/us/artist/stashbox/1464431398" target="_blank" rel="noopener" aria-label="Open Stashbox on Apple Music"></a>
+          <a class="stream-hotspot hotspot-youtube-music" href="https://music.youtube.com/@stashboxband" target="_blank" rel="noopener" aria-label="Open Stashbox on YouTube Music"></a>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeButton = overlay.querySelector('.stream-popup-close');
+
+    function showStreamPopup() {
+      overlay.classList.add('is-visible');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function hideStreamPopup() {
+      overlay.classList.remove('is-visible');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    if (closeButton) {
+      closeButton.addEventListener('click', hideStreamPopup);
+    }
+
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        hideStreamPopup();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && overlay.classList.contains('is-visible')) {
+        hideStreamPopup();
+      }
+    });
+
+    popupDelays.forEach(delay => {
+      window.setTimeout(showStreamPopup, delay);
+    });
+  })();
+
 })();
