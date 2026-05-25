@@ -7,6 +7,7 @@ const RADIO_CLICKS_COL = 12; // Column L
 const RADIO_FULL_PLAYS_COL = 13; // Column M
 const RADIO_TOTAL_SECONDS_COL = 14; // Column N
 const RADIO_AVG_SECONDS_COL = 15; // Column O
+const RADIO_SONG_SHARES_COL = 16; // Column P
 
 function doGet(e) {
   const action = String(e.parameter.action || "");
@@ -259,6 +260,12 @@ function doPost(e) {
   if (type === "radio_full_play") {
     return handleRadioFullPlay(data);
   }
+  if (type === "radio_listen_time") {
+    return handleRadioListenTime(data);
+  }
+  if (type === "radio_song_share") {
+    return handleRadioSongShare(data);
+  }
 
   return jsonOut({ ok: false, success: false, error: "Unsupported type", type });
 }
@@ -278,6 +285,10 @@ function handleRadioPlay(data) {
 
 function handleRadioFullPlay(data) {
   return handleRadioMetric(data, RADIO_FULL_PLAYS_COL, "fullPlays", "radio_full_play", "fullPlaysColumn");
+}
+
+function handleRadioSongShare(data) {
+  return handleRadioMetric(data, RADIO_SONG_SHARES_COL, "songShares", "radio_song_share", "songSharesColumn");
 }
 
 function handleRadioMetric(data, countCol, expectedHeader, type, colKey) {
