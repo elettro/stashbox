@@ -565,11 +565,71 @@ const ytEmbed = url => {
 function grpBySec(tracks){const g={};SECTIONS.forEach(s=>g[s.key]=[]);tracks.forEach(t=>(g[t.sectionKey]||g['Other']).push(t));return g;}
 function shuf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a;}
 
+function normalizeQueryText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+function getSharedSongFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+
+  const song = normalizeQueryText(params.get('song'));
+  const artist = normalizeQueryText(params.get('artist'));
+
+  if (!song) return null;
+
+  return allTracks.find(t => {
+    const titleMatches = normalizeQueryText(t.title) === song;
+    const artistMatches = artist ? normalizeQueryText(t.artist) === artist : true;
+
+    return titleMatches && artistMatches;
+  }) || null;
+}
+function loadSharedSongFromUrl() {
+  const sharedTrack = getSharedSongFromUrl();
+
+  if (!sharedTrack) return false;
+
+  const sameSectionTracks = allTracks.filter(t => t.sectionKey === sharedTrack.sectionKey);
+
+  queue = sameSectionTracks.length ? sameSectionTracks : [...allTracks];
+  qIdx = Math.max(0, queue.findIndex(t => t.idx === sharedTrack.idx));
+
+  loadTrack(sharedTrack);
+
+  // Shared links preload the song but do not autoplay.
+  audio.pause();
+  setPlayBtns(true);
+
+  if (isMob()) {
+    document.getElementById('m-bar')?.classList.add('vis');
+  }
+
+  document.title = `${sharedTrack.title} by ${sharedTrack.artist || 'Stashbox'} | Stashbox Radio`;
+
+  if (debugPlays()) {
+    console.log('[Shared Song] loaded without autoplay:', sharedTrack);
+  }
+
+  return true;
+}
+
 // ════════ BOOT ════════
 function boot() {
   document.getElementById('loading').style.display = 'none';
-  dBuildChips(); dRender();
-  mBuildTabs();  mRender();
+
+  dBuildChips();
+  dRender();
+
+  mBuildTabs();
+  mRender();
+
+  if (typeof bindScrubControls === 'function') {
+    bindScrubControls();
+  }
+
+  loadSharedSongFromUrl();
 }
 
 // ════════ RESET ALL ════════
@@ -835,6 +895,11 @@ function recordSongShare(t) {
   if (debugPlays()) console.log('[Radio Song Share Tracking] payload:', payload);
   fetch(PLAY_TRACKING_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload), keepalive:true }).catch(err => { if (debugPlays()) console.warn('[Radio Song Share Tracking] failed:', err); });
 }
+window.testRadioShareTracking = function(trackIdx) {
+  const t = allTracks.find(track => Number(track.idx) === Number(trackIdx)) || currentTrack || allTracks[0];
+  console.log('[Test Radio Share Tracking] track:', t);
+  recordSongShare(t);
+};
 async function shareSong(event, trackIdx) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
   const t = allTracks.find(track => Number(track.idx) === Number(trackIdx));
