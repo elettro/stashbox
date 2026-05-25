@@ -1120,44 +1120,38 @@ function getVideoArtist(video) {
   return firstVal(video, ["songby", "Song By", "artist", "Artist"]);
 }
 
-function trackVideoStat(key, type, meta = {}) {
-  key = normalizeStatsKey(key);
-  if (!key || !type) return;
+function getVideoKey(video) {
+  return getVideoStatsKey(video);
+}
 
-  const params = new URLSearchParams({
-    action: "increment",
-    key,
-    type,
-    title: meta.title || "",
-    artist: meta.artist || ""
-  });
-
+function sendVideoStat(video, type = "like") {
   const endpoint = VIDEO_STATS_TRACKING_URL_RUNTIME || VIDEO_STATS_TRACKING_URL;
+
   if (!endpoint) {
-    console.warn("VIDEO_STATS_TRACKING_URL is not configured; like/share/play stats are not being sent.", { key, type });
+    console.warn("No video stats endpoint set.");
     return;
   }
 
-  const url = `${endpoint}?${params.toString()}&t=${Date.now()}`;
-  console.log("Video stats write-back request URL:", url);
+  const key = getVideoKey(video);
+  const title = firstVal(video, ["title", "Title", "song", "Song"]) || "";
+  const artist = firstVal(video, ["artist", "Artist", "songby", "Song By"]) || "";
 
-  fetch(url, { method: "GET", cache: "no-store", keepalive: true })
-    .then(async (res) => {
-      let data = null;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        data = { parseError: String(parseErr) };
-      }
-      console.log("Video stats write-back JSON response:", data);
+  if (!key) {
+    console.warn("Missing video key for stat tracking", video);
+    return;
+  }
 
-      if (!res.ok) {
-        console.error("Video stats write-back failed:", { status: res.status, statusText: res.statusText, url, response: data });
-      }
-    })
-    .catch((err) => {
-      console.error("Video stats write-back failed:", { url, error: String(err) });
-    });
+  const url = endpoint
+    + "?key=" + encodeURIComponent(key)
+    + "&type=" + encodeURIComponent(type)
+    + "&title=" + encodeURIComponent(title)
+    + "&artist=" + encodeURIComponent(artist)
+    + "&t=" + Date.now();
+
+  console.log("Sending video stat beacon:", url);
+
+  const img = new Image();
+  img.src = url;
 }
 
 
@@ -1478,10 +1472,13 @@ document.addEventListener("click", (event) => {
     el.textContent = String(current + 1);
   });
 
-  trackVideoStat(key, "like", {
+  const video = {
+    videoKey: key,
     title: likeButton.dataset.title || "",
     artist: likeButton.dataset.artist || ""
-  });
+  };
+
+  sendVideoStat(video, "like");
 });
 
 els.grid.addEventListener("click", async (event) => {
