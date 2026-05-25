@@ -12,31 +12,44 @@
 </head>
 <body>
 
-<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
-  <div class="nav__inner">
-    <a href="/stashbox/alt2/" class="nav__logo" aria-label="Stashbox — Home">
-      <img src="/stashbox/alt2/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
-      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+<!-- ── NAV ── -->
+<nav class="site-nav" role="navigation" aria-label="Main navigation">
+  <div class="site-nav__inner">
+    <a href="/stashbox/alt2/" class="site-nav__logo" aria-label="Stashbox home">
+      <img src="../images/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" loading="eager">
     </a>
-    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
-      <span class="nav__bar" aria-hidden="true"></span>
-      <span class="nav__bar" aria-hidden="true"></span>
-      <span class="nav__bar" aria-hidden="true"></span>
+    <div class="site-nav__links">
+      <a href="/stashbox/alt2/" class="site-nav__link">Home</a>
+      <a href="https://elettro.github.io/stashbox/radio" class="site-nav__link">Radio</a>
+      <div class="site-nav__dropdown">
+        <a href="/stashbox/alt2/booking/" class="site-nav__link">Book Band</a>
+        <div class="site-nav__dropdown-menu">
+          <a href="/stashbox/alt2/booking/#dylan" class="site-nav__dropdown-item">Stashbox Does Dylan</a>
+          <a href="/stashbox/alt2/booking/#sublime" class="site-nav__dropdown-item">Stashbox Does Sublime</a>
+          <a href="/stashbox/alt2/booking/#reggae" class="site-nav__dropdown-item">Classic Reggae Show</a>
+        </div>
+      </div>
+      <a href="/stashbox/alt2/corporate/" class="site-nav__link">Branded Music</a>
+      <a href="https://stashbox.ai/collections/stashbox" target="_blank" class="site-nav__link">Shop</a>
+      <a href="/stashbox/alt2/sessions/" class="site-nav__link">Sessions</a>
+      <a href="/stashbox/alt2/setlists/" class="site-nav__link active">Setlists</a>
+    </div>
+    <a href="#footer-contact" class="site-nav__cta">📞 Book Now</a>
+    <button class="site-nav__hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
     </button>
-    <ul class="nav__links" id="navLinks" role="list">
-      <li><a href="/stashbox/alt2/">Home</a></li>
-      <li><a href="https://elettro.github.io/stashbox/radio">Radio</a></li>
-      <li><a href="/stashbox/alt2/videos/">Videos</a></li>
-      <li><a href="/stashbox/alt2/songs/">Songs</a></li>
-      <li><a href="/stashbox/alt2/sessions/">Sessions</a></li>
-      <li><a href="/stashbox/alt2/shop/">Shop</a></li>
-      <li><a href="/stashbox/alt2/setlists/">Setlists</a></li>
-      <li><a href="/stashbox/alt2/booking/">Book Band</a></li>
-      <li><a href="/stashbox/alt2/custom/">Custom Music</a></li>
-    </ul>
-    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
   </div>
 </nav>
+<div class="site-nav__mobile" id="mobile-menu">
+  <a href="/stashbox/alt2/" class="site-nav__mobile-link">Home</a>
+  <a href="https://elettro.github.io/stashbox/radio" class="site-nav__mobile-link">Radio</a>
+  <a href="/stashbox/alt2/corporate/" class="site-nav__mobile-link">Custom Branded Music</a>
+  <a href="https://stashbox.ai/collections/stashbox" class="site-nav__mobile-link" target="_blank">Shop</a>
+  <a href="/stashbox/alt2/sessions/" class="site-nav__mobile-link">Sessions</a>
+  <a href="/stashbox/alt2/setlists/" class="site-nav__mobile-link">Setlists</a>
+  <a href="#footer-contact" class="site-nav__mobile-cta">📞 Call to Book · 310.408.6687</a>
+</div>
+<div class="nav-spacer"></div>
 
 <header class="page-header">
   <div class="container">
@@ -221,7 +234,7 @@
 <footer class="footer" role="contentinfo">
   <div class="footer__inner container">
     <div class="footer__brand">
-      <a href="/stashbox/alt2/" class="footer__logo" aria-label="Stashbox"><img src="/stashbox/alt2/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'"><span class="footer__logo-text" style="display:none">STASHBOX</span></a>
+      <a href="/stashbox/alt2/" class="footer__logo" aria-label="Stashbox"><img src="/stashbox/alt2/images/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'"><span class="footer__logo-text" style="display:none">STASHBOX</span></a>
       <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
       <div class="footer__contact"><a href="tel:3104086687">310.408.6687</a><a href="mailto:booking@stashbox.com">booking@stashbox.com</a></div>
     </div>
@@ -307,6 +320,27 @@
   }
 </style>
 
+<script>
+const hamburger = document.getElementById('hamburger');
+const mobileMenu = document.getElementById('mobile-menu');
+if (hamburger && mobileMenu) {
+  hamburger.addEventListener('click', () => {
+    const isOpen = mobileMenu.classList.toggle('open');
+    hamburger.classList.toggle('open', isOpen);
+    hamburger.setAttribute('aria-expanded', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  });
+
+  document.querySelectorAll('.site-nav__mobile-link, .site-nav__mobile-cta').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    });
+  });
+}
+</script>
 <script src="/stashbox/main.js"></script>
 </body>
 </html>
