@@ -1044,8 +1044,18 @@ function playFrom(trackIdx, sectionKey, mode) {
   }
 
   if (queue.length) loadTrack(queue[qIdx]);
-  if (mode==='m') mOpenNow();
+  focusPlayerAfterSelect(mode);
   updateResetBtns();
+}
+function focusPlayerAfterSelect(mode) {
+  if (mode==='m') {
+    const mScroll = document.getElementById('m-scroll');
+    if (mScroll) mScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    mOpenNow();
+    return;
+  }
+  const desktopPlayer = document.getElementById('dp');
+  if (desktopPlayer) desktopPlayer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function doShuffle(type, mode, key) {
   const src = mode==='m' ? mFiltered() : dFiltered();
