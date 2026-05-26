@@ -1655,6 +1655,21 @@ function loadTrack(t) {
   }
 
   dRender(); mRender();
+  console.log('[shop1 merch] loadTrack product hook fired:', t);
+  shopDebugPanel('loadTrack product hook fired', {
+    title: t?.title,
+    artist: t?.artist,
+    genre: t?.genre,
+    sectionKey: t?.sectionKey,
+    slug: slugifyProductKey(t?.title)
+  });
+
+  if (typeof updateRadioMerch === 'function') {
+    updateRadioMerch(t);
+  } else {
+    shopDebugPanel('ERROR: updateRadioMerch function missing');
+  }
+
   window.dispatchEvent(new CustomEvent('stashbox:trackchange', {
     detail: { track: t }
   }));
