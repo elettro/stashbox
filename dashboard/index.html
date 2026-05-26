@@ -137,6 +137,7 @@ body{
     padding:.4rem .5rem;
     text-align:center;
   }
+  .kpis-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
 
 /* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
@@ -156,6 +157,12 @@ main{flex:1;padding:0}
   display:grid;
   grid-template-columns:repeat(12,1fr);
   gap:.75rem;
+}
+.kpis-row{
+  grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+}
+.kpis-row .bento-cell{
+  grid-column:span 1 !important;
 }
 .bento-cell{
   background:var(--surface);
