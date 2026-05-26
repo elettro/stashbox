@@ -1411,11 +1411,18 @@ function updateCurrentPlaysDisplay(t) {
 
 
 function updateMediaSession(t) {
-  if (!('mediaSession' in navigator) || !t) return;
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') {
+    if (debugMedia()) console.warn('[Media Session] not supported in this browser');
+    return;
+  }
+  if (!t) return;
 
-  const artworkUrl = t.imageUrl || '';
+  var title = t.title || 'Stashbox Radio';
+  var artist = t.artist || 'Stashbox';
+  var album = t.album || 'Stashbox Radio';
+  var artworkUrl = t.imageUrl || '';
 
-  const artwork = artworkUrl ? [
+  var artwork = artworkUrl ? [
     { src: artworkUrl, sizes: '96x96', type: 'image/png' },
     { src: artworkUrl, sizes: '128x128', type: 'image/png' },
     { src: artworkUrl, sizes: '192x192', type: 'image/png' },
@@ -1423,21 +1430,22 @@ function updateMediaSession(t) {
     { src: artworkUrl, sizes: '512x512', type: 'image/png' }
   ] : [];
 
-  if (debugMedia()) {
-    console.log('[Media Session] update metadata', {
-      title: t.title || 'Stashbox Radio',
-      artist: t.artist || 'Stashbox',
-      album: t.album || 'Stashbox Radio',
-      imageUrl: artworkUrl
-    });
-  }
-
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: t.title || 'Stashbox Radio',
-    artist: t.artist || 'Stashbox',
-    album: t.album || 'Stashbox Radio',
+    title: title,
+    artist: artist,
+    album: album,
     artwork: artwork
   });
+
+  if (debugMedia()) {
+    console.log('[Media Session] updated', {
+      title: title,
+      artist: artist,
+      album: album,
+      artworkUrl: artworkUrl,
+      track: t
+    });
+  }
 
   navigator.mediaSession.setActionHandler('play', function() {
     audio.play();
