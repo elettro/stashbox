@@ -557,7 +557,7 @@ function parseCSV(csv) {
     //           WAV File(5) | WAV Link(6) | Artwork File(7) | Artwork Link(8) | Video Link(9) | Notes(10) | Clicks(11)
     const genre = cl(c[3]);
     const row = {
-      title:cl(c[0]), album:cl(c[1]), artist:cl(c[2]), genre, sectionKey:resSec(genre),
+      title:cl(c[0]), album:cl(c[1]) || 'Stashbox Radio', artist:cl(c[2]), genre, sectionKey:resSec(genre),
       date:cl(c[4]), audioUrl:fixDb(cl(c[6])), imageUrl:fixDb(cl(c[8])),
       videoUrl:cl(c[9]), notes:cl(c[10]), plays:Number(cl(c[11]))||0, songShares:Number(cl(c[15]))||0, idx:i
     };
@@ -1405,6 +1405,44 @@ function updateCurrentPlaysDisplay(t) {
   });
 }
 
+
+function updateMediaSession(t) {
+  if (!('mediaSession' in navigator) || !t) return;
+
+  const artworkUrl = t.imageUrl || '';
+
+  const artwork = artworkUrl ? [
+    { src: artworkUrl, sizes: '96x96', type: 'image/png' },
+    { src: artworkUrl, sizes: '128x128', type: 'image/png' },
+    { src: artworkUrl, sizes: '192x192', type: 'image/png' },
+    { src: artworkUrl, sizes: '256x256', type: 'image/png' },
+    { src: artworkUrl, sizes: '512x512', type: 'image/png' }
+  ] : [];
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: t.title || 'Stashbox Radio',
+    artist: t.artist || 'Stashbox',
+    album: t.album || 'Stashbox Radio',
+    artwork: artwork
+  });
+
+  navigator.mediaSession.setActionHandler('play', function() {
+    audio.play();
+  });
+
+  navigator.mediaSession.setActionHandler('pause', function() {
+    audio.pause();
+  });
+
+  navigator.mediaSession.setActionHandler('previoustrack', function() {
+    playPrev();
+  });
+
+  navigator.mediaSession.setActionHandler('nexttrack', function() {
+    playNext();
+  });
+}
+
 // ════════ LOAD TRACK ════════
 function loadTrack(t) {
   if (!t || !audio) return;
@@ -1412,6 +1450,7 @@ function loadTrack(t) {
     sendListenTime('track_changed');
   }
   currentTrack = t;
+  updateMediaSession(t);
   switchToAudioMode();
   playSessionId++;
   startListenSession(t, playSessionId);
