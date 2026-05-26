@@ -1873,6 +1873,8 @@ h1, h2, h3, h4, h5, h6 {
   .hero__ctas .btn { width: 100%; justify-content: center; }
 }
 
+.footer__social .footer__quick-guide-link {
+  margin-left: auto;
 .footer__lowest-row {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
