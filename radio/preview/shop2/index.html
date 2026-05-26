@@ -869,7 +869,7 @@ function playFrom(trackIdx,sectionKey,mode) {
   const fromSec=sec.findIndex(t=>t.idx===trackIdx);
   if(sec.length&&fromSec>=0){queue=sec;qIdx=fromSec;}
   else{queue=src.length?src:allTracks;qIdx=Math.max(0,queue.findIndex(t=>t.idx===trackIdx));}
-  if(queue.length)loadTrack(queue[qIdx]);
+  if(queue.length)loadTrack(queue[qIdx],{scrollToTop:true});
   if(mode==='m')mOpenNow();
   updateResetBtns();
 }
@@ -878,7 +878,7 @@ function doShuffle(type,mode,key) {
   if(type==='all')queue=shuf([...allTracks]);
   else if(type==='filtered')queue=shuf([...src]);
   else queue=shuf([...src.filter(t=>t.sectionKey===key)]);
-  qIdx=0;loadTrack(queue[0]);
+  qIdx=0;loadTrack(queue[0],{scrollToTop:true});
   if(mode==='m')mOpenNow();
   updateResetBtns();
 }
@@ -1092,9 +1092,19 @@ function updateMediaSession(t){
   navigator.mediaSession.setActionHandler('nexttrack',playNext);
 }
 
+
+function scrollToPlayerTop(){
+  const isSmallScreen=window.matchMedia('(max-width: 1024px)').matches;
+  if(!isSmallScreen)return;
+  const mobileScroll=document.getElementById('m-scroll');
+  if(mobileScroll)mobileScroll.scrollTo({top:0,behavior:'smooth'});
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
 // ════════ LOAD TRACK ════════
-function loadTrack(t) {
+function loadTrack(t,options={}) {
   if(!t||!audio)return;
+  const shouldScrollToTop=options.scrollToTop===true;
   if(currentTrack&&activeListenSession)sendListenTime('track_changed');
 
   currentTrack=t;
@@ -1184,6 +1194,8 @@ function loadTrack(t) {
   }
 
   dRender(); mRender();
+
+  if(shouldScrollToTop)scrollToPlayerTop();
 
   // ── Notify shop — guarded so missing shop1.js never breaks playback ──
   if(typeof window.updateRadioMerch==='function'){
