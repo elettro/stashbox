@@ -6,6 +6,9 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <title>Stashbox Radio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -1225,6 +1228,12 @@ function debugPlays() {
 
 function debugMedia() {
   return new URLSearchParams(window.location.search).get('debugMedia') === '1';
+}
+
+const RADIO_BUILD_VERSION = 'media-session-car-artwork-clean-url-1';
+
+if (debugMedia()) {
+  console.log('[radio] build version:', RADIO_BUILD_VERSION);
 }
 
 function recordSongPlay(t, sessionId) {
