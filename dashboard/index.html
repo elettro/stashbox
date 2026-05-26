@@ -49,6 +49,12 @@ body{
 #loading.done{opacity:0;visibility:hidden;pointer-events:none}
 .load-logo{font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;letter-spacing:.08em;color:var(--text)}
 .load-logo span{color:var(--purple)}
+.load-logo-img{
+  width:min(90vw,420px);
+  max-width:420px;
+  height:auto;
+  object-fit:contain;
+}
 .load-bar{width:220px;height:3px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden}
 .load-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--gold));border-radius:99px;width:0;animation:fill 2s ease forwards}
 @keyframes fill{to{width:100%}}
@@ -68,14 +74,20 @@ body{
   border-bottom:1px solid var(--border2);
 }
 .topbar-logo{
-  font-family:'Syne',sans-serif;font-weight:800;
-  font-size:1.15rem;letter-spacing:.06em;
-  color:var(--text);text-decoration:none;white-space:nowrap;
+  display:flex;align-items:center;
+  color:var(--text);text-decoration:none;
+  min-width:0;flex-shrink:1;
 }
-.topbar-logo span{color:var(--purple)}
+.topbar-logo img{
+  width:min(38vw,220px);
+  min-width:140px;
+  height:auto;
+  object-fit:contain;
+}
 .topbar-status{
   font-family:'DM Mono',monospace;font-size:.7rem;
   color:var(--muted);display:flex;align-items:center;gap:.45rem;
+  min-width:0;flex-wrap:wrap;
 }
 .dot{width:.55rem;height:.55rem;border-radius:50%}
 .dot-live{background:var(--green);box-shadow:0 0 0 4px rgba(68,217,160,.2)}
@@ -87,6 +99,8 @@ body{
   background:rgba(255,255,255,.05);
   border:1px solid var(--border2);
   border-radius:10px;padding:.3rem;
+  min-width:0;
+  max-width:100%;
 }
 .view-tab{
   font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;
@@ -96,6 +110,35 @@ body{
 }
 .view-tab.active{background:var(--purple);color:#fff}
 .view-tab:hover:not(.active){background:rgba(255,255,255,.07);color:var(--text)}
+
+@media(max-width:1024px){
+  .topbar{padding:.8rem 1rem;gap:.75rem}
+  .topbar-logo img{width:min(42vw,190px);min-width:128px}
+  .view-tabs{overflow-x:auto;max-width:100%;margin-left:0}
+}
+
+@media(max-width:768px){
+  .topbar{
+    flex-wrap:wrap;
+    align-items:flex-start;
+  }
+  .topbar-logo img{width:min(58vw,180px);min-width:120px}
+  .topbar-status{order:3;width:100%;font-size:.64rem;line-height:1.4}
+  .view-tabs{
+    order:2;
+    width:100%;
+    padding:.28rem;
+    gap:.3rem;
+    scrollbar-width:thin;
+  }
+  .view-tab{
+    flex:1 0 auto;
+    font-size:.7rem;
+    padding:.4rem .5rem;
+    text-align:center;
+  }
+  .kpis-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+}
 
 /* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
 main{flex:1;padding:0}
@@ -114,6 +157,12 @@ main{flex:1;padding:0}
   display:grid;
   grid-template-columns:repeat(12,1fr);
   gap:.75rem;
+}
+.kpis-row{
+  grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+}
+.kpis-row .bento-cell{
+  grid-column:span 1 !important;
 }
 .bento-cell{
   background:var(--surface);
@@ -215,6 +264,18 @@ main{flex:1;padding:0}
 
 @media(max-width:900px){
   .col-3,.col-4,.col-6,.col-8{grid-column:span 12}
+  #v1,#v2,#v4{padding:1rem}
+  #v5{padding:1.25rem .9rem}
+  .bento-cell,.v2-card,.nm-card{padding:.9rem}
+  .kpi-value{font-size:1.85rem}
+  .kpi-value.sm{font-size:1.2rem}
+  .lb-row{grid-template-columns:1.2rem 3rem 1fr auto;gap:.45rem}
+  .lb-thumb{width:3rem;height:3rem}
+  .nm-big{font-size:2rem}
+  .kpi-label{font-size:.64rem;line-height:1.35}
+  .kpi-sub,.lb-meta{font-size:.66rem}
+  .topbar-status{font-size:.62rem}
+  .kpis-row{grid-template-columns:1fr !important}
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -575,7 +636,11 @@ main{flex:1;padding:0}
 
 <!-- ─── LOADING ─────────────────────────────────────────────────── -->
 <div id="loading">
-  <div class="load-logo">STASH<span>BOX</span></div>
+  <img
+    class="load-logo-img"
+    src="/stashbox/images/branding/stashbox-logo-transparent-rastacolors.png"
+    alt="Stashbox logo"
+  >
   <div class="load-bar"><div class="load-fill"></div></div>
   <div class="load-status" id="load-status">Connecting to live API…</div>
 </div>
@@ -585,7 +650,9 @@ main{flex:1;padding:0}
 
   <!-- Top bar -->
   <header class="topbar">
-    <a href="/stashbox/" class="topbar-logo">STASH<span>BOX</span></a>
+    <a href="/stashbox/" class="topbar-logo" aria-label="Stashbox home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox logo">
+    </a>
     <div class="topbar-status">
       <span class="dot dot-fallback" id="status-dot"></span>
       <span id="status-text">Initialising…</span>
