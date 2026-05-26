@@ -11,6 +11,19 @@
 
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
+  function shopDebugPanel(message, data) {
+    let box = document.getElementById('shop-debug-panel');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'shop-debug-panel';
+      box.style.cssText = 'margin:12px 0;padding:10px;border:1px solid #f0a500;color:#f0a500;background:#111;font:12px monospace;white-space:pre-wrap;';
+      const mount = document.getElementById('radio-shop-desktop') || document.getElementById('stashbox-radio-shop-desktop') || document.getElementById('dp');
+      if (mount) mount.prepend(box);
+    }
+
+    box.textContent = message + (data ? '\n' + JSON.stringify(data, null, 2) : '');
+  }
+
   function injectStyles() {
     if (document.getElementById('stashbox-radio-shop-widget-style')) return;
     const style = document.createElement('style');
@@ -64,6 +77,8 @@
       { mapType: 'page', mapKey: 'radio' },
       { mapType: 'general', mapKey: 'radio-general' }
     ];
+
+    console.log('[shop1 merch] match candidates:', candidates);
 
     const rows = [];
 
@@ -187,41 +202,43 @@
   }
 
   function renderDesktopShop(productRow, products) {
-    const section = document.getElementById('radio-shop-desktop') || document.getElementById('stashbox-radio-shop-desktop');
-    const grid = document.getElementById('radio-shop-grid') || document.querySelector('#stashbox-radio-shop-desktop .radio-shop-grid');
+    let section = document.getElementById('radio-shop-desktop') || document.getElementById('stashbox-radio-shop-desktop');
 
     if (!section) {
-      console.warn('[shop1 merch] desktop shop section missing');
-      return;
+      section = document.createElement('section');
+      section.id = 'radio-shop-desktop';
+      section.className = 'radio-shop-preview radio-shop-desktop';
+
+      const dp = document.getElementById('dp');
+      if (dp) {
+        dp.appendChild(section);
+      } else {
+        document.body.appendChild(section);
+      }
     }
 
-    if (!grid) {
-      section.innerHTML = `
-        <div class="radio-shop-head">
-          <div>
-            <div class="radio-shop-kicker">STASHBOX SHOP</div>
-            <h2 class="radio-shop-title">${escapeHtml(productRow.merchHeadline || 'Shop This Track')}</h2>
-            <p class="radio-shop-subtitle">Products are independent from radio playback.</p>
-          </div>
+    section.innerHTML = `
+      <div class="radio-shop-head">
+        <div>
+          <div class="radio-shop-kicker">STASHBOX SHOP</div>
+          <h2 class="radio-shop-title">${escapeHtml(productRow.merchHeadline || 'Shop This Track')}</h2>
+          <p class="radio-shop-subtitle">Products are independent from radio playback.</p>
         </div>
-        <div class="radio-shop-grid"></div>
-      `;
-    }
-
-    const finalGrid = document.getElementById('radio-shop-grid') || section.querySelector('.radio-shop-grid');
-    const finalTitle = document.getElementById('radio-shop-title') || section.querySelector('.radio-shop-title');
-    const finalSubtitle = document.getElementById('radio-shop-subtitle') || section.querySelector('.radio-shop-subtitle');
-
-    if (finalTitle) finalTitle.textContent = productRow.merchHeadline || 'Shop This Track';
-    if (finalSubtitle) finalSubtitle.textContent = 'Products are independent from radio playback.';
-
-    finalGrid.innerHTML = products.map(product => renderProductCardHtml(product, productRow)).join('');
+      </div>
+      <div class="radio-shop-grid">
+        ${products.map(product => renderProductCardHtml(product, productRow)).join('')}
+      </div>
+    `;
 
     section.hidden = false;
     section.style.display = 'block';
 
-    console.log('[shop1 merch] desktop products rendered:', products.length);
+    shopDebugPanel('desktop shop rendered', {
+      count: products.length,
+      titles: products.map(p => p.title)
+    });
   }
+
 
   function renderMobileShop(productRow, products) {
     const mount = document.getElementById(MOBILE_MOUNT);
@@ -274,18 +291,36 @@
 
   async function updateRadioMerch(track) {
     try {
+      shopDebugPanel('updateRadioMerch started', {
+        title: track?.title,
+        slug: slugifyProductKey(track?.title),
+        productMapReady,
+        productMapCount: Array.isArray(productMapItems) ? productMapItems.length : 0
+      });
+
       if (!Array.isArray(productMapItems) || !productMapItems.length) {
-        console.warn('[shop1 merch] productMapItems not ready');
+        await fetchProductMap();
+      }
+
+      if (!Array.isArray(productMapItems) || !productMapItems.length) {
+        shopDebugPanel('ERROR: productMap still empty after fetch');
         return;
       }
 
       const rows = getMatchedProductRows(track);
-      const selectedEntries = mergeProductRowsToLinks(rows, 4);
+      shopDebugPanel('matched product rows', rows.map(row => ({
+        rowNumber: row.rowNumber,
+        mapType: row.mapType,
+        mapKey: row.mapKey,
+        productLinks: row.productLinks,
+        merchHeadline: row.merchHeadline
+      })));
 
-      console.log('[shop1 merch] selected product entries:', selectedEntries);
+      const selectedEntries = mergeProductRowsToLinks(rows, 4);
+      shopDebugPanel('selected product entries', selectedEntries);
 
       if (!selectedEntries.length) {
-        console.warn('[shop1 merch] no selected product entries');
+        shopDebugPanel('ERROR: no selected product entries');
         return;
       }
 
@@ -295,15 +330,25 @@
       };
 
       const products = await buildProductsFromEntries(selectedEntries);
-
-      console.log('[shop1 merch] products ready:', products);
+      shopDebugPanel('products built', products.map(product => ({
+        title: product.title,
+        url: product.url,
+        image: product.image,
+        price: product.price
+      })));
 
       renderDesktopShop(displayRow, products);
       renderMobileShop(displayRow, products);
+
     } catch (err) {
       console.error('[shop1 merch] updateRadioMerch failed:', err);
+      shopDebugPanel('ERROR updateRadioMerch failed', {
+        message: err.message,
+        stack: err.stack
+      });
     }
   }
+
 
   async function fetchProductMap() {
     const res = await fetch(PRODUCT_MAP_ENDPOINT, {
@@ -322,8 +367,12 @@
     productMapItems = Array.isArray(data.items) ? data.items : [];
     productMapReady = true;
 
-    console.log('[shop1 merch] productMapItems:', productMapItems);
-    console.log('[shop1 merch] productMapItems count:', productMapItems.length);
+    console.log('[shop1 merch] productMap loaded count:', productMapItems.length);
+    shopDebugPanel('productMap loaded', {
+      count: productMapItems.length,
+      first: productMapItems[0],
+      allKeys: productMapItems.map(item => `${item.mapType}:${item.mapKey}`)
+    });
 
     if (!productMapItems.length) {
       renderEmergencyFallbackMerch();
@@ -338,6 +387,11 @@
 
     return productMapItems;
   }
+
+
+  window.shopDebugPanel = shopDebugPanel;
+  window.slugifyProductKey = slugifyProductKey;
+  window.updateRadioMerch = updateRadioMerch;
 
   async function init() {
     injectStyles();
