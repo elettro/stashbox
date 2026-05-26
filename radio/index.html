@@ -505,6 +505,9 @@ let youtubeApiPromise = null;
 let youtubePlayer = null;
 let pendingYouTubeId = '';
 let playerMode = 'audio';
+const dpYouTubeWrap = document.getElementById('video-player-wrap');
+const watchVideoBtn = document.getElementById('watch-video-btn');
+console.log('[radio] audio element:', audio);
 
 // ════════ FETCH ════════
 async function init() {
@@ -1061,29 +1064,42 @@ function ensureYouTubeApi() {
   return youtubeApiPromise;
 }
 function switchToVideoMode() {
+  if (!audio || !currentTrack) return;
   playerMode = 'video';
   const wrap = document.getElementById('video-player-wrap');
-  document.getElementById('dp-img').style.display = 'none';
-  document.getElementById('dp-vis').style.display = 'none';
-  document.getElementById('dp-media').style.display = 'block';
-  document.getElementById('dp-vid').style.display = 'none';
+  const dpImg = document.getElementById('dp-img');
+  const dpVis = document.getElementById('dp-vis');
+  const dpMedia = document.getElementById('dp-media');
+  const dpVid = document.getElementById('dp-vid');
+  if (dpImg) dpImg.style.display = 'none';
+  if (dpVis) dpVis.style.display = 'none';
+  if (dpMedia) dpMedia.style.display = 'block';
+  if (dpVid) dpVid.style.display = 'none';
   if (wrap) wrap.hidden = false;
 }
 function switchToAudioMode() {
+  if (!audio) return;
   playerMode = 'audio';
   const wrap = document.getElementById('video-player-wrap');
   const dpVid = document.getElementById('dp-vid');
-  dpVid.style.display = 'none';
-  dpVid.src = '';
+  if (dpVid) {
+    dpVid.style.display = 'none';
+    dpVid.src = '';
+  }
   if (wrap) wrap.hidden = true;
   if (youtubePlayer?.stopVideo) youtubePlayer.stopVideo();
 }
 function playVideoForTrack(track) {
+  if (!audio || !track) return;
   const videoId = getYouTubeId(track?.videoLink || track?.videoUrl);
   if (!videoId) return;
   audio.pause();
   switchToVideoMode();
   ensureYouTubeApi().then(() => {
+    if (typeof YT === 'undefined' || !YT.Player) {
+      console.warn('[radio] YouTube API not ready');
+      return;
+    }
     if (!youtubePlayer) {
       youtubePlayer = new YT.Player('youtube-player', {
         videoId,
@@ -1118,7 +1134,7 @@ function playNextAfterVideoEnd() {
 }
 function watchCurrentTrackVideo(event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
-  if (!currentTrack?.videoLink) return;
+  if (!audio || !currentTrack || !String(currentTrack.videoLink || '').trim()) return;
   playVideoForTrack(currentTrack);
 }
 function playNext() {
@@ -1131,7 +1147,21 @@ function playPrev() {
   qIdx = (qIdx-1+queue.length)%queue.length;
   loadTrack(queue[qIdx]);
 }
-function togglePause() { audio.paused ? audio.play() : audio.pause(); }
+function togglePause() {
+  if (!audio) return;
+  if (!currentTrack) {
+    const list = getCurrentPlayableList();
+    const firstPlayable = list.find(t => String(t?.audioUrl || t?.audio || '').trim()) || allTracks.find(t => String(t?.audioUrl || t?.audio || '').trim());
+    if (!firstPlayable) return;
+    queue = list.length ? list : [...allTracks];
+    qIdx = Math.max(0, queue.findIndex(t => t.idx === firstPlayable.idx));
+    loadTrack(firstPlayable);
+    return;
+  }
+  const currentAudioUrl = currentTrack.audioUrl || currentTrack.audio;
+  if (currentAudioUrl && audio.src !== currentAudioUrl) audio.src = currentAudioUrl;
+  audio.paused ? audio.play().catch(()=>{}) : audio.pause();
+}
 function togglePauseFromArtwork(e) {
   if (!currentTrack?.audioUrl) return;
   if (e?.target?.closest('iframe')) return;
@@ -1377,7 +1407,7 @@ function updateCurrentPlaysDisplay(t) {
 
 // ════════ LOAD TRACK ════════
 function loadTrack(t) {
-  if (!t) return;
+  if (!t || !audio) return;
   if (currentTrack && activeListenSession) {
     sendListenTime('track_changed');
   }
@@ -1435,7 +1465,9 @@ function loadTrack(t) {
   if (dpShare) dpShare.style.display = 'inline-flex';
   const watchBtn = document.getElementById('watch-video-btn');
   if (watchBtn) watchBtn.classList.toggle('is-visible', !!String(t.videoLink || '').trim());
-  console.log('[radio] current track videoLink:', currentTrack && currentTrack.videoLink);
+  console.log('[radio] current track:', currentTrack);
+  console.log('[radio] current audio url:', currentTrack && (currentTrack.audioUrl || currentTrack.audio));
+  console.log('[radio] current video link:', currentTrack && currentTrack.videoLink);
 
   // ── Mobile bar ──
   document.getElementById('m-bar').classList.add('vis');
@@ -1587,6 +1619,8 @@ audio.addEventListener('loadedmetadata', () => {
 });
 
 init();
+switchToAudioMode();
+if (watchVideoBtn) watchVideoBtn.classList.remove('is-visible');
 </script>
 </body>
 </html>
