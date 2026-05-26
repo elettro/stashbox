@@ -167,7 +167,7 @@ main{flex:1;padding:0}
 /* Leaderboard rows */
 .lb-row{
   display:grid;
-  grid-template-columns:1.5rem 2.4rem 1fr auto;
+  grid-template-columns:1.5rem 3.4rem 1fr auto;
   gap:.6rem;align-items:center;
   padding:.55rem 0;
   border-bottom:1px solid var(--border2);
@@ -178,7 +178,7 @@ main{flex:1;padding:0}
   color:var(--muted);text-align:right;
 }
 .lb-thumb{
-  width:2.4rem;height:2.4rem;
+  width:3.4rem;height:3.4rem;
   border-radius:7px;overflow:hidden;
   background:var(--surface2);flex-shrink:0;
 }
@@ -665,10 +665,39 @@ function pick(obj, ...keys) {
 }
 
 function normSong(r) {
-  const title = String(pick(r,'title','Title','song','Song') || 'Untitled').trim();
+  const title = String(pick(r,'title','Title','song','Song','songName','Song Name','Song name','name','Name') || 'Untitled').trim();
   const artist = String(pick(r,'artist','Artist') || '').trim();
   const genre  = String(pick(r,'genre','Genre') || '').trim();
-  const thumb  = String(pick(r,'thumbnail','Thumbnail','image','cover') || '').trim();
+  const thumb  = String(pick(
+    r,
+    'artwork',
+    'Artwork',
+    'artworkLink',
+    'Artwork Link',
+    'artwork link',
+    'artworkUrl',
+    'Artwork URL',
+    'image',
+    'Image',
+    'imageUrl',
+    'Image URL',
+    'thumbnail',
+    'Thumbnail',
+    'thumb',
+    'Thumb',
+    'cover',
+    'Cover',
+    'coverImage',
+    'Cover Image',
+    'coverUrl',
+    'Cover URL',
+    'graphic',
+    'Graphic',
+    'songGraphic',
+    'Song Graphic',
+    'songImage',
+    'Song Image'
+  ) || '').trim();
   const plays  = pn(pick(r,'plays','Plays','play_count'));
   const full   = pn(pick(r,'fullPlays','full plays','Full Plays','full_song_plays'));
   const secs   = pn(pick(r,'playSeconds','play seconds','total seconds'));
@@ -715,10 +744,37 @@ function fmtAvg(s) {
     : `${String(Math.floor(pn(s)/60)).padStart(2,'0')}:${String(Math.floor(pn(s)%60)).padStart(2,'0')}`;
 }
 
-function thumb(s, sz='2.4rem') {
-  return s.thumb
-    ? `<div class="lb-thumb" style="width:${sz};height:${sz}"><img src="${s.thumb}" alt="${s.title}" loading="lazy"></div>`
-    : `<div class="lb-thumb" style="width:${sz};height:${sz};border-radius:7px;background:linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))"></div>`;
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function thumb(s, sz='3.4rem') {
+  const title = escapeHtml(s.title || 'Stashbox song');
+  const rawThumb = String(s.thumb || '').trim();
+
+  if (!rawThumb) {
+    return `<div class="lb-thumb" style="width:${sz};height:${sz};border-radius:7px;background:linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))"></div>`;
+  }
+
+  const safeThumb = escapeHtml(rawThumb);
+
+  return `
+    <div class="lb-thumb" style="width:${sz};height:${sz}">
+      <img
+        src="${safeThumb}"
+        alt="${title}"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        onerror="
+          this.style.display='none';
+          this.parentElement.style.background='linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))';
+        "
+      >
+    </div>`;
 }
 
 /* Generate synthetic fallback data */
@@ -1209,6 +1265,7 @@ async function fetchLiveData() {
       const resp = await fetch(c.url, { cache:'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const raw = normalizeRawPayload(await resp.json());
+      console.log('[dashboard] sample radio row:', raw.radio && raw.radio[0] ? raw.radio[0] : null);
       if (!raw.radio.length && !raw.videos.length) throw new Error('no rows');
       return { raw, connector: c.name };
     } catch (err) {
