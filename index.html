@@ -361,122 +361,84 @@
 </style>
 
 <script>
+/* ── Hero: mute toggle + next video ── */
 (function () {
-  var uploadsPlaylistId = "UU6C6Z_erONmKW67pF5AyYkA";
-  var manualShortIds = ["Y6mnIwwH0rA", "qlJ0374PZSY", "pLgZTyCqGpQ"];
+  const muteBtn = document.getElementById('unmuteBtn');
+  const nextBtn = document.getElementById('nextVideoBtn');
+  const iframe = document.getElementById('hero-iframe');
+  if (!muteBtn || !nextBtn || !iframe) return;
 
-  var widget = document.getElementById("stashbox-shorts-3-widget");
-  var grid = document.getElementById("stashbox-shorts-3-grid");
-  if (!widget || !grid) return;
+  const videoIds = [
+    'ygvrFB1cn54',
+    '7IIB63ZAeH0',
+    'KWE3M2XVYZY',
+    'W-zqAcTEajg',
+    'CIV_s42AnMs',
+    'T7iV0TRFWO8',
+    'nD28USW8F4c',
+    'pLgZTyCqGpQ',
+    'qlJ0374PZSY',
+    'Y6mnIwwH0rA'
+  ];
 
-  function applyResponsiveGrid() {
-    grid.style.gridTemplateColumns = "repeat(3,1fr)";
+  let muted = true;
+  let currentVideoIndex = 0;
+
+  function updateIframe() {
+    const params = `autoplay=1&mute=${muted ? 1 : 0}&loop=1&controls=0&playsinline=1&rel=0&modestbranding=1&playlist=${videoIds[currentVideoIndex]}&enablejsapi=1`;
+    iframe.src = `https://www.youtube-nocookie.com/embed/${videoIds[currentVideoIndex]}?${params}`;
   }
 
-  function showMessage(html) {
-    grid.innerHTML = '<div style="grid-column:1 / -1;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;background:rgba(255,255,255,.03);opacity:.9;">' + html + '</div>';
+  function sendYouTubeCommand(command) {
+    iframe.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func: command, args: [] }),
+      'https://www.youtube-nocookie.com'
+    );
   }
 
-  function renderShorts(ids) {
-    var list = (ids || []).filter(Boolean).slice(0, 3);
+  function wireImageModal(openSelector, modalSelector, closeSelector, bodyClass) {
+    const modal = document.querySelector(modalSelector);
+    const open = document.querySelector(openSelector);
+    const close = document.querySelectorAll(closeSelector);
+    if (!modal || !open) return;
 
-    if (!list.length) {
-      showMessage('No Shorts found right now.');
-      return;
-    }
-
-    grid.innerHTML = list.map(function (videoId, index) {
-      var shortsUrl = "https://www.youtube.com/shorts/" + encodeURIComponent(videoId);
-
-      return '' +
-        '<article style="border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px;">' +
-          '<div style="position:relative;width:100%;padding-top:177.78%;border-radius:12px;overflow:hidden;background:#000;">' +
-            '<iframe ' +
-              'src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '" ' +
-              'title="Latest Short 0' + (index + 1) + '" ' +
-              'loading="lazy" ' +
-              'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
-              'allowfullscreen ' +
-              'style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;">' +
-            '</iframe>' +
-          '</div>' +
-          '<a href="' + shortsUrl + '" target="_blank" rel="noopener noreferrer" class="watch-btn" ' +
-             'style="display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 12px;border-radius:10px;border:1px solid #b91c1c;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:700;">' +
-             'Watch On YouTube' +
-          '</a>' +
-        '</article>';
-    }).join("");
-  }
-
-  function extractVideoIdsFromXml(xmlText) {
-    var parser = new DOMParser();
-    var xml = parser.parseFromString(xmlText, "application/xml");
-    return Array.prototype.slice.call(xml.getElementsByTagName("yt:videoId"))
-      .map(function (node) { return (node.textContent || "").trim(); })
-      .filter(Boolean);
-  }
-
-  function feedUrlForShortsFromUploads(uploadsId) {
-    var channelSuffix = uploadsId.slice(2);
-    var channelId = "UC" + channelSuffix;
-    var shortsPlaylistId = "UUSH" + channelSuffix;
-
-    return {
-      direct: "https://www.youtube.com/feeds/videos.xml?playlist_id=" + encodeURIComponent(shortsPlaylistId),
-      fallback: "https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(channelId)
+    const openModal = function (event) {
+      event.preventDefault();
+      modal.hidden = false;
+      document.body.classList.add(bodyClass);
     };
-  }
 
-  async function fetchText(url) {
-    var res = await fetch(url);
-    if (!res.ok) throw new Error("Failed: " + url);
-    return await res.text();
-  }
+    const closeModal = function () {
+      modal.hidden = true;
+      document.body.classList.remove(bodyClass);
+    };
 
-  async function fetchFeedWithProxyFallback(url) {
-    try {
-      return await fetchText(url);
-    } catch (e1) {
-      return await fetchText("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-    }
-  }
+    open.addEventListener('click', openModal);
+    close.forEach(function (el) {
+      el.addEventListener('click', closeModal);
+    });
 
-  async function loadLatestShorts() {
-    applyResponsiveGrid();
-
-    if (!uploadsPlaylistId) {
-      renderShorts(manualShortIds);
-      return;
-    }
-
-    showMessage("Loading latest Shorts...");
-
-    try {
-      var urls = feedUrlForShortsFromUploads(uploadsPlaylistId);
-      var xmlText;
-
-      try {
-        xmlText = await fetchFeedWithProxyFallback(urls.direct);
-      } catch (directErr) {
-        xmlText = await fetchFeedWithProxyFallback(urls.fallback);
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !modal.hidden) {
+        closeModal();
       }
-
-      var ids = extractVideoIdsFromXml(xmlText).slice(0, 3);
-
-      if (ids.length) {
-        renderShorts(ids);
-        return;
-      }
-
-      renderShorts(ids.length ? ids : manualShortIds);
-    } catch (err) {
-      renderShorts(manualShortIds);
-    }
+    });
   }
 
-  applyResponsiveGrid();
-  window.addEventListener("resize", applyResponsiveGrid);
-  loadLatestShorts();
+  muteBtn.addEventListener('click', function () {
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
+    sendYouTubeCommand(muted ? 'mute' : 'unMute');
+  });
+
+  nextBtn.addEventListener('click', function () {
+    currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+    updateIframe();
+  });
+
+  wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
+  wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
 })();
 </script>
 
@@ -568,6 +530,9 @@
       <a href="/stashbox/radio/onesheet/index.html" class="share-btn share-video-btn share-btn-reggae-dub-night-ash footer__radio-one-sheet-btn">
         <span class="label">View Radio One Sheet</span><span class="arrow" aria-hidden="true">→</span>
       </a>
+      <a href="/stashbox/radio/Independent_Artist_Digital_Ownership_Blueprint.png" class="share-btn share-video-btn share-btn-reggae-dub-night-ash footer__radio-one-sheet-btn" data-custom-radio-open>
+        <span class="label">Custom Radio Via Google Sheet</span><span class="arrow" aria-hidden="true">→</span>
+      </a>
     </div>
     <div class="footer__bottom">
       <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
@@ -616,6 +581,35 @@
     );
   }
 
+  function wireImageModal(openSelector, modalSelector, closeSelector, bodyClass) {
+    const modal = document.querySelector(modalSelector);
+    const open = document.querySelector(openSelector);
+    const close = document.querySelectorAll(closeSelector);
+    if (!modal || !open) return;
+
+    const openModal = function (event) {
+      event.preventDefault();
+      modal.hidden = false;
+      document.body.classList.add(bodyClass);
+    };
+
+    const closeModal = function () {
+      modal.hidden = true;
+      document.body.classList.remove(bodyClass);
+    };
+
+    open.addEventListener('click', openModal);
+    close.forEach(function (el) {
+      el.addEventListener('click', closeModal);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !modal.hidden) {
+        closeModal();
+      }
+    });
+  }
+
   muteBtn.addEventListener('click', function () {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
@@ -628,62 +622,8 @@
     updateIframe();
   });
 
-
-  const quickGuideModal = document.querySelector('[data-quick-guide-modal]');
-  const quickGuideOpen = document.querySelector('[data-quick-guide-open]');
-  const quickGuideClose = document.querySelectorAll('[data-quick-guide-close]');
-
-  if (quickGuideModal && quickGuideOpen) {
-    const openQuickGuide = function (event) {
-      event.preventDefault();
-      quickGuideModal.hidden = false;
-      document.body.classList.add('quick-guide-modal-open');
-    };
-
-    const closeQuickGuide = function () {
-      quickGuideModal.hidden = true;
-      document.body.classList.remove('quick-guide-modal-open');
-    };
-
-    quickGuideOpen.addEventListener('click', openQuickGuide);
-    quickGuideClose.forEach(function (el) {
-      el.addEventListener('click', closeQuickGuide);
-    });
-
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !quickGuideModal.hidden) {
-        closeQuickGuide();
-      }
-    });
-  }
-})();
-  const quickGuideModal = document.querySelector('[data-quick-guide-modal]');
-  const quickGuideOpen = document.querySelector('[data-quick-guide-open]');
-  const quickGuideClose = document.querySelectorAll('[data-quick-guide-close]');
-
-  if (quickGuideModal && quickGuideOpen) {
-    const openQuickGuide = function (event) {
-      event.preventDefault();
-      quickGuideModal.hidden = false;
-      document.body.classList.add('quick-guide-modal-open');
-    };
-
-    const closeQuickGuide = function () {
-      quickGuideModal.hidden = true;
-      document.body.classList.remove('quick-guide-modal-open');
-    };
-
-    quickGuideOpen.addEventListener('click', openQuickGuide);
-    quickGuideClose.forEach(function (el) {
-      el.addEventListener('click', closeQuickGuide);
-    });
-
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !quickGuideModal.hidden) {
-        closeQuickGuide();
-      }
-    });
-  }
+  wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
+  wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
 })();
 </script>
 <div class="quick-guide-modal" data-quick-guide-modal hidden>
@@ -691,6 +631,13 @@
   <div class="quick-guide-modal__panel" role="dialog" aria-modal="true" aria-label="ProductMap Quick Guide image">
     <button type="button" class="quick-guide-modal__close" data-quick-guide-close aria-label="Close ProductMap Quick Guide">×</button>
     <img src="/stashbox/shop/productmap-quick-guide.png" alt="ProductMap Quick Guide" class="quick-guide-modal__image" loading="lazy">
+  </div>
+</div>
+<div class="quick-guide-modal" data-custom-radio-modal hidden>
+  <button type="button" class="quick-guide-modal__backdrop" data-custom-radio-close aria-label="Close Custom Radio Via Google Sheet image"></button>
+  <div class="quick-guide-modal__panel" role="dialog" aria-modal="true" aria-label="Custom Radio Via Google Sheet image">
+    <button type="button" class="quick-guide-modal__close" data-custom-radio-close aria-label="Close Custom Radio Via Google Sheet image">×</button>
+    <img src="/stashbox/radio/Independent_Artist_Digital_Ownership_Blueprint.png" alt="Custom Radio Via Google Sheet" class="quick-guide-modal__image" loading="lazy">
   </div>
 </div>
 
