@@ -1054,9 +1054,9 @@ function focusPlayerAfterSelect(mode) {
     mOpenNow();
     return;
   }
-  const desktopPlayer = document.getElementById('dp');
-  if (desktopPlayer) desktopPlayer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
 function doShuffle(type, mode, key) {
   const src = mode==='m' ? mFiltered() : dFiltered();
   if (type==='all')      queue = shuf([...allTracks]);
