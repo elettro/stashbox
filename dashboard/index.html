@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stashbox · Command Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET & ROOT ────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07050d;
+  --surface:#0f0c1a;
+  --surface2:#161226;
+  --border:rgba(255,255,255,.1);
+  --border2:rgba(255,255,255,.06);
+  --text:#f0ecff;
+  --muted:rgba(240,236,255,.55);
+  --faint:rgba(240,236,255,.2);
+  --purple:#8753ff;
+  --purple-dim:rgba(135,83,255,.15);
+  --gold:#f2bc55;
+  --gold-dim:rgba(242,188,85,.12);
+  --green:#44d9a0;
+  --red:#ff5f6d;
+  --cyan:#38c9e8;
+  --r:14px;
+}
+html{scroll-behavior:smooth;height:100%}
+body{
+  font-family:'Instrument Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100%;
+  overflow-x:hidden;
+}
+
+/* ─── LOADING SCREEN ──────────────────────────────────────────────────── */
+#loading{
+  position:fixed;inset:0;
+  background:var(--bg);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:1.2rem;z-index:9999;
+  transition:opacity .6s ease, visibility .6s ease;
+}
+#loading.done{opacity:0;visibility:hidden;pointer-events:none}
+.load-logo{font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;letter-spacing:.08em;color:var(--text)}
+.load-logo span{color:var(--purple)}
+.load-bar{width:220px;height:3px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden}
+.load-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--gold));border-radius:99px;width:0;animation:fill 2s ease forwards}
+@keyframes fill{to{width:100%}}
+.load-status{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--muted);letter-spacing:.05em}
+
+/* ─── OUTER SHELL ─────────────────────────────────────────────────────── */
+#app{display:none;flex-direction:column;min-height:100vh}
+#app.ready{display:flex}
+
+/* ─── TOP BAR ─────────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;gap:1.2rem;
+  padding:.9rem 1.5rem;
+  background:rgba(7,5,13,.85);
+  backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border2);
+}
+.topbar-logo{
+  font-family:'Syne',sans-serif;font-weight:800;
+  font-size:1.15rem;letter-spacing:.06em;
+  color:var(--text);text-decoration:none;white-space:nowrap;
+}
+.topbar-logo span{color:var(--purple)}
+.topbar-status{
+  font-family:'DM Mono',monospace;font-size:.7rem;
+  color:var(--muted);display:flex;align-items:center;gap:.45rem;
+}
+.dot{width:.55rem;height:.55rem;border-radius:50%}
+.dot-live{background:var(--green);box-shadow:0 0 0 4px rgba(68,217,160,.2)}
+.dot-fallback{background:var(--gold);box-shadow:0 0 0 4px rgba(242,188,85,.2)}
+
+/* View switcher */
+.view-tabs{
+  display:flex;gap:.4rem;margin-left:auto;
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--border2);
+  border-radius:10px;padding:.3rem;
+}
+.view-tab{
+  font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;
+  letter-spacing:.04em;padding:.4rem .75rem;border-radius:7px;
+  border:none;background:transparent;color:var(--muted);cursor:pointer;
+  transition:all .2s;white-space:nowrap;
+}
+.view-tab.active{background:var(--purple);color:#fff}
+.view-tab:hover:not(.active){background:rgba(255,255,255,.07);color:var(--text)}
+
+/* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
+main{flex:1;padding:0}
+
+/* hide all views, show active */
+.view{display:none;animation:fadeIn .35s ease}
+.view.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 1 — "Command Centre" — dark editorial with bento grid
+   ════════════════════════════════════════════════════════════════════════ */
+#v1{padding:1.5rem}
+
+.bento{
+  display:grid;
+  grid-template-columns:repeat(12,1fr);
+  gap:.75rem;
+}
+.bento-cell{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:1.1rem;
+  overflow:hidden;
+  position:relative;
+}
+/* Glow accent */
+.bento-cell::before{
+  content:'';position:absolute;
+  inset:0;border-radius:var(--r);
+  opacity:0;
+  transition:opacity .3s;
+  pointer-events:none;
+}
+.bento-cell:hover::before{opacity:1}
+.accent-purple::before{box-shadow:inset 0 0 0 1px rgba(135,83,255,.5)}
+.accent-gold::before{box-shadow:inset 0 0 0 1px rgba(242,188,85,.5)}
+.accent-green::before{box-shadow:inset 0 0 0 1px rgba(68,217,160,.45)}
+.accent-cyan::before{box-shadow:inset 0 0 0 1px rgba(56,201,232,.45)}
+
+/* Spans */
+.col-3{grid-column:span 3}
+.col-4{grid-column:span 4}
+.col-6{grid-column:span 6}
+.col-8{grid-column:span 8}
+.col-12{grid-column:span 12}
+
+/* KPI cell */
+.kpi-label{
+  font-family:'DM Mono',monospace;font-size:.68rem;
+  letter-spacing:.07em;color:var(--muted);text-transform:uppercase;
+  margin-bottom:.5rem;
+}
+.kpi-value{
+  font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;
+  line-height:1;color:var(--text);
+}
+.kpi-value.sm{font-size:1.35rem}
+.kpi-sub{font-size:.75rem;color:var(--muted);margin-top:.3rem}
+
+/* Section title */
+.sec-title{
+  font-family:'Syne',sans-serif;font-size:.8rem;font-weight:700;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  margin-bottom:.9rem;
+}
+
+/* Leaderboard rows */
+.lb-row{
+  display:grid;
+  grid-template-columns:1.5rem 2.4rem 1fr auto;
+  gap:.6rem;align-items:center;
+  padding:.55rem 0;
+  border-bottom:1px solid var(--border2);
+}
+.lb-row:last-child{border-bottom:none}
+.lb-rank{
+  font-family:'DM Mono',monospace;font-size:.7rem;
+  color:var(--muted);text-align:right;
+}
+.lb-thumb{
+  width:2.4rem;height:2.4rem;
+  border-radius:7px;overflow:hidden;
+  background:var(--surface2);flex-shrink:0;
+}
+.lb-thumb img{width:100%;height:100%;object-fit:cover}
+.lb-name{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-meta{font-size:.68rem;color:var(--muted);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-stat{
+  font-family:'DM Mono',monospace;font-size:.8rem;
+  color:var(--gold);white-space:nowrap;text-align:right;
+}
+
+/* Spark bar */
+.bar-row{margin:.5rem 0}
+.bar-label-row{display:flex;justify-content:space-between;margin-bottom:.3rem;font-size:.75rem}
+.bar-label-row span:last-child{color:var(--muted);font-family:'DM Mono',monospace;font-size:.7rem}
+.bar-track{height:6px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--purple),var(--gold))}
+
+/* Score ring */
+.score-ring{
+  display:flex;flex-direction:column;align-items:center;gap:.4rem;
+}
+.ring-svg{transform:rotate(-90deg)}
+.ring-label{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);text-align:center}
+.ring-val{font-family:'Syne',sans-serif;font-weight:800;font-size:.95rem}
+
+/* mini-dot grid */
+.dot-grid{display:flex;flex-wrap:wrap;gap:.5rem;padding:.3rem 0}
+.dot-item{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  background:rgba(255,255,255,.05);border:1px solid var(--border2);
+  border-radius:6px;padding:.3rem .5rem;color:var(--muted);
+}
+
+@media(max-width:900px){
+  .col-3,.col-4,.col-6,.col-8{grid-column:span 12}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 2 — "Broadcast Room" — warm tape/studio amber dark
+   ════════════════════════════════════════════════════════════════════════ */
+#v2{
+  padding:1.5rem;
+  background:
+    radial-gradient(ellipse at 80% 0%, rgba(242,188,85,.12), transparent 50%),
+    var(--bg);
+}
+.broadcast-header{
+  border-bottom:2px solid rgba(242,188,85,.3);
+  padding-bottom:1.2rem;margin-bottom:1.5rem;
+  display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;
+}
+.bh-title{
+  font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,3rem);
+  font-weight:700;line-height:1;
+}
+.bh-sub{
+  font-family:'DM Mono',monospace;font-size:.75rem;
+  color:var(--muted);margin-top:.5rem;letter-spacing:.06em;
+}
+.bh-meta{
+  font-family:'DM Mono',monospace;font-size:.7rem;
+  color:var(--gold);text-align:right;
+}
+
+.v2-grid{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+@media(max-width:900px){.v2-grid{grid-template-columns:1fr}}
+
+.v2-card{
+  background:rgba(15,12,26,.7);
+  border:1px solid rgba(242,188,85,.18);
+  border-radius:var(--r);padding:1.2rem;
+}
+.v2-card h3{
+  font-family:'Playfair Display',serif;
+  font-size:1rem;font-style:italic;
+  color:var(--gold);margin-bottom:.9rem;
+}
+
+/* Rank tape strips */
+.tape-row{
+  display:flex;align-items:center;gap:.8rem;
+  padding:.75rem 0;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.tape-row:last-child{border-bottom:none}
+.tape-num{
+  font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;
+  color:rgba(242,188,85,.25);min-width:2.5rem;
+}
+.tape-info{flex:1;overflow:hidden}
+.tape-title{font-weight:600;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tape-artist{font-size:.72rem;color:var(--muted)}
+.tape-plays{
+  font-family:'DM Mono',monospace;font-size:.8rem;
+  background:rgba(242,188,85,.12);border:1px solid rgba(242,188,85,.25);
+  border-radius:6px;padding:.25rem .55rem;color:var(--gold);white-space:nowrap;
+}
+
+/* meter stack */
+.v2-meter{margin:.65rem 0}
+.v2-meter label{font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.3rem}
+.v2-meter label b{color:var(--text);font-family:'DM Mono',monospace}
+.v2-track{height:7px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.v2-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,rgba(242,188,85,.5),var(--gold))}
+
+.v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.8rem 0}
+.v2-stat{
+  background:rgba(242,188,85,.06);border:1px solid rgba(242,188,85,.15);
+  border-radius:10px;padding:.75rem;
+}
+.v2-stat .l{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.v2-stat .n{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-top:.2rem}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 3 — "Ice Sheet" — minimal, crisp white-on-dark, data-first
+   ════════════════════════════════════════════════════════════════════════ */
+#v3{background:#060509}
+.v3-topbar{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+  padding:1.2rem 1.8rem;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.v3-wordmark{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:800;letter-spacing:.12em;color:rgba(255,255,255,.7)}
+.v3-kpi-strip{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+@media(max-width:900px){.v3-kpi-strip{grid-template-columns:repeat(3,1fr)}}
+.v3-kpi{
+  padding:1.2rem 1.5rem;
+  border-right:1px solid rgba(255,255,255,.07);
+}
+.v3-kpi:last-child{border-right:none}
+.v3-kpi-l{font-family:'DM Mono',monospace;font-size:.62rem;color:rgba(255,255,255,.35);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.4rem}
+.v3-kpi-v{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:800}
+
+.v3-body{display:grid;grid-template-columns:1.4fr 1fr;min-height:calc(100vh - 160px)}
+@media(max-width:900px){.v3-body{grid-template-columns:1fr}}
+.v3-panel{padding:1.4rem 1.8rem;border-right:1px solid rgba(255,255,255,.07)}
+.v3-panel:last-child{border-right:none}
+.v3-panel-title{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.35);margin-bottom:1.2rem;
+  padding-bottom:.7rem;border-bottom:1px solid rgba(255,255,255,.07);
+}
+
+/* table */
+.v3-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.v3-table th{
+  font-family:'DM Mono',monospace;font-size:.6rem;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.3);padding:.5rem .4rem;
+  text-align:left;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.v3-table td{
+  padding:.6rem .4rem;border-bottom:1px solid rgba(255,255,255,.04);
+  vertical-align:middle;
+}
+.v3-table tr:last-child td{border-bottom:none}
+.v3-table .num{font-family:'DM Mono',monospace;font-size:.75rem;color:rgba(255,255,255,.6);text-align:right}
+.v3-table .hi{color:#fff;font-weight:600}
+.v3-table .bar-inline{display:inline-block;height:3px;border-radius:99px;background:var(--purple);vertical-align:middle;margin-left:.5rem}
+.v3-table .tr-top td{background:rgba(135,83,255,.07)}
+
+/* score list */
+.v3-score-row{
+  display:flex;align-items:center;gap:1rem;
+  padding:.7rem 0;border-bottom:1px solid rgba(255,255,255,.05);
+}
+.v3-score-row:last-child{border-bottom:none}
+.v3-score-name{flex:1;font-size:.82rem}
+.v3-score-pills{display:flex;gap:.5rem}
+.v3-pill{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  padding:.2rem .5rem;border-radius:5px;
+}
+.v3-pill.seo{background:rgba(135,83,255,.15);color:var(--purple)}
+.v3-pill.ai{background:rgba(56,201,232,.1);color:var(--cyan)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 4 — "Night Market" — neon / cyberpunk grid
+   ════════════════════════════════════════════════════════════════════════ */
+#v4{
+  background:#030208;
+  background-image:
+    linear-gradient(rgba(135,83,255,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(135,83,255,.04) 1px, transparent 1px);
+  background-size:40px 40px;
+  padding:1.5rem;
+}
+.nm-header{
+  font-family:'Syne',sans-serif;font-weight:800;
+  font-size:clamp(1.5rem,4vw,2.8rem);letter-spacing:.03em;
+  text-transform:uppercase;margin-bottom:1.5rem;
+  display:flex;align-items:baseline;gap:.75rem;
+}
+.nm-header span{color:var(--purple)}
+.nm-header small{
+  font-size:.65rem;letter-spacing:.15em;
+  color:var(--muted);font-weight:400;
+}
+.nm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+@media(max-width:900px){.nm-grid{grid-template-columns:1fr}}
+
+.nm-card{
+  border:1px solid rgba(135,83,255,.25);
+  border-radius:10px;
+  background:rgba(5,3,15,.8);
+  padding:1rem;
+  position:relative;overflow:hidden;
+}
+.nm-card::after{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--purple),transparent);
+  opacity:.6;
+}
+.nm-card-title{
+  font-family:'DM Mono',monospace;font-size:.62rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--purple);margin-bottom:.8rem;
+}
+.nm-big{
+  font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;
+  line-height:1;color:var(--text);
+}
+.nm-big.gold{color:var(--gold)}
+.nm-sub{font-size:.72rem;color:var(--muted);margin-top:.3rem}
+
+.nm-list-item{
+  display:flex;align-items:center;gap:.7rem;
+  padding:.6rem 0;border-bottom:1px solid rgba(135,83,255,.1);
+}
+.nm-list-item:last-child{border-bottom:none}
+.nm-idx{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  color:rgba(135,83,255,.5);min-width:1.4rem;
+}
+.nm-li-body{flex:1;overflow:hidden}
+.nm-li-title{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm-li-sub{font-size:.65rem;color:var(--muted)}
+.nm-li-val{
+  font-family:'DM Mono',monospace;font-size:.75rem;
+  color:var(--purple);white-space:nowrap;
+}
+
+.nm-bar{margin:.5rem 0}
+.nm-bar label{font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.25rem}
+.nm-bar label b{color:var(--cyan);font-family:'DM Mono',monospace}
+.nm-track{height:5px;background:rgba(135,83,255,.12);border-radius:99px;overflow:hidden}
+.nm-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--purple),var(--cyan))}
+
+.nm-score-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:.6rem 0;border-bottom:1px solid rgba(135,83,255,.08);font-size:.8rem;
+}
+.nm-score-row:last-child{border-bottom:none}
+.nm-score-row .nm-pills{display:flex;gap:.4rem}
+.nm-sp{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  padding:.2rem .45rem;border-radius:4px;
+  background:rgba(135,83,255,.15);color:var(--purple);
+  border:1px solid rgba(135,83,255,.25);
+}
+.nm-sp.gold{background:rgba(242,188,85,.1);color:var(--gold);border-color:rgba(242,188,85,.2)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 5 — "Mercury" — premium magazine, editorial serif
+   ════════════════════════════════════════════════════════════════════════ */
+#v5{
+  max-width:1200px;margin:0 auto;
+  padding:2rem 1.5rem;
+}
+.merc-masthead{
+  text-align:center;
+  padding:2rem 0 1.5rem;
+  border-bottom:3px double rgba(255,255,255,.15);
+  margin-bottom:2rem;
+}
+.merc-issue{
+  font-family:'DM Mono',monospace;font-size:.65rem;
+  letter-spacing:.2em;color:var(--muted);text-transform:uppercase;
+  margin-bottom:.8rem;
+}
+.merc-title{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(2rem,6vw,4.5rem);
+  font-weight:700;line-height:1;letter-spacing:-.01em;
+}
+.merc-title em{font-style:italic;color:var(--gold)}
+.merc-rule{
+  width:4rem;height:2px;
+  background:var(--gold);
+  margin:1.2rem auto;
+}
+.merc-lead{
+  font-family:'Instrument Sans',sans-serif;
+  font-size:.9rem;color:var(--muted);max-width:480px;margin:0 auto;
+}
+
+/* Stats band */
+.merc-band{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  border:1px solid rgba(255,255,255,.1);border-radius:var(--r);
+  overflow:hidden;margin-bottom:2rem;
+}
+@media(max-width:900px){.merc-band{grid-template-columns:repeat(2,1fr)}}
+.merc-stat{
+  padding:1.2rem 1rem;text-align:center;
+  border-right:1px solid rgba(255,255,255,.08);
+}
+.merc-stat:last-child{border-right:none}
+.merc-stat-l{
+  font-family:'DM Mono',monospace;font-size:.6rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  margin-bottom:.5rem;
+}
+.merc-stat-v{
+  font-family:'Playfair Display',serif;
+  font-size:1.6rem;font-weight:700;
+}
+
+/* 2-col editorial layout */
+.merc-body{display:grid;grid-template-columns:2fr 1fr;gap:2rem}
+@media(max-width:900px){.merc-body{grid-template-columns:1fr}}
+
+/* Rankings */
+.merc-rank-row{
+  display:flex;align-items:flex-start;gap:1rem;
+  padding:1rem 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.merc-rank-row:last-child{border-bottom:none}
+.merc-rn{
+  font-family:'Playfair Display',serif;font-weight:700;
+  font-size:2rem;color:rgba(255,255,255,.12);
+  min-width:2.5rem;line-height:1;
+}
+.merc-ri{flex:1}
+.merc-rt{font-size:.9rem;font-weight:600;line-height:1.3;margin-bottom:.2rem}
+.merc-rm{font-size:.72rem;color:var(--muted)}
+.merc-rv{
+  font-family:'DM Mono',monospace;font-size:.75rem;
+  color:var(--gold);padding:.25rem .6rem;
+  background:rgba(242,188,85,.08);border-radius:5px;
+  border:1px solid rgba(242,188,85,.2);white-space:nowrap;
+  align-self:flex-start;
+}
+
+/* sidebar */
+.merc-sidebar-section{margin-bottom:1.8rem}
+.merc-sidebar-h{
+  font-family:'DM Mono',monospace;font-size:.62rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);padding-bottom:.6rem;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  margin-bottom:.9rem;
+}
+.merc-score-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.04);
+  font-size:.78rem;
+}
+.merc-score-item:last-child{border-bottom:none}
+.merc-score-item .vals{display:flex;gap:.4rem}
+.merc-score-item .pill{
+  font-family:'DM Mono',monospace;font-size:.6rem;
+  padding:.15rem .4rem;border-radius:4px;
+}
+.pill-p{background:rgba(135,83,255,.15);color:var(--purple)}
+.pill-c{background:rgba(56,201,232,.1);color:var(--cyan)}
+
+.merc-actions{
+  background:linear-gradient(135deg,rgba(242,188,85,.07),rgba(135,83,255,.07));
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:var(--r);padding:1.2rem;
+}
+.merc-actions h4{
+  font-family:'Playfair Display',serif;font-size:1rem;
+  margin-bottom:.9rem;font-style:italic;
+}
+.merc-action-item{
+  display:flex;align-items:flex-start;gap:.6rem;
+  font-size:.78rem;padding:.4rem 0;
+  border-bottom:1px solid rgba(255,255,255,.05);color:var(--muted);
+}
+.merc-action-item:last-child{border-bottom:none}
+.merc-action-item::before{
+  content:'→';color:var(--gold);flex-shrink:0;font-weight:700;
+}
+</style>
+</head>
+<body>
+
+<!-- ─── LOADING ─────────────────────────────────────────────────── -->
+<div id="loading">
+  <div class="load-logo">STASH<span>BOX</span></div>
+  <div class="load-bar"><div class="load-fill"></div></div>
+  <div class="load-status" id="load-status">Connecting to live API…</div>
+</div>
+
+<!-- ─── APP SHELL ───────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <a href="/stashbox/" class="topbar-logo">STASH<span>BOX</span></a>
+    <div class="topbar-status">
+      <span class="dot dot-fallback" id="status-dot"></span>
+      <span id="status-text">Initialising…</span>
+    </div>
+    <nav class="view-tabs" aria-label="Dashboard views">
+      <button class="view-tab active" data-view="v1">Command</button>
+      <button class="view-tab" data-view="v2">Broadcast</button>
+      <button class="view-tab" data-view="v3">Ice Sheet</button>
+      <button class="view-tab" data-view="v4">Night Market</button>
+      <button class="view-tab" data-view="v5">Mercury</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="v1" class="view active"></section>
+    <section id="v2" class="view"></section>
+    <section id="v3" class="view"></section>
+    <section id="v4" class="view"></section>
+    <section id="v5" class="view"></section>
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   DATA LAYER — connections & normalisation
+   ═══════════════════════════════════════════════════════════════════ */
+const CONNECTORS = [
+  { name:'primary', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec?dashboard=1&type=all' },
+  { name:'dashboard-only', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec?dashboard=1' },
+  { name:'base', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec' },
+];
+
+const SEO_SCORES = [
+  ['Stashbox.com', 7.6, 6.8],
+  ['/stashbox/', 7.4, 6.9],
+  ['/radio/', 6.8, 6.4],
+  ['/videos/', 6.9, 6.3],
+  ['/custom/', 7.2, 6.6],
+  ['/sessions/', 6.5, 5.9],
+];
+
+const AI_DIMS = [
+  ['Schema Readiness', 66],
+  ['Internal Linking', 64],
+  ['Content Depth', 71],
+  ['Crawl / Indexing', 69],
+];
+
+const ACTIONS = [
+  'Promote Top Shared Songs across all channels',
+  'Boost songs with highest average listening time',
+  'Add JSON-LD schema to radio and video pages',
+  'Create dedicated song pages for strongest tracks',
+  'Add internal links from /stashbox/ to top songs',
+  'Improve thumbnails for songs with plays but low shares',
+  'Add FAQ schema to custom music pages',
+  'Publish weekly session recap posts for SEO',
+];
+
+function pn(v) {
+  if (!v && v !== 0) return 0;
+  if (typeof v === 'number' && isFinite(v)) return v;
+  const s = String(v).trim().replace(/,/g, '');
+  const m = s.match(/^(-?[\d.]+)\s*([kmb])$/i);
+  if (m) { const mult = {k:1e3,m:1e6,b:1e9}[m[2].toLowerCase()]; return Number(m[1]) * mult; }
+  return Number(s.replace(/[^\d.-]/g,'')) || 0;
+}
+
+function pick(obj, ...keys) {
+  for (const k of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k)) {
+      const v = obj[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+  }
+  return '';
+}
+
+function normSong(r) {
+  const title = String(pick(r,'title','Title','song','Song') || 'Untitled').trim();
+  const artist = String(pick(r,'artist','Artist') || '').trim();
+  const genre  = String(pick(r,'genre','Genre') || '').trim();
+  const thumb  = String(pick(r,'thumbnail','Thumbnail','image','cover') || '').trim();
+  const plays  = pn(pick(r,'plays','Plays','play_count'));
+  const full   = pn(pick(r,'fullPlays','full plays','Full Plays','full_song_plays'));
+  const secs   = pn(pick(r,'playSeconds','play seconds','total seconds'));
+  const avg    = pn(pick(r,'averageSeconds','average seconds','avg seconds','avg_listen_seconds')) || (plays ? secs/plays : 0);
+  const shares = pn(pick(r,'shares','Shares','shareClicks','share_clicks'));
+  const likes  = pn(pick(r,'likes','Likes'));
+  const skips  = pn(pick(r,'skips','Skips'));
+  return { title, artist, genre, thumb, plays, full, secs, avg, shares, likes, skips,
+    link: pick(r,'songUrl') || `../radio/?song=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}` };
+}
+
+function normVideo(r) {
+  return {
+    title: String(pick(r,'title','Title','video title') || 'Untitled').trim(),
+    artist: String(pick(r,'artist','Artist') || '').trim(),
+    thumb: String(pick(r,'thumbnail','Thumbnail','cover') || '').trim(),
+    likes: pn(pick(r,'likes','Likes')),
+    clicks: pn(pick(r,'clicks','Clicks','views','Views')),
+    shares: pn(pick(r,'shares','Shares')),
+    url: String(pick(r,'url','URL','youtube url','YouTube URL') || '../videos/').trim(),
+  };
+}
+
+function sum(arr, fn) { return arr.reduce((a, x) => a + fn(x), 0); }
+function sortByMetric(arr, fn) {
+  return arr.slice().sort((a, b) => fn(b) - fn(a));
+}
+
+function fmt(n) {
+  n = pn(n);
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return String(Math.round(n));
+}
+
+function fmtTime(s) {
+  s = Math.max(0, Math.floor(pn(s)));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function fmtAvg(s) {
+  return pn(s) >= 3600 ? fmtTime(s)
+    : `${String(Math.floor(pn(s)/60)).padStart(2,'0')}:${String(Math.floor(pn(s)%60)).padStart(2,'0')}`;
+}
+
+function thumb(s, sz='2.4rem') {
+  return s.thumb
+    ? `<div class="lb-thumb" style="width:${sz};height:${sz}"><img src="${s.thumb}" alt="${s.title}" loading="lazy"></div>`
+    : `<div class="lb-thumb" style="width:${sz};height:${sz};border-radius:7px;background:linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))"></div>`;
+}
+
+/* Generate synthetic fallback data */
+function makeFallback() {
+  const songs = Array.from({length:20},(_,i)=>({
+    title:`Stashbox Track ${i+1}`, artist:`Artist ${(i%4)+1}`,
+    genre:['Electronic','Reggae','Hip-Hop','Afro'][i%4],
+    thumbnail:'', plays:420-i*17, fullPlays:260-i*11,
+    playSeconds:(420-i*17)*112, averageSeconds:112+i*5,
+    shares:38-i*1.5|0, likes:22-i|0, skips:3+i|0, songUrl:''
+  }));
+  const videos = Array.from({length:8},(_,i)=>({
+    title:`Stashbox Live ${i+1}`, artist:`Artist ${(i%4)+1}`,
+    thumbnail:'', likes:90-i*8, clicks:310-i*28, shares:18-i*2, url:'../videos/'
+  }));
+  return {radio:songs, videos, meta:{}};
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER ENGINES — 5 distinct views
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── VIEW 1: Command Centre ───────────────────────────────────────── */
+function renderV1(D) {
+  const { songs, vids, kpis } = D;
+  const byPlays  = sortByMetric(songs, s=>s.plays);
+  const byAvg    = sortByMetric(songs, s=>s.avg);
+  const byShares = sortByMetric(songs, s=>s.shares);
+  const byVLikes = sortByMetric(vids, v=>v.likes);
+
+  const kpiHtml = `
+    <div class="bento col-12 kpis-row" style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;margin-bottom:.75rem">
+      ${[
+        ['Total Plays',    fmt(kpis.plays),'accent-purple'],
+        ['Full Plays',     fmt(kpis.full),'accent-green'],
+        ['Play Time',      fmtTime(kpis.secs),'accent-cyan'],
+        ['Total Shares',   fmt(kpis.shares),'accent-gold'],
+        ['Songs Tracked',  songs.length,'accent-purple'],
+        ['Videos Tracked', vids.length,'accent-gold'],
+      ].map(([l,v,cls])=>`
+        <div class="bento-cell ${cls}" style="grid-column:span 1">
+          <div class="kpi-label">${l}</div>
+          <div class="kpi-value ${v.toString().length>7?'sm':''}">${v}</div>
+        </div>`).join('')}
+    </div>`;
+
+  const leaderboard = (items, label, fn) => `
+    <div class="leaderboard-list">
+      ${items.slice(0,10).map((s,i)=>`
+        <div class="lb-row">
+          <div class="lb-rank">${i+1}</div>
+          ${thumb(s)}
+          <div>
+            <div class="lb-name"><a href="${s.link||'#'}" style="color:inherit;text-decoration:none">${s.title}</a></div>
+            <div class="lb-meta">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
+          </div>
+          <div class="lb-stat">${label}: ${fmt(fn(s))}</div>
+        </div>`).join('')}
+    </div>`;
+
+  const scoreHtml = SEO_SCORES.map(([n,seo,ai])=>`
+    <div class="bar-row">
+      <div class="bar-label-row"><span>${n}</span><span>SEO ${seo} / AI ${ai}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${seo*10}%"></div></div>
+    </div>`).join('');
+
+  document.getElementById('v1').innerHTML = `
+  <div class="bento">
+    ${kpiHtml}
+
+    <!-- Top by plays -->
+    <div class="bento-cell col-4 accent-purple">
+      <div class="sec-title">▲ Top Plays</div>
+      ${leaderboard(byPlays,'▶',s=>s.plays)}
+    </div>
+
+    <!-- Top avg -->
+    <div class="bento-cell col-4 accent-green">
+      <div class="sec-title">⏱ Best Retention</div>
+      ${leaderboard(byAvg,'avg',s=>fmtAvg(s.avg))}
+    </div>
+
+    <!-- Top shares -->
+    <div class="bento-cell col-4 accent-gold">
+      <div class="sec-title">↗ Most Shared</div>
+      ${leaderboard(byShares,'↗',s=>s.shares)}
+    </div>
+
+    <!-- Videos -->
+    <div class="bento-cell col-6 accent-cyan">
+      <div class="sec-title">▶ Top Videos by Likes</div>
+      ${leaderboard(byVLikes.map(v=>({...v,link:v.url,genre:''})),'♥',v=>v.likes)}
+    </div>
+
+    <!-- SEO -->
+    <div class="bento-cell col-3 accent-purple">
+      <div class="sec-title">SEO / AI Scores</div>
+      ${scoreHtml}
+    </div>
+
+    <!-- AI dims -->
+    <div class="bento-cell col-3 accent-cyan">
+      <div class="sec-title">AI Readiness</div>
+      ${AI_DIMS.map(([l,p])=>`
+        <div class="bar-row">
+          <div class="bar-label-row"><span>${l}</span><span>${p}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${p}%"></div></div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Actions -->
+    <div class="bento-cell col-12 accent-gold">
+      <div class="sec-title">Recommended Actions</div>
+      <div class="dot-grid">
+        ${ACTIONS.map(a=>`<div class="dot-item">→ ${a}</div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── VIEW 2: Broadcast Room ──────────────────────────────────────── */
+function renderV2(D) {
+  const { songs, vids, kpis } = D;
+  const byPlays  = sortByMetric(songs, s=>s.plays);
+  const byAvg    = sortByMetric(songs, s=>s.avg);
+
+  document.getElementById('v2').innerHTML = `
+  <div class="broadcast-header">
+    <div>
+      <div class="bh-title">On Air<br><em style="color:var(--gold)">Performance</em></div>
+      <div class="bh-sub">STASHBOX · LIVE RADIO & VIDEO ANALYTICS</div>
+    </div>
+    <div class="bh-meta">
+      ${songs.length} Tracks Tracked<br>
+      ${vids.length} Videos<br>
+      ${fmtTime(kpis.secs)} Total Air Time
+    </div>
+  </div>
+
+  <div class="v2-grid">
+    <div>
+      <div class="v2-card" style="margin-bottom:1rem">
+        <h3>Top 15 — Airplay Chart</h3>
+        ${byPlays.slice(0,15).map((s,i)=>`
+          <div class="tape-row">
+            <div class="tape-num">${String(i+1).padStart(2,'0')}</div>
+            <div class="tape-info">
+              <div class="tape-title">${s.title}</div>
+              <div class="tape-artist">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
+            </div>
+            <div class="tape-plays">${fmt(s.plays)} plays</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div>
+      <div class="v2-card" style="margin-bottom:1rem">
+        <h3>Station KPIs</h3>
+        <div class="v2-stat-grid">
+          ${[
+            ['Total Plays',   fmt(kpis.plays)],
+            ['Full Listens',  fmt(kpis.full)],
+            ['Total Shares',  fmt(kpis.shares)],
+            ['Songs On Air',  songs.length],
+          ].map(([l,v])=>`<div class="v2-stat"><div class="l">${l}</div><div class="n">${v}</div></div>`).join('')}
+        </div>
+      </div>
+
+      <div class="v2-card" style="margin-bottom:1rem">
+        <h3>Listener Retention Leaders</h3>
+        ${byAvg.slice(0,8).map(s=>`
+          <div class="v2-meter">
+            <label>${s.title} <b>${fmtAvg(s.avg)}</b></label>
+            <div class="v2-track"><div class="v2-fill" style="width:${Math.min(100,(s.avg/300)*100)}%"></div></div>
+          </div>`).join('')}
+      </div>
+
+      <div class="v2-card">
+        <h3>SEO Visibility</h3>
+        ${SEO_SCORES.map(([n,seo,ai])=>`
+          <div class="v2-meter">
+            <label>${n} <b>${seo} / ${ai}</b></label>
+            <div class="v2-track"><div class="v2-fill" style="width:${seo*10}%;background:linear-gradient(90deg,rgba(242,188,85,.5),var(--gold))"></div></div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── VIEW 3: Ice Sheet ───────────────────────────────────────────── */
+function renderV3(D) {
+  const { songs, vids, kpis } = D;
+  const byPlays  = sortByMetric(songs, s=>s.plays);
+  const maxPlays = byPlays[0]?.plays || 1;
+
+  const rows = byPlays.slice(0,30).map((s,i)=>`
+    <tr class="${i===0?'tr-top':''}">
+      <td class="num">${i+1}</td>
+      <td class="hi">${s.title}</td>
+      <td>${s.artist}</td>
+      <td class="num">${fmt(s.plays)}<span class="bar-inline" style="width:${(s.plays/maxPlays)*60}px"></span></td>
+      <td class="num">${fmt(s.full)}</td>
+      <td class="num">${fmtAvg(s.avg)}</td>
+      <td class="num">${fmt(s.shares)}</td>
+    </tr>`).join('');
+
+  const scoreRows = SEO_SCORES.map(([n,seo,ai])=>`
+    <div class="v3-score-row">
+      <span>${n}</span>
+      <div class="v3-score-pills">
+        <span class="v3-pill seo">SEO ${seo}</span>
+        <span class="v3-pill ai">AI ${ai}</span>
+      </div>
+    </div>`).join('');
+
+  const vids10 = sortByMetric(vids, v=>v.likes).slice(0,10);
+
+  document.getElementById('v3').innerHTML = `
+  <div class="v3-topbar">
+    <div class="v3-wordmark">STASHBOX · ANALYTICS</div>
+    <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3)">${songs.length} TRACKS · ${vids.length} VIDEOS</div>
+  </div>
+
+  <div class="v3-kpi-strip">
+    ${[
+      ['Plays',fmt(kpis.plays)],
+      ['Full Listens',fmt(kpis.full)],
+      ['Air Time',fmtTime(kpis.secs)],
+      ['Shares',fmt(kpis.shares)],
+      ['Songs',songs.length],
+      ['Videos',vids.length],
+    ].map(([l,v])=>`<div class="v3-kpi"><div class="v3-kpi-l">${l}</div><div class="v3-kpi-v">${v}</div></div>`).join('')}
+  </div>
+
+  <div class="v3-body">
+    <div class="v3-panel">
+      <div class="v3-panel-title">Song Performance — All Tracks</div>
+      <table class="v3-table">
+        <thead><tr>
+          <th>#</th><th>Title</th><th>Artist</th>
+          <th style="text-align:right">Plays</th>
+          <th style="text-align:right">Full</th>
+          <th style="text-align:right">Avg</th>
+          <th style="text-align:right">Shares</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="v3-panel">
+      <div class="v3-panel-title">SEO &amp; AI Visibility</div>
+      ${scoreRows}
+
+      <div class="v3-panel-title" style="margin-top:1.5rem">AI Readiness Dimensions</div>
+      ${AI_DIMS.map(([l,p])=>`
+        <div class="bar-row" style="margin:.6rem 0">
+          <div class="bar-label-row"><span style="font-size:.75rem;color:var(--muted)">${l}</span><span style="font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.5)">${p}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:linear-gradient(90deg,var(--cyan),var(--purple))"></div></div>
+        </div>`).join('')}
+
+      <div class="v3-panel-title" style="margin-top:1.5rem">Top Videos</div>
+      ${vids10.map((v,i)=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem">
+          <div><span style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3);margin-right:.6rem">${i+1}</span>${v.title}</div>
+          <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted)">♥ ${fmt(v.likes)}</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ── VIEW 4: Night Market ────────────────────────────────────────── */
+function renderV4(D) {
+  const { songs, vids, kpis } = D;
+  const byPlays  = sortByMetric(songs, s=>s.plays);
+  const byAvg    = sortByMetric(songs, s=>s.avg);
+  const byShares = sortByMetric(songs, s=>s.shares);
+
+  const listHtml = (items, label, fn) =>
+    items.slice(0,8).map((s,i)=>`
+      <div class="nm-list-item">
+        <div class="nm-idx">${String(i+1).padStart(2,'0')}</div>
+        <div class="nm-li-body">
+          <div class="nm-li-title">${s.title}</div>
+          <div class="nm-li-sub">${s.artist}</div>
+        </div>
+        <div class="nm-li-val">${label} ${fmt(fn(s))}</div>
+      </div>`).join('');
+
+  document.getElementById('v4').innerHTML = `
+  <div class="nm-header">
+    <span>STASH<span>BOX</span></span>
+    <small>COMMAND GRID · LIVE ANALYTICS</small>
+  </div>
+
+  <div class="nm-grid">
+    <!-- KPIs -->
+    <div class="nm-card">
+      <div class="nm-card-title">Station Overview</div>
+      ${[
+        ['Plays',fmt(kpis.plays),''],
+        ['Full Listens',fmt(kpis.full),'gold'],
+        ['Total Shares',fmt(kpis.shares),''],
+        ['Air Time',fmtTime(kpis.secs),'gold'],
+      ].map(([l,v,cls])=>`
+        <div style="margin-bottom:.9rem">
+          <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.3rem">${l}</div>
+          <div class="nm-big ${cls}">${v}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Top plays -->
+    <div class="nm-card">
+      <div class="nm-card-title">▲ Top Plays</div>
+      ${listHtml(byPlays,'▶',s=>s.plays)}
+    </div>
+
+    <!-- Best retention -->
+    <div class="nm-card">
+      <div class="nm-card-title">⏱ Best Retention</div>
+      ${listHtml(byAvg,'avg',s=>fmtAvg(s.avg))}
+    </div>
+
+    <!-- Most shared -->
+    <div class="nm-card">
+      <div class="nm-card-title">↗ Most Shared</div>
+      ${listHtml(byShares,'↗',s=>s.shares)}
+    </div>
+
+    <!-- Videos -->
+    <div class="nm-card">
+      <div class="nm-card-title">▶ Top Videos</div>
+      ${sortByMetric(vids,v=>v.likes).slice(0,8).map((v,i)=>`
+        <div class="nm-list-item">
+          <div class="nm-idx">${String(i+1).padStart(2,'0')}</div>
+          <div class="nm-li-body">
+            <div class="nm-li-title">${v.title}</div>
+            <div class="nm-li-sub">${v.artist}</div>
+          </div>
+          <div class="nm-li-val">♥ ${fmt(v.likes)}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- AI / SEO -->
+    <div class="nm-card">
+      <div class="nm-card-title">◈ SEO &amp; AI Scores</div>
+      ${SEO_SCORES.map(([n,seo,ai])=>`
+        <div class="nm-score-row">
+          <span style="font-size:.78rem">${n}</span>
+          <div class="nm-pills">
+            <span class="nm-sp">${seo}</span>
+            <span class="nm-sp gold">${ai}</span>
+          </div>
+        </div>`).join('')}
+      <div style="margin-top:.8rem">
+        ${AI_DIMS.map(([l,p])=>`
+          <div class="nm-bar">
+            <label>${l} <b>${p}%</b></label>
+            <div class="nm-track"><div class="nm-fill" style="width:${p}%"></div></div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── VIEW 5: Mercury ─────────────────────────────────────────────── */
+function renderV5(D) {
+  const { songs, vids, kpis } = D;
+  const byPlays  = sortByMetric(songs, s=>s.plays);
+  const byShares = sortByMetric(songs, s=>s.shares);
+
+  const rankRows = (items, label, fn) =>
+    items.slice(0,12).map((s,i)=>`
+      <div class="merc-rank-row">
+        <div class="merc-rn">${i+1}</div>
+        <div class="merc-ri">
+          <div class="merc-rt">${s.title}</div>
+          <div class="merc-rm">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
+        </div>
+        <div class="merc-rv">${label} ${fmt(fn(s))}</div>
+      </div>`).join('');
+
+  document.getElementById('v5').innerHTML = `
+  <div class="merc-masthead">
+    <div class="merc-issue">Performance Edition · ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+    <div class="merc-title">Stashbox <em>Intelligence</em></div>
+    <div class="merc-rule"></div>
+    <div class="merc-lead">Radio, video, SEO, and AI search visibility — consolidated into a single editorial view.</div>
+  </div>
+
+  <div class="merc-band">
+    ${[
+      ['Total Plays',     fmt(kpis.plays)],
+      ['Full Listens',    fmt(kpis.full)],
+      ['Total Shares',    fmt(kpis.shares)],
+      ['Air Time',        fmtTime(kpis.secs)],
+      ['Songs Tracked',   songs.length],
+      ['Videos Tracked',  vids.length],
+    ].map(([l,v])=>`
+      <div class="merc-stat">
+        <div class="merc-stat-l">${l}</div>
+        <div class="merc-stat-v">${v}</div>
+      </div>`).join('')}
+  </div>
+
+  <div class="merc-body">
+    <div>
+      <div class="merc-sidebar-h">Top Songs by Plays</div>
+      ${rankRows(byPlays,'▶',s=>s.plays)}
+      <div class="merc-sidebar-h" style="margin-top:1.5rem">Top Songs by Shares</div>
+      ${rankRows(byShares,'↗',s=>s.shares)}
+    </div>
+    <div>
+      <div class="merc-sidebar-section">
+        <div class="merc-sidebar-h">SEO &amp; AI Visibility</div>
+        ${SEO_SCORES.map(([n,seo,ai])=>`
+          <div class="merc-score-item">
+            <span>${n}</span>
+            <div class="vals">
+              <span class="pill pill-p">${seo}</span>
+              <span class="pill pill-c">${ai}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <div class="merc-sidebar-section">
+        <div class="merc-sidebar-h">Top Videos</div>
+        ${sortByMetric(vids,v=>v.likes).slice(0,6).map((v,i)=>`
+          <div class="merc-score-item">
+            <span style="font-size:.78rem">${v.title}</span>
+            <span class="pill pill-p">♥ ${fmt(v.likes)}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="merc-actions">
+        <h4>Recommended Actions</h4>
+        ${ACTIONS.map(a=>`<div class="merc-action-item">${a}</div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ORCHESTRATION
+   ═══════════════════════════════════════════════════════════════════ */
+function processPayload(raw) {
+  const radio = Array.isArray(raw.radio) ? raw.radio : [];
+  const videos = Array.isArray(raw.videos) ? raw.videos : [];
+  const meta = raw.meta || {};
+  const rt = meta.radioTotals || {};
+  const songs = radio.map(normSong);
+  const vids  = videos.map(normVideo);
+  const kpis  = {
+    plays:  pn(rt.totalSongPlays  || sum(songs,s=>s.plays)),
+    full:   pn(rt.totalFullSongPlays || sum(songs,s=>s.full)),
+    secs:   pn(rt.totalPlaySeconds || sum(songs,s=>s.secs)),
+    shares: pn(rt.totalShares     || sum(songs,s=>s.shares)),
+  };
+  return { songs, vids, kpis };
+}
+
+
+function normalizeRawPayload(raw) {
+  // Support multiple connector shapes without changing any of the 5 view renderers.
+  if (!raw || typeof raw !== 'object') return { radio:[], videos:[], meta:{} };
+
+  if (Array.isArray(raw.radio) || Array.isArray(raw.videos)) {
+    return {
+      radio: Array.isArray(raw.radio) ? raw.radio : [],
+      videos: Array.isArray(raw.videos) ? raw.videos : [],
+      meta: raw.meta || {},
+    };
+  }
+
+  const payload = raw.data || raw.payload || raw.result || {};
+  const radio = payload.radio || payload.songs || payload.tracks || raw.songs || raw.tracks || [];
+  const videos = payload.videos || payload.video || raw.videos || raw.video || [];
+  const meta = payload.meta || raw.meta || {};
+  return {
+    radio: Array.isArray(radio) ? radio : [],
+    videos: Array.isArray(videos) ? videos : [],
+    meta
+  };
+}
+
+async function fetchLiveData() {
+  const errors = [];
+  for (const c of CONNECTORS) {
+    try {
+      const resp = await fetch(c.url, { cache:'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const raw = normalizeRawPayload(await resp.json());
+      if (!raw.radio.length && !raw.videos.length) throw new Error('no rows');
+      return { raw, connector: c.name };
+    } catch (err) {
+      errors.push(`${c.name}: ${err.message}`);
+    }
+  }
+  throw new Error(errors.join(' | '));
+}
+
+function setStatus(live, text) {
+  document.getElementById('status-dot').className = `dot ${live?'dot-live':'dot-fallback'}`;
+  document.getElementById('status-text').textContent = text;
+}
+
+function renderAll(D) {
+  renderV1(D); renderV2(D); renderV3(D); renderV4(D); renderV5(D);
+}
+
+async function boot() {
+  const loadStatus = document.getElementById('load-status');
+  const loadingEl = document.getElementById('loading');
+  const app = document.getElementById('app');
+  loadStatus.textContent = 'Fetching live data…';
+
+  let D;
+  try {
+    const { raw, connector } = await fetchLiveData();
+    D = processPayload(raw);
+    setStatus(true, `Live (${connector}) · ${D.songs.length} tracks · ${D.vids.length} videos`);
+    document.getElementById('load-status').textContent = 'Live data loaded ✓';
+  } catch(err) {
+    console.warn('[dashboard] API failed, using fallback:', err.message);
+    D = processPayload(makeFallback());
+    setStatus(false, 'Sample mode — API unavailable');
+    loadStatus.textContent = 'Using sample data';
+  }
+
+  try {
+    renderAll(D);
+  } catch (err) {
+    console.error('[dashboard] render failed, forcing fallback render:', err);
+    D = processPayload(makeFallback());
+    setStatus(false, 'Sample mode — render recovery');
+    loadStatus.textContent = 'Recovered with sample data';
+    renderAll(D);
+  } finally {
+    // Always reveal the app so loader cannot get stuck forever.
+    loadingEl.classList.add('done');
+    app.classList.add('ready');
+  }
+}
+
+/* ─── Tab switching ─────────────────────────────────────────────── */
+document.querySelectorAll('.view-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.view).classList.add('active');
+  });
+});
+
+boot();
+</script>
+</body>
+</html>
