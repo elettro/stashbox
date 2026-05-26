@@ -821,18 +821,23 @@ function renderV1(D) {
         </div>`).join('')}
     </div>`;
 
-  const leaderboard = (items, label, fn) => `
+  const leaderboard = (items, label, fn, options = {}) => `
     <div class="leaderboard-list">
-      ${items.slice(0,10).map((s,i)=>`
-        <div class="lb-row">
-          <div class="lb-rank">${i+1}</div>
-          ${thumb(s)}
-          <div>
-            <div class="lb-name"><a href="${s.link||'#'}" style="color:inherit;text-decoration:none">${s.title}</a></div>
-            <div class="lb-meta">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
-          </div>
-          <div class="lb-stat">${label}: ${fmt(fn(s))}</div>
-        </div>`).join('')}
+      ${items.slice(0,10).map((s,i)=>{
+        const rawValue = fn(s);
+        const displayValue = options.rawDisplay ? rawValue : fmt(rawValue);
+
+        return `
+          <div class="lb-row">
+            <div class="lb-rank">${i+1}</div>
+            ${thumb(s)}
+            <div>
+              <div class="lb-name"><a href="${s.link||'#'}" style="color:inherit;text-decoration:none">${s.title}</a></div>
+              <div class="lb-meta">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
+            </div>
+            <div class="lb-stat">${label}: ${displayValue}</div>
+          </div>`;
+      }).join('')}
     </div>`;
 
   const scoreHtml = SEO_SCORES.map(([n,seo,ai])=>`
@@ -854,7 +859,7 @@ function renderV1(D) {
     <!-- Top avg -->
     <div class="bento-cell col-4 accent-green">
       <div class="sec-title">⏱ Best Retention</div>
-      ${leaderboard(byAvg,'avg',s=>fmtAvg(s.avg))}
+      ${leaderboard(byAvg,'avg',s=>fmtAvg(s.avg), { rawDisplay:true })}
     </div>
 
     <!-- Top shares -->
