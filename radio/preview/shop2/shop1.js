@@ -4,6 +4,12 @@
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
   const DESKTOP_MOUNT = 'stashbox-radio-shop-desktop';
   const MOBILE_MOUNT  = 'stashbox-radio-shop-mobile';
+  const DEBUG_MERCH = new URLSearchParams(window.location.search).get('debugMerch') === '1';
+
+  function merchLog() {
+    if (!DEBUG_MERCH) return;
+    console.log.apply(console, ['[shop2 merch]'].concat(Array.from(arguments)));
+  }
 
   let productMapItems  = [];
   let productMapReady  = false;
@@ -72,7 +78,14 @@
       .mobile-shop-kicker{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
       .mobile-shop-panel h3{font-family:var(--fh);font-size:18px;letter-spacing:.04em;color:var(--text);margin-bottom:10px}
       .mobile-shop-list{display:grid;grid-template-columns:1fr;gap:10px}
-      @media(max-width:1024px){.radio-shop-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      .radio-shop-img-fallback-auto{display:none}
+      .radio-shop-img-wrap.image-failed .radio-shop-img-fallback-auto{display:flex}
+      .radio-shop-img-wrap.image-failed{color:var(--accent)}
+      .radio-shop-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+      .radio-shop-card{min-height:100%}
+      .radio-shop-img-wrap{min-height:120px}
+      @media(max-width:1024px){.radio-shop-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+      @media(max-width:767px){.mobile-shop-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
       @media(max-width:767px){#stashbox-radio-shop-desktop{display:none!important}}
       @media(min-width:768px){#stashbox-radio-shop-mobile{display:none!important}}
     `;
@@ -85,39 +98,66 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
-  function getMatchedProductRows(track) {
+    function getMatchedProductRows(track) {
     if (!Array.isArray(productMapItems) || !productMapItems.length) return [];
 
-    const songKey   = slugifyProductKey(track?.title);
+    const songKey = slugifyProductKey(track?.title);
     const artistKey = slugifyProductKey(track?.artist);
-    const albumKey  = slugifyProductKey(track?.album);
-    const genreKey  = slugifyProductKey(track?.genre || track?.sectionKey);
+    const albumKey = slugifyProductKey(track?.album);
+    const genreKey = slugifyProductKey(track?.genre || track?.sectionKey);
 
     const candidates = [
-      { mapType: 'song',    mapKey: songKey },
-      { mapType: 'artist',  mapKey: artistKey },
-      { mapType: 'album',   mapKey: albumKey },
-      { mapType: 'genre',   mapKey: genreKey },
-      { mapType: 'page',    mapKey: 'radio' },
-      { mapType: 'general', mapKey: 'radio-general' },
+      { mapType: 'song', mapKey: songKey },
+      { mapType: 'artist', mapKey: artistKey },
+      { mapType: 'album', mapKey: albumKey },
+      { mapType: 'genre', mapKey: genreKey },
+      { mapType: 'page', mapKey: 'radio' },
+      { mapType: 'general', mapKey: 'radio-general' }
     ];
 
     const rows = [];
+    const seenRows = new Set();
+
     candidates.forEach(candidate => {
       productMapItems
         .filter(item => item && item.active !== false)
         .filter(item => String(item.mapType || '').toLowerCase() === candidate.mapType)
-        .filter(item => String(item.mapKey  || '').toLowerCase() === candidate.mapKey)
+        .filter(item => String(item.mapKey || '').toLowerCase() === candidate.mapKey)
         .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))
-        .forEach(item => rows.push(item));
+        .forEach(item => {
+          const rowKey = `${item.rowNumber || ''}:${item.mapType}:${item.mapKey}`;
+          if (seenRows.has(rowKey)) return;
+          seenRows.add(rowKey);
+          rows.push(item);
+        });
     });
+
+    merchLog('track keys', {
+      title: track?.title,
+      songKey,
+      artist: track?.artist,
+      artistKey,
+      album: track?.album,
+      albumKey,
+      genre: track?.genre,
+      sectionKey: track?.sectionKey,
+      genreKey
+    });
+
+    merchLog('matched rows', rows.map(row => ({
+      rowNumber: row.rowNumber,
+      mapType: row.mapType,
+      mapKey: row.mapKey,
+      links: row.productLinks
+    })));
 
     return rows;
   }
 
-  function mergeProductRowsToLinks(rows, limit) {
-    const seen   = new Set();
+    function mergeProductRowsToLinks(rows, limit) {
+    const seen = new Set();
     const merged = [];
+    const max = limit || 4;
 
     rows.forEach(row => {
       const links = Array.isArray(row.productLinks)
@@ -127,45 +167,93 @@
       links.forEach(link => {
         const cleanLink = String(link || '').trim();
         if (!cleanLink) return;
+
         const cleanForHandle = cleanLink.split('?')[0];
-        const match  = cleanForHandle.match(/\/products\/([^/?#]+)/i);
-        const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : cleanLink;
+        const match = cleanForHandle.match(/\/products\/([^/?#]+)/i);
+        const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
+
+        if (!handle) return;
         if (seen.has(handle)) return;
+
         seen.add(handle);
-        merged.push({ link: cleanLink, handle, sourceRow: row });
+        merged.push({
+          link: cleanLink,
+          handle,
+          sourceRow: row
+        });
       });
     });
 
-    return merged.slice(0, limit || 4);
+    merchLog('merged product entries', merged.map(entry => ({
+      handle: entry.handle,
+      link: entry.link,
+      source: `${entry.sourceRow?.mapType}:${entry.sourceRow?.mapKey}`
+    })));
+
+    return merged.slice(0, max);
   }
 
-  async function buildProductsFromEntries(entries) {
+    async function buildProductsFromEntries(entries) {
     const products = await Promise.all(entries.map(async entry => {
-      const fallbackTitle = entry.handle
-        ? entry.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
+      const cleanHandle = String(entry.handle || '').trim();
+      const productUrl = entry.link || `https://stashbox.ai/products/${cleanHandle}`;
+
+      const fallbackTitle = cleanHandle
+        ? cleanHandle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
         : 'Stashbox Product';
 
       const fallback = {
         title: fallbackTitle,
-        url:   entry.link || `https://stashbox.ai/products/${entry.handle}`,
-        handle: entry.handle,
-        image: '', price: '', compareAtPrice: ''
+        url: productUrl,
+        handle: cleanHandle,
+        image: '',
+        price: '',
+        compareAtPrice: ''
       };
 
+      if (!cleanHandle) return fallback;
+
       try {
-        const res = await fetch(`https://stashbox.ai/products/${entry.handle}.js`, { cache: 'no-store' });
+        const res = await fetch(`https://stashbox.ai/products/${encodeURIComponent(cleanHandle)}.js`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data    = await res.json();
+
+        const data = await res.json();
         const variant = Array.isArray(data.variants) && data.variants.length ? data.variants[0] : null;
-        return {
-          title:          data.title || fallback.title,
-          url:            entry.link || `https://stashbox.ai/products/${entry.handle}`,
-          handle:         entry.handle,
-          image:          data.featured_image || (Array.isArray(data.images) && data.images[0]) || '',
-          price:          variant?.price         ? fmt(variant.price)          : '',
-          compareAtPrice: variant?.compare_at_price ? fmt(variant.compare_at_price) : ''
+
+        let image = '';
+
+        if (data.featured_image) {
+          image = data.featured_image;
+        } else if (Array.isArray(data.images) && data.images.length) {
+          image = typeof data.images[0] === 'string'
+            ? data.images[0]
+            : data.images[0]?.src || '';
+        } else if (data.image && data.image.src) {
+          image = data.image.src;
+        }
+
+        if (image && image.startsWith('//')) {
+          image = 'https:' + image;
+        }
+
+        const product = {
+          title: data.title || fallback.title,
+          url: productUrl,
+          handle: cleanHandle,
+          image: image,
+          price: variant && variant.price ? fmt(variant.price) : '',
+          compareAtPrice: variant && variant.compare_at_price ? fmt(variant.compare_at_price) : ''
         };
-      } catch (_) {
+
+        merchLog('Shopify product loaded', product);
+
+        return product;
+      } catch (err) {
+        console.warn('[shop2 merch] Shopify .js failed, using fallback:', cleanHandle, err);
         return fallback;
       }
     }));
@@ -178,20 +266,21 @@
     return Number.isFinite(n) ? '$' + n.toFixed(2) : '';
   }
 
-  function renderProductCardHtml(product, productRow) {
-    const title          = escapeHtml(product.title || 'Stashbox Product');
-    const url            = escapeHtml(product.url || '#');
-    const image          = product.image ? escapeHtml(product.image) : '';
-    const price          = escapeHtml(product.price || '');
+    function renderProductCardHtml(product, productRow) {
+    const title = escapeHtml(product.title || 'Stashbox Product');
+    const url = escapeHtml(product.url || '#');
+    const image = product.image ? escapeHtml(product.image) : '';
+    const price = escapeHtml(product.price || '');
     const compareAtPrice = escapeHtml(product.compareAtPrice || '');
-    const cta            = escapeHtml(productRow?.merchCtaText || 'Shop Now');
-    const hasSale        = price && compareAtPrice && price !== compareAtPrice;
+    const cta = escapeHtml(productRow?.merchCtaText || 'Shop Now');
+    const hasSale = price && compareAtPrice && price !== compareAtPrice;
 
-    return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer">
+    return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}">
       <div class="radio-shop-img-wrap">
         ${image
-          ? `<img class="radio-shop-img" src="${image}" alt="${title}" loading="lazy">`
+          ? `<img class="radio-shop-img" src="${image}" alt="${title}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('image-failed');">`
           : `<div class="radio-shop-img-fallback">SB</div>`}
+        <div class="radio-shop-img-fallback radio-shop-img-fallback-auto">SB</div>
       </div>
       <div class="radio-shop-card-title">${title}</div>
       <div class="radio-shop-card-price">
@@ -246,38 +335,92 @@
     renderMobileShop(row, product);
   }
 
-  async function updateRadioMerch(track) {
-    if (!Array.isArray(productMapItems) || !productMapItems.length) {
-      await fetchProductMap();
+    async function updateRadioMerch(track) {
+    try {
+      currentTrack = track || window.currentTrack || currentTrack;
+
+      if (!Array.isArray(productMapItems) || !productMapItems.length) {
+        await fetchProductMap();
+      }
+
+      if (!Array.isArray(productMapItems) || !productMapItems.length) {
+        renderFallback();
+        return;
+      }
+
+      let rows = getMatchedProductRows(currentTrack);
+
+      if (!rows.length) {
+        rows = [
+          productMapItems.find(i => i.mapType === 'page' && i.mapKey === 'radio'),
+          productMapItems.find(i => i.mapType === 'general' && i.mapKey === 'radio-general')
+        ].filter(Boolean);
+      }
+
+      const entries = mergeProductRowsToLinks(rows, 4);
+
+      if (!entries.length) {
+        renderFallback();
+        return;
+      }
+
+      const displayRow = rows[0] || {
+        merchHeadline: 'Official Stashbox Merch',
+        merchCtaText: 'Shop Now'
+      };
+
+      const products = await buildProductsFromEntries(entries);
+
+      merchLog('final products', products);
+
+      if (!products.length) {
+        renderFallback();
+        return;
+      }
+
+      renderDesktopShop(displayRow, products);
+      renderMobileShop(displayRow, products);
+    } catch (err) {
+      console.warn('[shop2 merch] updateRadioMerch failed:', err);
+      renderFallback();
     }
-    if (!Array.isArray(productMapItems) || !productMapItems.length) return;
-
-    const rows    = getMatchedProductRows(track);
-    const entries = mergeProductRowsToLinks(rows, 4);
-    if (!entries.length) return;
-
-    const displayRow = rows[0] || { merchHeadline: 'Official Stashbox Merch', merchCtaText: 'Shop Now' };
-    const products   = await buildProductsFromEntries(entries);
-    if (!products.length) return;
-
-    renderDesktopShop(displayRow, products);
-    renderMobileShop(displayRow, products);
   }
 
-  async function renderDefaultRadioMerch() {
-    const productRow =
-      productMapItems.find(i => i.mapType === 'page'    && i.mapKey === 'radio') ||
-      productMapItems.find(i => i.mapType === 'general' && i.mapKey === 'radio-general') ||
-      productMapItems[0];
+    async function renderDefaultRadioMerch() {
+    try {
+      let rows = [
+        productMapItems.find(i => i.mapType === 'page' && i.mapKey === 'radio'),
+        productMapItems.find(i => i.mapType === 'general' && i.mapKey === 'radio-general'),
+        ...productMapItems
+      ].filter(Boolean);
 
-    if (!productRow) { renderFallback(); return; }
+      const seenRows = new Set();
+      rows = rows.filter(row => {
+        const key = `${row.rowNumber || ''}:${row.mapType}:${row.mapKey}`;
+        if (seenRows.has(key)) return false;
+        seenRows.add(key);
+        return true;
+      });
 
-    const entries  = mergeProductRowsToLinks([productRow], 4);
-    const products = await buildProductsFromEntries(entries);
-    if (!products.length) { renderFallback(); return; }
+      const entries = mergeProductRowsToLinks(rows, 4);
+      const products = await buildProductsFromEntries(entries);
 
-    renderDesktopShop(productRow, products);
-    renderMobileShop(productRow, products);
+      if (!products.length) {
+        renderFallback();
+        return;
+      }
+
+      const productRow = rows[0] || {
+        merchHeadline: 'Official Stashbox Merch',
+        merchCtaText: 'Shop Now'
+      };
+
+      renderDesktopShop(productRow, products);
+      renderMobileShop(productRow, products);
+    } catch (err) {
+      console.warn('[shop2 merch] renderDefaultRadioMerch failed:', err);
+      renderFallback();
+    }
   }
 
   async function fetchProductMap() {
@@ -286,6 +429,8 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data    = await res.json();
       productMapItems = Array.isArray(data.items) ? data.items : [];
+      merchLog('productMap endpoint data', data);
+      merchLog('productMap items count', productMapItems.length);
       productMapReady = true;
 
       if (!productMapItems.length) { renderFallback(); return; }
