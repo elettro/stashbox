@@ -1873,8 +1873,37 @@ h1, h2, h3, h4, h5, h6 {
   .hero__ctas .btn { width: 100%; justify-content: center; }
 }
 
+
+.footer__radio-one-sheet-btn {
+  margin-left: 8px;
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 0.72rem 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: #f3f7ea;
+  border: 1px solid rgba(184, 224, 121, 0.65);
+  background: linear-gradient(90deg, rgba(16, 76, 34, 0.9) 0%, rgba(162, 127, 12, 0.92) 50%, rgba(128, 22, 22, 0.92) 100%);
+  box-shadow: 0 8px 24px rgba(15, 15, 15, 0.45);
+}
+.footer__radio-one-sheet-btn:hover,
+.footer__radio-one-sheet-btn:focus-visible {
+  transform: translateY(-1px);
+  filter: saturate(1.08);
+  box-shadow: 0 12px 30px rgba(15, 15, 15, 0.55);
+}
+.footer__radio-one-sheet-btn .arrow { transition: transform .2s ease; }
+.footer__radio-one-sheet-btn:hover .arrow,
+.footer__radio-one-sheet-btn:focus-visible .arrow { transform: translateX(4px); }
+@media (max-width: 700px) {
+  .footer__radio-one-sheet-btn { width: 100%; justify-content: center; margin-left: 0; margin-top: 10px; }
+}
 .footer__social .footer__quick-guide-link {
   margin-left: auto;
+}
+
 .footer__lowest-row {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
