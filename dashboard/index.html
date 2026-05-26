@@ -43,6 +43,7 @@ body{
   background:var(--bg);
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
+  padding:0 1rem;
   gap:1.2rem;z-index:9999;
   transition:opacity .6s ease, visibility .6s ease;
 }
@@ -50,8 +51,8 @@ body{
 .load-logo{font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;letter-spacing:.08em;color:var(--text)}
 .load-logo span{color:var(--purple)}
 .load-logo-img{
-  width:min(72vw,320px);
-  max-width:320px;
+  width:min(90vw,420px);
+  max-width:420px;
   height:auto;
   object-fit:contain;
 }
@@ -138,6 +139,11 @@ body{
     text-align:center;
   }
   .kpis-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+}
+@media(max-width:420px){
+  .load-logo-img{width:100%;max-width:340px}
+  .load-bar{width:min(78vw,240px)}
+  .topbar-status{display:none}
 }
 
 /* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
@@ -274,6 +280,8 @@ main{flex:1;padding:0}
   .nm-big{font-size:2rem}
   .kpi-label{font-size:.64rem;line-height:1.35}
   .kpi-sub,.lb-meta{font-size:.66rem}
+  .topbar-status{font-size:.62rem}
+  .kpis-row{grid-template-columns:1fr !important}
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -871,7 +879,7 @@ function renderV1(D) {
   const byVLikes = sortByMetric(vids, v=>v.likes);
 
   const kpiHtml = `
-    <div class="bento col-12 kpis-row" style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;margin-bottom:.75rem">
+    <div class="bento col-12 kpis-row">
       ${[
         ['Total Plays',    fmt(kpis.plays),'accent-purple'],
         ['Full Plays',     fmt(kpis.full),'accent-green'],
