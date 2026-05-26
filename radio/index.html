@@ -1000,9 +1000,19 @@ function showShareToast(message) {
 // ════════ SHARED PLAYBACK ════════
 function playFrom(trackIdx, sectionKey, mode) {
   const src = mode==='m' ? mFiltered() : dFiltered();
-  const sec  = src.filter(t => t.sectionKey===sectionKey);
-  queue = sec; qIdx = Math.max(0, sec.findIndex(t=>t.idx===trackIdx));
-  loadTrack(queue[qIdx]);
+  const sec = src.filter(t => t.sectionKey===sectionKey);
+  const fromSection = sec.findIndex(t => t.idx===trackIdx);
+  const fallbackIdx = src.findIndex(t => t.idx===trackIdx);
+
+  if (sec.length && fromSection >= 0) {
+    queue = sec;
+    qIdx = fromSection;
+  } else {
+    queue = src.length ? src : allTracks;
+    qIdx = Math.max(0, queue.findIndex(t => t.idx===trackIdx));
+  }
+
+  if (queue.length) loadTrack(queue[qIdx]);
   if (mode==='m') mOpenNow();
   updateResetBtns();
 }
