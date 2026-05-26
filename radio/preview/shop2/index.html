@@ -61,6 +61,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .chip.vc.active{background:rgba(62,207,110,0.1);border-color:var(--green);color:var(--green)}
 .d-nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .d-total{font-size:12px;color:var(--muted);white-space:nowrap}
+.dash-link{height:30px;padding:0 12px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--fb);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:transparent;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap;transition:all .15s}
+.dash-link:hover{border-color:var(--border-h);color:var(--text)}
 .btn-reset{height:30px;padding:0 12px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--fb);letter-spacing:0.06em;text-transform:uppercase;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;transition:all 0.15s;white-space:nowrap;display:none}
 .btn-reset:hover{background:rgba(224,92,92,0.1)}
 .btn-reset.visible{display:inline-block}
@@ -170,6 +172,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-reset-btn.visible{display:inline-block}
 .m-srch-btn{margin-left:auto;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
 .m-srch-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.m-dash-link{height:28px;padding:0 10px;border-radius:6px;font-size:10px;font-weight:600;font-family:var(--fb);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:transparent;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap}
 #m-genre-bar{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;white-space:nowrap;padding:10px 1rem;display:flex;gap:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 #m-genre-bar::-webkit-scrollbar{display:none}
 .mtab{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:100px;font-size:13px;font-weight:600;font-family:var(--fb);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s}
@@ -309,6 +312,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       </div>
       <div class="d-nav-right">
         <span class="d-total" id="d-total"></span>
+        <a class="dash-link" href="/stashbox/dashboard/">Dashboard</a>
         <button class="btn-reset" id="d-reset" onclick="resetAll()">✕ Reset</button>
         <div class="d-srch-wrap">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -397,6 +401,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
     <a class="logo-link" href="/stashbox/index.html"><div class="m-logo">STASH<span>BOX</span></div></a>
     <span class="m-total" id="m-total"></span>
     <button class="m-reset-btn" id="m-reset" onclick="resetAll()">✕ Reset</button>
+    <a class="m-dash-link" href="/stashbox/dashboard/">Dashboard</a>
     <button class="m-srch-btn" onclick="mOpenSearch()">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </button>
