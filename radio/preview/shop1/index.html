@@ -54,6 +54,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .logo-link{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 .d-div{width:1px;height:22px;background:var(--border);flex-shrink:0}
 .d-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:1}
+#d-chips,#d-album-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:1;min-width:0}
 .d-flabel{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .chip{height:30px;padding:0 13px;border-radius:100px;font-size:12px;font-weight:600;font-family:var(--fb);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap;letter-spacing:0.04em}
 .chip:hover{border-color:var(--border-h);color:var(--text)}
@@ -71,6 +72,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .d-srch::placeholder{color:var(--muted)}
 .d-srch:focus{border-color:var(--border-h);width:210px}
 
+@media (min-width:768px) and (max-width:1200px){.d-nav-inner{align-items:flex-start}.d-filters{flex:1 1 100%}.d-nav-right{margin-left:0;margin-top:6px;width:100%;justify-content:flex-end}}
 /* page */
 .d-page{max-width:1400px;margin:0 auto;padding:1.5rem}
 
