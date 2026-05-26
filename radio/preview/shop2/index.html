@@ -1126,8 +1126,6 @@ function updateMediaSession(t){
 
 
 function scrollToPlayerTop(){
-  const isSmallScreen=window.matchMedia('(max-width: 1024px)').matches;
-  if(!isSmallScreen)return;
   const mobileScroll=document.getElementById('m-scroll');
   if(mobileScroll)mobileScroll.scrollTo({top:0,behavior:'smooth'});
   window.scrollTo({top:0,behavior:'smooth'});
