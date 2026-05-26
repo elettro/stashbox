@@ -508,6 +508,9 @@ const SHEET_CSV_URLS = [
 ];
 const PLAY_TRACKING_URL = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec';
 
+const PRODUCT_MAP_URL = 'https://stashbox.ai/api/product-map.json';
+const MERCH_DEBUG = false;
+
 const SECTIONS = [
   {key:'Reggae',emoji:'🌴',color:'#3ecf6e'},{key:'Rock',emoji:'🎸',color:'#f0a500'},
   {key:'Blues',emoji:'🎷',color:'#50a0ff'},{key:'Funk',emoji:'🕺',color:'#e05c2a'},
@@ -536,6 +539,12 @@ let pendingYouTubeId = '';
 let playerMode = 'audio';
 let videoMode = false;
 let youtubePlaying = false;
+let productMapItems = [];
+let productMapLoaded = false;
+let mobileShopOpen = false;
+const merchLog = (...args) => { if (MERCH_DEBUG) console.log('[radio-merch]', ...args); };
+const slugifyProductKey = value => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
 const dpYouTubeWrap = document.getElementById('video-player-wrap');
 const watchVideoBtn = document.getElementById('watch-video-btn');
 console.log('[radio] audio element:', audio);
