@@ -48,15 +48,13 @@
       .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))[0] || null;
   }
 
-  function findBestProductMap(track) {
-    if (!track || !Array.isArray(productMapItems) || !productMapItems.length) {
-      return null;
-    }
+  function getMatchedProductRows(track) {
+    if (!Array.isArray(productMapItems) || !productMapItems.length) return [];
 
-    const songKey = slugifyProductKey(track.title);
-    const artistKey = slugifyProductKey(track.artist);
-    const albumKey = slugifyProductKey(track.album);
-    const genreKey = slugifyProductKey(track.genre || track.sectionKey);
+    const songKey = slugifyProductKey(track?.title);
+    const artistKey = slugifyProductKey(track?.artist);
+    const albumKey = slugifyProductKey(track?.album);
+    const genreKey = slugifyProductKey(track?.genre || track?.sectionKey);
 
     const candidates = [
       { mapType: 'song', mapKey: songKey },
@@ -67,136 +65,99 @@
       { mapType: 'general', mapKey: 'radio-general' }
     ];
 
-    console.log('[shop1 merch] match candidates:', candidates);
+    const rows = [];
 
-    for (const candidate of candidates) {
-      const matches = productMapItems
+    candidates.forEach(candidate => {
+      productMapItems
         .filter(item => item && item.active !== false)
         .filter(item => String(item.mapType || '').toLowerCase() === candidate.mapType)
         .filter(item => String(item.mapKey || '').toLowerCase() === candidate.mapKey)
-        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999));
+        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))
+        .forEach(item => rows.push(item));
+    });
 
-      if (matches.length) {
-        console.log('[shop1 merch] matched product row:', matches[0]);
-        return matches[0];
+    console.log('[shop1 merch] matched rows:', rows);
+    return rows;
+  }
+
+  function mergeProductRowsToLinks(rows, limit) {
+    const seen = new Set();
+    const merged = [];
+
+    rows.forEach(row => {
+      const links = Array.isArray(row.productLinks)
+        ? row.productLinks
+        : String(row.productLinks || '').split(/\s*\|\s*|\n|,/);
+
+      links.forEach(link => {
+        const cleanLink = String(link || '').trim();
+        if (!cleanLink) return;
+
+        const cleanForHandle = cleanLink.split('?')[0];
+        const match = cleanForHandle.match(/\/products\/([^/?#]+)/i);
+        const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : cleanLink;
+
+        if (seen.has(handle)) return;
+
+        seen.add(handle);
+        merged.push({
+          link: cleanLink,
+          handle: handle,
+          sourceRow: row
+        });
+      });
+    });
+
+    return merged.slice(0, limit || 4);
+  }
+
+  async function buildProductsFromEntries(entries) {
+    const products = await Promise.all(entries.map(async entry => {
+      const fallbackTitle = entry.handle
+        ? entry.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
+        : 'Stashbox Product';
+
+      const fallbackProduct = {
+        title: fallbackTitle,
+        url: entry.link || `https://stashbox.ai/products/${entry.handle}`,
+        handle: entry.handle,
+        image: '',
+        price: '',
+        compareAtPrice: ''
+      };
+
+      try {
+        const res = await fetch(`https://stashbox.ai/products/${entry.handle}.js`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
+        if (!res.ok) throw new Error('Shopify product fetch failed: ' + res.status);
+
+        const data = await res.json();
+        const variant = Array.isArray(data.variants) && data.variants.length ? data.variants[0] : null;
+
+        return {
+          title: data.title || fallbackProduct.title,
+          url: entry.link || `https://stashbox.ai/products/${entry.handle}`,
+          handle: entry.handle,
+          image: data.featured_image || (Array.isArray(data.images) && data.images[0]) || '',
+          price: variant && variant.price ? formatShopifyPrice(variant.price) : '',
+          compareAtPrice: variant && variant.compare_at_price ? formatShopifyPrice(variant.compare_at_price) : ''
+        };
+      } catch (err) {
+        console.warn('[shop1 merch] Shopify image/data fetch failed, fallback card used:', entry.handle, err);
+        return fallbackProduct;
       }
-    }
+    }));
 
-    const fallback =
-      findStaticProductMapRow('page', 'radio') ||
-      findStaticProductMapRow('general', 'radio-general') ||
-      productMapItems[0];
-
-    console.log('[shop1 merch] fallback product row:', fallback);
-
-    return fallback || null;
+    return products.filter(Boolean).slice(0, 4);
   }
 
   function formatShopifyPrice(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) return '';
     return '$' + number.toFixed(2);
-  }
-
-  async function buildProductCards(productRow) {
-    try {
-      const links = Array.isArray(productRow?.productLinks)
-        ? productRow.productLinks
-        : String(productRow?.productLinks || '').split(/\s*\|\s*|\n|,/);
-
-      const handles = Array.isArray(productRow?.productHandles)
-        ? productRow.productHandles
-        : String(productRow?.productHandles || '').split(/\s*\|\s*|\n|,/);
-
-      const entries = [];
-
-      links
-        .map(link => String(link || '').trim())
-        .filter(Boolean)
-        .forEach(link => {
-          const cleanUrl = link.split('?')[0];
-          const match = cleanUrl.match(/\/products\/([^/?#]+)/i);
-          const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
-
-          entries.push({
-            url: link,
-            handle: handle
-          });
-        });
-
-      handles
-        .map(handle => String(handle || '').trim())
-        .filter(Boolean)
-        .forEach(handle => {
-          if (!entries.find(entry => entry.handle === handle)) {
-            entries.push({
-              url: `https://stashbox.ai/products/${handle}`,
-              handle: handle
-            });
-          }
-        });
-
-      const uniqueEntries = entries
-        .filter(entry => entry.url || entry.handle)
-        .filter((entry, index, arr) =>
-          arr.findIndex(other => other.handle === entry.handle || other.url === entry.url) === index
-        )
-        .slice(0, 8);
-
-      console.log('[shop1 merch] product entries:', uniqueEntries);
-
-      const products = await Promise.all(uniqueEntries.map(async entry => {
-        const fallbackTitle = entry.handle
-          ? entry.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
-          : 'Stashbox Product';
-
-        const fallbackProduct = {
-          title: fallbackTitle,
-          url: entry.url || `https://stashbox.ai/products/${entry.handle}`,
-          handle: entry.handle,
-          image: '',
-          price: '',
-          compareAtPrice: '',
-          available: true
-        };
-
-        if (!entry.handle) {
-          return fallbackProduct;
-        }
-
-        try {
-          const res = await fetch(`https://stashbox.ai/products/${entry.handle}.js`, {
-            method: 'GET',
-            cache: 'no-store'
-          });
-
-          if (!res.ok) {
-            throw new Error('Shopify product fetch failed: ' + res.status);
-          }
-
-          const data = await res.json();
-          const variant = data.variants && data.variants.length ? data.variants[0] : null;
-
-          return {
-            title: data.title || fallbackProduct.title,
-            url: entry.url || `https://stashbox.ai/products/${entry.handle}`,
-            handle: entry.handle,
-            image: data.featured_image || (Array.isArray(data.images) && data.images[0]) || '',
-            price: variant && variant.price ? formatShopifyPrice(variant.price) : '',
-            compareAtPrice: variant && variant.compare_at_price ? formatShopifyPrice(variant.compare_at_price) : '',
-            available: variant ? !!variant.available : true
-          };
-        } catch (err) {
-          console.warn('[shop1 merch] Shopify .js failed, using fallback:', entry.handle, err);
-          return fallbackProduct;
-        }
-      }));
-
-      return products;
-    } catch (err) {
-      console.warn('[shop1 merch] buildProductCards failed:', err);
-      return [];
-    }
   }
 
   function renderProductCardHtml(product, productRow) {
@@ -293,7 +254,8 @@
         return;
       }
 
-      const products = await buildProductCards(productRow);
+      const selectedEntries = mergeProductRowsToLinks([productRow], 4);
+      const products = await buildProductsFromEntries(selectedEntries);
 
       console.log('[shop1 merch] default products:', products);
 
@@ -311,24 +273,36 @@
   }
 
   async function updateRadioMerch(track) {
-    const productRow = findBestProductMap(track) || findStaticProductMapRow('page', 'radio') || findStaticProductMapRow('general', 'radio-general') || productMapItems[0] || null;
-    console.log('[shop1 merch] selected product row:', productRow);
+    try {
+      if (!Array.isArray(productMapItems) || !productMapItems.length) {
+        console.warn('[shop1 merch] productMapItems not ready');
+        return;
+      }
 
-    if (!productRow) {
-      renderEmergencyFallbackMerch();
-      return;
+      const rows = getMatchedProductRows(track);
+      const selectedEntries = mergeProductRowsToLinks(rows, 4);
+
+      console.log('[shop1 merch] selected product entries:', selectedEntries);
+
+      if (!selectedEntries.length) {
+        console.warn('[shop1 merch] no selected product entries');
+        return;
+      }
+
+      const displayRow = rows[0] || {
+        merchHeadline: 'Official Stashbox Merch',
+        merchCtaText: 'Shop Now'
+      };
+
+      const products = await buildProductsFromEntries(selectedEntries);
+
+      console.log('[shop1 merch] products ready:', products);
+
+      renderDesktopShop(displayRow, products);
+      renderMobileShop(displayRow, products);
+    } catch (err) {
+      console.error('[shop1 merch] updateRadioMerch failed:', err);
     }
-
-    const products = await buildProductCards(productRow);
-    console.log('[shop1 merch] products to render:', products);
-
-    if (!products.length) {
-      renderEmergencyFallbackMerch();
-      return;
-    }
-
-    renderDesktopShop(productRow, products);
-    renderMobileShop(productRow, products);
   }
 
   async function fetchProductMap() {
