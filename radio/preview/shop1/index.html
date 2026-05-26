@@ -296,6 +296,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 @media (max-width:767px){.radio-shop-desktop{display:none!important}}
 @media (min-width:768px){.mobile-shop-drawer{display:none!important}}
 
+/* SHOP PREVIEW TEST - shop1 FINAL */
+.radio-shop-preview { margin-top: 0; padding: 18px 16px 20px; border-top: 1px solid var(--border); background: rgba(255,255,255,.025); }
+.radio-shop-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+@media (max-width:1024px){ .radio-shop-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+
 .m-now-audio{flex-shrink:0;padding:0 20px 8px}
 .m-now-audio audio{width:100%;height:36px;accent-color:var(--accent)}
 .m-now-ctrl{flex-shrink:0;padding:8px 20px;display:flex;align-items:center;justify-content:space-between}
@@ -2022,6 +2028,14 @@ audio.addEventListener('loadedmetadata', () => {
 init();
 switchToAudioMode();
 if (watchVideoBtn) watchVideoBtn.classList.remove('is-visible');
+
+
+function updateMerchDebugStatus(message) { if (!debugMerch()) return; let box = document.getElementById('merch-debug-status'); if (!box) { box = document.createElement('div'); box.id = 'merch-debug-status'; box.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;color:#f0a500;border:1px solid #f0a500;border-radius:10px;padding:10px 12px;font:12px Karla,sans-serif;max-width:280px;'; document.body.appendChild(box);} box.textContent = message; }
+function slugifyProductKey(value) { return String(value || '').trim().toLowerCase().replace(/['"]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function findStaticProductMapRow(mapType, mapKey) { if (!Array.isArray(productMapItems)) return null; return productMapItems.filter(item => item && item.active !== false).filter(item => String(item.mapType || '').toLowerCase() === mapType).filter(item => String(item.mapKey || '').toLowerCase() === mapKey).sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))[0] || null; }
+async function renderDefaultRadioMerch(){ const row=findStaticProductMapRow('page','radio')||findStaticProductMapRow('general','radio-general'); if(!row) return renderEmergencyFallbackMerch(); const products=await buildProductCards(row); if(!products.length) return renderEmergencyFallbackMerch(); renderDesktopShop(row,products); renderMobileShop(row,products); }
+function renderEmergencyFallbackMerch(){ updateMerchDebugStatus('Emergency fallback rendered'); const row={mapType:'general',mapKey:'emergency-fallback',merchHeadline:'Official Stashbox Merch',merchCtaText:'View Product',productLinks:['https://stashbox.ai/products/heavy-cotton-tshirt-stacked-buildings-palm-trees-giant-sun-001','https://stashbox.ai/products/unisex-heavy-cotton-tee-2'],productHandles:['heavy-cotton-tshirt-stacked-buildings-palm-trees-giant-sun-001','unisex-heavy-cotton-tee-2']}; buildProductCards(row).then(products=>{renderDesktopShop(row,products);renderMobileShop(row,products);}); }
+
 </script>
 </body>
 </html>
