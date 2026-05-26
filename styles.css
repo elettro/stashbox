@@ -2004,27 +2004,87 @@ h1, h2, h3, h4, h5, h6 {
 
 .footer__radio-one-sheet-btn {
   margin-left: 8px;
-  min-height: 44px;
+  min-height: 46px;
+  min-width: 272px;
   border-radius: 999px;
-  padding: 0.72rem 1.15rem;
+  padding: 0.72rem 1.35rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.72rem;
   text-decoration: none;
-  color: #f3f7ea;
-  border: 1px solid rgba(184, 224, 121, 0.65);
-  background: linear-gradient(90deg, rgba(16, 76, 34, 0.9) 0%, rgba(162, 127, 12, 0.92) 50%, rgba(128, 22, 22, 0.92) 100%);
-  box-shadow: 0 8px 24px rgba(15, 15, 15, 0.45);
+  font-size: 0.97rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+  color: #f7f6ed;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 2px solid rgba(185, 224, 121, 0.65);
+  background:
+    radial-gradient(circle at 18% 22%, rgba(47, 158, 68, .26), transparent 45%),
+    radial-gradient(circle at 80% 72%, rgba(214, 40, 40, .24), transparent 48%),
+    linear-gradient(90deg, rgba(9, 33, 18, .98) 0%, rgba(31, 25, 8, .96) 50%, rgba(32, 10, 10, .98) 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .03), 0 10px 30px rgba(0, 0, 0, .38), 0 0 22px rgba(47, 158, 68, .13), 0 0 22px rgba(214, 40, 40, .1);
+  transition: transform .22s ease, color .24s ease, box-shadow .26s ease, border-color .26s ease, filter .24s ease;
+  animation: footerRadioButtonBreath 3.2s ease-in-out infinite alternate;
+}
+.footer__radio-one-sheet-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(21, 109, 48, .98) 0%, rgba(201, 157, 18, .96) 50%, rgba(170, 24, 24, .96) 100%);
+  transform: scaleY(0);
+  transform-origin: bottom center;
+  transition: transform .34s ease;
+  z-index: -2;
+}
+.footer__radio-one-sheet-btn::after {
+  content: "";
+  position: absolute;
+  top: -120%;
+  left: -35%;
+  width: 45%;
+  height: 320%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .34), transparent);
+  transform: rotate(24deg) translateX(-120%);
+  transition: transform .58s ease;
+  z-index: -1;
+  opacity: .85;
+  border-radius: inherit;
 }
 .footer__radio-one-sheet-btn:hover,
 .footer__radio-one-sheet-btn:focus-visible {
-  transform: translateY(-1px);
-  filter: saturate(1.08);
-  box-shadow: 0 12px 30px rgba(15, 15, 15, 0.55);
+  color: #090d07;
+  transform: translateY(-2px);
+  filter: saturate(1.15);
+  border-color: rgba(247, 243, 231, .62);
+  box-shadow: 0 0 0 1px rgba(240, 227, 164, .58), 0 12px 40px rgba(6, 12, 8, .48), 0 0 46px rgba(47, 158, 68, .16), 0 0 52px rgba(214, 40, 40, .14);
 }
-.footer__radio-one-sheet-btn .arrow { transition: transform .2s ease; }
+.footer__radio-one-sheet-btn:hover::before,
+.footer__radio-one-sheet-btn:focus-visible::before {
+  transform: scaleY(1);
+}
+.footer__radio-one-sheet-btn:hover::after,
+.footer__radio-one-sheet-btn:focus-visible::after {
+  transform: rotate(24deg) translateX(280%);
+}
+.footer__radio-one-sheet-btn .label,
+.footer__radio-one-sheet-btn .arrow {
+  position: relative;
+  z-index: 8;
+}
+.footer__radio-one-sheet-btn .arrow {
+  display: inline-block;
+  transition: transform .22s ease;
+}
 .footer__radio-one-sheet-btn:hover .arrow,
 .footer__radio-one-sheet-btn:focus-visible .arrow { transform: translateX(4px); }
+@keyframes footerRadioButtonBreath {
+  from { box-shadow: 0 0 0 1px rgba(255, 255, 255, .02), 0 8px 24px rgba(0, 0, 0, .32), 0 0 18px rgba(47, 158, 68, .10), 0 0 16px rgba(214, 40, 40, .08); }
+  to { box-shadow: 0 0 0 1px rgba(255, 255, 255, .04), 0 10px 32px rgba(0, 0, 0, .42), 0 0 26px rgba(47, 158, 68, .15), 0 0 24px rgba(214, 40, 40, .11); }
+}
 @media (max-width: 700px) {
   .footer__radio-one-sheet-btn { width: 100%; justify-content: center; margin-left: 0; margin-top: 10px; }
 }
