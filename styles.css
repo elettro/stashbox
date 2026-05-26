@@ -2161,6 +2161,7 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-.quick-guide-modal-open {
+.quick-guide-modal-open,
+.custom-radio-modal-open {
   overflow: hidden;
 }
