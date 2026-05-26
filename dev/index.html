@@ -386,6 +386,9 @@
       <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
       <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
     </div>
+    <div class="footer__lowest-row">
+      <a href="/stashbox/shop/productmap-quick-guide.png" class="footer__quick-guide-link" data-quick-guide-open>ProductMap Quick Guide</a>
+    </div>
   </div>
 </footer>
 
@@ -438,6 +441,42 @@
     updateIframe();
   });
 })();
+  const quickGuideModal = document.querySelector('[data-quick-guide-modal]');
+  const quickGuideOpen = document.querySelector('[data-quick-guide-open]');
+  const quickGuideClose = document.querySelectorAll('[data-quick-guide-close]');
+
+  if (quickGuideModal && quickGuideOpen) {
+    const openQuickGuide = function (event) {
+      event.preventDefault();
+      quickGuideModal.hidden = false;
+      document.body.classList.add('quick-guide-modal-open');
+    };
+
+    const closeQuickGuide = function () {
+      quickGuideModal.hidden = true;
+      document.body.classList.remove('quick-guide-modal-open');
+    };
+
+    quickGuideOpen.addEventListener('click', openQuickGuide);
+    quickGuideClose.forEach(function (el) {
+      el.addEventListener('click', closeQuickGuide);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !quickGuideModal.hidden) {
+        closeQuickGuide();
+      }
+    });
+  }
+})();
 </script>
+<div class="quick-guide-modal" data-quick-guide-modal hidden>
+  <button type="button" class="quick-guide-modal__backdrop" data-quick-guide-close aria-label="Close ProductMap Quick Guide"></button>
+  <div class="quick-guide-modal__panel" role="dialog" aria-modal="true" aria-label="ProductMap Quick Guide image">
+    <button type="button" class="quick-guide-modal__close" data-quick-guide-close aria-label="Close ProductMap Quick Guide">×</button>
+    <img src="/stashbox/shop/productmap-quick-guide.png" alt="ProductMap Quick Guide" class="quick-guide-modal__image" loading="lazy">
+  </div>
+</div>
+
 </body>
 </html>
