@@ -1420,15 +1420,25 @@ function updateMediaSession(t) {
   var title = t.title || 'Stashbox Radio';
   var artist = t.artist || 'Stashbox';
   var album = t.album || 'Stashbox Radio';
-  var artworkUrl = t.imageUrl || '';
+  var rawArtworkUrl = t.imageUrl || '';
 
-  var artwork = artworkUrl ? [
-    { src: artworkUrl, sizes: '96x96', type: 'image/png' },
-    { src: artworkUrl, sizes: '128x128', type: 'image/png' },
-    { src: artworkUrl, sizes: '192x192', type: 'image/png' },
-    { src: artworkUrl, sizes: '256x256', type: 'image/png' },
-    { src: artworkUrl, sizes: '512x512', type: 'image/png' }
-  ] : [];
+  function mediaArtworkUrl(url) {
+    if (!url) return '';
+    var separator = url.indexOf('?') === -1 ? '?' : '&';
+    return url + separator + 'mediaArtwork=1';
+  }
+
+  var artworkUrl = mediaArtworkUrl(rawArtworkUrl);
+  var artwork = [];
+  var artworkSizes = ['96x96', '128x128', '192x192', '256x256', '384x384', '512x512'];
+  var artworkTypes = ['image/jpeg', 'image/png'];
+
+  artworkSizes.forEach(function(size) {
+    artworkTypes.forEach(function(type) {
+      if (artworkUrl) artwork.push({ src: artworkUrl, sizes: size, type: type });
+      if (rawArtworkUrl) artwork.push({ src: rawArtworkUrl, sizes: size, type: type });
+    });
+  });
 
   navigator.mediaSession.metadata = new MediaMetadata({
     title: title,
@@ -1442,7 +1452,9 @@ function updateMediaSession(t) {
       title: title,
       artist: artist,
       album: album,
+      rawArtworkUrl: rawArtworkUrl,
       artworkUrl: artworkUrl,
+      artwork: artwork,
       track: t
     });
   }
