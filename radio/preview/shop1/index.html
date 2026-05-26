@@ -296,6 +296,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 @media (max-width:767px){.radio-shop-desktop{display:none!important}}
 @media (min-width:768px){.mobile-shop-drawer{display:none!important}}
 
+/* SHOP PREVIEW TEST - shop1 FINAL */
+.radio-shop-preview { margin-top: 0; padding: 18px 16px 20px; border-top: 1px solid var(--border); background: rgba(255,255,255,.025); }
+.radio-shop-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+@media (max-width:1024px){ .radio-shop-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+
 .m-now-audio{flex-shrink:0;padding:0 20px 8px}
 .m-now-audio audio{width:100%;height:36px;accent-color:var(--accent)}
 .m-now-ctrl{flex-shrink:0;padding:8px 20px;display:flex;align-items:center;justify-content:space-between}
@@ -591,14 +597,37 @@ async function init() {
   try {
     const csvText = await fetchSheetCSV();
     allTracks = parseCSV(csvText);
+
+    console.log('[shop1 radio] CSV chars:', csvText.length);
+    console.log('[shop1 radio] parsed tracks:', allTracks.length);
+    console.log('[shop1 radio] first track:', allTracks[0]);
+
+    if (!Array.isArray(allTracks) || !allTracks.length) {
+      throw new Error('Radio CSV loaded but no tracks were parsed.');
+    }
+
     boot();
-    fetchProductMap().catch(err => {
-      if (debugMerch()) console.warn('[Merch] productMap fetch failed:', err);
-    });
+
+    setTimeout(() => {
+      fetchProductMap()
+        .then(() => {
+          if (currentTrack) {
+            updateRadioMerch(currentTrack);
+          } else {
+            renderDefaultRadioMerch();
+          }
+        })
+        .catch(err => {
+          merchLog('productMap background fetch failed', err);
+          renderEmergencyFallbackMerch();
+        });
+    }, 0);
+
   } catch(e) {
+    console.error('[Radio Init Error]', e);
     document.getElementById('loading').innerHTML =
       `<div style="color:var(--red);font-family:var(--fh);font-size:42px">ERROR</div>
-       <div style="color:var(--muted);font-size:13px;margin-top:8px;text-align:center;padding:0 2rem">${e.message}<br>Make sure the sheet is published to the web.</div>`;
+       <div style="color:var(--muted);font-size:13px;margin-top:8px;text-align:center;padding:0 2rem">${e.message}<br>Radio failed before product loading. Check CSV fetch and parser.</div>`;
   }
 }
 
@@ -753,7 +782,8 @@ function loadSharedSongFromUrl() {
 
 // ════════ BOOT ════════
 function boot() {
-  document.getElementById('loading').style.display = 'none';
+  const loader = document.getElementById('loading');
+  if (loader) loader.style.display = 'none';
 
   dBuildChips();
   dRender();
@@ -766,6 +796,8 @@ function boot() {
   }
 
   loadSharedSongFromUrl();
+
+  updateResetBtns();
 }
 
 // ════════ RESET ALL ════════
@@ -1613,25 +1645,27 @@ function updateMediaSession(t) {
 // ════════ LOAD TRACK ════════
 
 async function fetchProductMap() {
-  try {
-    const res = await fetch(PRODUCT_MAP_ENDPOINT);
-    if (!res.ok) throw new Error('productMap fetch failed: ' + res.status);
+  const res = await fetch(PRODUCT_MAP_ENDPOINT, { method: 'GET', cache: 'no-store' });
+  if (!res.ok) throw new Error('productMap fetch failed: ' + res.status);
 
-    const data = await res.json();
-    productMapItems = Array.isArray(data.items) ? data.items : [];
-    productMapReady = true;
+  const data = await res.json();
+  productMapItems = Array.isArray(data.items) ? data.items : [];
+  productMapReady = true;
 
-    merchLog('productMap loaded', productMapItems);
+  merchLog('productMap loaded', productMapItems);
+  console.log('[shop1 merch] productMap items:', productMapItems.length);
 
-    if (currentTrack) {
-      updateRadioMerch(currentTrack);
-    }
-  } catch (err) {
-    productMapReady = false;
-    productMapItems = [];
-    merchLog('productMap fetch failed', err);
-    hideRadioMerch();
-  }
+  return productMapItems;
+}
+
+function findStaticProductMapRow(mapType, mapKey) {
+  if (!Array.isArray(productMapItems)) return null;
+
+  return productMapItems
+    .filter(item => item && item.active !== false)
+    .filter(item => String(item.mapType || '').toLowerCase() === mapType)
+    .filter(item => String(item.mapKey || '').toLowerCase() === mapKey)
+    .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))[0] || null;
 }
 
 function findBestProductMap(track) {
@@ -1651,156 +1685,11 @@ function findBestProductMap(track) {
     { mapType: 'general', mapKey: 'radio-general' }
   ];
 
-  merchLog('match candidates', candidates);
-
   for (const candidate of candidates) {
-    const matches = productMapItems
-      .filter(item => item && item.active !== false)
-      .filter(item => String(item.mapType || '').toLowerCase() === candidate.mapType)
-      .filter(item => String(item.mapKey || '').toLowerCase() === candidate.mapKey)
-      .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999));
-
-    if (matches.length) {
-      merchLog('matched product row', matches[0]);
-      return matches[0];
-    }
+    const match = findStaticProductMapRow(candidate.mapType, candidate.mapKey);
+    if (match) return match;
   }
-
-  merchLog('no product match for track', track);
   return null;
-}
-
-async function buildProductCards(productRow) {
-  try {
-    const links = Array.isArray(productRow?.productLinks)
-      ? productRow.productLinks
-      : String(productRow?.productLinks || '').split(/\s*\|\s*|\n|,/);
-
-    const handles = Array.isArray(productRow?.productHandles)
-      ? productRow.productHandles
-      : String(productRow?.productHandles || '').split(/\s*\|\s*|\n|,/);
-
-    const entries = links
-      .map(link => String(link || '').trim())
-      .filter(Boolean)
-      .map(link => {
-        const match = link.match(/\/products\/([^/?#]+)/i);
-        return {
-          url: link,
-          handle: match && match[1] ? decodeURIComponent(match[1]).trim() : ''
-        };
-      });
-
-    handles
-      .map(handle => String(handle || '').trim())
-      .filter(Boolean)
-      .forEach(handle => {
-        if (!entries.find(entry => entry.handle === handle)) {
-          entries.push({
-            url: `https://stashbox.ai/products/${handle}`,
-            handle: handle
-          });
-        }
-      });
-
-    const uniqueEntries = entries
-      .filter(entry => entry.url || entry.handle)
-      .filter((entry, index, arr) => arr.findIndex(other => other.url === entry.url || other.handle === entry.handle) === index)
-      .slice(0, 8);
-
-    merchLog('product handles', uniqueEntries.map(entry => entry.handle));
-
-    const products = await Promise.all(uniqueEntries.map(async entry => {
-      const fallbackTitle = entry.handle
-        ? entry.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
-        : 'Stashbox Product';
-
-      const fallbackProduct = {
-        title: fallbackTitle,
-        url: entry.url || `https://stashbox.ai/products/${entry.handle}`,
-        handle: entry.handle,
-        image: '',
-        price: '',
-        compareAtPrice: '',
-        available: true
-      };
-
-      if (!entry.handle) return fallbackProduct;
-
-      try {
-        const res = await fetch(`https://stashbox.ai/products/${entry.handle}.js`, {
-          method: 'GET',
-          mode: 'cors'
-        });
-
-        if (!res.ok) throw new Error('Shopify product fetch failed: ' + res.status);
-
-        const data = await res.json();
-        const variant = data.variants && data.variants.length ? data.variants[0] : null;
-
-        return {
-          title: data.title || fallbackProduct.title,
-          url: entry.url || `https://stashbox.ai/products/${entry.handle}`,
-          handle: entry.handle,
-          image: data.featured_image || (data.images && data.images[0]) || '',
-          price: variant && variant.price ? formatShopifyPrice(variant.price) : '',
-          compareAtPrice: variant && variant.compare_at_price ? formatShopifyPrice(variant.compare_at_price) : '',
-          available: variant ? !!variant.available : true
-        };
-      } catch (err) {
-        merchLog('Shopify product fetch failed. Showing fallback card.', entry.handle, err);
-        return fallbackProduct;
-      }
-    }));
-
-    return products;
-  } catch (err) {
-    merchLog('buildProductCards failed', err);
-    return [];
-  }
-}
-function formatShopifyPrice(value) { const number = Number(value); if (!Number.isFinite(number)) return ''; return '$' + number.toFixed(2); }
-function renderProductCardHtml(product) {
-  const title = escapeHtml(product.title || 'Stashbox Product');
-  const url = escapeHtml(product.url || '#');
-  const image = product.image ? escapeHtml(product.image) : '';
-  const price = escapeHtml(product.price || '');
-  const compareAtPrice = escapeHtml(product.compareAtPrice || '');
-  const hasSale = price && compareAtPrice && price !== compareAtPrice;
-
-  return `
-    <a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}">
-      <div class="radio-shop-img-wrap">
-        ${image ? `<img src="${image}" alt="${title}" loading="lazy">` : `<div class="radio-shop-img-fallback">STASHBOX</div>`}
-      </div>
-      <div class="radio-shop-card-body">
-        <div class="radio-shop-card-title">${title}</div>
-        <div class="radio-shop-card-price">
-          ${hasSale ? `<span class="radio-shop-compare">${compareAtPrice}</span>` : ''}
-          ${price ? `<strong>${price}</strong>` : ''}
-        </div>
-        <span class="radio-shop-card-cta">Buy Now</span>
-      </div>
-    </a>
-  `;
-}
-function escapeHtml(value) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
-function renderDesktopShop(productRow, products) { const section = document.getElementById('radio-shop-desktop'); const grid = document.getElementById('radio-shop-grid'); const title = document.getElementById('radio-shop-title'); if (!section || !grid) { merchLog('desktop shop elements missing'); return; } if (title) title.textContent = productRow.merchHeadline || 'Shop This Song'; grid.innerHTML = products.map(renderProductCardHtml).join(''); section.hidden = false; }
-function renderMobileShop(productRow, products) { const section = document.getElementById('mobile-shop-drawer'); const list = document.getElementById('mobile-shop-list'); const title = document.getElementById('mobile-shop-title'); const count = document.getElementById('mobile-shop-count'); if (!section || !list) { merchLog('mobile shop elements missing'); return; } if (title) title.textContent = productRow.merchHeadline || 'Shop This Song'; if (count) count.textContent = String(products.length); list.innerHTML = products.map(renderProductCardHtml).join(''); section.hidden = false; }
-function hideRadioMerch() { const desktop = document.getElementById('radio-shop-desktop'); const mobile = document.getElementById('mobile-shop-drawer'); if (desktop) desktop.hidden = true; if (mobile) mobile.hidden = true; }
-function toggleMobileShopDrawer(event, forceState){ if(event) event.stopPropagation(); const wrap=document.getElementById('mobile-shop-drawer'); if(!wrap) return; mobileShopOpen = typeof forceState === 'boolean' ? forceState : !mobileShopOpen; wrap.classList.toggle('open', mobileShopOpen); }
-async function updateRadioMerch(track) {
-  try {
-    if (!track) { hideRadioMerch(); return; }
-    if (!Array.isArray(productMapItems) || !productMapItems.length) { merchLog('No productMapItems yet'); hideRadioMerch(); return; }
-    const productRow = findBestProductMap(track);
-    if (!productRow) { hideRadioMerch(); return; }
-    const products = await buildProductCards(productRow);
-    merchLog('products built', products);
-    if (!products.length) { hideRadioMerch(); return; }
-    renderDesktopShop(productRow, products);
-    renderMobileShop(productRow, products);
-  } catch (err) { merchLog('updateRadioMerch failed', err); hideRadioMerch(); }
 }
 
 function loadTrack(t) {
@@ -1915,9 +1804,27 @@ function loadTrack(t) {
     mStartVis();
   }
 
-  dRender(); mRender();
-  updateRadioMerch(t);
+  dRender();
+  mRender();
+
+  if (Array.isArray(productMapItems) && productMapItems.length) {
+    updateRadioMerch(t);
+  } else {
+    renderEmergencyFallbackMerch();
+  }
 }
+
+
+function formatShopifyPrice(value) { const number = Number(value); if (!Number.isFinite(number)) return ''; return '$' + number.toFixed(2); }
+function escapeHtml(value) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
+async function buildProductCards(productRow) { const links = Array.isArray(productRow?.productLinks) ? productRow.productLinks : String(productRow?.productLinks || '').split(/\s*\|\s*|\n|,/); const handles = Array.isArray(productRow?.productHandles) ? productRow.productHandles : String(productRow?.productHandles || '').split(/\s*\|\s*|\n|,/); const entries=[]; links.map(l=>String(l||'').trim()).filter(Boolean).forEach(link=>{ const m=link.match(/\/products\/([^/?#]+)/i); entries.push({url:link,handle:m&&m[1]?decodeURIComponent(m[1]).trim():''}); }); handles.map(h=>String(h||'').trim()).filter(Boolean).forEach(handle=>{ if(!entries.find(e=>e.handle===handle)) entries.push({url:`https://stashbox.ai/products/${handle}`,handle}); }); const unique=entries.filter(e=>e.url||e.handle).filter((e,i,a)=>a.findIndex(o=>(o.url&&o.url===e.url)||(o.handle&&o.handle===e.handle))===i).slice(0,8); if(!unique.length) return []; return Promise.all(unique.map(async entry=>{ const fallbackTitle=entry.handle?entry.handle.replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase()):'Stashbox Product'; const fallback={title:fallbackTitle,url:entry.url||`https://stashbox.ai/products/${entry.handle}`,handle:entry.handle,image:'',price:'',compareAtPrice:'',available:true}; if(!entry.handle) return fallback; try{ const res=await fetch(`https://stashbox.ai/products/${entry.handle}.js`,{method:'GET',mode:'cors'}); if(!res.ok) throw new Error(); const data=await res.json(); const v=data.variants&&data.variants[0]; return {title:data.title||fallback.title,url:entry.url||fallback.url,handle:entry.handle,image:data.featured_image||(data.images&&data.images[0])||'',price:v&&v.price?formatShopifyPrice(v.price):'',compareAtPrice:v&&v.compare_at_price?formatShopifyPrice(v.compare_at_price):'',available:v?!!v.available:true}; }catch(_){ return fallback; }})); }
+function renderProductCardHtml(product, productRow) { const title = escapeHtml(product.title || 'Stashbox Product'); const url = escapeHtml(product.url || '#'); const image = product.image ? escapeHtml(product.image) : ''; const price = escapeHtml(product.price || ''); const compareAtPrice = escapeHtml(product.compareAtPrice || ''); const hasSale = price && compareAtPrice && price !== compareAtPrice; const cta=escapeHtml(productRow?.merchCtaText||'Buy Now'); return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}"><div class="radio-shop-img-wrap">${image ? `<img class="radio-shop-img" src="${image}" alt="${title}" loading="lazy">` : `<div class="radio-shop-img-fallback">STASHBOX</div>`}</div><div class="radio-shop-card-body"><div class="radio-shop-card-title">${title}</div><div class="radio-shop-card-price">${hasSale ? `<span class="radio-shop-compare">${compareAtPrice}</span>` : ''}${price ? `<strong>${price}</strong>` : ''}</div><span class="radio-shop-card-cta">${cta}</span></div></a>`; }
+function renderDesktopShop(productRow, products) { const section = document.getElementById('radio-shop-desktop'); const grid = document.getElementById('radio-shop-grid'); const title = document.getElementById('radio-shop-title'); const subtitle = document.getElementById('radio-shop-subtitle'); if (!section || !grid) { console.warn('[shop1 merch] desktop shop elements missing'); return; } if (title) title.textContent = productRow.merchHeadline || 'Shop This Song'; if (subtitle) subtitle.textContent = 'Click any product to buy on Stashbox.ai.'; grid.innerHTML = products.map(product => renderProductCardHtml(product, productRow)).join(''); section.hidden = false; section.style.display = 'block'; console.log('[shop1 merch] desktop products rendered:', products.length); }
+function renderMobileShop(productRow, products) { const section = document.getElementById('mobile-shop-drawer'); const list = document.getElementById('mobile-shop-list'); const title = document.getElementById('mobile-shop-title'); const count = document.getElementById('mobile-shop-count'); if (!section || !list) { console.warn('[shop1 merch] mobile shop elements missing'); return; } if (title) title.textContent = productRow.merchHeadline || 'Shop This Song'; if (count) count.textContent = String(products.length); list.innerHTML = products.map(product => renderProductCardHtml(product, productRow)).join(''); section.hidden = false; section.style.display = 'block'; section.classList.add('open'); mobileShopOpen = true; console.log('[shop1 merch] mobile products rendered:', products.length); }
+function toggleMobileShopDrawer(event, forceState){ if(event) event.stopPropagation(); const wrap=document.getElementById('mobile-shop-drawer'); if(!wrap) return; mobileShopOpen = typeof forceState === 'boolean' ? forceState : !mobileShopOpen; wrap.classList.toggle('open', mobileShopOpen); }
+async function updateRadioMerch(track) { try { if (!track) { renderDefaultRadioMerch(); return; } if (!Array.isArray(productMapItems) || !productMapItems.length) { renderEmergencyFallbackMerch(); return; } const productRow = findBestProductMap(track); if (!productRow) { renderEmergencyFallbackMerch(); return; } const products = await buildProductCards(productRow); if (!products.length) { renderEmergencyFallbackMerch(); return; } renderDesktopShop(productRow, products); renderMobileShop(productRow, products); } catch (err) { merchLog('updateRadioMerch failed', err); renderEmergencyFallbackMerch(); } }
+async function renderDefaultRadioMerch() { try { if (!Array.isArray(productMapItems) || !productMapItems.length) { renderEmergencyFallbackMerch(); return; } const row = findStaticProductMapRow('page', 'radio') || findStaticProductMapRow('general', 'radio-general') || productMapItems[0]; if (!row) { renderEmergencyFallbackMerch(); return; } const products = await buildProductCards(row); if (!products.length) { renderEmergencyFallbackMerch(); return; } renderDesktopShop(row, products); renderMobileShop(row, products); } catch (err) { merchLog('renderDefaultRadioMerch failed', err); renderEmergencyFallbackMerch(); } }
+function renderEmergencyFallbackMerch() { const row = { merchHeadline: 'Official Stashbox Merch', merchCtaText: 'View Product', productLinks: ['https://stashbox.ai/products/heavy-cotton-tshirt-stacked-buildings-palm-trees-giant-sun-001','https://stashbox.ai/products/unisex-heavy-cotton-tee-2'], productHandles: ['heavy-cotton-tshirt-stacked-buildings-palm-trees-giant-sun-001','unisex-heavy-cotton-tee-2'] }; buildProductCards(row).then(products => { const finalProducts = products.length ? products : row.productLinks.map(link => { const match = link.match(/\/products\/([^/?#]+)/i); const handle = match && match[1] ? decodeURIComponent(match[1]) : ''; return { title: handle ? handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) : 'Stashbox Product', url: link, handle: handle, image: '', price: '', compareAtPrice: '' }; }); renderDesktopShop(row, finalProducts); renderMobileShop(row, finalProducts); }); }
 
 // ════════ VISUALIZERS ════════
 function dStartVis() {
@@ -2022,6 +1929,6 @@ audio.addEventListener('loadedmetadata', () => {
 init();
 switchToAudioMode();
 if (watchVideoBtn) watchVideoBtn.classList.remove('is-visible');
-</script>
-</body>
-</html>
+
+
+

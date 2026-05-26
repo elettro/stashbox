@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stashbox Radio — One Sheet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #0c0c0e;
+      --surface: #131316;
+      --surface2:#1a1a1f;
+      --line:    rgba(255,255,255,.08);
+      --text:    #eeeae3;
+      --muted:   #888;
+      --gold:    #f0a500;
+      --gold-dim:rgba(240,165,0,.12);
+      --green:   #3ecf6e;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Karla', system-ui, sans-serif;
+      font-weight: 400;
+      background: #1a1a1f;
+      color: var(--text);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ── Page shell ── */
+    .page {
+      width: 816px;
+      min-height: 1056px;
+      margin: 2rem auto;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Background blooms ── */
+    .page::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 35% at 8% 0%,  rgba(240,165,0,.13) 0%, transparent 100%),
+        radial-gradient(ellipse 40% 25% at 95% 85%, rgba(240,165,0,.08) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 2.5rem 3rem 2rem;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .wordmark img {
+      height: 110px;
+      width: auto;
+      display: block;
+    }
+    .header-tag {
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.55rem 1.2rem;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 2.75rem 3rem 2.5rem;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 2rem;
+      align-items: center;
+    }
+    .hero-text {}
+    .hero-eyebrow {
+      font-size: 0.72rem;
+      color: var(--gold);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 4rem;
+      line-height: 0.95;
+      letter-spacing: 0.01em;
+      color: var(--text);
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 em {
+      color: var(--gold);
+      font-style: normal;
+    }
+    .hero-sub {
+      font-size: 0.95rem;
+      color: #aaa8a2;
+      font-weight: 300;
+      line-height: 1.6;
+    }
+    .hero-right {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .hero-graphic {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(240,165,0,.15);
+      box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    }
+    .hero-graphic img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ── Merch showcase ── */
+    .merch-showcase {
+      background: var(--surface);
+      border: 1px solid rgba(240,165,0,.25);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.85rem;
+    }
+    .merch-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.7rem;
+    }
+    .merch-label {
+      font-size: 0.6rem;
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+    .merch-cta-pill {
+      font-size: 0.55rem;
+      font-weight: 700;
+      color: #000;
+      background: var(--gold);
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      letter-spacing: 0.04em;
+    }
+    .merch-items {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+    .merch-item {
+      background: var(--surface2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.6rem 0.4rem 0.5rem;
+      text-align: center;
+      position: relative;
+    }
+    .merch-item:hover { border-color: rgba(240,165,0,.3); }
+    .merch-emoji {
+      font-size: 1.5rem;
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+    .merch-item-name {
+      font-size: 0.55rem;
+      color: var(--text);
+      font-weight: 700;
+      display: block;
+      line-height: 1.3;
+    }
+    .merch-item-sub {
+      font-size: 0.5rem;
+      color: var(--muted);
+      display: block;
+      margin-top: 0.1rem;
+    }
+    .merch-badge {
+      position: absolute;
+      top: -5px; right: -5px;
+      background: var(--gold);
+      color: #000;
+      font-size: 0.44rem;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 0.1rem 0.3rem;
+    }
+
+    /* ── Two col ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      border-bottom: 1px solid var(--line);
+      flex: 1;
+    }
+
+    /* ── Interface preview ── */
+    .preview-col {
+      border-right: 1px solid var(--line);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .preview-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+    .interface-mock {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      flex: 1;
+    }
+    /* desktop mock */
+    .mock-nav {
+      background: #0a0a0c;
+      padding: 0.4rem 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: nowrap;
+    }
+    .mock-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.75rem;
+      color: var(--gold);
+      letter-spacing: 0.06em;
+      margin-right: 0.3rem;
+      flex-shrink: 0;
+    }
+    .mock-pill {
+      background: var(--gold);
+      color: #000;
+      font-size: 0.46rem;
+      font-weight: 700;
+      padding: 0.18rem 0.42rem;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .mock-pill.off {
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    .mock-nav-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-shrink: 0;
+    }
+    .mock-reset {
+      font-size: 0.44rem;
+      color: #e05c5c;
+      background: rgba(224,92,92,.12);
+      border: 1px solid rgba(224,92,92,.3);
+      border-radius: 3px;
+      padding: 0.18rem 0.4rem;
+    }
+    .mock-search {
+      width: 52px; height: 13px;
+      background: var(--surface2);
+      border-radius: 3px;
+      border: 1px solid var(--line);
+    }
+    .mock-subnav {
+      background: #0d0d10;
+      padding: 0.28rem 0.7rem;
+      display: flex;
+      gap: 0.3rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .mock-hero-card {
+      margin: 0.6rem 0.7rem 0.4rem;
+      background: linear-gradient(135deg, #1a1500, #111118);
+      border: 1px solid rgba(240,165,0,.2);
+      border-radius: 7px;
+      padding: 0.6rem 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mock-hero-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+    .mock-hero-sub { font-size: 0.48rem; color: var(--muted); margin-top: 0.2rem; }
+    .mock-shuffle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: var(--gold);
+      color: #000;
+      font-size: 0.52rem;
+      font-weight: 700;
+      padding: 0.28rem 0.6rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+    .mock-nowplaying {
+      margin: 0 0.7rem 0.5rem;
+      background: var(--surface2);
+      border: 1px solid rgba(240,165,0,.15);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .mock-artwork-wrap {
+      width: 100%;
+      background: #0c0c10;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0.5rem 0;
+    }
+    .mock-artwork {
+      width: 180px;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      border-radius: 3px;
+    }
+    .mock-now-bar {
+      padding: 0.4rem 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-top: 1px solid var(--line);
+    }
+    .mock-now-info { flex: 1; min-width: 0; }
+    .mock-now-title { font-family: 'Bebas Neue', sans-serif; font-size: 0.7rem; letter-spacing: 0.03em; }
+    .mock-now-meta  { font-size: 0.44rem; color: var(--muted); margin-top: 1px; }
+    .mock-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
+    }
+    .mock-btn {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.44rem;
+      color: #000;
+    }
+    .mock-btn.sm { width: 13px; height: 13px; background: var(--surface2); color: var(--muted); }
+    .mock-plays {
+      font-size: 0.46rem;
+      color: var(--gold);
+      background: rgba(240,165,0,.12);
+      border: 1px solid rgba(240,165,0,.25);
+      border-radius: 999px;
+      padding: 0.15rem 0.4rem;
+      white-space: nowrap;
+    }
+    .mock-action-btn {
+      font-size: 0.44rem;
+      font-weight: 700;
+      color: #000;
+      background: var(--gold);
+      border-radius: 3px;
+      padding: 0.18rem 0.45rem;
+      white-space: nowrap;
+    }
+    .mock-action-btn.video {
+      background: var(--green);
+    }
+    .mock-section-head {
+      padding: 0.2rem 0.7rem 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mock-section-label {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      color: var(--gold);
+    }
+    .mock-section-count { font-size: 0.44rem; color: var(--muted); margin-left: 0.3rem; }
+    .mock-section-shuffle {
+      font-size: 0.44rem;
+      color: var(--muted);
+      background: var(--surface2);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+    }
+    .mock-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.35rem;
+      padding: 0 0.7rem 0.7rem;
+    }
+    .mock-track {
+      background: var(--surface2);
+      border-radius: 5px;
+      padding: 0.35rem 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .mock-track.active { background: rgba(240,165,0,.14); border: 1px solid rgba(240,165,0,.3); }
+    .mock-thumb { width: 18px; height: 18px; border-radius: 3px; background: #2a2a30; flex-shrink: 0; }
+    .mock-track-info { flex: 1; min-width: 0; }
+    .mock-track-name { font-size: 0.5rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mock-track-art  { font-size: 0.44rem; color: var(--muted); }
+    .mock-tag {
+      font-size: 0.42rem;
+      font-weight: 700;
+      color: #000;
+      background: var(--gold);
+      padding: 0.12rem 0.28rem;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .mock-tag.video { background: var(--green); }
+
+    /* ── Features col ── */
+    .features-col {
+      padding: 1.25rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .features-label {
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      margin-bottom: 0.7rem;
+    }
+    .feature {
+      padding: 0.65rem 0;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+    .feature:last-child { border-bottom: none; }
+    .feature-icon {
+      font-size: 0.85rem;
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+      padding-top: 0.05rem;
+    }
+    .feature-body {}
+    .feature-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+      color: var(--text);
+    }
+    .feature-desc {
+      font-size: 0.68rem;
+      color: var(--muted);
+      line-height: 1.45;
+      font-weight: 300;
+    }
+
+    /* ── Bottom strip ── */
+    .bottom-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+    .stat-cell {
+      padding: 1.4rem 2rem;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.65rem;
+      line-height: 1;
+      color: var(--gold);
+      letter-spacing: 0.02em;
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── CTA footer ── */
+    .cta-footer {
+      padding: 2rem 3rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+    }
+    .cta-left {}
+    .cta-headline {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.9rem;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+    .cta-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 300;
+      max-width: 340px;
+      line-height: 1.5;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--gold);
+      color: #000;
+      font-family: 'Karla', sans-serif;
+      font-weight: 700;
+      font-size: 0.88rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.9rem 1.8rem;
+      border-radius: 8px;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .cta-btn:hover { background: #ffb800; }
+    .cta-contact {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    .cta-contact-line {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 300;
+    }
+    .cta-contact-line strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .live-link {
+      font-size: 0.72rem;
+      color: var(--gold);
+      opacity: 0.8;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: var(--bg); }
+      .page { margin: 0; width: 100%; box-shadow: none; }
+    }
+
+    @media (max-width: 840px) {
+      .page { width: 100%; margin: 0; border-radius: 0; }
+      .two-col { grid-template-columns: 1fr; }
+      .preview-col { border-right: none; border-bottom: 1px solid var(--line); }
+      .bottom-strip { grid-template-columns: repeat(3,1fr); }
+      .cta-footer { flex-direction: column; align-items: flex-start; }
+      .cta-contact { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="wordmark">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+    </div>
+    <div class="header-tag">Artist &amp; Label Offer · 2026</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-text">
+      <p class="hero-eyebrow">Stashbox Radio</p>
+      <h1>Your music.<br><em>Your radio.</em><br>Your rules.</h1>
+      <p class="hero-sub">
+        A custom-built streaming player for your full catalog — branded your way,
+        powered by a spreadsheet you already own, live on any device in days.
+      </p>
+    </div>
+    <div class="hero-right">
+      <!-- Merch showcase -->
+      <div class="merch-showcase">
+        <div class="merch-header">
+          <span class="merch-label">In-Player Shop</span>
+          <span class="merch-cta-pill">Shop Now →</span>
+        </div>
+        <div class="merch-items">
+          <div class="merch-item">
+            <div class="merch-badge">NEW</div>
+            <span class="merch-emoji">👕</span>
+            <span class="merch-item-name">Stashbox Tee</span>
+            <span class="merch-item-sub">Classic fit</span>
+          </div>
+          <div class="merch-item">
+            <span class="merch-emoji">👕</span>
+            <span class="merch-item-name">Reggae Time Tee</span>
+            <span class="merch-item-sub">Limited run</span>
+          </div>
+          <div class="merch-item">
+            <span class="merch-emoji">🍺</span>
+            <span class="merch-item-name">Stashbox Pint</span>
+            <span class="merch-item-sub">16oz glass</span>
+          </div>
+        </div>
+      </div>
+      <!-- Promo image -->
+      <div class="hero-graphic">
+        <img src="https://www.dropbox.com/scl/fi/w0a5cts2kp9p9ugb3qbhs/stashbox-radio-music-platform-case-study.png?rlkey=gsj4rafci3x8w58nsm9935x25&st=pyux05mk&raw=1"
+             alt="Stashbox Radio — music platform case study">
+      </div>
+    </div>
+  </div>
+
+  <!-- Two column: mock + features -->
+  <div class="two-col">
+
+    <!-- Interface preview -->
+    <div class="preview-col">
+      <div class="preview-label">Live interface</div>
+      <div class="interface-mock">
+        <!-- nav -->
+        <div class="mock-nav">
+          <div class="mock-logo">STASHBOX</div>
+          <div class="mock-pill">ALL</div>
+          <div class="mock-pill off">Reggae</div>
+          <div class="mock-pill off">Rock</div>
+          <div class="mock-pill off">Blues</div>
+          <div class="mock-pill off">Funk</div>
+          <div class="mock-pill off">Electronic</div>
+          <div class="mock-pill off">ALBUM</div>
+          <div class="mock-nav-right">
+            <div class="mock-reset">✕ RESET</div>
+            <div class="mock-search"></div>
+          </div>
+        </div>
+        <!-- subnav -->
+        <div class="mock-subnav">
+          <div class="mock-pill">All</div>
+          <div class="mock-pill off">Stashbox Does Dylan</div>
+          <div class="mock-pill off">Thank you Giorgio</div>
+          <div class="mock-pill off">▶ Has Video</div>
+        </div>
+        <!-- hero card -->
+        <div class="mock-hero-card">
+          <div>
+            <div class="mock-hero-title">STASHBOX RADIO</div>
+            <div class="mock-hero-sub">110 tracks · Reggae, Rock, Blues &amp; more</div>
+          </div>
+          <div class="mock-shuffle">⇄ SHUFFLE ALL</div>
+        </div>
+        <!-- now playing -->
+        <div class="mock-nowplaying">
+          <div class="mock-artwork-wrap">
+            <img class="mock-artwork" src="https://www.dropbox.com/scl/fi/q70gix04h40v5u1o423nb/Fina-HJN-3000x3000.jpg?rlkey=dxh5nqgu0nmr8gn57vuln4kse&raw=1" alt="Help Jamaica Now">
+          </div>
+          <div class="mock-now-bar">
+            <div class="mock-now-info">
+              <div class="mock-now-title">HELP JAMAICA NOW</div>
+              <div class="mock-now-meta">Stashbox · <span style="color:var(--gold);font-weight:700;">REGGAE</span></div>
+            </div>
+            <div class="mock-controls">
+              <div class="mock-plays">17 Plays</div>
+              <div class="mock-action-btn">⤴ Share Song</div>
+              <div class="mock-action-btn video">▶ Watch Video</div>
+              <div class="mock-btn sm">◀</div>
+              <div class="mock-btn">▶</div>
+              <div class="mock-btn sm">▶▶</div>
+            </div>
+          </div>
+        </div>
+        <!-- section header -->
+        <div class="mock-section-head">
+          <div><span class="mock-section-label">REGGAE</span><span class="mock-section-count">16 tracks</span></div>
+          <div class="mock-section-shuffle">⇄ SHUFFLE</div>
+        </div>
+        <!-- 3-col grid -->
+        <div class="mock-grid">
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Reggae Time</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Funky Kingston</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Easy to Love</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag video">▶</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Bam Bam</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Funky Reggae</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track active">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Help Jamaica Now</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag video">▶</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Jam Rock</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Palm Trees</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Reggae Keys</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag video">▶</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Sweat</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Funky Trenchtown</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">High and I</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag video">▶</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Visions of Johanna</div>
+              <div class="mock-track-art">Stashbox Does Dylan</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-thumb"></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">I Was Right</div>
+              <div class="mock-track-art">Stashbox</div>
+            </div>
+            <div class="mock-tag">♪</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="features-col">
+      <div class="features-label">What you get</div>
+
+      <div class="feature">
+        <div class="feature-icon">🎙</div>
+        <div class="feature-body">
+          <div class="feature-title">Fully branded to you</div>
+          <div class="feature-desc">Your name, your domain, your catalog. No Spotify algorithm competing for airtime. Every listener who arrives stays in your world.</div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🎬</div>
+        <div class="feature-body">
+          <div class="feature-title">Audio + video in one player</div>
+          <div class="feature-desc">YouTube videos play inside your player — same controls, same interface. No redirect, no break in experience.</div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <div class="feature-body">
+          <div class="feature-title">Real analytics, live</div>
+          <div class="feature-desc">Play counts, share tracking, listen time — all logged per track. Know exactly what's resonating.</div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🛍</div>
+        <div class="feature-body">
+          <div class="feature-title">Merch tied to your music</div>
+          <div class="feature-desc">Products surface contextually — by song, artist, or genre. When someone's in the moment with a track, the relevant merch is right there.</div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📋</div>
+        <div class="feature-body">
+          <div class="feature-title">Managed from a spreadsheet</div>
+          <div class="feature-desc">Add tracks, update info, manage products — all from a Google Sheet you control. No developer needed after setup.</div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📱</div>
+        <div class="feature-body">
+          <div class="feature-title">Desktop + mobile, purpose-built</div>
+          <div class="feature-desc">Not just responsive — two separate layouts designed for how people actually listen on each device.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Stats strip -->
+  <div class="bottom-strip">
+    <div class="stat-cell">
+      <div class="stat-num">In-Player</div>
+      <div class="stat-label">Your shop lives inside the radio. Listeners never leave.</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">Per Song</div>
+      <div class="stat-label">Merch tied to every track, artist, and genre automatically.</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">Days</div>
+      <div class="stat-label">Typical setup to launch</div>
+    </div>
+  </div>
+
+  <!-- CTA footer -->
+  <div class="cta-footer">
+    <div class="cta-left">
+      <div class="cta-headline">Ready for your own radio?</div>
+      <div class="cta-sub">Custom setup for artists and labels. Bring your catalog, we handle the build.</div>
+    </div>
+    <div class="cta-contact">
+      <div class="cta-contact-line">Hear it live at <strong>elettro.github.io/stashbox/radio</strong></div>
+      <div class="cta-contact-line"><strong>Dean Palermo</strong> · Elettro</div>
+      <div class="cta-contact-line"><strong>310.408.6687</strong> · dpalermo@elettro.com</div>
+      <div class="live-link">elettro.com</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

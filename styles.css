@@ -2003,6 +2003,11 @@ h1, h2, h3, h4, h5, h6 {
 
 .footer__social .footer__quick-guide-link {
   margin-left: auto;
+.footer__lowest-row {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  text-align: center;
 }
 
 .footer__quick-guide-link {
