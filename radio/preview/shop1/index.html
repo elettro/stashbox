@@ -1592,8 +1592,10 @@ async function fetchShopifyProductByHandle(handle, url){
   catch(e){ merchLog('Shopify fetch failure', handle, e); return {ok:false, data:null, url}; }
 }
 async function buildProductCards(productRow) {
-  const links = String(productRow?.productLinks||'').split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
-  const handles = String(productRow?.productHandles||'').split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+  const links = String(productRow?.productLinks||'').split(/[
+,]/).map(s=>s.trim()).filter(Boolean);
+  const handles = String(productRow?.productHandles||'').split(/[
+,]/).map(s=>s.trim()).filter(Boolean);
   const entries = links.map(link => { const m = link.match(/\/products\/([^/?#]+)/i); return {url:link, handle:m?m[1]:''}; });
   handles.forEach(h => { if (!entries.find(e=>e.handle===h)) entries.push({url:`https://stashbox.ai/products/${h}`, handle:h}); });
   merchLog('product handles', entries.map(e=>e.handle));
