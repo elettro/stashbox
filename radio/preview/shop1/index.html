@@ -542,13 +542,6 @@ const PLAY_TRACKING_URL = 'https://script.google.com/macros/s/AKfycbwCczmnIAXram
 
 const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
 
-const DEFAULT_MERCH_LINKS = [
-  'https://stashbox.ai/products/stashbox-drinking-fire-shirt',
-  'https://stashbox.ai/products/stashbox-radio-tee',
-  'https://stashbox.ai/products/stashbox-reggae-vibe-shirt',
-  'https://stashbox.ai/products/stashbox-logo-tee'
-];
-
 const SECTIONS = [
   {key:'Reggae',emoji:'🌴',color:'#3ecf6e'},{key:'Rock',emoji:'🎸',color:'#f0a500'},
   {key:'Blues',emoji:'🎷',color:'#50a0ff'},{key:'Funk',emoji:'🕺',color:'#e05c2a'},
@@ -1625,17 +1618,8 @@ async function fetchProductMap() {
     if (!res.ok) throw new Error('productMap fetch failed: ' + res.status);
 
     const data = await res.json();
-    const candidates = Array.isArray(data)
-      ? data
-      : Array.isArray(data.items)
-        ? data.items
-        : Array.isArray(data.rows)
-          ? data.rows
-          : Array.isArray(data.data)
-            ? data.data
-            : [];
-    productMapItems = candidates;
-    productMapReady = productMapItems.length > 0;
+    productMapItems = Array.isArray(data.items) ? data.items : [];
+    productMapReady = true;
 
     merchLog('productMap loaded', productMapItems);
 
@@ -1671,7 +1655,7 @@ function findBestProductMap(track) {
 
   for (const candidate of candidates) {
     const matches = productMapItems
-      .filter(item => item && String(item.active ?? '1').toLowerCase() !== 'false' && String(item.active ?? '1') !== '0')
+      .filter(item => item && item.active !== false)
       .filter(item => String(item.mapType || '').toLowerCase() === candidate.mapType)
       .filter(item => String(item.mapKey || '').toLowerCase() === candidate.mapKey)
       .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999));
@@ -1719,16 +1703,7 @@ async function buildProductCards(productRow) {
         }
       });
 
-    const seededEntries = [...entries];
-    if (seededEntries.length < 4) {
-      DEFAULT_MERCH_LINKS.forEach(link => {
-        const match = link.match(/\/products\/([^/?#]+)/i);
-        const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
-        seededEntries.push({ url: link, handle });
-      });
-    }
-
-    const uniqueEntries = seededEntries
+    const uniqueEntries = entries
       .filter(entry => entry.url || entry.handle)
       .filter((entry, index, arr) => arr.findIndex(other => other.url === entry.url || other.handle === entry.handle) === index)
       .slice(0, 8);
@@ -1817,16 +1792,9 @@ function toggleMobileShopDrawer(event, forceState){ if(event) event.stopPropagat
 async function updateRadioMerch(track) {
   try {
     if (!track) { hideRadioMerch(); return; }
-    if (!Array.isArray(productMapItems) || !productMapItems.length) {
-      merchLog('No productMapItems yet, using fallback merch links');
-      const fallbackRow = { merchHeadline: 'Shop This Song', productLinks: DEFAULT_MERCH_LINKS, productHandles: [] };
-      const fallbackProducts = await buildProductCards(fallbackRow);
-      if (!fallbackProducts.length) { hideRadioMerch(); return; }
-      renderDesktopShop(fallbackRow, fallbackProducts);
-      renderMobileShop(fallbackRow, fallbackProducts);
-      return;
-    }
-    const productRow = findBestProductMap(track) || { merchHeadline: 'Shop This Song', productLinks: DEFAULT_MERCH_LINKS, productHandles: [] };
+    if (!Array.isArray(productMapItems) || !productMapItems.length) { merchLog('No productMapItems yet'); hideRadioMerch(); return; }
+    const productRow = findBestProductMap(track);
+    if (!productRow) { hideRadioMerch(); return; }
     const products = await buildProductCards(productRow);
     merchLog('products built', products);
     if (!products.length) { hideRadioMerch(); return; }
