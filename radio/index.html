@@ -1159,7 +1159,7 @@ function togglePause() {
     return;
   }
   const currentAudioUrl = currentTrack.audioUrl || currentTrack.audio;
-  if (currentAudioUrl && audio.src !== currentAudioUrl) audio.src = currentAudioUrl;
+  if (currentAudioUrl && audio.src !== currentAudioUrl) { audio.src = currentAudioUrl; updateMediaSession(currentTrack); }
   audio.paused ? audio.play().catch(()=>{}) : audio.pause();
 }
 function togglePauseFromArtwork(e) {
@@ -1221,6 +1221,10 @@ function setPlayBtns(paused) {
 
 function debugPlays() {
   return new URLSearchParams(window.location.search).has('debugPlays');
+}
+
+function debugMedia() {
+  return new URLSearchParams(window.location.search).get('debugMedia') === '1';
 }
 
 function recordSongPlay(t, sessionId) {
@@ -1419,6 +1423,15 @@ function updateMediaSession(t) {
     { src: artworkUrl, sizes: '512x512', type: 'image/png' }
   ] : [];
 
+  if (debugMedia()) {
+    console.log('[Media Session] update metadata', {
+      title: t.title || 'Stashbox Radio',
+      artist: t.artist || 'Stashbox',
+      album: t.album || 'Stashbox Radio',
+      imageUrl: artworkUrl
+    });
+  }
+
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title || 'Stashbox Radio',
     artist: t.artist || 'Stashbox',
@@ -1481,12 +1494,12 @@ function loadTrack(t) {
     dpImg.src=t.imageUrl; dpImg.style.display='block'; dpMedia.style.display='block';
     dpMedia.classList.add('toggleable');
     dpAudio.style.display='block'; if (dpScrub) dpScrub.style.display='block'; dpAudio.appendChild(audio);
-    if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src=t.audioUrl; updateMediaSession(t); audio.play().catch(()=>{}); }
   } else {
     document.getElementById('dp-vis-title').textContent = t.title;
     dpVis.style.display='flex'; dpAudio.style.display='block'; if (dpScrub) dpScrub.style.display='block'; dpAudio.appendChild(audio);
     dpVis.classList.add('toggleable');
-    if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src=t.audioUrl; updateMediaSession(t); audio.play().catch(()=>{}); }
     dStartVis();
   }
 
@@ -1545,12 +1558,12 @@ function loadTrack(t) {
     mMedia.innerHTML = `<img src="${t.imageUrl}" alt="${t.title}" style="max-width:100%;max-height:100%;object-fit:contain" loading="lazy"/>`;
     mMedia.classList.add('toggleable');
     mAudio.style.display='block'; mAudio.appendChild(audio);
-    if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src=t.audioUrl; updateMediaSession(t); audio.play().catch(()=>{}); }
   } else {
     mMedia.innerHTML = `<div class="m-now-vis"><div class="m-now-vis-title">${t.title}</div><canvas id="m-vis-cv" style="width:100%;height:100px;display:block"></canvas></div>`;
     mMedia.classList.add('toggleable');
     mAudio.style.display='block'; mAudio.appendChild(audio);
-    if (t.audioUrl) { audio.src=t.audioUrl; audio.play().catch(()=>{}); }
+    if (t.audioUrl) { audio.src=t.audioUrl; updateMediaSession(t); audio.play().catch(()=>{}); }
     mStartVis();
   }
 
