@@ -275,6 +275,31 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-srch-slabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 1rem 4px}
 .m-srch-empty{color:var(--muted);text-align:center;padding:3rem 0;font-size:14px}
 
+
+@media (min-width:768px) and (max-width:1100px) and (orientation:portrait){
+  .d-nav-inner{padding:8px 1rem;gap:8px}
+  .d-logo{font-size:26px}
+  .d-div{display:none}
+  .d-filters{order:3;flex:0 0 100%;width:100%;display:grid;grid-template-columns:1fr;gap:6px}
+  .d-filters > span,
+  .d-filters > div,
+  .d-filters > button{width:100%}
+  #d-chips,#d-album-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .d-flabel{font-size:10px;letter-spacing:.08em}
+  .chip{height:28px;padding:0 10px;font-size:11px}
+  .d-nav-right{margin-left:0;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .d-srch{width:150px}
+  .d-srch:focus{width:180px}
+
+  .d-page{padding:1rem}
+  .d-grid{grid-template-columns:1fr;gap:8px}
+  .dcard{padding:10px}
+
+  .dp-bottom{align-items:flex-start}
+  .dp-info{width:100%}
+  .dp-title{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.2}
+  .dp-ctrl{margin-left:auto}
+}
 @media(min-width:768px){#desktop{display:block}#mobile{display:none!important}}
 @media(max-width:767px){
   .song-share-main{height:36px;padding:0 12px;font-size:11px}
