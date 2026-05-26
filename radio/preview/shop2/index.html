@@ -47,21 +47,25 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 #desktop{display:none}
 
 /* nav */
-#d-nav{position:sticky;top:0;z-index:100;background:rgba(12,12,14,0.93);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
-.d-nav-inner{max-width:1400px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:10px;min-height:58px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
+#d-nav{position:sticky;top:0;z-index:100;background:rgba(8,9,12,.96);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.08)}
+.d-nav-inner{max-width:1600px;margin:0 auto;padding:0 12px;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:14px;row-gap:6px;align-items:center;min-height:86px}
 .d-logo{font-family:var(--fh);font-size:30px;letter-spacing:0.06em;color:var(--accent);white-space:nowrap;line-height:1}
 .d-logo span{color:var(--text)}
 .logo-link{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
-.d-div{width:1px;height:22px;background:var(--border);flex-shrink:0}
-.d-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:1}
-#d-chips,#d-album-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:1;min-width:0}
-.d-flabel{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
-.chip{height:30px;padding:0 13px;border-radius:100px;font-size:12px;font-weight:600;font-family:var(--fb);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap;letter-spacing:0.04em}
+.d-div{width:1px;height:22px;background:rgba(255,255,255,.12);flex-shrink:0}
+.d-filters{display:contents}
+.d-row{display:flex;align-items:center;gap:8px;min-width:0}
+.d-row.genre{grid-column:2;grid-row:1}
+.d-row.album{grid-column:2;grid-row:2}
+#d-chips,#d-album-chips{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;min-width:0;overflow-x:auto;scrollbar-width:none}
+#d-chips::-webkit-scrollbar,#d-album-chips::-webkit-scrollbar{display:none}
+.d-flabel{font-size:14px;font-weight:500;letter-spacing:0.2em;text-transform:uppercase;color:#7a7d84;white-space:nowrap}
+.chip{height:34px;padding:0 15px;border-radius:100px;font-size:24px;font-weight:400;font-family:var(--fh);border:1px solid rgba(255,255,255,.09);background:transparent;color:#7f8288;cursor:pointer;transition:all 0.15s;white-space:nowrap;letter-spacing:0.06em;line-height:1}
 .chip:hover{border-color:var(--border-h);color:var(--text)}
 .chip.active{background:var(--accent-d);border-color:var(--accent);color:var(--accent)}
 .chip.vc.active{background:rgba(62,207,110,0.1);border-color:var(--green);color:var(--green)}
-.d-nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
-.d-total{font-size:12px;color:var(--muted);white-space:nowrap}
+.d-nav-right{grid-column:3;grid-row:1 / span 2;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.d-total{font-size:25px;color:#6f737c;white-space:nowrap;font-family:var(--fh);letter-spacing:.04em}
 .dash-link{height:30px;padding:0 12px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--fb);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:transparent;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap;transition:all .15s}
 .dash-link:hover{border-color:var(--border-h);color:var(--text)}
 .btn-reset{height:30px;padding:0 12px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--fb);letter-spacing:0.06em;text-transform:uppercase;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;transition:all 0.15s;white-space:nowrap;display:none}
@@ -69,11 +73,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .btn-reset.visible{display:inline-block}
 .d-srch-wrap{position:relative}
 .d-srch-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.d-srch{width:170px;height:30px;padding:0 12px 0 30px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--fb);font-size:13px;outline:none;transition:all 0.2s}
+.d-srch{width:190px;height:34px;padding:0 12px 0 30px;background:rgba(21,23,29,.95);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:var(--text);font-family:var(--fb);font-size:22px;outline:none;transition:all 0.2s}
 .d-srch::placeholder{color:var(--muted)}
 .d-srch:focus{border-color:var(--border-h);width:210px}
 
-@media (min-width:768px) and (max-width:1200px){.d-nav-inner{align-items:flex-start}.d-filters{flex:1 1 100%}.d-nav-right{margin-left:0;margin-top:6px;width:100%;justify-content:flex-end}}
+@media (min-width:768px) and (max-width:1200px){
+  .d-nav-inner{grid-template-columns:auto 1fr;grid-template-rows:auto auto auto;padding:8px 10px}
+  .d-nav-right{grid-column:2;grid-row:3;justify-content:flex-end}
+  .chip{font-size:20px;height:32px}
+  .d-total{font-size:22px}
+}
 /* page */
 .d-page{max-width:1400px;margin:0 auto;padding:1.5rem}
 
@@ -282,19 +291,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 
 @media (min-width:768px) and (max-width:1100px) and (orientation:portrait){
-  .d-nav-inner{padding:8px 1rem;gap:8px}
-  .d-logo{font-size:26px}
-  .d-div{display:none}
-  .d-filters{order:3;flex:0 0 100%;width:100%;display:grid;grid-template-columns:1fr;gap:6px}
-  .d-filters > span,
-  .d-filters > div,
-  .d-filters > button{width:100%}
-  #d-chips,#d-album-chips{display:flex;flex-wrap:wrap;gap:6px}
-  .d-flabel{font-size:10px;letter-spacing:.08em}
-  .chip{height:28px;padding:0 10px;font-size:11px}
-  .d-nav-right{margin-left:0;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-  .d-srch{width:150px}
-  .d-srch:focus{width:180px}
+  .d-nav-inner{padding:8px 10px}
+  .d-logo{font-size:24px}
+  .d-flabel{font-size:12px}
+  .chip{height:30px;padding:0 11px;font-size:18px}
+  .d-srch{width:170px;font-size:18px}
+  .d-srch:focus{width:190px}
 
   .d-page{padding:1rem}
   .d-grid{grid-template-columns:1fr;gap:8px}
@@ -327,20 +329,19 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
   <nav id="d-nav">
     <div class="d-nav-inner">
       <a class="logo-link" href="/stashbox/index.html"><div class="d-logo">STASH<span>BOX</span></div></a>
-      <div class="d-div"></div>
       <div class="d-filters">
-        <span class="d-flabel">Genre</span>
-        <div id="d-chips"></div>
-        <div class="d-div"></div>
-        <span class="d-flabel">Album</span>
-        <div id="d-album-chips"></div>
-        <div class="d-div"></div>
-        <button class="chip vc" id="d-vc" onclick="dToggleVideo()">▶ Has Video</button>
+        <div class="d-row genre">
+          <span class="d-flabel">Genre</span>
+          <div id="d-chips"></div>
+        </div>
+        <div class="d-row album">
+          <span class="d-flabel">Album</span>
+          <div id="d-album-chips"></div>
+          <button class="chip vc" id="d-vc" onclick="dToggleVideo()">▶ Has Video</button>
+        </div>
       </div>
       <div class="d-nav-right">
         <span class="d-total" id="d-total"></span>
-        <a class="dash-link" href="/stashbox/dashboard/">Dashboard</a>
-        <button class="btn-reset" id="d-reset" onclick="resetAll()">✕ Reset</button>
         <div class="d-srch-wrap">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input class="d-srch" id="d-srch" type="text" placeholder="Search…" oninput="dSearch()"/>
