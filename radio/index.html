@@ -504,10 +504,10 @@ const dpDur = document.getElementById('dp-dur');
 const dpTypical = document.getElementById('dp-typical');
 let isScrubbingDesktop = false;
 const isMob = () => window.innerWidth < 768;
-let youtubeApiPromise = null;
-let youtubePlayer = null;
 let pendingYouTubeId = '';
 let playerMode = 'audio';
+let videoMode = false;
+let youtubePlaying = false;
 const dpYouTubeWrap = document.getElementById('video-player-wrap');
 const watchVideoBtn = document.getElementById('watch-video-btn');
 console.log('[radio] audio element:', audio);
@@ -619,7 +619,7 @@ const ytEmbed = url => {
   let id='';
   if(url.includes('youtube.com/watch')){try{id=new URL(url).searchParams.get('v')}catch(e){}}
   else if(url.includes('youtu.be/')){id=url.split('youtu.be/')[1].split('?')[0]}
-  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1` : url;
+  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&enablejsapi=1` : url;
 };
 function grpBySec(tracks){const g={};SECTIONS.forEach(s=>g[s.key]=[]);tracks.forEach(t=>(g[t.sectionKey]||g['Other']).push(t));return g;}
 function shuf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a;}
@@ -1049,23 +1049,6 @@ function getYouTubeId(url) {
   }
   return '';
 }
-function ensureYouTubeApi() {
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (youtubeApiPromise) return youtubeApiPromise;
-  youtubeApiPromise = new Promise(resolve => {
-    const prior = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = function () {
-      if (typeof prior === 'function') prior();
-      resolve(window.YT);
-    };
-    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(script);
-    }
-  });
-  return youtubeApiPromise;
-}
 function switchToVideoMode() {
   if (!audio || !currentTrack) return;
   playerMode = 'video';
@@ -1078,11 +1061,13 @@ function switchToVideoMode() {
   if (dpVis) dpVis.style.display = 'none';
   if (dpMedia) dpMedia.style.display = 'block';
   if (dpVid) dpVid.style.display = 'none';
-  if (wrap) wrap.hidden = false;
+  if (wrap) wrap.hidden = true;
 }
 function switchToAudioMode() {
   if (!audio) return;
   playerMode = 'audio';
+  videoMode = false;
+  youtubePlaying = false;
   const wrap = document.getElementById('video-player-wrap');
   const dpVid = document.getElementById('dp-vid');
   if (dpVid) {
@@ -1090,29 +1075,44 @@ function switchToAudioMode() {
     dpVid.src = '';
   }
   if (wrap) wrap.hidden = true;
-  if (youtubePlayer?.stopVideo) youtubePlayer.stopVideo();
+}
+function postToYouTube(command) {
+  const iframe = document.getElementById('dp-vid');
+  if (!iframe || !iframe.contentWindow) return;
+
+  iframe.contentWindow.postMessage(JSON.stringify({
+    event: 'command',
+    func: command,
+    args: []
+  }), '*');
+}
+function playYouTubeVideo() { postToYouTube('playVideo'); }
+function pauseYouTubeVideo() { postToYouTube('pauseVideo'); }
+function toggleYouTubePlayback() {
+  if (youtubePlaying) {
+    pauseYouTubeVideo();
+    youtubePlaying = false;
+    setPlayBtns(true);
+  } else {
+    playYouTubeVideo();
+    youtubePlaying = true;
+    setPlayBtns(false);
+  }
 }
 function playVideoForTrack(track) {
   if (!audio || !track) return;
   const videoId = getYouTubeId(track?.videoLink || track?.videoUrl);
   if (!videoId) return;
   audio.pause();
+  videoMode = true;
+  youtubePlaying = true;
+  setPlayBtns(false);
   switchToVideoMode();
-  ensureYouTubeApi().then(() => {
-    if (typeof YT === 'undefined' || !YT.Player) {
-      console.warn('[radio] YouTube API not ready');
-      return;
-    }
-    if (!youtubePlayer) {
-      youtubePlayer = new YT.Player('youtube-player', {
-        videoId,
-        playerVars:{autoplay:1,playsinline:1},
-        events:{onStateChange:(event)=>{ if (event.data === YT.PlayerState.ENDED) { console.log('[radio] video ended, choosing next item from current filtered list'); playNextAfterVideoEnd(); }}}
-      });
-    } else {
-      youtubePlayer.loadVideoById(videoId);
-    }
-  });
+  const dpVid = document.getElementById('dp-vid');
+  if (dpVid) {
+    dpVid.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&enablejsapi=1`;
+    dpVid.style.display = 'block';
+  }
 }
 function playNextAfterVideoEnd() {
   const list = getCurrentPlayableList();
@@ -1137,21 +1137,31 @@ function playNextAfterVideoEnd() {
 }
 function watchCurrentTrackVideo(event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
-  if (!audio || !currentTrack || !String(currentTrack.videoLink || '').trim()) return;
+  if (!audio || !currentTrack || !String(currentTrack.videoLink || currentTrack.videoUrl || '').trim()) return;
   playVideoForTrack(currentTrack);
 }
 function playNext() {
   if (!queue.length) return;
+  switchToAudioMode();
+  const dpVid = document.getElementById('dp-vid');
+  if (dpVid) dpVid.src = '';
   qIdx = radioMode ? Math.floor(Math.random()*queue.length) : (qIdx+1)%queue.length;
   loadTrack(queue[qIdx]);
 }
 function playPrev() {
   if (!queue.length) return;
+  switchToAudioMode();
+  const dpVid = document.getElementById('dp-vid');
+  if (dpVid) dpVid.src = '';
   qIdx = (qIdx-1+queue.length)%queue.length;
   loadTrack(queue[qIdx]);
 }
 function togglePause() {
   if (!audio) return;
+  if (videoMode) {
+    toggleYouTubePlayback();
+    return;
+  }
   if (!currentTrack) {
     const list = getCurrentPlayableList();
     const firstPlayable = list.find(t => String(t?.audioUrl || t?.audio || '').trim()) || allTracks.find(t => String(t?.audioUrl || t?.audio || '').trim());
@@ -1492,6 +1502,8 @@ function loadTrack(t) {
     sendListenTime('track_changed');
   }
   currentTrack = t;
+  videoMode = false;
+  youtubePlaying = false;
   updateMediaSession(t);
   switchToAudioMode();
   playSessionId++;
@@ -1545,7 +1557,7 @@ function loadTrack(t) {
   const dpShare = document.getElementById('dp-share');
   if (dpShare) dpShare.style.display = 'inline-flex';
   const watchBtn = document.getElementById('watch-video-btn');
-  if (watchBtn) watchBtn.classList.toggle('is-visible', !!String(t.videoLink || '').trim());
+  if (watchBtn) watchBtn.classList.toggle('is-visible', !!String(t.videoLink || t.videoUrl || '').trim());
   console.log('[radio] current track:', currentTrack);
   console.log('[radio] current audio url:', currentTrack && (currentTrack.audioUrl || currentTrack.audio));
   console.log('[radio] current video link:', currentTrack && currentTrack.videoLink);
