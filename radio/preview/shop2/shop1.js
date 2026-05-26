@@ -65,7 +65,7 @@
 
   function mergeProductRowsToLinks(rows, limit) { const seen = new Set(), merged = [], max = limit || 4; rows.forEach(row => { const links = Array.isArray(row.productLinks) ? row.productLinks : String(row.productLinks || '').split(/\s*\|\s*|\n|,/); links.forEach(link => { const cleanLink = String(link || '').trim(); if (!cleanLink) return; const match = cleanLink.split('?')[0].match(/\/products\/([^/?#]+)/i); const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : ''; if (!handle || seen.has(handle)) return; seen.add(handle); merged.push({ link: cleanLink, handle, sourceRow: row }); }); }); merchLog('merged product entries', merged); return merged.slice(0, max); }
 
-  function fmt(value) { const n = Number(value); return Number.isFinite(n) ? '$' + n.toFixed(2) : ''; }
+  function fmt(value) { const raw = String(value ?? '').trim(); if (!raw) return ''; const n = Number(raw); if (!Number.isFinite(n)) return ''; const normalized = /^-?\d+$/.test(raw) ? n / 100 : n; return '$' + normalized.toFixed(2); }
 
   async function buildProductsFromEntries(entries) {
     const products = await Promise.all(entries.slice(0, 4).map(async entry => {
