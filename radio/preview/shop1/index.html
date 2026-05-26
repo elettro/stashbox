@@ -519,6 +519,9 @@ async function init() {
   try {
     const csvText = await fetchSheetCSV();
     allTracks = parseCSV(csvText);
+    console.log('[shop1 radio] CSV chars:', csvText.length);
+    console.log('[shop1 radio] parsed tracks:', allTracks.length);
+    console.log('[shop1 radio] first track:', allTracks[0]);
     boot();
   } catch(e) {
     document.getElementById('loading').innerHTML =
@@ -678,7 +681,8 @@ function loadSharedSongFromUrl() {
 
 // ════════ BOOT ════════
 function boot() {
-  document.getElementById('loading').style.display = 'none';
+  const loader = document.getElementById('loading');
+  if (loader) loader.style.display = 'none';
 
   dBuildChips();
   dRender();
@@ -691,6 +695,8 @@ function boot() {
   }
 
   loadSharedSongFromUrl();
+
+  updateResetBtns();
 }
 
 // ════════ RESET ALL ════════
@@ -1759,6 +1765,5 @@ init();
 switchToAudioMode();
 if (watchVideoBtn) watchVideoBtn.classList.remove('is-visible');
 </script>
-<script src="/stashbox/radio/preview/shop1/radio-shop-widget.js"></script>
 </body>
 </html>
