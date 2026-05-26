@@ -268,6 +268,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-song-share-main{height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(240,165,0,.35);background:rgba(240,165,0,.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-weight:800;font-size:12px;white-space:nowrap}
 .share-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;background:rgba(19,19,22,.96);color:var(--text);border:1px solid rgba(240,165,0,.35);border-radius:999px;padding:10px 16px;font-size:13px;font-weight:700;box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 .share-toast.visible{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.m-now-art-inline{display:none;flex-shrink:0;padding:8px 20px 6px}
+.m-now-art-inline img{width:100%;max-width:240px;aspect-ratio:1/1;object-fit:cover;border-radius:12px;border:1px solid var(--border);display:block;margin:0 auto}
 .m-now-audio{flex-shrink:0;padding:0 20px 8px}
 .m-now-audio audio{width:100%;height:36px;accent-color:var(--accent)}
 .m-now-ctrl{flex-shrink:0;padding:8px 20px;display:flex;align-items:center;justify-content:space-between}
@@ -480,6 +482,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       <div class="m-now-plays" id="m-now-plays">▶ 0 Plays</div>
       <button class="m-song-share-main" id="m-now-share" onclick="copyCurrentSongLink(event)" style="display:none">⤴ Share Song</button>
     </div>
+    <div class="m-now-art-inline" id="m-now-art-inline" style="display:none"></div>
     <div class="m-now-audio" id="m-now-audio" style="display:none"></div>
     <div class="m-now-ctrl">
       <button class="mnc" onclick="playPrev()">&#9664;</button>
@@ -1209,10 +1212,13 @@ function loadTrack(t,options={}) {
 
   const mMedia=document.getElementById('m-now-media');
   const mAudio=document.getElementById('m-now-audio');
+  const mNowArtInline=document.getElementById('m-now-art-inline');
   mAudio.style.display='none';mMedia.classList.remove('toggleable');
+  if(mNowArtInline){mNowArtInline.style.display='none';mNowArtInline.innerHTML='';}
 
   if(t.imageUrl){
     mMedia.innerHTML=`<img src="${t.imageUrl}" alt="${t.title}" style="max-width:100%;max-height:100%;object-fit:contain" loading="lazy"/>`;
+    if(mNowArtInline){mNowArtInline.innerHTML=`<img src="${t.imageUrl}" alt="${t.title}" loading="lazy"/>`;mNowArtInline.style.display='block';}
     mMedia.classList.add('toggleable');
     mAudio.style.display='block';mAudio.appendChild(audio);
     if(t.audioUrl){audio.src=t.audioUrl;updateMediaSession(t);audio.play().catch(()=>{});}
