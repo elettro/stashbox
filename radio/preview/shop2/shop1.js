@@ -32,15 +32,9 @@
   window.slugifyProductKey = slugifyProductKey;
   window.updateRadioMerch = function (track) { safe(async () => { await updateRadioMerch(track); }); };
 
-  function showBuildBadge(message) {
-    let badge = document.getElementById('shop2-build-badge');
-    if (!badge) {
-      badge = document.createElement('div');
-      badge.id = 'shop2-build-badge';
-      badge.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;background:#111;color:#f0a500;border:1px solid #f0a500;border-radius:10px;padding:8px 10px;font:12px monospace;';
-      document.body.appendChild(badge);
-    }
-    badge.textContent = message;
+  function showBuildBadge() {
+    const badge = document.getElementById('shop2-build-badge');
+    if (badge) badge.remove();
   }
 
   function injectStyles() {
