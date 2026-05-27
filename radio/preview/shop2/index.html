@@ -612,14 +612,14 @@ function startImageRetry(t) {
       };
       probe.onerror = () => {
         if (currentTrack?.idx === imageRetryTrackIdx) {
-          attempt(Math.min(delay * 1.5, 30000)); // backoff, cap at 30s
+          attempt(4000); // fixed 4s interval
         }
       };
       probe.src = freshSrc;
     }, delay);
   }
 
-  attempt(5000); // first probe after 5 seconds
+  attempt(3000); // first probe after 3 seconds
 }
 
 // Called by onerror on the mobile now-screen image — switches to visualizer and starts retry
