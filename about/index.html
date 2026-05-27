@@ -316,19 +316,34 @@
     }
 
     /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .players-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
     @media (max-width: 768px) {
       .about-intro {
         grid-template-columns: 1fr;
         gap: var(--space-8);
       }
-      .players-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      .shows-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-    @media (max-width: 480px) {
+    @media (max-width: 600px) {
+      .about-intro { gap: var(--space-6); }
+      .about-intro__headline { font-size: clamp(2.5rem, 11vw, 3.5rem); }
+      .about-intro__body { font-size: var(--text-base); }
       .shows-grid { grid-template-columns: 1fr; }
-      .players-grid { grid-template-columns: 1fr 1fr; }
+      .players-grid { grid-template-columns: 1fr; }
+      .player-card { padding: var(--space-5); }
       .guests-row { flex-direction: column; }
+      .faq-item summary { padding: var(--space-4); }
+      .faq-question { font-size: var(--text-base); }
+      .faq-answer {
+        padding: var(--space-4) var(--space-4) var(--space-5);
+        border-top: 1px solid var(--color-border);
+      }
     }
   </style>
 </head>
@@ -353,6 +368,7 @@
       <li><a href="/stashbox/shop/">Shop</a></li>
       <li><a href="/stashbox/setlists/">Setlists</a></li>
       <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
       <li><a href="/stashbox/about/">About</a></li>
       <li><a href="/stashbox/dashboard/">Dashboard</a></li>
     </ul>
