@@ -538,6 +538,8 @@ let playerMode='audio';
 let videoMode=false;
 let youtubePlaying=false;
 let audioRetryCount=0;   // tracks retries on audio load failure
+let imageRetryTimer=null;
+let imageRetryTrackIdx=-1;
 
 const audio        = document.getElementById('audio');
 const dpScrubber   = document.getElementById('dp-scrubber');
@@ -567,13 +569,67 @@ function ensureYouTubeApi() {
 }
 
 // ════════ IMAGE HELPERS ════════
-// Called by onerror on the mobile now-screen image — switches gracefully to visualizer
+function clearImageRetry() {
+  if (imageRetryTimer) { clearTimeout(imageRetryTimer); imageRetryTimer = null; }
+  imageRetryTrackIdx = -1;
+}
+
+// Keeps probing the image URL while the track is playing.
+// On success: re-inserts artwork and hides the visualizer on both desktop and mobile.
+function startImageRetry(t) {
+  clearImageRetry();
+  if (!t?.imageUrl) return;
+  imageRetryTrackIdx = t.idx;
+
+  function attempt(delay) {
+    imageRetryTimer = setTimeout(() => {
+      if (!currentTrack || currentTrack.idx !== imageRetryTrackIdx) return;
+      const freshSrc = t.imageUrl + (t.imageUrl.includes('?') ? '&' : '?') + '_r=' + Date.now();
+      const probe = new Image();
+      probe.onload = () => {
+        if (!currentTrack || currentTrack.idx !== t.idx) return;
+        // Restore desktop artwork
+        const dpImg   = document.getElementById('dp-img');
+        const dpMedia = document.getElementById('dp-media');
+        const dpVis   = document.getElementById('dp-vis');
+        if (dpImg && dpMedia) {
+          dpImg.onerror = null;
+          dpImg.src = freshSrc;
+          dpImg.style.display = 'block';
+          dpMedia.style.display = 'block';
+          dpMedia.classList.add('toggleable');
+          dpVis.style.display = 'none';
+          dpVis.classList.remove('toggleable');
+        }
+        // Restore mobile now-screen artwork
+        const mMedia = document.getElementById('m-now-media');
+        if (mMedia) {
+          if (visAnim) { cancelAnimationFrame(visAnim); visAnim = null; }
+          mMedia.innerHTML = `<img src="${escapeHtml(freshSrc)}" alt="${escapeHtml(t.title)}" style="max-width:100%;max-height:100%;object-fit:contain" loading="eager" onerror="onMobileTrackImageError()"/>`;
+          mMedia.classList.add('toggleable');
+        }
+        imageRetryTimer = null;
+      };
+      probe.onerror = () => {
+        if (currentTrack?.idx === imageRetryTrackIdx) {
+          attempt(Math.min(delay * 1.5, 30000)); // backoff, cap at 30s
+        }
+      };
+      probe.src = freshSrc;
+    }, delay);
+  }
+
+  attempt(5000); // first probe after 5 seconds
+}
+
+// Called by onerror on the mobile now-screen image — switches to visualizer and starts retry
 function onMobileTrackImageError() {
   const media = document.getElementById('m-now-media');
   if (!media || !currentTrack) return;
   const title = currentTrack.title || '';
   media.innerHTML = `<div class="m-now-vis"><div class="m-now-vis-title">${escapeHtml(title)}</div><canvas id="m-vis-cv" style="width:100%;height:100px;display:block"></canvas></div>`;
   mStartVis();
+  startImageRetry(currentTrack);
 }
 
 // Warm the browser cache for the next/prev track images while current is playing
@@ -1171,6 +1227,7 @@ function scrollToPlayerTop(){
 function loadTrack(t,options={}) {
   if(!t||!audio)return;
   audioRetryCount=0;   // reset retry counter for new track
+  clearImageRetry();   // cancel any in-flight image retry from previous track
   const shouldScrollToTop=options.scrollToTop===true;
   if(currentTrack&&activeListenSession)sendListenTime('track_changed');
 
@@ -1209,7 +1266,7 @@ function loadTrack(t,options={}) {
     dpAudio.style.display='block';
     if(dpScrub)dpScrub.style.display='block';
     dpAudio.appendChild(audio);
-    // If the player image fails to load, fall through to visualizer gracefully
+    // If the player image fails, fall through to visualizer and keep retrying in background
     dpImg.onerror=function(){
       this.onerror=null;
       this.style.display='none';
@@ -1219,6 +1276,7 @@ function loadTrack(t,options={}) {
       dpVis.style.display='flex';
       dpVis.classList.add('toggleable');
       dStartVis();
+      startImageRetry(t);
     };
     if(t.audioUrl){audio.src=t.audioUrl;updateMediaSession(t);audio.play().catch(()=>{});}
   }else{
