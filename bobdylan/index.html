@@ -141,6 +141,401 @@
   </div>
 </section>
 
+<section class="stashbox-dylan-angled-hero" id="stashbox-does-dylan-release">
+  <img class="angled-shape angled-shape-1" id="angledShape1" src="" alt="" aria-hidden="true">
+  <img class="angled-shape angled-shape-2" id="angledShape2" src="" alt="" aria-hidden="true">
+
+  <div class="angled-ambient orb-a"></div>
+  <div class="angled-ambient orb-b"></div>
+
+  <div class="angled-hero-container">
+    <div class="angled-hero-grid">
+      <div class="angled-copy">
+        <div class="angled-eyebrow">Album Release Feature</div>
+
+        <h2 class="angled-title">
+          Stashbox Does Dylan
+        </h2>
+
+        <p class="angled-subtitle">
+          A bold reinterpretation presented with premium visual energy. This section is built to feel like a real album launch, not a generic music block.
+        </p>
+
+        <div class="angled-feature-list">
+          <div class="angled-feature">Ballad of a Thin Man</div>
+          <div class="angled-feature">Positively 4th Street</div>
+          <div class="angled-feature">Tangled Up In Blue</div>
+          <div class="angled-feature">Sugar Baby  and 15 More</div>
+        </div>
+
+        <div class="angled-actions">
+          <a
+            class="angled-btn angled-btn-primary"
+            href="https://stashbox.com"
+            target="_blank"
+            rel="noopener">
+            Visit Stashbox.com
+          </a>
+
+          <a
+            class="angled-btn angled-btn-secondary"
+            href="https://youtube.com/@stashboxband"
+            target="_blank"
+            rel="noopener">
+            Streaming Music
+          </a>
+
+          <a
+            class="angled-btn angled-btn-secondary"
+            href="https://youtube.com/@stashboxband"
+            target="_blank"
+            rel="noopener">
+            Watch Video
+          </a>
+        </div>
+      </div>
+
+      <div class="angled-media-shell">
+        <div class="angled-media-frame">
+          <div class="angled-media-inner">
+            <img
+              id="angledHeroImage"
+              src="https://stashbox.com/wp-content/uploads/2026/02/image-gen-21.png"
+              alt="Stashbox Does Dylan promotional artwork">
+          </div>
+
+          <div class="angled-badge">
+            Stashbox Does Dylan
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .stashbox-dylan-angled-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 100px 24px;
+    background:
+      radial-gradient(circle at 12% 20%, rgba(116, 77, 255, 0.16), transparent 26%),
+      radial-gradient(circle at 85% 15%, rgba(255, 73, 145, 0.13), transparent 24%),
+      linear-gradient(180deg, #07080d 0%, #0b0d14 100%);
+    color: #ffffff;
+  }
+
+  .angled-hero-container {
+    max-width: 1320px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+  }
+
+  .angled-hero-grid {
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
+    gap: 34px;
+    align-items: center;
+  }
+
+  .angled-copy {
+    position: relative;
+    z-index: 3;
+  }
+
+  .angled-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(10px);
+    font: 700 12px/1 Arial, sans-serif;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+  }
+
+  .angled-eyebrow::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #d7b16b, #fff0c8);
+    box-shadow: 0 0 16px rgba(215,177,107,0.7);
+  }
+
+  .angled-title {
+    margin: 0 0 18px;
+    font-family: Arial Black, Impact, sans-serif;
+    font-size: clamp(42px, 7vw, 84px);
+    line-height: 0.94;
+    letter-spacing: -0.045em;
+    text-transform: uppercase;
+  }
+
+  .angled-subtitle {
+    max-width: 680px;
+    margin: 0;
+    font: 400 clamp(16px, 2vw, 20px)/1.7 Arial, sans-serif;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .angled-feature-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 26px;
+  }
+
+  .angled-feature {
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    color: #e9eef9;
+    font: 600 15px/1.4 Arial, sans-serif;
+    backdrop-filter: blur(8px);
+  }
+
+  .angled-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 28px;
+  }
+
+  .angled-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 54px;
+    padding: 0 22px;
+    border-radius: 999px;
+    text-decoration: none;
+    font: 700 15px/1 Arial, sans-serif;
+    border: 1px solid rgba(255,255,255,0.16);
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .angled-btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .angled-btn-primary {
+    color: #0f1014;
+    background: linear-gradient(135deg, #d7b16b, #fff1d2);
+    box-shadow: 0 16px 40px rgba(215,177,107,0.2);
+  }
+
+  .angled-btn-secondary {
+    color: #ffffff;
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px);
+  }
+
+  .angled-btn-secondary:hover {
+    background: rgba(255,255,255,0.11);
+  }
+
+  .angled-media-shell {
+    position: relative;
+    z-index: 2;
+  }
+
+  .angled-media-frame {
+    position: relative;
+    min-height: 580px;
+    border-radius: 28px;
+    overflow: hidden;
+    transform: rotate(-5deg);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 28px 80px rgba(0,0,0,0.38);
+    background: #0b0d14;
+  }
+
+  .angled-media-inner {
+    position: absolute;
+    inset: -40px;
+    transform: rotate(5deg) scale(1.08);
+  }
+
+  .angled-media-inner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .angled-badge {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    z-index: 3;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(9, 11, 17, 0.76);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    font: 700 13px/1 Arial, sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .angled-ambient {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(18px);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .orb-a {
+    width: 240px;
+    height: 240px;
+    left: -60px;
+    top: 8%;
+    background: rgba(122, 167, 255, 0.18);
+  }
+
+  .orb-b {
+    width: 200px;
+    height: 200px;
+    right: 4%;
+    bottom: 8%;
+    background: rgba(255, 94, 154, 0.14);
+  }
+
+  .angled-shape {
+    position: absolute;
+    z-index: 1;
+    opacity: 0.28;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 20px 30px rgba(0,0,0,0.18));
+  }
+
+  .angled-shape-1 {
+    width: min(24vw, 260px);
+    right: 2%;
+    top: 8%;
+    transform: rotate(8deg);
+  }
+
+  .angled-shape-2 {
+    width: min(20vw, 220px);
+    left: -2%;
+    bottom: 6%;
+    transform: rotate(-12deg);
+  }
+
+  @media (max-width: 1100px) {
+    .angled-hero-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .angled-media-frame {
+      min-height: 460px;
+      transform: none;
+    }
+
+    .angled-media-inner {
+      inset: 0;
+      transform: none;
+    }
+
+    .angled-shape-1,
+    .angled-shape-2 {
+      opacity: 0.18;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .stashbox-dylan-angled-hero {
+      padding: 72px 18px;
+    }
+
+    .angled-feature-list {
+      grid-template-columns: 1fr;
+    }
+
+    .angled-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .angled-btn {
+      width: 100%;
+    }
+
+    .angled-media-frame {
+      min-height: 360px;
+    }
+
+    .angled-shape {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    const mainImages = [
+      "https://stashbox.com/wp-content/uploads/2026/02/image-gen-18.jpg",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-9e4b024c-7edc-4115-a9aa-2c99fd1ce07d.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/image-gen-21.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-f291912b-a33f-4126-98d7-e27c85d24aff.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/image-gen-18.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-2d08b38f-483a-4c60-bba1-4555169fa650.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/image-gen-15.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/image-gen-6.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-19a88e29-41cb-4955-a112-94b67dc92052.png"
+    ];
+
+    const shapeImages = [
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-17243ece-03c6-43b1-96c3-eda733d1fd6d.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-19a88e29-41cb-4955-a112-94b67dc92052.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-9e4b024c-7edc-4115-a9aa-2c99fd1ce07d.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-f291912b-a33f-4126-98d7-e27c85d24aff.png",
+      "https://stashbox.com/wp-content/uploads/2026/02/envato-graphic-2d08b38f-483a-4c60-bba1-4555169fa650.png"
+    ];
+
+    function randomItem(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function twoDifferentItems(arr) {
+      const firstIndex = Math.floor(Math.random() * arr.length);
+      let secondIndex = Math.floor(Math.random() * arr.length);
+
+      while (secondIndex === firstIndex && arr.length > 1) {
+        secondIndex = Math.floor(Math.random() * arr.length);
+      }
+
+      return [arr[firstIndex], arr[secondIndex]];
+    }
+
+    const heroImage = document.getElementById("angledHeroImage");
+    const shape1 = document.getElementById("angledShape1");
+    const shape2 = document.getElementById("angledShape2");
+
+    if (heroImage) {
+      heroImage.src = randomItem(mainImages);
+    }
+
+    if (shape1 && shape2) {
+      const [shapeA, shapeB] = twoDifferentItems(shapeImages);
+      shape1.src = shapeA;
+      shape2.src = shapeB;
+    }
+  })();
+</script>
+
 <footer class="footer" role="contentinfo">
   <div class="footer__inner container">
     <div class="footer__brand">
