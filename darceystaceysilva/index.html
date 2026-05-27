@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Darcey &amp; Stacey Silva × Stashbox — Collab</title>
+  <meta name="description" content="Stashbox Studios collaborates with Darcey &amp; Stacey Silva — TLC television personalities and entrepreneurs co-producing original tracks for mass distribution.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/styles.css">
+  <link rel="canonical" href="https://elettro.github.io/stashbox/darceystaceysilva/">
+  <meta property="og:type" content="profile">
+  <meta property="og:site_name" content="Stashbox">
+  <meta property="og:title" content="Darcey &amp; Stacey Silva × Stashbox — Collab">
+  <meta property="og:description" content="Stashbox Studios collaborates with Darcey &amp; Stacey Silva — TLC television personalities co-producing original tracks for mass distribution.">
+  <meta property="og:url" content="https://elettro.github.io/stashbox/darceystaceysilva/">
+  <style>
+    /* ── Collab page accent — rose/magenta for Darcey & Stacey ── */
+    :root {
+      --color-collab: oklch(68% 0.18 340);
+      --color-collab-dim: oklch(68% 0.18 340 / 0.12);
+      --color-collab-hover: oklch(76% 0.16 345);
+    }
+
+    /* ── Collab hero ── */
+    .collab-hero {
+      position: relative;
+      overflow: hidden;
+      padding: var(--space-20) var(--space-8) var(--space-16);
+      background:
+        radial-gradient(circle at 20% 0%, oklch(68% 0.18 340 / 0.10) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, oklch(62% 0.14 280 / 0.08) 0%, transparent 40%),
+        var(--color-bg);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .collab-hero__inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+    .collab-hero__eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-collab);
+      margin-bottom: var(--space-5);
+    }
+    .collab-hero__name {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(3rem, 9vw, 8rem);
+      line-height: 0.88;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      color: var(--color-text);
+      margin-bottom: var(--space-4);
+    }
+    .collab-hero__name span {
+      color: var(--color-collab);
+    }
+    .collab-hero__collab-line {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+    .collab-hero__collab-line .divider {
+      width: 40px;
+      height: 1px;
+      background: var(--color-border-hover);
+    }
+    .collab-hero__collab-text {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .collab-hero__tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .collab-tag {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-collab);
+      border: 1px solid oklch(68% 0.18 340 / 0.3);
+      border-radius: var(--radius-pill);
+      padding: var(--space-1) var(--space-3);
+      background: var(--color-collab-dim);
+    }
+
+    /* ── Artist profile ── */
+    .artist-profile {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-16);
+      align-items: start;
+    }
+    .artist-profile__bio {
+      font-size: var(--text-lg);
+      font-weight: 300;
+      line-height: 1.75;
+      color: oklch(82% 0 0);
+    }
+    .artist-profile__bio p + p {
+      margin-top: var(--space-5);
+    }
+    .artist-profile__meta {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
+    .meta-block {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      transition: border-color var(--dur-base) var(--ease-out);
+    }
+    .meta-block:hover { border-color: var(--color-border-hover); }
+    .meta-block__label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-collab);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: var(--space-2);
+    }
+    .meta-block__value {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-xl);
+      text-transform: uppercase;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+    .meta-block__value a {
+      color: var(--color-text);
+      transition: color var(--dur-fast) var(--ease-out);
+    }
+    .meta-block__value a:hover { color: var(--color-collab); }
+    .meta-block__sub {
+      font-size: var(--text-sm);
+      font-weight: 300;
+      color: var(--color-muted);
+      margin-top: var(--space-1);
+      line-height: 1.5;
+    }
+
+    /* ── Collab CTA ── */
+    .collab-cta {
+      background:
+        radial-gradient(circle at 50% 0%, oklch(68% 0.18 340 / 0.08) 0%, transparent 60%),
+        var(--color-surface);
+      border: 1px solid oklch(68% 0.18 340 / 0.2);
+      border-radius: var(--radius-lg);
+      padding: var(--space-16) var(--space-8);
+      text-align: center;
+    }
+    .collab-cta__eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-collab);
+      margin-bottom: var(--space-5);
+    }
+    .collab-cta__title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(var(--text-display-s), 6vw, var(--text-display));
+      text-transform: uppercase;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+      color: var(--color-text);
+      margin-bottom: var(--space-6);
+    }
+    .collab-cta__sub {
+      font-size: var(--text-lg);
+      font-weight: 300;
+      color: var(--color-muted);
+      margin-bottom: var(--space-8);
+      line-height: 1.6;
+    }
+    .btn--collab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 var(--space-8);
+      border-radius: var(--radius-pill);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-lg);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--color-collab);
+      color: oklch(10% 0 0);
+      border: none;
+      text-decoration: none;
+      transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+    }
+    .btn--collab:hover {
+      background: var(--color-collab-hover);
+      transform: translateY(-2px);
+    }
+    .btn--collab-outline {
+      background: transparent;
+      color: var(--color-collab);
+      border: 1px solid oklch(68% 0.18 340 / 0.4);
+    }
+    .btn--collab-outline:hover {
+      background: var(--color-collab-dim);
+      transform: translateY(-2px);
+    }
+
+    /* ── Section divider ── */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--color-border);
+      margin: 0;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .artist-profile {
+        grid-template-columns: 1fr;
+        gap: var(--space-10);
+      }
+    }
+    @media (max-width: 600px) {
+      .collab-hero { padding: var(--space-12) var(--space-5) var(--space-10); }
+      .collab-hero__name { font-size: clamp(2.5rem, 13vw, 4rem); }
+      .collab-cta { padding: var(--space-10) var(--space-5); }
+      .collab-cta .btn-row { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
+      <li><a href="/stashbox/about/">About</a></li>
+      <li><a href="/stashbox/dashboard/">Dashboard</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="collab-hero" aria-label="Darcey and Stacey Silva collab">
+  <div class="collab-hero__inner">
+    <p class="collab-hero__eyebrow">Stashbox Collab Series</p>
+    <h1 class="collab-hero__name">Darcey<br>&amp; <span>Stacey</span><br>Silva</h1>
+    <div class="collab-hero__collab-line">
+      <span class="divider"></span>
+      <span class="collab-hero__collab-text">Darcey &amp; Stacey × Stashbox Studios</span>
+      <span class="divider"></span>
+    </div>
+    <div class="collab-hero__tags">
+      <span class="collab-tag">Television</span>
+      <span class="collab-tag">Music</span>
+      <span class="collab-tag">Entrepreneurs</span>
+      <span class="collab-tag">Twin Sisters</span>
+      <span class="collab-tag">TLC</span>
+      <span class="collab-tag">Pop</span>
+    </div>
+  </div>
+</section>
+
+<main>
+
+  <!-- ── Artist Profile ── -->
+  <section class="section" aria-labelledby="artist-heading">
+    <div class="container">
+      <p class="section-label fade-in">The Artists</p>
+      <h2 class="section-title fade-in" id="artist-heading">ABOUT DARCEY &amp; STACEY</h2>
+
+      <div class="artist-profile" style="margin-top: var(--space-10);">
+        <div class="artist-profile__bio fade-in">
+          <p>Darcey and Stacey Silva are not only well-known television personalities but also entrepreneurs with a flair for music production. Best known for their appearances on TLC's <em>90 Day Fiancé</em> and <em>Darcey &amp; Stacey</em>, the twin sisters have expanded their creative horizons into music, collaborating with notable producers to bring their musical vision to life.</p>
+          <p>Currently, Darcey and Stacey are working closely with Stashbox Studios — co-producing and collaborating on tracks designed for mass distribution. Their collaboration with Stashbox blends their pop sensibilities with Stashbox's diverse musical influences, resulting in tracks that are catchy, empowering, and primed for a wide audience.</p>
+          <p>Together, they are crafting songs that are set to resonate across various platforms, further solidifying their presence in the entertainment industry beyond their television and fashion careers.</p>
+        </div>
+
+        <div class="artist-profile__meta fade-in">
+          <div class="meta-block">
+            <p class="meta-block__label">Known For</p>
+            <p class="meta-block__value">TLC Television</p>
+            <p class="meta-block__sub">90 Day Fiancé · Darcey &amp; Stacey</p>
+          </div>
+
+          <div class="meta-block">
+            <p class="meta-block__label">Collab Type</p>
+            <p class="meta-block__value">Co-Production</p>
+            <p class="meta-block__sub">Original tracks for mass distribution — pop sensibilities meet Stashbox's diverse musical range</p>
+          </div>
+
+          <div class="meta-block">
+            <p class="meta-block__label">Studio</p>
+            <p class="meta-block__value">Stashbox Studios</p>
+            <p class="meta-block__sub">Davie, FL — recording, mixing, and production</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── Spotify Playlist ── -->
+  <section class="section" aria-labelledby="music-heading">
+    <div class="container">
+      <p class="section-label fade-in">Stream the Music</p>
+      <h2 class="section-title fade-in" id="music-heading">PLAYLIST</h2>
+      <div style="margin-top: var(--space-8);" class="fade-in">
+        <iframe
+          style="border-radius:12px"
+          src="https://open.spotify.com/embed/playlist/4tQ4f6ZYtdasawfk1M2YOx?utm_source=generator"
+          width="100%"
+          height="352"
+          frameBorder="0"
+          allowfullscreen=""
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+          title="Darcey &amp; Stacey Silva × Stashbox playlist on Spotify">
+        </iframe>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── Collab CTA ── -->
+  <section class="section" aria-label="Collab interest">
+    <div class="container">
+      <div class="collab-cta fade-in">
+        <p class="collab-cta__eyebrow">Work With Us</p>
+        <h2 class="collab-cta__title">Interested<br>in Collabs?</h2>
+        <p class="collab-cta__sub">Artists, influencers, brands — reach out and let's make something together.<br>Stashbox is open to creative partnerships across music, video, and live events.</p>
+        <div class="btn-row" style="display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-3);">
+          <a href="mailto:booking@stashbox.com" class="btn--collab">Email Us</a>
+          <a href="tel:3104086687" class="btn--collab btn--collab-outline">310.408.6687</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/" class="footer__logo" aria-label="Stashbox">
+        <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png"
+             alt="Stashbox"
+             class="footer__logo-img"
+             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="footer__logo-text" style="display:none">STASHBOX</span>
+      </a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact">
+        <a href="tel:3104086687">310.408.6687</a>
+        <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+      </div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col">
+        <h4 class="footer__col-title">Tribute Shows</h4>
+        <ul>
+          <li><a href="/stashbox/booking/">Stashbox Does Dylan</a></li>
+          <li><a href="/stashbox/booking/">Stashbox Does Sublime</a></li>
+          <li><a href="/stashbox/booking/">Classic Reggae Show</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">Music</h4>
+        <ul>
+          <li><a href="/stashbox/radio/">Radio</a></li>
+          <li><a href="/stashbox/videos/">Videos</a></li>
+          <li><a href="/stashbox/sessions/">Sessions</a></li>
+          <li><a href="/stashbox/setlists/">Setlists</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">More</h4>
+        <ul>
+          <li><a href="/stashbox/about/">About</a></li>
+          <li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li>
+          <li><a href="/stashbox/custom/">Custom Music</a></li>
+          <li><a href="/stashbox/dashboard/">Dashboard</a></li>
+          <li><a href="/stashbox/booking/">Book Band</a></li>
+          <li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<script src="/stashbox/main.js"></script>
+</body>
+</html>
