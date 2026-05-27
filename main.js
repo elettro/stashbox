@@ -113,7 +113,11 @@
 
   /* ── Timed streaming popup ── */
   (function initStreamPopup() {
-    const popupDelays = [10000, 60000, 300000];
+    const POPUP_KEY = 'sb_popup_last';
+    const POPUP_INTERVAL = 24 * 60 * 60 * 1000;
+    const lastShown = parseInt(localStorage.getItem(POPUP_KEY) || '0', 10);
+    const isFirstTime = !lastShown;
+    const popupDelays = (isFirstTime || Date.now() - lastShown > POPUP_INTERVAL) ? [10000] : [];
 
     const overlay = document.createElement('div');
     overlay.id = 'stream-popup-overlay';
@@ -143,6 +147,7 @@
       overlay.classList.add('is-visible');
       overlay.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
+      localStorage.setItem(POPUP_KEY, Date.now().toString());
     }
 
     function hideStreamPopup() {
