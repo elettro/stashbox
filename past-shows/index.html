@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past Shows — Stashbox Live Performance History</title>
+  <meta name="description" content="Stashbox live performance history — venues, dates, and special appearances across South Florida from 2018 to present.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Stashbox">
+  <meta property="og:title" content="Past Shows — Stashbox Live Performance History">
+  <meta property="og:description" content="Stashbox live performance history — venues, dates, and special appearances across South Florida.">
+  <meta property="og:url" content="https://elettro.github.io/stashbox/past-shows/">
+  <meta property="og:image" content="https://elettro.github.io/stashbox/images/dylan/dylan-promo-1376x768-1.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/styles.css">
+  <link rel="canonical" href="https://elettro.github.io/stashbox/past-shows/">
+  <style>
+    /* ── Past Shows page-scoped styles ──────────────────────── */
+    .ps-page {
+      padding: 80px 24px 100px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .ps-header {
+      margin-bottom: 64px;
+    }
+
+    .ps-header__eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--clr-accent, #c8f230);
+      margin-bottom: 12px;
+    }
+
+    .ps-header__title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(52px, 11vw, 88px);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #e8e8e8;
+      line-height: 1;
+    }
+
+    .ps-header__title span {
+      color: var(--clr-accent, #c8f230);
+    }
+
+    .ps-header__sub {
+      margin-top: 14px;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #666;
+    }
+
+    /* ── Year blocks ─────────────────────────────────────────── */
+    .ps-year {
+      margin-bottom: 56px;
+    }
+
+    .ps-year__label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--clr-accent, #c8f230);
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2a2a2a;
+      margin-bottom: 0;
+    }
+
+    /* ── Show rows ───────────────────────────────────────────── */
+    .ps-show {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 20px;
+      padding: 14px 12px;
+      border-bottom: 1px solid #1e1e1e;
+      align-items: start;
+      transition: background 0.12s;
+      margin: 0 -12px;
+    }
+
+    .ps-show:hover {
+      background: #161616;
+    }
+
+    .ps-show__date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #555;
+      letter-spacing: 0.06em;
+      padding-top: 3px;
+      white-space: nowrap;
+    }
+
+    .ps-show__venue {
+      font-size: 15px;
+      font-weight: 400;
+      color: #e0e0e0;
+      line-height: 1.35;
+    }
+
+    .ps-show__note {
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+      font-style: italic;
+      font-family: 'Barlow', sans-serif;
+      font-weight: 300;
+    }
+
+    @media (max-width: 480px) {
+      .ps-show {
+        grid-template-columns: 72px 1fr;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ─────────────────────────────────────────────────── -->
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png"
+           alt="Stashbox"
+           class="nav__logo-img"
+           onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/custom/">Custom Music</a></li>
+      <li><a href="/stashbox/about/">About</a></li>
+      <li><a href="/stashbox/dashboard/">Dashboard</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<!-- ── MAIN ─────────────────────────────────────────────────── -->
+<main>
+<div class="ps-page">
+
+  <div class="ps-header">
+    <p class="ps-header__eyebrow">Stashbox · Live Performance History</p>
+    <h1 class="ps-header__title">Past <span>Shows</span></h1>
+    <p class="ps-header__sub">South Florida and beyond · 2018 – 2021</p>
+  </div>
+
+  <!-- ── 2021 ──────────────────────────────────────────────── -->
+  <div class="ps-year">
+    <div class="ps-year__label">2021</div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jul 9</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Black Flamingo Brew Co — Pompano Beach, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 28</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Kelly Brothers Irish Pub — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Featuring Frank Bang sitting in · Ephraim Lowell on drums</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Mar 29</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Kelly Brothers Irish Pub — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">3pm – 7pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Feb 23</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Miramar, FL</div>
+        <div class="ps-show__note">3pm – 6pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Feb 2</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Miramar, FL</div>
+        <div class="ps-show__note">3pm – 6pm</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2020 ──────────────────────────────────────────────── -->
+  <div class="ps-year">
+    <div class="ps-year__label">2020</div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 25</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Bahamas Paradise Reggae Cruise — West Palm Beach to Freeport, Bahamas</div>
+        <div class="ps-show__note">9:30pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 24</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Bahamas Paradise Reggae Cruise — West Palm Beach to Freeport, Bahamas</div>
+        <div class="ps-show__note">9:30pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 18</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Rip's Music Lounge — Pompano Beach, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Mar 14</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Rip's Music Lounge — Pompano Beach, FL</div>
+        <div class="ps-show__note">8:30pm – 12:30am</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2019 ──────────────────────────────────────────────── -->
+  <div class="ps-year">
+    <div class="ps-year__label">2019</div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Oct 25</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Tarpon River Brewery — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Sitting in with the Rockin' Jake Band</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Oct 22</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Norb's Moonshine</div>
+        <div class="ps-show__note">Rockin' Jake sitting in</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Aug 11</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Kahuna Bar — Deerfield Beach, FL</div>
+        <div class="ps-show__note">Reggae Show</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jun</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">RIPS Music Lounge — Pompano Beach, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">May</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">RIPS Music Lounge — Pompano Beach, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Marriott 5-Star Beach Resort — Poolside, Fort Lauderdale, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Mar</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Marriott 5-Star Beach Resort — Poolside, Fort Lauderdale, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jan 18</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Jo Baby Crawfish and Cajun House</div>
+        <div class="ps-show__note">Return Concert #2 · 8:30pm – 12:30am</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2018 ──────────────────────────────────────────────── -->
+  <div class="ps-year">
+    <div class="ps-year__label">2018</div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Dec 28</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Noon – 3pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Nov 11</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">5 O'Clock Charlie's — Fort Lauderdale Beach, FL</div>
+        <div class="ps-show__note">Reggae Night · 8pm – 12am</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Nov 10</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Noon – 3pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Nov 9</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Jo Baby Crawfish and Cajun House</div>
+        <div class="ps-show__note">8:30pm – 12:30am</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Nov 1</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Big Dawgs 2 — Davie, FL</div>
+        <div class="ps-show__note">With Peter Roland and Bobby Blues</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Oct 22</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Funky Biscuit Blues Jam — Boca Raton, FL</div>
+        <div class="ps-show__note">With Richie Schmidt &amp; Lance Dominic</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Oct 13</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Crazy Uncle Mike's — Boca Raton, FL</div>
+        <div class="ps-show__note">With Lancelot Knights</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Sept 19</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Just 1 More Tavern — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Lancelot Knights show</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Sept 3</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">5-Star Beach Resort — Poolside, Fort Lauderdale, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Aug 1</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">5 O'Clock Charlie's — Fort Lauderdale Beach, FL</div>
+        <div class="ps-show__note">4pm – 8:30pm · Including acoustic set</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jul 6</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">O'Malleys — Margate, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jul 4</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Fourth of July · 5:45pm – 8pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jul 2</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Noon – 3pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jun 11</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Noon – 3pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jun 2</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Silverball Museum — Delray Beach, FL</div>
+        <div class="ps-show__note">8pm · RSVP</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">May 21</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 29</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Suite Spot Studios — Palm Beach Gardens, FL</div>
+        <div class="ps-show__note">Studio session</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Apr 23</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Mar 31</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Silverball Museum — Delray Beach, FL</div>
+        <div class="ps-show__note">8pm · RSVP</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Mar 12</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">Private Beach Resort — Fort Lauderdale, FL</div>
+        <div class="ps-show__note">Noon – 3pm</div>
+      </div>
+    </div>
+
+    <div class="ps-show">
+      <div class="ps-show__date">Jan 1</div>
+      <div class="ps-show__body">
+        <div class="ps-show__venue">5-Star Beach Resort — Fort Lauderdale Beach, FL</div>
+        <div class="ps-show__note">New Year's Day</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/" class="footer__logo" aria-label="Stashbox">
+        <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png"
+             alt="Stashbox"
+             class="footer__logo-img"
+             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="footer__logo-text" style="display:none">STASHBOX</span>
+      </a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact">
+        <a href="tel:3104086687">310.408.6687</a>
+        <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+      </div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col">
+        <h4 class="footer__col-title">Tribute Shows</h4>
+        <ul>
+          <li><a href="/stashbox/booking/">Stashbox Does Dylan</a></li>
+          <li><a href="/stashbox/booking/">Stashbox Does Sublime</a></li>
+          <li><a href="/stashbox/booking/">Classic Reggae Show</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">Music</h4>
+        <ul>
+          <li><a href="/stashbox/radio/">Radio</a></li>
+          <li><a href="/stashbox/videos/">Videos</a></li>
+          <li><a href="/stashbox/sessions/">Sessions</a></li>
+          <li><a href="/stashbox/setlists/">Setlists</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">More</h4>
+        <ul>
+          <li><a href="/stashbox/about/">About</a></li>
+          <li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li>
+          <li><a href="/stashbox/custom/">Custom Music</a></li>
+          <li><a href="/stashbox/dashboard/">Dashboard</a></li>
+          <li><a href="/stashbox/booking/">Book Band</a></li>
+          <li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__social" aria-label="Social links">
+      <a href="https://www.youtube.com/@stashboxband" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      </a>
+      <a href="https://www.facebook.com/Stashboxcom/" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </a>
+      <a href="https://www.instagram.com/stashboxmusic" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+      </a>
+      <a href="https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Spotify">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      </a>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<script src="/stashbox/main.js"></script>
+
+</body>
+</html>
