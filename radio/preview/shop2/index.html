@@ -778,8 +778,13 @@ function loadSharedSongFromUrl() {
   queue = sameSec.length ? sameSec : [...allTracks];
   qIdx  = Math.max(0, queue.findIndex(t => t.idx === sharedTrack.idx));
   loadTrack(sharedTrack);
-  audio.pause();
-  setPlayBtns(true);
+  const shouldPlay = new URLSearchParams(window.location.search).get('autoplay') === '1';
+  if (shouldPlay) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+    setPlayBtns(true);
+  }
   if (isMob()) document.getElementById('m-bar')?.classList.add('vis');
   document.title = `${sharedTrack.title} by ${sharedTrack.artist || 'Stashbox'} | Stashbox Radio`;
   return true;
