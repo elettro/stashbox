@@ -782,15 +782,23 @@ function normSong(r) {
     link: pick(r,'songUrl') || `../radio/preview/shop2/?song=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&autoplay=1` };
 }
 
+function ytThumb(url) {
+  if (!url) return '';
+  const m = url.match(/(?:[?&]v=|youtu\.be\/|\/embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : '';
+}
+
 function normVideo(r) {
+  const url = String(pick(r,'url','URL','youtube url','YouTube URL') || '../videos/').trim();
+  const explicitThumb = String(pick(r,'thumbnail','Thumbnail','cover') || '').trim();
   return {
     title: String(pick(r,'title','Title','video title') || 'Untitled').trim(),
     artist: String(pick(r,'artist','Artist') || '').trim(),
-    thumb: String(pick(r,'thumbnail','Thumbnail','cover') || '').trim(),
+    thumb: explicitThumb || ytThumb(url),
     likes: pn(pick(r,'likes','Likes')),
     clicks: pn(pick(r,'clicks','Clicks','views','Views')),
     shares: pn(pick(r,'shares','Shares')),
-    url: String(pick(r,'url','URL','youtube url','YouTube URL') || '../videos/').trim(),
+    url,
   };
 }
 
