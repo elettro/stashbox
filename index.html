@@ -95,22 +95,10 @@
 
 <!-- ── HERO ─────────────────────────────────────────────────── -->
 <section class="hero" aria-label="Stashbox live performance">
-  <div class="hero__video-wrap">
-    <iframe
-      id="hero-iframe"
-      class="hero__iframe"
-      src="https://www.youtube-nocookie.com/embed/ygvrFB1cn54?mute=1&controls=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      allowfullscreen
-      title="Stashbox Live at Fish House, Miami"
-      loading="eager"
-    ></iframe>
-    <div class="hero__static-fallback" role="img" aria-label="Stashbox live performance"></div>
-  </div>
-
-  <div class="hero__video-controls" role="group" aria-label="Hero video controls">
-    <button class="hero__unmute" id="unmuteBtn" aria-label="Unmute video" title="Toggle sound">🔇</button>
-    <button class="hero__next" id="nextVideoBtn" aria-label="Play next video" title="Next video">⏭</button>
+  <div class="hero__slider" id="heroSlider">
+    <div class="hero__slides" id="heroSlides"></div>
+    <button class="hero__arrow hero__arrow--prev" id="heroPrev" aria-label="Previous image">&#10094;</button>
+    <button class="hero__arrow hero__arrow--next" id="heroNext" aria-label="Next image">&#10095;</button>
   </div>
 
   <div class="hero__content">
@@ -412,84 +400,75 @@
 </style>
 
 <script>
-/* ── Hero: mute toggle + next video ── */
+/* ── Hero image slider ── */
 (function () {
-  const muteBtn = document.getElementById('unmuteBtn');
-  const nextBtn = document.getElementById('nextVideoBtn');
-  const iframe = document.getElementById('hero-iframe');
-  if (!muteBtn || !nextBtn || !iframe) return;
+  const SHEET = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=1588964267&single=true&output=csv';
+  const slidesEl = document.getElementById('heroSlides');
+  const prevBtn  = document.getElementById('heroPrev');
+  const nextBtn  = document.getElementById('heroNext');
+  if (!slidesEl || !prevBtn || !nextBtn) return;
 
-  const videoIds = [
-    'ygvrFB1cn54',
-    '7IIB63ZAeH0',
-    'KWE3M2XVYZY',
-    'W-zqAcTEajg',
-    'CIV_s42AnMs',
-    'T7iV0TRFWO8',
-    'nD28USW8F4c',
-    'pLgZTyCqGpQ',
-    'qlJ0374PZSY',
-    'Y6mnIwwH0rA'
-  ];
+  let images = [], current = 0, touchStartX = 0;
 
-  let muted = true;
-  let currentVideoIndex = 0;
-
-  function updateIframe() {
-    const params = `mute=${muted ? 1 : 0}&controls=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
-    iframe.src = `https://www.youtube-nocookie.com/embed/${videoIds[currentVideoIndex]}?${params}`;
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
-  function sendYouTubeCommand(command) {
-    iframe.contentWindow?.postMessage(
-      JSON.stringify({ event: 'command', func: command, args: [] }),
-      'https://www.youtube-nocookie.com'
-    );
+  function goTo(idx) {
+    const slides = slidesEl.querySelectorAll('.hero__slide');
+    if (!slides.length) return;
+    slides[current].classList.remove('hero__slide--active');
+    current = (idx + images.length) % images.length;
+    slides[current].classList.add('hero__slide--active');
   }
 
-  function wireImageModal(openSelector, modalSelector, closeSelector, bodyClass) {
-    const modal = document.querySelector(modalSelector);
-    const open = document.querySelector(openSelector);
-    const close = document.querySelectorAll(closeSelector);
-    if (!modal || !open) return;
+  function isVideo(url) {
+    return /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  }
 
-    const openModal = function (event) {
-      event.preventDefault();
-      modal.hidden = false;
-      document.body.classList.add(bodyClass);
-    };
-
-    const closeModal = function () {
-      modal.hidden = true;
-      document.body.classList.remove(bodyClass);
-    };
-
-    open.addEventListener('click', openModal);
-    close.forEach(function (el) {
-      el.addEventListener('click', closeModal);
-    });
-
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !modal.hidden) {
-        closeModal();
+  function buildSlides() {
+    slidesEl.innerHTML = '';
+    images.forEach((url, i) => {
+      const d = document.createElement('div');
+      d.className = 'hero__slide' + (i === 0 ? ' hero__slide--active' : '');
+      if (isVideo(url)) {
+        const v = document.createElement('video');
+        v.src = url; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+        v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        d.appendChild(v);
+      } else {
+        d.style.backgroundImage = `url(${url})`;
       }
+      slidesEl.appendChild(d);
     });
   }
 
-  muteBtn.addEventListener('click', function () {
-    muted = !muted;
-    muteBtn.textContent = muted ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
-    sendYouTubeCommand(muted ? 'mute' : 'unMute');
-  });
+  async function init() {
+    try {
+      const res = await fetch(SHEET);
+      const text = await res.text();
+      const urls = text.trim().split('\n').slice(1)
+        .map(r => r.replace(/^"|"$/g, '').trim()).filter(Boolean);
+      if (!urls.length) return;
+      images = shuffle(urls);
+      buildSlides();
+      prevBtn.addEventListener('click', () => goTo(current - 1));
+      nextBtn.addEventListener('click', () => goTo(current + 1));
+      slidesEl.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      slidesEl.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 50) goTo(current + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+    } catch (e) {
+      console.warn('Hero slider failed to load:', e);
+    }
+  }
 
-  nextBtn.addEventListener('click', function () {
-    currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
-    updateIframe();
-  });
-
-  wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
-  wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
+  init();
 })();
 </script>
 
@@ -600,41 +579,7 @@
 
 <script src="/stashbox/main.js"></script>
 <script>
-/* ── Hero: mute toggle + next video ── */
 (function () {
-  const muteBtn = document.getElementById('unmuteBtn');
-  const nextBtn = document.getElementById('nextVideoBtn');
-  const iframe = document.getElementById('hero-iframe');
-  if (!muteBtn || !nextBtn || !iframe) return;
-
-  const videoIds = [
-    'ygvrFB1cn54',
-    '7IIB63ZAeH0',
-    'KWE3M2XVYZY',
-    'W-zqAcTEajg',
-    'CIV_s42AnMs',
-    'T7iV0TRFWO8',
-    'nD28USW8F4c',
-    'pLgZTyCqGpQ',
-    'qlJ0374PZSY',
-    'Y6mnIwwH0rA'
-  ];
-
-  let muted = true;
-  let currentVideoIndex = 0;
-
-  function updateIframe() {
-    const params = `mute=${muted ? 1 : 0}&controls=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
-    iframe.src = `https://www.youtube-nocookie.com/embed/${videoIds[currentVideoIndex]}?${params}`;
-  }
-
-  function sendYouTubeCommand(command) {
-    iframe.contentWindow?.postMessage(
-      JSON.stringify({ event: 'command', func: command, args: [] }),
-      'https://www.youtube-nocookie.com'
-    );
-  }
-
   function wireImageModal(openSelector, modalSelector, closeSelector, bodyClass) {
     const modal = document.querySelector(modalSelector);
     const open = document.querySelector(openSelector);
@@ -663,18 +608,6 @@
       }
     });
   }
-
-  muteBtn.addEventListener('click', function () {
-    muted = !muted;
-    muteBtn.textContent = muted ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
-    sendYouTubeCommand(muted ? 'mute' : 'unMute');
-  });
-
-  nextBtn.addEventListener('click', function () {
-    currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
-    updateIframe();
-  });
 
   wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
   wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
