@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Stashbox — South Florida Live Band · The Players · Shows · FAQ</title>
+  <meta name="description" content="Meet the players behind Stashbox — South Florida's live band for rock, reggae, blues, funk, and originals. Learn about our shows, our musicians, and how to book us for your event.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/stashbox/styles.css">
+  <link rel="canonical" href="https://elettro.github.io/stashbox/about/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Stashbox">
+  <meta property="og:title" content="About Stashbox — The Players · Shows · FAQ">
+  <meta property="og:description" content="Meet the musicians behind Stashbox — South Florida's live band for rock, reggae, blues, funk, and originals.">
+  <meta property="og:url" content="https://elettro.github.io/stashbox/about/">
+  <meta property="og:image" content="https://elettro.github.io/stashbox/images/dylan/dylan-promo-1376x768-1.png">
+  <meta property="og:image:width" content="1376">
+  <meta property="og:image:height" content="768">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="About Stashbox — The Players · Shows · FAQ">
+  <meta name="twitter:description" content="Meet the musicians behind Stashbox — South Florida's live band for rock, reggae, blues, funk, and originals.">
+  <meta name="twitter:image" content="https://elettro.github.io/stashbox/images/dylan/dylan-promo-1376x768-1.png">
+  <script type="application/ld+json">
+  [
+    {
+      "@context": "https://schema.org",
+      "@type": "MusicGroup",
+      "@id": "https://elettro.github.io/stashbox/#band",
+      "name": "Stashbox",
+      "url": "https://elettro.github.io/stashbox/",
+      "description": "South Florida live band playing rock, reggae, blues, funk, and originals. Tribute shows: Bob Dylan, Sublime, Classic Reggae.",
+      "member": [
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Dean Palermo" }, "roleName": "Guitar, Vocals, Founder" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Josh Clyde" }, "roleName": "Bass" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Michael Hugh" }, "roleName": "Drums" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Peter Roland" }, "roleName": "Keyboards" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Gary Williams" }, "roleName": "Percussion" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "David Nizri" }, "roleName": "Saxophone" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Mike Ancona" }, "roleName": "Guitar" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Jarvis Jones" }, "roleName": "Vocals" },
+        { "@type": "OrganizationRole", "member": { "@type": "Person", "name": "Bob Cleary" }, "roleName": "Violin, Fiddle" }
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Stashbox", "item": "https://elettro.github.io/stashbox/" },
+        { "@type": "ListItem", "position": 2, "name": "About", "item": "https://elettro.github.io/stashbox/about/" }
+      ]
+    }
+  ]
+  </script>
+  <style>
+    /* ── About page: band intro ── */
+    .about-intro {
+      display: grid;
+      grid-template-columns: 1fr minmax(0, 520px);
+      gap: var(--space-16);
+      align-items: start;
+    }
+    .about-intro__headline {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(3rem, 7vw, 5.5rem);
+      text-transform: uppercase;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+      color: var(--color-text);
+    }
+    .about-intro__headline em {
+      font-style: normal;
+      color: var(--color-accent);
+    }
+    .about-intro__body {
+      font-size: var(--text-lg);
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--color-text);
+    }
+    .about-intro__body p + p { margin-top: var(--space-4); }
+    .about-intro__tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-top: var(--space-8);
+    }
+    .about-tag {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      padding: var(--space-1) var(--space-3);
+    }
+
+    /* ── Shows grid ── */
+    .shows-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: var(--space-6);
+      margin-top: var(--space-10);
+    }
+    .show-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-8);
+      transition: border-color var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+    }
+    .show-card:hover {
+      border-color: var(--color-border-hover);
+      transform: translateY(-3px);
+    }
+    .show-card--dylan  { border-top: 3px solid var(--color-dylan); }
+    .show-card--sublime { border-top: 3px solid var(--color-sublime); }
+    .show-card--reggae { border-top: 3px solid var(--color-reggae); }
+    .show-card--mix    { border-top: 3px solid var(--color-accent); }
+    .show-card__label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: var(--space-2);
+    }
+    .show-card__title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--text-2xl);
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: var(--space-4);
+    }
+    .show-card--dylan   .show-card__title { color: var(--color-dylan); }
+    .show-card--sublime .show-card__title { color: var(--color-sublime); }
+    .show-card--reggae  .show-card__title { color: var(--color-reggae); }
+    .show-card--mix     .show-card__title { color: var(--color-accent); }
+    .show-card__desc {
+      font-size: var(--text-base);
+      font-weight: 300;
+      line-height: 1.65;
+      color: oklch(78% 0 0);
+    }
+    .show-card__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      margin-top: var(--space-5);
+    }
+
+    /* ── Players grid ── */
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: var(--space-6);
+      margin-top: var(--space-10);
+    }
+    .player-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      transition: border-color var(--dur-base) var(--ease-out);
+    }
+    .player-card:hover { border-color: var(--color-border-hover); }
+    .player-card__number {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-accent);
+      letter-spacing: 0.1em;
+      margin-bottom: var(--space-3);
+    }
+    .player-card__name {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--text-xl);
+      text-transform: uppercase;
+      line-height: 1.1;
+      color: var(--color-text);
+      margin-bottom: var(--space-1);
+    }
+    .player-card__role {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: var(--space-4);
+    }
+    .player-card__bio {
+      font-size: var(--text-sm);
+      font-weight: 300;
+      line-height: 1.65;
+      color: oklch(70% 0 0);
+    }
+
+    /* ── Special guests ── */
+    .guests-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-6);
+      margin-top: var(--space-10);
+    }
+    .guest-card {
+      flex: 1 1 260px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      display: flex;
+      gap: var(--space-4);
+      align-items: flex-start;
+    }
+    .guest-card__icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+      line-height: 1;
+      margin-top: 2px;
+    }
+    .guest-card__name {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--text-lg);
+      text-transform: uppercase;
+      color: var(--color-text);
+      margin-bottom: var(--space-1);
+    }
+    .guest-card__role {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: var(--space-3);
+    }
+    .guest-card__bio {
+      font-size: var(--text-sm);
+      font-weight: 300;
+      line-height: 1.6;
+      color: oklch(70% 0 0);
+    }
+
+    /* ── FAQ accordion ── */
+    .faq-list {
+      margin-top: var(--space-10);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .faq-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color var(--dur-fast) var(--ease-out);
+    }
+    .faq-item[open] { border-color: var(--color-border-hover); }
+    .faq-item summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-5) var(--space-6);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary:focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: -2px;
+    }
+    .faq-question {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-lg);
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+    .faq-icon {
+      font-family: var(--font-mono);
+      font-size: var(--text-xl);
+      color: var(--color-accent);
+      flex-shrink: 0;
+      transition: transform var(--dur-fast) var(--ease-out);
+      line-height: 1;
+    }
+    .faq-item[open] .faq-icon { transform: rotate(45deg); }
+    .faq-answer {
+      padding: 0 var(--space-6) var(--space-6);
+      font-size: var(--text-base);
+      font-weight: 300;
+      line-height: 1.7;
+      color: oklch(78% 0 0);
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-5);
+    }
+    .faq-answer p + p { margin-top: var(--space-3); }
+    .faq-answer strong {
+      color: var(--color-accent);
+      font-weight: 400;
+    }
+
+    /* ── Divider ── */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--color-border);
+      margin: 0;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .about-intro {
+        grid-template-columns: 1fr;
+        gap: var(--space-8);
+      }
+      .players-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      }
+    }
+    @media (max-width: 480px) {
+      .shows-grid { grid-template-columns: 1fr; }
+      .players-grid { grid-template-columns: 1fr 1fr; }
+      .guests-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/stashbox/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/stashbox/">Home</a></li>
+      <li><a href="/stashbox/radio/">Radio</a></li>
+      <li><a href="/stashbox/videos/">Videos</a></li>
+      <li><a href="/stashbox/sessions/">Sessions</a></li>
+      <li><a href="/stashbox/shop/">Shop</a></li>
+      <li><a href="/stashbox/setlists/">Setlists</a></li>
+      <li><a href="/stashbox/booking/">Book Band</a></li>
+      <li><a href="/stashbox/about/">About</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<header class="page-header">
+  <div class="container">
+    <h1 class="page-header__title">STASHBOX</h1>
+    <p class="page-header__sub">South Florida Live Band · Rock · Reggae · Blues · Funk · Originals</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Band Intro ── -->
+  <section class="section" aria-labelledby="about-heading">
+    <div class="container">
+      <div class="about-intro fade-in">
+        <div>
+          <h2 class="about-intro__headline" id="about-heading">FUN.<br>ENERGETIC.<br><em>FLEXIBLE.</em></h2>
+          <div class="about-intro__tags">
+            <span class="about-tag">Rock</span>
+            <span class="about-tag">Reggae</span>
+            <span class="about-tag">Blues</span>
+            <span class="about-tag">Funk</span>
+            <span class="about-tag">Originals</span>
+            <span class="about-tag">South Florida</span>
+            <span class="about-tag">2–8 Piece</span>
+            <span class="about-tag">Full PA System</span>
+          </div>
+        </div>
+        <div class="about-intro__body">
+          <p>Stashbox is a South Florida live band built for the stage — high energy, genre-spanning, and always locked into the room. From intimate bar sets to festival main stages, we bring the same commitment to every performance.</p>
+          <p>The band plays original music alongside deep-catalog covers spanning rock, reggae, blues, funk, and Americana. Tribute productions — Stashbox Does Dylan, Stashbox Does Sublime, and our Classic Reggae show — are full-scale, fully rehearsed performances with period-appropriate arrangements and production.</p>
+          <p>We come fully self-contained with a professional PA system and can scale from 2 to 8 pieces depending on the venue and budget. Studio recordings were tracked at Studio One, Fort Lauderdale, FL.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── Shows ── -->
+  <section class="section" aria-labelledby="shows-heading">
+    <div class="container">
+      <p class="section-label fade-in">What We Do</p>
+      <h2 class="section-title fade-in" id="shows-heading">THE SHOWS</h2>
+      <div class="shows-grid">
+
+        <article class="show-card show-card--dylan fade-in">
+          <p class="show-card__label">Tribute Production</p>
+          <h3 class="show-card__title">Stashbox Does Dylan</h3>
+          <p class="show-card__desc">A full-band deep dive into Bob Dylan's catalog — folk-rock classics, mid-period anthems, and late-era masterworks. 19 tracks recorded live at Studio One and released as an LP in February 2026. Spanning five decades: folk, rock, blues, country, and Americana. From <em>Blowin' in the Wind</em> to <em>Things Have Changed</em>.</p>
+          <div class="show-card__badges">
+            <span class="badge badge--dylan">Folk</span>
+            <span class="badge badge--dylan">Rock</span>
+            <span class="badge badge--dylan">Americana</span>
+            <span class="badge badge--dylan">Blues</span>
+          </div>
+        </article>
+
+        <article class="show-card show-card--sublime fade-in">
+          <p class="show-card__label">Tribute Production</p>
+          <h3 class="show-card__title">Stashbox Does Sublime</h3>
+          <p class="show-card__desc">The ska-punk-reggae hybrid that defined a generation. Raw energy and groove, built for outdoor stages, beach bars, and anywhere the vibe matters. Every song delivered with the loose, sun-soaked spirit of the original recordings.</p>
+          <div class="show-card__badges">
+            <span class="badge badge--sublime">Ska</span>
+            <span class="badge badge--sublime">Reggae</span>
+            <span class="badge badge--sublime">Rock</span>
+            <span class="badge badge--sublime">Punk</span>
+          </div>
+        </article>
+
+        <article class="show-card show-card--reggae fade-in">
+          <p class="show-card__label">Tribute Production</p>
+          <h3 class="show-card__title">Classic Reggae Show</h3>
+          <p class="show-card__desc">Roots, rock steady, and the golden era of Jamaican music. Toots &amp; the Maytals, Burning Spear, Jimmy Cliff, Bob Marley, and beyond. A celebratory full-set tribute to the music that built a movement.</p>
+          <div class="show-card__badges">
+            <span class="badge badge--reggae">Roots</span>
+            <span class="badge badge--reggae">Rock Steady</span>
+            <span class="badge badge--reggae">Dub</span>
+            <span class="badge badge--reggae">Classic Reggae</span>
+          </div>
+        </article>
+
+        <article class="show-card show-card--mix fade-in">
+          <p class="show-card__label">Full Set</p>
+          <h3 class="show-card__title">Stashbox Mix Show</h3>
+          <p class="show-card__desc">The full Stashbox experience — rock, reggae, blues, funk, and originals in one set. 200+ songs in the catalog, fully customizable setlist. Available as a duo, trio, quartet, or full 8-piece. Perfect for events that want range without a single-genre focus.</p>
+          <div class="show-card__badges">
+            <span class="badge badge--dylan">Rock</span>
+            <span class="badge badge--reggae">Reggae</span>
+            <span class="badge badge--dylan">Blues</span>
+            <span class="badge badge--sublime">Funk</span>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── Players ── -->
+  <section class="section" aria-labelledby="players-heading">
+    <div class="container">
+      <p class="section-label fade-in">The Band</p>
+      <h2 class="section-title fade-in" id="players-heading">THE PLAYERS</h2>
+      <div class="players-grid">
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">01</p>
+          <h3 class="player-card__name">Dean Palermo</h3>
+          <p class="player-card__role">Guitar · Vocals · Founder</p>
+          <p class="player-card__bio">Founder and frontman of Stashbox. Dean writes the originals, curates the catalog, and holds the room together whether it's a two-piece acoustic set or a full eight-piece stage production. The creative engine behind the Dylan LP and Stashbox Radio.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">02</p>
+          <h3 class="player-card__name">Josh Clyde</h3>
+          <p class="player-card__role">Bass</p>
+          <p class="player-card__bio">Josh is the low-end anchor of the live show. A session-level bassist with a deep pocket and instinctive ear for the groove whether the set calls for reggae one-drop, blues shuffle, or funk.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">03</p>
+          <h3 class="player-card__name">Michael Hugh</h3>
+          <p class="player-card__role">Drums</p>
+          <p class="player-card__bio">Michael drives the Stashbox engine. Versatile across every genre the band plays, he locks with the bass and keeps the band moving without overshadowing the song — the mark of a truly professional drummer.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">04</p>
+          <h3 class="player-card__name">Peter Roland</h3>
+          <p class="player-card__role">Keyboards</p>
+          <p class="player-card__bio">Peter's keys add the harmonic color and texture that let Stashbox move across styles without losing cohesion. From Hammond organ to electric piano to synth pads, he fills the space perfectly on every gig.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">05</p>
+          <h3 class="player-card__name">Gary "G Money" Williams</h3>
+          <p class="player-card__role">Percussion</p>
+          <p class="player-card__bio">G Money brings congas, bongos, and an infectious live energy that pushes the reggae and funk sets to another level. His percussion work is a signature part of the Stashbox live sound.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">06</p>
+          <h3 class="player-card__name">David Nizri</h3>
+          <p class="player-card__role">Saxophone</p>
+          <p class="player-card__bio">David's saxophone work spans jazz phrasing, blues wailing, and classic reggae horn lines. He adds depth and a musical sophistication to the arrangements that elevates every set he's part of.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">07</p>
+          <h3 class="player-card__name">Mike Ancona</h3>
+          <p class="player-card__role">Guitar</p>
+          <p class="player-card__bio">Mike is a skilled second guitarist who adds rhythm, riff, and lead support across the set. His guitar work gives the band a fuller wall of sound on larger stages and lets Dean focus on fronting the show.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">08</p>
+          <h3 class="player-card__name">Jarvis Jones</h3>
+          <p class="player-card__role">Vocals</p>
+          <p class="player-card__bio">Jarvis brings powerful lead and harmony vocals that open up the set list and add another dimension to the live show. His voice is a natural fit for the soul, reggae, and rock catalog Stashbox draws from.</p>
+        </article>
+
+        <article class="player-card fade-in">
+          <p class="player-card__number">09</p>
+          <h3 class="player-card__name">Bob Cleary</h3>
+          <p class="player-card__role">Violin · Fiddle</p>
+          <p class="player-card__bio">Bob's violin adds a signature texture to the Dylan sets and the Americana-leaning material. A classically trained player with serious road experience, he brings acoustic warmth and melodic lead lines to the stage.</p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── Special Guests ── -->
+  <section class="section section--tight" aria-labelledby="guests-heading">
+    <div class="container">
+      <p class="section-label fade-in">Special Appearances</p>
+      <h2 class="section-title fade-in" id="guests-heading">SPECIAL GUESTS</h2>
+      <div class="guests-row">
+
+        <article class="guest-card fade-in">
+          <div class="guest-card__icon" aria-hidden="true">🥁</div>
+          <div>
+            <h3 class="guest-card__name">Squidly Cole</h3>
+            <p class="guest-card__role">Drums · Third World</p>
+            <p class="guest-card__bio">Legendary drummer and founding member of Third World, one of the longest-running reggae bands in the world. When Squidly sits behind the kit with Stashbox, the reggae sets reach an entirely different level.</p>
+          </div>
+        </article>
+
+        <article class="guest-card fade-in">
+          <div class="guest-card__icon" aria-hidden="true">🎵</div>
+          <div>
+            <h3 class="guest-card__name">Craig Woloshin</h3>
+            <p class="guest-card__role">Harmonica</p>
+            <p class="guest-card__bio">Craig brings blues-drenched harmonica to the Dylan sets and the blues catalog. His playing is raw, expressive, and perfectly suited to the Americana material that's central to the Stashbox Does Dylan show.</p>
+          </div>
+        </article>
+
+        <article class="guest-card fade-in">
+          <div class="guest-card__icon" aria-hidden="true">🎤</div>
+          <div>
+            <h3 class="guest-card__name">Lulu Coelho</h3>
+            <p class="guest-card__role">Vocals</p>
+            <p class="guest-card__bio">Lulu is a powerhouse vocalist whose range and stage presence make her a crowd favorite whenever she joins Stashbox. She's appeared on reggae and funk sets and brings a soulful energy the audience feels immediately.</p>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ── FAQ ── -->
+  <section class="section" aria-labelledby="faq-heading">
+    <div class="container">
+      <p class="section-label fade-in">Before You Book</p>
+      <h2 class="section-title fade-in" id="faq-heading">FAQ</h2>
+      <div class="faq-list" role="list">
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">What types of events do you play?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>Stashbox plays festivals, casinos, resorts, private parties, corporate events, city concerts, and sporting events. We've played outdoor stages, hotel ballrooms, beach venues, and everything in between. If you have a stage and an audience, we're in.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">How many musicians come with the band?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>Stashbox scales from 2 to 8 pieces depending on your venue size, stage, and budget. A duo or trio is great for intimate venues and cocktail hours. The full 8-piece — guitar, bass, drums, keys, percussion, sax, second guitar, and vocals — is built for festival main stages and large event spaces.</p>
+            <p>We'll work with you to find the right configuration for your event.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">Do you bring your own PA system?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>Yes. Stashbox is fully self-contained with a professional PA system. We don't need you to supply a sound system or a sound engineer for most events. For very large outdoor stages, we can integrate with your existing production — just let us know what you have and we'll coordinate.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">Can we customize the setlist?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>Absolutely. We have <strong>200+ songs</strong> in the catalog across rock, reggae, blues, funk, and originals. You can request specific songs, pick a genre focus, or tell us the vibe you want and let us build the set. The tribute shows (Dylan, Sublime, Classic Reggae) have dedicated setlists, but the mix show is fully customizable.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">What is the Stashbox Does Dylan show?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>It's a full-scale tribute to Bob Dylan spanning five decades of his catalog — from early folk and protest songs through his rock period, the country albums, and his late-career masterpieces. We recorded a 19-track live LP at Studio One in Fort Lauderdale in 2026. The show is fully arranged, fully rehearsed, and performs the material with real reverence for Dylan's songwriting.</p>
+            <p>If you want a sophisticated, emotionally resonant tribute production, this is the one.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">How far in advance do we need to book?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>For weekends and peak season dates (winter and spring in South Florida), <strong>60–90 days</strong> ahead is ideal. We do take last-minute bookings when the calendar allows, so it's always worth reaching out even if your event is soon. Contact us and we'll let you know availability immediately.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">Do you travel outside of South Florida?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>Yes. Stashbox is based in South Florida but available for events anywhere. We've played events across Florida and travel nationally for festivals, casino engagements, and destination events. Travel and accommodation details are factored into the booking quote.</p>
+          </div>
+        </details>
+
+        <details class="faq-item accordion fade-in">
+          <summary>
+            <span class="faq-question">How do I get a quote or check availability?</span>
+            <span class="faq-icon accordion__icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="faq-answer">
+            <p>The fastest way is to call or text <strong>310.408.6687</strong>. You can also email <a href="mailto:booking@stashbox.com" style="color:var(--color-accent)">booking@stashbox.com</a> with your event date, venue, and a note about what you're looking for. We respond quickly and can usually get you a quote the same day.</p>
+          </div>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="section booking-cta" id="contact" aria-label="Book Stashbox">
+    <div class="container">
+      <div class="booking-cta__inner fade-in">
+        <h2 class="section-title" id="contact-heading">LET'S TALK.</h2>
+        <p class="booking-cta__sub">Festivals · Casinos · Resorts · Private Events<br>Corporate · City Concerts · Sporting Events</p>
+        <div class="booking-cta__contact">
+          <a href="tel:3104086687" class="booking-cta__phone">310.408.6687</a>
+          <a href="mailto:booking@stashbox.com" class="booking-cta__email">booking@stashbox.com</a>
+        </div>
+        <a href="/stashbox/booking/" class="btn btn--accent btn--lg">Book the Band</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner container">
+    <div class="footer__brand">
+      <a href="/stashbox/" class="footer__logo" aria-label="Stashbox">
+        <img src="/stashbox/images/branding/stashbox-logo-transparent-rasta-colors.png"
+             alt="Stashbox"
+             class="footer__logo-img"
+             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="footer__logo-text" style="display:none">STASHBOX</span>
+      </a>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+      <div class="footer__contact">
+        <a href="tel:3104086687">310.408.6687</a>
+        <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+      </div>
+    </div>
+    <div class="footer__nav-cols">
+      <div class="footer__col">
+        <h4 class="footer__col-title">Tribute Shows</h4>
+        <ul>
+          <li><a href="/stashbox/booking/">Stashbox Does Dylan</a></li>
+          <li><a href="/stashbox/booking/">Stashbox Does Sublime</a></li>
+          <li><a href="/stashbox/booking/">Classic Reggae Show</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">Music</h4>
+        <ul>
+          <li><a href="/stashbox/radio/">Radio</a></li>
+          <li><a href="/stashbox/videos/">Videos</a></li>
+          <li><a href="/stashbox/sessions/">Sessions</a></li>
+          <li><a href="/stashbox/setlists/">Setlists</a></li>
+        </ul>
+      </div>
+      <div class="footer__col">
+        <h4 class="footer__col-title">More</h4>
+        <ul>
+          <li><a href="/stashbox/about/">About</a></li>
+          <li><a href="https://stashbox.ai/collections/stashbox" target="_blank" rel="noopener noreferrer">Merch Store</a></li>
+          <li><a href="/stashbox/custom/">Custom Music</a></li>
+          <li><a href="/stashbox/booking/">Book Band</a></li>
+          <li><a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__social" aria-label="Social links">
+      <a href="https://www.youtube.com/@stashboxband" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      </a>
+      <a href="https://www.facebook.com/Stashboxcom/" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </a>
+      <a href="https://www.instagram.com/stashboxmusic" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+      </a>
+      <a href="https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa" class="footer__social-link" target="_blank" rel="noopener noreferrer" aria-label="Spotify">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      </a>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
+    </div>
+  </div>
+</footer>
+
+<script src="/stashbox/main.js"></script>
+
+</body>
+</html>
