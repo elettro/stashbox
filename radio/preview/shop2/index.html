@@ -291,7 +291,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-srch-slabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 1rem 4px}
 .m-srch-empty{color:var(--muted);text-align:center;padding:3rem 0;font-size:14px}
 
-
 @media (min-width:768px) and (max-width:1100px) and (orientation:portrait){
   .d-nav-inner{padding:8px 10px}
   .d-logo{font-size:24px}
@@ -299,11 +298,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
   .chip{height:30px;padding:0 11px;font-size:18px}
   .d-srch{width:170px;font-size:18px}
   .d-srch:focus{width:190px}
-
   .d-page{padding:1rem}
   .d-grid{grid-template-columns:1fr;gap:8px}
   .dcard{padding:10px}
-
   .dp-bottom{align-items:flex-start}
   .dp-info{width:100%}
   .dp-title{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.2}
@@ -536,10 +533,11 @@ let trackedPlaySessions=new Set();
 let activeListenSession=null;
 let listenTimeSentSessions=new Set();
 let isScrubbingDesktop=false;
-let youtubePlayer=null;   // FIX: was referenced but never declared
+let youtubePlayer=null;
 let playerMode='audio';
 let videoMode=false;
 let youtubePlaying=false;
+let audioRetryCount=0;   // tracks retries on audio load failure
 
 const audio        = document.getElementById('audio');
 const dpScrubber   = document.getElementById('dp-scrubber');
@@ -551,7 +549,6 @@ const watchVideoBtn= document.getElementById('watch-video-btn');
 const isMob        = () => window.innerWidth < 768;
 
 // ════════ YOUTUBE API ════════
-// FIX: was called but never defined — caused crash on Watch Video
 function ensureYouTubeApi() {
   return new Promise(resolve => {
     if (typeof YT !== 'undefined' && YT.Player) { resolve(); return; }
@@ -566,6 +563,25 @@ function ensureYouTubeApi() {
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     document.head.appendChild(tag);
+  });
+}
+
+// ════════ IMAGE HELPERS ════════
+// Called by onerror on the mobile now-screen image — switches gracefully to visualizer
+function onMobileTrackImageError() {
+  const media = document.getElementById('m-now-media');
+  if (!media || !currentTrack) return;
+  const title = currentTrack.title || '';
+  media.innerHTML = `<div class="m-now-vis"><div class="m-now-vis-title">${escapeHtml(title)}</div><canvas id="m-vis-cv" style="width:100%;height:100px;display:block"></canvas></div>`;
+  mStartVis();
+}
+
+// Warm the browser cache for the next/prev track images while current is playing
+function preloadAdjacentImages() {
+  [qIdx + 1, qIdx - 1].forEach(i => {
+    if (i >= 0 && i < queue.length && queue[i]?.imageUrl) {
+      new Image().src = queue[i].imageUrl;
+    }
   });
 }
 
@@ -611,7 +627,7 @@ function parseCSV(csv) {
       audioUrl:   fixDb(cl(c[6])),
       imageUrl:   fixDb(cl(c[8])),
       videoUrl:   cl(c[9]),
-      videoLink:  cl(c[9]),   // same column — keep both names for compat
+      videoLink:  cl(c[9]),
       notes:      cl(c[10]),
       plays:      Number(cl(c[11])) || 0,
       songShares: Number(cl(c[15])) || 0,
@@ -638,8 +654,9 @@ function parseCSVRows(csv) {
   return rows;
 }
 
-const cl    = s => (s||'').trim().replace(/^"|"$/g,'');
-const fixDb = u => u ? u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'') : '';
+const cl      = s => (s||'').trim().replace(/^"|"$/g,'');
+const fixDb   = u => u ? u.replace('www.dropbox.com','dl.dropboxusercontent.com').replace(/\?dl=[01]/,'') : '';
+const escapeHtml = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 const ytEmbed = url => {
   let id='';
   if(url.includes('youtube.com/watch')){try{id=new URL(url).searchParams.get('v')}catch(e){}}
@@ -767,7 +784,9 @@ function dRender() {
 }
 function dCard(t,i,sec) {
   const pl=currentTrack&&currentTrack.idx===t.idx;
-  const thumb=t.imageUrl?`<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" style="width:100%;height:100%;object-fit:cover"/>`:sec.emoji;
+  const thumb=t.imageUrl
+    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`
+    : sec.emoji;
   return `<div class="dcard ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','d')">
     <div class="dcard-num">${pl?'♪':i+1}</div>
     <div class="dcard-thumb">${thumb}</div>
@@ -838,7 +857,9 @@ function mRender() {
 }
 function mRow(t,i,sec) {
   const pl=currentTrack&&currentTrack.idx===t.idx;
-  const thumb=t.imageUrl?`<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy"/>`:sec.emoji;
+  const thumb=t.imageUrl
+    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" decoding="async"/>`
+    : sec.emoji;
   return `<div class="mrow ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','m')">
     <div class="mthumb">${thumb}</div>
     <div class="mtrack-info">
@@ -1050,6 +1071,19 @@ audio.addEventListener('timeupdate',()=>{
 });
 audio.addEventListener('loadedmetadata',()=>{if(dpScrubber)dpScrubber.value='0';updateDesktopTimes();});
 
+// Retry on audio load failure — up to 2 attempts with cache-busting URL param
+audio.addEventListener('error', () => {
+  if (!currentTrack?.audioUrl || audioRetryCount >= 2) return;
+  audioRetryCount++;
+  const sep = currentTrack.audioUrl.includes('?') ? '&' : '?';
+  const retryUrl = currentTrack.audioUrl + sep + '_r=' + Date.now();
+  setTimeout(() => {
+    audio.src = retryUrl;
+    audio.load();
+    audio.play().catch(() => {});
+  }, 1500 * audioRetryCount);
+});
+
 function setPlayBtns(paused){
   const icon=paused?'&#9654;':'&#9646;&#9646;';
   ['d-pp','m-bar-pp','m-nc-pp'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=icon;});
@@ -1128,7 +1162,6 @@ function updateMediaSession(t){
   navigator.mediaSession.setActionHandler('nexttrack',playNext);
 }
 
-
 function scrollToPlayerTop(){
   const mobileScroll=document.getElementById('m-scroll');
   if(mobileScroll)mobileScroll.scrollTo({top:0,behavior:'smooth'});
@@ -1138,6 +1171,7 @@ function scrollToPlayerTop(){
 // ════════ LOAD TRACK ════════
 function loadTrack(t,options={}) {
   if(!t||!audio)return;
+  audioRetryCount=0;   // reset retry counter for new track
   const shouldScrollToTop=options.scrollToTop===true;
   if(currentTrack&&activeListenSession)sendListenTime('track_changed');
 
@@ -1169,9 +1203,24 @@ function loadTrack(t,options={}) {
   dpMedia.classList.remove('toggleable');dpVis.classList.remove('toggleable');
 
   if(t.imageUrl){
-    dpImg.src=t.imageUrl;dpImg.style.display='block';dpMedia.style.display='block';
+    dpImg.src=t.imageUrl;
+    dpImg.style.display='block';
+    dpMedia.style.display='block';
     dpMedia.classList.add('toggleable');
-    dpAudio.style.display='block';if(dpScrub)dpScrub.style.display='block';dpAudio.appendChild(audio);
+    dpAudio.style.display='block';
+    if(dpScrub)dpScrub.style.display='block';
+    dpAudio.appendChild(audio);
+    // If the player image fails to load, fall through to visualizer gracefully
+    dpImg.onerror=function(){
+      this.onerror=null;
+      this.style.display='none';
+      dpMedia.style.display='none';
+      dpMedia.classList.remove('toggleable');
+      document.getElementById('dp-vis-title').textContent=t.title;
+      dpVis.style.display='flex';
+      dpVis.classList.add('toggleable');
+      dStartVis();
+    };
     if(t.audioUrl){audio.src=t.audioUrl;updateMediaSession(t);audio.play().catch(()=>{});}
   }else{
     document.getElementById('dp-vis-title').textContent=t.title;
@@ -1198,7 +1247,7 @@ function loadTrack(t,options={}) {
   document.getElementById('m-barartist').textContent=t.artist||'';
   const mBarPlays=document.getElementById('m-barplays');if(mBarPlays)mBarPlays.textContent=`▶ ${t.plays||0} Plays`;
   const mbt=document.getElementById('m-barthumb');
-  mbt.innerHTML=t.imageUrl?`<img src="${t.imageUrl}" alt="" onerror="this.innerHTML='🎵'" loading="lazy"/>`:sec.emoji;
+  mbt.innerHTML=t.imageUrl?`<img src="${t.imageUrl}" alt="" onerror="this.innerHTML='🎵'" loading="lazy" decoding="async"/>`:sec.emoji;
 
   // ── Mobile now screen ──
   document.getElementById('m-now-title').textContent=t.title;
@@ -1217,13 +1266,17 @@ function loadTrack(t,options={}) {
   if(mNowArtInline){mNowArtInline.style.display='none';mNowArtInline.innerHTML='';}
 
   if(t.imageUrl){
-    mMedia.innerHTML=`<img src="${t.imageUrl}" alt="${t.title}" style="max-width:100%;max-height:100%;object-fit:contain" loading="lazy"/>`;
-    if(mNowArtInline){mNowArtInline.innerHTML=`<img src="${t.imageUrl}" alt="${t.title}" loading="lazy"/>`;mNowArtInline.style.display='block';}
+    // onerror calls onMobileTrackImageError() which switches to visualizer
+    mMedia.innerHTML=`<img src="${escapeHtml(t.imageUrl)}" alt="${escapeHtml(t.title)}" style="max-width:100%;max-height:100%;object-fit:contain" loading="lazy" onerror="onMobileTrackImageError()"/>`;
+    if(mNowArtInline){
+      mNowArtInline.innerHTML=`<img src="${escapeHtml(t.imageUrl)}" alt="${escapeHtml(t.title)}" loading="lazy" onerror="this.closest('.m-now-art-inline').style.display='none'"/>`;
+      mNowArtInline.style.display='block';
+    }
     mMedia.classList.add('toggleable');
     mAudio.style.display='block';mAudio.appendChild(audio);
     if(t.audioUrl){audio.src=t.audioUrl;updateMediaSession(t);audio.play().catch(()=>{});}
   }else{
-    mMedia.innerHTML=`<div class="m-now-vis"><div class="m-now-vis-title">${t.title}</div><canvas id="m-vis-cv" style="width:100%;height:100px;display:block"></canvas></div>`;
+    mMedia.innerHTML=`<div class="m-now-vis"><div class="m-now-vis-title">${escapeHtml(t.title)}</div><canvas id="m-vis-cv" style="width:100%;height:100px;display:block"></canvas></div>`;
     mMedia.classList.add('toggleable');
     mAudio.style.display='block';mAudio.appendChild(audio);
     if(t.audioUrl){audio.src=t.audioUrl;updateMediaSession(t);audio.play().catch(()=>{});}
@@ -1234,11 +1287,14 @@ function loadTrack(t,options={}) {
 
   if(shouldScrollToTop)scrollToPlayerTop();
 
-  // ── Notify shop — guarded so missing shop1.js never breaks playback ──
+  // Notify shop — guarded so missing shop1.js never breaks playback
   if(typeof window.updateRadioMerch==='function'){
     window.updateRadioMerch(t);
   }
   window.dispatchEvent(new CustomEvent('stashbox:trackchange',{detail:{track:t}}));
+
+  // Warm the cache for adjacent tracks so next/prev transitions are instant
+  preloadAdjacentImages();
 }
 
 // ════════ VISUALIZERS ════════
