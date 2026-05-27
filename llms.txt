@@ -7,7 +7,7 @@
 
 ## Music & Releases
 - [Songs & Releases](https://elettro.github.io/stashbox/songs/): Stashbox Does Dylan LP (19 tracks), Funky Kingston, Jam Rock, Get Up Stand Up. Available on Spotify, Apple Music, YouTube Music.
-- [Stashbox Does Dylan](https://elettro.github.io/stashbox/dylan/): 19-track tribute album spanning five decades of Bob Dylan's catalog. Recorded live at Studio One, Fort Lauderdale, FL. Released February 2026.
+- [Stashbox Does Dylan](https://elettro.github.io/stashbox/bobdylan/): 19-track tribute album spanning five decades of Bob Dylan's catalog. Recorded live at Studio One, Fort Lauderdale, FL. Released February 2026.
 - [Sessions](https://elettro.github.io/stashbox/sessions/): Studio and live session documentation. Session 1 (March 18, 2026) and Session 2 (March 31, 2026) at Studio One, Fort Lauderdale, FL.
 - [Videos](https://elettro.github.io/stashbox/videos/): Live performance videos, originals, covers, and studio sessions. Filterable by genre, venue, artist, and type.
 
