@@ -771,12 +771,12 @@ function normSong(r) {
     'songImage',
     'Song Image'
   ) || '').trim();
-  const plays  = pn(pick(r,'plays','Plays','play_count'));
+  const plays  = pn(pick(r,'playCount','plays','Plays','play_count'));
   const full   = pn(pick(r,'fullPlays','full plays','Full Plays','full_song_plays'));
   const secs   = pn(pick(r,'playSeconds','play seconds','total seconds'));
   const avg    = pn(pick(r,'averageSeconds','average seconds','avg seconds','avg_listen_seconds')) || (plays ? secs/plays : 0);
-  const shares = pn(pick(r,'shares','Shares','shareClicks','share_clicks'));
-  const likes  = pn(pick(r,'likes','Likes'));
+  const shares = pn(pick(r,'shareCount','shares','Shares','shareClicks','share_clicks'));
+  const likes  = pn(pick(r,'likeCount','likes','Likes'));
   const skips  = pn(pick(r,'skips','Skips'));
   return { title, artist, genre, thumb, plays, full, secs, avg, shares, likes, skips,
     link: pick(r,'songUrl') || `../radio/preview/shop2/?song=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&autoplay=1` };
@@ -795,9 +795,9 @@ function normVideo(r) {
     title: String(pick(r,'title','Title','video title') || 'Untitled').trim(),
     artist: String(pick(r,'artist','Artist') || '').trim(),
     thumb: explicitThumb || ytThumb(url),
-    likes: pn(pick(r,'likes','Likes')),
-    clicks: pn(pick(r,'clicks','Clicks','views','Views')),
-    shares: pn(pick(r,'shares','Shares')),
+    likes: pn(pick(r,'likeCount','likes','Likes')),
+    clicks: pn(pick(r,'playCount','clicks','Clicks','views','Views')),
+    shares: pn(pick(r,'shareCount','shares','Shares')),
     url,
   };
 }
