@@ -128,7 +128,7 @@
         <button class="stream-popup-close" type="button" aria-label="Close streaming popup">×</button>
         <div class="stream-popup-image-wrap">
           <img
-            src="/stashbox/images/streamon-horizontal-1.png"
+            src="/images/streamon-horizontal-1.png"
             alt="Stream Stashbox on YouTube, Spotify, Apple Music, and YouTube Music"
             class="stream-popup-image"
           >

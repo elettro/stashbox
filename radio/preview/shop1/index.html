@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -41,9 +41,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .bimg{background:rgba(100,180,255,0.12);color:#64b4ff}
 .bvid{background:rgba(62,207,110,0.12);color:var(--green)}
 
-/* ══════════════════════════════════════
-   DESKTOP (≥768px)
-══════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   DESKTOP (â‰¥768px)
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 #desktop{display:none}
 
 /* nav */
@@ -162,9 +162,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .d-vmod-close:hover{border-color:var(--border-h);color:var(--text)}
 #d-vmod-iframe{width:100%;aspect-ratio:16/9;border:none}
 
-/* ══════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MOBILE (<768px)
-══════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 #mobile{display:none;flex-direction:column;height:100vh;overflow:hidden}
 #m-nav{height:52px;flex-shrink:0;background:rgba(12,12,14,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1rem;gap:10px}
 .m-logo{font-family:var(--fh);font-size:26px;letter-spacing:.06em;color:var(--accent)}
@@ -286,9 +286,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .m-srch-slabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 1rem 4px}
 .m-srch-empty{color:var(--muted);text-align:center;padding:3rem 0;font-size:14px}
 
-/* ══════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    RESPONSIVE SWITCH
-══════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media(min-width:768px){#desktop{display:block}#mobile{display:none!important}}
 @media(max-width:767px){
   .song-share-main{height:36px;padding:0 12px;font-size:11px;}#desktop{display:none!important}#mobile{display:flex}body{overflow:hidden;height:100vh}
@@ -302,14 +302,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 <!-- LOADING -->
 <div id="loading">
   <div class="load-logo">STASHBOX</div>
-  <div class="load-sub">Tuning in…</div>
+  <div class="load-sub">Tuning inâ€¦</div>
 </div>
 
-<!-- ══════════════ DESKTOP ══════════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• DESKTOP â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="desktop">
   <nav id="d-nav">
     <div class="d-nav-inner">
-      <a class="logo-link" href="/stashbox/index.html"><div class="d-logo">STASH<span>BOX</span></div></a>
+      <a class="logo-link" href="/index.html"><div class="d-logo">STASH<span>BOX</span></div></a>
       <div class="d-div"></div>
       <div class="d-filters">
         <span class="d-flabel">Genre</span>
@@ -318,14 +318,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
         <span class="d-flabel">Album</span>
         <div id="d-album-chips"></div>
         <div class="d-div"></div>
-        <button class="chip vc" id="d-vc" onclick="dToggleVideo()">▶ Has Video</button>
+        <button class="chip vc" id="d-vc" onclick="dToggleVideo()">â–¶ Has Video</button>
       </div>
       <div class="d-nav-right">
         <span class="d-total" id="d-total"></span>
-        <button class="btn-reset" id="d-reset" onclick="resetAll()">✕ Reset</button>
+        <button class="btn-reset" id="d-reset" onclick="resetAll()">âœ• Reset</button>
         <div class="d-srch-wrap">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="d-srch" id="d-srch" type="text" placeholder="Search…" oninput="dSearch()"/>
+          <input class="d-srch" id="d-srch" type="text" placeholder="Searchâ€¦" oninput="dSearch()"/>
         </div>
       </div>
     </div>
@@ -335,11 +335,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
     <div class="shero">
       <div>
         <div class="shero-title">STASHBOX RADIO</div>
-        <div class="shero-sub" id="d-sub">Loading…</div>
+        <div class="shero-sub" id="d-sub">Loadingâ€¦</div>
       </div>
       <div class="shero-btns">
-        <button class="btn-sha" onclick="doShuffle('all','d')">⇄ SHUFFLE ALL</button>
-        <button class="btn-shf" id="d-shf" onclick="doShuffle('filtered','d')">⇄ SHUFFLE FILTERED</button>
+        <button class="btn-sha" onclick="doShuffle('all','d')">â‡„ SHUFFLE ALL</button>
+        <button class="btn-shf" id="d-shf" onclick="doShuffle('filtered','d')">â‡„ SHUFFLE FILTERED</button>
       </div>
     </div>
 
@@ -357,13 +357,13 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       </div>
       <div class="dp-bottom">
         <div class="dp-info">
-          <div class="dp-title" id="dp-title">—</div>
+          <div class="dp-title" id="dp-title">â€”</div>
           <div class="dp-meta"><span id="dp-artist"></span><span id="dp-album" style="font-style:italic;color:var(--muted);margin-left:6px;font-size:11px;display:none"></span><span class="dp-gtag" id="dp-gtag"></span></div>
           <div class="dp-notes" id="dp-notes" style="display:none"></div>
         </div>
-        <div class="now-plays" id="dp-plays">▶ 0 Plays</div>
-        <button class="song-share-main" id="dp-share" onclick="copyCurrentSongLink(event)" style="display:none">⤴ Share Song</button>
-        <button id="watch-video-btn" class="song-share-main watch-video-btn" type="button" onclick="watchCurrentTrackVideo(event)">▶ Watch Video</button>
+        <div class="now-plays" id="dp-plays">â–¶ 0 Plays</div>
+        <button class="song-share-main" id="dp-share" onclick="copyCurrentSongLink(event)" style="display:none">â¤´ Share Song</button>
+        <button id="watch-video-btn" class="song-share-main watch-video-btn" type="button" onclick="watchCurrentTrackVideo(event)">â–¶ Watch Video</button>
         <div class="dp-ctrl">
           <button class="bb" onclick="playPrev()">&#9664;</button>
           <button class="bb pp" id="d-pp" onclick="togglePause()">&#9654;</button>
@@ -381,31 +381,31 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
           <span class="dp-scrub-time end" id="dp-dur">0:00</span>
         </div>
         <div id="stashbox-radio-shop-desktop"></div>
-        <div class="dp-typical" id="dp-typical">Typical song length: 3:00–5:00</div>
+        <div class="dp-typical" id="dp-typical">Typical song length: 3:00â€“5:00</div>
       </div>
     </div>
 
     <div id="d-secs"></div>
-    <div id="d-nores" class="d-nores" style="display:none"><span class="big">—</span>No tracks match.</div>
+    <div id="d-nores" class="d-nores" style="display:none"><span class="big">â€”</span>No tracks match.</div>
   </div>
 
   <div id="d-vmod" onclick="if(event.target===this)dCloseVid()">
     <div class="d-vmod-inner">
       <div class="d-vmod-hdr">
         <div class="d-vmod-title" id="d-vmod-title"></div>
-        <button class="d-vmod-close" onclick="dCloseVid()">✕</button>
+        <button class="d-vmod-close" onclick="dCloseVid()">âœ•</button>
       </div>
       <iframe id="d-vmod-iframe" src="" allow="autoplay;encrypted-media" allowfullscreen></iframe>
     </div>
   </div>
 </div>
 
-<!-- ══════════════ MOBILE ══════════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• MOBILE â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="mobile">
   <div id="m-nav">
-    <a class="logo-link" href="/stashbox/index.html"><div class="m-logo">STASH<span>BOX</span></div></a>
+    <a class="logo-link" href="/index.html"><div class="m-logo">STASH<span>BOX</span></div></a>
     <span class="m-total" id="m-total"></span>
-    <button class="m-reset-btn" id="m-reset" onclick="resetAll()">✕ Reset</button>
+    <button class="m-reset-btn" id="m-reset" onclick="resetAll()">âœ• Reset</button>
     <button class="m-srch-btn" onclick="mOpenSearch()">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </button>
@@ -417,23 +417,23 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
   <div id="m-scroll">
     <div class="mshero">
       <div class="mshero-title">STASHBOX RADIO</div>
-      <div class="mshero-sub" id="m-sub">Loading…</div>
+      <div class="mshero-sub" id="m-sub">Loadingâ€¦</div>
       <div class="mshero-btns">
-        <button class="m-btn-sha" onclick="doShuffle('all','m')">⇄ SHUFFLE ALL</button>
-        <button class="m-btn-shf" id="m-shf" onclick="doShuffle('filtered','m')">⇄ SHUFFLE FILTERED</button>
+        <button class="m-btn-sha" onclick="doShuffle('all','m')">â‡„ SHUFFLE ALL</button>
+        <button class="m-btn-shf" id="m-shf" onclick="doShuffle('filtered','m')">â‡„ SHUFFLE FILTERED</button>
       </div>
     </div>
     <div id="m-secs"></div>
-    <div id="m-nores" style="display:none" class="m-nores"><span class="m-nores-big">—</span>No tracks match.</div>
+    <div id="m-nores" style="display:none" class="m-nores"><span class="m-nores-big">â€”</span>No tracks match.</div>
   </div>
 
   <div id="m-bar" onclick="mOpenNow()">
     <div class="m-barprog"><div class="m-barprog-fill" id="m-prog"></div></div>
-    <div class="m-barthumb" id="m-barthumb">🎵</div>
+    <div class="m-barthumb" id="m-barthumb">ðŸŽµ</div>
     <div class="m-barinfo">
-      <div class="m-bartitle" id="m-bartitle">—</div>
+      <div class="m-bartitle" id="m-bartitle">â€”</div>
       <div class="m-barartist" id="m-barartist"></div>
-      <div class="m-barplays" id="m-barplays">▶ 0 Plays</div>
+      <div class="m-barplays" id="m-barplays">â–¶ 0 Plays</div>
     </div>
     <div class="m-barbtns" onclick="event.stopPropagation()">
       <button class="m-barbtn" onclick="playPrev()">&#9664;</button>
@@ -446,11 +446,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
     <div class="m-now-drag" onclick="mCloseNow()"><div class="m-now-pill"></div></div>
     <div class="m-now-media" id="m-now-media"></div>
     <div class="m-now-info">
-      <div class="m-now-title" id="m-now-title">—</div>
+      <div class="m-now-title" id="m-now-title">â€”</div>
       <div class="m-now-meta"><span id="m-now-artist"></span><span id="m-now-album" style="font-style:italic;color:var(--muted);font-size:12px"></span><span class="m-now-gtag" id="m-now-gtag"></span></div>
       <div class="m-now-notes" id="m-now-notes" style="display:none"></div>
-      <div class="m-now-plays" id="m-now-plays">▶ 0 Plays</div>
-      <button class="m-song-share-main" id="m-now-share" onclick="copyCurrentSongLink(event)" style="display:none">⤴ Share Song</button>
+      <div class="m-now-plays" id="m-now-plays">â–¶ 0 Plays</div>
+      <button class="m-song-share-main" id="m-now-share" onclick="copyCurrentSongLink(event)" style="display:none">â¤´ Share Song</button>
     </div>
     <div id="stashbox-radio-shop-mobile"></div>
     <div class="m-now-audio" id="m-now-audio" style="display:none"></div>
@@ -467,7 +467,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
     <div class="m-srch-top">
       <div class="m-srch-bwrap">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input class="m-srch-box" id="m-srch-box" type="search" placeholder="Search songs, artists, genres…" oninput="mDoSearch()" autocomplete="off"/>
+        <input class="m-srch-box" id="m-srch-box" type="search" placeholder="Search songs, artists, genresâ€¦" oninput="mDoSearch()" autocomplete="off"/>
       </div>
       <button class="m-srch-cancel" onclick="mCloseSearch()">Cancel</button>
     </div>
@@ -476,7 +476,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 </div>
 
 <script>
-// ════════ CONFIG ════════
+// â•â•â•â•â•â•â•â• CONFIG â•â•â•â•â•â•â•â•
 const SHEET_CSV_URLS = [
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
@@ -485,14 +485,14 @@ const SHEET_CSV_URLS = [
 const PLAY_TRACKING_URL = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec';
 
 const SECTIONS = [
-  {key:'Reggae',emoji:'🌴',color:'#3ecf6e'},{key:'Rock',emoji:'🎸',color:'#f0a500'},
-  {key:'Blues',emoji:'🎷',color:'#50a0ff'},{key:'Funk',emoji:'🕺',color:'#e05c2a'},
-  {key:'Electronic',emoji:'⚡',color:'#50dcdc'},{key:'Spanish',emoji:'💃',color:'#ff6496'},
-  {key:'Calypso',emoji:'🥁',color:'#ffc050'},{key:'Soul',emoji:'🎤',color:'#c88cff'},
-  {key:'Pop',emoji:'🎵',color:'#ff9080'},{key:'Other',emoji:'🎶',color:'#999'},
+  {key:'Reggae',emoji:'ðŸŒ´',color:'#3ecf6e'},{key:'Rock',emoji:'ðŸŽ¸',color:'#f0a500'},
+  {key:'Blues',emoji:'ðŸŽ·',color:'#50a0ff'},{key:'Funk',emoji:'ðŸ•º',color:'#e05c2a'},
+  {key:'Electronic',emoji:'âš¡',color:'#50dcdc'},{key:'Spanish',emoji:'ðŸ’ƒ',color:'#ff6496'},
+  {key:'Calypso',emoji:'ðŸ¥',color:'#ffc050'},{key:'Soul',emoji:'ðŸŽ¤',color:'#c88cff'},
+  {key:'Pop',emoji:'ðŸŽµ',color:'#ff9080'},{key:'Other',emoji:'ðŸŽ¶',color:'#999'},
 ];
 
-// ════════ STATE ════════
+// â•â•â•â•â•â•â•â• STATE â•â•â•â•â•â•â•â•
 let allTracks=[], dGenre='ALL', dAlbum='ALL', dVideoOnly=false, dSearchQ='';
 let mGenre='ALL', mAlbum='ALL', mVideoOnly=false;
 let queue=[], qIdx=-1, radioMode=false, currentTrack=null, visAnim=null;
@@ -516,7 +516,7 @@ const dpYouTubeWrap = document.getElementById('video-player-wrap');
 const watchVideoBtn = document.getElementById('watch-video-btn');
 console.log('[radio] audio element:', audio);
 
-// ════════ FETCH ════════
+// â•â•â•â•â•â•â•â• FETCH â•â•â•â•â•â•â•â•
 async function init() {
   try {
     const csvText = await fetchSheetCSV();
@@ -681,7 +681,7 @@ function loadSharedSongFromUrl() {
   return true;
 }
 
-// ════════ BOOT ════════
+// â•â•â•â•â•â•â•â• BOOT â•â•â•â•â•â•â•â•
 function boot() {
   const loader = document.getElementById('loading');
   if (loader) loader.style.display = 'none';
@@ -701,7 +701,7 @@ function boot() {
   updateResetBtns();
 }
 
-// ════════ RESET ALL ════════
+// â•â•â•â•â•â•â•â• RESET ALL â•â•â•â•â•â•â•â•
 function resetAll() {
   sendListenTime('reset');
   // Stop audio + video
@@ -743,7 +743,7 @@ function updateResetBtns() {
   document.getElementById('m-reset')?.classList.toggle('visible', !!active);
 }
 
-// ════════ DESKTOP ════════
+// â•â•â•â•â•â•â•â• DESKTOP â•â•â•â•â•â•â•â•
 function dFiltered() {
   return allTracks.filter(t => {
     const g = dGenre==='ALL' || t.sectionKey===dGenre;
@@ -795,7 +795,7 @@ function dRender() {
   document.getElementById('d-total').textContent = f.length + ' tracks';
   document.getElementById('d-sub').textContent = isF
     ? `${f.length} of ${allTracks.length} tracks match`
-    : `${allTracks.length} tracks · Reggae, Rock, Blues & more`;
+    : `${allTracks.length} tracks Â· Reggae, Rock, Blues & more`;
   document.getElementById('d-shf').style.display = isF ? 'inline-block' : 'none';
   const wrap = document.getElementById('d-secs'), nores = document.getElementById('d-nores');
   if (!f.length) { wrap.innerHTML=''; nores.style.display='block'; return; }
@@ -808,7 +808,7 @@ function dRender() {
         <div class="sdot" style="width:10px;height:10px;background:${sec.color}"></div>
         <div class="dsec-name">${sec.emoji} ${sec.key}</div>
         <div class="dsec-cnt">${tracks.length} track${tracks.length!==1?'s':''}</div>
-        <button class="dsec-shuf" onclick="doShuffle('section','d','${sec.key}')">⇄ Shuffle</button>
+        <button class="dsec-shuf" onclick="doShuffle('section','d','${sec.key}')">â‡„ Shuffle</button>
       </div>
       <div class="d-grid">${tracks.map((t,i)=>dCard(t,i,sec)).join('')}</div>
     </div>`;
@@ -820,7 +820,7 @@ function dCard(t, i, sec) {
     ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" style="width:100%;height:100%;object-fit:cover"/>`
     : sec.emoji;
   return `<div class="dcard ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','d')">
-    <div class="dcard-num">${pl?'♪':i+1}</div>
+    <div class="dcard-num">${pl?'â™ª':i+1}</div>
     <div class="dcard-thumb">${thumb}</div>
     <div class="dcard-info">
       <div class="dcard-title">${t.title}</div>
@@ -828,13 +828,13 @@ function dCard(t, i, sec) {
       ${t.album?`<div class="dcard-album">${t.album}</div>`:''}
       <div class="dcard-date">${t.date||''}</div>
     </div>
-    <div class="play-badge" data-track-plays="${t.idx}">▶ ${t.plays || 0} Plays</div>
-    <button class="song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">⤴</button>
+    <div class="play-badge" data-track-plays="${t.idx}">â–¶ ${t.plays || 0} Plays</div>
+    <button class="song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">â¤´</button>
     <div class="dcard-badges">
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
       ${t.imageUrl&&!t.videoUrl?'<span class="badge bimg">IMG</span>':''}
     </div>
-    <div class="dplay-icon">${pl?'♪':'▶'}</div>
+    <div class="dplay-icon">${pl?'â™ª':'â–¶'}</div>
   </div>`;
 }
 function dOpenVid(idx) {
@@ -851,7 +851,7 @@ function dCloseVid() {
 }
 document.addEventListener('keydown', e => { if(e.key==='Escape') dCloseVid(); });
 
-// ════════ MOBILE ════════
+// â•â•â•â•â•â•â•â• MOBILE â•â•â•â•â•â•â•â•
 function mFiltered() {
   return allTracks.filter(t =>
     (mGenre==='ALL' || t.sectionKey===mGenre) &&
@@ -866,7 +866,7 @@ function mBuildTabs() {
     opts.map(s => `<button class="mtab ${s.key==='ALL'?'active':''}" onclick="mSetGenre('${s.key}',this)">
       ${s.color?`<span class="mtab-dot" style="background:${s.color}"></span>`:''}${s.label||s.key}
     </button>`).join('') +
-    `<button class="mtab vtab" id="m-vid-tab" onclick="mToggleVideo()">▶ Has Video</button>`;
+    `<button class="mtab vtab" id="m-vid-tab" onclick="mToggleVideo()">â–¶ Has Video</button>`;
   // Build album tab row
   const albums = [...new Set(allTracks.map(t=>t.album).filter(Boolean))].sort();
   const mABar = document.getElementById('m-album-bar');
@@ -900,7 +900,7 @@ function mRender() {
   document.getElementById('m-total').textContent = f.length + ' tracks';
   document.getElementById('m-sub').textContent = isF
     ? `${f.length} of ${allTracks.length} tracks`
-    : `${allTracks.length} tracks · Reggae, Rock, Blues & more`;
+    : `${allTracks.length} tracks Â· Reggae, Rock, Blues & more`;
   document.getElementById('m-shf').style.display = isF ? 'inline-block' : 'none';
   const wrap = document.getElementById('m-secs'), nores = document.getElementById('m-nores');
   if (!f.length) { wrap.innerHTML=''; nores.style.display='block'; return; }
@@ -913,7 +913,7 @@ function mRender() {
         <div class="sdot" style="width:8px;height:8px;background:${sec.color}"></div>
         <div class="msec-name">${sec.emoji} ${sec.key}</div>
         <div class="msec-cnt">${tracks.length}</div>
-        <button class="msec-shuf" onclick="doShuffle('section','m','${sec.key}')">⇄ Shuffle</button>
+        <button class="msec-shuf" onclick="doShuffle('section','m','${sec.key}')">â‡„ Shuffle</button>
       </div>
       ${tracks.map((t,i)=>mRow(t,i,sec)).join('')}
     </div>`;
@@ -932,12 +932,12 @@ function mRow(t, i, sec) {
       ${t.album?`<div class="mtrack-album">${t.album}</div>`:''}
       <div class="mtrack-date">${t.date||''}</div>
     </div>
-    <div class="m-play-badge" data-track-plays="${t.idx}">▶ ${t.plays || 0}</div>
-    <button class="m-song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">⤴</button>
+    <div class="m-play-badge" data-track-plays="${t.idx}">â–¶ ${t.plays || 0}</div>
+    <button class="m-song-share-btn" title="Share song" aria-label="Share song" onclick="shareSong(event, ${t.idx})">â¤´</button>
     <div class="mtrack-badges">
       ${t.audioUrl?'<span class="badge bwav">WAV</span>':''}
     </div>
-    <div class="mplay-icon">${pl?'♪':'▶'}</div>
+    <div class="mplay-icon">${pl?'â™ª':'â–¶'}</div>
   </div>`;
 }
 
@@ -1013,7 +1013,7 @@ function showShareToast(message) {
   window.__shareToastTimer = setTimeout(() => { toast.classList.remove('visible'); }, 1800);
 }
 
-// ════════ SHARED PLAYBACK ════════
+// â•â•â•â•â•â•â•â• SHARED PLAYBACK â•â•â•â•â•â•â•â•
 function playFrom(trackIdx, sectionKey, mode) {
   const src = mode==='m' ? mFiltered() : dFiltered();
   const sec = src.filter(t => t.sectionKey===sectionKey);
@@ -1250,7 +1250,7 @@ function updateDesktopTimes(){
     const mins = audio.duration / 60;
     const lo = Math.max(1, Math.floor(mins - 1));
     const hi = Math.ceil(mins + 1);
-    dpTypical.textContent = `Typical song length: ${lo}:00–${hi}:00`;
+    dpTypical.textContent = `Typical song length: ${lo}:00â€“${hi}:00`;
   }
 }
 audio.addEventListener('ended', () => {
@@ -1459,8 +1459,8 @@ function sendListenTime(reason) {
 function updateCurrentPlaysDisplay(t) {
   if (!t) return;
 
-  const playsText = `▶ ${Number(t.plays) || 0} Plays`;
-  const playsShort = `▶ ${Number(t.plays) || 0}`;
+  const playsText = `â–¶ ${Number(t.plays) || 0} Plays`;
+  const playsShort = `â–¶ ${Number(t.plays) || 0}`;
 
   const dpPlays = document.getElementById('dp-plays');
   if (dpPlays) dpPlays.textContent = playsText;
@@ -1543,7 +1543,7 @@ function updateMediaSession(t) {
   });
 }
 
-// ════════ LOAD TRACK ════════
+// â•â•â•â•â•â•â•â• LOAD TRACK â•â•â•â•â•â•â•â•
 function loadTrack(t) {
   if (!t || !audio) return;
   if (currentTrack && activeListenSession) {
@@ -1559,7 +1559,7 @@ function loadTrack(t) {
   const sec = SECTIONS.find(s=>s.key===t.sectionKey)||SECTIONS[SECTIONS.length-1];
   if (visAnim) { cancelAnimationFrame(visAnim); visAnim=null; }
 
-  // ── Desktop player ──
+  // â”€â”€ Desktop player â”€â”€
   const dpEl    = document.getElementById('dp');
   const dpMedia = document.getElementById('dp-media');
   const dpImg   = document.getElementById('dp-img');
@@ -1601,7 +1601,7 @@ function loadTrack(t) {
   const dn = document.getElementById('dp-notes');
   dn.textContent=t.notes||''; dn.style.display=t.notes?'block':'none';
   const dpPlays = document.getElementById('dp-plays');
-  if (dpPlays) dpPlays.textContent = `▶ ${t.plays || 0} Plays`;
+  if (dpPlays) dpPlays.textContent = `â–¶ ${t.plays || 0} Plays`;
   const dpShare = document.getElementById('dp-share');
   if (dpShare) dpShare.style.display = 'inline-flex';
   const watchBtn = document.getElementById('watch-video-btn');
@@ -1610,28 +1610,28 @@ function loadTrack(t) {
   console.log('[radio] current audio url:', currentTrack && (currentTrack.audioUrl || currentTrack.audio));
   console.log('[radio] current video link:', currentTrack && currentTrack.videoLink);
 
-  // ── Mobile bar ──
+  // â”€â”€ Mobile bar â”€â”€
   document.getElementById('m-bar').classList.add('vis');
   document.getElementById('m-bartitle').textContent  = t.title;
   document.getElementById('m-barartist').textContent = t.artist||'';
   const mBarPlays = document.getElementById('m-barplays');
-  if (mBarPlays) mBarPlays.textContent = `▶ ${t.plays || 0} Plays`;
+  if (mBarPlays) mBarPlays.textContent = `â–¶ ${t.plays || 0} Plays`;
   const mbt = document.getElementById('m-barthumb');
   mbt.innerHTML = t.imageUrl
-    ? `<img src="${t.imageUrl}" alt="" onerror="this.innerHTML='🎵'" loading="lazy"/>`
+    ? `<img src="${t.imageUrl}" alt="" onerror="this.innerHTML='ðŸŽµ'" loading="lazy"/>`
     : sec.emoji;
 
-  // ── Mobile now screen ──
+  // â”€â”€ Mobile now screen â”€â”€
   document.getElementById('m-now-title').textContent  = t.title;
   document.getElementById('m-now-artist').textContent = t.artist||'';
   const mAlbum = document.getElementById('m-now-album');
-  if (mAlbum) { mAlbum.textContent = t.album ? '· ' + t.album : ''; }
+  if (mAlbum) { mAlbum.textContent = t.album ? 'Â· ' + t.album : ''; }
   const mg = document.getElementById('m-now-gtag');
   mg.textContent=t.genre||''; mg.style.background=sec.color+'22'; mg.style.color=sec.color;
   const mn = document.getElementById('m-now-notes');
   mn.textContent=t.notes||''; mn.style.display=t.notes?'block':'none';
   const mNowPlays = document.getElementById('m-now-plays');
-  if (mNowPlays) mNowPlays.textContent = `▶ ${t.plays || 0} Plays`;
+  if (mNowPlays) mNowPlays.textContent = `â–¶ ${t.plays || 0} Plays`;
   const mNowShare = document.getElementById('m-now-share');
   if (mNowShare) mNowShare.style.display = 'inline-flex';
   document.getElementById('m-qlabel').textContent = queue.length ? `${qIdx+1} of ${queue.length} in queue` : '';
@@ -1678,7 +1678,7 @@ function loadTrack(t) {
 }
 
 
-// ════════ VISUALIZERS ════════
+// â•â•â•â•â•â•â•â• VISUALIZERS â•â•â•â•â•â•â•â•
 function dStartVis() {
   const cv = document.getElementById('d-vis-cv');
   if (!cv) return;
@@ -1711,7 +1711,7 @@ function runVis(cv, bars) {
   draw();
 }
 
-// ════════ MOBILE NOW SCREEN ════════
+// â•â•â•â•â•â•â•â• MOBILE NOW SCREEN â•â•â•â•â•â•â•â•
 function mOpenNow()  { document.getElementById('m-now').classList.add('open'); }
 function mCloseNow() { document.getElementById('m-now').classList.remove('open'); }
 
@@ -1722,7 +1722,7 @@ document.getElementById('dp-media')?.addEventListener('click', togglePauseFromAr
 document.getElementById('dp-vis')?.addEventListener('click', togglePauseFromArtwork);
 document.getElementById('m-now-media')?.addEventListener('click', togglePauseFromArtwork);
 
-// ════════ MOBILE SEARCH ════════
+// â•â•â•â•â•â•â•â• MOBILE SEARCH â•â•â•â•â•â•â•â•
 function mOpenSearch() {
   document.getElementById('m-search').classList.add('open');
   setTimeout(()=>document.getElementById('m-srch-box').focus(),100);
@@ -1756,7 +1756,7 @@ window.addEventListener('beforeunload', () => {
   sendListenTime('page_exit');
 });
 
-// ════════ START ════════
+// â•â•â•â•â•â•â•â• START â•â•â•â•â•â•â•â•
 if (dpScrubber) {
   const seekFromInput = () => {
     if (!audio.duration) return;
