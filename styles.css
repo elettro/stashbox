@@ -403,6 +403,12 @@ h1, h2, h3, h4, h5, h6 {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0 var(--space-8);
+  pointer-events: none;
+}
+
+.hero__content a,
+.hero__content button {
+  pointer-events: all;
 }
 
 .hero__eyebrow {
