@@ -213,7 +213,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .mthumb{width:44px;height:44px;border-radius:7px;background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}
 .mthumb img{width:100%;height:100%;object-fit:cover;border-radius:7px}
 .mtrack-info{flex:1;min-width:0}
-.mtrack-title{font-size:14px;font-weight:600;color:var(--text);white-space:normal;overflow:visible;line-height:1.3}
+.mtrack-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mrow.playing .mtrack-title{color:var(--accent)}
 .mtrack-artist{font-size:12px;color:var(--muted);margin-top:2px}
 .mtrack-date{font-size:11px;color:var(--muted2);margin-top:1px}
@@ -857,9 +857,10 @@ function mRender() {
 }
 function mRow(t,i,sec) {
   const pl=currentTrack&&currentTrack.idx===t.idx;
+  const emoji=sec.emoji;
   const thumb=t.imageUrl
-    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" decoding="async"/>`
-    : sec.emoji;
+    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none';this.parentElement.insertAdjacentText('beforeend','${emoji}')" loading="lazy" decoding="async"/>`
+    : emoji;
   return `<div class="mrow ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','m')">
     <div class="mthumb">${thumb}</div>
     <div class="mtrack-info">
@@ -870,8 +871,6 @@ function mRow(t,i,sec) {
     </div>
     <div class="m-play-badge" data-track-plays="${t.idx}">▶ ${t.plays||0}</div>
     <button class="m-song-share-btn" title="Share song" onclick="shareSong(event,${t.idx})">⤴</button>
-    <div class="mtrack-badges">${t.audioUrl?'<span class="badge bwav">WAV</span>':''}</div>
-    <div class="mplay-icon">${pl?'♪':'▶'}</div>
   </div>`;
 }
 
