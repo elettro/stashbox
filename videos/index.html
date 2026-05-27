@@ -525,10 +525,17 @@
 
     .video-actions {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 12px;
       align-items: center;
       margin-top: 18px;
+    }
+
+    .video-actions .share-video-btn,
+    .video-actions .share-reggae-zone,
+    .video-actions .share-tiedye-zone {
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .video-like-btn {
