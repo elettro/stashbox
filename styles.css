@@ -358,7 +358,6 @@ h1, h2, h3, h4, h5, h6 {
   position: absolute;
   inset: 0;
   z-index: 0;
-  pointer-events: none;
   background: var(--color-bg);
 }
 
@@ -370,6 +369,7 @@ h1, h2, h3, h4, h5, h6 {
     linear-gradient(to top, oklch(8% 0 0 / 0.97) 0%, oklch(8% 0 0 / 0.4) 40%, oklch(0% 0 0 / 0.15) 100%),
     linear-gradient(to right, oklch(8% 0 0 / 0.7) 0%, transparent 50%);
   z-index: 2;
+  pointer-events: none;
 }
 
 .hero__iframe {
@@ -384,7 +384,6 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 177.78vh;
   border: none;
   z-index: 1;
-  pointer-events: none;
 }
 
 .hero__static-fallback {
