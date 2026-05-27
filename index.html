@@ -457,8 +457,10 @@
       if (!urls.length) return;
       images = shuffle(urls);
       buildSlides();
-      prevBtn.addEventListener('click', () => goTo(current - 1));
-      nextBtn.addEventListener('click', () => goTo(current + 1));
+      let timer = setInterval(() => goTo(current + 1), 6000);
+      function resetTimer() { clearInterval(timer); timer = setInterval(() => goTo(current + 1), 6000); }
+      prevBtn.addEventListener('click', () => { goTo(current - 1); resetTimer(); });
+      nextBtn.addEventListener('click', () => { goTo(current + 1); resetTimer(); });
       slidesEl.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
       slidesEl.addEventListener('touchend', e => {
         const dx = e.changedTouches[0].clientX - touchStartX;
