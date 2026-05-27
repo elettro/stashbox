@@ -654,6 +654,15 @@ function startImageRetry(t) {
           mMedia.innerHTML = `<img src="${escapeHtml(freshSrc)}" alt="${escapeHtml(t.title)}" style="max-width:100%;max-height:100%;object-fit:contain" loading="eager" onerror="onMobileTrackImageError()"/>`;
           mMedia.classList.add('toggleable');
         }
+        // Restore mobile bar thumbnail
+        const mbt2 = document.getElementById('m-barthumb');
+        if (mbt2) {
+          const _ri = document.createElement('img');
+          _ri.alt='';_ri.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:8px';
+          _ri.onerror=()=>{mbt2.innerHTML=mbt2.dataset.emoji||'🎵';};
+          _ri.src=freshSrc;
+          mbt2.innerHTML='';mbt2.appendChild(_ri);
+        }
         imageRetryTimer = null;
       };
       probe.onerror = () => {
@@ -1212,9 +1221,10 @@ audio.addEventListener('timeupdate',()=>{
 });
 audio.addEventListener('loadedmetadata',()=>{if(dpScrubber)dpScrubber.value='0';updateDesktopTimes();});
 
-// Retry on audio load failure — up to 2 attempts with cache-busting URL param
+// Retry on audio load failure — up to 2 attempts, then skip to next track
 audio.addEventListener('error', () => {
-  if (!currentTrack?.audioUrl || audioRetryCount >= 2) return;
+  if (!currentTrack?.audioUrl) return;
+  if (audioRetryCount >= 2) { setTimeout(()=>playNext(), 1500); return; }
   audioRetryCount++;
   const sep = currentTrack.audioUrl.includes('?') ? '&' : '?';
   const retryUrl = currentTrack.audioUrl + sep + '_r=' + Date.now();
@@ -1223,6 +1233,34 @@ audio.addEventListener('error', () => {
     audio.load();
     audio.play().catch(() => {});
   }, 1500 * audioRetryCount);
+});
+
+// Stall watchdog — detects when currentTime stops advancing while supposedly playing
+// (keeps music going when screen is locked or browser throttles JS)
+let _stallTimer=null,_lastCT=-1,_lastCTAt=0;
+function _startStallWatchdog(){
+  _clearStallWatchdog();
+  _lastCT=audio.currentTime;_lastCTAt=Date.now();
+  _stallTimer=setInterval(()=>{
+    if(audio.paused||audio.ended)return;
+    if(audio.currentTime!==_lastCT){_lastCT=audio.currentTime;_lastCTAt=Date.now();return;}
+    if(Date.now()-_lastCTAt>9000){
+      // currentTime hasn't moved in 9s — try to resume, or skip
+      audio.play().catch(()=>playNext());
+      _lastCTAt=Date.now(); // reset so we don't spam
+    }
+  },3000);
+}
+function _clearStallWatchdog(){if(_stallTimer){clearInterval(_stallTimer);_stallTimer=null;}}
+audio.addEventListener('play',()=>{_startStallWatchdog();});
+audio.addEventListener('pause',()=>{_clearStallWatchdog();});
+audio.addEventListener('ended',()=>{_clearStallWatchdog();});
+// Browser stopped fetching data — reload from current position
+audio.addEventListener('stalled',()=>{
+  if(audio.paused||!currentTrack?.audioUrl)return;
+  setTimeout(()=>{
+    if(!audio.paused){const ct=audio.currentTime;audio.load();audio.currentTime=ct;audio.play().catch(()=>{});}
+  },3000);
 });
 
 function setPlayBtns(paused){
@@ -1390,7 +1428,15 @@ function loadTrack(t,options={}) {
   document.getElementById('m-barartist').textContent=t.artist||'';
   const mBarPlays=document.getElementById('m-barplays');if(mBarPlays)mBarPlays.textContent=`▶ ${t.plays||0} Plays`;
   const mbt=document.getElementById('m-barthumb');
-  mbt.innerHTML=t.imageUrl?`<img src="${t.imageUrl}" alt="" onerror="this.innerHTML='🎵'" loading="lazy" decoding="async"/>`:sec.emoji;
+  mbt.dataset.emoji=sec.emoji;
+  if(t.imageUrl){
+    const _bi=document.createElement('img');
+    _bi.alt='';_bi.loading='lazy';_bi.decoding='async';
+    _bi.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:8px';
+    _bi.onerror=()=>{mbt.innerHTML=mbt.dataset.emoji||'🎵';};
+    _bi.src=t.imageUrl;
+    mbt.innerHTML='';mbt.appendChild(_bi);
+  }else{mbt.innerHTML=sec.emoji;}
 
   // ── Mobile now screen ──
   document.getElementById('m-now-title').textContent=t.title;
