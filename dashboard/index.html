@@ -825,6 +825,42 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
+// ─── Thumbnail retry ───────────────────────────────────────────────────────
+// When an artwork image fails, hide it and show the gradient placeholder.
+// Keep probing the URL every 4 s; restore the image when it responds.
+const thumbRetryingSrcs = new Set();
+
+function onThumbError(img) {
+  const src = img.dataset.src; if (!src) return;
+  img.style.display = 'none';
+  const container = img.parentElement;
+  if (container) container.style.background = 'linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))';
+  if (!thumbRetryingSrcs.has(src)) retryThumb(src);
+}
+
+function retryThumb(src) {
+  thumbRetryingSrcs.add(src);
+  setTimeout(() => {
+    const fresh = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
+    const p = new Image();
+    p.onload = () => {
+      thumbRetryingSrcs.delete(src);
+      document.querySelectorAll('img.thumb-img').forEach(img => {
+        if (img.dataset.src !== src) return;
+        const container = img.parentElement;
+        if (container) container.style.background = '';
+        img.onerror = null;
+        img.src = fresh;
+        img.style.display = '';
+        img.onerror = function() { onThumbError(this); };
+      });
+    };
+    p.onerror = () => { thumbRetryingSrcs.delete(src); retryThumb(src); };
+    p.src = fresh;
+  }, 4000);
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 function thumb(s, sz='3.4rem') {
   const title = escapeHtml(s.title || 'Stashbox song');
   const rawThumb = String(s.thumb || '').trim();
@@ -838,14 +874,13 @@ function thumb(s, sz='3.4rem') {
   return `
     <div class="lb-thumb" style="width:${sz};height:${sz}">
       <img
+        class="thumb-img"
         src="${safeThumb}"
         alt="${title}"
+        data-src="${safeThumb}"
         loading="lazy"
         referrerpolicy="no-referrer"
-        onerror="
-          this.style.display='none';
-          this.parentElement.style.background='linear-gradient(135deg,rgba(135,83,255,.3),rgba(242,188,85,.2))';
-        "
+        onerror="onThumbError(this)"
       >
     </div>`;
 }
