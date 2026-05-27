@@ -283,6 +283,14 @@
 <section class="section testimonial" aria-label="Testimonial">
   <div class="container">
     <div class="testimonial__inner fade-in">
+      <div class="testimonial__video-wrap">
+        <div class="testimonial__video-box" id="jonPhillipsBox">
+          <video id="jonPhillipsVid" preload="metadata" playsinline>
+            <source src="/stashbox/videos/Jon-Phillips-from-Silverback-Management-stashbox-testimonial.mp4" type="video/mp4">
+          </video>
+          <div class="testimonial__play-hint" aria-hidden="true">▶</div>
+        </div>
+      </div>
       <blockquote class="testimonial__quote">
         <span class="testimonial__mark" aria-hidden="true">"</span>
         <p class="testimonial__text">"One of the most genuine, high-energy live acts in South Florida. The musicianship is real, the vibe is undeniable, and the crowd response speaks for itself."</p>
@@ -614,6 +622,19 @@
 
   wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
   wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
+
+  /* ── Jon Phillips testimonial video: play once on click ── */
+  (function () {
+    const box = document.getElementById('jonPhillipsBox');
+    const vid = document.getElementById('jonPhillipsVid');
+    if (!box || !vid) return;
+    box.addEventListener('click', function () {
+      if (vid.paused) { vid.play(); box.classList.add('is-playing'); }
+    });
+    vid.addEventListener('ended', function () {
+      box.classList.remove('is-playing');
+    });
+  })();
 })();
 </script>
 <div class="quick-guide-modal" data-quick-guide-modal hidden>
