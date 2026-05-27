@@ -31,7 +31,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 /* LOADING */
 #loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:12px}
-.load-logo{font-family:var(--fh);font-size:64px;color:var(--accent);letter-spacing:0.06em;animation:pulse 1.4s ease-in-out infinite}
+.load-logo{width:220px;max-width:70vw;animation:pulse 1.4s ease-in-out infinite}
 .load-sub{font-size:13px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
 
@@ -319,7 +319,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 <!-- LOADING -->
 <div id="loading">
-  <div class="load-logo">STASHBOX</div>
+  <img class="load-logo" src="/stashbox/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox Radio"/>
   <div class="load-sub">Tuning in…</div>
 </div>
 
@@ -540,6 +540,7 @@ let youtubePlaying=false;
 let audioRetryCount=0;   // tracks retries on audio load failure
 let imageRetryTimer=null;
 let imageRetryTrackIdx=-1;
+const thumbRetryingSrcs=new Set(); // deduplicate per-URL thumbnail retry loops
 
 const audio        = document.getElementById('audio');
 const dpScrubber   = document.getElementById('dp-scrubber');
@@ -620,6 +621,41 @@ function startImageRetry(t) {
   }
 
   attempt(3000); // first probe after 3 seconds
+}
+
+// ─── Thumbnail retry (track list cards / rows) ───
+// Shows a text emoji immediately when a thumbnail fails, then keeps probing the
+// original URL in the background. When the image finally loads, all matching
+// thumbnails on-screen are restored and the emoji spans are removed.
+function onThumbError(img) {
+  const src = img.dataset.src; if (!src) return;
+  img.style.display = 'none';
+  const container = img.parentElement;
+  if (container && !container.querySelector('.thumb-emoji')) {
+    const sp = document.createElement('span');
+    sp.className = 'thumb-emoji';
+    sp.textContent = img.dataset.emoji || '🎵';
+    container.appendChild(sp);
+  }
+  if (!thumbRetryingSrcs.has(src)) retryThumb(src);
+}
+function retryThumb(src) {
+  thumbRetryingSrcs.add(src);
+  setTimeout(() => {
+    const fresh = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
+    const p = new Image();
+    p.onload = () => {
+      thumbRetryingSrcs.delete(src);
+      document.querySelectorAll('img.thumb-img').forEach(img => {
+        if (img.dataset.src !== src) return;
+        img.parentElement?.querySelector('.thumb-emoji')?.remove();
+        img.onerror = null; img.src = fresh; img.style.display = '';
+        img.onerror = function() { onThumbError(this); };
+      });
+    };
+    p.onerror = () => { thumbRetryingSrcs.delete(src); retryThumb(src); };
+    p.src = fresh;
+  }, 4000);
 }
 
 // Called by onerror on the mobile now-screen image — switches to visualizer and starts retry
@@ -841,8 +877,8 @@ function dRender() {
 function dCard(t,i,sec) {
   const pl=currentTrack&&currentTrack.idx===t.idx;
   const thumb=t.imageUrl
-    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none'" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`
-    : sec.emoji;
+    ? `<img class="thumb-img" src="${t.imageUrl}" alt="" data-src="${t.imageUrl}" data-emoji="${sec.emoji}" onerror="onThumbError(this)" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`
+    : `<span class="thumb-emoji">${sec.emoji}</span>`;
   return `<div class="dcard ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','d')">
     <div class="dcard-num">${pl?'♪':i+1}</div>
     <div class="dcard-thumb">${thumb}</div>
@@ -915,8 +951,8 @@ function mRow(t,i,sec) {
   const pl=currentTrack&&currentTrack.idx===t.idx;
   const emoji=sec.emoji;
   const thumb=t.imageUrl
-    ? `<img src="${t.imageUrl}" alt="" onerror="this.style.display='none';this.parentElement.insertAdjacentText('beforeend','${emoji}')" loading="lazy" decoding="async"/>`
-    : emoji;
+    ? `<img class="thumb-img" src="${t.imageUrl}" alt="" data-src="${t.imageUrl}" data-emoji="${emoji}" onerror="onThumbError(this)" loading="lazy" decoding="async"/>`
+    : `<span class="thumb-emoji">${emoji}</span>`;
   return `<div class="mrow ${pl?'playing':''}" onclick="playFrom(${t.idx},'${sec.key}','m')">
     <div class="mthumb">${thumb}</div>
     <div class="mtrack-info">
