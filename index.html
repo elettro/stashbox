@@ -452,7 +452,8 @@
       const res = await fetch(SHEET);
       const text = await res.text();
       const urls = text.trim().split('\n').slice(1)
-        .map(r => r.replace(/^"|"$/g, '').trim()).filter(Boolean);
+        .map(r => r.replace(/^"|"$/g, '').trim()).filter(Boolean)
+        .map(u => u.includes('dropbox.com') ? u.replace(/\bdl=\d\b/, 'raw=1') : u);
       if (!urls.length) return;
       images = shuffle(urls);
       buildSlides();
