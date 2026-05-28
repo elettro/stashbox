@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Videos â€” Stashbox</title>
+  <title>Videos — Stashbox</title>
   <meta name="description" content="Browse Stashbox videos, originals, covers, genre options, venues, artists, and performances pulled from the Stashbox Google Sheet video CMS.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -483,7 +483,7 @@
 
 <nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
   <div class="nav__inner">
-    <a href="/dev/" class="nav__logo" aria-label="Stashbox â€” Home">
+    <a href="/dev/" class="nav__logo" aria-label="Stashbox — Home">
       <img src="/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="nav__logo-img" onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
       <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
     </a>
@@ -581,7 +581,7 @@
         <img src="/dev/images/branding/stashbox-logo-transparent-rasta-colors.png" alt="Stashbox" class="footer__logo-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
         <span class="footer__logo-text" style="display:none">STASHBOX</span>
       </a>
-      <p class="footer__tagline">Rock Â· Reggae Â· Blues Â· Originals Â· South Florida</p>
+      <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
       <div class="footer__contact">
         <a href="tel:3104086687">310.408.6687</a>
         <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
@@ -620,7 +620,7 @@
     </div>
 
     <div class="footer__bottom">
-      <p class="footer__copy">Â© 2026 Stashbox Â· South Florida Live Music Â· Dean Palermo</p>
+      <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
       <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
     </div>
   </div>
@@ -976,7 +976,7 @@ function renderActiveTray() {
     button.type = "button";
     button.className = "filter-chip is-active";
     button.dataset.group = item.group;
-    button.textContent = `${item.value} Ã—`;
+    button.textContent = `${item.value} ×`;
     button.addEventListener("click", () => {
       state[item.group].delete(item.value);
       render();

@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stashbox Â· Command Dashboard</title>
+<title>Stashbox · Command Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* â”€â”€â”€ RESET & ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── RESET & ROOT ────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#07050d;
@@ -37,7 +37,7 @@ body{
   overflow-x:hidden;
 }
 
-/* â”€â”€â”€ LOADING SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── LOADING SCREEN ──────────────────────────────────────────────────── */
 #loading{
   position:fixed;inset:0;
   background:var(--bg);
@@ -61,11 +61,11 @@ body{
 @keyframes fill{to{width:100%}}
 .load-status{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--muted);letter-spacing:.05em}
 
-/* â”€â”€â”€ OUTER SHELL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── OUTER SHELL ─────────────────────────────────────────────────────── */
 #app{display:none;flex-direction:column;min-height:100vh}
 #app.ready{display:flex}
 
-/* â”€â”€â”€ TOP BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── TOP BAR ─────────────────────────────────────────────────────────── */
 .topbar{
   position:sticky;top:0;z-index:100;
   display:flex;align-items:center;gap:1.2rem;
@@ -146,7 +146,7 @@ body{
   .topbar-status{display:none}
 }
 
-/* â”€â”€â”€ MAIN CONTENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
 main{flex:1;padding:0}
 
 /* hide all views, show active */
@@ -154,9 +154,9 @@ main{flex:1;padding:0}
 .view.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   VIEW 1 â€” "Command Centre" â€” dark editorial with bento grid
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 1 — "Command Centre" — dark editorial with bento grid
+   ════════════════════════════════════════════════════════════════════════ */
 #v1{padding:1.5rem}
 
 .bento{
@@ -284,9 +284,9 @@ main{flex:1;padding:0}
   .kpis-row{grid-template-columns:1fr !important}
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   VIEW 2 â€” "Broadcast Room" â€” warm tape/studio amber dark
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 2 — "Broadcast Room" — warm tape/studio amber dark
+   ════════════════════════════════════════════════════════════════════════ */
 #v2{
   padding:1.5rem;
   background:
@@ -359,9 +359,9 @@ main{flex:1;padding:0}
 .v2-stat .l{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .v2-stat .n{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-top:.2rem}
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   VIEW 3 â€” "Ice Sheet" â€” minimal, crisp white-on-dark, data-first
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 3 — "Ice Sheet" — minimal, crisp white-on-dark, data-first
+   ════════════════════════════════════════════════════════════════════════ */
 #v3{background:#060509}
 .v3-topbar{
   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
@@ -425,9 +425,9 @@ main{flex:1;padding:0}
 .v3-pill.seo{background:rgba(135,83,255,.15);color:var(--purple)}
 .v3-pill.ai{background:rgba(56,201,232,.1);color:var(--cyan)}
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   VIEW 4 â€” "Night Market" â€” neon / cyberpunk grid
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 4 — "Night Market" — neon / cyberpunk grid
+   ════════════════════════════════════════════════════════════════════════ */
 #v4{
   background:#030208;
   background-image:
@@ -512,9 +512,9 @@ main{flex:1;padding:0}
 }
 .nm-sp.gold{background:rgba(242,188,85,.1);color:var(--gold);border-color:rgba(242,188,85,.2)}
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   VIEW 5 â€” "Mercury" â€” premium magazine, editorial serif
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════════════════════════
+   VIEW 5 — "Mercury" — premium magazine, editorial serif
+   ════════════════════════════════════════════════════════════════════════ */
 #v5{
   max-width:1200px;margin:0 auto;
   padding:2rem 1.5rem;
@@ -634,13 +634,13 @@ main{flex:1;padding:0}
 }
 .merc-action-item:last-child{border-bottom:none}
 .merc-action-item::before{
-  content:'â†’';color:var(--gold);flex-shrink:0;font-weight:700;
+  content:'→';color:var(--gold);flex-shrink:0;font-weight:700;
 }
 </style>
 </head>
 <body>
 
-<!-- â”€â”€â”€ LOADING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<!-- ─── LOADING ─────────────────────────────────────────────────── -->
 <div id="loading">
   <img
     class="load-logo-img"
@@ -648,10 +648,10 @@ main{flex:1;padding:0}
     alt="Stashbox logo"
   >
   <div class="load-bar"><div class="load-fill"></div></div>
-  <div class="load-status" id="load-status">Connecting to live APIâ€¦</div>
+  <div class="load-status" id="load-status">Connecting to live API…</div>
 </div>
 
-<!-- â”€â”€â”€ APP SHELL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<!-- ─── APP SHELL ───────────────────────────────────────────────── -->
 <div id="app">
 
   <!-- Top bar -->
@@ -661,7 +661,7 @@ main{flex:1;padding:0}
     </a>
     <div class="topbar-status">
       <span class="dot dot-fallback" id="status-dot"></span>
-      <span id="status-text">Initialisingâ€¦</span>
+      <span id="status-text">Initialising…</span>
     </div>
     <nav class="view-tabs" aria-label="Dashboard views">
       <button class="view-tab active" data-view="v1">Command</button>
@@ -682,9 +682,9 @@ main{flex:1;padding:0}
 </div>
 
 <script>
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   DATA LAYER â€” connections & normalisation
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════
+   DATA LAYER — connections & normalisation
+   ═══════════════════════════════════════════════════════════════════ */
 const CONNECTORS = [
   { name:'primary', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec?dashboard=1&type=all' },
   { name:'dashboard-only', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec?dashboard=1' },
@@ -833,7 +833,7 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
-// â”€â”€â”€ Thumbnail retry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Thumbnail retry ───────────────────────────────────────────────────────
 // When an artwork image fails, hide it and show the gradient placeholder.
 // Keep probing the URL every 4 s; restore the image when it responds.
 const thumbRetryingSrcs = new Set();
@@ -867,7 +867,7 @@ function retryThumb(src) {
     p.src = fresh;
   }, 4000);
 }
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ──────────────────────────────────────────────────────────────────────────
 
 function thumb(s, sz='3.4rem') {
   const title = escapeHtml(s.title || 'Stashbox song');
@@ -909,11 +909,11 @@ function makeFallback() {
   return {radio:songs, videos, meta:{}};
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   RENDER ENGINES â€” 5 distinct views
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER ENGINES — 5 distinct views
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ VIEW 1: Command Centre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── VIEW 1: Command Centre ───────────────────────────────────────── */
 function renderV1(D) {
   const { songs, vids, kpis } = D;
   const byPlays  = sortByMetric(songs, s=>s.plays);
@@ -949,7 +949,7 @@ function renderV1(D) {
             ${thumb(s)}
             <div>
               <div class="lb-name"><a href="${s.link||'#'}" style="color:inherit;text-decoration:none">${s.title}</a></div>
-              <div class="lb-meta">${s.artist}${s.genre?` Â· ${s.genre}`:''}</div>
+              <div class="lb-meta">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
             </div>
             <div class="lb-stat">${label}: ${displayValue}</div>
           </div>`;
@@ -968,26 +968,26 @@ function renderV1(D) {
 
     <!-- Top by plays -->
     <div class="bento-cell col-4 accent-purple">
-      <div class="sec-title">â–² Top Plays</div>
-      ${leaderboard(byPlays,'â–¶',s=>s.plays)}
+      <div class="sec-title">▲ Top Plays</div>
+      ${leaderboard(byPlays,'▶',s=>s.plays)}
     </div>
 
     <!-- Top avg -->
     <div class="bento-cell col-4 accent-green">
-      <div class="sec-title">â± Best Retention</div>
+      <div class="sec-title">⏱ Best Retention</div>
       ${leaderboard(byAvg,'avg',s=>fmtAvg(s.avg), { rawDisplay:true })}
     </div>
 
     <!-- Top shares -->
     <div class="bento-cell col-4 accent-gold">
-      <div class="sec-title">â†— Most Shared</div>
-      ${leaderboard(byShares,'â†—',s=>s.shares)}
+      <div class="sec-title">↗ Most Shared</div>
+      ${leaderboard(byShares,'↗',s=>s.shares)}
     </div>
 
     <!-- Videos -->
     <div class="bento-cell col-6 accent-cyan">
-      <div class="sec-title">â–¶ Top Videos by Likes</div>
-      ${leaderboard(byVLikes.map(v=>({...v,link:v.url,genre:''})),'â™¥',v=>v.likes)}
+      <div class="sec-title">▶ Top Videos by Likes</div>
+      ${leaderboard(byVLikes.map(v=>({...v,link:v.url,genre:''})),'♥',v=>v.likes)}
     </div>
 
     <!-- SEO -->
@@ -1010,13 +1010,13 @@ function renderV1(D) {
     <div class="bento-cell col-12 accent-gold">
       <div class="sec-title">Recommended Actions</div>
       <div class="dot-grid">
-        ${ACTIONS.map(a=>`<div class="dot-item">â†’ ${a}</div>`).join('')}
+        ${ACTIONS.map(a=>`<div class="dot-item">→ ${a}</div>`).join('')}
       </div>
     </div>
   </div>`;
 }
 
-/* â”€â”€ VIEW 2: Broadcast Room â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── VIEW 2: Broadcast Room ──────────────────────────────────────── */
 function renderV2(D) {
   const { songs, vids, kpis } = D;
   const byPlays  = sortByMetric(songs, s=>s.plays);
@@ -1026,7 +1026,7 @@ function renderV2(D) {
   <div class="broadcast-header">
     <div>
       <div class="bh-title">On Air<br><em style="color:var(--gold)">Performance</em></div>
-      <div class="bh-sub">STASHBOX Â· LIVE RADIO & VIDEO ANALYTICS</div>
+      <div class="bh-sub">STASHBOX · LIVE RADIO & VIDEO ANALYTICS</div>
     </div>
     <div class="bh-meta">
       ${songs.length} Tracks Tracked<br>
@@ -1038,13 +1038,13 @@ function renderV2(D) {
   <div class="v2-grid">
     <div>
       <div class="v2-card" style="margin-bottom:1rem">
-        <h3>Top 15 â€” Airplay Chart</h3>
+        <h3>Top 15 — Airplay Chart</h3>
         ${byPlays.slice(0,15).map((s,i)=>`
           <div class="tape-row">
             <div class="tape-num">${String(i+1).padStart(2,'0')}</div>
             <div class="tape-info">
               <div class="tape-title">${s.title}</div>
-              <div class="tape-artist">${s.artist}${s.genre?` Â· ${s.genre}`:''}</div>
+              <div class="tape-artist">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
             </div>
             <div class="tape-plays">${fmt(s.plays)} plays</div>
           </div>`).join('')}
@@ -1085,7 +1085,7 @@ function renderV2(D) {
   </div>`;
 }
 
-/* â”€â”€ VIEW 3: Ice Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── VIEW 3: Ice Sheet ───────────────────────────────────────────── */
 function renderV3(D) {
   const { songs, vids, kpis } = D;
   const byPlays  = sortByMetric(songs, s=>s.plays);
@@ -1115,8 +1115,8 @@ function renderV3(D) {
 
   document.getElementById('v3').innerHTML = `
   <div class="v3-topbar">
-    <div class="v3-wordmark">STASHBOX Â· ANALYTICS</div>
-    <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3)">${songs.length} TRACKS Â· ${vids.length} VIDEOS</div>
+    <div class="v3-wordmark">STASHBOX · ANALYTICS</div>
+    <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3)">${songs.length} TRACKS · ${vids.length} VIDEOS</div>
   </div>
 
   <div class="v3-kpi-strip">
@@ -1132,7 +1132,7 @@ function renderV3(D) {
 
   <div class="v3-body">
     <div class="v3-panel">
-      <div class="v3-panel-title">Song Performance â€” All Tracks</div>
+      <div class="v3-panel-title">Song Performance — All Tracks</div>
       <table class="v3-table">
         <thead><tr>
           <th>#</th><th>Title</th><th>Artist</th>
@@ -1159,13 +1159,13 @@ function renderV3(D) {
       ${vids10.map((v,i)=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem">
           <div><span style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3);margin-right:.6rem">${i+1}</span>${v.title}</div>
-          <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted)">â™¥ ${fmt(v.likes)}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted)">♥ ${fmt(v.likes)}</span>
         </div>`).join('')}
     </div>
   </div>`;
 }
 
-/* â”€â”€ VIEW 4: Night Market â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── VIEW 4: Night Market ────────────────────────────────────────── */
 function renderV4(D) {
   const { songs, vids, kpis } = D;
   const byPlays  = sortByMetric(songs, s=>s.plays);
@@ -1186,7 +1186,7 @@ function renderV4(D) {
   document.getElementById('v4').innerHTML = `
   <div class="nm-header">
     <span>STASH<span>BOX</span></span>
-    <small>COMMAND GRID Â· LIVE ANALYTICS</small>
+    <small>COMMAND GRID · LIVE ANALYTICS</small>
   </div>
 
   <div class="nm-grid">
@@ -1207,25 +1207,25 @@ function renderV4(D) {
 
     <!-- Top plays -->
     <div class="nm-card">
-      <div class="nm-card-title">â–² Top Plays</div>
-      ${listHtml(byPlays,'â–¶',s=>s.plays)}
+      <div class="nm-card-title">▲ Top Plays</div>
+      ${listHtml(byPlays,'▶',s=>s.plays)}
     </div>
 
     <!-- Best retention -->
     <div class="nm-card">
-      <div class="nm-card-title">â± Best Retention</div>
+      <div class="nm-card-title">⏱ Best Retention</div>
       ${listHtml(byAvg,'avg',s=>fmtAvg(s.avg))}
     </div>
 
     <!-- Most shared -->
     <div class="nm-card">
-      <div class="nm-card-title">â†— Most Shared</div>
-      ${listHtml(byShares,'â†—',s=>s.shares)}
+      <div class="nm-card-title">↗ Most Shared</div>
+      ${listHtml(byShares,'↗',s=>s.shares)}
     </div>
 
     <!-- Videos -->
     <div class="nm-card">
-      <div class="nm-card-title">â–¶ Top Videos</div>
+      <div class="nm-card-title">▶ Top Videos</div>
       ${sortByMetric(vids,v=>v.likes).slice(0,8).map((v,i)=>`
         <div class="nm-list-item">
           <div class="nm-idx">${String(i+1).padStart(2,'0')}</div>
@@ -1233,13 +1233,13 @@ function renderV4(D) {
             <div class="nm-li-title">${v.title}</div>
             <div class="nm-li-sub">${v.artist}</div>
           </div>
-          <div class="nm-li-val">â™¥ ${fmt(v.likes)}</div>
+          <div class="nm-li-val">♥ ${fmt(v.likes)}</div>
         </div>`).join('')}
     </div>
 
     <!-- AI / SEO -->
     <div class="nm-card">
-      <div class="nm-card-title">â—ˆ SEO &amp; AI Scores</div>
+      <div class="nm-card-title">◈ SEO &amp; AI Scores</div>
       ${SEO_SCORES.map(([n,seo,ai])=>`
         <div class="nm-score-row">
           <span style="font-size:.78rem">${n}</span>
@@ -1259,7 +1259,7 @@ function renderV4(D) {
   </div>`;
 }
 
-/* â”€â”€ VIEW 5: Mercury â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── VIEW 5: Mercury ─────────────────────────────────────────────── */
 function renderV5(D) {
   const { songs, vids, kpis } = D;
   const byPlays  = sortByMetric(songs, s=>s.plays);
@@ -1271,17 +1271,17 @@ function renderV5(D) {
         <div class="merc-rn">${i+1}</div>
         <div class="merc-ri">
           <div class="merc-rt">${s.title}</div>
-          <div class="merc-rm">${s.artist}${s.genre?` Â· ${s.genre}`:''}</div>
+          <div class="merc-rm">${s.artist}${s.genre?` · ${s.genre}`:''}</div>
         </div>
         <div class="merc-rv">${label} ${fmt(fn(s))}</div>
       </div>`).join('');
 
   document.getElementById('v5').innerHTML = `
   <div class="merc-masthead">
-    <div class="merc-issue">Performance Edition Â· ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+    <div class="merc-issue">Performance Edition · ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
     <div class="merc-title">Stashbox <em>Intelligence</em></div>
     <div class="merc-rule"></div>
-    <div class="merc-lead">Radio, video, SEO, and AI search visibility â€” consolidated into a single editorial view.</div>
+    <div class="merc-lead">Radio, video, SEO, and AI search visibility — consolidated into a single editorial view.</div>
   </div>
 
   <div class="merc-band">
@@ -1302,9 +1302,9 @@ function renderV5(D) {
   <div class="merc-body">
     <div>
       <div class="merc-sidebar-h">Top Songs by Plays</div>
-      ${rankRows(byPlays,'â–¶',s=>s.plays)}
+      ${rankRows(byPlays,'▶',s=>s.plays)}
       <div class="merc-sidebar-h" style="margin-top:1.5rem">Top Songs by Shares</div>
-      ${rankRows(byShares,'â†—',s=>s.shares)}
+      ${rankRows(byShares,'↗',s=>s.shares)}
     </div>
     <div>
       <div class="merc-sidebar-section">
@@ -1324,7 +1324,7 @@ function renderV5(D) {
         ${sortByMetric(vids,v=>v.likes).slice(0,6).map((v,i)=>`
           <div class="merc-score-item">
             <span style="font-size:.78rem">${v.title}</span>
-            <span class="pill pill-p">â™¥ ${fmt(v.likes)}</span>
+            <span class="pill pill-p">♥ ${fmt(v.likes)}</span>
           </div>`).join('')}
       </div>
 
@@ -1336,9 +1336,9 @@ function renderV5(D) {
   </div>`;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════════
    ORCHESTRATION
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════ */
 function processPayload(raw) {
   const radio = Array.isArray(raw.radio) ? raw.radio : [];
   const videos = Array.isArray(raw.videos) ? raw.videos : [];
@@ -1409,18 +1409,18 @@ async function boot() {
   const loadStatus = document.getElementById('load-status');
   const loadingEl = document.getElementById('loading');
   const app = document.getElementById('app');
-  loadStatus.textContent = 'Fetching live dataâ€¦';
+  loadStatus.textContent = 'Fetching live data…';
 
   let D;
   try {
     const { raw, connector } = await fetchLiveData();
     D = processPayload(raw);
-    setStatus(true, `Live (${connector}) Â· ${D.songs.length} tracks Â· ${D.vids.length} videos`);
-    document.getElementById('load-status').textContent = 'Live data loaded âœ“';
+    setStatus(true, `Live (${connector}) · ${D.songs.length} tracks · ${D.vids.length} videos`);
+    document.getElementById('load-status').textContent = 'Live data loaded ✓';
   } catch(err) {
     console.warn('[dashboard] API failed, using fallback:', err.message);
     D = processPayload(makeFallback());
-    setStatus(false, 'Sample mode â€” API unavailable');
+    setStatus(false, 'Sample mode — API unavailable');
     loadStatus.textContent = 'Using sample data';
   }
 
@@ -1429,7 +1429,7 @@ async function boot() {
   } catch (err) {
     console.error('[dashboard] render failed, forcing fallback render:', err);
     D = processPayload(makeFallback());
-    setStatus(false, 'Sample mode â€” render recovery');
+    setStatus(false, 'Sample mode — render recovery');
     loadStatus.textContent = 'Recovered with sample data';
     renderAll(D);
   } finally {
@@ -1439,7 +1439,7 @@ async function boot() {
   }
 }
 
-/* â”€â”€â”€ Tab switching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Tab switching ─────────────────────────────────────────────── */
 document.querySelectorAll('.view-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
