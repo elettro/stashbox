@@ -315,6 +315,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 }
 </style>
   <link rel="canonical" href="https://stashbox.com/radio/">
+  <meta name="geo.region" content="US-FL">
+  <meta name="geo.placename" content="South Florida">
   <meta name="description" content="Stashbox Radio — stream 110+ tracks across Reggae, Rock, Blues, Funk, and Electronic. In-player merch shop tied to each song. Powered by Stashbox.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Stashbox">
@@ -356,6 +358,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
         { "@type": "ListItem", "position": 1, "name": "Stashbox", "item": "https://stashbox.com/" },
         { "@type": "ListItem", "position": 2, "name": "Stashbox Radio", "item": "https://stashbox.com/radio/" }
       ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "MusicPlaylist",
+      "name": "Stashbox Radio — 110+ Tracks",
+      "url": "https://stashbox.com/radio/",
+      "description": "110+ track curated radio station streaming Reggae, Rock, Blues, Funk, and Electronic. Free to stream with an in-player merch shop.",
+      "numTracks": 110,
+      "genre": ["Reggae", "Rock", "Blues", "Funk", "Electronic"],
+      "byArtist": { "@type": "MusicGroup", "@id": "https://stashbox.com/#band", "name": "Stashbox" }
     }
   ]
   </script>

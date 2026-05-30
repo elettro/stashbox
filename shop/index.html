@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="canonical" href="https://stashbox.com/shop/">
+  <meta name="geo.region" content="US-FL">
+  <meta name="geo.placename" content="South Florida">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Stashbox">
   <meta property="og:title" content="Shop — Stashbox Store · T-Shirts, Art Prints &amp; More">
@@ -35,8 +37,30 @@
         "@type": "OfferCatalog",
         "name": "Stashbox Merchandise",
         "itemListElement": [
-          { "@type": "Offer", "itemOffered": { "@type": "Product", "name": "T-Shirts", "category": "Apparel" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Product", "name": "Art Prints", "category": "Art" } }
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Product",
+              "name": "Stashbox T-Shirt",
+              "description": "Official Stashbox band t-shirt featuring the Stashbox logo. Available in multiple sizes.",
+              "category": "Apparel",
+              "brand": { "@type": "Brand", "name": "Stashbox" },
+              "image": "https://stashbox.com/images/dylan/dylan-promo-1376x768-1.png",
+              "offers": { "@type": "Offer", "priceCurrency": "USD", "availability": "https://schema.org/InStock", "url": "https://stashbox.ai/collections/stashbox" }
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Product",
+              "name": "Stashbox Art Print",
+              "description": "Official Stashbox band art print. High-quality print featuring original Stashbox artwork.",
+              "category": "Art",
+              "brand": { "@type": "Brand", "name": "Stashbox" },
+              "image": "https://stashbox.com/images/dylan/dylan-promo-1376x768-1.png",
+              "offers": { "@type": "Offer", "priceCurrency": "USD", "availability": "https://schema.org/InStock", "url": "https://stashbox.ai/collections/stashbox" }
+            }
+          }
         ]
       }
     },
