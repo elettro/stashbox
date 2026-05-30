@@ -1257,15 +1257,19 @@ function _startStallWatchdog(){
   },3000);
 }
 function _clearStallWatchdog(){if(_stallTimer){clearInterval(_stallTimer);_stallTimer=null;}}
-audio.addEventListener('play',()=>{_startStallWatchdog();});
+audio.addEventListener('play',()=>{
+  // Upgrade to preload="auto" on first play so the browser buffers ahead;
+  // doing it here (not on page load) avoids wasting bandwidth before user interaction.
+  if(audio.preload!=='auto')audio.preload='auto';
+  _startStallWatchdog();
+});
 audio.addEventListener('pause',()=>{_clearStallWatchdog();});
 audio.addEventListener('ended',()=>{_clearStallWatchdog();});
-// Browser stopped fetching data — reload from current position
+// Browser stopped fetching data — let it resume naturally; do not wipe the buffer
 audio.addEventListener('stalled',()=>{
-  if(audio.paused||!currentTrack?.audioUrl)return;
-  setTimeout(()=>{
-    if(!audio.paused){const ct=audio.currentTime;audio.load();audio.currentTime=ct;audio.play().catch(()=>{});}
-  },3000);
+  // Intentionally no-op: calling audio.load() here resets the buffer and causes
+  // the pause/resume/repeat stutter on poor cellular. The browser will resume
+  // on its own once data arrives; the stall watchdog above handles true freezes.
 });
 
 function setPlayBtns(paused){
