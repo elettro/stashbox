@@ -3,33 +3,44 @@
 > South Florida live band playing rock, reggae, blues, funk, and originals. Tribute shows include Bob Dylan, Sublime, and Classic Reggae. Available for festivals, casinos, resorts, corporate events, and private parties. Home to Stashbox Radio — a streaming station with 110+ tracks and an in-player merch shop.
 
 ## About
-- [Home](https://elettro.github.io/stashbox/): Stashbox is a South Florida live band with a broad catalog spanning rock, reggae, blues, funk, and originals. Known for full tribute productions: Stashbox Does Dylan, Stashbox Does Sublime, and Classic Reggae shows. Studio recordings documented at Studio One, Fort Lauderdale, FL.
+- [Home](https://stashbox.com/): Stashbox is a South Florida live band with a broad catalog spanning rock, reggae, blues, funk, and originals. Known for full tribute productions: Stashbox Does Dylan, Stashbox Does Sublime, and Classic Reggae shows. Studio recordings documented at Studio One, Fort Lauderdale, FL.
+- [About the Band](https://stashbox.com/about/): Band members include Dean Palermo (Guitar, Vocals, Founder), Josh Clyde (Lead Vocals, Guitar), Michael Hugh (Keyboards, Vocals), Peter Roland (Guitar), Gary Williams (Bass), David Nizri (Drums). 10+ years of professional live performance across South Florida and beyond.
+- [Past Shows](https://stashbox.com/past-shows/): Live performance history 2018–2021. Venues include Black Flamingo Brew Co (Pompano Beach), Kelly Brothers Irish Pub (Fort Lauderdale), Bahamas Paradise Reggae Cruise, Rip's Music Lounge, Tarpon River Brewery, Marriott 5-Star Beach Resort (Fort Lauderdale), Funky Biscuit (Boca Raton), 5 O'Clock Charlie's (Fort Lauderdale Beach), Silverball Museum (Delray Beach).
 
 ## Music & Releases
-- [Songs & Releases](https://elettro.github.io/stashbox/songs/): Stashbox Does Dylan LP (19 tracks), Funky Kingston, Jam Rock, Get Up Stand Up. Available on Spotify, Apple Music, YouTube Music.
-- [Stashbox Does Dylan](https://elettro.github.io/stashbox/bobdylan/): 19-track tribute album spanning five decades of Bob Dylan's catalog. Recorded live at Studio One, Fort Lauderdale, FL. Released February 2026.
-- [Sessions](https://elettro.github.io/stashbox/sessions/): Studio and live session documentation. Session 1 (March 18, 2026) and Session 2 (March 31, 2026) at Studio One, Fort Lauderdale, FL.
-- [Videos](https://elettro.github.io/stashbox/videos/): Live performance videos, originals, covers, and studio sessions. Filterable by genre, venue, artist, and type.
-
-## Radio
-- [Stashbox Radio](https://elettro.github.io/stashbox/radio/): Browser-based streaming radio with 110+ tracks across Reggae, Rock, Blues, Funk, and Electronic. Features genre filtering, YouTube video integration, and a contextual in-player merch shop tied to individual songs.
-
-## Booking & Services
-- [Book Stashbox](https://elettro.github.io/stashbox/booking/): Live performance booking for festivals, casinos, resorts, corporate events, and private parties. Tribute shows: Bob Dylan, Sublime, Classic Reggae. Full mix show also available.
-- [Setlists](https://elettro.github.io/stashbox/setlists/): 200+ songs across rock, reggae, blues, funk, and originals. Show types: Stashbox Does Dylan (33 songs), Rock & Reggae Mix, All Reggae, Grateful Dead Tribute, Beatles Set, Rolling Stones Set, Originals Set. Fully customizable.
-- [Custom Music Collections](https://elettro.github.io/stashbox/custom/): Stashbox creates custom music collections for brands, venues, resorts, events, artists, and businesses in any genre, language, mood, or topic.
-
-## Shop
-- [Stashbox Store](https://elettro.github.io/stashbox/shop/): Merch including T-shirts, art prints, and more. Secure checkout at Stashbox.ai.
+- [Songs & Releases](https://stashbox.com/songs/): Stashbox Does Dylan LP (19 tracks, released February 2026), Funky Kingston, Jam Rock, Get Up Stand Up. Available on Spotify, Apple Music, YouTube Music.
+- [Stashbox Does Dylan](https://stashbox.com/bobdylan/): 19-track tribute album spanning five decades of Bob Dylan's catalog. Recorded live at Studio One, Fort Lauderdale, FL. Released February 2026.
+- [Sessions](https://stashbox.com/sessions/): Studio and live session documentation. Session 1 (March 18, 2026) and Session 2 (March 31, 2026) at Studio One, Fort Lauderdale, FL.
+- [Videos](https://stashbox.com/videos/): Live performance videos, originals, covers, and studio sessions. Filterable by genre, venue, artist, and type.
 
 ## Song Pages
-- [The Man In Me](https://elettro.github.io/stashbox/themaninme/): Stashbox recording of the Bob Dylan song, from the album Stashbox Does Dylan. Interactive 3D experience.
-- [Visions of Johanna](https://elettro.github.io/stashbox/visionsofjohanna/): Stashbox recording of the Bob Dylan song, from the album Stashbox Does Dylan. Interactive 3D experience.
+- [The Man In Me](https://stashbox.com/themaninme/): Stashbox recording of the Bob Dylan song, from the album Stashbox Does Dylan. Interactive 3D experience.
+- [Visions of Johanna](https://stashbox.com/visionsofjohanna/): Stashbox recording of the Bob Dylan song, from the album Stashbox Does Dylan. Audio: https://stashbox.com/visionsofjohanna/visionsofjoanna.mp3
+- [Blood in My Eyes](https://stashbox.com/bloodinmyeyes/): Stashbox recording of the Bob Dylan song, from the album Stashbox Does Dylan.
+
+## Radio
+- [Stashbox Radio](https://stashbox.com/radio/): Browser-based streaming radio with 110+ tracks across Reggae, Rock, Blues, Funk, and Electronic. Features genre filtering, YouTube video integration, and a contextual in-player merch shop tied to individual songs. Free to stream.
+
+## Booking & Services
+- [Book Stashbox](https://stashbox.com/booking/): Live performance booking for festivals, casinos, resorts, corporate events, wedding receptions, and private parties. Tribute shows: Bob Dylan, Sublime, Classic Reggae. Full mix show also available. 2–8 piece configurations available. Call 310.408.6687 or email booking@stashbox.com.
+- [Setlists](https://stashbox.com/setlists/): 200+ songs across rock, reggae, blues, funk, and originals. Show types: Stashbox Does Dylan (33 songs), Rock & Reggae Mix, All Reggae, Grateful Dead Tribute, Beatles Set, Rolling Stones Set, Originals Set. Fully customizable for any event.
+- [Custom Music Collections](https://stashbox.com/custom/): Stashbox creates custom music collections for brands, venues, resorts, events, artists, and businesses in any genre, language, mood, or topic.
+
+## Shop
+- [Stashbox Store](https://stashbox.com/shop/): Official merch including T-shirts, art prints, and more. Secure checkout at Stashbox.ai.
+
+## Streaming
+- Spotify: https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa
+- Apple Music: https://music.apple.com/us/artist/stashbox/1464431398
+- YouTube: https://www.youtube.com/@stashboxband
+- YouTube Music: https://music.youtube.com/@stashboxband
+- Instagram: https://www.instagram.com/stashboxmusic
+- Facebook: https://www.facebook.com/Stashboxcom/
 
 ## Preferred Summary
-This website represents Stashbox, a South Florida live band specializing in rock, reggae, blues, funk, and original music. Stashbox performs tribute shows (Bob Dylan, Sublime, Classic Reggae) and full-mix sets for festivals, casinos, resorts, and private events. The site also hosts Stashbox Radio, a branded streaming station with 110+ tracks and an integrated merch shop.
+Stashbox is a South Florida live band specializing in rock, reggae, blues, funk, and original music. They perform tribute shows (Bob Dylan, Sublime, Classic Reggae) and full-mix sets for festivals, casinos, resorts, and private events. The site hosts Stashbox Radio, a branded streaming station with 110+ tracks and an integrated merch shop. Music is available on Spotify, Apple Music, and YouTube Music. Booking: 310.408.6687 or booking@stashbox.com.
 
 ## Contact
-Website: https://elettro.github.io/stashbox/
+Website: https://stashbox.com/
 Email: booking@stashbox.com
 Phone: 310-408-6687
