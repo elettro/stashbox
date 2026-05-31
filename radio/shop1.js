@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop4-diag-006';
+  const BUILD = 'shop5-fix-001';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
@@ -26,13 +26,10 @@
     if (type === 'click' && clickedRows.has(key)) return;
     if (type === 'view')  viewedRows.add(key);
     if (type === 'click') clickedRows.add(key);
-    const payload = JSON.stringify({ type, rowNumber: Number(rowNumber) });
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(TRACKING_ENDPOINT, new Blob([payload], { type: 'application/json' }));
-    } else {
-      fetch(TRACKING_ENDPOINT, { method: 'POST', body: payload, keepalive: true }).catch(() => {});
-    }
-    console.log('[shop4] tracked', type, 'row', rowNumber);
+    // Use GET with URL params — POST bodies are dropped by Google's 302 redirect
+    const url = TRACKING_ENDPOINT + '?type=product_' + encodeURIComponent(type) + '&rowNumber=' + encodeURIComponent(rowNumber);
+    fetch(url, { method: 'GET', cache: 'no-store', keepalive: true }).catch(() => {});
+    console.log('[shop5] tracked', type, 'row', rowNumber);
   }
 
   function setupDesktopTracking(mount) {
@@ -392,7 +389,8 @@
     </section>`;
   }
 
-  // ── Hardcoded fallback ────────────────────────────────────────────
+  // ── Desktop-only fallback — NEVER touches mobile ─────────────────
+  // Mobile always uses getStoreProducts() → renderMobileShopFromStore()
   function renderFallback() {
     const fallbackEntries = [
       { link:'https://stashbox.ai/products/unisex-heavy-cotton-tee-stashbox-drinking-fire-001', handle:'unisex-heavy-cotton-tee-stashbox-drinking-fire-001' },
@@ -400,37 +398,37 @@
       { link:'https://stashbox.ai/products/stashbox-guitar-design-026-tank-top-no-background',  handle:'stashbox-guitar-design-026-tank-top-no-background' },
       { link:'https://stashbox.ai/products/crusty-gnome-vol-9-stashbox-pint-glass',            handle:'crusty-gnome-vol-9-stashbox-pint-glass' },
     ];
-    renderDiag({ totalRows: productMapItems.length, poolSize: 0, trackTitle:'(fallback)', seed:'', offset:0, pool:[], selected: fallbackEntries.map(e=>e.handle) });
+    renderDiag({ totalRows: productMapItems.length, poolSize: 0, trackTitle:'(desktop-fallback)', seed:'', offset:0, pool:[], selected: fallbackEntries.map(e=>e.handle) });
     const row = { merchHeadline:'Shop This Track', merchCtaText:'Shop Now' };
     buildProductsFromEntries(fallbackEntries).then(products => {
       renderDesktopShop(row, products);
-      renderMobileShop(row, products);
+      // Mobile NOT touched here — it runs independently via renderMobileShopFromStore
     });
   }
 
   // ── Main update ───────────────────────────────────────────────────
   async function updateRadioMerch(track) {
+    currentTrack = track || window.currentTrack || currentTrack;
+
+    // ── MOBILE: always runs independently, never blocked by desktop logic
+    getStoreProducts().then(storeProducts => {
+      renderMobileShopFromStore(currentTrack, storeProducts);
+    });
+
+    // ── DESKTOP: productMap curated 4 — failures only affect desktop
     try {
-      currentTrack = track || window.currentTrack || currentTrack;
-
-      // Mobile: fetch ALL store products from Shopify, rotate by song title
-      getStoreProducts().then(storeProducts => {
-        renderMobileShopFromStore(currentTrack, storeProducts);
-      });
-
-      // Desktop: curated 4 from productMap spreadsheet
       if (!Array.isArray(productMapItems) || !productMapItems.length) await fetchProductMap();
-      if (!Array.isArray(productMapItems) || !productMapItems.length) return renderFallback();
+      if (!Array.isArray(productMapItems) || !productMapItems.length) { renderFallback(); return; }
 
       const { entries, displayRow } = selectProducts(currentTrack, 4);
-      if (!entries.length) return renderFallback();
+      if (!entries.length) { renderFallback(); return; }
 
       const products = await buildProductsFromEntries(entries);
-      if (!products.length) return renderFallback();
+      if (!products.length) { renderFallback(); return; }
 
       renderDesktopShop(displayRow, products);
     } catch (err) {
-      console.error('[shop4] updateRadioMerch failed:', err);
+      console.error('[shop5] desktop merch failed:', err);
       renderFallback();
     }
   }
@@ -458,11 +456,11 @@
       const track = window.currentTrack || currentTrack;
       if (track) await updateRadioMerch(track);
       else {
-        // Render with empty track so diag panel shows pool data
+        // No track yet — show desktop pool preview, mobile handled separately
         const { entries, displayRow } = selectProducts({}, 4);
         if (entries.length) {
           const products = await buildProductsFromEntries(entries);
-          if (products.length) { renderDesktopShop(displayRow, products); renderMobileShop(displayRow, products); return; }
+          if (products.length) { renderDesktopShop(displayRow, products); return; }
         }
         renderFallback();
       }

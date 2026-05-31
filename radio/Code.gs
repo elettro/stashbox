@@ -20,6 +20,14 @@ function doGet(e) {
   const key = String(params.key || "").trim();
   const requestedType = String(params.type || "").trim().toLowerCase();
 
+  // Handle GET-based product tracking (view/click via URL params)
+  if (requestedType === "product_view" || requestedType === "product_click") {
+    const rowNumber = parseInt(String(params.rowNumber || ""), 10);
+    const col       = requestedType === "product_view" ? PRODUCT_MAP_VIEWS_COL : PRODUCT_MAP_CLICKS_COL;
+    const colLabel  = requestedType === "product_view" ? "views" : "clicks";
+    return handleProductMapTracking({ type: requestedType, rowNumber: rowNumber }, requestedType, col, colLabel);
+  }
+
   const productMapRequested =
     (!requestedType && !key) ||        // ← FIXED — default when redirect strips params
     requestedType === "productmap" ||
