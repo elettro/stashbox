@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop5-fix-002';
+  const BUILD = 'shop5-fix-003';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
@@ -401,20 +401,26 @@
     </section>`;
   }
 
-  // ── Desktop-only fallback — NEVER touches mobile ─────────────────
-  // Mobile always uses getStoreProducts() → renderMobileShopFromStore()
+  // ── Desktop fallback — uses Shopify store products so they rotate per song
+  // Only touches desktop. Mobile always uses renderMobileShopFromStore independently.
   function renderFallback() {
-    const fallbackEntries = [
-      { link:'https://stashbox.ai/products/unisex-heavy-cotton-tee-stashbox-drinking-fire-001', handle:'unisex-heavy-cotton-tee-stashbox-drinking-fire-001' },
-      { link:'https://stashbox.ai/products/stashbox-guitar-design-026',                        handle:'stashbox-guitar-design-026' },
-      { link:'https://stashbox.ai/products/stashbox-guitar-design-026-tank-top-no-background',  handle:'stashbox-guitar-design-026-tank-top-no-background' },
-      { link:'https://stashbox.ai/products/crusty-gnome-vol-9-stashbox-pint-glass',            handle:'crusty-gnome-vol-9-stashbox-pint-glass' },
-    ];
-    renderDiag({ totalRows: productMapItems.length, poolSize: 0, trackTitle:'(desktop-fallback)', seed:'', offset:0, pool:[], selected: fallbackEntries.map(e=>e.handle) });
-    const row = { merchHeadline:'Shop This Track', merchCtaText:'Shop Now' };
-    buildProductsFromEntries(fallbackEntries).then(products => {
-      renderDesktopShop(row, products);
-      // Mobile NOT touched here — it runs independently via renderMobileShopFromStore
+    getStoreProducts().then(storeProducts => {
+      const seed    = slugifyProductKey(currentTrack?.title || '');
+      const rotated = seed && storeProducts.length > 1 ? rotateByOffset(storeProducts, seed) : storeProducts;
+      const pick4   = rotated.slice(0, 4);
+
+      renderDiag({ totalRows: productMapItems.length, poolSize: storeProducts.length, trackTitle: currentTrack?.title || '(none)', seed, offset: storeProducts.length > 1 ? hashSeed(seed) % storeProducts.length : 0, pool: storeProducts.map(p => p.handle || ''), selected: pick4.map(p => p.handle || '') });
+
+      if (pick4.length) {
+        const products = pick4.map(p => {
+          const v    = p.variants && p.variants[0];
+          const img  = p.images && p.images[0] ? String(p.images[0].src || '') : '';
+          const price = v && v.price            ? '$' + parseFloat(v.price).toFixed(2)            : '';
+          const comp  = v && v.compare_at_price ? '$' + parseFloat(v.compare_at_price).toFixed(2) : '';
+          return { title: p.title || 'Stashbox Product', url: 'https://stashbox.ai/products/' + (p.handle || ''), handle: p.handle || '', image: img.startsWith('//') ? 'https:' + img : img, price, compareAtPrice: comp };
+        });
+        renderDesktopShop({ merchHeadline: 'Shop This Track', merchCtaText: 'Shop Now' }, products);
+      }
     });
   }
 
