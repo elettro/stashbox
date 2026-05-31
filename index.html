@@ -648,6 +648,47 @@
 
 
 
+<!-- ── THE MAN IN ME VISUALIZER ──────────────────────────── -->
+<section class="section" aria-labelledby="visualizer-heading" style="background:var(--color-bg);">
+  <div class="container">
+    <h2 class="section-title fade-in" id="visualizer-heading">THE MAN IN ME VISUALIZER</h2>
+    <div class="vim-outer fade-in">
+      <a href="/stashbox/themaninme/" class="vim-link" aria-label="Explore The Man in Me Visualizer">
+        <div class="vim-wrap">
+          <img class="vim-img vim-img--1"
+               src="/images/thumb-the-man-in-me-visualizer1.png"
+               alt="The Man in Me Visualizer — Stashbox">
+          <img class="vim-img vim-img--2"
+               src="/images/thumb-the-man-in-me-visualizer2.png"
+               alt="The Man in Me Visualizer — alternate view"
+               aria-hidden="true">
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+.vim-outer { max-width: 680px; margin: var(--space-10) auto 0; }
+.vim-link  { display: block; border-radius: 14px; overflow: hidden; }
+.vim-link:hover .vim-wrap { opacity: .9; }
+.vim-wrap  { position: relative; transition: opacity .2s; }
+.vim-img   { display: block; width: 100%; height: auto; }
+.vim-img--2 {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: vim-cross 5s ease-in-out infinite;
+}
+@keyframes vim-cross {
+  0%, 35%  { opacity: 0; }
+  50%, 85% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+</style>
+
 <!-- ── BOOKING CTA ───────────────────────────────────────── -->
 <section class="section booking-cta" id="contact" aria-labelledby="contact-heading">
   <div class="container">
