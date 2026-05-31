@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  console.log('[shop2 merch] BUILD shop2-products-4-images-001 loaded');
+  console.log('[shop3 merch] BUILD shop3-rotation-002 loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
   const DESKTOP_MOUNT = 'stashbox-radio-shop-desktop';
@@ -14,19 +14,19 @@
   let currentTrack    = null;
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
-  // Deterministic shuffle keyed to a seed string — same seed = same order, different seed = different order
-  function seededShuffle(arr, seed) {
+  // Hash a string to a positive integer
+  function hashSeed(seed) {
     let s = 0;
     const str = String(seed || '');
     for (let i = 0; i < str.length; i++) s = ((s << 5) - s + str.charCodeAt(i)) | 0;
-    s = (s >>> 0) || 1;
-    const result = arr.slice();
-    for (let i = result.length - 1; i > 0; i--) {
-      s = (s * 1664525 + 1013904223) >>> 0;
-      const j = s % (i + 1);
-      [result[i], result[j]] = [result[j], result[i]];
-    }
-    return result;
+    return Math.abs(s >>> 0) || 1;
+  }
+
+  // Rotate array by offset derived from seed — each unique seed starts at a different position
+  function seededShuffle(arr, seed) {
+    if (!arr.length) return arr;
+    const offset = hashSeed(seed) % arr.length;
+    return arr.slice(offset).concat(arr.slice(0, offset));
   }
 
   function shopDebugPanel(message, data) {
