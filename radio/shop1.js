@@ -148,31 +148,64 @@
     return rows;
   }
 
-  function mergeProductRowsToLinks(rows, limit, trackSeed) {
-    const seen = new Set(), merged = [], max = limit || 4;
-    const specificTypes = new Set(['song', 'artist', 'album']);
-    rows.forEach(row => {
-      let links = Array.isArray(row.productLinks)
-        ? row.productLinks.slice()
-        : String(row.productLinks || '').split(/\s*\|\s*|\n|,/);
-      // For general/fallback rows, shuffle the product link order by track seed
-      // so different songs surface different products from the same pool
-      const rowType = String(row.mapType || '').toLowerCase();
-      if (trackSeed && !specificTypes.has(rowType)) {
-        links = seededShuffle(links, trackSeed + ':' + rowType);
-      }
-      links.forEach(link => {
-        const cleanLink = String(link || '').trim();
-        if (!cleanLink) return;
-        const match = cleanLink.split('?')[0].match(/\/products\/([^/?#]+)/i);
-        const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
-        if (!handle || seen.has(handle)) return;
-        seen.add(handle);
-        merged.push({ link: cleanLink, handle, sourceRow: row });
-      });
+  function extractLinksFromRow(row) {
+    const links = Array.isArray(row.productLinks)
+      ? row.productLinks.slice()
+      : String(row.productLinks || '').split(/\s*\|\s*|\n|,/);
+    const out = [];
+    links.forEach(link => {
+      const cleanLink = String(link || '').trim();
+      if (!cleanLink) return;
+      const match = cleanLink.split('?')[0].match(/\/products\/([^/?#]+)/i);
+      const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
+      if (handle) out.push({ link: cleanLink, handle, sourceRow: row });
     });
+    return out;
+  }
+
+  function mergeProductRowsToLinks(rows, limit, trackSeed) {
+    const max = limit || 4;
+    const specificTypes = new Set(['song', 'artist', 'album', 'genre']);
+
+    // Split matched rows into specific (high-priority) and general
+    const specificEntries = [];
+    rows.forEach(row => {
+      if (specificTypes.has(String(row.mapType || '').toLowerCase())) {
+        extractLinksFromRow(row).forEach(e => specificEntries.push(e));
+      }
+    });
+
+    // Build general pool from ALL active productMapItems (not just matched rows)
+    // so we have the full catalogue to rotate through
+    const generalPool = [];
+    productMapItems
+      .filter(item => item && item.active !== false)
+      .filter(item => !specificTypes.has(String(item.mapType || '').toLowerCase()))
+      .forEach(item => extractLinksFromRow(item).forEach(e => generalPool.push(e)));
+
+    // Shuffle the general pool by track seed — different song → different 4
+    const shuffledGeneral = trackSeed ? seededShuffle(generalPool, trackSeed) : generalPool;
+
+    const seen = new Set();
+    const merged = [];
+
+    // Specific matches always come first
+    specificEntries.forEach(entry => {
+      if (seen.has(entry.handle) || merged.length >= max) return;
+      seen.add(entry.handle);
+      merged.push(entry);
+    });
+
+    // Fill remaining slots from shuffled general pool
+    for (const entry of shuffledGeneral) {
+      if (merged.length >= max) break;
+      if (seen.has(entry.handle)) continue;
+      seen.add(entry.handle);
+      merged.push(entry);
+    }
+
     merchLog('merged product entries', merged);
-    return merged.slice(0, max);
+    return merged;
   }
 
   function fmt(value) {
