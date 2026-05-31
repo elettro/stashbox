@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop4-diag-001';
+  const BUILD = 'shop4-diag-004';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
@@ -327,12 +327,21 @@
     try {
       console.log('[shop4] fetching productMap...');
       const res = await fetch(PRODUCT_MAP_ENDPOINT, { cache:'no-store' });
+      const rawText = await res.text();
+      console.log('[shop4] raw response status:', res.status);
+      console.log('[shop4] raw response body:', rawText);
+
+      // Show raw API response in diag so we can see exactly what the endpoint returns
+      let box = document.getElementById('shop4-diag');
+      if (!box) { box = document.createElement('div'); box.id = 'shop4-diag'; box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;max-height:40vh;overflow-y:auto;padding:10px 14px;background:#0a1628;border-top:2px solid #f0a500;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;'; document.body.appendChild(box); }
+      box.textContent = 'BUILD: ' + BUILD + '\nAPI status: ' + res.status + '\nAPI response:\n' + rawText.slice(0, 2000);
+
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
+      let data;
+      try { data = JSON.parse(rawText); } catch(e) { throw new Error('JSON parse failed: ' + e.message); }
       productMapItems = Array.isArray(data.items) ? data.items : [];
       productMapReady = true;
       console.log('[shop4] productMap loaded. rows:', productMapItems.length);
-      console.log('[shop4] productMap items:', JSON.stringify(productMapItems));
       if (!productMapItems.length) return renderFallback();
       const track = window.currentTrack || currentTrack;
       if (track) await updateRadioMerch(track);
