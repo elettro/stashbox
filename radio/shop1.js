@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop5-fix-001';
+  const BUILD = 'shop5-fix-002';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
@@ -65,11 +65,28 @@
     if (!box) {
       box = document.createElement('div');
       box.id = 'shop4-diag';
-      // Fixed to bottom of viewport — completely outside the radio player DOM
-      box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;max-height:40vh;overflow-y:auto;padding:10px 14px;background:#0a1628;border-top:2px solid #f0a500;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
+      box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#0a1628;border-top:2px solid #f0a500;font:11px/1.6 monospace;color:#f0a500;';
+      // Toggle button
+      const btn = document.createElement('button');
+      btn.id = 'shop4-diag-toggle';
+      btn.textContent = '▲ DIAG';
+      btn.style.cssText = 'position:absolute;top:-28px;right:8px;background:#0a1628;border:1px solid #f0a500;color:#f0a500;font:700 10px monospace;padding:3px 8px;cursor:pointer;border-bottom:none;';
+      let collapsed = false;
+      const body = document.createElement('div');
+      body.id = 'shop4-diag-body';
+      body.style.cssText = 'max-height:35vh;overflow-y:auto;padding:10px 14px;white-space:pre-wrap;word-break:break-all;';
+      btn.addEventListener('click', () => {
+        collapsed = !collapsed;
+        body.style.display = collapsed ? 'none' : 'block';
+        btn.textContent = collapsed ? '▼ DIAG' : '▲ DIAG';
+      });
+      box.appendChild(btn);
+      box.appendChild(body);
       document.body.appendChild(box);
     }
-    box.textContent = [
+    const body = document.getElementById('shop4-diag-body');
+    if (!body) return;
+    body.textContent = [
       'BUILD: ' + BUILD,
       'spreadsheet rows: ' + data.totalRows,
       'general pool size: ' + data.poolSize,
@@ -320,16 +337,11 @@
     setupDesktopTracking(mount);
   }
 
-  function renderMobileShop(displayRow, products) {
-    const mount = document.getElementById(MOBILE_MOUNT);
-    if (!mount) return;
-    mount.innerHTML = `<section class="mobile-shop-section">
-      <div class="mobile-shop-headline">
-        <div><div class="mobile-shop-kicker">STASHBOX MERCH</div><h3>${escapeHtml(displayRow.merchHeadline || 'Shop This Track')}</h3></div>
-        <span>${products.length} items</span>
-      </div>
-      <div class="mobile-shop-carousel">${products.map(p => renderProductCardHtml(p, displayRow)).join('')}</div>
-    </section>`;
+  // Legacy function — always delegates to full store carousel now
+  function renderMobileShop() {
+    getStoreProducts().then(storeProducts => {
+      renderMobileShopFromStore(currentTrack, storeProducts);
+    });
   }
 
   // ── Shopify store: fetch all products for mobile carousel ─────────
@@ -410,27 +422,29 @@
   async function updateRadioMerch(track) {
     currentTrack = track || window.currentTrack || currentTrack;
 
-    // ── MOBILE: always runs independently, never blocked by desktop logic
-    getStoreProducts().then(storeProducts => {
-      renderMobileShopFromStore(currentTrack, storeProducts);
-    });
-
-    // ── DESKTOP: productMap curated 4 — failures only affect desktop
+    // ── DESKTOP: productMap curated 4 — await this fully before touching mobile
     try {
       if (!Array.isArray(productMapItems) || !productMapItems.length) await fetchProductMap();
-      if (!Array.isArray(productMapItems) || !productMapItems.length) { renderFallback(); return; }
-
-      const { entries, displayRow } = selectProducts(currentTrack, 4);
-      if (!entries.length) { renderFallback(); return; }
-
-      const products = await buildProductsFromEntries(entries);
-      if (!products.length) { renderFallback(); return; }
-
-      renderDesktopShop(displayRow, products);
+      if (!Array.isArray(productMapItems) || !productMapItems.length) {
+        renderFallback();
+      } else {
+        const { entries, displayRow } = selectProducts(currentTrack, 4);
+        if (!entries.length) {
+          renderFallback();
+        } else {
+          const products = await buildProductsFromEntries(entries);
+          if (!products.length) { renderFallback(); } else { renderDesktopShop(displayRow, products); }
+        }
+      }
     } catch (err) {
       console.error('[shop5] desktop merch failed:', err);
       renderFallback();
     }
+
+    // ── MOBILE: runs LAST so nothing can overwrite it afterward
+    getStoreProducts().then(storeProducts => {
+      renderMobileShopFromStore(currentTrack, storeProducts);
+    });
   }
 
   async function fetchProductMap() {
@@ -442,9 +456,8 @@
       console.log('[shop4] raw response body:', rawText);
 
       // Show raw API response in diag so we can see exactly what the endpoint returns
-      let box = document.getElementById('shop4-diag');
-      if (!box) { box = document.createElement('div'); box.id = 'shop4-diag'; box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;max-height:40vh;overflow-y:auto;padding:10px 14px;background:#0a1628;border-top:2px solid #f0a500;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;'; document.body.appendChild(box); }
-      box.textContent = 'BUILD: ' + BUILD + '\nAPI status: ' + res.status + '\nAPI response:\n' + rawText.slice(0, 2000);
+      const diagBody = document.getElementById('shop4-diag-body');
+      if (diagBody) diagBody.textContent = 'BUILD: ' + BUILD + '\nAPI status: ' + res.status + '\nAPI response:\n' + rawText.slice(0, 2000);
 
       if (!res.ok) throw new Error('HTTP ' + res.status);
       let data;
