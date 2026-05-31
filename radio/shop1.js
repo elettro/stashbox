@@ -17,15 +17,13 @@
   // Inserted as a SIBLING after the mount (not inside it) so innerHTML
   // wipes on the mount never destroy it.
   function renderDiag(data) {
-    const mount = document.getElementById(DESKTOP_MOUNT);
-    if (!mount) return;
     let box = document.getElementById('shop4-diag');
     if (!box) {
       box = document.createElement('div');
       box.id = 'shop4-diag';
-      box.style.cssText = 'margin:10px 0;padding:10px 12px;background:#0a1628;border:1px solid #f0a500;border-radius:8px;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
-      // Insert AFTER mount so it is never wiped by mount.innerHTML changes
-      mount.parentNode.insertBefore(box, mount.nextSibling);
+      // Fixed to bottom of viewport — completely outside the radio player DOM
+      box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;max-height:40vh;overflow-y:auto;padding:10px 14px;background:#0a1628;border-top:2px solid #f0a500;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
+      document.body.appendChild(box);
     }
     box.textContent = [
       'BUILD: ' + BUILD,
