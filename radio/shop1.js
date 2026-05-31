@@ -14,6 +14,21 @@
   let currentTrack    = null;
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
+  // Deterministic shuffle keyed to a seed string — same seed = same order, different seed = different order
+  function seededShuffle(arr, seed) {
+    let s = 0;
+    const str = String(seed || '');
+    for (let i = 0; i < str.length; i++) s = ((s << 5) - s + str.charCodeAt(i)) | 0;
+    s = (s >>> 0) || 1;
+    const result = arr.slice();
+    for (let i = result.length - 1; i > 0; i--) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const j = s % (i + 1);
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
   function shopDebugPanel(message, data) {
     let box = document.getElementById('shop-debug-panel');
     if (!box) {
@@ -110,26 +125,42 @@
           seen.add(key); rows.push(item);
         });
     });
-    // If fewer than 2 specific matches, pad with remaining items by priority
+    // If fewer than 2 specific matches, pad with remaining items.
+    // High-specificity types (song/artist/album) stay in priority order.
+    // Low-specificity types (genre/page/general) are shuffled by track title
+    // so different songs show different products from the same general pool.
     if (rows.length < 2) {
-      productMapItems
+      const specificTypes = new Set(['song', 'artist', 'album']);
+      const remaining = productMapItems
         .filter(item => item && item.active !== false)
-        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))
-        .forEach(item => {
-          const key = `${item.rowNumber || ''}:${item.mapType}:${item.mapKey}`;
-          if (seen.has(key)) return;
-          seen.add(key); rows.push(item);
-        });
+        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999));
+      const highSpec = remaining.filter(i => specificTypes.has(String(i.mapType || '').toLowerCase()));
+      const lowSpec  = seededShuffle(
+        remaining.filter(i => !specificTypes.has(String(i.mapType || '').toLowerCase())),
+        songKey
+      );
+      [...highSpec, ...lowSpec].forEach(item => {
+        const key = `${item.rowNumber || ''}:${item.mapType}:${item.mapKey}`;
+        if (seen.has(key)) return;
+        seen.add(key); rows.push(item);
+      });
     }
     return rows;
   }
 
-  function mergeProductRowsToLinks(rows, limit) {
+  function mergeProductRowsToLinks(rows, limit, trackSeed) {
     const seen = new Set(), merged = [], max = limit || 4;
+    const specificTypes = new Set(['song', 'artist', 'album']);
     rows.forEach(row => {
-      const links = Array.isArray(row.productLinks)
-        ? row.productLinks
+      let links = Array.isArray(row.productLinks)
+        ? row.productLinks.slice()
         : String(row.productLinks || '').split(/\s*\|\s*|\n|,/);
+      // For general/fallback rows, shuffle the product link order by track seed
+      // so different songs surface different products from the same pool
+      const rowType = String(row.mapType || '').toLowerCase();
+      if (trackSeed && !specificTypes.has(rowType)) {
+        links = seededShuffle(links, trackSeed + ':' + rowType);
+      }
       links.forEach(link => {
         const cleanLink = String(link || '').trim();
         if (!cleanLink) return;
@@ -258,7 +289,7 @@
       currentTrack = track || window.currentTrack || currentTrack;
       if (!Array.isArray(productMapItems) || !productMapItems.length) await fetchProductMap();
       const rows    = getProductRowsForFourCards(currentTrack);
-      const entries = mergeProductRowsToLinks(rows, 4);
+      const entries = mergeProductRowsToLinks(rows, 4, slugifyProductKey(currentTrack?.title || ''));
       console.log('[shop2 merch] selected rows for 4 cards:', rows);
       console.log('[shop2 merch] selected entries for 4 cards:', entries);
       if (!entries.length) return renderHardcodedFourProductFallback();
