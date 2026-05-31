@@ -1,16 +1,17 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop4-diag-004';
+  const BUILD = 'shop4-diag-005';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
   const DESKTOP_MOUNT = 'stashbox-radio-shop-desktop';
   const MOBILE_MOUNT  = 'stashbox-radio-shop-mobile';
 
-  let productMapItems = [];
-  let productMapReady = false;
-  let currentTrack    = null;
+  let productMapItems   = [];
+  let productMapReady   = false;
+  let currentTrack      = null;
+  let allStoreProducts  = null; // cached once per session
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
   // ── Diagnostic panel ──────────────────────────────────────────────
@@ -286,6 +287,63 @@
     </section>`;
   }
 
+  // ── Shopify store: fetch all products for mobile carousel ─────────
+  async function getStoreProducts() {
+    if (allStoreProducts) return allStoreProducts;
+    try {
+      const res = await fetch('https://stashbox.ai/products.json?limit=250', { cache: 'default' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      allStoreProducts = Array.isArray(data.products) ? data.products : [];
+    } catch (err) {
+      console.warn('[shop4] getStoreProducts failed:', err);
+      allStoreProducts = [];
+    }
+    return allStoreProducts;
+  }
+
+  function renderMobileProductCard(p) {
+    const title = escapeHtml(p.title || 'Stashbox Product');
+    const url   = escapeHtml('https://stashbox.ai/products/' + (p.handle || ''));
+    const img   = p.images && p.images[0] ? escapeHtml(String(p.images[0].src || '')) : '';
+    const v     = p.variants && p.variants[0];
+    const price = v && v.price   ? '$' + parseFloat(v.price).toFixed(2)           : '';
+    const comp  = v && v.compare_at_price ? '$' + parseFloat(v.compare_at_price).toFixed(2) : '';
+    const sale  = price && comp && price !== comp;
+    return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}">
+      <div class="radio-shop-img-wrap">
+        ${img ? `<img class="radio-shop-img" src="${img}" alt="${title}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('image-failed');">` : ''}
+        <div class="radio-shop-img-fallback">SB</div>
+      </div>
+      <div class="radio-shop-card-title">${title}</div>
+      <div class="radio-shop-card-price">
+        ${sale ? `<span class="radio-shop-compare">${escapeHtml(comp)}</span>` : ''}
+        ${price ? `<strong>${escapeHtml(price)}</strong>` : '<span class="radio-shop-no-price">Shop on Stashbox.ai</span>'}
+      </div>
+      <span class="radio-shop-card-cta">Shop Now</span>
+    </a>`;
+  }
+
+  function renderMobileShopFromStore(track, storeProducts) {
+    const mount = document.getElementById(MOBILE_MOUNT);
+    if (!mount) return;
+    if (!storeProducts.length) return; // leave whatever was there
+    const seed    = slugifyProductKey(track?.title || '');
+    const rotated = seed && storeProducts.length > 1 ? rotateByOffset(storeProducts, seed) : storeProducts;
+    mount.innerHTML = `<section class="mobile-shop-section">
+      <div class="mobile-shop-headline">
+        <div>
+          <div class="mobile-shop-kicker">STASHBOX MERCH</div>
+          <h3>Shop This Track</h3>
+        </div>
+        <span>${rotated.length} items</span>
+      </div>
+      <div class="mobile-shop-carousel">
+        ${rotated.map(p => renderMobileProductCard(p)).join('')}
+      </div>
+    </section>`;
+  }
+
   // ── Hardcoded fallback ────────────────────────────────────────────
   function renderFallback() {
     const fallbackEntries = [
@@ -306,6 +364,13 @@
   async function updateRadioMerch(track) {
     try {
       currentTrack = track || window.currentTrack || currentTrack;
+
+      // Mobile: fetch ALL store products from Shopify, rotate by song title
+      getStoreProducts().then(storeProducts => {
+        renderMobileShopFromStore(currentTrack, storeProducts);
+      });
+
+      // Desktop: curated 4 from productMap spreadsheet
       if (!Array.isArray(productMapItems) || !productMapItems.length) await fetchProductMap();
       if (!Array.isArray(productMapItems) || !productMapItems.length) return renderFallback();
 
@@ -316,7 +381,6 @@
       if (!products.length) return renderFallback();
 
       renderDesktopShop(displayRow, products);
-      renderMobileShop(displayRow, products);
     } catch (err) {
       console.error('[shop4] updateRadioMerch failed:', err);
       renderFallback();
