@@ -14,8 +14,8 @@
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
   // ── Diagnostic panel ──────────────────────────────────────────────
-  // Always visible — tells us exactly what data the spreadsheet returned
-  // and what the rotation logic picked. Remove once confirmed working.
+  // Inserted as a SIBLING after the mount (not inside it) so innerHTML
+  // wipes on the mount never destroy it.
   function renderDiag(data) {
     const mount = document.getElementById(DESKTOP_MOUNT);
     if (!mount) return;
@@ -23,8 +23,9 @@
     if (!box) {
       box = document.createElement('div');
       box.id = 'shop4-diag';
-      box.style.cssText = 'margin:0 0 10px;padding:10px 12px;background:#0a1628;border:1px solid #f0a500;border-radius:8px;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
-      mount.prepend(box);
+      box.style.cssText = 'margin:10px 0;padding:10px 12px;background:#0a1628;border:1px solid #f0a500;border-radius:8px;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
+      // Insert AFTER mount so it is never wiped by mount.innerHTML changes
+      mount.parentNode.insertBefore(box, mount.nextSibling);
     }
     box.textContent = [
       'BUILD: ' + BUILD,
@@ -273,9 +274,6 @@
       <div class="radio-shop-grid">${products.map(p => renderProductCardHtml(p, displayRow)).join('')}</div>
     </div>`;
     mount.hidden = false;
-    // Re-prepend diag panel after innerHTML wipe
-    const diag = document.getElementById('shop4-diag');
-    if (diag) mount.prepend(diag);
   }
 
   function renderMobileShop(displayRow, products) {
