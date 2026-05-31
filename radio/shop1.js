@@ -1,10 +1,11 @@
 (function () {
   'use strict';
 
-  const BUILD = 'shop4-diag-005';
+  const BUILD = 'shop4-diag-006';
   console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
+  const TRACKING_ENDPOINT    = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec';
   const DESKTOP_MOUNT = 'stashbox-radio-shop-desktop';
   const MOBILE_MOUNT  = 'stashbox-radio-shop-mobile';
 
@@ -13,6 +14,51 @@
   let currentTrack      = null;
   let allStoreProducts  = null; // cached once per session
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
+
+  // ── Product tracking ─────────────────────────────────────────────
+  const viewedRows  = new Set(); // prevent double-counting views per page load
+  const clickedRows = new Set(); // prevent double-counting clicks per page load
+
+  function sendTrackingEvent(type, rowNumber) {
+    if (!rowNumber) return;
+    const key = type + ':' + rowNumber;
+    if (type === 'view'  && viewedRows.has(key))  return;
+    if (type === 'click' && clickedRows.has(key)) return;
+    if (type === 'view')  viewedRows.add(key);
+    if (type === 'click') clickedRows.add(key);
+    const payload = JSON.stringify({ type, rowNumber: Number(rowNumber) });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(TRACKING_ENDPOINT, new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch(TRACKING_ENDPOINT, { method: 'POST', body: payload, keepalive: true }).catch(() => {});
+    }
+    console.log('[shop4] tracked', type, 'row', rowNumber);
+  }
+
+  function setupDesktopTracking(mount) {
+    const cards = mount ? mount.querySelectorAll('.radio-shop-card[data-row]') : [];
+    if (!cards.length) return;
+
+    // IntersectionObserver — fire "view" once card is 50% visible
+    if (window.IntersectionObserver) {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            sendTrackingEvent('view', entry.target.dataset.row);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.5 });
+      cards.forEach(card => observer.observe(card));
+    }
+
+    // Click tracking
+    cards.forEach(card => {
+      card.addEventListener('click', function () {
+        sendTrackingEvent('click', this.dataset.row);
+      }, { once: true });
+    });
+  }
 
   // ── Diagnostic panel ──────────────────────────────────────────────
   // Inserted as a SIBLING after the mount (not inside it) so innerHTML
@@ -249,7 +295,8 @@
     const cap   = escapeHtml(product.compareAtPrice || '');
     const cta   = escapeHtml(productRow?.merchCtaText || 'Shop Now');
     const sale  = price && cap && price !== cap;
-    return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}">
+    const rowAttr = productRow?.rowNumber ? ` data-row="${productRow.rowNumber}"` : '';
+    return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}"${rowAttr}>
       <div class="radio-shop-img-wrap">
         ${image ? `<img class="radio-shop-img" src="${image}" alt="${title}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('image-failed');">` : ''}
         <div class="radio-shop-img-fallback">SB</div>
@@ -273,6 +320,7 @@
       <div class="radio-shop-grid">${products.map(p => renderProductCardHtml(p, displayRow)).join('')}</div>
     </div>`;
     mount.hidden = false;
+    setupDesktopTracking(mount);
   }
 
   function renderMobileShop(displayRow, products) {
