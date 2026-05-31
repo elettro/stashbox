@@ -793,7 +793,7 @@
     const vid = document.getElementById('jonPhillipsVid');
     if (!box || !vid) return;
     box.addEventListener('click', function () {
-      if (vid.paused) { vid.play(); box.classList.add('is-playing'); }
+      if (vid.paused) { vid.play(); box.classList.add('is-playing'); } else { vid.pause(); box.classList.remove('is-playing'); }
     });
     vid.addEventListener('ended', function () {
       box.classList.remove('is-playing');
