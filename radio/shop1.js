@@ -1,61 +1,96 @@
 (function () {
   'use strict';
-  console.log('[shop3 merch] BUILD shop3-rotation-002 loaded');
+
+  const BUILD = 'shop4-diag-001';
+  console.log('[shop4] BUILD ' + BUILD + ' loaded');
 
   const PRODUCT_MAP_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCczmnIAXramvgZhmc1lsxWeU449_Q3hjh3OLS0oEPXi4d6OOv9hrLYESWJJH7JrQcFQ/exec?type=productMap';
   const DESKTOP_MOUNT = 'stashbox-radio-shop-desktop';
   const MOBILE_MOUNT  = 'stashbox-radio-shop-mobile';
-  const DEBUG_MERCH   = new URLSearchParams(window.location.search).get('debugMerch') === '1';
-
-  function merchLog() { if (DEBUG_MERCH) console.log.apply(console, ['[shop2 merch]'].concat(Array.from(arguments))); }
 
   let productMapItems = [];
   let productMapReady = false;
   let currentTrack    = null;
   const safe = (fn, fallback = null) => { try { return fn(); } catch (_) { return fallback; } };
 
-  // Hash a string to a positive integer
+  // ── Diagnostic panel ──────────────────────────────────────────────
+  // Always visible — tells us exactly what data the spreadsheet returned
+  // and what the rotation logic picked. Remove once confirmed working.
+  function renderDiag(data) {
+    const mount = document.getElementById(DESKTOP_MOUNT);
+    if (!mount) return;
+    let box = document.getElementById('shop4-diag');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'shop4-diag';
+      box.style.cssText = 'margin:0 0 10px;padding:10px 12px;background:#0a1628;border:1px solid #f0a500;border-radius:8px;font:11px/1.6 monospace;color:#f0a500;white-space:pre-wrap;word-break:break-all;';
+      mount.prepend(box);
+    }
+    box.textContent = [
+      'BUILD: ' + BUILD,
+      'spreadsheet rows: ' + data.totalRows,
+      'general pool size: ' + data.poolSize,
+      'track: "' + data.trackTitle + '"',
+      'seed: "' + data.seed + '"',
+      'offset: ' + data.offset + ' (of ' + data.poolSize + ')',
+      'selected handles:',
+      data.selected.map((h, i) => '  ' + (i+1) + '. ' + h).join('\n'),
+      '─── all pool handles ───',
+      data.pool.map((h, i) => '  ' + (i+1) + '. ' + h).join('\n'),
+    ].join('\n');
+  }
+
+  // ── Hash & rotate ─────────────────────────────────────────────────
   function hashSeed(seed) {
     let s = 0;
     const str = String(seed || '');
     for (let i = 0; i < str.length; i++) s = ((s << 5) - s + str.charCodeAt(i)) | 0;
-    return Math.abs(s >>> 0) || 1;
+    return (s >>> 0) || 1;
   }
 
-  // Rotate array by offset derived from seed — each unique seed starts at a different position
-  function seededShuffle(arr, seed) {
+  function rotateByOffset(arr, seed) {
     if (!arr.length) return arr;
     const offset = hashSeed(seed) % arr.length;
     return arr.slice(offset).concat(arr.slice(0, offset));
   }
 
-  function shopDebugPanel(message, data) {
-    let box = document.getElementById('shop-debug-panel');
-    if (!box) {
-      box = document.createElement('div'); box.id = 'shop-debug-panel';
-      box.style.cssText = 'margin:12px 0;padding:10px;border:1px solid #f0a500;color:#f0a500;background:#111;font:12px monospace;white-space:pre-wrap;border-radius:8px;';
-      const mount = document.getElementById(DESKTOP_MOUNT) || document.getElementById('dp');
-      if (mount) mount.prepend(box); else document.body.prepend(box);
-    }
-    box.textContent = message + (data ? '\n' + JSON.stringify(data, null, 2) : '');
-  }
-
+  // ── Helpers ───────────────────────────────────────────────────────
   function slugifyProductKey(value) {
     return String(value || '').trim().toLowerCase()
       .replace(/['"]/g, '').replace(/&/g, 'and')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
 
-  // Expose globals synchronously so radio HTML can call them immediately
-  window.shopDebugPanel    = shopDebugPanel;
+  const escapeHtml = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+  function extractLinksFromRow(row) {
+    const raw = row.productLinks;
+    const links = Array.isArray(raw) ? raw.slice() : String(raw || '').split(/\s*\|\s*|\n|,/);
+    const out = [];
+    links.forEach(link => {
+      const cleanLink = String(link || '').trim();
+      if (!cleanLink) return;
+      // Accept full URLs with /products/ path
+      const urlMatch = cleanLink.split('?')[0].match(/\/products\/([^/?#\s]+)/i);
+      if (urlMatch && urlMatch[1]) {
+        out.push({ link: cleanLink, handle: decodeURIComponent(urlMatch[1]).trim(), sourceRow: row });
+        return;
+      }
+      // Also accept bare handles (no URL path) — anything without a slash
+      const bareHandle = cleanLink.replace(/^https?:\/\/[^/]+\//, '').trim();
+      if (bareHandle && !bareHandle.includes('/')) {
+        out.push({ link: `https://stashbox.ai/products/${bareHandle}`, handle: bareHandle, sourceRow: row });
+      }
+    });
+    return out;
+  }
+
+  // Expose globals synchronously
+  window.shopDebugPanel    = function () {};
   window.slugifyProductKey = slugifyProductKey;
   window.updateRadioMerch  = function (track) { safe(async () => { await updateRadioMerch(track); }); };
 
-  function showBuildBadge() {
-    const badge = document.getElementById('shop2-build-badge');
-    if (badge) badge.remove();
-  }
-
+  // ── Styles ────────────────────────────────────────────────────────
   function injectStyles() {
     if (document.getElementById('stashbox-radio-shop-widget-style')) return;
     const style = document.createElement('style');
@@ -86,9 +121,6 @@
       .mobile-shop-carousel{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:0 2px 10px;scrollbar-width:none}
       .mobile-shop-carousel::-webkit-scrollbar{display:none}
       .mobile-shop-carousel .radio-shop-card{flex:0 0 calc(50% - 6px);scroll-snap-align:start;min-width:calc(50% - 6px)}
-      .mobile-shop-carousel .radio-shop-card-title{font-size:12px;line-height:1.25}
-      .mobile-shop-carousel .radio-shop-card-cta{height:28px;font-size:10px}
-      .mobile-shop-carousel .radio-shop-img-wrap{min-height:0;aspect-ratio:1/1}
       .radio-shop-card{min-height:100%}
       @media(max-width:767px){#stashbox-radio-shop-desktop{display:none!important}}
       @media(min-width:768px){#stashbox-radio-shop-mobile{display:none!important}}
@@ -96,124 +128,86 @@
     document.head.appendChild(style);
   }
 
-  const escapeHtml = v => String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  // ── Core selection logic ──────────────────────────────────────────
+  function selectProducts(track, limit) {
+    const max     = limit || 4;
+    const seed    = slugifyProductKey(track?.title || '');
+    const specificTypes = new Set(['song', 'artist', 'album', 'genre']);
 
-  function getProductRowsForFourCards(track) {
-    if (!Array.isArray(productMapItems) || !productMapItems.length) return [];
+    // Specific matches for this track (song/artist/album/genre)
     const songKey   = slugifyProductKey(track?.title);
     const artistKey = slugifyProductKey(track?.artist);
     const albumKey  = slugifyProductKey(track?.album);
     const genreKey  = slugifyProductKey(track?.genre || track?.sectionKey);
     const candidates = [
-      { mapType:'song',    mapKey:songKey },
-      { mapType:'artist',  mapKey:artistKey },
-      { mapType:'album',   mapKey:albumKey },
-      { mapType:'genre',   mapKey:genreKey },
-      { mapType:'page',    mapKey:'radio' },
-      { mapType:'general', mapKey:'radio-general' },
+      { mapType:'song',   mapKey:songKey   },
+      { mapType:'artist', mapKey:artistKey },
+      { mapType:'album',  mapKey:albumKey  },
+      { mapType:'genre',  mapKey:genreKey  },
     ];
-    const rows = []; const seen = new Set();
-    candidates.forEach(candidate => {
+
+    const specificEntries = [];
+    const specificSeen = new Set();
+    candidates.forEach(c => {
       productMapItems
         .filter(item => item && item.active !== false)
-        .filter(item => String(item.mapType || '').toLowerCase() === candidate.mapType)
-        .filter(item => String(item.mapKey  || '').toLowerCase() === candidate.mapKey)
-        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))
-        .forEach(item => {
-          const key = `${item.rowNumber || ''}:${item.mapType}:${item.mapKey}`;
-          if (seen.has(key)) return;
-          seen.add(key); rows.push(item);
-        });
-    });
-    // If fewer than 2 specific matches, pad with remaining items.
-    // High-specificity types (song/artist/album) stay in priority order.
-    // Low-specificity types (genre/page/general) are shuffled by track title
-    // so different songs show different products from the same general pool.
-    if (rows.length < 2) {
-      const specificTypes = new Set(['song', 'artist', 'album']);
-      const remaining = productMapItems
-        .filter(item => item && item.active !== false)
-        .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999));
-      const highSpec = remaining.filter(i => specificTypes.has(String(i.mapType || '').toLowerCase()));
-      const lowSpec  = seededShuffle(
-        remaining.filter(i => !specificTypes.has(String(i.mapType || '').toLowerCase())),
-        songKey
-      );
-      [...highSpec, ...lowSpec].forEach(item => {
-        const key = `${item.rowNumber || ''}:${item.mapType}:${item.mapKey}`;
-        if (seen.has(key)) return;
-        seen.add(key); rows.push(item);
-      });
-    }
-    return rows;
-  }
-
-  function extractLinksFromRow(row) {
-    const links = Array.isArray(row.productLinks)
-      ? row.productLinks.slice()
-      : String(row.productLinks || '').split(/\s*\|\s*|\n|,/);
-    const out = [];
-    links.forEach(link => {
-      const cleanLink = String(link || '').trim();
-      if (!cleanLink) return;
-      const match = cleanLink.split('?')[0].match(/\/products\/([^/?#]+)/i);
-      const handle = match && match[1] ? decodeURIComponent(match[1]).trim() : '';
-      if (handle) out.push({ link: cleanLink, handle, sourceRow: row });
-    });
-    return out;
-  }
-
-  function mergeProductRowsToLinks(rows, limit, trackSeed) {
-    const max = limit || 4;
-    const specificTypes = new Set(['song', 'artist', 'album', 'genre']);
-
-    // Split matched rows into specific (high-priority) and general
-    const specificEntries = [];
-    rows.forEach(row => {
-      if (specificTypes.has(String(row.mapType || '').toLowerCase())) {
-        extractLinksFromRow(row).forEach(e => specificEntries.push(e));
-      }
+        .filter(item => String(item.mapType||'').toLowerCase() === c.mapType && String(item.mapKey||'').toLowerCase() === c.mapKey)
+        .sort((a, b) => (Number(a.priority)||999) - (Number(b.priority)||999))
+        .forEach(item => extractLinksFromRow(item).forEach(e => {
+          if (!specificSeen.has(e.handle)) { specificSeen.add(e.handle); specificEntries.push(e); }
+        }));
     });
 
-    // Build general pool from ALL active productMapItems (not just matched rows)
-    // so we have the full catalogue to rotate through
-    const generalPool = [];
+    // General pool = ALL non-specific rows flattened
+    const rawPool = [];
     productMapItems
       .filter(item => item && item.active !== false)
-      .filter(item => !specificTypes.has(String(item.mapType || '').toLowerCase()))
-      .forEach(item => extractLinksFromRow(item).forEach(e => generalPool.push(e)));
+      .filter(item => !specificTypes.has(String(item.mapType||'').toLowerCase()))
+      .forEach(item => extractLinksFromRow(item).forEach(e => rawPool.push(e)));
 
-    // Shuffle the general pool by track seed — different song → different 4
-    const shuffledGeneral = trackSeed ? seededShuffle(generalPool, trackSeed) : generalPool;
-
-    const seen = new Set();
-    const merged = [];
-
-    // Specific matches always come first
-    specificEntries.forEach(entry => {
-      if (seen.has(entry.handle) || merged.length >= max) return;
-      seen.add(entry.handle);
-      merged.push(entry);
+    // Deduplicate the raw pool
+    const poolSeen = new Set();
+    const dedupedPool = [];
+    rawPool.forEach(e => {
+      if (!poolSeen.has(e.handle)) { poolSeen.add(e.handle); dedupedPool.push(e); }
     });
 
-    // Fill remaining slots from shuffled general pool
-    for (const entry of shuffledGeneral) {
+    // Rotate pool by song-title seed so different songs start at different positions
+    const rotatedPool = seed && dedupedPool.length > 1 ? rotateByOffset(dedupedPool, seed) : dedupedPool;
+    const offset = (seed && dedupedPool.length > 1) ? hashSeed(seed) % dedupedPool.length : 0;
+
+    // Build final list: specifics first, then fill from rotated pool
+    const finalSeen = new Set(specificEntries.map(e => e.handle));
+    const merged = specificEntries.slice(0, max);
+    for (const entry of rotatedPool) {
       if (merged.length >= max) break;
-      if (seen.has(entry.handle)) continue;
-      seen.add(entry.handle);
+      if (finalSeen.has(entry.handle)) continue;
+      finalSeen.add(entry.handle);
       merged.push(entry);
     }
 
-    merchLog('merged product entries', merged);
-    return merged;
+    // Diagnostic data
+    const diagData = {
+      totalRows:  productMapItems.length,
+      poolSize:   dedupedPool.length,
+      trackTitle: track?.title || '(none)',
+      seed,
+      offset,
+      pool:     dedupedPool.map(e => e.handle),
+      selected: merged.map(e => e.handle),
+    };
+    console.log('[shop4] selectProducts diag:', diagData);
+    renderDiag(diagData);
+
+    return { entries: merged, displayRow: merged[0]?.sourceRow || { merchHeadline:'Shop This Track', merchCtaText:'Shop Now' } };
   }
 
+  // ── Shopify product fetch ─────────────────────────────────────────
   function fmt(value) {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     const n = Number(raw);
     if (!Number.isFinite(n)) return '';
-    // Shopify returns prices in cents (integers) — detect and convert
     const normalized = /^-?\d+$/.test(raw) ? n / 100 : n;
     return '$' + normalized.toFixed(2);
   }
@@ -237,30 +231,24 @@
         else if (Array.isArray(data.images) && data.images.length) image = typeof data.images[0] === 'string' ? data.images[0] : (data.images[0]?.src || '');
         else if (data.image?.src) image = data.image.src;
         if (image && image.startsWith('//')) image = 'https:' + image;
-        return {
-          title:          data.title || fallback.title,
-          url,
-          handle:         cleanHandle,
-          image,
-          price:          variant?.price          ? fmt(variant.price)          : '',
-          compareAtPrice: variant?.compare_at_price ? fmt(variant.compare_at_price) : ''
-        };
+        return { title: data.title || fallback.title, url, handle: cleanHandle, image, price: variant?.price ? fmt(variant.price) : '', compareAtPrice: variant?.compare_at_price ? fmt(variant.compare_at_price) : '' };
       } catch (err) {
-        console.warn('[shop2 merch] Shopify .js failed:', cleanHandle, err);
+        console.warn('[shop4] Shopify .js failed:', cleanHandle, err);
         return fallback;
       }
     }));
     return products.filter(Boolean);
   }
 
+  // ── Render ────────────────────────────────────────────────────────
   function renderProductCardHtml(product, productRow) {
-    const title          = escapeHtml(product.title || 'Stashbox Product');
-    const url            = escapeHtml(product.url || '#');
-    const image          = product.image ? escapeHtml(product.image) : '';
-    const price          = escapeHtml(product.price || '');
-    const compareAtPrice = escapeHtml(product.compareAtPrice || '');
-    const cta            = escapeHtml(productRow?.merchCtaText || 'Shop Now');
-    const hasSale        = price && compareAtPrice && price !== compareAtPrice;
+    const title = escapeHtml(product.title || 'Stashbox Product');
+    const url   = escapeHtml(product.url || '#');
+    const image = product.image ? escapeHtml(product.image) : '';
+    const price = escapeHtml(product.price || '');
+    const cap   = escapeHtml(product.compareAtPrice || '');
+    const cta   = escapeHtml(productRow?.merchCtaText || 'Shop Now');
+    const sale  = price && cap && price !== cap;
     return `<a class="radio-shop-card" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Open product: ${title}">
       <div class="radio-shop-img-wrap">
         ${image ? `<img class="radio-shop-img" src="${image}" alt="${title}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('image-failed');">` : ''}
@@ -268,114 +256,107 @@
       </div>
       <div class="radio-shop-card-title">${title}</div>
       <div class="radio-shop-card-price">
-        ${hasSale ? `<span class="radio-shop-compare">${compareAtPrice}</span>` : ''}
+        ${sale ? `<span class="radio-shop-compare">${cap}</span>` : ''}
         ${price ? `<strong>${price}</strong>` : '<span class="radio-shop-no-price">Shop on Stashbox.ai</span>'}
       </div>
       <span class="radio-shop-card-cta">${cta}</span>
     </a>`;
   }
 
-  function renderDesktopShop(productRow, products) {
+  function renderDesktopShop(displayRow, products) {
     const mount = document.getElementById(DESKTOP_MOUNT);
     if (!mount) return;
     mount.innerHTML = `<div class="radio-shop-preview">
       <div class="radio-shop-kicker">STASHBOX SHOP</div>
-      <div class="radio-shop-title">${escapeHtml(productRow.merchHeadline || 'Shop This Track')}</div>
+      <div class="radio-shop-title">${escapeHtml(displayRow.merchHeadline || 'Shop This Track')}</div>
       <div class="radio-shop-subtitle">Products open in a new tab — playback keeps going.</div>
-      <div class="radio-shop-grid">${products.map(p => renderProductCardHtml(p, productRow)).join('')}</div>
+      <div class="radio-shop-grid">${products.map(p => renderProductCardHtml(p, displayRow)).join('')}</div>
     </div>`;
     mount.hidden = false;
+    // Re-prepend diag panel after innerHTML wipe
+    const diag = document.getElementById('shop4-diag');
+    if (diag) mount.prepend(diag);
   }
 
-  function renderMobileShop(productRow, products) {
+  function renderMobileShop(displayRow, products) {
     const mount = document.getElementById(MOBILE_MOUNT);
     if (!mount) return;
     mount.innerHTML = `<section class="mobile-shop-section">
       <div class="mobile-shop-headline">
-        <div>
-          <div class="mobile-shop-kicker">STASHBOX MERCH</div>
-          <h3>${escapeHtml(productRow.merchHeadline || 'Shop This Track')}</h3>
-        </div>
+        <div><div class="mobile-shop-kicker">STASHBOX MERCH</div><h3>${escapeHtml(displayRow.merchHeadline || 'Shop This Track')}</h3></div>
         <span>${products.length} items</span>
       </div>
-      <div class="mobile-shop-carousel">${products.map(p => renderProductCardHtml(p, productRow)).join('')}</div>
+      <div class="mobile-shop-carousel">${products.map(p => renderProductCardHtml(p, displayRow)).join('')}</div>
     </section>`;
   }
 
-  function renderHardcodedFourProductFallback() {
+  // ── Hardcoded fallback ────────────────────────────────────────────
+  function renderFallback() {
     const fallbackEntries = [
       { link:'https://stashbox.ai/products/unisex-heavy-cotton-tee-stashbox-drinking-fire-001', handle:'unisex-heavy-cotton-tee-stashbox-drinking-fire-001' },
       { link:'https://stashbox.ai/products/stashbox-guitar-design-026',                        handle:'stashbox-guitar-design-026' },
       { link:'https://stashbox.ai/products/stashbox-guitar-design-026-tank-top-no-background',  handle:'stashbox-guitar-design-026-tank-top-no-background' },
       { link:'https://stashbox.ai/products/crusty-gnome-vol-9-stashbox-pint-glass',            handle:'crusty-gnome-vol-9-stashbox-pint-glass' },
     ];
+    renderDiag({ totalRows: productMapItems.length, poolSize: 0, trackTitle:'(fallback)', seed:'', offset:0, pool:[], selected: fallbackEntries.map(e=>e.handle) });
     const row = { merchHeadline:'Shop This Track', merchCtaText:'Shop Now' };
     buildProductsFromEntries(fallbackEntries).then(products => {
       renderDesktopShop(row, products);
       renderMobileShop(row, products);
     });
   }
-  function renderFallback() { renderHardcodedFourProductFallback(); }
 
+  // ── Main update ───────────────────────────────────────────────────
   async function updateRadioMerch(track) {
     try {
       currentTrack = track || window.currentTrack || currentTrack;
       if (!Array.isArray(productMapItems) || !productMapItems.length) await fetchProductMap();
-      const rows    = getProductRowsForFourCards(currentTrack);
-      const entries = mergeProductRowsToLinks(rows, 4, slugifyProductKey(currentTrack?.title || ''));
-      console.log('[shop2 merch] selected rows for 4 cards:', rows);
-      console.log('[shop2 merch] selected entries for 4 cards:', entries);
-      if (!entries.length) return renderHardcodedFourProductFallback();
-      const products = await buildProductsFromEntries(entries);
-      console.log('[shop2 merch] products rendered:', products);
-      if (!products.length) return renderHardcodedFourProductFallback();
-      const displayRow = rows[0] || { merchHeadline:'Official Stashbox Merch', merchCtaText:'Shop Now' };
-      renderDesktopShop(displayRow, products.slice(0, 4));
-      renderMobileShop(displayRow, products.slice(0, 4));
-    } catch (err) {
-      console.error('[shop2 merch] updateRadioMerch failed:', err);
-      renderHardcodedFourProductFallback();
-    }
-  }
+      if (!Array.isArray(productMapItems) || !productMapItems.length) return renderFallback();
 
-  async function renderDefaultRadioMerch() {
-    try {
-      const rows    = getProductRowsForFourCards(currentTrack || window.currentTrack || {});
-      const entries = mergeProductRowsToLinks(rows, 4);
-      const safeEntries = entries.length ? entries : [{ link:'https://stashbox.ai/products/unisex-heavy-cotton-tee-stashbox-drinking-fire-001', handle:'unisex-heavy-cotton-tee-stashbox-drinking-fire-001' }];
-      const products = await buildProductsFromEntries(safeEntries);
+      const { entries, displayRow } = selectProducts(currentTrack, 4);
+      if (!entries.length) return renderFallback();
+
+      const products = await buildProductsFromEntries(entries);
       if (!products.length) return renderFallback();
-      const productRow = rows[0] || { merchHeadline:'Official Stashbox Merch', merchCtaText:'Shop Now' };
-      renderDesktopShop(productRow, products.slice(0, 4));
-      renderMobileShop(productRow, products.slice(0, 4));
+
+      renderDesktopShop(displayRow, products);
+      renderMobileShop(displayRow, products);
     } catch (err) {
-      console.warn('[shop2 merch] renderDefaultRadioMerch failed:', err);
+      console.error('[shop4] updateRadioMerch failed:', err);
       renderFallback();
     }
   }
 
   async function fetchProductMap() {
     try {
+      console.log('[shop4] fetching productMap...');
       const res = await fetch(PRODUCT_MAP_ENDPOINT, { cache:'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       productMapItems = Array.isArray(data.items) ? data.items : [];
-      console.log('[shop2 merch] productMap raw data:', data);
-      console.log('[shop2 merch] productMap count:', productMapItems.length);
       productMapReady = true;
+      console.log('[shop4] productMap loaded. rows:', productMapItems.length);
+      console.log('[shop4] productMap items:', JSON.stringify(productMapItems));
       if (!productMapItems.length) return renderFallback();
       const track = window.currentTrack || currentTrack;
       if (track) await updateRadioMerch(track);
-      else       await renderDefaultRadioMerch();
+      else {
+        // Render with empty track so diag panel shows pool data
+        const { entries, displayRow } = selectProducts({}, 4);
+        if (entries.length) {
+          const products = await buildProductsFromEntries(entries);
+          if (products.length) { renderDesktopShop(displayRow, products); renderMobileShop(displayRow, products); return; }
+        }
+        renderFallback();
+      }
     } catch (err) {
-      console.warn('[shop2 merch] fetchProductMap failed:', err);
+      console.warn('[shop4] fetchProductMap failed:', err);
       renderFallback();
     }
   }
 
   async function init() {
     injectStyles();
-    showBuildBadge();
     await fetchProductMap();
     window.addEventListener('stashbox:trackchange', function (e) {
       safe(async () => {
