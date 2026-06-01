@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -80,6 +80,60 @@
       ]
     }
   ]
+  </script>
+  <script type="application/ld+json" data-seo="song-schema">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "MusicAlbum",
+      "@id": "https://stashbox.com/songs/#stashbox-does-dylan",
+      "name": "Stashbox Does Dylan",
+      "byArtist": {
+        "@id": "https://stashbox.com/#band"
+      },
+      "datePublished": "2026-02",
+      "numTracks": 19,
+      "genre": [
+        "Bob Dylan tribute",
+        "Rock",
+        "Blues",
+        "Americana"
+      ],
+      "url": "https://stashbox.com/bobdylan/"
+    },
+    {
+      "@type": "MusicRecording",
+      "name": "The Man In Me",
+      "byArtist": {
+        "@id": "https://stashbox.com/#band"
+      },
+      "inAlbum": {
+        "@id": "https://stashbox.com/songs/#stashbox-does-dylan"
+      },
+      "genre": "Americana rock",
+      "url": "https://stashbox.com/themaninme/"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Stashbox",
+          "item": "https://stashbox.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "The Man In Me",
+          "item": "https://stashbox.com/themaninme/"
+        }
+      ]
+    }
+  ]
+}
   </script>
 </head>
 <body>
