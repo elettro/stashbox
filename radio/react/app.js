@@ -173,19 +173,40 @@ function App() {
     return out;
   }, [filtered]);
 
-  function chooseSong(track) {
+  function scrollPlayerIntoView() {
+    window.setTimeout(() => {
+      if (!window.matchMedia('(max-width: 767px)').matches || !playerRef.current) return;
+      const top = playerRef.current.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }, 80);
+  }
+
+  function selectTrack(track, shouldScroll = true) {
     if (audioRef.current) audioRef.current.pause();
     setVideoOpen(false);
     setSelected(track);
-    window.setTimeout(() => {
-      if (window.matchMedia('(max-width: 800px)').matches) playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 80);
+    if (shouldScroll) scrollPlayerIntoView();
+  }
+
+  function chooseSong(track) {
+    selectTrack(track);
+  }
+
+  function shiftTrack(direction) {
+    if (!filtered.length) return;
+    const currentIndex = Math.max(0, filtered.findIndex(track => track.idx === selected?.idx));
+    const nextIndex = (currentIndex + direction + filtered.length) % filtered.length;
+    selectTrack(filtered[nextIndex], false);
   }
 
   function openVideo() {
     if (audioRef.current) audioRef.current.pause();
     setVideoOpen(true);
-    window.setTimeout(() => playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    scrollPlayerIntoView();
+  }
+
+  function closeVideo() {
+    setVideoOpen(false);
   }
 
   if (status === 'loading') return h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the Stashbox Radio feed…'));
@@ -199,7 +220,7 @@ function App() {
         h('p', { className: 'hero-copy' }, `Preview the React rebuild with ${tracks.length} tracks from the same published Google Sheet feed used by the current Stashbox Radio page.`),
         h('div', null, h('a', { className: 'tiny-link', href: '/radio/' }, 'Open production /radio/'))
       ),
-      h(Player, { selected, audioRef, playerRef, videoOpen, openVideo, products })
+      h(Player, { selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1) })
     ),
     h('section', { 'aria-label': 'Search and filter songs' },
       h('div', { className: 'toolbar' },
@@ -213,7 +234,7 @@ function App() {
   );
 }
 
-function Player({ selected, audioRef, playerRef, videoOpen, openVideo, products }) {
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext }) {
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink || selected.videoUrl);
@@ -225,8 +246,16 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, products 
         h('h2', null, selected.title),
         h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
         selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
+        h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
         has(selected.audioUrl) ? h('audio', { key: selected.idx, className: 'audio', ref: audioRef, src: selected.audioUrl, controls: true, preload: 'metadata' }) : h('p', { className: 'notes' }, 'No audio URL is available for this track.'),
-        has(selected.videoLink || selected.videoUrl) ? h('button', { className: 'button accent', type: 'button', onClick: openVideo }, videoOpen ? 'Restart / Focus Video' : 'Watch Video') : null,
+        h('div', { className: 'mobile-controls', 'aria-label': 'Mobile player controls' },
+          h('button', { className: 'button', type: 'button', onClick: onPrevious }, 'Previous'),
+          h('button', { className: 'button', type: 'button', onClick: onNext }, 'Next')
+        ),
+        has(selected.videoLink || selected.videoUrl) ? h('div', { className: 'video-actions' },
+          h('button', { className: 'button accent', type: 'button', onClick: openVideo }, videoOpen ? 'Restart / Focus Video' : 'Watch Video'),
+          videoOpen ? h('button', { className: 'button', type: 'button', onClick: closeVideo }, 'Close Video') : null
+        ) : null,
         videoOpen && videoSrc ? h('div', { className: 'video-wrap' }, h('iframe', { title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : null
       )
     ),

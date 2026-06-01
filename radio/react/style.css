@@ -1,6 +1,6 @@
 *,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:#0c0c0e;color:#eeeae3;font-family:Karla,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+html{scroll-behavior:smooth;max-width:100%;overflow-x:hidden}
+body{margin:0;max-width:100%;overflow-x:hidden;background:#0c0c0e;color:#eeeae3;font-family:Karla,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px)}
 :root{--bg:#0c0c0e;--surface:#131316;--surface2:#1a1a1f;--surface3:#222228;--border:rgba(255,255,255,.08);--border-h:rgba(255,255,255,.18);--text:#eeeae3;--muted:#8b8d94;--dim:#575a62;--accent:#f0a500;--accent-d:rgba(240,165,0,.12);--green:#3ecf6e;--red:#e05c5c;--fh:"Bebas Neue",sans-serif;--fb:"Karla",sans-serif;--safe-b:env(safe-area-inset-bottom,0px)}
 a{color:inherit}
@@ -38,6 +38,9 @@ a{color:inherit}
 .genre-tag{border-radius:6px;background:rgba(62,207,110,.12);color:var(--green);padding:4px 8px;font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.08em}
 .notes{color:var(--muted);font-size:14px;line-height:1.45}
 .audio{width:100%;margin:15px 0 8px;accent-color:var(--accent)}
+.now-playing{display:none}
+.video-actions{display:contents}
+.mobile-controls{display:none}
 .video-wrap{margin-top:12px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#050505}
 .video-wrap iframe{display:block;width:100%;aspect-ratio:16/9;border:0}
 .merch{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
@@ -75,23 +78,58 @@ a{color:inherit}
 .site-footer{border-top:1px solid var(--border);padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .site-footer a{color:var(--accent)}
 
-@media(max-width:800px){.site-header{align-items:flex-start;flex-direction:column}
+@media(max-width:767px){.site-header{align-items:flex-start;flex-direction:column}
 .site-nav{justify-content:flex-start}
-.radio-app{padding-bottom:34px}
-.hero{grid-template-columns:1fr}
+.radio-app{padding:16px clamp(12px,4vw,18px) 34px;overflow:hidden}
+.hero{grid-template-columns:1fr;gap:14px;margin-bottom:16px}
 .hero-card{min-height:unset}
-.toolbar{grid-template-columns:1fr}
-.button{min-height:42px}
-.player-grid{grid-template-columns:1fr}
-.art{max-width:320px;width:100%;margin:0 auto}
-.products{display:flex;overflow-x:auto;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:8px}
-.product{flex:0 0 calc(50% - 7px);min-width:calc(50% - 7px);scroll-snap-align:start}
-.song-grid{grid-template-columns:1fr}
-.chip{font-size:21px}
+.toolbar{grid-template-columns:1fr;margin:16px 0 12px}
+.button,.audio,.chip,.product{min-height:44px}
+.chips{flex-wrap:nowrap;gap:9px;margin:0 -12px 20px;padding:0 12px 8px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.chips::-webkit-scrollbar,.products::-webkit-scrollbar{display:none}
+.chips,.products{scrollbar-width:none}
+.chip{flex:0 0 auto;scroll-snap-align:start;font-size:21px;white-space:nowrap}
+.player{position:sticky;top:0;z-index:80;padding:14px;scroll-margin-top:0;max-height:calc(100vh - var(--safe-b));overflow:auto}
+.player-grid{grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:start}
+.art{width:96px;max-width:96px;margin:0}
+.player h2{font-size:clamp(27px,8vw,38px);margin-bottom:6px}
+.meta{font-size:13px;gap:6px}
+.notes{font-size:13px;margin:8px 0}
+.now-playing{display:block;margin:10px 0 0;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.2)}
+.now-playing span{display:block;color:var(--accent);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+.now-playing strong{display:block;margin-top:2px;font-size:15px;line-height:1.2}
+.mobile-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.video-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
+.video-actions .button{width:100%}
+.merch{margin-top:12px;padding-top:12px}
+.merch-head{align-items:center}
+.products{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:0 2px 10px;touch-action:pan-x}
+.product{flex:0 0 calc((100% - 12px)/2.05);min-width:calc((100% - 12px)/2.05);scroll-snap-align:start}
+.song-grid{grid-template-columns:1fr;gap:13px}
+.song-card{grid-template-columns:58px minmax(0,1fr);gap:13px;min-height:82px;padding:12px}
+.song-card>span:last-child{min-width:0}
+.song-title,.song-artist,.song-album{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.song-title{line-height:1.25}
+.thumb{width:58px;height:58px}
+.section-title{margin-bottom:12px}
 .hero h1{font-size:52px}
 }
 
-@media(min-width:801px){.player{position:sticky;top:86px}
+@media(max-width:480px){.site-header{gap:12px;padding:12px}
+.site-nav{gap:8px}
+.site-nav a,.tiny-link{padding:8px 10px}
+.radio-app{padding-left:12px;padding-right:12px}
+.hero h1{font-size:46px}
+.player{border-radius:18px}
+.player-grid{grid-template-columns:82px minmax(0,1fr);gap:10px}
+.art{width:82px;max-width:82px;border-radius:14px}
+.player h2{font-size:30px}
+.product{flex-basis:calc((100% - 10px)/2.08);min-width:calc((100% - 10px)/2.08)}
+.song-card{grid-template-columns:52px minmax(0,1fr);min-height:78px;padding:11px}
+.thumb{width:52px;height:52px}
+}
+
+@media(min-width:768px){.player{position:sticky;top:86px}
 .hero .panel{align-self:start}
 }
 
