@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard/
 
 Sitemap: https://stashbox.com/sitemap.xml

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -79,6 +79,74 @@
       ]
     }
   ]
+  </script>
+  <script type="application/ld+json" data-seo="album-schema">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "MusicGroup",
+      "@id": "https://stashbox.com/#band",
+      "name": "Stashbox",
+      "url": "https://stashbox.com/",
+      "genre": [
+        "Rock",
+        "Reggae",
+        "Blues",
+        "Funk",
+        "Soul",
+        "Electronic",
+        "Americana"
+      ],
+      "areaServed": [
+        "South Florida",
+        "Fort Lauderdale",
+        "Davie",
+        "Miami",
+        "Boca Raton",
+        "Palm Beach",
+        "Florida Keys"
+      ],
+      "telephone": "+13104086687",
+      "email": "booking@stashbox.com"
+    },
+    {
+      "@type": "MusicAlbum",
+      "@id": "https://stashbox.com/songs/#stashbox-does-dylan",
+      "name": "Stashbox Does Dylan",
+      "byArtist": {
+        "@id": "https://stashbox.com/#band"
+      },
+      "datePublished": "2026-02",
+      "numTracks": 19,
+      "genre": [
+        "Bob Dylan tribute",
+        "Rock",
+        "Blues",
+        "Americana"
+      ],
+      "url": "https://stashbox.com/bobdylan/"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Stashbox",
+          "item": "https://stashbox.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Stashbox Does Dylan",
+          "item": "https://stashbox.com/bobdylan/"
+        }
+      ]
+    }
+  ]
+}
   </script>
 </head>
 <body>
