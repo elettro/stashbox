@@ -215,10 +215,13 @@ function App() {
   return h('div', { className: 'radio-app' },
     h('section', { className: 'hero' },
       h('div', { className: 'hero-card' },
-        h('p', { className: 'kicker' }, 'React development route · /radio/react/'),
+        h('p', { className: 'kicker' }, 'Free browser station'),
         h('h1', null, 'Stashbox Radio'),
-        h('p', { className: 'hero-copy' }, `Preview the React rebuild with ${tracks.length} tracks from the same published Google Sheet feed used by the current Stashbox Radio page.`),
-        h('div', null, h('a', { className: 'tiny-link', href: '/radio/' }, 'Open production /radio/'))
+        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, and song-based merch picks in a cleaner React preview using the same published Stashbox Radio feed.`),
+        h('div', { className: 'hero-actions' },
+          h('a', { className: 'tiny-link', href: '/radio/' }, 'Open classic radio'),
+          h('a', { className: 'tiny-link', href: 'https://stashbox.ai/collections/stashbox', target: '_blank', rel: 'noopener noreferrer' }, 'Shop merch')
+        )
       ),
       h(Player, { selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1) })
     ),
