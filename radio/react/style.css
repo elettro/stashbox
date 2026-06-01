@@ -1,0 +1,97 @@
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#0c0c0e;color:#eeeae3;font-family:Karla,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px)}
+:root{--bg:#0c0c0e;--surface:#131316;--surface2:#1a1a1f;--surface3:#222228;--border:rgba(255,255,255,.08);--border-h:rgba(255,255,255,.18);--text:#eeeae3;--muted:#8b8d94;--dim:#575a62;--accent:#f0a500;--accent-d:rgba(240,165,0,.12);--green:#3ecf6e;--red:#e05c5c;--fh:"Bebas Neue",sans-serif;--fb:"Karla",sans-serif;--safe-b:env(safe-area-inset-bottom,0px)}
+a{color:inherit}
+.site-header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px clamp(16px,4vw,42px);background:rgba(8,9,12,.96);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.brand{text-decoration:none;font-family:var(--fh);font-size:34px;letter-spacing:.06em;color:var(--accent);line-height:1}
+.brand span{color:var(--text)}
+.site-nav{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.site-nav a,.tiny-link{border:1px solid var(--border);border-radius:999px;padding:8px 12px;text-decoration:none;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.site-nav a:hover,.tiny-link:hover{border-color:var(--border-h);color:var(--text)}
+.radio-app{max-width:1500px;margin:0 auto;padding:22px clamp(14px,3vw,34px) 54px}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:22px;align-items:stretch;margin-bottom:18px}
+.hero-card,.panel{border:1px solid var(--border);border-radius:24px;background:linear-gradient(145deg,rgba(26,26,31,.96),rgba(13,13,16,.96));box-shadow:0 24px 80px rgba(0,0,0,.28)}
+.hero-card{padding:clamp(22px,4vw,46px);display:flex;flex-direction:column;justify-content:center;min-height:320px;position:relative;overflow:hidden}
+.hero-card::before{content:"";position:absolute;inset:auto -10% -42% 36%;height:260px;background:radial-gradient(circle,rgba(240,165,0,.22),transparent 65%);pointer-events:none}
+.kicker{margin:0 0 8px;color:var(--accent);font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.16em}
+.hero h1{font-family:var(--fh);font-size:clamp(44px,7vw,92px);line-height:.9;margin:0;color:var(--text);letter-spacing:.045em}
+.hero-copy{max-width:760px;color:#b9bbc2;font-size:17px;line-height:1.55}
+.toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;margin:18px 0}
+.search{width:100%;height:48px;border:1px solid var(--border);border-radius:14px;background:#15171d;color:var(--text);font:600 16px var(--fb);padding:0 16px}
+.search:focus{outline:1px solid rgba(240,165,0,.5)}
+.button{appearance:none;border:1px solid var(--border);border-radius:12px;background:transparent;color:var(--muted);font:800 12px var(--fb);letter-spacing:.08em;text-transform:uppercase;padding:0 14px;cursor:pointer}
+.button:hover{border-color:var(--border-h);color:var(--text)}
+.button.accent{background:var(--accent);border-color:var(--accent);color:#111}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+.chip{border:1px solid var(--border);border-radius:999px;background:transparent;color:#8b8e96;font:400 24px/1 var(--fh);letter-spacing:.06em;padding:8px 15px;cursor:pointer}
+.chip.active{background:var(--accent-d);border-color:var(--accent);color:var(--accent)}
+.player{padding:18px;scroll-margin-top:88px}
+.player-empty{min-height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:34px}
+.player-grid{display:grid;grid-template-columns:minmax(160px,280px) minmax(0,1fr);gap:18px;align-items:start}
+.art{aspect-ratio:1/1;border-radius:18px;border:1px solid var(--border);background:#0f0f12;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.art img{width:100%;height:100%;object-fit:cover}
+.art-fallback{font-family:var(--fh);font-size:44px;color:rgba(240,165,0,.45);text-align:center;padding:18px}
+.player h2{font:400 clamp(32px,4vw,54px)/.95 var(--fh);letter-spacing:.045em;margin:0 0 8px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:#c5c6ca}
+.genre-tag{border-radius:6px;background:rgba(62,207,110,.12);color:var(--green);padding:4px 8px;font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.08em}
+.notes{color:var(--muted);font-size:14px;line-height:1.45}
+.audio{width:100%;margin:15px 0 8px;accent-color:var(--accent)}
+.video-wrap{margin-top:12px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#050505}
+.video-wrap iframe{display:block;width:100%;aspect-ratio:16/9;border:0}
+.merch{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.merch-head{display:flex;justify-content:space-between;gap:10px;align-items:end;margin-bottom:10px}
+.merch-title{font:400 28px/1 var(--fh);letter-spacing:.04em}
+.products{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.product{display:flex;flex-direction:column;gap:8px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:14px;background:#14141a}
+.product:hover{border-color:var(--border-h)}
+.product-img{aspect-ratio:1/1;border-radius:10px;background:#0f0f12;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:900}
+.product-img img{width:100%;height:100%;object-fit:cover}
+.product-name{font-size:13px;font-weight:800;line-height:1.25}
+.product-price{font-size:12px;color:var(--muted);font-weight:800}
+.list-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:26px 0 12px}
+.list-head h2{font:400 36px/1 var(--fh);letter-spacing:.04em;margin:0}
+.count{color:var(--muted);font-size:13px}
+.sections{display:grid;gap:18px}
+.section-title{font:400 30px/1 var(--fh);letter-spacing:.05em;margin:0 0 10px}
+.song-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px}
+.song-card{display:grid;grid-template-columns:54px 1fr;gap:10px;text-align:left;border:1px solid var(--border);border-radius:14px;background:#131316;color:var(--text);padding:10px;cursor:pointer}
+.song-card:hover,.song-card.active{border-color:var(--accent);background:rgba(240,165,0,.08)}
+.thumb{width:54px;height:54px;border-radius:10px;background:#202028;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.song-title{font-weight:900}
+.song-artist,.song-album{font-size:12px;color:var(--muted);margin-top:2px}
+.badges{display:flex;gap:5px;margin-top:6px}
+.badge{font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;background:rgba(240,165,0,.13);color:var(--accent)}
+.badge.video{background:rgba(62,207,110,.12);color:var(--green)}
+.empty,.error,.loading-shell{text-align:center;color:var(--muted);padding:70px 20px}
+.loading-logo{width:210px;max-width:70vw;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}
+}
+.error strong{display:block;color:var(--red);font-family:var(--fh);font-size:44px}
+.seo-fallback{max-width:980px;margin:0 auto 52px;padding:28px clamp(18px,4vw,34px);border-top:1px solid var(--border);color:#b9bbc2;line-height:1.6}
+.seo-fallback h2{font:400 36px/1 var(--fh);color:var(--text);margin:0 0 10px}
+.site-footer{border-top:1px solid var(--border);padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.site-footer a{color:var(--accent)}
+
+@media(max-width:800px){.site-header{align-items:flex-start;flex-direction:column}
+.site-nav{justify-content:flex-start}
+.radio-app{padding-bottom:34px}
+.hero{grid-template-columns:1fr}
+.hero-card{min-height:unset}
+.toolbar{grid-template-columns:1fr}
+.button{min-height:42px}
+.player-grid{grid-template-columns:1fr}
+.art{max-width:320px;width:100%;margin:0 auto}
+.products{display:flex;overflow-x:auto;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.product{flex:0 0 calc(50% - 7px);min-width:calc(50% - 7px);scroll-snap-align:start}
+.song-grid{grid-template-columns:1fr}
+.chip{font-size:21px}
+.hero h1{font-size:52px}
+}
+
+@media(min-width:801px){.player{position:sticky;top:86px}
+.hero .panel{align-self:start}
+}
+

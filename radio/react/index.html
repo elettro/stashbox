@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stashbox Radio React Preview | Rock, Reggae, Blues &amp; Funk Streaming Player</title>
+  <meta name="description" content="A React preview version of Stashbox Radio, the free browser-based streaming player featuring 110+ rock, reggae, blues, funk, original songs, tribute tracks, videos, and song-related merch.">
+  <link rel="canonical" href="https://stashbox.com/radio/react/">
+  <meta property="og:type" content="music.playlist">
+  <meta property="og:site_name" content="Stashbox">
+  <meta property="og:title" content="Stashbox Radio React Preview | Rock, Reggae, Blues &amp; Funk Streaming Player">
+  <meta property="og:description" content="A React preview version of Stashbox Radio featuring rock, reggae, blues, funk, original songs, tribute tracks, videos, and song-related merch.">
+  <meta property="og:url" content="https://stashbox.com/radio/react/">
+  <meta property="og:image" content="https://stashbox.com/images/branding/stashbox-logo-transparent-rastacolors.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Stashbox Radio React Preview | Rock, Reggae, Blues &amp; Funk Streaming Player">
+  <meta name="twitter:description" content="A React preview version of Stashbox Radio featuring rock, reggae, blues, funk, original songs, tribute tracks, videos, and merch.">
+  <meta name="twitter:image" content="https://stashbox.com/images/branding/stashbox-logo-transparent-rastacolors.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <script type="application/ld+json">
+  [
+    {
+      "@context": "https://schema.org",
+      "@type": "MusicGroup",
+      "@id": "https://stashbox.com/#band",
+      "name": "Stashbox",
+      "url": "https://stashbox.com/",
+      "image": "https://stashbox.com/images/branding/stashbox-logo-transparent-rastacolors.png",
+      "genre": ["Rock", "Reggae", "Blues", "Funk", "Soul", "Calypso"],
+      "description": "Stashbox is a South Florida live band and original music project with rock, reggae, blues, funk, tribute tracks, and custom radio experiences."
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "MusicPlaylist",
+      "@id": "https://stashbox.com/radio/react/#playlist",
+      "name": "Stashbox Radio React Preview",
+      "url": "https://stashbox.com/radio/react/",
+      "description": "A React preview of Stashbox Radio with searchable rock, reggae, blues, funk, original songs, tribute tracks, videos, and merch recommendations.",
+      "creator": { "@id": "https://stashbox.com/#band" },
+      "numTracks": "110+"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "name": "Stashbox Radio genres",
+      "url": "https://stashbox.com/radio/react/",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Reggae" },
+        { "@type": "ListItem", "position": 2, "name": "Rock" },
+        { "@type": "ListItem", "position": 3, "name": "Blues" },
+        { "@type": "ListItem", "position": 4, "name": "Funk" },
+        { "@type": "ListItem", "position": 5, "name": "Original songs and tribute tracks" }
+      ]
+    }
+  ]
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Stashbox home"><span>STASH</span>BOX</a>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="/">Home</a>
+      <a href="/radio/">Live Radio</a>
+      <a href="/shop/">Shop</a>
+      <a href="/booking/">Book Band</a>
+    </nav>
+  </header>
+
+  <main>
+    <div id="root">
+      <section class="loading-shell" aria-live="polite">
+        <img src="/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" class="loading-logo">
+        <p>Loading React radio preview…</p>
+      </section>
+    </div>
+
+    <section class="seo-fallback" aria-label="About Stashbox Radio React Preview">
+      <p class="kicker">Static crawler summary</p>
+      <h2>Stashbox Radio React Preview</h2>
+      <p>Stashbox Radio React Preview is a test version of the browser-based Stashbox streaming player at <strong>/radio/react/</strong>. It uses the same published Google Sheet/App Script song feed fields as the current Stashbox Radio page, including song title, album or collection, artist, genre, release date, audio URL, artwork URL, video link, notes, plays, and share counts.</p>
+      <p>The preview is designed for rock, reggae, blues, funk, soul, calypso, electronic, Spanish, pop, original songs, tribute tracks, videos, and song-related merch recommendations. Visitors can search songs, filter by genre, select a track, listen with browser audio controls, and open an available video without letting the audio player play over it.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+    <p><a href="/radio/">Production Radio</a> · <a href="/shop/">Shop Stashbox</a></p>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
