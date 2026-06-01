@@ -1,11 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
-const SHEET_CSV_URLS = [
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
-];
+import { createRadioSupabaseClient, SUPABASE_TABLES } from './supabaseClient.js';
 
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
@@ -21,63 +17,37 @@ const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxuserco
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === String(genre || '').toLowerCase())?.key || 'Other';
 const has = value => String(value || '').trim().length > 0;
 
-function parseCSVRows(csv) {
-  const rows = [];
-  let row = [], cur = '', inQuotes = false;
-  for (let i = 0; i < csv.length; i += 1) {
-    const ch = csv[i], next = csv[i + 1];
-    if (ch === '"') {
-      if (inQuotes && next === '"') { cur += '"'; i += 1; }
-      else inQuotes = !inQuotes;
-      continue;
-    }
-    if (ch === ',' && !inQuotes) { row.push(cur); cur = ''; continue; }
-    if ((ch === '\n' || ch === '\r') && !inQuotes) {
-      if (ch === '\r' && next === '\n') i += 1;
-      row.push(cur); rows.push(row); row = []; cur = ''; continue;
-    }
-    cur += ch;
-  }
-  if (cur.length || row.length) { row.push(cur); rows.push(row); }
-  return rows;
+
+function normalizeSong(row, index) {
+  const genre = clean(row.genre);
+  return {
+    id: row.id,
+    title: clean(row.title) || 'Untitled Stashbox Track',
+    album: clean(row.album) || 'Stashbox Radio',
+    artist: clean(row.artist),
+    genre,
+    sectionKey: sectionFor(genre),
+    audioUrl: fixDropbox(clean(row.audio_url)),
+    imageUrl: fixDropbox(clean(row.artwork_url)),
+    videoUrl: clean(row.video_url),
+    videoLink: clean(row.video_url),
+    notes: clean(row.description),
+    sortOrder: Number(row.sort_order) || index,
+    createdAt: row.created_at || '',
+    idx: row.id || `song-${index}`
+  };
 }
 
-function parseTracks(csv) {
-  const rows = parseCSVRows(csv).filter(r => r.some(col => clean(col)));
-  return rows.slice(1).map((c, i) => {
-    if (!clean(c[0])) return null;
-    const genre = clean(c[3]);
-    return {
-      title: clean(c[0]),
-      album: clean(c[1]) || 'Stashbox Radio',
-      artist: clean(c[2]),
-      genre,
-      sectionKey: sectionFor(genre),
-      date: clean(c[4]),
-      audioUrl: fixDropbox(clean(c[6])),
-      imageUrl: fixDropbox(clean(c[8])),
-      videoUrl: clean(c[9]),
-      videoLink: clean(c[9]),
-      notes: clean(c[10]),
-      plays: Number(clean(c[11])) || 0,
-      songShares: Number(clean(c[15])) || 0,
-      idx: i
-    };
-  }).filter(Boolean);
-}
+async function fetchSupabaseSongs() {
+  const supabase = createRadioSupabaseClient();
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLES.songs)
+    .select('id,title,artist,album,genre,audio_url,artwork_url,video_url,description,is_active,sort_order,created_at')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
 
-async function fetchSheetCSV() {
-  let lastError;
-  for (const url of SHEET_CSV_URLS) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      if (text.trim()) return text;
-      throw new Error('Empty CSV response');
-    } catch (error) { lastError = error; }
-  }
-  throw lastError || new Error('Unable to fetch the radio sheet.');
+  if (error) throw new Error(error.message || 'Unable to fetch songs from Supabase.');
+  return (Array.isArray(data) ? data : []).map(normalizeSong);
 }
 
 function youtubeEmbed(url) {
@@ -112,20 +82,61 @@ function productShape(product) {
   };
 }
 
+function supabaseProductShape(link) {
+  const product = link.products || link.product || link;
+  return {
+    title: clean(product.title) || 'Stashbox Product',
+    url: clean(product.product_url),
+    image: clean(product.image_url),
+    price: clean(product.price),
+    collection: clean(product.collection),
+    priority: Number(link.priority) || 0
+  };
+}
+
+async function fetchFallbackProducts(selected) {
+  const res = await fetch('https://stashbox.ai/products.json?limit=250');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const shaped = (Array.isArray(data.products) ? data.products : []).map(productShape);
+  return rotateBySeed(shaped, selected?.title).slice(0, 8);
+}
+
+async function fetchLinkedProducts(selected) {
+  if (!selected?.id) return [];
+  const supabase = createRadioSupabaseClient();
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLES.songProducts)
+    .select('id,song_id,product_id,priority,products:product_id(id,title,image_url,product_url,price,collection,is_active)')
+    .eq('song_id', selected.id)
+    .order('priority', { ascending: true });
+
+  if (error) return [];
+  return (Array.isArray(data) ? data : [])
+    .filter(link => link.products && link.products.is_active !== false)
+    .map(supabaseProductShape)
+    .filter(product => product.url || product.title);
+}
+
 function useProducts(selected) {
   const [products, setProducts] = useState([]);
   useEffect(() => {
     let alive = true;
-    fetch('https://stashbox.ai/products.json?limit=250')
-      .then(res => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
-      .then(data => {
-        if (!alive) return;
-        const shaped = (Array.isArray(data.products) ? data.products : []).map(productShape);
-        setProducts(rotateBySeed(shaped, selected?.title).slice(0, 8));
-      })
+    setProducts([]);
+
+    async function loadProducts() {
+      if (!selected) return [];
+      const linkedProducts = await fetchLinkedProducts(selected);
+      if (linkedProducts.length) return linkedProducts;
+      return fetchFallbackProducts(selected);
+    }
+
+    loadProducts()
+      .then(nextProducts => { if (alive) setProducts(nextProducts); })
       .catch(() => { if (alive) setProducts([]); });
+
     return () => { alive = false; };
-  }, [selected?.idx]);
+  }, [selected?.id, selected?.title]);
   return products;
 }
 
@@ -142,8 +153,7 @@ function App() {
   const products = useProducts(selected);
 
   useEffect(() => {
-    fetchSheetCSV().then(csv => {
-      const parsed = parseTracks(csv);
+    fetchSupabaseSongs().then(parsed => {
       setTracks(parsed);
       setSelected(parsed[0] || null);
       setStatus('ready');
@@ -209,7 +219,7 @@ function App() {
     setVideoOpen(false);
   }
 
-  if (status === 'loading') return h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the Stashbox Radio feed…'));
+  if (status === 'loading') return h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading active songs from Supabase…'));
   if (status === 'error') return h('section', { className: 'error', role: 'alert' }, h('strong', null, 'ERROR'), h('p', null, error), h('p', null, 'The production /radio/ page has not been changed.'));
 
   return h('div', { className: 'radio-app' },
@@ -217,7 +227,7 @@ function App() {
       h('div', { className: 'hero-card' },
         h('p', { className: 'kicker' }, 'Free browser station'),
         h('h1', null, 'Stashbox Radio'),
-        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, and song-based merch picks in a cleaner React preview using the same published Stashbox Radio feed.`),
+        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, and song-based merch picks in a cleaner React preview using the Supabase test database.`),
         h('div', { className: 'hero-actions' },
           h('a', { className: 'tiny-link', href: '/radio/' }, 'Open classic radio'),
           h('a', { className: 'tiny-link', href: 'https://stashbox.ai/collections/stashbox', target: '_blank', rel: 'noopener noreferrer' }, 'Shop merch')
@@ -233,7 +243,7 @@ function App() {
       h('div', { className: 'chips', role: 'list', 'aria-label': 'Genre filters' }, genres.map(g => h('button', { key: g.key, className: `chip ${genre === g.key ? 'active' : ''}`, type: 'button', onClick: () => setGenre(g.key), style: genre === g.key ? { borderColor: g.color, color: g.color } : {} }, `${g.emoji} ${g.key === 'ALL' ? 'All' : g.key}`)))
     ),
     h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)),
-    filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')
+    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
   );
 }
 
