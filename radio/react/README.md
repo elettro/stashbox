@@ -5,16 +5,35 @@ This directory is the only current scope for the React radio Supabase test:
 - Test app: `/stashbox/radio/react/`
 - Production app: `/stashbox/radio/` remains unchanged
 
-## Required environment variables
+## Supabase configuration for GitHub Pages
 
-The React test app reads Supabase config from Vite-style public environment variables:
+The React test app is served as static files on GitHub Pages, so it does **not** use Vite build-time environment variables. Runtime Supabase configuration is loaded from `radio/react/config.js` before `app.js` starts.
+
+`radio/react/config.js` is intentionally gitignored so local Supabase values are not accidentally committed. Start from the example file:
 
 ```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-public-anon-key
+cp radio/react/config.example.js radio/react/config.js
 ```
 
-Do not commit Supabase secrets. The public anon key is the only key this browser app should receive. Never place server-only Supabase secrets in this directory or in any client-side bundle.
+Then open `radio/react/config.js` and paste your public Supabase values exactly here:
+
+```js
+window.STASHBOX_SUPABASE_CONFIG = {
+  // Paste your Supabase Project URL between these quotes.
+  // Supabase Dashboard → Project Settings → API → Project URL
+  url: "https://your-project-ref.supabase.co",
+
+  // Paste your Supabase Publishable Key between these quotes.
+  // Supabase Dashboard → Project Settings → API → Project API keys → Publishable key
+  anonKey: "your-supabase-publishable-key"
+};
+```
+
+Do not use Vite names such as `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` for this static GitHub Pages app. The browser reads only `window.STASHBOX_SUPABASE_CONFIG.url` and `window.STASHBOX_SUPABASE_CONFIG.anonKey`.
+
+The Supabase Publishable Key is intended for browser use, but never paste server-only Supabase secrets, service-role keys, database passwords, or JWT secrets into this directory or any client-side file.
+
+> GitHub Pages note: because `config.js` is gitignored, make sure the deployment source that GitHub Pages publishes contains a configured `radio/react/config.js` file by your chosen deployment process. If Pages publishes directly from the repository branch, you must provide that runtime file in the published branch/path for the app to connect to Supabase.
 
 ## Expected Supabase tables
 

@@ -3,16 +3,29 @@
 This guide sets up the Supabase database tables used by the React radio test app in `/stashbox/radio/react/`.
 The production `/stashbox/radio/` app remains unchanged.
 
-## Required environment variables
+## Required runtime configuration
 
-Configure these variables for the React app build/runtime:
+The React app is served as static files on GitHub Pages and reads Supabase settings from `radio/react/config.js`, not from Vite build-time environment variables.
+
+Start from the example file:
 
 ```bash
-VITE_SUPABASE_URL=your-supabase-project-url
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-public-key
+cp radio/react/config.example.js radio/react/config.js
 ```
 
-> **Security warning:** Never expose the Supabase service role key in frontend code, `.env` files committed to the repo, browser builds, or public hosting settings. The React app should only use the anon public key.
+Then open `radio/react/config.js` and paste the public values from **Supabase Dashboard → Project Settings → API**:
+
+```js
+window.STASHBOX_SUPABASE_CONFIG = {
+  // Paste the Supabase Project URL here.
+  url: "https://your-project-ref.supabase.co",
+
+  // Paste the Supabase Publishable Key here.
+  anonKey: "your-supabase-publishable-key"
+};
+```
+
+> **Security warning:** Never expose the Supabase service role key in frontend code, committed files, browser builds, or public hosting settings. The React app should only use the Publishable Key intended for browser use.
 
 ## How to run the SQL setup
 
