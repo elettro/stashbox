@@ -1,7 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // This React test version uses Supabase. The production /radio/ page remains unchanged.
-const env = import.meta.env || {};
+// GitHub Pages serves this app as static files, so runtime config is read from
+// radio/react/config.js instead of Vite build-time environment variables.
+const getRuntimeConfig = () => window.STASHBOX_SUPABASE_CONFIG || {};
 
 export const SUPABASE_TABLES = {
   songs: 'songs',
@@ -9,17 +11,18 @@ export const SUPABASE_TABLES = {
   songProducts: 'song_products'
 };
 
-export const SUPABASE_REQUIRED_ENV_VARS = [
-  'VITE_SUPABASE_URL',
-  'VITE_SUPABASE_ANON_KEY'
+export const SUPABASE_REQUIRED_CONFIG_KEYS = [
+  'url',
+  'anonKey'
 ];
 
 export function createRadioSupabaseClient() {
-  const supabaseUrl = env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+  const config = getRuntimeConfig();
+  const supabaseUrl = String(config.url || '').trim();
+  const supabaseAnonKey = String(config.anonKey || '').trim();
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for /radio/react/.');
+    throw new Error('Supabase is not configured. Edit radio/react/config.js and set window.STASHBOX_SUPABASE_CONFIG.url and window.STASHBOX_SUPABASE_CONFIG.anonKey.');
   }
 
   return createClient(supabaseUrl, supabaseAnonKey, {
