@@ -17,6 +17,7 @@ const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxuserco
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === String(genre || '').toLowerCase())?.key || 'Other';
 const has = value => String(value || '').trim().length > 0;
 const RADIO_REACT_SOURCE_PAGE = '/stashbox/radio/react/';
+const MAX_PRODUCT_RECOMMENDATIONS = 50;
 const SESSION_STORAGE_KEY = 'stashbox-radio-react-session-id';
 const DUPLICATE_ERROR_CODES = new Set(['23505']);
 const PLAY_EVENT_TYPES = new Set(['play', 'pause', 'skip', 'complete', 'next_click', 'random_click', 'video_open']);
@@ -210,11 +211,11 @@ function supabaseProductShape(link) {
 }
 
 async function fetchFallbackProducts(selected) {
-  const res = await fetch('https://stashbox.ai/products.json?limit=250');
+  const res = await fetch(`https://stashbox.ai/products.json?limit=${MAX_PRODUCT_RECOMMENDATIONS}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   const shaped = (Array.isArray(data.products) ? data.products : []).map(productShape);
-  return rotateBySeed(shaped, selected?.title).slice(0, 8);
+  return rotateBySeed(shaped, selected?.title).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
 }
 
 async function fetchLinkedProducts(selected) {
@@ -224,13 +225,15 @@ async function fetchLinkedProducts(selected) {
     .from(SUPABASE_TABLES.songProducts)
     .select('id,song_id,product_id,priority,products:product_id(id,title,image_url,product_url,price,collection,is_active)')
     .eq('song_id', selected.id)
-    .order('priority', { ascending: true });
+    .order('priority', { ascending: true })
+    .limit(MAX_PRODUCT_RECOMMENDATIONS);
 
   if (error) return [];
   return (Array.isArray(data) ? data : [])
     .filter(link => link.products && link.products.is_active !== false)
     .map(supabaseProductShape)
-    .filter(product => product.url || product.title);
+    .filter(product => product.url || product.title)
+    .slice(0, MAX_PRODUCT_RECOMMENDATIONS);
 }
 
 function formatPlayCount(count) {
@@ -711,13 +714,103 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
 }
 
 function ProductRecommendations({ products, onProductClick }) {
+  const carouselRef = useRef(null);
+  const dragStateRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
+  const didDragCarouselRef = useRef(false);
+  const visibleProducts = useMemo(() => products.slice(0, MAX_PRODUCT_RECOMMENDATIONS), [products]);
+  const [carouselState, setCarouselState] = useState({ atStart: true, atEnd: true });
+  const showArrows = visibleProducts.length >= 5;
+
+  const updateCarouselState = useCallback(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    setCarouselState({
+      atStart: carousel.scrollLeft <= 1,
+      atEnd: carousel.scrollLeft >= maxScrollLeft - 1
+    });
+  }, []);
+
+  const endCarouselDrag = useCallback(() => {
+    dragStateRef.current.active = false;
+    carouselRef.current?.classList.remove('dragging');
+  }, []);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return undefined;
+    carousel.scrollTo({ left: 0 });
+    updateCarouselState();
+
+    const handleScroll = () => updateCarouselState();
+    const handleResize = () => updateCarouselState();
+    carousel.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('mouseup', endCarouselDrag);
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
+    resizeObserver?.observe(carousel);
+
+    return () => {
+      carousel.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mouseup', endCarouselDrag);
+      resizeObserver?.disconnect();
+    };
+  }, [endCarouselDrag, updateCarouselState, visibleProducts]);
+
+  const moveCarousel = direction => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    carousel.scrollBy({ left: direction * carousel.clientWidth, behavior: 'smooth' });
+  };
+
+  const handleCarouselMouseDown = event => {
+    if (event.button !== 0 || !carouselRef.current) return;
+    dragStateRef.current = {
+      active: true,
+      startX: event.pageX,
+      scrollLeft: carouselRef.current.scrollLeft
+    };
+    didDragCarouselRef.current = false;
+    carouselRef.current.classList.add('dragging');
+  };
+
+  const handleCarouselMouseMove = event => {
+    const carousel = carouselRef.current;
+    const dragState = dragStateRef.current;
+    if (!carousel || !dragState.active) return;
+
+    const distance = event.pageX - dragState.startX;
+    if (Math.abs(distance) > 3) {
+      didDragCarouselRef.current = true;
+      event.preventDefault();
+    }
+
+    carousel.scrollLeft = dragState.scrollLeft - distance;
+    updateCarouselState();
+  };
+
+  const handleProductClick = (event, product) => {
+    if (didDragCarouselRef.current) {
+      event.preventDefault();
+      didDragCarouselRef.current = false;
+      return;
+    }
+
+    onProductClick?.(product);
+  };
+
   return h('section', { className: 'merch', 'aria-label': 'Product recommendations' },
-    h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, products.length ? `${products.length} items` : 'Loading merch…')),
-    products.length ? h('div', { className: 'products' }, products.map(product => h('a', { key: product.url, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', onClick: () => onProductClick?.(product) },
-      h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', onError: e => { e.currentTarget.remove(); } }) : 'SB'),
-      h('div', { className: 'product-name' }, product.title),
-      h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai')
-    ))) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.')
+    h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')),
+    visibleProducts.length ? h('div', { className: 'products-shell' },
+      showArrows ? h('button', { className: 'carousel-arrow carousel-arrow-left', type: 'button', 'aria-label': 'Show previous products', disabled: carouselState.atStart, onClick: () => moveCarousel(-1) }, '‹') : null,
+      h('div', { className: 'products', ref: carouselRef, onMouseDown: handleCarouselMouseDown, onMouseMove: handleCarouselMouseMove, onMouseUp: endCarouselDrag, onMouseLeave: endCarouselDrag }, visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: event => handleProductClick(event, product) },
+        h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', draggable: false, onError: e => { e.currentTarget.remove(); } }) : 'SB'),
+        h('div', { className: 'product-name' }, product.title),
+        h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai')
+      ))),
+      showArrows ? h('button', { className: 'carousel-arrow carousel-arrow-right', type: 'button', 'aria-label': 'Show more products', disabled: carouselState.atEnd, onClick: () => moveCarousel(1) }, '›') : null
+    ) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.')
   );
 }
 
