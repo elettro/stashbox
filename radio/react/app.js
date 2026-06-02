@@ -918,9 +918,20 @@ function App() {
   );
 }
 
+function PlayIcon({ className = 'play-icon' }) {
+  return h('span', { className, 'aria-hidden': true });
+}
+
+function PauseIcon() {
+  return h('span', { className: 'pause-icon', 'aria-hidden': true },
+    h('span', null),
+    h('span', null)
+  );
+}
+
 function PlayCount({ count }) {
   return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` },
-    h('span', { 'aria-hidden': true }, '▶'),
+    h(PlayIcon, { className: 'play-count-icon' }),
     h('span', null, formatPlayCount(count))
   );
 }
@@ -1051,12 +1062,12 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
       ),
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
-        h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded plays` }, h('span', { 'aria-hidden': true }, '▶'), h('span', null, formatPlayerPlayCount(playCount))),
+        h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded plays` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
         h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
-        hasVideo ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : '▶ Watch Video') : null,
+        hasVideo ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
         h('div', { className: 'transport-controls', 'aria-label': 'Transport controls' },
           h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
-          h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying, 'aria-label': isPlaying ? 'Pause song' : 'Play song' }, isPlaying ? '❚❚' : '▶'),
+          h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying, 'aria-label': isPlaying ? 'Pause song' : 'Play song' }, isPlaying ? h(PauseIcon) : h(PlayIcon)),
           h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'),
           h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
         )
