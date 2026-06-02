@@ -136,3 +136,14 @@ a{color:inherit}
 .song-card-title-row .song-title{flex:1;min-width:0}
 .list-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:767px){.player-title-row{align-items:flex-start}.like-button{min-height:34px}.list-actions{align-items:flex-end;flex-direction:column;gap:8px}.list-actions .button{min-height:38px}}
+.song-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:4px 0 8px;color:var(--muted);font-size:12px;font-weight:900;line-height:1.1}
+.song-actions.compact{gap:5px;margin:6px 0 5px;font-size:11px}
+.song-actions-separator{color:var(--dim);font-weight:900}
+.play-count{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:#aeb0b7}
+.share-button{appearance:none;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);color:var(--muted);font:900 12px var(--fb);line-height:1;min-height:36px;padding:0 12px;cursor:pointer;white-space:nowrap}
+.share-button:hover{border-color:var(--border-h);color:var(--text);background:rgba(255,255,255,.05)}
+.share-button.compact{min-height:28px;padding:0 8px;font-size:11px}
+.player .song-actions{margin-top:-2px;margin-bottom:10px}
+.song-card .song-actions{max-width:100%}
+@media(max-width:767px){.song-actions{gap:6px}.share-button{min-height:34px}.song-actions.compact{gap:4px;font-size:10px}.share-button.compact,.like-button.compact{min-height:28px}.play-count{gap:4px}}
+@media(max-width:380px){.song-actions.compact{font-size:10px}.share-button.compact{padding:0 7px}.like-button.compact{padding:0 7px}}

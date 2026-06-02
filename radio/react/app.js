@@ -78,6 +78,22 @@ async function fetchLikeRows(songIds) {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchPlayRows(songIds) {
+  if (!songIds.length) return [];
+  const supabase = createRadioSupabaseClient();
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLES.songPlayEvents)
+    .select('song_id')
+    .eq('event_type', 'play')
+    .in('song_id', songIds);
+
+  if (error) {
+    if (shouldIgnoreOptionalMetricError(error)) return [];
+    throw new Error(error.message || 'Unable to fetch song play counts from Supabase.');
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 async function insertSongLike(songId, sessionId) {
   const supabase = createRadioSupabaseClient();
   return supabase
@@ -185,6 +201,38 @@ async function fetchLinkedProducts(selected) {
     .filter(product => product.url || product.title);
 }
 
+function formatPlayCount(count) {
+  const value = Math.max(0, Number(count) || 0);
+  if (value >= 1000) {
+    const compact = (value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '');
+    return `${compact}K plays`;
+  }
+  return `${value} ${value === 1 ? 'play' : 'plays'}`;
+}
+
+function getShareUrl(song) {
+  const shareUrl = new URL(window.location.href);
+  shareUrl.searchParams.set('song', song?.id || song?.idx || '');
+  shareUrl.hash = '';
+  return shareUrl.toString();
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand('copy');
+  input.remove();
+}
+
 function useProducts(selected) {
   const [products, setProducts] = useState([]);
   useEffect(() => {
@@ -266,6 +314,36 @@ function useSongLikes(tracks, sessionId) {
   return { likeCounts, likedSongIds, likeSong };
 }
 
+function useSongPlayCounts(tracks) {
+  const [playCounts, setPlayCounts] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    const songIds = tracks.map(track => track.id).filter(Boolean);
+
+    fetchPlayRows(songIds)
+      .then(rows => {
+        if (!alive) return;
+        const nextCounts = {};
+        rows.forEach(row => {
+          if (!row.song_id) return;
+          nextCounts[row.song_id] = (nextCounts[row.song_id] || 0) + 1;
+        });
+        setPlayCounts(nextCounts);
+      })
+      .catch(error => console.warn('Unable to load song play counts.', error.message || error));
+
+    return () => { alive = false; };
+  }, [tracks]);
+
+  const incrementPlayCount = useCallback(songId => {
+    if (!songId) return;
+    setPlayCounts(previous => ({ ...previous, [songId]: (previous[songId] || 0) + 1 }));
+  }, []);
+
+  return { playCounts, incrementPlayCount };
+}
+
 function App() {
   const [tracks, setTracks] = useState([]);
   const [status, setStatus] = useState('loading');
@@ -274,21 +352,27 @@ function App() {
   const [genre, setGenre] = useState('ALL');
   const [selected, setSelected] = useState(null);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [copiedSongId, setCopiedSongId] = useState(null);
   const [sessionId] = useState(getBrowserSessionId);
   const playerRef = useRef(null);
   const audioRef = useRef(null);
   const products = useProducts(selected);
   const { likeCounts, likedSongIds, likeSong } = useSongLikes(tracks, sessionId);
+  const { playCounts, incrementPlayCount } = useSongPlayCounts(tracks);
 
   const recordSongEvent = useCallback(eventType => {
+    if (eventType === 'play') incrementPlayCount(selected?.id);
     insertSongPlayEvent(selected?.id, sessionId, eventType);
-  }, [selected?.id, sessionId]);
+  }, [incrementPlayCount, selected?.id, sessionId]);
 
   useEffect(() => {
     fetchSupabaseSongs().then(parsed => {
+      const requestedSongId = new URLSearchParams(window.location.search).get('song');
+      const requestedSong = requestedSongId ? parsed.find(track => String(track.id) === requestedSongId || String(track.idx) === requestedSongId) : null;
       setTracks(parsed);
-      setSelected(parsed[0] || null);
+      setSelected(requestedSong || parsed[0] || null);
       setStatus('ready');
+      if (requestedSong) scrollPlayerIntoView();
     }).catch(err => { setError(err.message); setStatus('error'); });
   }, []);
 
@@ -385,6 +469,27 @@ function App() {
     setVideoOpen(false);
   }
 
+  async function shareSong(song) {
+    if (!song?.id && !song?.idx) return;
+    const shareData = {
+      title: song.title,
+      text: `Listen to ${song.title} by Stashbox on Stashbox Radio`,
+      url: getShareUrl(song)
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      await copyTextToClipboard(shareData.url);
+      setCopiedSongId(song.id || song.idx);
+      window.setTimeout(() => setCopiedSongId(current => current === (song.id || song.idx) ? null : current), 1800);
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.warn('Unable to share song.', error.message || error);
+    }
+  }
+
   function handleProductClick(product) {
     insertProductClickEvent(selected, product, sessionId);
   }
@@ -415,8 +520,11 @@ function App() {
         onNext: () => shiftTrack(1, 'next_click'),
         onProductClick: handleProductClick,
         likeCount: likeCounts[selected?.id] || 0,
+        playCount: playCounts[selected?.id] || 0,
         hasLiked: likedSongIds.has(selected?.id),
-        onLike: () => likeSong(selected?.id)
+        onLike: () => likeSong(selected?.id),
+        onShare: () => shareSong(selected),
+        shareCopied: copiedSongId === (selected?.id || selected?.idx)
       })
     ),
     h('section', { 'aria-label': 'Search and filter songs' },
@@ -433,7 +541,36 @@ function App() {
         h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
       )
     ),
-    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, likedSongIds, onLike: likeSong }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+  );
+}
+
+function PlayCount({ count }) {
+  return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` },
+    h('span', { 'aria-hidden': true }, '▶'),
+    h('span', null, formatPlayCount(count))
+  );
+}
+
+function ShareButton({ onShare, copied = false, compact = false }) {
+  return h('button', {
+    className: `share-button ${compact ? 'compact' : ''}`,
+    type: 'button',
+    onClick: event => {
+      event.stopPropagation();
+      onShare?.();
+    },
+    'aria-live': copied ? 'polite' : undefined
+  }, copied ? 'Link copied' : 'Share');
+}
+
+function SongActions({ likeCount, playCount, hasLiked, onLike, onShare, shareCopied, compact = false }) {
+  return h('span', { className: `song-actions ${compact ? 'compact' : ''}` },
+    h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }),
+    h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'),
+    h(PlayCount, { count: playCount }),
+    h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'),
+    h(ShareButton, { onShare, copied: shareCopied, compact })
   );
 }
 
@@ -453,7 +590,7 @@ function LikeButton({ count, active, onLike, compact = false }) {
   );
 }
 
-function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, hasLiked, onLike }) {
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, playCount, hasLiked, onLike, onShare, shareCopied }) {
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink || selected.videoUrl);
@@ -463,9 +600,9 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
       h('div', null,
         h('p', { className: 'kicker' }, 'Now selected'),
         h('div', { className: 'player-title-row' },
-          h('h2', null, selected.title),
-          h(LikeButton, { count: likeCount, active: hasLiked, onLike })
+          h('h2', null, selected.title)
         ),
+        h(SongActions, { likeCount, playCount, hasLiked, onLike, onShare, shareCopied }),
         h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
         selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
         h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
@@ -496,16 +633,16 @@ function ProductRecommendations({ products, onProductClick }) {
   );
 }
 
-function SongSection({ section, tracks, selected, chooseSong, likeCounts, likedSongIds, onLike }) {
+function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, likedSongIds, onLike, onShare, copiedSongId }) {
   return h('section', null,
     h('h3', { className: 'section-title', style: { color: section.color } }, `${section.emoji} ${section.key}`),
     h('div', { className: 'song-grid' }, tracks.map(track => h('button', { key: track.idx, type: 'button', className: `song-card ${selected?.idx === track.idx ? 'active' : ''}`, onClick: () => chooseSong(track) },
       h('span', { className: 'thumb' }, track.imageUrl ? h('img', { src: track.imageUrl, alt: '', loading: 'lazy', onError: e => { e.currentTarget.remove(); } }) : section.emoji),
       h('span', { className: 'song-card-body' },
         h('span', { className: 'song-card-title-row' },
-          h('span', { className: 'song-title' }, track.title),
-          h(LikeButton, { count: likeCounts[track.id] || 0, active: likedSongIds.has(track.id), onLike: () => onLike(track.id), compact: true })
+          h('span', { className: 'song-title' }, track.title)
         ),
+        h(SongActions, { likeCount: likeCounts[track.id] || 0, playCount: playCounts[track.id] || 0, hasLiked: likedSongIds.has(track.id), onLike: () => onLike(track.id), onShare: () => onShare(track), shareCopied: copiedSongId === (track.id || track.idx), compact: true }),
         h('span', { className: 'song-artist' }, track.artist || 'Stashbox'),
         track.album ? h('span', { className: 'song-album' }, track.album) : null,
         h('span', { className: 'badges' }, has(track.audioUrl) ? h('span', { className: 'badge' }, 'Audio') : null, has(track.videoLink || track.videoUrl) ? h('span', { className: 'badge video' }, 'Video') : null)
