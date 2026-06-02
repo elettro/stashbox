@@ -4,18 +4,14 @@ body{margin:0;padding-top:var(--nav-height,72px);max-width:100%;overflow-x:hidde
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px)}
 :root{--bg:#0c0c0e;--surface:#131316;--surface2:#1a1a1f;--surface3:#222228;--border:rgba(255,255,255,.08);--border-h:rgba(255,255,255,.18);--text:#eeeae3;--muted:#8b8d94;--dim:#575a62;--accent:#f0a500;--accent-d:rgba(240,165,0,.12);--green:#3ecf6e;--red:#e05c5c;--fh:"Bebas Neue",sans-serif;--fb:"Karla",sans-serif;--safe-b:env(safe-area-inset-bottom,0px)}
 a{color:inherit}
-.radio-app{max-width:1500px;margin:0 auto;padding:32px clamp(14px,3vw,34px) 58px}
-.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:22px;align-items:stretch;margin-bottom:18px}
-.hero-card,.panel{border:1px solid var(--border);border-radius:24px;background:linear-gradient(145deg,rgba(26,26,31,.96),rgba(13,13,16,.96));box-shadow:0 24px 80px rgba(0,0,0,.28)}
-.panel{backdrop-filter:blur(10px)}
-.hero-card{padding:clamp(24px,4vw,50px);display:flex;flex-direction:column;justify-content:center;min-height:320px;position:relative;overflow:hidden}
-.hero-card::before{content:"";position:absolute;inset:auto -10% -42% 36%;height:260px;background:radial-gradient(circle,rgba(240,165,0,.22),transparent 65%);pointer-events:none}
+.radio-app{max-width:1500px;margin:0 auto;padding:18px clamp(14px,3vw,34px) 58px}
+.page-heading{margin:0 0 14px;padding:0 2px}
+.page-subtitle{margin:0 0 5px;color:var(--accent);font-size:12px;text-transform:uppercase;font-weight:900;letter-spacing:.18em}
+.page-heading h1{font-family:var(--fh);font-size:clamp(42px,6vw,78px);line-height:.9;margin:0;color:var(--text);letter-spacing:.055em}
+.radio-interface{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,520px);gap:18px;align-items:start}
+.radio-main{min-width:0}
+.panel{border:1px solid var(--border);border-radius:24px;background:linear-gradient(145deg,rgba(26,26,31,.96),rgba(13,13,16,.96));box-shadow:0 24px 80px rgba(0,0,0,.28);backdrop-filter:blur(10px)}
 .kicker{margin:0 0 8px;color:var(--accent);font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.16em}
-.hero h1{font-family:var(--fh);font-size:clamp(44px,7vw,92px);line-height:.9;margin:0;color:var(--text);letter-spacing:.045em}
-.hero-copy{max-width:760px;color:#c3c5cb;font-size:17px;line-height:1.55}
-.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-.tiny-link{border:1px solid var(--border);border-radius:999px;padding:8px 12px;text-decoration:none;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;background:rgba(255,255,255,.02)}
-.tiny-link:hover{border-color:var(--border-h);color:var(--text);background:rgba(255,255,255,.05)}
 .toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;margin:18px 0}
 .search{width:100%;height:48px;border:1px solid var(--border);border-radius:14px;background:#15171d;color:var(--text);font:600 16px var(--fb);padding:0 16px}
 .search:focus{outline:1px solid rgba(240,165,0,.5)}
@@ -82,12 +78,16 @@ a{color:inherit}
 .seo-fallback{max-width:980px;margin:0 auto 52px;padding:28px clamp(18px,4vw,34px);border-top:1px solid var(--border);color:#b9bbc2;line-height:1.6}
 .seo-fallback h2{font:400 36px/1 var(--fh);color:var(--text);margin:0 0 10px}
 
-@media(max-width:767px){.radio-app{padding:20px clamp(12px,4vw,18px) 34px;overflow:hidden}
-.hero{grid-template-columns:1fr;gap:14px;margin-bottom:16px}
-.hero-card{min-height:unset}
-.toolbar{grid-template-columns:1fr;margin:16px 0 12px}
+@media(max-width:767px){.radio-app{padding:12px clamp(12px,4vw,18px) 34px;overflow:hidden}
+.page-heading{margin-bottom:10px}
+.page-subtitle{font-size:10px;margin-bottom:4px}
+.page-heading h1{font-size:clamp(42px,13vw,56px)}
+.radio-interface{display:flex;flex-direction:column;gap:12px}
+.player{order:1}
+.radio-main{order:2;width:100%}
+.toolbar{grid-template-columns:1fr;margin:2px 0 10px}
 .button,.audio,.chip,.product{min-height:44px}
-.chips{flex-wrap:nowrap;gap:9px;margin:0 -12px 20px;padding:0 12px 8px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.chips{flex-wrap:nowrap;gap:9px;margin:0 -12px 14px;padding:0 12px 8px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .chips::-webkit-scrollbar,.products::-webkit-scrollbar{display:none}
 .products.dragging{cursor:grabbing;scroll-behavior:auto;user-select:none}
 .chips,.products{scrollbar-width:none}
@@ -104,9 +104,9 @@ a{color:inherit}
 .mobile-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .video-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
 .video-actions .button{width:100%}
-.merch{margin-top:28px;padding-top:16px}
+.merch{margin-top:16px;padding-top:12px}
 .merch-head{align-items:center}
-.products-shell{margin:0 -2px;padding:0}
+.products-shell{margin:0 -2px}
 .products{gap:12px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding:4px 2px 12px;touch-action:pan-x}
 .product{flex:0 0 calc((100% - 12px)/2.05);min-width:calc((100% - 12px)/2.05)}
 .carousel-arrow{display:none}
@@ -117,12 +117,10 @@ a{color:inherit}
 .song-title{line-height:1.25}
 .thumb{width:58px;height:58px}
 .section-title{margin-bottom:12px}
-.hero h1{font-size:52px}
 }
 
-@media(max-width:480px){.tiny-link{padding:8px 10px}
-.radio-app{padding-left:12px;padding-right:12px}
-.hero h1{font-size:46px}
+@media(max-width:480px){.radio-app{padding-left:12px;padding-right:12px}
+.page-heading h1{font-size:46px}
 .player{border-radius:18px}
 .player-grid{grid-template-columns:82px minmax(0,1fr);gap:10px}
 .art{width:82px;max-width:82px;border-radius:14px}
@@ -133,8 +131,8 @@ a{color:inherit}
 }
 
 @media(min-width:768px){.player{position:sticky;top:86px}
-.hero .panel{align-self:start}
 }
+@media(min-width:1180px){.radio-interface{grid-template-columns:minmax(0,1.2fr) minmax(390px,560px)}}
 
 .player-title-row{display:flex;align-items:start;justify-content:space-between;gap:12px}
 .player-title-row h2{flex:1;min-width:0}
