@@ -557,32 +557,32 @@ function albumMatches(trackAlbum, selectedAlbum) {
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, album, onAlbumChange }) {
   return h('nav', { className: 'radio-control-bar', 'aria-label': 'Stashbox radio filters' },
     h('div', { className: 'radio-control-scroll' },
-      h('a', { className: 'radio-control-logo', href: '/radio/react/', 'aria-label': 'Stashbox Radio React' }, 'STASHBOX'),
-      h('div', { className: 'radio-control-groups' },
-        h('div', { className: 'radio-filter-row', 'aria-label': 'Genre filters' },
-          GENRE_FILTERS.map(filter => h('button', {
-            key: `genre-${filter}`,
-            className: `radio-filter-pill ${genre === filter ? 'active' : ''}`,
-            type: 'button',
-            onClick: () => onGenreChange(filter),
-            disabled: isLoading,
-            'aria-pressed': genre === filter
-          }, filterLabel(filter)))
-        ),
-        h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' },
-          h('span', { className: 'radio-filter-label' }, 'Album'),
-          ALBUM_FILTERS.map(filter => h('button', {
-            key: `album-${filter}`,
-            className: `radio-filter-pill ${album === filter ? 'active' : ''}`,
-            type: 'button',
-            onClick: () => onAlbumChange(filter),
-            disabled: isLoading,
-            'aria-pressed': album === filter
-          }, filterLabel(filter)))
-        )
+      h('div', { className: 'radio-control-brand' },
+        h('a', { className: 'radio-control-logo', href: '/radio/react/', 'aria-label': 'Stashbox Radio React' }, 'STASHBOX'),
+        h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
+      ),
+      h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' },
+        GENRE_FILTERS.map(filter => h('button', {
+          key: `genre-${filter}`,
+          className: `radio-filter-pill ${genre === filter ? 'active' : ''}`,
+          type: 'button',
+          onClick: () => onGenreChange(filter),
+          disabled: isLoading,
+          'aria-pressed': genre === filter
+        }, filterLabel(filter)))
+      ),
+      h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' },
+        h('span', { className: 'radio-filter-label' }, 'Album'),
+        ALBUM_FILTERS.map(filter => h('button', {
+          key: `album-${filter}`,
+          className: `radio-filter-pill ${album === filter ? 'active' : ''}`,
+          type: 'button',
+          onClick: () => onAlbumChange(filter),
+          disabled: isLoading,
+          'aria-pressed': album === filter
+        }, filterLabel(filter)))
       ),
       h('div', { className: 'radio-control-search' },
-        h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading)),
         h('input', {
           className: 'radio-top-search',
           type: 'search',

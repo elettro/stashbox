@@ -6,20 +6,22 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;ba
 a{color:inherit}
 .radio-app{max-width:1500px;margin:0 auto;padding:10px clamp(14px,3vw,34px) 58px}
 .radio-control-bar{position:relative;z-index:20;margin:0 0 16px;border:1px solid rgba(255,255,255,.1);border-radius:0 0 18px 18px;background:linear-gradient(180deg,rgba(9,9,11,.96),rgba(18,18,22,.94));box-shadow:0 18px 46px rgba(0,0,0,.25)}
-.radio-control-scroll{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(230px,320px);grid-template-areas:"brand filters search";align-items:center;gap:10px 14px;max-width:100%;min-width:0;padding:10px 12px;overflow:visible}
+.radio-control-scroll{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(190px,280px);grid-template-areas:"brand genre genre" "brand album search";align-items:center;gap:7px 14px;max-width:100%;min-width:0;padding:10px 12px;overflow:hidden}
 .radio-control-scroll::-webkit-scrollbar{display:none}
-.radio-control-logo{grid-area:brand;justify-self:start;color:var(--text);font:400 30px/.9 var(--fh);letter-spacing:.08em;text-decoration:none;white-space:nowrap}
-.radio-control-groups{grid-area:filters;display:flex;min-width:0;max-width:100%;flex-direction:column;gap:7px;overflow:hidden}
+.radio-control-brand{grid-area:brand;display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding-right:4px}
+.radio-control-logo{color:var(--text);font:400 30px/.9 var(--fh);letter-spacing:.08em;text-decoration:none;white-space:nowrap}
 .radio-filter-row{display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.genre-filter-row{grid-area:genre}
+.album-filter-row{grid-area:album}
 .radio-filter-label{color:#c7c8cc;font:900 11px/1 var(--fb);letter-spacing:.1em;text-transform:uppercase}
 .radio-filter-pill{appearance:none;border:1px solid transparent;border-radius:999px;background:transparent;color:#b8bbc2;font:900 11px/1 var(--fb);letter-spacing:.04em;padding:5px 8px;cursor:pointer;white-space:nowrap}
 .radio-filter-row::-webkit-scrollbar{display:none}
 .radio-filter-pill:hover:not(:disabled){border-color:var(--border-h);color:var(--text);background:rgba(255,255,255,.05)}
 .radio-filter-pill.active{border-color:rgba(240,165,0,.55);background:rgba(240,165,0,.14);color:var(--accent)}
 .radio-filter-pill:disabled,.radio-top-search:disabled{opacity:.55;cursor:not-allowed}
-.radio-control-search{grid-area:search;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
-.radio-control-count{color:var(--accent);font:900 12px/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
-.radio-top-search{width:190px;max-width:100%;height:34px;border:1px solid var(--border);border-radius:999px;background:#0f1014;color:var(--text);font:700 13px var(--fb);padding:0 12px}
+.radio-control-search{grid-area:search;display:flex;align-items:center;justify-content:flex-end;min-width:0}
+.radio-control-count{color:var(--accent);font:900 11px/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.radio-top-search{width:100%;max-width:280px;height:34px;border:1px solid var(--border);border-radius:999px;background:#0f1014;color:var(--text);font:700 13px var(--fb);padding:0 12px}
 .radio-top-search:focus{outline:1px solid rgba(240,165,0,.55)}
 .page-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:14px 18px;margin:0 0 14px;padding:0 2px}
 .header-title-block{min-width:0}
@@ -101,15 +103,15 @@ a{color:inherit}
 .seo-fallback{max-width:980px;margin:0 auto 52px;padding:28px clamp(18px,4vw,34px);border-top:1px solid var(--border);color:#b9bbc2;line-height:1.6}
 .seo-fallback h2{font:400 36px/1 var(--fh);color:var(--text);margin:0 0 10px}
 
-@media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"brand filters" "search search";align-items:start}.radio-control-logo{padding-top:3px}.radio-control-search{justify-self:end;width:min(100%,390px)}.radio-top-search{width:220px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
+@media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto minmax(0,1fr) minmax(170px,240px);grid-template-areas:"brand genre genre" "brand album search";align-items:center}.radio-control-search{justify-self:stretch}.radio-top-search{max-width:240px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
 
 @media(max-width:767px){.radio-app{padding:0 clamp(12px,4vw,18px) 34px;overflow:hidden}
 .radio-control-bar{margin:0 -12px 14px;border-left:0;border-right:0;border-radius:0}
-.radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "filters" "search";gap:9px;padding:10px 12px 12px}
-.radio-control-logo{font-size:27px;padding-top:0}
+.radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "genre" "album" "search";gap:9px;padding:10px 12px 12px}
+.radio-control-logo{font-size:27px}
 .radio-filter-pill{font-size:10px;padding:6px 8px}
-.radio-control-search{width:100%;justify-self:stretch;justify-content:flex-start;flex-wrap:wrap;gap:7px}
-.radio-control-count{font-size:11px}.radio-top-search{width:100%;height:36px;flex:1 0 100%}
+.radio-control-search{width:100%;justify-self:stretch;justify-content:flex-start}
+.radio-control-count{font-size:11px}.radio-top-search{width:100%;max-width:none;height:36px}
 .page-heading{grid-template-columns:1fr;align-items:start;margin-bottom:10px}
 .header-actions{justify-content:flex-start;width:100%;display:grid;grid-template-columns:1fr 1fr}
 .header-actions .button{width:100%;padding-left:10px;padding-right:10px}
