@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
 import { createRadioSupabaseClient, SUPABASE_TABLES } from './supabaseClient.js';
@@ -16,7 +16,23 @@ const clean = value => String(value || '').trim().replace(/^"|"$/g, '');
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === String(genre || '').toLowerCase())?.key || 'Other';
 const has = value => String(value || '').trim().length > 0;
+const RADIO_REACT_SOURCE_PAGE = '/stashbox/radio/react/';
+const SESSION_STORAGE_KEY = 'stashbox-radio-react-session-id';
+const DUPLICATE_ERROR_CODES = new Set(['23505']);
+const PLAY_EVENT_TYPES = new Set(['play', 'pause', 'skip', 'complete', 'next_click', 'random_click', 'video_open']);
+const OPTIONAL_METRIC_ERROR_CODES = new Set(['42P01', 'PGRST106', 'PGRST205']);
 
+function shouldIgnoreOptionalMetricError(error) {
+  return OPTIONAL_METRIC_ERROR_CODES.has(error?.code) || String(error?.message || '').toLowerCase().includes('does not exist');
+}
+
+function getBrowserSessionId() {
+  const existing = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  if (existing) return existing;
+  const generated = window.crypto?.randomUUID ? window.crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage.setItem(SESSION_STORAGE_KEY, generated);
+  return generated;
+}
 
 function normalizeSong(row, index) {
   const genre = clean(row.genre);
@@ -50,6 +66,55 @@ async function fetchSupabaseSongs() {
   return (Array.isArray(data) ? data : []).map(normalizeSong);
 }
 
+async function fetchLikeRows(songIds) {
+  if (!songIds.length) return [];
+  const supabase = createRadioSupabaseClient();
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLES.songLikes)
+    .select('song_id,session_id')
+    .in('song_id', songIds);
+
+  if (error) throw new Error(error.message || 'Unable to fetch song likes from Supabase.');
+  return Array.isArray(data) ? data : [];
+}
+
+async function insertSongLike(songId, sessionId) {
+  const supabase = createRadioSupabaseClient();
+  return supabase
+    .from(SUPABASE_TABLES.songLikes)
+    .insert({ song_id: songId, session_id: sessionId });
+}
+
+async function insertSongPlayEvent(songId, sessionId, eventType) {
+  if (!songId || !PLAY_EVENT_TYPES.has(eventType)) return;
+  const supabase = createRadioSupabaseClient();
+  const { error } = await supabase
+    .from(SUPABASE_TABLES.songPlayEvents)
+    .insert({
+      song_id: songId,
+      session_id: sessionId,
+      event_type: eventType,
+      source_page: RADIO_REACT_SOURCE_PAGE
+    });
+
+  if (error && !shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record song play event.', error.message || error);
+}
+
+async function insertProductClickEvent(selected, product, sessionId) {
+  const supabase = createRadioSupabaseClient();
+  const { error } = await supabase
+    .from(SUPABASE_TABLES.productClickEvents)
+    .insert({
+      song_id: selected?.id || null,
+      product_id: product?.id || null,
+      session_id: sessionId,
+      product_url: product?.url || '',
+      source_page: RADIO_REACT_SOURCE_PAGE
+    });
+
+  if (error && !shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record product click event.', error.message || error);
+}
+
 function youtubeEmbed(url) {
   const value = String(url || '').trim();
   if (!value) return '';
@@ -75,6 +140,7 @@ function productShape(product) {
   const rawImage = product.images?.[0]?.src || product.featured_image || '';
   const image = typeof rawImage === 'string' && rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
   return {
+    id: null,
     title: product.title || 'Stashbox Product',
     url: `https://stashbox.ai/products/${product.handle || ''}`,
     image,
@@ -85,6 +151,7 @@ function productShape(product) {
 function supabaseProductShape(link) {
   const product = link.products || link.product || link;
   return {
+    id: clean(product.id) || clean(link.product_id),
     title: clean(product.title) || 'Stashbox Product',
     url: clean(product.product_url),
     image: clean(product.image_url),
@@ -140,6 +207,65 @@ function useProducts(selected) {
   return products;
 }
 
+function useSongLikes(tracks, sessionId) {
+  const [likeCounts, setLikeCounts] = useState({});
+  const [likedSongIds, setLikedSongIds] = useState(() => new Set());
+  const pendingLikeIds = useRef(new Set());
+
+  useEffect(() => {
+    let alive = true;
+    const songIds = tracks.map(track => track.id).filter(Boolean);
+
+    fetchLikeRows(songIds)
+      .then(rows => {
+        if (!alive) return;
+        const nextCounts = {};
+        const nextLiked = new Set();
+        rows.forEach(row => {
+          if (!row.song_id) return;
+          nextCounts[row.song_id] = (nextCounts[row.song_id] || 0) + 1;
+          if (row.session_id === sessionId) nextLiked.add(row.song_id);
+        });
+        setLikeCounts(nextCounts);
+        setLikedSongIds(nextLiked);
+      })
+      .catch(error => console.warn('Unable to load song likes.', error.message || error));
+
+    return () => { alive = false; };
+  }, [tracks, sessionId]);
+
+  const likeSong = useCallback(async songId => {
+    if (!songId || likedSongIds.has(songId) || pendingLikeIds.current.has(songId)) return;
+
+    pendingLikeIds.current.add(songId);
+    setLikedSongIds(previous => new Set(previous).add(songId));
+    setLikeCounts(previous => ({ ...previous, [songId]: (previous[songId] || 0) + 1 }));
+
+    const { error } = await insertSongLike(songId, sessionId);
+    if (!error) {
+      pendingLikeIds.current.delete(songId);
+      return;
+    }
+
+    pendingLikeIds.current.delete(songId);
+
+    if (DUPLICATE_ERROR_CODES.has(error.code)) {
+      setLikedSongIds(previous => new Set(previous).add(songId));
+      return;
+    }
+
+    setLikedSongIds(previous => {
+      const next = new Set(previous);
+      next.delete(songId);
+      return next;
+    });
+    setLikeCounts(previous => ({ ...previous, [songId]: Math.max(0, (previous[songId] || 1) - 1) }));
+    console.warn('Unable to save song like.', error.message || error);
+  }, [likedSongIds, sessionId]);
+
+  return { likeCounts, likedSongIds, likeSong };
+}
+
 function App() {
   const [tracks, setTracks] = useState([]);
   const [status, setStatus] = useState('loading');
@@ -148,9 +274,15 @@ function App() {
   const [genre, setGenre] = useState('ALL');
   const [selected, setSelected] = useState(null);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [sessionId] = useState(getBrowserSessionId);
   const playerRef = useRef(null);
   const audioRef = useRef(null);
   const products = useProducts(selected);
+  const { likeCounts, likedSongIds, likeSong } = useSongLikes(tracks, sessionId);
+
+  const recordSongEvent = useCallback(eventType => {
+    insertSongPlayEvent(selected?.id, sessionId, eventType);
+  }, [selected?.id, sessionId]);
 
   useEffect(() => {
     fetchSupabaseSongs().then(parsed => {
@@ -164,6 +296,27 @@ function App() {
     window.currentTrack = selected;
     window.dispatchEvent(new CustomEvent('stashbox:trackchange', { detail: { track: selected } }));
   }, [selected]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !selected?.id) return undefined;
+
+    const onPlay = () => recordSongEvent('play');
+    const onPause = () => {
+      if (!audio.ended) recordSongEvent('pause');
+    };
+    const onEnded = () => recordSongEvent('complete');
+
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+
+    return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [recordSongEvent, selected?.idx, selected?.id]);
 
   const genres = useMemo(() => {
     const present = new Set(tracks.map(t => t.sectionKey));
@@ -191,8 +344,11 @@ function App() {
     }, 80);
   }
 
-  function selectTrack(track, shouldScroll = true) {
-    if (audioRef.current) audioRef.current.pause();
+  function selectTrack(track, shouldScroll = true, recordSkipOnPlaying = true) {
+    if (audioRef.current) {
+      if (recordSkipOnPlaying && !audioRef.current.paused && selected?.id) insertSongPlayEvent(selected.id, sessionId, 'skip');
+      audioRef.current.pause();
+    }
     setVideoOpen(false);
     setSelected(track);
     if (shouldScroll) scrollPlayerIntoView();
@@ -202,21 +358,35 @@ function App() {
     selectTrack(track);
   }
 
-  function shiftTrack(direction) {
+  function shiftTrack(direction, eventType = 'skip') {
     if (!filtered.length) return;
+    if (eventType) recordSongEvent(eventType);
     const currentIndex = Math.max(0, filtered.findIndex(track => track.idx === selected?.idx));
     const nextIndex = (currentIndex + direction + filtered.length) % filtered.length;
-    selectTrack(filtered[nextIndex], false);
+    selectTrack(filtered[nextIndex], false, false);
+  }
+
+  function pickRandomTrack() {
+    if (!filtered.length) return;
+    recordSongEvent('random_click');
+    const candidates = filtered.filter(track => track.idx !== selected?.idx);
+    const pool = candidates.length ? candidates : filtered;
+    selectTrack(pool[Math.floor(Math.random() * pool.length)], false, false);
   }
 
   function openVideo() {
     if (audioRef.current) audioRef.current.pause();
+    recordSongEvent('video_open');
     setVideoOpen(true);
     scrollPlayerIntoView();
   }
 
   function closeVideo() {
     setVideoOpen(false);
+  }
+
+  function handleProductClick(product) {
+    insertProductClickEvent(selected, product, sessionId);
   }
 
   if (status === 'loading') return h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading active songs from Supabase…'));
@@ -227,13 +397,27 @@ function App() {
       h('div', { className: 'hero-card' },
         h('p', { className: 'kicker' }, 'Free browser station'),
         h('h1', null, 'Stashbox Radio'),
-        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, and song-based merch picks in a cleaner React preview using the Supabase test database.`),
+        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, song likes, and song-based merch picks in a cleaner React preview using the Supabase test database.`),
         h('div', { className: 'hero-actions' },
           h('a', { className: 'tiny-link', href: '/radio/' }, 'Open classic radio'),
           h('a', { className: 'tiny-link', href: 'https://stashbox.ai/collections/stashbox', target: '_blank', rel: 'noopener noreferrer' }, 'Shop merch')
         )
       ),
-      h(Player, { selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1) })
+      h(Player, {
+        selected,
+        audioRef,
+        playerRef,
+        videoOpen,
+        openVideo,
+        closeVideo,
+        products,
+        onPrevious: () => shiftTrack(-1, 'skip'),
+        onNext: () => shiftTrack(1, 'next_click'),
+        onProductClick: handleProductClick,
+        likeCount: likeCounts[selected?.id] || 0,
+        hasLiked: likedSongIds.has(selected?.id),
+        onLike: () => likeSong(selected?.id)
+      })
     ),
     h('section', { 'aria-label': 'Search and filter songs' },
       h('div', { className: 'toolbar' },
@@ -242,12 +426,34 @@ function App() {
       ),
       h('div', { className: 'chips', role: 'list', 'aria-label': 'Genre filters' }, genres.map(g => h('button', { key: g.key, className: `chip ${genre === g.key ? 'active' : ''}`, type: 'button', onClick: () => setGenre(g.key), style: genre === g.key ? { borderColor: g.color, color: g.color } : {} }, `${g.emoji} ${g.key === 'ALL' ? 'All' : g.key}`)))
     ),
-    h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)),
-    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+    h('section', { className: 'list-head' },
+      h('h2', null, 'Song List'),
+      h('div', { className: 'list-actions' },
+        h('button', { className: 'button', type: 'button', onClick: pickRandomTrack }, 'Random Song'),
+        h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
+      )
+    ),
+    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, likedSongIds, onLike: likeSong }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
   );
 }
 
-function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext }) {
+function LikeButton({ count, active, onLike, compact = false }) {
+  return h('button', {
+    className: `like-button ${active ? 'active' : ''} ${compact ? 'compact' : ''}`,
+    type: 'button',
+    'aria-pressed': active,
+    onClick: event => {
+      event.stopPropagation();
+      if (!active) onLike?.();
+    },
+    disabled: active
+  },
+    h('span', { 'aria-hidden': true }, '👍'),
+    h('span', null, count)
+  );
+}
+
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, hasLiked, onLike }) {
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink || selected.videoUrl);
@@ -256,14 +462,17 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
       h('div', { className: 'art' }, selected.imageUrl ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
       h('div', null,
         h('p', { className: 'kicker' }, 'Now selected'),
-        h('h2', null, selected.title),
+        h('div', { className: 'player-title-row' },
+          h('h2', null, selected.title),
+          h(LikeButton, { count: likeCount, active: hasLiked, onLike })
+        ),
         h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
         selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
         h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
         has(selected.audioUrl) ? h('audio', { key: selected.idx, className: 'audio', ref: audioRef, src: selected.audioUrl, controls: true, preload: 'metadata' }) : h('p', { className: 'notes' }, 'No audio URL is available for this track.'),
         h('div', { className: 'mobile-controls', 'aria-label': 'Mobile player controls' },
           h('button', { className: 'button', type: 'button', onClick: onPrevious }, 'Previous'),
-          h('button', { className: 'button', type: 'button', onClick: onNext }, 'Next')
+          h('button', { className: 'button', type: 'button', onClick: onNext }, 'Next Song')
         ),
         has(selected.videoLink || selected.videoUrl) ? h('div', { className: 'video-actions' },
           h('button', { className: 'button accent', type: 'button', onClick: openVideo }, videoOpen ? 'Restart / Focus Video' : 'Watch Video'),
@@ -272,14 +481,14 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
         videoOpen && videoSrc ? h('div', { className: 'video-wrap' }, h('iframe', { title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : null
       )
     ),
-    h(ProductRecommendations, { products })
+    h(ProductRecommendations, { products, onProductClick })
   );
 }
 
-function ProductRecommendations({ products }) {
+function ProductRecommendations({ products, onProductClick }) {
   return h('section', { className: 'merch', 'aria-label': 'Product recommendations' },
     h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, products.length ? `${products.length} items` : 'Loading merch…')),
-    products.length ? h('div', { className: 'products' }, products.map(product => h('a', { key: product.url, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer' },
+    products.length ? h('div', { className: 'products' }, products.map(product => h('a', { key: product.url, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', onClick: () => onProductClick?.(product) },
       h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', onError: e => { e.currentTarget.remove(); } }) : 'SB'),
       h('div', { className: 'product-name' }, product.title),
       h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai')
@@ -287,13 +496,16 @@ function ProductRecommendations({ products }) {
   );
 }
 
-function SongSection({ section, tracks, selected, chooseSong }) {
+function SongSection({ section, tracks, selected, chooseSong, likeCounts, likedSongIds, onLike }) {
   return h('section', null,
     h('h3', { className: 'section-title', style: { color: section.color } }, `${section.emoji} ${section.key}`),
     h('div', { className: 'song-grid' }, tracks.map(track => h('button', { key: track.idx, type: 'button', className: `song-card ${selected?.idx === track.idx ? 'active' : ''}`, onClick: () => chooseSong(track) },
       h('span', { className: 'thumb' }, track.imageUrl ? h('img', { src: track.imageUrl, alt: '', loading: 'lazy', onError: e => { e.currentTarget.remove(); } }) : section.emoji),
-      h('span', null,
-        h('span', { className: 'song-title' }, track.title),
+      h('span', { className: 'song-card-body' },
+        h('span', { className: 'song-card-title-row' },
+          h('span', { className: 'song-title' }, track.title),
+          h(LikeButton, { count: likeCounts[track.id] || 0, active: likedSongIds.has(track.id), onLike: () => onLike(track.id), compact: true })
+        ),
         h('span', { className: 'song-artist' }, track.artist || 'Stashbox'),
         track.album ? h('span', { className: 'song-album' }, track.album) : null,
         h('span', { className: 'badges' }, has(track.audioUrl) ? h('span', { className: 'badge' }, 'Audio') : null, has(track.videoLink || track.videoUrl) ? h('span', { className: 'badge video' }, 'Video') : null)
