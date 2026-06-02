@@ -125,3 +125,14 @@ a{color:inherit}
 .hero .panel{align-self:start}
 }
 
+.player-title-row{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.player-title-row h2{flex:1;min-width:0}
+.like-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);color:var(--muted);font:900 12px var(--fb);line-height:1;padding:0 12px;cursor:pointer;white-space:nowrap}
+.like-button:hover:not(:disabled){border-color:var(--accent);color:var(--text);background:rgba(240,165,0,.08)}
+.like-button.active{border-color:rgba(240,165,0,.55);background:rgba(240,165,0,.14);color:var(--accent);cursor:default}
+.like-button.compact{min-height:28px;padding:0 8px;font-size:11px;align-self:start}
+.song-card-body{display:block;min-width:0}
+.song-card-title-row{display:flex;align-items:start;justify-content:space-between;gap:8px;min-width:0}
+.song-card-title-row .song-title{flex:1;min-width:0}
+.list-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:767px){.player-title-row{align-items:flex-start}.like-button{min-height:34px}.list-actions{align-items:flex-end;flex-direction:column;gap:8px}.list-actions .button{min-height:38px}}

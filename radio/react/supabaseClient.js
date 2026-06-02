@@ -8,7 +8,10 @@ const getRuntimeConfig = () => window.STASHBOX_SUPABASE_CONFIG || {};
 export const SUPABASE_TABLES = {
   songs: 'songs',
   products: 'products',
-  songProducts: 'song_products'
+  songProducts: 'song_products',
+  songLikes: 'song_likes',
+  songPlayEvents: 'song_play_events',
+  productClickEvents: 'product_click_events'
 };
 
 export const SUPABASE_REQUIRED_CONFIG_KEYS = [
