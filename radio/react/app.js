@@ -858,6 +858,8 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
 
 function ProductRecommendations({ products, onProductClick }) {
   const carouselRef = useRef(null);
+  const dragStateRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
+  const didDragCarouselRef = useRef(false);
   const visibleProducts = useMemo(() => products.slice(0, MAX_PRODUCT_RECOMMENDATIONS), [products]);
   const [carouselState, setCarouselState] = useState({ atStart: true, atEnd: true });
   const showArrows = visibleProducts.length >= 5;
@@ -923,6 +925,13 @@ function ProductRecommendations({ products, onProductClick }) {
     carousel.scrollLeft = dragState.scrollLeft - distance;
     updateCarouselState();
   };
+
+  const endCarouselDrag = useCallback(() => {
+    dragStateRef.current.active = false;
+    if (carouselRef.current) {
+      carouselRef.current.classList.remove('dragging');
+    }
+  }, []);
 
   const handleProductClick = (event, product) => {
     if (didDragCarouselRef.current) {
