@@ -373,6 +373,25 @@ function formatShareCount(count) {
   return `${value} ${value === 1 ? 'share' : 'shares'}`;
 }
 
+function formatPlayerPlayCount(count) {
+  const value = Math.max(0, Number(count) || 0);
+  if (value >= 1000) {
+    const compact = (value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '');
+    return `${compact}K Plays`;
+  }
+  return `${value} ${value === 1 ? 'Play' : 'Plays'}`;
+}
+
+function formatPlayerShareText(count) {
+  const value = Math.max(0, Number(count) || 0);
+  if (!value) return 'Share';
+  if (value >= 1000) {
+    const compact = (value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '');
+    return `Share ${compact}K`;
+  }
+  return `Share ${value}`;
+}
+
 function getShareUrl(song) {
   const shareUrl = new URL(window.location.href);
   shareUrl.searchParams.set('song', song?.id || song?.idx || '');
@@ -974,29 +993,27 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
         : selected.imageUrl
           ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } })
           : h('div', { className: 'art-fallback' }, selected.title),
-      hasVideo ? h('div', { className: 'player-media-actions' },
-        h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : 'Watch Video')
-      ) : null
     ),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-info' },
-        h('p', { className: 'kicker' }, 'Now selected'),
         h('h2', null, selected.title),
         h('div', { className: 'meta' },
           h('strong', null, selected.artist || 'Stashbox'),
           selected.album ? h('span', null, `· ${selected.album}`) : null,
-          h('span', null, '·'),
           h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)
         )
       ),
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
-        h('span', { className: 'player-stat-pill', title: `${Number(playCount) || 0} recorded plays` }, h('span', { 'aria-hidden': true }, '▶'), h('span', null, `${formatPlayCount(playCount)} plays`)),
-        h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Link copied' : `Share Song${Number(shareCount) > 0 ? ` ${formatShareCount(shareCount)}` : ''}`),
-        h(PlayerPill, { onClick: onPrevious }, 'Back'),
-        h(PlayerPill, { className: 'play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying }, isPlaying ? 'Pause' : 'Play'),
-        h(PlayerPill, { onClick: onNext }, 'Next'),
-        h(PlayerPill, { onClick: onShuffle }, 'Shuffle')
+        h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded plays` }, h('span', { 'aria-hidden': true }, '▶'), h('span', null, formatPlayerPlayCount(playCount))),
+        h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
+        hasVideo ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : '▶ Watch Video') : null,
+        h('div', { className: 'transport-controls', 'aria-label': 'Transport controls' },
+          h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
+          h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying, 'aria-label': isPlaying ? 'Pause song' : 'Play song' }, isPlaying ? '❚❚' : '▶'),
+          h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'),
+          h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
+        )
       )
     ),
     hasAudio
@@ -1034,7 +1051,6 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
         )
       )
       : h('p', { className: 'notes no-audio-note' }, 'No audio URL is available for this track.'),
-    selected.notes ? h('p', { className: 'notes player-notes' }, selected.notes) : null,
     h(ProductRecommendations, { products, onProductClick })
   );
 }
