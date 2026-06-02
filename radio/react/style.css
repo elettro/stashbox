@@ -5,10 +5,16 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;ba
 :root{--bg:#0c0c0e;--surface:#131316;--surface2:#1a1a1f;--surface3:#222228;--border:rgba(255,255,255,.08);--border-h:rgba(255,255,255,.18);--text:#eeeae3;--muted:#8b8d94;--dim:#575a62;--accent:#f0a500;--accent-d:rgba(240,165,0,.12);--green:#3ecf6e;--red:#e05c5c;--fh:"Bebas Neue",sans-serif;--fb:"Karla",sans-serif;--safe-b:env(safe-area-inset-bottom,0px)}
 a{color:inherit}
 .radio-app{max-width:1500px;margin:0 auto;padding:18px clamp(14px,3vw,34px) 58px}
-.page-heading{margin:0 0 14px;padding:0 2px}
+.page-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:14px 18px;margin:0 0 14px;padding:0 2px}
+.header-title-block{min-width:0}
 .page-subtitle{margin:0 0 5px;color:var(--accent);font-size:12px;text-transform:uppercase;font-weight:900;letter-spacing:.18em}
-.page-heading h1{font-family:var(--fh);font-size:clamp(42px,6vw,78px);line-height:.9;margin:0;color:var(--text);letter-spacing:.055em}
-.source-note{max-width:900px;margin:12px 0 0;padding:10px 12px;border:1px solid rgba(240,165,0,.28);border-radius:12px;background:rgba(240,165,0,.08);color:#d6c7a1;font-size:13px;line-height:1.45}
+.page-heading h1{font-family:var(--fh);font-size:clamp(42px,6vw,72px);line-height:.9;margin:0;color:var(--text);letter-spacing:.055em}
+.track-count{margin:7px 0 0;color:var(--muted);font-size:13px;font-weight:800;letter-spacing:.03em}
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.header-actions .button{min-height:44px}
+.button.active{border-color:rgba(62,207,110,.48);background:rgba(62,207,110,.12);color:var(--green)}
+.button:disabled{opacity:.46;cursor:not-allowed}
+.source-note{grid-column:1/-1;max-width:900px;margin:0;padding:10px 12px;border:1px solid rgba(240,165,0,.28);border-radius:12px;background:rgba(240,165,0,.08);color:#d6c7a1;font-size:13px;line-height:1.45}
 .radio-interface{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,520px);gap:18px;align-items:start}
 .radio-main{min-width:0}
 .panel{border:1px solid var(--border);border-radius:24px;background:linear-gradient(145deg,rgba(26,26,31,.96),rgba(13,13,16,.96));box-shadow:0 24px 80px rgba(0,0,0,.28);backdrop-filter:blur(10px)}
@@ -80,9 +86,12 @@ a{color:inherit}
 .seo-fallback h2{font:400 36px/1 var(--fh);color:var(--text);margin:0 0 10px}
 
 @media(max-width:767px){.radio-app{padding:12px clamp(12px,4vw,18px) 34px;overflow:hidden}
-.page-heading{margin-bottom:10px}
+.page-heading{grid-template-columns:1fr;align-items:start;margin-bottom:10px}
+.header-actions{justify-content:flex-start;width:100%;display:grid;grid-template-columns:1fr 1fr}
+.header-actions .button{width:100%;padding-left:10px;padding-right:10px}
 .page-subtitle{font-size:10px;margin-bottom:4px}
 .page-heading h1{font-size:clamp(42px,13vw,56px)}
+.track-count{font-size:12px;margin-top:5px}
 .radio-interface{display:flex;flex-direction:column;gap:12px}
 .player{order:1}
 .radio-main{order:2;width:100%}
