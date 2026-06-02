@@ -469,7 +469,7 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
         h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
         selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
         h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
-        has(selected.audioUrl) ? h('audio', { key: selected.idx, className: 'audio', ref: audioRef, src: selected.audioUrl, controls: true, preload: 'metadata' }) : h('p', { className: 'notes' }, 'No audio URL is available for this track.'),
+        has(selected.audioUrl) ? h('audio', { key: selected.idx, className: 'audio', ref: audioRef, src: selected.audioUrl, controls: true, controlsList: 'nodownload', preload: 'metadata', onContextMenu: event => event.preventDefault() }) : h('p', { className: 'notes' }, 'No audio URL is available for this track.'),
         h('div', { className: 'mobile-controls', 'aria-label': 'Mobile player controls' },
           h('button', { className: 'button', type: 'button', onClick: onPrevious }, 'Previous'),
           h('button', { className: 'button', type: 'button', onClick: onNext }, 'Next Song')
