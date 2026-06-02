@@ -579,15 +579,27 @@ function App() {
   if (status === 'error') return h('section', { className: 'error', role: 'alert' }, h('strong', null, 'ERROR'), h('p', null, error), h('p', null, 'The production /radio/ page has not been changed.'));
 
   return h('div', { className: 'radio-app' },
-    h('section', { className: 'hero' },
-      h('div', { className: 'hero-card' },
-        h('p', { className: 'kicker' }, 'Free browser station'),
-        h('h1', null, 'Stashbox Radio'),
-        h('p', { className: 'hero-copy' }, `${tracks.length} tracks, videos, genre filters, song likes, and song-based merch picks in a cleaner React preview using the Supabase test database.`),
-        h('div', { className: 'hero-actions' },
-          h('a', { className: 'tiny-link', href: '/radio/' }, 'Open classic radio'),
-          h('a', { className: 'tiny-link', href: 'https://stashbox.ai/collections/stashbox', target: '_blank', rel: 'noopener noreferrer' }, 'Shop merch')
-        )
+    h('header', { className: 'page-heading' },
+      h('p', { className: 'page-subtitle' }, 'Listen. Watch. Shop. Share.'),
+      h('h1', null, 'STASHBOX RADIO')
+    ),
+    h('div', { className: 'radio-interface' },
+      h('main', { className: 'radio-main' },
+        h('section', { 'aria-label': 'Search and filter songs' },
+          h('div', { className: 'toolbar' },
+            h('input', { className: 'search', type: 'search', placeholder: 'Search songs, artists, albums, genres…', value: query, onChange: e => setQuery(e.target.value) }),
+            h('button', { className: 'button', type: 'button', onClick: () => { setQuery(''); setGenre('ALL'); } }, 'Reset filters')
+          ),
+          h('div', { className: 'chips', role: 'list', 'aria-label': 'Genre filters' }, genres.map(g => h('button', { key: g.key, className: `chip ${genre === g.key ? 'active' : ''}`, type: 'button', onClick: () => setGenre(g.key), style: genre === g.key ? { borderColor: g.color, color: g.color } : {} }, `${g.emoji} ${g.key === 'ALL' ? 'All' : g.key}`)))
+        ),
+        h('section', { className: 'list-head' },
+          h('h2', null, 'Song List'),
+          h('div', { className: 'list-actions' },
+            h('button', { className: 'button', type: 'button', onClick: pickRandomTrack }, 'Random Song'),
+            h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
+          )
+        ),
+        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
       ),
       h(Player, {
         selected,
@@ -608,22 +620,7 @@ function App() {
         onShare: () => shareSong(selected),
         shareCopied: copiedSongId === (selected?.id || selected?.idx)
       })
-    ),
-    h('section', { 'aria-label': 'Search and filter songs' },
-      h('div', { className: 'toolbar' },
-        h('input', { className: 'search', type: 'search', placeholder: 'Search songs, artists, albums, genres…', value: query, onChange: e => setQuery(e.target.value) }),
-        h('button', { className: 'button', type: 'button', onClick: () => { setQuery(''); setGenre('ALL'); } }, 'Reset filters')
-      ),
-      h('div', { className: 'chips', role: 'list', 'aria-label': 'Genre filters' }, genres.map(g => h('button', { key: g.key, className: `chip ${genre === g.key ? 'active' : ''}`, type: 'button', onClick: () => setGenre(g.key), style: genre === g.key ? { borderColor: g.color, color: g.color } : {} }, `${g.emoji} ${g.key === 'ALL' ? 'All' : g.key}`)))
-    ),
-    h('section', { className: 'list-head' },
-      h('h2', null, 'Song List'),
-      h('div', { className: 'list-actions' },
-        h('button', { className: 'button', type: 'button', onClick: pickRandomTrack }, 'Random Song'),
-        h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
-      )
-    ),
-    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+    )
   );
 }
 
