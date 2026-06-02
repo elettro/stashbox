@@ -752,12 +752,48 @@ function ProductRecommendations({ products, onProductClick }) {
     carousel.scrollBy({ left: direction * carousel.clientWidth, behavior: 'smooth' });
   };
 
+  const handleCarouselMouseDown = event => {
+    if (event.button !== 0 || !carouselRef.current) return;
+    dragStateRef.current = {
+      active: true,
+      startX: event.pageX,
+      scrollLeft: carouselRef.current.scrollLeft
+    };
+    didDragCarouselRef.current = false;
+    carouselRef.current.classList.add('dragging');
+  };
+
+  const handleCarouselMouseMove = event => {
+    const carousel = carouselRef.current;
+    const dragState = dragStateRef.current;
+    if (!carousel || !dragState.active) return;
+
+    const distance = event.pageX - dragState.startX;
+    if (Math.abs(distance) > 3) {
+      didDragCarouselRef.current = true;
+      event.preventDefault();
+    }
+
+    carousel.scrollLeft = dragState.scrollLeft - distance;
+    updateCarouselState();
+  };
+
+  const handleProductClick = (event, product) => {
+    if (didDragCarouselRef.current) {
+      event.preventDefault();
+      didDragCarouselRef.current = false;
+      return;
+    }
+
+    onProductClick?.(product);
+  };
+
   return h('section', { className: 'merch', 'aria-label': 'Product recommendations' },
     h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')),
     visibleProducts.length ? h('div', { className: 'products-shell' },
       showArrows ? h('button', { className: 'carousel-arrow carousel-arrow-left', type: 'button', 'aria-label': 'Show previous products', disabled: carouselState.atStart, onClick: () => moveCarousel(-1) }, '‹') : null,
-      h('div', { className: 'products', ref: carouselRef }, visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', onClick: () => onProductClick?.(product) },
-        h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', onError: e => { e.currentTarget.remove(); } }) : 'SB'),
+      h('div', { className: 'products', ref: carouselRef, onMouseDown: handleCarouselMouseDown, onMouseMove: handleCarouselMouseMove, onMouseUp: endCarouselDrag, onMouseLeave: endCarouselDrag }, visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: event => handleProductClick(event, product) },
+        h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', draggable: false, onError: e => { e.currentTarget.remove(); } }) : 'SB'),
         h('div', { className: 'product-name' }, product.title),
         h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai')
       ))),
