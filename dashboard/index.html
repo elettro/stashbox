@@ -711,37 +711,10 @@ const CONNECTORS = [
   { name:'base', url:'https://script.google.com/macros/s/AKfycbyN4kknORrO7uxwf8O6YJZF8chkX9Z7VMrF15uyh2iP1_OX_T8-ouPqPJ_ORmzTAZsMWw/exec' },
 ];
 
-const aiSeoEvaluation = {
-  source: 'ChatGPT-style live website evaluation',
-  evaluatedSite: 'https://stashbox.com/',
-  lastUpdated: '2026-06-01',
-  seoScore: 74,
-  aiOptimizationScore: 68,
-  scoringNotes: [
-    'Crawlable public pages reviewed',
-    'llms.txt and llms-full.txt checked',
-    'Schema, metadata, internal linking, and AI-readable content reviewed',
-    'SEO Score is based on metadata, crawlability, headings, sitemap/robots, internal links, content depth, schema support, image optimization, mobile-readiness, and search intent clarity.',
-    'AI Optimization Score is based on llms.txt, llms-full.txt, structured data, entity clarity, answer blocks, FAQs, canonical source clarity, sameAs links, and how easily AI systems can understand and cite Stashbox.'
-  ],
-};
-
-const AI_DIMS = [
-  ['Schema Readiness', 62],
-  ['Internal Linking', 74],
-  ['Content Depth', 78],
-  ['Crawl / Indexing', 70],
-];
-
 const ACTIONS = [
   'Promote Top Shared Songs across all channels',
   'Boost songs with highest average listening time',
-  'Add JSON-LD schema to radio and video pages',
-  'Create dedicated song pages for strongest tracks',
-  'Add internal links from /stashbox/ to top songs',
   'Improve thumbnails for songs with plays but low shares',
-  'Add FAQ schema to custom music pages',
-  'Publish weekly session recap posts for SEO',
 ];
 
 function pn(v) {
@@ -896,64 +869,6 @@ function retryThumb(src) {
 // ──────────────────────────────────────────────────────────────────────────
 
 
-function pct(score) {
-  return Math.max(0, Math.min(100, pn(score)));
-}
-
-function renderAiSeoMeta(extraClass = '') {
-  const e = aiSeoEvaluation;
-  return `
-    <div class="score-meta ${extraClass}">
-      <span>Last Evaluated: ${e.lastUpdated}</span>
-      <span>Source: ${e.source}.</span>
-      <span>Site: ${e.evaluatedSite}</span>
-    </div>`;
-}
-
-function renderAiSeoNote() {
-  return `
-    <div class="score-note">
-      <strong>How this score is calculated</strong><br>
-      SEO Score is based on metadata, crawlability, headings, sitemap/robots, internal links, content depth, schema support, image optimization, mobile-readiness, and search intent clarity.<br><br>
-      AI Optimization Score is based on llms.txt, llms-full.txt, structured data, entity clarity, answer blocks, FAQs, canonical source clarity, sameAs links, and how easily AI systems can understand and cite Stashbox.
-    </div>`;
-}
-
-function renderAiSeoBars(theme = 'default') {
-  const e = aiSeoEvaluation;
-  const seo = pct(e.seoScore);
-  const ai = pct(e.aiOptimizationScore);
-  const aiGradient = theme === 'gold'
-    ? 'linear-gradient(90deg,rgba(56,201,232,.45),var(--gold))'
-    : 'linear-gradient(90deg,var(--cyan),var(--purple))';
-
-  return `
-    <div class="bar-row">
-      <div class="bar-label-row"><span>SEO Score</span><span>${seo}/100</span></div>
-      <div class="bar-track" role="meter" aria-label="SEO Score ${seo} out of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${seo}"><div class="bar-fill" style="width:${seo}%"></div></div>
-    </div>
-    <div class="bar-row">
-      <div class="bar-label-row"><span>AI Optimization Score</span><span>${ai}/100</span></div>
-      <div class="bar-track" role="meter" aria-label="AI Optimization Score ${ai} out of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${ai}"><div class="bar-fill" style="width:${ai}%;background:${aiGradient}"></div></div>
-    </div>
-    ${renderAiSeoMeta()}
-    <div class="score-summary"><b>${seo}/100 SEO</b> and <b>${ai}/100 AI</b> reflect a current ChatGPT-style evaluation of the live public Stashbox website, not spreadsheet metrics.</div>
-    ${renderAiSeoNote()}`;
-}
-
-function renderAiSeoRows(rowClass = 'v3-score-row', pillClass = 'v3-pill', nameClass = 'v3-score-name') {
-  const e = aiSeoEvaluation;
-  return [
-    ['SEO Score', e.seoScore, 'seo'],
-    ['AI Optimization Score', e.aiOptimizationScore, 'ai'],
-  ].map(([label, score, kind])=>`
-    <div class="${rowClass}">
-      <span class="${nameClass}">${label}</span>
-      <div class="v3-score-pills">
-        <span class="${pillClass} ${kind}">${pct(score)}/100</span>
-      </div>
-    </div>`).join('');
-}
 
 function thumb(s, sz='3.4rem') {
   const title = escapeHtml(s.title || 'Stashbox song');
@@ -1042,7 +957,6 @@ function renderV1(D) {
       }).join('')}
     </div>`;
 
-  const scoreHtml = renderAiSeoBars();
 
   document.getElementById('v1').innerHTML = `
   <div class="bento">
@@ -1067,25 +981,9 @@ function renderV1(D) {
     </div>
 
     <!-- Videos -->
-    <div class="bento-cell col-6 accent-cyan">
+    <div class="bento-cell col-12 accent-cyan">
       <div class="sec-title">▶ Top Videos by Likes</div>
       ${leaderboard(byVLikes.map(v=>({...v,link:v.url,genre:''})),'♥',v=>v.likes)}
-    </div>
-
-    <!-- SEO -->
-    <div class="bento-cell col-3 accent-purple">
-      <div class="sec-title">SEO / AI Scores</div>
-      ${scoreHtml}
-    </div>
-
-    <!-- AI dims -->
-    <div class="bento-cell col-3 accent-cyan">
-      <div class="sec-title">AI Readiness</div>
-      ${AI_DIMS.map(([l,p])=>`
-        <div class="bar-row">
-          <div class="bar-label-row"><span>${l}</span><span>${p}%</span></div>
-          <div class="bar-track"><div class="bar-fill" style="width:${p}%"></div></div>
-        </div>`).join('')}
     </div>
 
     <!-- Actions -->
@@ -1154,11 +1052,6 @@ function renderV2(D) {
             <div class="v2-track"><div class="v2-fill" style="width:${Math.min(100,(s.avg/300)*100)}%"></div></div>
           </div>`).join('')}
       </div>
-
-      <div class="v2-card">
-        <h3>SEO Visibility</h3>
-        ${renderAiSeoBars('gold')}
-      </div>
     </div>
   </div>`;
 }
@@ -1179,8 +1072,6 @@ function renderV3(D) {
       <td class="num">${fmtAvg(s.avg)}</td>
       <td class="num">${fmt(s.shares)}</td>
     </tr>`).join('');
-
-  const scoreRows = renderAiSeoRows();
 
   const vids10 = sortByMetric(vids, v=>v.likes).slice(0,10);
 
@@ -1216,20 +1107,7 @@ function renderV3(D) {
       </table>
     </div>
     <div class="v3-panel">
-      <div class="v3-panel-title">SEO &amp; AI Visibility</div>
-      ${scoreRows}
-      ${renderAiSeoMeta()}
-      <div class="score-summary"><b>${pct(aiSeoEvaluation.seoScore)}/100 SEO</b> / <b>${pct(aiSeoEvaluation.aiOptimizationScore)}/100 AI</b> from a current ChatGPT-style live website evaluation, not spreadsheet metrics.</div>
-      ${renderAiSeoNote()}
-
-      <div class="v3-panel-title" style="margin-top:1.5rem">AI Readiness Dimensions</div>
-      ${AI_DIMS.map(([l,p])=>`
-        <div class="bar-row" style="margin:.6rem 0">
-          <div class="bar-label-row"><span style="font-size:.75rem;color:var(--muted)">${l}</span><span style="font-size:.7rem;font-family:'DM Mono',monospace;color:rgba(255,255,255,.5)">${p}%</span></div>
-          <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:linear-gradient(90deg,var(--cyan),var(--purple))"></div></div>
-        </div>`).join('')}
-
-      <div class="v3-panel-title" style="margin-top:1.5rem">Top Videos</div>
+      <div class="v3-panel-title">Top Videos</div>
       ${vids10.map((v,i)=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem">
           <div><span style="font-family:'DM Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.3);margin-right:.6rem">${i+1}</span>${v.title}</div>
@@ -1310,29 +1188,6 @@ function renderV4(D) {
           <div class="nm-li-val">♥ ${fmt(v.likes)}</div>
         </div>`).join('')}
     </div>
-
-    <!-- AI / SEO -->
-    <div class="nm-card">
-      <div class="nm-card-title">◈ SEO &amp; AI Scores</div>
-      <div class="nm-score-row">
-        <span style="font-size:.78rem">SEO Score</span>
-        <div class="nm-pills"><span class="nm-sp">${pct(aiSeoEvaluation.seoScore)}/100</span></div>
-      </div>
-      <div class="nm-score-row">
-        <span style="font-size:.78rem">AI Optimization Score</span>
-        <div class="nm-pills"><span class="nm-sp gold">${pct(aiSeoEvaluation.aiOptimizationScore)}/100</span></div>
-      </div>
-      ${renderAiSeoMeta()}
-      <div class="score-summary"><b>${pct(aiSeoEvaluation.seoScore)}/100 SEO</b> / <b>${pct(aiSeoEvaluation.aiOptimizationScore)}/100 AI</b> from a current ChatGPT-style live website evaluation, not spreadsheet metrics.</div>
-      ${renderAiSeoNote()}
-      <div style="margin-top:.8rem">
-        ${AI_DIMS.map(([l,p])=>`
-          <div class="nm-bar">
-            <label>${l} <b>${p}%</b></label>
-            <div class="nm-track"><div class="nm-fill" style="width:${p}%"></div></div>
-          </div>`).join('')}
-      </div>
-    </div>
   </div>`;
 }
 
@@ -1358,7 +1213,7 @@ function renderV5(D) {
     <div class="merc-issue">Performance Edition · ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
     <div class="merc-title">Stashbox <em>Intelligence</em></div>
     <div class="merc-rule"></div>
-    <div class="merc-lead">Radio, video, SEO, and AI search visibility — consolidated into a single editorial view.</div>
+    <div class="merc-lead">Radio and video performance — consolidated into a single editorial view.</div>
   </div>
 
   <div class="merc-band">
@@ -1384,21 +1239,6 @@ function renderV5(D) {
       ${rankRows(byShares,'↗',s=>s.shares)}
     </div>
     <div>
-      <div class="merc-sidebar-section">
-        <div class="merc-sidebar-h">SEO &amp; AI Visibility</div>
-        <div class="merc-score-item">
-          <span>SEO Score</span>
-          <div class="vals"><span class="pill pill-p">${pct(aiSeoEvaluation.seoScore)}/100</span></div>
-        </div>
-        <div class="merc-score-item">
-          <span>AI Optimization Score</span>
-          <div class="vals"><span class="pill pill-c">${pct(aiSeoEvaluation.aiOptimizationScore)}/100</span></div>
-        </div>
-        ${renderAiSeoMeta()}
-        <div class="score-summary"><b>${pct(aiSeoEvaluation.seoScore)}/100 SEO</b> / <b>${pct(aiSeoEvaluation.aiOptimizationScore)}/100 AI</b> from a current ChatGPT-style live website evaluation, not spreadsheet metrics.</div>
-        ${renderAiSeoNote()}
-      </div>
-
       <div class="merc-sidebar-section">
         <div class="merc-sidebar-h">Top Videos</div>
         ${sortByMetric(vids,v=>v.likes).slice(0,6).map((v,i)=>`
