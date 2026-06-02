@@ -94,6 +94,21 @@ async function fetchPlayRows(songIds) {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchShareCountRows(songIds) {
+  if (!songIds.length) return [];
+  const supabase = createRadioSupabaseClient();
+  const { data, error } = await supabase
+    .from(SUPABASE_TABLES.songShareCounts)
+    .select('song_id,share_count')
+    .in('song_id', songIds);
+
+  if (error) {
+    if (shouldIgnoreOptionalMetricError(error)) return [];
+    throw new Error(error.message || 'Unable to fetch song share counts from Supabase.');
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 async function insertSongLike(songId, sessionId) {
   const supabase = createRadioSupabaseClient();
   return supabase
@@ -114,6 +129,23 @@ async function insertSongPlayEvent(songId, sessionId, eventType) {
     });
 
   if (error && !shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record song play event.', error.message || error);
+}
+
+async function insertSongShareEvent(songId, sessionId, shareUrl, shareMethod) {
+  if (!songId || !shareUrl) return;
+  const supabase = createRadioSupabaseClient();
+  const { error } = await supabase
+    .from(SUPABASE_TABLES.songShareEvents)
+    .insert({
+      song_id: songId,
+      session_id: sessionId,
+      event_type: 'share_click',
+      source_page: RADIO_REACT_SOURCE_PAGE,
+      share_url: shareUrl,
+      share_method: shareMethod || null
+    });
+
+  if (error && !shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record song share event.', error.message || error);
 }
 
 async function insertProductClickEvent(selected, product, sessionId) {
@@ -208,6 +240,15 @@ function formatPlayCount(count) {
     return `${compact}K plays`;
   }
   return `${value} ${value === 1 ? 'play' : 'plays'}`;
+}
+
+function formatShareCount(count) {
+  const value = Math.max(0, Number(count) || 0);
+  if (value >= 1000) {
+    const compact = (value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '');
+    return `${compact}K shares`;
+  }
+  return `${value} ${value === 1 ? 'share' : 'shares'}`;
 }
 
 function getShareUrl(song) {
@@ -344,6 +385,36 @@ function useSongPlayCounts(tracks) {
   return { playCounts, incrementPlayCount };
 }
 
+function useSongShareCounts(tracks) {
+  const [shareCounts, setShareCounts] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    const songIds = tracks.map(track => track.id).filter(Boolean);
+
+    fetchShareCountRows(songIds)
+      .then(rows => {
+        if (!alive) return;
+        const nextCounts = {};
+        rows.forEach(row => {
+          if (!row.song_id) return;
+          nextCounts[row.song_id] = Number(row.share_count) || 0;
+        });
+        setShareCounts(nextCounts);
+      })
+      .catch(error => console.warn('Unable to load song share counts.', error.message || error));
+
+    return () => { alive = false; };
+  }, [tracks]);
+
+  const incrementShareCount = useCallback(songId => {
+    if (!songId) return;
+    setShareCounts(previous => ({ ...previous, [songId]: (previous[songId] || 0) + 1 }));
+  }, []);
+
+  return { shareCounts, incrementShareCount };
+}
+
 function App() {
   const [tracks, setTracks] = useState([]);
   const [status, setStatus] = useState('loading');
@@ -359,6 +430,7 @@ function App() {
   const products = useProducts(selected);
   const { likeCounts, likedSongIds, likeSong } = useSongLikes(tracks, sessionId);
   const { playCounts, incrementPlayCount } = useSongPlayCounts(tracks);
+  const { shareCounts, incrementShareCount } = useSongShareCounts(tracks);
 
   const recordSongEvent = useCallback(eventType => {
     if (eventType === 'play') incrementPlayCount(selected?.id);
@@ -471,14 +543,20 @@ function App() {
 
   async function shareSong(song) {
     if (!song?.id && !song?.idx) return;
+    const shareUrl = getShareUrl(song);
+    const shareMethod = navigator.share ? 'web_share_api' : 'clipboard_fallback';
     const shareData = {
       title: song.title,
       text: `Listen to ${song.title} by Stashbox on Stashbox Radio`,
-      url: getShareUrl(song)
+      url: shareUrl
     };
 
+    incrementShareCount(song.id);
+    insertSongShareEvent(song.id, sessionId, shareUrl, shareMethod)
+      .catch(error => console.warn('Unable to record song share event.', error.message || error));
+
     try {
-      if (navigator.share) {
+      if (shareMethod === 'web_share_api') {
         await navigator.share(shareData);
         return;
       }
@@ -521,6 +599,7 @@ function App() {
         onProductClick: handleProductClick,
         likeCount: likeCounts[selected?.id] || 0,
         playCount: playCounts[selected?.id] || 0,
+        shareCount: shareCounts[selected?.id] || 0,
         hasLiked: likedSongIds.has(selected?.id),
         onLike: () => likeSong(selected?.id),
         onShare: () => shareSong(selected),
@@ -541,7 +620,7 @@ function App() {
         h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
       )
     ),
-    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+    tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
   );
 }
 
@@ -549,6 +628,13 @@ function PlayCount({ count }) {
   return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` },
     h('span', { 'aria-hidden': true }, '▶'),
     h('span', null, formatPlayCount(count))
+  );
+}
+
+function ShareCount({ count }) {
+  return h('span', { className: 'share-count', title: `${Number(count) || 0} recorded shares` },
+    h('span', { 'aria-hidden': true }, '↗'),
+    h('span', null, formatShareCount(count))
   );
 }
 
@@ -564,11 +650,13 @@ function ShareButton({ onShare, copied = false, compact = false }) {
   }, copied ? 'Link copied' : 'Share');
 }
 
-function SongActions({ likeCount, playCount, hasLiked, onLike, onShare, shareCopied, compact = false }) {
+function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, compact = false }) {
   return h('span', { className: `song-actions ${compact ? 'compact' : ''}` },
     h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }),
     h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'),
     h(PlayCount, { count: playCount }),
+    h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'),
+    h(ShareCount, { count: shareCount }),
     h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'),
     h(ShareButton, { onShare, copied: shareCopied, compact })
   );
@@ -590,7 +678,7 @@ function LikeButton({ count, active, onLike, compact = false }) {
   );
 }
 
-function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, playCount, hasLiked, onLike, onShare, shareCopied }) {
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied }) {
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink || selected.videoUrl);
@@ -602,7 +690,7 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
         h('div', { className: 'player-title-row' },
           h('h2', null, selected.title)
         ),
-        h(SongActions, { likeCount, playCount, hasLiked, onLike, onShare, shareCopied }),
+        h(SongActions, { likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied }),
         h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
         selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
         h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
@@ -633,7 +721,7 @@ function ProductRecommendations({ products, onProductClick }) {
   );
 }
 
-function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, likedSongIds, onLike, onShare, copiedSongId }) {
+function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId }) {
   return h('section', null,
     h('h3', { className: 'section-title', style: { color: section.color } }, `${section.emoji} ${section.key}`),
     h('div', { className: 'song-grid' }, tracks.map(track => h('button', { key: track.idx, type: 'button', className: `song-card ${selected?.idx === track.idx ? 'active' : ''}`, onClick: () => chooseSong(track) },
@@ -642,7 +730,7 @@ function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCo
         h('span', { className: 'song-card-title-row' },
           h('span', { className: 'song-title' }, track.title)
         ),
-        h(SongActions, { likeCount: likeCounts[track.id] || 0, playCount: playCounts[track.id] || 0, hasLiked: likedSongIds.has(track.id), onLike: () => onLike(track.id), onShare: () => onShare(track), shareCopied: copiedSongId === (track.id || track.idx), compact: true }),
+        h(SongActions, { likeCount: likeCounts[track.id] || 0, playCount: playCounts[track.id] || 0, shareCount: shareCounts[track.id] || 0, hasLiked: likedSongIds.has(track.id), onLike: () => onLike(track.id), onShare: () => onShare(track), shareCopied: copiedSongId === (track.id || track.idx), compact: true }),
         h('span', { className: 'song-artist' }, track.artist || 'Stashbox'),
         track.album ? h('span', { className: 'song-album' }, track.album) : null,
         h('span', { className: 'badges' }, has(track.audioUrl) ? h('span', { className: 'badge' }, 'Audio') : null, has(track.videoLink || track.videoUrl) ? h('span', { className: 'badge video' }, 'Video') : null)

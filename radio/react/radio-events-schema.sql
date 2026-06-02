@@ -108,3 +108,49 @@ grant select on public.song_like_counts to anon, authenticated;
 grant select on public.song_event_counts to anon, authenticated;
 grant select on public.top_songs_by_plays to anon, authenticated;
 grant select on public.top_songs_by_likes to anon, authenticated;
+
+-- Share tracking uses a dedicated table because the current song_play_events
+-- schema does not include metadata for persisting exact share URLs.
+create table if not exists public.song_share_events (
+  id uuid primary key default gen_random_uuid(),
+  song_id uuid references public.songs(id) on delete cascade,
+  session_id text not null,
+  event_type text not null default 'share_click',
+  source_page text default '/stashbox/radio/react/',
+  share_url text not null,
+  share_method text,
+  created_at timestamptz default now(),
+  constraint song_share_events_event_type_check check (event_type = 'share_click')
+);
+
+create index if not exists song_share_events_song_id_idx on public.song_share_events (song_id);
+create index if not exists song_share_events_session_id_idx on public.song_share_events (session_id);
+create index if not exists song_share_events_event_type_idx on public.song_share_events (event_type);
+create index if not exists song_share_events_created_at_idx on public.song_share_events (created_at);
+
+alter table public.song_share_events enable row level security;
+
+revoke all on public.song_share_events from public;
+grant insert on public.song_share_events to anon;
+
+drop policy if exists "Anon can insert song share events" on public.song_share_events;
+create policy "Anon can insert song share events"
+  on public.song_share_events
+  for insert
+  to anon
+  with check (
+    song_id is not null
+    and session_id <> ''
+    and event_type = 'share_click'
+    and coalesce(source_page, '/stashbox/radio/react/') = '/stashbox/radio/react/'
+    and share_url <> ''
+  );
+
+create or replace view public.song_share_counts as
+select
+  song_id,
+  count(*)::bigint as share_count
+from public.song_share_events
+group by song_id;
+
+grant select on public.song_share_counts to anon;
