@@ -105,7 +105,7 @@ a{color:inherit}
 
 @media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto minmax(0,1fr) minmax(170px,240px);grid-template-areas:"brand genre genre" "brand album search";align-items:center}.radio-control-search{justify-self:stretch}.radio-top-search{max-width:240px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
 
-@media(max-width:767px){.radio-app{padding:0 clamp(12px,4vw,18px) 34px;overflow:hidden}
+@media(max-width:767px){.radio-app{padding:0 0 34px;overflow:hidden}
 .radio-control-bar{margin:0 -12px 14px;border-left:0;border-right:0;border-radius:0}
 .radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "genre" "album" "search";gap:9px;padding:10px 12px 12px}
 .radio-control-logo{font-size:27px}
@@ -155,7 +155,7 @@ a{color:inherit}
 .section-title{margin-bottom:12px}
 }
 
-@media(max-width:480px){.radio-app{padding-left:12px;padding-right:12px}
+@media(max-width:480px){.radio-app{padding-left:0;padding-right:0}
 .page-heading h1{font-size:46px}
 .player{border-radius:18px}
 .player-grid{grid-template-columns:82px minmax(0,1fr);gap:10px}
@@ -269,9 +269,25 @@ a{color:inherit}
 
 @media(max-width:420px){.player-controls{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 9px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px;padding:0}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:6px}.player-timeline{gap:8px;padding:0 10px 8px}.timecode{min-width:32px;font-size:10px}}
 @media(max-width:768px){
-.player{padding:10px 0 10px;border-radius:16px;overflow:hidden}
-.player-media{width:100%;max-width:100%;min-height:0;aspect-ratio:1/1;border-left:0;border-right:0;border-radius:14px 14px 0 0}
-.player-media img{width:100%;max-width:100%;height:100%;max-height:none;aspect-ratio:1/1;object-fit:cover}
+.radio-app,
+.radio-interface,
+.player,
+.player-card,
+.player-media,
+.media-frame,
+.products-shell{width:100%;max-width:100%;min-width:0}
+.radio-app{margin-left:0;margin-right:0;padding-left:0;padding-right:0}
+.radio-control-bar{margin-left:0;margin-right:0}
+.page-heading,
+.radio-main{padding-left:12px;padding-right:12px}
+.player{margin-left:0;margin-right:0;padding:10px 0 10px;border-radius:16px;overflow:hidden}
+.player-media{min-height:0;aspect-ratio:1/1;border-left:0;border-right:0;border-radius:14px 14px 0 0}
+.player-art,
+.player-art img,
+.media-frame img,
+.now-playing-art img,
+.player-media img{display:block;width:100%;max-width:100%;aspect-ratio:1/1;object-fit:cover}
+.player-media img{height:100%;max-height:none}
 .player-media iframe{width:100%;max-width:100%;height:100%;min-height:0;aspect-ratio:1/1}
 .player-media .art-fallback{width:100%;min-height:0;aspect-ratio:1/1}
 .player-bar{grid-template-columns:1fr;gap:6px;padding:8px 10px 0}
@@ -286,13 +302,13 @@ a{color:inherit}
 .transport-controls{gap:5px}
 .player-timeline{gap:8px;margin-top:4px;padding:0 10px 6px}
 .scrubber{height:14px}
-.player .merch{margin:8px 10px 0;padding-top:8px}
-.merch-head{margin-bottom:6px;align-items:center}
+.player .merch{margin:8px 0 0;padding:8px 0 0}
+.merch-head{margin-bottom:6px;align-items:center;padding:0 10px}
 .merch-title{font-size:24px;line-height:.95}
 .player .merch .kicker{margin-bottom:5px}
 .products-shell{margin:0;padding:0}
-.products{gap:8px;padding:2px 0 8px}
-.product{flex:0 0 calc((100% - 8px)/2);min-width:calc((100% - 8px)/2);gap:5px;padding:6px;border-radius:12px}
+.products{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;width:100%;max-width:100%;padding:2px 0 8px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.product{flex:0 0 calc((100% - 12px)/2);min-width:0;max-width:calc((100% - 12px)/2);gap:5px;padding:6px;border-radius:12px;scroll-snap-align:start}
 .product-img{border-radius:8px}
 .product-name{font-size:11px;line-height:1.08;font-weight:800;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
 .product-price{margin-top:auto;font-size:11px;line-height:1.1}
