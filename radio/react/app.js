@@ -820,15 +820,6 @@ function App() {
       sourceNote: dataSource === 'sheet' ? h('p', { className: 'source-note', role: 'status' }, `Supabase is unavailable, so this preview is loaded from the published radio sheet. ${fallbackReason ? `Supabase error: ${fallbackReason}` : ''}`) : null
     }),
     h('div', { className: 'radio-interface' },
-      h('main', { className: 'radio-main' },
-        h('section', { className: 'list-head' },
-          h('h2', null, 'Song List'),
-          h('div', { className: 'list-actions' },
-            h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
-          )
-        ),
-        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
-      ),
       h(Player, {
         selected: selectedSong,
         audioRef,
@@ -839,6 +830,7 @@ function App() {
         products,
         onPrevious: () => shiftTrack(-1, 'skip'),
         onNext: () => shiftTrack(1, 'next_click'),
+        onShuffle: pickRandomTrack,
         onProductClick: handleProductClick,
         likeCount: likeCounts[selectedSong?.id] || 0,
         playCount: playCounts[selectedSong?.id] || 0,
@@ -847,7 +839,16 @@ function App() {
         onLike: () => likeSong(selectedSong?.id),
         onShare: () => shareSong(selectedSong),
         shareCopied: copiedSongId === (selectedSong?.id || selectedSong?.idx)
-      })
+      }),
+      h('main', { className: 'radio-main' },
+        h('section', { className: 'list-head' },
+          h('h2', null, 'Song List'),
+          h('div', { className: 'list-actions' },
+            h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
+          )
+        ),
+        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+      )
     )
   );
 }
@@ -906,34 +907,134 @@ function LikeButton({ count, active, onLike, compact = false }) {
   );
 }
 
-function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied }) {
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${remainingSeconds}`;
+}
+
+function PlayerPill({ className = '', children, ...props }) {
+  return h('button', { className: `player-pill ${className}`.trim(), type: 'button', ...props }, children);
+}
+
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }, [selected?.idx]);
+
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
+
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink || selected.videoUrl);
+  const hasAudio = has(selected.audioUrl);
+  const hasVideo = has(selected.videoLink || selected.videoUrl) && Boolean(videoSrc);
+  const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+  const syncAudioState = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setCurrentTime(Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+    setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    setIsPlaying(!audio.paused && !audio.ended);
+  };
+
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    if (!audio || !hasAudio) return;
+
+    if (audio.paused || audio.ended) {
+      if (videoOpen) closeVideo?.();
+      audio.play().catch(error => console.warn('Unable to play selected audio.', error.message || error));
+      return;
+    }
+
+    audio.pause();
+  };
+
+  const seekAudio = event => {
+    const audio = audioRef.current;
+    if (!audio || !hasAudio) return;
+    const nextTime = Number(event.target.value);
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  };
+
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { className: 'player-grid' },
-      h('div', { className: 'art' }, selected.imageUrl ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
-      h('div', null,
+    h('div', { className: 'player-media' },
+      videoOpen && hasVideo
+        ? h('iframe', { title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })
+        : selected.imageUrl
+          ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } })
+          : h('div', { className: 'art-fallback' }, selected.title),
+      hasVideo ? h('div', { className: 'player-media-actions' },
+        h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : 'Watch Video')
+      ) : null
+    ),
+    h('div', { className: 'player-bar' },
+      h('div', { className: 'player-info' },
         h('p', { className: 'kicker' }, 'Now selected'),
-        h('div', { className: 'player-title-row' },
-          h('h2', null, selected.title)
-        ),
-        h(SongActions, { likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied }),
-        h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
-        selected.notes ? h('p', { className: 'notes' }, selected.notes) : null,
-        h('div', { className: 'now-playing' }, h('span', null, 'Now playing'), h('strong', null, selected.title)),
-        has(selected.audioUrl) ? h('audio', { key: selected.idx, className: 'audio', ref: audioRef, src: selected.audioUrl, controls: true, controlsList: 'nodownload', preload: 'metadata', onContextMenu: event => event.preventDefault() }) : h('p', { className: 'notes' }, 'No audio URL is available for this track.'),
-        h('div', { className: 'mobile-controls', 'aria-label': 'Mobile player controls' },
-          h('button', { className: 'button', type: 'button', onClick: onPrevious }, 'Previous'),
-          h('button', { className: 'button', type: 'button', onClick: onNext }, 'Next Song')
-        ),
-        has(selected.videoLink || selected.videoUrl) ? h('div', { className: 'video-actions' },
-          h('button', { className: 'button accent', type: 'button', onClick: openVideo }, videoOpen ? 'Restart / Focus Video' : 'Watch Video'),
-          videoOpen ? h('button', { className: 'button', type: 'button', onClick: closeVideo }, 'Close Video') : null
-        ) : null,
-        videoOpen && videoSrc ? h('div', { className: 'video-wrap' }, h('iframe', { title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : null
+        h('h2', null, selected.title),
+        h('div', { className: 'meta' },
+          h('strong', null, selected.artist || 'Stashbox'),
+          selected.album ? h('span', null, `· ${selected.album}`) : null,
+          h('span', null, '·'),
+          h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)
+        )
+      ),
+      h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
+        h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
+        h('span', { className: 'player-stat-pill', title: `${Number(playCount) || 0} recorded plays` }, h('span', { 'aria-hidden': true }, '▶'), h('span', null, `${formatPlayCount(playCount)} plays`)),
+        h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Link copied' : `Share Song${Number(shareCount) > 0 ? ` ${formatShareCount(shareCount)}` : ''}`),
+        h(PlayerPill, { onClick: onPrevious }, 'Back'),
+        h(PlayerPill, { className: 'play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying }, isPlaying ? 'Pause' : 'Play'),
+        h(PlayerPill, { onClick: onNext }, 'Next'),
+        h(PlayerPill, { onClick: onShuffle }, 'Shuffle')
       )
     ),
+    hasAudio
+      ? h(React.Fragment, null,
+        h('audio', {
+          key: selected.idx,
+          className: 'audio native-audio',
+          ref: audioRef,
+          src: selected.audioUrl,
+          controls: false,
+          controlsList: 'nodownload',
+          preload: 'metadata',
+          onContextMenu: event => event.preventDefault(),
+          onLoadedMetadata: syncAudioState,
+          onTimeUpdate: syncAudioState,
+          onPlay: syncAudioState,
+          onPause: syncAudioState,
+          onEnded: syncAudioState,
+          onDurationChange: syncAudioState
+        }),
+        h('div', { className: 'player-timeline' },
+          h('span', { className: 'timecode' }, formatTime(currentTime)),
+          h('input', {
+            className: 'scrubber',
+            type: 'range',
+            min: '0',
+            max: duration || 0,
+            step: '0.1',
+            value: duration ? Math.min(currentTime, duration) : 0,
+            onChange: seekAudio,
+            'aria-label': 'Audio timeline',
+            style: { '--progress': `${progress}%` }
+          }),
+          h('span', { className: 'timecode' }, formatTime(duration))
+        )
+      )
+      : h('p', { className: 'notes no-audio-note' }, 'No audio URL is available for this track.'),
+    selected.notes ? h('p', { className: 'notes player-notes' }, selected.notes) : null,
     h(ProductRecommendations, { products, onProductClick })
   );
 }
