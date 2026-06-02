@@ -548,11 +548,6 @@ function App() {
   const [sessionId] = useState(getBrowserSessionId);
   const playerRef = useRef(null);
   const audioRef = useRef(null);
-  const selectedSong = useMemo(() => {
-    if (!tracks.length) return null;
-    if (!selected?.id) return tracks[0];
-    return tracks.find(track => String(track.id) === String(selected.id)) || tracks[0];
-  }, [tracks, selected?.id]);
   const products = useProducts(selected);
   const { likeCounts, likedSongIds, likeSong } = useSongLikes(tracks, sessionId);
   const { playCounts, incrementPlayCount } = useSongPlayCounts(tracks);
@@ -566,12 +561,9 @@ function App() {
   useEffect(() => {
     fetchRadioSongs().then(({ tracks: parsed, source, fallbackReason: nextFallbackReason }) => {
       const requestedSongId = new URLSearchParams(window.location.search).get('song');
-      const requestedSong = requestedSongId ? parsed.find(track => String(track.id) === requestedSongId) : null;
+      const requestedSong = requestedSongId ? parsed.find(track => String(track.id) === requestedSongId || String(track.idx) === requestedSongId) : null;
       setTracks(parsed);
-      setSelected(previous => {
-        const previousSong = previous?.id ? parsed.find(track => String(track.id) === String(previous.id)) : null;
-        return previousSong || requestedSong || parsed[0] || null;
-      });
+      setSelected(requestedSong || parsed[0] || null);
       setDataSource(source);
       setFallbackReason(nextFallbackReason);
       setStatus('ready');
@@ -580,17 +572,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    setSelected(previous => {
-      if (!tracks.length) return null;
-      const previousSong = previous?.id ? tracks.find(track => String(track.id) === String(previous.id)) : null;
-      return previousSong || tracks[0];
-    });
-  }, [tracks]);
-
-  useEffect(() => {
-    window.currentTrack = selectedSong;
-    window.dispatchEvent(new CustomEvent('stashbox:trackchange', { detail: { track: selectedSong } }));
-  }, [selectedSong]);
+    window.currentTrack = selected;
+    window.dispatchEvent(new CustomEvent('stashbox:trackchange', { detail: { track: selected } }));
+  }, [selected]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -736,10 +720,10 @@ function App() {
             h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`)
           )
         ),
-        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
+        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No active songs are in the Supabase songs table yet. Add active tracks and they will appear here automatically.')
       ),
       h(Player, {
-        selected: selectedSong,
+        selected,
         audioRef,
         playerRef,
         videoOpen,
@@ -749,13 +733,13 @@ function App() {
         onPrevious: () => shiftTrack(-1, 'skip'),
         onNext: () => shiftTrack(1, 'next_click'),
         onProductClick: handleProductClick,
-        likeCount: likeCounts[selectedSong?.id] || 0,
-        playCount: playCounts[selectedSong?.id] || 0,
-        shareCount: shareCounts[selectedSong?.id] || 0,
-        hasLiked: likedSongIds.has(selectedSong?.id),
-        onLike: () => likeSong(selectedSong?.id),
-        onShare: () => shareSong(selectedSong),
-        shareCopied: copiedSongId === (selectedSong?.id || selectedSong?.idx)
+        likeCount: likeCounts[selected?.id] || 0,
+        playCount: playCounts[selected?.id] || 0,
+        shareCount: shareCounts[selected?.id] || 0,
+        hasLiked: likedSongIds.has(selected?.id),
+        onLike: () => likeSong(selected?.id),
+        onShare: () => shareSong(selected),
+        shareCopied: copiedSongId === (selected?.id || selected?.idx)
       })
     )
   );
