@@ -22,6 +22,11 @@ const SESSION_STORAGE_KEY = 'stashbox-radio-react-session-id';
 const DUPLICATE_ERROR_CODES = new Set(['23505']);
 const PLAY_EVENT_TYPES = new Set(['play', 'pause', 'skip', 'complete', 'next_click', 'random_click', 'video_open']);
 const OPTIONAL_METRIC_ERROR_CODES = new Set(['42P01', 'PGRST106', 'PGRST205']);
+const SHEET_CSV_URLS = [
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv&sheet=Radio'
+];
 
 function shouldIgnoreOptionalMetricError(error) {
   return OPTIONAL_METRIC_ERROR_CODES.has(error?.code) || String(error?.message || '').toLowerCase().includes('does not exist');
@@ -65,6 +70,117 @@ async function fetchSupabaseSongs() {
 
   if (error) throw new Error(error.message || 'Unable to fetch songs from Supabase.');
   return (Array.isArray(data) ? data : []).map(normalizeSong);
+}
+
+async function fetchSheetCSV() {
+  let lastError = null;
+
+  for (const url of SHEET_CSV_URLS) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const text = await response.text();
+      if (text && text.trim()) return text;
+      throw new Error('Empty CSV response');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Unable to fetch the published radio sheet.');
+}
+
+function parseCSVRows(csv) {
+  const rows = [];
+  let row = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const char = csv[index];
+    const nextChar = csv[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') index += 1;
+      row.push(current);
+      rows.push(row);
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length || row.length) {
+    row.push(current);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function normalizeSheetSong(columns, index) {
+  const genre = clean(columns[3]);
+  return {
+    id: null,
+    title: clean(columns[0]) || 'Untitled Stashbox Track',
+    album: clean(columns[1]) || 'Stashbox Radio',
+    artist: clean(columns[2]),
+    genre,
+    sectionKey: sectionFor(genre),
+    audioUrl: fixDropbox(clean(columns[6])),
+    imageUrl: fixDropbox(clean(columns[8])),
+    videoUrl: clean(columns[9]),
+    videoLink: clean(columns[9]),
+    notes: clean(columns[10]),
+    sortOrder: index,
+    createdAt: clean(columns[4]),
+    idx: `sheet-song-${index}`
+  };
+}
+
+function parseSheetSongs(csv) {
+  const rows = parseCSVRows(csv).filter(row => row.some(column => clean(column)));
+  return rows
+    .slice(1)
+    .map(normalizeSheetSong)
+    .filter(song => song.title && song.title !== 'Untitled Stashbox Track');
+}
+
+async function fetchSheetSongs() {
+  const csv = await fetchSheetCSV();
+  return parseSheetSongs(csv);
+}
+
+async function fetchRadioSongs() {
+  try {
+    return { tracks: await fetchSupabaseSongs(), source: 'supabase', fallbackReason: '' };
+  } catch (error) {
+    console.warn('Unable to load Supabase songs. Falling back to the published radio sheet.', error.message || error);
+    return {
+      tracks: await fetchSheetSongs(),
+      source: 'sheet',
+      fallbackReason: error.message || 'Supabase is unavailable.'
+    };
+  }
 }
 
 async function fetchLikeRows(songIds) {
@@ -422,6 +538,8 @@ function App() {
   const [tracks, setTracks] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
+  const [dataSource, setDataSource] = useState('supabase');
+  const [fallbackReason, setFallbackReason] = useState('');
   const [query, setQuery] = useState('');
   const [genre, setGenre] = useState('ALL');
   const [selected, setSelected] = useState(null);
@@ -441,11 +559,13 @@ function App() {
   }, [incrementPlayCount, selected?.id, sessionId]);
 
   useEffect(() => {
-    fetchSupabaseSongs().then(parsed => {
+    fetchRadioSongs().then(({ tracks: parsed, source, fallbackReason: nextFallbackReason }) => {
       const requestedSongId = new URLSearchParams(window.location.search).get('song');
       const requestedSong = requestedSongId ? parsed.find(track => String(track.id) === requestedSongId || String(track.idx) === requestedSongId) : null;
       setTracks(parsed);
       setSelected(requestedSong || parsed[0] || null);
+      setDataSource(source);
+      setFallbackReason(nextFallbackReason);
       setStatus('ready');
       if (requestedSong) scrollPlayerIntoView();
     }).catch(err => { setError(err.message); setStatus('error'); });
@@ -581,7 +701,8 @@ function App() {
   return h('div', { className: 'radio-app' },
     h('header', { className: 'page-heading' },
       h('p', { className: 'page-subtitle' }, 'Listen. Watch. Shop. Share.'),
-      h('h1', null, 'STASHBOX RADIO')
+      h('h1', null, 'STASHBOX RADIO'),
+      dataSource === 'sheet' ? h('p', { className: 'source-note', role: 'status' }, `Supabase is unavailable, so this preview is loaded from the published radio sheet. ${fallbackReason ? `Supabase error: ${fallbackReason}` : ''}`) : null
     ),
     h('div', { className: 'radio-interface' },
       h('main', { className: 'radio-main' },
