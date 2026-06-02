@@ -1025,6 +1025,7 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
           src: selected.audioUrl,
           controls: false,
           controlsList: 'nodownload',
+          disableRemotePlayback: true,
           preload: 'metadata',
           onContextMenu: event => event.preventDefault(),
           onLoadedMetadata: syncAudioState,
@@ -1043,11 +1044,12 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
             max: duration || 0,
             step: '0.1',
             value: duration ? Math.min(currentTime, duration) : 0,
+            onInput: seekAudio,
             onChange: seekAudio,
             'aria-label': 'Audio timeline',
             style: { '--progress': `${progress}%` }
           }),
-          h('span', { className: 'timecode' }, formatTime(duration))
+          h('span', { className: 'timecode end' }, formatTime(duration))
         )
       )
       : h('p', { className: 'notes no-audio-note' }, 'No audio URL is available for this track.'),
