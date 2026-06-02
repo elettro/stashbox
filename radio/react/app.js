@@ -25,6 +25,7 @@ const SESSION_STORAGE_KEY = 'stashbox-radio-react-session-id';
 const DUPLICATE_ERROR_CODES = new Set(['23505']);
 const PLAY_EVENT_TYPES = new Set(['play', 'pause', 'skip', 'complete', 'next_click', 'random_click', 'video_open']);
 const OPTIONAL_METRIC_ERROR_CODES = new Set(['42P01', 'PGRST106', 'PGRST205']);
+const SUPABASE_PAGE_SIZE = 1000;
 const SHEET_CSV_URLS = [
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?gid=0&single=true&output=csv',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyXI6d_QbtM2UalaiSYcDKpvgnLi-QsqYfx9hCbqM8vpbK_gUITEQffoyKiYQoeXuKeW_qBkrexMqN/pub?single=true&output=csv',
@@ -198,20 +199,60 @@ async function fetchLikeRows(songIds) {
   return Array.isArray(data) ? data : [];
 }
 
-async function fetchPlayRows(songIds) {
+async function fetchPlayEventRows(songIds) {
   if (!songIds.length) return [];
   const supabase = createRadioSupabaseClient();
+  const rows = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLES.songPlayEvents)
+      .select('song_id')
+      .eq('event_type', 'play')
+      .in('song_id', songIds)
+      .range(from, to);
+
+    if (error) {
+      if (shouldIgnoreOptionalMetricError(error)) return [];
+      throw new Error(error.message || 'Unable to fetch song play counts from Supabase.');
+    }
+
+    const page = Array.isArray(data) ? data : [];
+    rows.push(...page);
+    if (page.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+
+  return rows;
+}
+
+async function fetchPlayCountRows(songIds) {
+  if (!songIds.length) return [];
+  const supabase = createRadioSupabaseClient();
+
   const { data, error } = await supabase
-    .from(SUPABASE_TABLES.songPlayEvents)
-    .select('song_id')
+    .from(SUPABASE_TABLES.songEventCounts)
+    .select('song_id,event_count')
     .eq('event_type', 'play')
     .in('song_id', songIds);
 
-  if (error) {
-    if (shouldIgnoreOptionalMetricError(error)) return [];
-    throw new Error(error.message || 'Unable to fetch song play counts from Supabase.');
+  if (!error) {
+    return (Array.isArray(data) ? data : []).map(row => ({
+      song_id: row.song_id,
+      play_count: Number(row.event_count) || 0
+    }));
   }
-  return Array.isArray(data) ? data : [];
+
+  const eventRows = await fetchPlayEventRows(songIds);
+  const counts = {};
+  eventRows.forEach(row => {
+    if (!row.song_id) return;
+    counts[row.song_id] = (counts[row.song_id] || 0) + 1;
+  });
+
+  return Object.entries(counts).map(([song_id, play_count]) => ({ song_id, play_count }));
 }
 
 async function fetchShareCountRows(songIds) {
@@ -248,7 +289,12 @@ async function insertSongPlayEvent(songId, sessionId, eventType) {
       source_page: RADIO_REACT_SOURCE_PAGE
     });
 
-  if (error && !shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record song play event.', error.message || error);
+  if (error) {
+    if (eventType === 'play') console.error('[PLAY COUNT INSERT ERROR]', error.message || error);
+    else if (!shouldIgnoreOptionalMetricError(error)) console.warn('Unable to record song play event.', error.message || error);
+  }
+
+  return { error };
 }
 
 async function insertSongShareEvent(songId, sessionId, shareUrl, shareMethod) {
@@ -503,17 +549,17 @@ function useSongPlayCounts(tracks) {
     let alive = true;
     const songIds = tracks.map(track => track.id).filter(Boolean);
 
-    fetchPlayRows(songIds)
+    fetchPlayCountRows(songIds)
       .then(rows => {
         if (!alive) return;
         const nextCounts = {};
         rows.forEach(row => {
           if (!row.song_id) return;
-          nextCounts[row.song_id] = (nextCounts[row.song_id] || 0) + 1;
+          nextCounts[row.song_id] = Number(row.play_count) || 0;
         });
         setPlayCounts(nextCounts);
       })
-      .catch(error => console.warn('Unable to load song play counts.', error.message || error));
+      .catch(error => console.error('[PLAY COUNT READ ERROR]', error.message || error));
 
     return () => { alive = false; };
   }, [tracks]);
@@ -663,9 +709,9 @@ function App() {
   const { playCounts, incrementPlayCount } = useSongPlayCounts(tracks);
   const { shareCounts, incrementShareCount } = useSongShareCounts(tracks);
 
-  const recordSongEvent = useCallback(eventType => {
-    if (eventType === 'play') incrementPlayCount(selected?.id);
-    insertSongPlayEvent(selected?.id, sessionId, eventType);
+  const recordSongEvent = useCallback(async eventType => {
+    const result = await insertSongPlayEvent(selected?.id, sessionId, eventType);
+    if (eventType === 'play' && !result?.error) incrementPlayCount(selected?.id);
   }, [incrementPlayCount, selected?.id, sessionId]);
 
   useEffect(() => {

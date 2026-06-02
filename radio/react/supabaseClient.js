@@ -11,6 +11,7 @@ export const SUPABASE_TABLES = {
   songProducts: 'song_products',
   songLikes: 'song_likes',
   songPlayEvents: 'song_play_events',
+  songEventCounts: 'song_event_counts',
   songShareEvents: 'song_share_events',
   songShareCounts: 'song_share_counts',
   productClickEvents: 'product_click_events'
