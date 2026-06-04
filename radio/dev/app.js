@@ -1,0 +1,489 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
+import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+
+const SONGS_ENDPOINT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
+const TRACKING_ENDPOINT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
+const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
+const MAX_PRODUCT_RECOMMENDATIONS = 50;
+const COMPLETION_THRESHOLD = 0.95;
+
+const SECTIONS = [
+  { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
+  { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
+  { key: 'Electronic', emoji: '⚡', color: '#50dcdc' }, { key: 'Spanish', emoji: '💃', color: '#ff6496' },
+  { key: 'Calypso', emoji: '🥁', color: '#ffc050' }, { key: 'Soul', emoji: '🎤', color: '#c88cff' },
+  { key: 'Pop', emoji: '🎵', color: '#ff9080' }, { key: 'Other', emoji: '🎶', color: '#999' }
+];
+
+const GENRE_FILTERS = ['ALL', ...SECTIONS.map(section => section.key)];
+const ALBUM_FILTERS = ['ALL', 'Exclusive', 'Stashbox Does Dylan', 'Stashbox Radio', 'Thank You Giorgio'];
+
+const h = React.createElement;
+const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
+const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
+const has = value => clean(value).length > 0;
+const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
+const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === clean(genre).toLowerCase())?.key || 'Other';
+
+function getBrowserSessionId() {
+  try {
+    const existing = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (existing) return existing;
+    const generated = window.crypto?.randomUUID ? window.crypto.randomUUID() : `rds-dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(SESSION_STORAGE_KEY, generated);
+    return generated;
+  } catch (_) {
+    return `rds-dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function getDeviceType() {
+  const ua = navigator.userAgent || '';
+  if (/tablet|ipad|playbook|silk/i.test(ua)) return 'tablet';
+  if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/i.test(ua)) return 'mobile';
+  return 'desktop';
+}
+
+function parseStringList(value) {
+  if (Array.isArray(value)) return value.map(clean).filter(Boolean);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(clean).filter(Boolean);
+    } catch (_) {}
+    return trimmed.split(/[\n,]+/).map(clean).filter(Boolean);
+  }
+  return [];
+}
+
+function firstDefined(row, names) {
+  for (const name of names) if (row?.[name] !== undefined && row?.[name] !== null && clean(row[name])) return row[name];
+  return '';
+}
+
+function normalizeSong(row, index) {
+  const genre = clean(firstDefined(row, ['genre', 'primary_genre', 'section']));
+  const hasAudio = bool(row.has_audio) && has(row.audio_url);
+  const hasVideo = bool(row.has_video) && has(row.video_link || row.video_url || row.videoUrl);
+  const videoOnly = bool(row.video_only);
+  const rawKey = firstDefined(row, ['song_key', 'key', 'slug', 'id', 'track_id']);
+  return {
+    raw: row,
+    id: clean(rawKey) || `rds-song-${index}`,
+    songKey: clean(rawKey) || `rds-song-${index}`,
+    title: clean(firstDefined(row, ['title', 'song_title', 'track_title', 'name'])) || 'Untitled Stashbox Track',
+    album: clean(firstDefined(row, ['album', 'album_title', 'release_title'])) || 'Stashbox Radio',
+    artist: clean(firstDefined(row, ['artist', 'artist_name', 'band'])) || 'Stashbox',
+    genre,
+    sectionKey: sectionFor(genre),
+    audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
+    imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
+    videoLink: clean(row.video_link || row.video_url || row.videoUrl),
+    hasAudio,
+    hasVideo,
+    videoOnly,
+    showWatchVideo: bool(row.show_watch_video) && hasVideo,
+    publicTrackNote: bool(row.show_public_note) ? clean(row.public_track_note) : '',
+    publicVideoNote: clean(row.public_video_note),
+    videoSetlist: clean(row.video_setlist),
+    notes: bool(row.show_public_note) ? clean(row.public_track_note) : '',
+    specificProductUrls: parseStringList(row.specific_product_urls),
+    sortOrder: Number(row.sort_order ?? row.display_order ?? index) || index,
+    createdAt: row.created_at || row.updated_at || '',
+    idx: clean(rawKey) || `rds-song-${index}`
+  };
+}
+
+async function fetchRadioSongs() {
+  const response = await fetch(SONGS_ENDPOINT, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Songs API returned HTTP ${response.status}`);
+  const data = await response.json();
+  console.log('[Stashbox Radio Dev] songs API response', data);
+  const songs = Array.isArray(data?.songs) ? data.songs : [];
+  return songs.map(normalizeSong).filter(song => song.title).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
+  if (!song?.songKey || !eventType) return null;
+  const payload = {
+    song_key: song.songKey,
+    event_type: eventType,
+    session_id: sessionId,
+    device_type: getDeviceType(),
+    referrer: document.referrer || '',
+    ...extra
+  };
+  Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null || payload[key] === '') && delete payload[key]);
+  console.log('[Stashbox Radio Dev] tracking payload', payload);
+  try {
+    const response = await fetch(TRACKING_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    let body = text;
+    try { body = text ? JSON.parse(text) : null; } catch (_) {}
+    console.log('[Stashbox Radio Dev] tracking API response', { status: response.status, ok: response.ok, body });
+    return { response, body };
+  } catch (error) {
+    console.warn('[Stashbox Radio Dev] tracking API error', error.message || error);
+    return null;
+  }
+}
+
+function isDirectVideoUrl(url) {
+  return /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(clean(url));
+}
+
+function youtubeEmbed(url) {
+  const value = clean(url);
+  if (!value) return '';
+  let id = '';
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname.includes('youtube.com')) id = parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop();
+    if (parsed.hostname.includes('youtu.be')) id = parsed.pathname.split('/').filter(Boolean)[0];
+  } catch (_) {}
+  return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}` : value;
+}
+
+function rotateBySeed(items, seed) {
+  if (!items.length) return items;
+  let hash = 0;
+  String(seed || '').split('').forEach(ch => { hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0; });
+  const offset = Math.abs(hash) % items.length;
+  return items.slice(offset).concat(items.slice(0, offset));
+}
+
+function productShape(product) {
+  const variant = product.variants?.[0];
+  const rawImage = product.images?.[0]?.src || product.featured_image || '';
+  const image = typeof rawImage === 'string' && rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
+  return { id: product.id || null, title: product.title || 'Stashbox Product', url: `https://stashbox.ai/products/${product.handle || ''}`, image, price: variant?.price ? `$${Number(variant.price).toFixed(2)}` : '' };
+}
+
+function productFromUrl(url, index) {
+  const cleanUrl = clean(url);
+  let title = 'Featured product';
+  try {
+    const parsed = new URL(cleanUrl, window.location.href);
+    title = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || title).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  } catch (_) {}
+  return { id: `specific-${index}-${cleanUrl}`, title, url: cleanUrl, image: '', price: 'Selected for this track', specific: true };
+}
+
+async function fetchFallbackProducts(selected) {
+  const res = await fetch(`https://stashbox.ai/products.json?limit=${MAX_PRODUCT_RECOMMENDATIONS}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const shaped = (Array.isArray(data.products) ? data.products : []).map(productShape).filter(product => product.url);
+  return rotateBySeed(shaped, selected?.title).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
+}
+
+function useProducts(selected) {
+  const [products, setProducts] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    setProducts([]);
+    async function loadProducts() {
+      if (!selected) return [];
+      const specific = selected.specificProductUrls.map(productFromUrl);
+      const seen = new Set(specific.map(product => product.url));
+      let fallback = [];
+      try { fallback = await fetchFallbackProducts(selected); } catch (error) { console.warn('Unable to load fallback products.', error.message || error); }
+      return specific.concat(fallback.filter(product => !seen.has(product.url))).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
+    }
+    loadProducts().then(next => { if (alive) setProducts(next); });
+    return () => { alive = false; };
+  }, [selected?.idx]);
+  return products;
+}
+
+function formatPlayCount(count) { const value = Math.max(0, Number(count) || 0); return `${value} ${value === 1 ? 'play' : 'plays'}`; }
+function formatShareCount(count) { const value = Math.max(0, Number(count) || 0); return `${value} ${value === 1 ? 'share' : 'shares'}`; }
+function formatPlayerPlayCount(count) { const value = Math.max(0, Number(count) || 0); return `${value} ${value === 1 ? 'Play' : 'Plays'}`; }
+function formatPlayerShareText(count) { const value = Math.max(0, Number(count) || 0); return value ? `Share ${value}` : 'Share'; }
+function formatTime(seconds) { const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0; const minutes = Math.floor(safe / 60); const secs = Math.floor(safe % 60).toString().padStart(2, '0'); return `${minutes}:${secs}`; }
+function formatTrackCount(trackCount, isLoading) { if (isLoading) return 'LOADING TRACKS'; return `${trackCount} ${trackCount === 1 ? 'TRACK' : 'TRACKS'}`; }
+function filterLabel(value) { return value === 'ALL' ? 'All' : value; }
+function albumMatches(trackAlbum, selectedAlbum) { if (selectedAlbum === 'ALL') return true; const a = clean(trackAlbum).toLowerCase(); const b = selectedAlbum.toLowerCase(); return a === b || a.includes(b); }
+
+function getShareUrl(song) { const shareUrl = new URL(window.location.href); shareUrl.searchParams.set('song', song?.songKey || song?.idx || ''); shareUrl.hash = ''; return shareUrl.toString(); }
+async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text); const input = document.createElement('textarea'); input.value = text; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
+
+function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, album, onAlbumChange }) {
+  return h('nav', { className: 'radio-control-bar', 'aria-label': 'Stashbox radio filters' },
+    h('div', { className: 'radio-control-scroll' },
+      h('div', { className: 'radio-control-brand' }, h('a', { className: 'radio-control-logo', href: '/radio/dev/', 'aria-label': 'Stashbox Radio RDS Dev' }, 'STASHBOX'), h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))),
+      h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' }, GENRE_FILTERS.map(filter => h('button', { key: `genre-${filter}`, className: `radio-filter-pill ${genre === filter ? 'active' : ''}`, type: 'button', onClick: () => onGenreChange(filter), disabled: isLoading, 'aria-pressed': genre === filter }, filterLabel(filter)))),
+      h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' }, h('span', { className: 'radio-filter-label' }, 'Album'), ALBUM_FILTERS.map(filter => h('button', { key: `album-${filter}`, className: `radio-filter-pill ${album === filter ? 'active' : ''}`, type: 'button', onClick: () => onAlbumChange(filter), disabled: isLoading, 'aria-pressed': album === filter }, filterLabel(filter)))),
+      h('div', { className: 'radio-control-search' }, h('input', { className: 'radio-top-search', type: 'search', placeholder: 'Search...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, 'aria-label': 'Search songs' }))
+    )
+  );
+}
+
+function RadioHeader({ videoOnly = false, onToggleVideos, onShuffle, disableVideoFilter = false, disableShuffle = false }) {
+  return h('header', { className: 'page-heading' },
+    h('div', { className: 'header-title-block' }, h('p', { className: 'page-subtitle' }, 'Listen. Watch. Shop. Share.'), h('h1', null, 'STASHBOX RADIO'), h('p', { className: 'source-note' }, 'RDS-powered dev player · production /radio/ remains unchanged')),
+    h('div', { className: 'header-actions', 'aria-label': 'Radio quick actions' },
+      h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
+      h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
+    )
+  );
+}
+
+function App() {
+  const sessionId = useMemo(getBrowserSessionId, []);
+  const [tracks, setTracks] = useState([]);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [query, setQuery] = useState('');
+  const [genre, setGenre] = useState('ALL');
+  const [album, setAlbum] = useState('ALL');
+  const [videoOnly, setVideoOnly] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [likeCounts, setLikeCounts] = useState({});
+  const [playCounts, setPlayCounts] = useState({});
+  const [shareCounts, setShareCounts] = useState({});
+  const [likedSongIds, setLikedSongIds] = useState(() => new Set());
+  const [copiedSongId, setCopiedSongId] = useState(null);
+  const selectedRef = useRef(null);
+  const playbackRef = useRef({ songKey: null, started: false, completed: false, startedAt: 0, secondsPlayed: 0, duration: 0, mode: 'audio' });
+  const audioRef = useRef(null);
+  const playerRef = useRef(null);
+  const products = useProducts(selected);
+
+  const selectedSong = selected || tracks[0] || null;
+  useEffect(() => { selectedRef.current = selectedSong; if (selectedSong) console.log('[Stashbox Radio Dev] selected song', selectedSong); }, [selectedSong]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchRadioSongs().then(nextTracks => {
+      if (!alive) return;
+      setTracks(nextTracks);
+      setSelected(current => current || nextTracks[0] || null);
+      setStatus('ready');
+    }).catch(loadError => { if (!alive) return; setError(loadError.message || 'Unable to load songs from the RDS API.'); setStatus('error'); });
+    return () => { alive = false; };
+  }, []);
+
+  const filtered = useMemo(() => tracks.filter(track => {
+    const q = query.trim().toLowerCase();
+    const queryMatch = !q || [track.title, track.artist, track.album, track.genre, track.publicTrackNote].some(value => clean(value).toLowerCase().includes(q));
+    return queryMatch && (genre === 'ALL' || track.sectionKey === genre) && albumMatches(track.album, album) && (!videoOnly || track.hasVideo);
+  }), [tracks, query, genre, album, videoOnly]);
+
+  const grouped = useMemo(() => filtered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [filtered]);
+
+  const trackPlaybackStart = useCallback((song, mode = 'audio') => {
+    if (!song) return;
+    const state = playbackRef.current;
+    if (state.started && state.songKey === song.songKey && state.mode === mode) return;
+    playbackRef.current = { songKey: song.songKey, started: true, completed: false, startedAt: Date.now(), secondsPlayed: 0, duration: 0, mode };
+    setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+    sendTrackingEvent(song, 'play_start', sessionId);
+  }, [sessionId]);
+
+  const updatePlaybackPosition = useCallback((secondsPlayed, duration) => {
+    const state = playbackRef.current;
+    if (!state.started) return;
+    playbackRef.current = { ...state, secondsPlayed: Math.max(state.secondsPlayed || 0, Number(secondsPlayed) || 0), duration: Number(duration) || state.duration || 0 };
+  }, []);
+
+  const finishPlayback = useCallback((eventType = 'play_partial', forcedSong = null) => {
+    const state = playbackRef.current;
+    const song = forcedSong || selectedRef.current;
+    if (!state.started || state.completed || !song || state.songKey !== song.songKey) return;
+    const elapsed = state.mode === 'video' ? Math.max(state.secondsPlayed || 0, (Date.now() - state.startedAt) / 1000) : (state.secondsPlayed || 0);
+    const duration = state.duration || 0;
+    const completion = duration ? Math.min(100, Math.round((elapsed / duration) * 100)) : undefined;
+    const full = eventType === 'play_full' || (duration && elapsed / duration >= COMPLETION_THRESHOLD);
+    const finalType = full ? 'play_full' : eventType;
+    playbackRef.current = { ...state, completed: true, started: false };
+    sendTrackingEvent(song, finalType, sessionId, { seconds_played: Math.round(elapsed), completion_percent: completion });
+  }, [sessionId]);
+
+  useEffect(() => {
+    const flush = () => finishPlayback('play_partial');
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', flush); flush(); };
+  }, [finishPlayback]);
+
+  function chooseSong(track) {
+    if (!track || track.idx === selectedSong?.idx) return;
+    finishPlayback('play_partial');
+    setSelected(track);
+    setVideoOpen(false);
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+  }
+
+  function shiftTrack(direction, eventType = 'skip') {
+    if (!filtered.length) return;
+    const currentIndex = Math.max(0, filtered.findIndex(track => track.idx === selectedSong?.idx));
+    const next = filtered[(currentIndex + direction + filtered.length) % filtered.length];
+    if (eventType === 'skip') sendTrackingEvent(selectedSong, 'skip', sessionId);
+    finishPlayback(eventType === 'skip' ? 'play_partial' : 'play_partial');
+    setSelected(next);
+    setVideoOpen(false);
+  }
+
+  function pickRandomTrack() {
+    if (!filtered.length) return;
+    if (selectedSong) sendTrackingEvent(selectedSong, 'skip', sessionId);
+    finishPlayback('play_partial');
+    const candidates = filtered.filter(track => track.idx !== selectedSong?.idx);
+    setSelected((candidates.length ? candidates : filtered)[Math.floor(Math.random() * (candidates.length ? candidates.length : filtered.length))]);
+    setVideoOpen(false);
+  }
+
+  function openVideo() {
+    if (!selectedSong?.hasVideo) return;
+    const audio = audioRef.current;
+    if (audio && !audio.paused) audio.pause();
+    setVideoOpen(true);
+    trackPlaybackStart(selectedSong, 'video');
+    sendTrackingEvent(selectedSong, 'video_click', sessionId);
+  }
+
+  function closeVideo() { finishPlayback('play_partial'); setVideoOpen(false); }
+
+  function likeSong(song) {
+    if (!song || likedSongIds.has(song.songKey)) return;
+    setLikedSongIds(prev => new Set(prev).add(song.songKey));
+    setLikeCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+    sendTrackingEvent(song, 'like', sessionId);
+  }
+
+  async function shareSong(song) {
+    if (!song) return;
+    const shareUrl = getShareUrl(song);
+    const shareData = { title: `${song.title} · Stashbox Radio`, text: song.publicTrackNote || `Listen to ${song.title} on Stashbox Radio.`, url: shareUrl };
+    setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+    sendTrackingEvent(song, 'share', sessionId);
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else { await copyTextToClipboard(shareUrl); setCopiedSongId(song.idx); window.setTimeout(() => setCopiedSongId(current => current === song.idx ? null : current), 1800); }
+    } catch (shareError) { if (shareError?.name !== 'AbortError') console.warn('Unable to share song.', shareError.message || shareError); }
+  }
+
+  function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
+
+  if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }), h(RadioHeader, { disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
+  if (status === 'error') return h('section', { className: 'error', role: 'alert' }, h('strong', null, 'ERROR'), h('p', null, error), h('p', null, 'The production /radio/ page has not been changed.'));
+
+  return h('div', { className: 'radio-app' },
+    h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
+    h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
+    h('div', { className: 'radio-interface' },
+      h(Player, { selected: selectedSong, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1, 'skip'), onNext: () => shiftTrack(1, 'skip'), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => trackPlaybackStart(selectedSong, 'audio'), onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => finishPlayback('play_full'), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => finishPlayback('play_full') }),
+      h('main', { className: 'radio-main' },
+        h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
+        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
+      )
+    )
+  );
+}
+
+function PlayIcon({ className = 'play-icon' }) { return h('span', { className, 'aria-hidden': true }); }
+function PauseIcon() { return h('span', { className: 'pause-icon', 'aria-hidden': true }, h('span', null), h('span', null)); }
+function PlayCount({ count }) { return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayCount(count))); }
+function ShareCount({ count }) { return h('span', { className: 'share-count', title: `${Number(count) || 0} recorded shares` }, h('span', { 'aria-hidden': true }, '↗'), h('span', null, formatShareCount(count))); }
+function ShareButton({ onShare, copied = false, compact = false }) { return h('button', { className: `share-button ${compact ? 'compact' : ''}`, type: 'button', onClick: event => { event.stopPropagation(); onShare?.(); }, 'aria-live': copied ? 'polite' : undefined }, copied ? 'Link copied' : 'Share'); }
+function LikeButton({ count, active, onLike, compact = false }) { return h('button', { className: `like-button ${active ? 'active' : ''} ${compact ? 'compact' : ''}`, type: 'button', 'aria-pressed': active, onClick: event => { event.stopPropagation(); if (!active) onLike?.(); }, disabled: active }, h('span', { 'aria-hidden': true }, active ? '♥' : '♡'), h('span', null, count || 0)); }
+function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, compact = false }) { return h('span', { className: `song-actions ${compact ? 'compact' : ''}` }, h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(PlayCount, { count: playCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareCount, { count: shareCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareButton, { onShare, copied: shareCopied, compact })); }
+function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
+
+function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const videoFrameRef = useRef(null);
+  useEffect(() => { setIsPlaying(false); setCurrentTime(0); setDuration(0); }, [selected?.idx]);
+  if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
+  const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
+  const videoSrc = youtubeEmbed(selected.videoLink);
+  const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selected.videoOnly;
+  const hasVideo = selected.hasVideo && has(videoSrc);
+  const directVideo = hasVideo && isDirectVideoUrl(selected.videoLink);
+  const youtubeVideo = hasVideo && /youtube\.com\/embed/i.test(videoSrc);
+  const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+  useEffect(() => {
+    if (!videoOpen || !youtubeVideo || !videoFrameRef.current) return undefined;
+    let cancelled = false;
+    let player = null;
+    let progressTimer = null;
+
+    const ensureYouTubeApi = () => new Promise(resolve => {
+      if (window.YT?.Player) { resolve(window.YT); return; }
+      const previousReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { previousReady?.(); resolve(window.YT); };
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
+    });
+
+    ensureYouTubeApi().then(YT => {
+      if (cancelled || !videoFrameRef.current) return;
+      player = new YT.Player(videoFrameRef.current, {
+        events: {
+          onStateChange: event => {
+            if (event.data === YT.PlayerState.PLAYING) {
+              onVideoStart?.();
+              progressTimer = window.setInterval(() => {
+                try { onVideoProgress?.(player.getCurrentTime(), player.getDuration()); } catch (_) {}
+              }, 1000);
+            }
+            if (event.data === YT.PlayerState.ENDED) {
+              if (progressTimer) window.clearInterval(progressTimer);
+              try { onVideoProgress?.(player.getDuration(), player.getDuration()); } catch (_) {}
+              onVideoComplete?.();
+            }
+          }
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      if (progressTimer) window.clearInterval(progressTimer);
+      try { player?.destroy?.(); } catch (_) {}
+    };
+  }, [videoOpen, youtubeVideo, videoSrc, onVideoStart, onVideoProgress, onVideoComplete]);
+
+  const syncAudioState = () => { const audio = audioRef.current; if (!audio) return; const nextTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; const nextDuration = Number.isFinite(audio.duration) ? audio.duration : 0; setCurrentTime(nextTime); setDuration(nextDuration); setIsPlaying(!audio.paused && !audio.ended); onAudioProgress?.(nextTime, nextDuration); };
+  const togglePlayback = () => { const audio = audioRef.current; if (!audio || !hasAudio) return; if (audio.paused || audio.ended) { if (videoOpen) closeVideo?.(); audio.play().catch(error => console.warn('Unable to play selected audio.', error.message || error)); return; } audio.pause(); };
+  const seekAudio = event => { const audio = audioRef.current; if (!audio || !hasAudio) return; const nextTime = Number(event.target.value); audio.currentTime = nextTime; setCurrentTime(nextTime); onAudioProgress?.(nextTime, duration); };
+  return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
+    h('div', { className: 'player-media' }, videoOpen && hasVideo ? (directVideo ? h('video', { title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: onVideoStart, onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: onVideoComplete }) : h('iframe', { ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : selected.imageUrl ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
+    h('div', { className: 'player-bar' },
+      h('div', { className: 'player-info' }, h('h2', null, selected.title), h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey))),
+      h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' }, h(LikeButton, { count: likeCount, active: hasLiked, onLike }), h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))), h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)), hasVideo && selected.showWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null, h('div', { className: 'transport-controls', 'aria-label': 'Transport controls' }, h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'), h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying, 'aria-label': isPlaying ? 'Pause song' : 'Play song' }, isPlaying ? h(PauseIcon) : h(PlayIcon)), h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'), h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')))
+    ),
+    selected.publicTrackNote ? h('p', { className: 'notes public-note' }, selected.publicTrackNote) : null,
+    videoOpen && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
+    videoOpen && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
+    hasAudio ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selected.videoOnly ? 'This is a video-only record. Use Watch Video when available.' : 'No audio URL is available for this track.'),
+    h(ProductRecommendations, { products, onProductClick })
+  );
+}
+
+function ProductRecommendations({ products, onProductClick }) {
+  const carouselRef = useRef(null);
+  const visibleProducts = useMemo(() => products.slice(0, MAX_PRODUCT_RECOMMENDATIONS), [products]);
+  return h('section', { className: 'merch', 'aria-label': 'Product recommendations' }, h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')), visibleProducts.length ? h('div', { className: 'products-shell' }, h('div', { className: 'products', ref: carouselRef }, visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: () => onProductClick?.(product) }, h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', draggable: false, onError: e => { e.currentTarget.remove(); } }) : 'SB'), h('div', { className: 'product-name' }, product.title), h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai'))))) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.'));
+}
+
+function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId }) {
+  return h('section', { className: 'song-section', style: { '--section-color': section.color } }, h('div', { className: 'section-title' }, h('span', null, section.emoji), h('h3', null, section.key), h('span', { className: 'count' }, tracks.length)), h('div', { className: 'song-list' }, tracks.map(track => { const isSelected = selected?.idx === track.idx; return h('article', { key: track.idx, className: `song-card ${isSelected ? 'active' : ''}`, onClick: () => chooseSong(track), tabIndex: 0, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); chooseSong(track); } } }, h('img', { src: track.imageUrl || '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: `${track.title} artwork`, onError: e => { e.currentTarget.src = '/images/branding/stashbox-logo-transparent-rastacolors.png'; } }), h('div', { className: 'song-copy' }, h('div', { className: 'song-title-row' }, h('h4', null, track.title), track.hasVideo && track.showWatchVideo ? h('span', { className: 'video-badge' }, 'Video') : null, track.videoOnly ? h('span', { className: 'video-badge' }, 'Video only') : null), h('p', null, [track.artist, track.album].filter(Boolean).join(' · ')), track.publicTrackNote ? h('p', { className: 'song-note' }, track.publicTrackNote) : null, h(SongActions, { compact: true, likeCount: likeCounts[track.songKey] || 0, playCount: playCounts[track.songKey] || 0, shareCount: shareCounts[track.songKey] || 0, hasLiked: likedSongIds.has(track.songKey), onLike: () => onLike(track), onShare: () => onShare(track), shareCopied: copiedSongId === track.idx })), h('button', { className: 'song-play', type: 'button', 'aria-label': `Select ${track.title}`, onClick: event => { event.stopPropagation(); chooseSong(track); } }, isSelected ? 'Playing' : 'Play')); })))
+}
+
+createRoot(document.getElementById('root')).render(h(App));
