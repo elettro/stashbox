@@ -6,6 +6,7 @@ const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const MAX_PRODUCT_RECOMMENDATIONS = 50;
 const COMPLETION_THRESHOLD = 0.95;
+const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
@@ -64,6 +65,9 @@ function firstDefined(row, names) {
 }
 
 function normalizeSong(row, index) {
+  const displayTitle = clean(row?.display_title);
+  const songName = clean(row?.song_name);
+  const title = displayTitle || songName || UNTITLED_STASHBOX_TRACK;
   const genre = clean(firstDefined(row, ['genre', 'primary_genre', 'section']));
   const hasAudio = bool(row.has_audio) && has(row.audio_url);
   const hasVideo = bool(row.has_video) && has(row.video_link || row.video_url || row.videoUrl);
@@ -73,7 +77,9 @@ function normalizeSong(row, index) {
     raw: row,
     id: clean(rawKey) || `rds-song-${index}`,
     songKey: clean(rawKey) || `rds-song-${index}`,
-    title: clean(firstDefined(row, ['title', 'song_title', 'track_title', 'name'])) || 'Untitled Stashbox Track',
+    display_title: displayTitle,
+    song_name: songName,
+    title,
     album: clean(firstDefined(row, ['album', 'album_title', 'release_title'])) || 'Stashbox Radio',
     artist: clean(firstDefined(row, ['artist', 'artist_name', 'band'])) || 'Stashbox',
     genre,
