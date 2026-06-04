@@ -918,11 +918,15 @@ function ProductRecommendations({ products, onProductClick }) {
     const carousel = carouselRef.current;
     if (!carousel) return;
 
-    const firstProduct = carousel.querySelector('.product');
+    const productCards = Array.from(carousel.querySelectorAll('.product'));
     const carouselStyles = window.getComputedStyle(carousel);
     const gap = parseFloat(carouselStyles.columnGap || carouselStyles.gap) || 0;
-    const cardWidth = firstProduct ? firstProduct.getBoundingClientRect().width : 0;
-    const scrollAmount = cardWidth ? cardWidth + gap : carousel.clientWidth * 0.85;
+    const measuredCardStep = productCards.length > 1
+      ? productCards[1].offsetLeft - productCards[0].offsetLeft
+      : 0;
+    const cardWidth = productCards[0] ? productCards[0].getBoundingClientRect().width : 0;
+    const cardStep = measuredCardStep || (cardWidth ? cardWidth + gap : 0);
+    const scrollAmount = cardStep ? cardStep * 3 : carousel.clientWidth * 0.85;
     carousel.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
     window.requestAnimationFrame(updateScrollState);
   }, [updateScrollState]);
