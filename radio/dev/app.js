@@ -234,12 +234,46 @@ function getYouTubeId(url) {
   return /^[a-zA-Z0-9_-]{11}$/.test(value) ? value : '';
 }
 
-function youtubeEmbed(url) {
+function youtubeEmbed(url, { autoplay = true } = {}) {
   const value = clean(url);
   console.log('[Stashbox Radio Dev] video_link being converted', value);
   if (!value) return '';
   const id = getYouTubeId(value);
-  return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(YOUTUBE_ORIGIN)}` : '';
+  if (!id) return '';
+  const params = new URLSearchParams({
+    autoplay: autoplay ? '1' : '0',
+    rel: '0',
+    enablejsapi: '1',
+    origin: YOUTUBE_ORIGIN
+  });
+  return `https://www.youtube.com/embed/${encodeURIComponent(id)}?${params.toString()}`;
+}
+
+let youtubeIframeApiPromise = null;
+function loadYouTubeIframeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (youtubeIframeApiPromise) return youtubeIframeApiPromise;
+  youtubeIframeApiPromise = new Promise(resolve => {
+    const previousReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      previousReady?.();
+      resolve(window.YT);
+    };
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+  return youtubeIframeApiPromise;
+}
+
+function canPlayTrack(track) {
+  if (!track) return false;
+  const hasAudioUrl = track.hasAudio && has(track.audioUrl) && !track.videoOnly;
+  const hasVideoUrl = track.hasVideo && has(track.videoLink);
+  return hasAudioUrl || hasVideoUrl;
 }
 
 function youtubeThumbnail(url) {
@@ -427,6 +461,9 @@ function App() {
   const [shareCounts, setShareCounts] = useState({});
   const [likedSongIds, setLikedSongIds] = useState(() => new Set());
   const [copiedSongId, setCopiedSongId] = useState(null);
+  const [shuffleOrder, setShuffleOrder] = useState([]);
+  const [shuffleActive, setShuffleActive] = useState(false);
+  const [autoPlayRequest, setAutoPlayRequest] = useState(null);
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const audioRef = useRef(null);
@@ -456,8 +493,6 @@ function App() {
       audio.pause();
       try { audio.currentTime = 0; } catch (_) {}
     }
-    setMediaMode('idle');
-    setActiveVideoEmbedUrl('');
   }, [selectedSong?.idx]);
 
   useEffect(() => {
@@ -488,6 +523,15 @@ function App() {
     const queryMatch = !q || [track.title, track.artist, track.album, track.genre, track.publicTrackNote].some(value => clean(value).toLowerCase().includes(q));
     return queryMatch && (genre === 'ALL' || track.sectionKey === genre) && albumMatches(track.album, album) && (!videoOnly || track.hasVideo);
   }), [tracks, query, genre, album, videoOnly]);
+
+  const playableFiltered = useMemo(() => filtered.filter(canPlayTrack), [filtered]);
+  const playbackList = useMemo(() => {
+    if (!shuffleActive) return playableFiltered;
+    const byIdx = new Map(playableFiltered.map(track => [track.idx, track]));
+    const ordered = shuffleOrder.map(idx => byIdx.get(idx)).filter(Boolean);
+    const orderedIds = new Set(ordered.map(track => track.idx));
+    return ordered.concat(playableFiltered.filter(track => !orderedIds.has(track.idx)));
+  }, [playableFiltered, shuffleActive, shuffleOrder]);
 
   const grouped = useMemo(() => filtered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [filtered]);
 
@@ -528,33 +572,62 @@ function App() {
     return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', flush); flush(); };
   }, [finishPlayback]);
 
-  function chooseSong(track) {
-    if (!track || track.idx === selectedSong?.idx) return;
-    finishPlayback('play_partial');
+  function selectTrack(track, { autoStart = false } = {}) {
+    if (!track) return;
     setSelected(track);
-    setMediaMode('idle');
     setActiveVideoEmbedUrl('');
+    setMediaMode('idle');
+    if (autoStart) {
+      const shouldPlayVideo = track.videoOnly || (!track.hasAudio && track.hasVideo);
+      if (shouldPlayVideo && track.hasVideo) {
+        const embedUrl = youtubeEmbed(track.videoLink);
+        if (embedUrl) {
+          const autoPlayUrl = `${embedUrl}&auto_advance=${Date.now()}`;
+          setActiveVideoEmbedUrl(autoPlayUrl);
+          setMediaMode('video');
+          trackPlaybackStart(track, 'video');
+        }
+      }
+      setAutoPlayRequest({ idx: track.idx, requestedAt: Date.now() });
+    } else {
+      setAutoPlayRequest(null);
+    }
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
-  function shiftTrack(direction, trackSkip = false) {
-    if (!filtered.length) return;
-    const currentIndex = Math.max(0, filtered.findIndex(track => track.idx === selectedSong?.idx));
-    const next = filtered[(currentIndex + direction + filtered.length) % filtered.length];
-    if (trackSkip) sendTrackingEvent(selectedSong, 'skip', sessionId);
+  function chooseSong(track) {
+    if (!track || track.idx === selectedSong?.idx) return;
     finishPlayback('play_partial');
-    setSelected(next);
-    setMediaMode('idle');
-    setActiveVideoEmbedUrl('');
+    selectTrack(track);
+  }
+
+  function shiftTrack(direction, trackSkip = false, { autoStart = false, finishType = 'play_partial', forcedSong = null } = {}) {
+    if (!playbackList.length) return;
+    const currentIndex = Math.max(0, playbackList.findIndex(track => track.idx === (forcedSong || selectedSong)?.idx));
+    const next = playbackList[(currentIndex + direction + playbackList.length) % playbackList.length];
+    if (!next) return;
+    if (trackSkip && selectedSong) sendTrackingEvent(selectedSong, 'skip', sessionId);
+    finishPlayback(finishType, forcedSong);
+    selectTrack(next, { autoStart });
+  }
+
+  function autoAdvanceFromEnded(song = selectedSong) {
+    finishPlayback('play_full', song);
+    if (!playbackList.length) return;
+    const currentIndex = Math.max(0, playbackList.findIndex(track => track.idx === song?.idx));
+    const next = playbackList[(currentIndex + 1) % playbackList.length];
+    selectTrack(next, { autoStart: true });
   }
 
   function pickRandomTrack() {
-    if (!filtered.length) return;
+    if (!playableFiltered.length) return;
     finishPlayback('play_partial');
-    const candidates = filtered.filter(track => track.idx !== selectedSong?.idx);
-    setSelected((candidates.length ? candidates : filtered)[Math.floor(Math.random() * (candidates.length ? candidates.length : filtered.length))]);
-    setMediaMode('idle');
-    setActiveVideoEmbedUrl('');
+    const shuffled = [...playableFiltered].sort(() => Math.random() - 0.5);
+    const candidates = shuffled.filter(track => track.idx !== selectedSong?.idx);
+    const next = candidates[0] || shuffled[0];
+    setShuffleOrder(shuffled.map(track => track.idx));
+    setShuffleActive(true);
+    selectTrack(next);
   }
 
   function openVideo({ startPlayback = false } = {}) {
@@ -566,6 +639,7 @@ function App() {
     setActiveVideoEmbedUrl(embedUrl);
     setMediaMode('video');
     sendTrackingEvent(selectedSong, 'video_click', sessionId);
+    setAutoPlayRequest(startPlayback || selectedSong.videoOnly ? { idx: selectedSong.idx, requestedAt: Date.now() } : null);
     if (startPlayback || selectedSong.videoOnly) trackPlaybackStart(selectedSong, 'video');
   }
 
@@ -573,6 +647,7 @@ function App() {
     finishPlayback('play_partial');
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
+    setAutoPlayRequest(null);
   }
 
   function likeSong(song) {
@@ -612,7 +687,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => finishPlayback('play_full'), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => finishPlayback('play_full') }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => autoAdvanceFromEnded(selectedSong), autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
@@ -630,12 +705,14 @@ function LikeButton({ count, active, onLike, compact = false }) { return h('butt
 function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, compact = false }) { return h('span', { className: `song-actions ${compact ? 'compact' : ''}` }, h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(PlayCount, { count: playCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareCount, { count: shareCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareButton, { onShare, copied: shareCopied, compact })); }
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
-function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete }) {
+function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, autoPlayRequest }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const videoFrameRef = useRef(null);
+  const onVideoCompleteRef = useRef(onVideoComplete);
+  useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
   useEffect(() => { setIsPlaying(false); setIsVideoPlaying(false); setCurrentTime(0); setDuration(0); }, [selected?.idx]);
   useEffect(() => { if (mediaMode !== 'video') setIsVideoPlaying(false); }, [mediaMode]);
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
@@ -651,25 +728,58 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
   const canUsePrimaryPlay = isVideoMode ? hasVideo : hasAudio || (selected.videoOnly && hasVideo);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
+  const youtubeEndedRef = useRef(null);
+
+  useEffect(() => {
+    if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
+    const audio = audioRef.current;
+    if (!audio || !hasAudio) return;
+    const playTimer = window.setTimeout(() => {
+      console.log('[Stashbox Radio Dev] auto-playing next audio_url', selected.audioUrl);
+      audio.play().catch(error => console.warn('Unable to auto-play next audio.', error.message || error));
+    }, 0);
+    return () => window.clearTimeout(playTimer);
+  }, [autoPlayRequest, selected?.idx, selected?.audioUrl, mediaMode, hasAudio, audioRef]);
 
   useEffect(() => {
     if (!isVideoMode || !youtubeVideo) return undefined;
+    youtubeEndedRef.current = null;
+    let ytPlayer = null;
+    let disposed = false;
+    const handleEnded = () => {
+      if (youtubeEndedRef.current === selected?.idx) return;
+      youtubeEndedRef.current = selected?.idx;
+      setIsVideoPlaying(false);
+      onVideoCompleteRef.current?.();
+    };
+    const handleYoutubeState = playerState => {
+      if (playerState === 1) setIsVideoPlaying(true);
+      if (playerState === 2) setIsVideoPlaying(false);
+      if (playerState === 0) handleEnded();
+    };
+    loadYouTubeIframeApi().then(YT => {
+      if (disposed || !videoFrameRef.current || !YT?.Player) return;
+      ytPlayer = new YT.Player(videoFrameRef.current, {
+        events: { onStateChange: event => handleYoutubeState(event.data) }
+      });
+    });
     const handleYoutubeMessage = event => {
       let data = event.data;
       if (typeof data === 'string') {
         try { data = JSON.parse(data); } catch (_) { return; }
       }
       const playerState = data?.info?.playerState;
-      if (playerState === 1) setIsVideoPlaying(true);
-      if (playerState === 0 || playerState === 2) setIsVideoPlaying(false);
+      if (playerState !== undefined) handleYoutubeState(playerState);
     };
     window.addEventListener('message', handleYoutubeMessage);
     const progressTimer = window.setInterval(() => onVideoProgress?.((Date.now() - playbackStartMs) / 1000, 0), 1000);
     return () => {
+      disposed = true;
       window.removeEventListener('message', handleYoutubeMessage);
       window.clearInterval(progressTimer);
+      try { ytPlayer?.destroy?.(); } catch (_) {}
     };
-  }, [isVideoMode, youtubeVideo, onVideoProgress, playbackStartMs]);
+  }, [isVideoMode, youtubeVideo, onVideoProgress, playbackStartMs, selected?.idx]);
 
   function sendVideoCommand(func) {
     if (!videoFrameRef.current?.contentWindow || !youtubeVideo) return false;
