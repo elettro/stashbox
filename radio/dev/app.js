@@ -28,6 +28,7 @@ const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxuserco
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === clean(genre).toLowerCase())?.key || 'Other';
+const countValue = value => Math.max(0, Number(value) || 0);
 
 function getBrowserSessionId() {
   try {
@@ -90,6 +91,11 @@ function normalizeSong(row, index) {
     audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
     imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
     videoLink: clean(row.video_link || row.video_url || row.videoUrl),
+    likes: countValue(firstDefined(row, ['likes', 'like_count', 'total_likes'])),
+    totalPlays: countValue(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts'])),
+    shares: countValue(firstDefined(row, ['shares', 'share_count', 'total_shares'])),
+    videoClicks: countValue(firstDefined(row, ['video_clicks', 'video_click_count', 'total_video_clicks'])),
+    productClicks: countValue(firstDefined(row, ['product_clicks', 'product_click_count', 'total_product_clicks'])),
     hasAudio,
     hasVideo,
     videoOnly,
@@ -189,16 +195,33 @@ function isDirectVideoUrl(url) {
   return /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(clean(url));
 }
 
+function getYouTubeId(url) {
+  const value = clean(url);
+  if (!value) return '';
+  try {
+    const parsed = new URL(value, window.location.href);
+    const host = parsed.hostname.toLowerCase();
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (host.includes('youtube.com')) {
+      if (parsed.searchParams.get('v')) return parsed.searchParams.get('v');
+      if (['embed', 'shorts', 'live'].includes(parts[0])) return parts[1] || '';
+      return parts.pop() || '';
+    }
+    if (host.includes('youtu.be')) return parts[0] || '';
+  } catch (_) {}
+  return /^[a-zA-Z0-9_-]{11}$/.test(value) ? value : '';
+}
+
 function youtubeEmbed(url) {
   const value = clean(url);
   if (!value) return '';
-  let id = '';
-  try {
-    const parsed = new URL(value);
-    if (parsed.hostname.includes('youtube.com')) id = parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop();
-    if (parsed.hostname.includes('youtu.be')) id = parsed.pathname.split('/').filter(Boolean)[0];
-  } catch (_) {}
+  const id = getYouTubeId(value);
   return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}` : value;
+}
+
+function youtubeThumbnail(url) {
+  const id = getYouTubeId(url);
+  return id ? `https://img.youtube.com/vi/${encodeURIComponent(id)}/hqdefault.jpg` : '';
 }
 
 function rotateBySeed(items, seed) {
@@ -209,21 +232,44 @@ function rotateBySeed(items, seed) {
   return items.slice(offset).concat(items.slice(0, offset));
 }
 
-function productShape(product) {
-  const variant = product.variants?.[0];
-  const rawImage = product.images?.[0]?.src || product.featured_image || '';
-  const image = typeof rawImage === 'string' && rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
-  return { id: product.id || null, title: product.title || 'Stashbox Product', url: `https://stashbox.ai/products/${product.handle || ''}`, image, price: variant?.price ? `$${Number(variant.price).toFixed(2)}` : '' };
+function productUrlHandle(url) {
+  try {
+    const parsed = new URL(clean(url), window.location.href);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const productIndex = parts.findIndex(part => part.toLowerCase() === 'products');
+    return productIndex >= 0 ? clean(parts[productIndex + 1]) : clean(parts.pop());
+  } catch (_) {
+    return '';
+  }
 }
 
-function productFromUrl(url, index) {
-  const cleanUrl = clean(url);
-  let title = 'Featured product';
+function normalizeProductUrl(url) {
   try {
-    const parsed = new URL(cleanUrl, window.location.href);
-    title = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || title).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  } catch (_) {}
-  return { id: `specific-${index}-${cleanUrl}`, title, url: cleanUrl, image: '', price: 'Selected for this track', specific: true };
+    const parsed = new URL(clean(url), window.location.href);
+    parsed.hash = '';
+    parsed.search = '';
+    return parsed.toString().replace(/\/$/, '').toLowerCase();
+  } catch (_) {
+    return clean(url).replace(/\/$/, '').toLowerCase();
+  }
+}
+
+function productShape(product) {
+  const variant = product.variants?.[0];
+  const handle = clean(product.handle);
+  const rawImage = product.images?.[0]?.src || product.featured_image || '';
+  const image = typeof rawImage === 'string' && rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
+  const url = clean(product.url) || `https://stashbox.ai/products/${handle}`;
+  return { id: product.id || handle || null, handle, title: product.title || 'Stashbox Product', url, image, price: variant?.price ? `$${Number(variant.price).toFixed(2)}` : '' };
+}
+
+function productFromUrl(url, index, matchedProduct = null) {
+  const cleanUrl = clean(url);
+  if (matchedProduct) return { ...matchedProduct, id: `specific-${index}-${matchedProduct.id || matchedProduct.handle || cleanUrl}`, url: matchedProduct.url || cleanUrl, specific: true };
+  const handle = productUrlHandle(cleanUrl);
+  const fallbackTitle = handle || 'Featured product';
+  const title = decodeURIComponent(fallbackTitle).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return { id: `specific-${index}-${cleanUrl}`, handle, title: title || 'Featured product', url: cleanUrl, image: '', price: 'Specific product link', specific: true, unresolved: true };
 }
 
 async function fetchFallbackProducts(selected) {
@@ -241,11 +287,17 @@ function useProducts(selected) {
     setProducts([]);
     async function loadProducts() {
       if (!selected) return [];
-      const specific = selected.specificProductUrls.map(productFromUrl);
-      const seen = new Set(specific.map(product => product.url));
       let fallback = [];
       try { fallback = await fetchFallbackProducts(selected); } catch (error) { console.warn('Unable to load fallback products.', error.message || error); }
-      return specific.concat(fallback.filter(product => !seen.has(product.url))).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
+      const fallbackByHandle = new Map(fallback.map(product => [product.handle, product]).filter(([handle]) => handle));
+      const fallbackByUrl = new Map(fallback.map(product => [normalizeProductUrl(product.url), product]).filter(([url]) => url));
+      const specific = selected.specificProductUrls.map((url, index) => {
+        const handle = productUrlHandle(url);
+        const matched = fallbackByHandle.get(handle) || fallbackByUrl.get(normalizeProductUrl(url));
+        return productFromUrl(url, index, matched);
+      });
+      const seen = new Set(specific.map(product => normalizeProductUrl(product.url)).filter(Boolean));
+      return specific.concat(fallback.filter(product => !seen.has(normalizeProductUrl(product.url)))).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
     }
     loadProducts().then(next => { if (alive) setProducts(next); });
     return () => { alive = false; };
@@ -310,12 +362,16 @@ function App() {
 
   const selectedSong = selected || tracks[0] || null;
   useEffect(() => { selectedRef.current = selectedSong; if (selectedSong) console.log('[Stashbox Radio Dev] selected song', selectedSong); }, [selectedSong]);
+  useEffect(() => { setVideoOpen(false); }, [selectedSong?.idx]);
 
   useEffect(() => {
     let alive = true;
     fetchRadioSongs().then(nextTracks => {
       if (!alive) return;
       setTracks(nextTracks);
+      setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.likes || 0])));
+      setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.totalPlays || 0])));
+      setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
       setSelected(current => current || nextTracks[0] || null);
       setStatus('ready');
     }).catch(loadError => {
@@ -405,7 +461,6 @@ function App() {
     const audio = audioRef.current;
     if (audio && !audio.paused) audio.pause();
     setVideoOpen(true);
-    trackPlaybackStart(selectedSong, 'video');
     sendTrackingEvent(selectedSong, 'video_click', sessionId);
   }
 
@@ -472,10 +527,12 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const videoSrc = youtubeEmbed(selected.videoLink);
+  const posterImage = selected.imageUrl || (selected.videoOnly ? youtubeThumbnail(selected.videoLink) : '');
   const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selected.videoOnly;
   const hasVideo = selected.hasVideo && has(videoSrc);
   const directVideo = hasVideo && isDirectVideoUrl(selected.videoLink);
   const youtubeVideo = hasVideo && /youtube\.com\/embed/i.test(videoSrc);
+  const canUsePrimaryPlay = hasAudio || (selected.videoOnly && hasVideo);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
   useEffect(() => {
@@ -524,18 +581,18 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
   }, [videoOpen, youtubeVideo, videoSrc, onVideoStart, onVideoProgress, onVideoComplete]);
 
   const syncAudioState = () => { const audio = audioRef.current; if (!audio) return; const nextTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; const nextDuration = Number.isFinite(audio.duration) ? audio.duration : 0; setCurrentTime(nextTime); setDuration(nextDuration); setIsPlaying(!audio.paused && !audio.ended); onAudioProgress?.(nextTime, nextDuration); };
-  const togglePlayback = () => { const audio = audioRef.current; if (!audio || !hasAudio) return; if (audio.paused || audio.ended) { if (videoOpen) closeVideo?.(); audio.play().catch(error => console.warn('Unable to play selected audio.', error.message || error)); return; } audio.pause(); };
+  const togglePlayback = () => { if (selected.videoOnly && hasVideo) { if (videoOpen) closeVideo?.(); else openVideo?.(); return; } const audio = audioRef.current; if (!audio || !hasAudio) return; if (audio.paused || audio.ended) { if (videoOpen) closeVideo?.(); audio.play().catch(error => console.warn('Unable to play selected audio.', error.message || error)); return; } audio.pause(); };
   const seekAudio = event => { const audio = audioRef.current; if (!audio || !hasAudio) return; const nextTime = Number(event.target.value); audio.currentTime = nextTime; setCurrentTime(nextTime); onAudioProgress?.(nextTime, duration); };
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { className: 'player-media' }, videoOpen && hasVideo ? (directVideo ? h('video', { title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: onVideoStart, onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: onVideoComplete }) : h('iframe', { ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : selected.imageUrl ? h('img', { src: selected.imageUrl, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
+    h('div', { className: 'player-media' }, videoOpen && hasVideo ? (directVideo ? h('video', { key: videoSrc, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: onVideoStart, onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: onVideoComplete }) : h('iframe', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share', allowFullScreen: true })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-info' }, h('h2', null, selected.title), h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey))),
-      h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' }, h(LikeButton, { count: likeCount, active: hasLiked, onLike }), h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))), h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)), hasVideo && selected.showWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null, h('div', { className: 'transport-controls', 'aria-label': 'Transport controls' }, h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'), h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !hasAudio, 'aria-pressed': isPlaying, 'aria-label': isPlaying ? 'Pause song' : 'Play song' }, isPlaying ? h(PauseIcon) : h(PlayIcon)), h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'), h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')))
+      h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' }, h(LikeButton, { count: likeCount, active: hasLiked, onLike }), h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))), h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)), hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: videoOpen ? closeVideo : openVideo }, videoOpen ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null, h('div', { className: 'transport-controls', 'aria-label': 'Transport controls' }, h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'), h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !canUsePrimaryPlay, 'aria-pressed': isPlaying || (selected.videoOnly && videoOpen), 'aria-label': (isPlaying || (selected.videoOnly && videoOpen)) ? 'Pause song' : 'Play song' }, (isPlaying || (selected.videoOnly && videoOpen)) ? h(PauseIcon) : h(PlayIcon)), h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'), h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')))
     ),
     selected.publicTrackNote ? h('p', { className: 'notes public-note' }, selected.publicTrackNote) : null,
     videoOpen && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
     videoOpen && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
-    hasAudio ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selected.videoOnly ? 'This is a video-only record. Use Watch Video when available.' : 'No audio URL is available for this track.'),
+    hasAudio ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selected.videoOnly ? 'This is a video-only record. Use the main play button or Watch Video to start the YouTube player.' : 'No audio URL is available for this track.'),
     h(ProductRecommendations, { products, onProductClick })
   );
 }
@@ -543,7 +600,23 @@ function Player({ selected, audioRef, playerRef, videoOpen, openVideo, closeVide
 function ProductRecommendations({ products, onProductClick }) {
   const carouselRef = useRef(null);
   const visibleProducts = useMemo(() => products.slice(0, MAX_PRODUCT_RECOMMENDATIONS), [products]);
-  return h('section', { className: 'merch', 'aria-label': 'Product recommendations' }, h('div', { className: 'merch-head' }, h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')), h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')), visibleProducts.length ? h('div', { className: 'products-shell' }, h('div', { className: 'products', ref: carouselRef }, visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: () => onProductClick?.(product) }, h('div', { className: 'product-img' }, product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', draggable: false, onError: e => { e.currentTarget.remove(); } }) : 'SB'), h('div', { className: 'product-name' }, product.title), h('div', { className: 'product-price' }, product.price || 'Shop on Stashbox.ai'))))) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.'));
+  return h('section', { className: 'merch', 'aria-label': 'Product recommendations' },
+    h('div', { className: 'merch-head' },
+      h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')),
+      h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')
+    ),
+    visibleProducts.length ? h('div', { className: 'products-shell' },
+      h('div', { className: 'products', ref: carouselRef },
+        visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: () => onProductClick?.(product) },
+          h('div', { className: `product-img ${product.unresolved ? 'product-img-link' : ''}` },
+            product.image ? h('img', { src: product.image, alt: product.title, loading: 'lazy', draggable: false, onError: e => { e.currentTarget.remove(); } }) : (product.unresolved ? 'Link' : 'SB')
+          ),
+          h('div', { className: 'product-name' }, product.title),
+          h('div', { className: 'product-price' }, product.price || (product.unresolved ? 'Open specific product link' : 'Shop on Stashbox.ai'))
+        ))
+      )
+    ) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.')
+  );
 }
 
 function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId }) {
