@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
-const SONGS_ENDPOINT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
-const TRACKING_ENDPOINT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
+const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
+const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const MAX_PRODUCT_RECOMMENDATIONS = 50;
 const COMPLETION_THRESHOLD = 0.95;
@@ -96,13 +96,46 @@ function normalizeSong(row, index) {
   };
 }
 
+function createSongsApiError(message, { endpoint = SONGS_API_URL, responseOkFailed = false, data = null } = {}) {
+  const error = new Error(message);
+  error.endpoint = endpoint;
+  error.responseOkFailed = responseOkFailed;
+  error.apiError = data?.error || '';
+  return error;
+}
+
 async function fetchRadioSongs() {
-  const response = await fetch(SONGS_ENDPOINT, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Songs API returned HTTP ${response.status}`);
-  const data = await response.json();
-  console.log('[Stashbox Radio Dev] songs API response', data);
-  const songs = Array.isArray(data?.songs) ? data.songs : [];
-  return songs.map(normalizeSong).filter(song => song.title).sort((a, b) => a.sortOrder - b.sortOrder);
+  console.log("Fetching songs from:", SONGS_API_URL);
+  let response;
+  let data;
+
+  try {
+    response = await fetch(SONGS_API_URL, { cache: 'no-store' });
+  } catch (error) {
+    throw createSongsApiError(error.message || 'Failed to fetch songs from the RDS API.');
+  }
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw createSongsApiError(error.message || 'Unable to parse Songs API response as JSON.', { responseOkFailed: !response.ok });
+  }
+
+  console.log("Songs API response:", data);
+
+  if (!response.ok) {
+    throw createSongsApiError(`Songs API returned HTTP ${response.status}`, { responseOkFailed: true, data });
+  }
+
+  if (data?.success === false) {
+    throw createSongsApiError(data.error || 'Songs API returned success: false.', { data });
+  }
+
+  if (!Array.isArray(data?.songs) || data.songs.length === 0) {
+    throw createSongsApiError('No songs returned from API.', { data });
+  }
+
+  return data.songs.map(normalizeSong).filter(song => song.title).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
@@ -118,7 +151,7 @@ async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
   Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null || payload[key] === '') && delete payload[key]);
   console.log('[Stashbox Radio Dev] tracking payload', payload);
   try {
-    const response = await fetch(TRACKING_ENDPOINT, {
+    const response = await fetch(TRACKING_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
@@ -268,7 +301,15 @@ function App() {
       setTracks(nextTracks);
       setSelected(current => current || nextTracks[0] || null);
       setStatus('ready');
-    }).catch(loadError => { if (!alive) return; setError(loadError.message || 'Unable to load songs from the RDS API.'); setStatus('error'); });
+    }).catch(loadError => {
+      if (!alive) return;
+      setError({
+        endpoint: loadError.endpoint || SONGS_API_URL,
+        message: loadError.apiError || loadError.message || 'Unable to load songs from the RDS API.',
+        responseOkFailed: Boolean(loadError.responseOkFailed)
+      });
+      setStatus('error');
+    });
     return () => { alive = false; };
   }, []);
 
@@ -375,7 +416,13 @@ function App() {
   function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
 
   if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }), h(RadioHeader, { disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
-  if (status === 'error') return h('section', { className: 'error', role: 'alert' }, h('strong', null, 'ERROR'), h('p', null, error), h('p', null, 'The production /radio/ page has not been changed.'));
+  if (status === 'error') return h('section', { className: 'error', role: 'alert' },
+    h('strong', null, 'ERROR'),
+    h('p', null, `Endpoint: ${error.endpoint || SONGS_API_URL}`),
+    h('p', null, `Error: ${error.message || 'Unable to load songs from the RDS API.'}`),
+    h('p', null, `response.ok failed: ${error.responseOkFailed ? 'yes' : 'no'}`),
+    h('p', null, 'The production /radio/ page has not been changed.')
+  );
 
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
