@@ -475,15 +475,15 @@ function App() {
     selectedRef.current = selectedSong;
     if (!selectedSong) return;
     console.log('[Stashbox Radio Dev] selectedSong', selectedSong);
-    console.log("Loaded counts from API:", {
-      song_key: selectedSong.song_key || selectedSong.songKey,
-      total_plays: selectedSong.total_plays ?? 0,
-      likes: selectedSong.likes ?? 0,
-      shares: selectedSong.shares ?? 0
+    console.log("Counts loaded from API", {
+      song_key: selectedSong.song_key,
+      total_plays: selectedSong.total_plays,
+      likes: selectedSong.likes,
+      shares: selectedSong.shares
     });
-    setLikeCounts(prev => prev[selectedSong.songKey] === undefined ? { ...prev, [selectedSong.songKey]: selectedSong.likes ?? 0 } : prev);
-    setPlayCounts(prev => prev[selectedSong.songKey] === undefined ? { ...prev, [selectedSong.songKey]: selectedSong.total_plays ?? 0 } : prev);
-    setShareCounts(prev => prev[selectedSong.songKey] === undefined ? { ...prev, [selectedSong.songKey]: selectedSong.shares ?? 0 } : prev);
+    setLikeCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.likes || 0 }));
+    setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.total_plays || 0 }));
+    setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.shares || 0 }));
   }, [selectedSong]);
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
@@ -500,9 +500,9 @@ function App() {
     fetchRadioSongs().then(nextTracks => {
       if (!alive) return;
       setTracks(nextTracks);
-      setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.likes ?? 0])));
-      setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.total_plays ?? 0])));
-      setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares ?? 0])));
+      setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.likes || 0])));
+      setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.total_plays || 0])));
+      setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
       console.log('[Stashbox Radio Dev] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
       setSelected(current => current || nextTracks[0] || null);
       setStatus('ready');
@@ -541,7 +541,7 @@ function App() {
     if (state.hasStarted && state.currentSongKey === song.songKey && state.mode === mode) return;
     playbackRef.current = { currentSongKey: song.songKey, startedAt: Date.now(), hasStarted: true, secondsPlayed: 0, duration: 0, hasCompleted: false, mode };
     sendTrackingEvent(song, 'play_start', sessionId).then(result => {
-      if (result?.response?.ok) setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+      if (result?.response?.ok) setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.total_plays ?? 0) + 1 }));
     });
   }, [sessionId]);
 
@@ -655,7 +655,7 @@ function App() {
     sendTrackingEvent(song, 'like', sessionId).then(result => {
       if (!result?.response?.ok) return;
       setLikedSongIds(prev => new Set(prev).add(song.songKey));
-      setLikeCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+      setLikeCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.likes ?? 0) + 1 }));
     });
   }
 
@@ -664,7 +664,7 @@ function App() {
     const shareUrl = getShareUrl(song);
     const shareData = { title: `${song.title} · Stashbox Radio`, text: song.publicTrackNote || `Listen to ${song.title} on Stashbox Radio.`, url: shareUrl };
     sendTrackingEvent(song, 'share', sessionId).then(result => {
-      if (result?.response?.ok) setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] || 0) + 1 }));
+      if (result?.response?.ok) setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.shares ?? 0) + 1 }));
     });
     try {
       if (navigator.share) await navigator.share(shareData);
