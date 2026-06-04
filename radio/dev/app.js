@@ -243,6 +243,8 @@ function productUrlHandle(url) {
   }
 }
 
+function productHandleKey(handle) { return clean(handle).toLowerCase(); }
+
 function normalizeProductUrl(url) {
   try {
     const parsed = new URL(clean(url), window.location.href);
@@ -254,22 +256,58 @@ function normalizeProductUrl(url) {
   }
 }
 
+function normalizeShopifyImage(rawImage) {
+  const image = typeof rawImage === 'object' && rawImage !== null ? (rawImage.src || rawImage.url || '') : rawImage;
+  const cleanImage = clean(image);
+  if (!cleanImage) return '';
+  if (cleanImage.startsWith('//')) return `https:${cleanImage}`;
+  if (cleanImage.startsWith('/')) return `https://stashbox.ai${cleanImage}`;
+  return cleanImage;
+}
+
+function formatShopifyPrice(value, { cents = false } = {}) {
+  if (value === undefined || value === null || value === '') return '';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '';
+  const dollars = cents ? numeric / 100 : numeric;
+  return `$${dollars.toFixed(2)}`;
+}
+
 function productShape(product) {
   const variant = product.variants?.[0];
   const handle = clean(product.handle);
-  const rawImage = product.images?.[0]?.src || product.featured_image || '';
-  const image = typeof rawImage === 'string' && rawImage.startsWith('//') ? `https:${rawImage}` : rawImage;
+  const rawImage = product.images?.[0]?.src || product.images?.[0] || product.featured_image;
+  const image = normalizeShopifyImage(rawImage);
   const url = clean(product.url) || `https://stashbox.ai/products/${handle}`;
-  return { id: product.id || handle || null, handle, title: product.title || 'Stashbox Product', url, image, price: variant?.price ? `$${Number(variant.price).toFixed(2)}` : '' };
+  return { id: product.id || handle || null, handle, title: product.title || 'Stashbox Product', url, image, price: formatShopifyPrice(variant?.price) };
 }
 
 function productFromUrl(url, index, matchedProduct = null) {
   const cleanUrl = clean(url);
-  if (matchedProduct) return { ...matchedProduct, id: `specific-${index}-${matchedProduct.id || matchedProduct.handle || cleanUrl}`, url: matchedProduct.url || cleanUrl, specific: true };
+  if (matchedProduct) return { ...matchedProduct, id: `specific-${index}-${matchedProduct.id || matchedProduct.handle || cleanUrl}`, url: matchedProduct.url || cleanUrl, specific: true, unresolved: false };
   const handle = productUrlHandle(cleanUrl);
   const fallbackTitle = handle || 'Featured product';
   const title = decodeURIComponent(fallbackTitle).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   return { id: `specific-${index}-${cleanUrl}`, handle, title: title || 'Featured product', url: cleanUrl, image: '', price: 'Specific product link', specific: true, unresolved: true };
+}
+
+async function fetchSpecificProduct(url, index, handle) {
+  const res = await fetch(`https://stashbox.ai/products/${encodeURIComponent(handle)}.js`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const product = await res.json();
+  const rawImage = product.featured_image || product.images?.[0];
+  const image = normalizeShopifyImage(rawImage);
+  const price = formatShopifyPrice(product.price, { cents: true });
+  return {
+    id: `specific-${index}-${product.id || handle || clean(url)}`,
+    handle: clean(product.handle) || handle,
+    title: clean(product.title) || 'Stashbox Product',
+    url: clean(product.url) || clean(url),
+    image,
+    price,
+    specific: true,
+    unresolved: false
+  };
 }
 
 async function fetchFallbackProducts(selected) {
@@ -289,13 +327,24 @@ function useProducts(selected) {
       if (!selected) return [];
       let fallback = [];
       try { fallback = await fetchFallbackProducts(selected); } catch (error) { console.warn('Unable to load fallback products.', error.message || error); }
-      const fallbackByHandle = new Map(fallback.map(product => [product.handle, product]).filter(([handle]) => handle));
+      const fallbackByHandle = new Map(fallback.map(product => [productHandleKey(product.handle), product]).filter(([handle]) => handle));
       const fallbackByUrl = new Map(fallback.map(product => [normalizeProductUrl(product.url), product]).filter(([url]) => url));
-      const specific = selected.specificProductUrls.map((url, index) => {
+      const specific = await Promise.all(selected.specificProductUrls.map(async (url, index) => {
         const handle = productUrlHandle(url);
-        const matched = fallbackByHandle.get(handle) || fallbackByUrl.get(normalizeProductUrl(url));
-        return productFromUrl(url, index, matched);
-      });
+        const matched = fallbackByHandle.get(productHandleKey(handle)) || fallbackByUrl.get(normalizeProductUrl(url));
+        if (matched) {
+          console.log('[stashbox-radio-dev] specific product resolution', { specificProductUrl: url, handle, matchedFromProductFeed: true, productJsonFetchSucceeded: false });
+          return productFromUrl(url, index, matched);
+        }
+        try {
+          const fetched = handle ? await fetchSpecificProduct(url, index, handle) : null;
+          console.log('[stashbox-radio-dev] specific product resolution', { specificProductUrl: url, handle, matchedFromProductFeed: false, productJsonFetchSucceeded: Boolean(fetched) });
+          return fetched || productFromUrl(url, index);
+        } catch (error) {
+          console.log('[stashbox-radio-dev] specific product resolution', { specificProductUrl: url, handle, matchedFromProductFeed: false, productJsonFetchSucceeded: false, error: error.message || error });
+          return productFromUrl(url, index);
+        }
+      }));
       const seen = new Set(specific.map(product => normalizeProductUrl(product.url)).filter(Boolean));
       return specific.concat(fallback.filter(product => !seen.has(normalizeProductUrl(product.url)))).slice(0, MAX_PRODUCT_RECOMMENDATIONS);
     }
