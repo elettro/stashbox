@@ -64,8 +64,8 @@ a{color:inherit}
 .merch{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .merch-head{display:flex;justify-content:space-between;gap:10px;align-items:end;margin-bottom:10px}
 .merch-title{font:400 28px/1 var(--fh);letter-spacing:.04em}
-.products-shell{position:relative;max-width:100%;padding:0 34px}
-.products{display:flex;flex-wrap:nowrap;gap:12px;max-width:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;scrollbar-width:none;cursor:grab}
+.products-shell{position:relative;max-width:100%;padding:0 54px}
+.products{display:flex;flex-wrap:nowrap;gap:12px;width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;scrollbar-width:none;cursor:grab}
 .products::-webkit-scrollbar{display:none}
 .products.dragging{cursor:grabbing;scroll-behavior:auto;user-select:none}
 .product{display:flex;flex:0 0 calc((100% - 36px)/4);min-width:0;flex-direction:column;gap:8px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:14px;background:#14141a;scroll-snap-align:start}
@@ -75,11 +75,11 @@ a{color:inherit}
 .product-img-link{background:linear-gradient(135deg,rgba(240,165,0,.18),rgba(255,255,255,.06));color:var(--accent);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
 .product-name{font-size:13px;font-weight:800;line-height:1.25}
 .product-price{font-size:12px;color:var(--muted);font-weight:800}
-.carousel-arrow{appearance:none;position:absolute;top:50%;z-index:2;display:inline-flex;align-items:center;justify-content:center;width:24px;height:64px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(12,12,14,.58);color:rgba(238,234,227,.76);font:400 24px/1 var(--fh);cursor:pointer;transform:translateY(-50%);box-shadow:none;backdrop-filter:blur(8px);transition:opacity .18s ease,border-color .18s ease,background .18s ease,color .18s ease}
-.carousel-arrow:hover:not(:disabled){border-color:rgba(240,165,0,.45);background:rgba(20,20,26,.88);color:var(--text)}
-.carousel-arrow:disabled{opacity:.28;cursor:default}
-.carousel-arrow-left{left:2px}
-.carousel-arrow-right{right:2px}
+.carousel-arrow{appearance:none;position:absolute;top:50%;z-index:2;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid rgba(240,165,0,.42);border-radius:999px;background:radial-gradient(circle at 50% 20%,rgba(240,165,0,.22),rgba(12,12,14,.9));color:var(--accent);font:400 30px/1 var(--fh);cursor:pointer;transform:translateY(-50%);box-shadow:0 0 0 1px rgba(255,255,255,.035),0 0 18px rgba(240,165,0,.14);backdrop-filter:blur(8px);transition:opacity .18s ease,border-color .18s ease,background .18s ease,color .18s ease,box-shadow .18s ease}
+.carousel-arrow:hover:not(:disabled){border-color:rgba(240,165,0,.75);background:rgba(240,165,0,.16);color:var(--text);box-shadow:0 0 0 1px rgba(240,165,0,.12),0 0 24px rgba(240,165,0,.24)}
+.carousel-arrow:disabled{opacity:.28;cursor:default;filter:saturate(.5)}
+.carousel-arrow-left{left:6px}
+.carousel-arrow-right{right:6px}
 .list-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:26px 0 12px}
 .list-head h2{font:400 36px/1 var(--fh);letter-spacing:.04em;margin:0}
 .count{color:var(--muted);font-size:13px}
@@ -310,6 +310,7 @@ a{color:inherit}
 .merch-title{font-size:24px;line-height:.95}
 .player .merch .kicker{margin-bottom:5px}
 .products-shell{margin:0;padding:0}
+.carousel-arrow{display:none}
 .products{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;width:100%;max-width:100%;padding:2px 0 8px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .product{flex:0 0 calc((100% - 12px)/2);min-width:0;max-width:calc((100% - 12px)/2);gap:5px;padding:6px;border-radius:12px;scroll-snap-align:start}
 .product-img{border-radius:8px}
