@@ -869,12 +869,71 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
 function ProductRecommendations({ products, onProductClick }) {
   const carouselRef = useRef(null);
   const visibleProducts = useMemo(() => products.slice(0, MAX_PRODUCT_RECOMMENDATIONS), [products]);
+  const [scrollState, setScrollState] = useState({ atStart: true, atEnd: true, canScroll: false });
+
+  const updateScrollState = useCallback(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) {
+      setScrollState({ atStart: true, atEnd: true, canScroll: false });
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    const nextState = {
+      atStart: carousel.scrollLeft <= 1,
+      atEnd: carousel.scrollLeft >= maxScrollLeft - 1,
+      canScroll: maxScrollLeft > 1
+    };
+    setScrollState(previous => (
+      previous.atStart === nextState.atStart && previous.atEnd === nextState.atEnd && previous.canScroll === nextState.canScroll
+        ? previous
+        : nextState
+    ));
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const carousel = carouselRef.current;
+    if (!carousel) return undefined;
+
+    carousel.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+
+    let resizeObserver = null;
+    if ('ResizeObserver' in window) {
+      resizeObserver = new ResizeObserver(updateScrollState);
+      resizeObserver.observe(carousel);
+    }
+
+    const stateFrame = window.requestAnimationFrame(updateScrollState);
+    return () => {
+      carousel.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+      if (resizeObserver) resizeObserver.disconnect();
+      window.cancelAnimationFrame(stateFrame);
+    };
+  }, [updateScrollState, visibleProducts.length]);
+
+  const scrollProducts = useCallback(direction => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const firstProduct = carousel.querySelector('.product');
+    const carouselStyles = window.getComputedStyle(carousel);
+    const gap = parseFloat(carouselStyles.columnGap || carouselStyles.gap) || 0;
+    const cardWidth = firstProduct ? firstProduct.getBoundingClientRect().width : 0;
+    const scrollAmount = cardWidth ? cardWidth + gap : carousel.clientWidth * 0.85;
+    carousel.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
+    window.requestAnimationFrame(updateScrollState);
+  }, [updateScrollState]);
+
   return h('section', { className: 'merch', 'aria-label': 'Product recommendations' },
     h('div', { className: 'merch-head' },
       h('div', null, h('p', { className: 'kicker' }, 'Stashbox merch'), h('div', { className: 'merch-title' }, 'Shop This Track')),
       h('span', { className: 'count' }, visibleProducts.length ? `${visibleProducts.length} items` : 'Loading merch…')
     ),
     visibleProducts.length ? h('div', { className: 'products-shell' },
+      h('button', { className: 'carousel-arrow carousel-arrow-left', type: 'button', 'aria-label': 'Previous products', disabled: !scrollState.canScroll || scrollState.atStart, onClick: () => scrollProducts(-1) }, '‹'),
       h('div', { className: 'products', ref: carouselRef },
         visibleProducts.map(product => h('a', { key: product.url || product.id || product.title, className: 'product', href: product.url, target: '_blank', rel: 'noopener noreferrer', draggable: false, onClick: () => onProductClick?.(product) },
           h('div', { className: `product-img ${product.unresolved ? 'product-img-link' : ''}` },
@@ -883,7 +942,8 @@ function ProductRecommendations({ products, onProductClick }) {
           h('div', { className: 'product-name' }, product.title),
           h('div', { className: 'product-price' }, product.price || (product.unresolved ? 'Open specific product link' : 'Shop on Stashbox.ai'))
         ))
-      )
+      ),
+      h('button', { className: 'carousel-arrow carousel-arrow-right', type: 'button', 'aria-label': 'Next products', disabled: !scrollState.canScroll || scrollState.atEnd, onClick: () => scrollProducts(1) }, '›')
     ) : h('p', { className: 'notes' }, 'Recommendations will appear here when the Stashbox shop feed is available.')
   );
 }
