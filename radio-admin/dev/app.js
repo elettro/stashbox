@@ -33,10 +33,42 @@ const editableFields = [
   { name: 'official_song_page_url', label: 'Official song page URL', type: 'url', full: true },
   { name: 'shop_url', label: 'Shop URL', type: 'url', full: true },
   { name: 'internal_version_name', label: 'Internal version name', type: 'text' },
+  {
+    name: 'mood_tags',
+    label: 'Mood tags',
+    type: 'text',
+    full: true,
+    help: 'Enter tags separated by commas. Empty tags are ignored.'
+  },
   { name: 'internal_notes', label: 'Internal notes', type: 'textarea', full: true }
 ];
 
-const booleanFields = new Set(editableFields.filter((field) => field.type === 'checkbox').map((field) => field.name));
+const plainTextFields = new Set([
+  'public_track_note',
+  'public_video_note',
+  'video_setlist',
+  'internal_notes',
+  'song_name',
+  'display_title',
+  'artist',
+  'genre',
+  'secondary_genre',
+  'release_format',
+  'audio_url',
+  'song_artwork_url',
+  'video_link',
+  'shop_url'
+]);
+
+const booleanFields = new Set([
+  'show_public_note',
+  'exclusive',
+  'explicit',
+  'live_recording',
+  'featured',
+  'public_visibility'
+]);
+
 const fieldElements = new Map();
 
 let songs = [];
@@ -173,22 +205,34 @@ async function adminFetch(url, options = {}) {
       throw new Error('Unauthorized. Check admin token.');
     }
 
-    throw new Error(getApiErrorMessage(data, response.statusText));
+    throw new Error(`API error ${response.status}: ${getApiErrorMessage(data, response.statusText)}`);
   }
 
   return data;
 }
 
 function getApiErrorMessage(data, fallback) {
+  const fallbackMessage = fallback || 'API request failed.';
+
   if (!data) {
-    return fallback || 'API request failed.';
+    return fallbackMessage;
   }
 
   if (typeof data === 'string') {
     return data;
   }
 
-  return data.error || data.message || data.detail || JSON.stringify(data);
+  const backendDetails = [data.error, data.message, data.detail, data.details, data.field]
+    .filter(Boolean)
+    .map((detail) => (typeof detail === 'string' ? detail : JSON.stringify(detail)));
+
+  const rawDetails = JSON.stringify(data);
+
+  if (backendDetails.length && !backendDetails.includes(rawDetails)) {
+    backendDetails.push(`Raw response: ${rawDetails}`);
+  }
+
+  return backendDetails.length ? backendDetails.join(' | ') : rawDetails || fallbackMessage;
 }
 
 async function loadSongs({ silent = false } = {}) {
@@ -451,7 +495,9 @@ function populateEditor(song) {
     if (field.type === 'checkbox') {
       input.checked = Boolean(value);
     } else if (field.name === 'specific_product_urls') {
-      input.value = Array.isArray(value) ? value.join('\n') : value || '';
+      input.value = normalizeArrayValue(value, '\n').join('\n');
+    } else if (field.name === 'mood_tags') {
+      input.value = normalizeArrayValue(value, ',').join(', ');
     } else if (Array.isArray(value)) {
       input.value = value.join('\n');
     } else if (value === null || value === undefined) {
@@ -486,6 +532,13 @@ async function saveSelectedSong(event) {
   }
 
   const payload = buildUpdatePayload();
+  console.log('Admin PUT payload:', payload);
+
+  if (!Object.keys(payload).length) {
+    showMessage('No changes to save.', 'success');
+    return;
+  }
+
   setBusy(els.saveChangesButton, true);
 
   try {
@@ -515,21 +568,108 @@ async function saveSelectedSong(event) {
 
 function buildUpdatePayload() {
   return editableFields.reduce((payload, field) => {
-    const input = fieldElements.get(field.name);
+    const nextValue = getFieldPayloadValue(field);
+    const currentValue = getComparableFieldValue(field, selectedSong?.[field.name]);
 
-    if (booleanFields.has(field.name)) {
-      payload[field.name] = input.checked;
-    } else if (field.name === 'specific_product_urls') {
-      payload[field.name] = input.value
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-    } else {
-      payload[field.name] = input.value.trim();
+    if (isBlankOptionalValue(nextValue)) {
+      return payload;
     }
 
+    if (areFieldValuesEqual(nextValue, currentValue)) {
+      return payload;
+    }
+
+    payload[field.name] = nextValue;
     return payload;
   }, {});
+}
+
+function getFieldPayloadValue(field) {
+  const input = fieldElements.get(field.name);
+
+  if (booleanFields.has(field.name)) {
+    return Boolean(input.checked);
+  }
+
+  if (field.name === 'specific_product_urls') {
+    return parseLineSeparatedArray(input.value);
+  }
+
+  if (field.name === 'mood_tags') {
+    return parseCommaSeparatedArray(input.value);
+  }
+
+  if (plainTextFields.has(field.name)) {
+    return String(input.value || '').trim();
+  }
+
+  return String(input.value || '').trim();
+}
+
+function getComparableFieldValue(field, value) {
+  if (booleanFields.has(field.name)) {
+    return Boolean(value);
+  }
+
+  if (field.name === 'specific_product_urls') {
+    return normalizeArrayValue(value, '\n');
+  }
+
+  if (field.name === 'mood_tags') {
+    return normalizeArrayValue(value, ',');
+  }
+
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function normalizeArrayValue(value, stringSeparator) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (value === null || value === undefined || value === '') {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    return stringSeparator === ',' ? parseCommaSeparatedArray(value) : parseLineSeparatedArray(value);
+  }
+
+  return [];
+}
+
+function parseLineSeparatedArray(value) {
+  return String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseCommaSeparatedArray(value) {
+  return String(value || '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function isBlankOptionalValue(value) {
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+
+  if (typeof value === 'string') {
+    return value === '';
+  }
+
+  return false;
+}
+
+function areFieldValuesEqual(nextValue, currentValue) {
+  if (Array.isArray(nextValue) || Array.isArray(currentValue)) {
+    return JSON.stringify(nextValue) === JSON.stringify(currentValue);
+  }
+
+  return nextValue === currentValue;
 }
 
 function getSongKey(song) {
