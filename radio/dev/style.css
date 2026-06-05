@@ -269,11 +269,11 @@ a{color:inherit}
 @media(min-width:768px){.player{position:relative;top:auto}.radio-interface{display:flex}.player-controls{min-width:0}}
 @media(min-width:1180px){.radio-interface{display:flex}}
 
-@media(max-width:767px){
+@media(max-width:768px){
 .radio-interface{display:flex;flex-direction:column;gap:14px}
-.player{position:relative;top:auto;z-index:auto;order:0;max-height:none;overflow:visible;padding:10px 12px 12px;border-radius:16px}
+.player{position:relative;top:auto;z-index:auto;order:0;display:flex;flex-direction:column;max-height:none;overflow:visible;padding:10px 12px 12px;border-radius:16px}
 .radio-main{order:1}
-.player-media{min-height:auto;aspect-ratio:1/1;border-radius:12px 12px 0 0}
+.player-media{order:1;min-height:auto;aspect-ratio:1/1;border-radius:12px 12px 0 0}
 .player-media img{height:100%;object-fit:contain}
 .player-media iframe,.player-media .youtube-player-frame{min-height:0;height:100%;aspect-ratio:1/1}
 .player-bar{grid-template-columns:1fr;padding-top:8px}
@@ -291,7 +291,8 @@ a{color:inherit}
 .player-timeline{gap:10px;margin-top:6px;padding:0 12px 8px}
 .timecode{min-width:34px;font-size:11px}
 .scrubber{height:16px}
-.player .merch{margin-top:13px}
+.player>.notes:not(.no-audio-note){order:4}
+.player .merch{order:5;margin-top:13px}
 }
 
 @media(max-width:420px){.player-controls-layout{gap:7px}.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 9px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px;padding:0}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:10px}.player-timeline{gap:8px;padding:0 10px 8px}.timecode{min-width:32px;font-size:10px}}
@@ -345,6 +346,7 @@ a{color:inherit}
 .product-name{font-size:11px;line-height:1.08;font-weight:800;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
 .product-price{margin-top:auto;font-size:11px;line-height:1.1}
 }
+@media(max-width:420px){.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 8px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:9px}.player-timeline{gap:8px;padding:0 10px 8px}.timecode{min-width:32px;font-size:10px}}
 .public-note,
 .video-note,
 .video-setlist,
