@@ -14,14 +14,14 @@
     </div>
     <div class="token-actions">
       <span id="tokenStatus" class="token-status">No token saved</span>
-      <button id="clearTokenButton" class="button button-ghost" type="button">Clear Token</button>
+      <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
     </div>
   </header>
 
   <main class="shell">
     <section id="tokenPanel" class="card token-panel" aria-labelledby="tokenHeading">
       <h2 id="tokenHeading">Admin token</h2>
-      <p>Enter the dev admin token to load the song dashboard. The token is saved locally in this browser only.</p>
+      <p>Enter the dev admin token to load the private dashboard and song editor. The token is saved locally in this browser only.</p>
       <div class="token-form">
         <label for="adminToken">x-admin-token</label>
         <input id="adminToken" type="password" autocomplete="off" placeholder="Paste admin token" />
@@ -29,54 +29,146 @@
       </div>
     </section>
 
-    <section id="adminPanel" class="admin-grid hidden" aria-live="polite">
-      <aside class="card list-panel">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">Songs</p>
-            <h2>Catalog</h2>
+    <section id="adminPanel" class="admin-panel hidden" aria-live="polite">
+      <nav class="admin-tabs" aria-label="Admin sections">
+        <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
+        <button class="tab-button" type="button" data-tab="songs">Songs</button>
+        <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
+      </nav>
+
+      <section id="dashboardView" class="admin-view" aria-labelledby="dashboardHeading">
+        <div class="card dashboard-card">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Dashboard</p>
+              <h2 id="dashboardHeading">Operational stats</h2>
+              <p class="panel-copy">Totals are calculated from every song returned by the dev admin songs API.</p>
+            </div>
+            <button id="refreshDashboardButton" class="button button-small" type="button">Refresh Dashboard</button>
           </div>
-          <button id="refreshSongsButton" class="button button-small" type="button">Refresh List</button>
+
+          <div id="kpiGrid" class="kpi-grid"></div>
         </div>
 
-        <label class="search-label" for="songSearch">Search title, artist, genre, or song key</label>
-        <input id="songSearch" class="search-input" type="search" placeholder="Filter songs…" />
+        <div class="dashboard-grid">
+          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="topSongsHeading">
+            <div class="panel-header compact-header">
+              <div>
+                <p class="eyebrow">Ranked by plays</p>
+                <h2 id="topSongsHeading">Top songs</h2>
+              </div>
+            </div>
+            <div class="table-wrap compact-table-wrap">
+              <table class="song-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Song</th>
+                    <th>Artist</th>
+                    <th>Genre</th>
+                    <th>Plays</th>
+                    <th>Likes</th>
+                    <th>Shares</th>
+                    <th>Video Clicks</th>
+                    <th>Product Clicks</th>
+                    <th>Skips</th>
+                    <th>Links</th>
+                  </tr>
+                </thead>
+                <tbody id="topSongsTableBody"></tbody>
+              </table>
+            </div>
+          </section>
 
-        <div id="songCount" class="song-count">No songs loaded</div>
-        <div class="table-wrap">
-          <table class="song-table">
-            <thead>
-              <tr>
-                <th>Song</th>
-                <th>Stats</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody id="songTableBody"></tbody>
-          </table>
+          <section class="card dashboard-section" aria-labelledby="likedSongsHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="likedSongsHeading">Most liked songs</h2>
+            <div id="likedSongsList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="sharedSongsHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="sharedSongsHeading">Most shared songs</h2>
+            <div id="sharedSongsList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="watchedVideosHeading">
+            <p class="eyebrow">Ranked by video clicks</p>
+            <h2 id="watchedVideosHeading">Most watched videos</h2>
+            <div id="watchedVideosList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="productClicksHeading">
+            <p class="eyebrow">Ranked by product clicks</p>
+            <h2 id="productClicksHeading">Highest product click songs</h2>
+            <div id="productClicksList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="engagementHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="engagementHeading">Engagement rate</h2>
+            <p class="section-note">Engagement = likes + shares + video clicks + product clicks.</p>
+            <div id="engagementList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="skipRateHeading">
+            <p class="eyebrow">Skip count / plays</p>
+            <h2 id="skipRateHeading">Skip rate</h2>
+            <div id="skipRateList" class="rank-list"></div>
+          </section>
         </div>
-      </aside>
+      </section>
 
-      <section class="card edit-panel" aria-labelledby="editHeading">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">Edit</p>
-            <h2 id="editHeading">Select a song</h2>
+      <section id="songsView" class="admin-view hidden" aria-labelledby="songsHeading">
+        <aside class="card list-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Songs</p>
+              <h2 id="songsHeading">Catalog</h2>
+            </div>
+            <button id="refreshSongsButton" class="button button-small" type="button">Refresh List</button>
           </div>
-          <span id="selectedSongKey" class="song-key-pill"></span>
-        </div>
 
-        <div id="emptyEditor" class="empty-editor">
-          Choose a song from the list to edit its admin fields.
-        </div>
+          <label class="search-label" for="songSearch">Search title, artist, genre, or song key</label>
+          <input id="songSearch" class="search-input" type="search" placeholder="Filter songs…" />
 
-        <form id="editForm" class="edit-form hidden">
-          <div class="form-grid" id="formFields"></div>
-          <div class="form-actions">
-            <button id="saveChangesButton" class="button" type="submit">Save Changes</button>
-            <button id="cancelChangesButton" class="button button-ghost" type="button">Cancel/Revert</button>
+          <div id="songCount" class="song-count">No songs loaded</div>
+          <div class="table-wrap">
+            <table class="song-table">
+              <thead>
+                <tr>
+                  <th>Song</th>
+                  <th>Stats</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="songTableBody"></tbody>
+            </table>
           </div>
-        </form>
+        </aside>
+      </section>
+
+      <section id="editView" class="admin-view hidden" aria-labelledby="editHeading">
+        <section class="card edit-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Edit</p>
+              <h2 id="editHeading">Select a song</h2>
+            </div>
+            <span id="selectedSongKey" class="song-key-pill"></span>
+          </div>
+
+          <div id="emptyEditor" class="empty-editor">
+            Choose a song from the Songs tab or dashboard links to edit its admin fields.
+          </div>
+
+          <form id="editForm" class="edit-form hidden">
+            <div class="form-grid" id="formFields"></div>
+            <div class="form-actions">
+              <button id="saveChangesButton" class="button" type="submit">Save Changes</button>
+              <button id="cancelChangesButton" class="button button-ghost" type="button">Cancel/Revert</button>
+            </div>
+          </form>
+        </section>
       </section>
     </section>
 
