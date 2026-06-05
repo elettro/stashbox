@@ -544,6 +544,11 @@ textarea:focus {
   gap: 0.6rem;
 }
 
+.checkbox-item {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .checkbox-field {
   display: flex;
   align-items: center;
@@ -557,6 +562,11 @@ textarea:focus {
 .checkbox-field input {
   width: auto;
   accent-color: var(--green);
+}
+
+.checkbox-help {
+  padding: 0 0.15rem;
+  line-height: 1.35;
 }
 
 textarea {

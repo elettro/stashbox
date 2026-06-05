@@ -15,10 +15,15 @@ const editableFields = [
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
   { name: 'video_link', label: 'Video link', type: 'url', full: true },
   { name: 'public_track_note', label: 'Public track note', type: 'textarea', full: true },
-  { name: 'show_public_note', label: 'Show public note', type: 'checkbox' },
+  { name: 'show_public_note', label: 'Show Public Note', type: 'checkbox' },
   { name: 'public_video_note', label: 'Public video note', type: 'textarea', full: true },
   { name: 'video_setlist', label: 'Video setlist', type: 'textarea', full: true },
-  { name: 'public_visibility', label: 'Public visibility', type: 'checkbox' },
+  {
+    name: 'public_visibility',
+    label: 'Show in Radio',
+    type: 'checkbox',
+    help: 'Checked songs appear in the RDS-powered radio player. Uncheck only when you want to hide a song.'
+  },
   { name: 'exclusive', label: 'Exclusive', type: 'checkbox' },
   { name: 'explicit', label: 'Explicit', type: 'checkbox' },
   { name: 'live_recording', label: 'Live recording', type: 'checkbox' },
@@ -74,8 +79,7 @@ const booleanFields = new Set([
   'exclusive',
   'explicit',
   'live_recording',
-  'featured',
-  'public_visibility'
+  'featured'
 ]);
 
 const kpiDefinitions = [
@@ -629,7 +633,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('public', toBoolean(song.public_visibility)));
+  badges.appendChild(makeBadge('radio', getRadioVisibilityValue(song.public_visibility), isSongVisibleInRadio(song.public_visibility)));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -671,9 +675,9 @@ function buildUpdatedCell(song) {
   return cell;
 }
 
-function makeBadge(label, value) {
+function makeBadge(label, value, isActive = Boolean(value)) {
   const badge = document.createElement('span');
-  badge.className = `badge ${value ? 'badge-on' : ''}`;
+  badge.className = `badge ${isActive ? 'badge-on' : ''}`;
   badge.textContent = `${label}: ${formatDisplayValue(value)}`;
   return badge;
 }
@@ -733,6 +737,9 @@ function buildEditForm() {
     const fieldId = `field_${field.name}`;
 
     if (field.type === 'checkbox') {
+      const wrap = document.createElement('div');
+      wrap.className = 'checkbox-item';
+
       const label = document.createElement('label');
       label.className = 'checkbox-field';
       label.setAttribute('for', fieldId);
@@ -747,7 +754,16 @@ function buildEditForm() {
       span.textContent = field.label;
 
       label.append(input, span);
-      checkboxWrap.appendChild(label);
+      wrap.appendChild(label);
+
+      if (field.help) {
+        const help = document.createElement('div');
+        help.className = 'field-help checkbox-help';
+        help.textContent = field.help;
+        wrap.appendChild(help);
+      }
+
+      checkboxWrap.appendChild(wrap);
       return;
     }
 
@@ -795,7 +811,7 @@ function populateEditor(song) {
     const value = song[field.name];
 
     if (field.type === 'checkbox') {
-      input.checked = toBoolean(value);
+      input.checked = field.name === 'public_visibility' ? isSongVisibleInRadio(value) : toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
       input.value = normalizeArrayValue(value, '\n').join('\n');
     } else if (field.name === 'mood_tags') {
@@ -818,7 +834,7 @@ function clearEditor() {
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     if (field.type === 'checkbox') {
-      input.checked = false;
+      input.checked = field.name === 'public_visibility';
     } else {
       input.value = '';
     }
@@ -885,6 +901,10 @@ function buildUpdatePayload() {
 function getFieldPayloadValue(field) {
   const input = fieldElements.get(field.name);
 
+  if (field.name === 'public_visibility') {
+    return input.checked ? 'visible' : 'hidden';
+  }
+
   if (booleanFields.has(field.name)) {
     return Boolean(input.checked);
   }
@@ -905,6 +925,10 @@ function getFieldPayloadValue(field) {
 }
 
 function getComparableFieldValue(field, value) {
+  if (field.name === 'public_visibility') {
+    return getRadioVisibilityValue(value);
+  }
+
   if (booleanFields.has(field.name)) {
     return toBoolean(value);
   }
@@ -948,6 +972,15 @@ function parseCommaSeparatedArray(value) {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+
+function isSongVisibleInRadio(value) {
+  return getRadioVisibilityValue(value) === 'visible';
+}
+
+function getRadioVisibilityValue(value) {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'hidden' ? 'hidden' : 'visible';
 }
 
 function toBoolean(value) {
