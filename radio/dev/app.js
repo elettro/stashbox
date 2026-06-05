@@ -9,6 +9,7 @@ const COMPLETION_THRESHOLD = 0.95;
 const MIN_PARTIAL_SECONDS = 5;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
+const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
@@ -619,7 +620,13 @@ function App() {
       setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.total_plays || 0])));
       setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
       console.log('[Stashbox Radio Dev] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
-      setSelected(current => current || nextTracks[0] || null);
+      const urlSelectedSong = songKeyFromUrl
+        ? nextTracks.find(track => track.song_key === songKeyFromUrl)
+        : null;
+      if (songKeyFromUrl) {
+        console.log("Opening song from URL:", songKeyFromUrl);
+      }
+      setSelected(current => current || urlSelectedSong || nextTracks[0] || null);
       setStatus('ready');
     }).catch(loadError => {
       if (!alive) return;
