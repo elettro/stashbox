@@ -243,6 +243,7 @@ a{color:inherit}
 .player-notes{display:none}
 .player .compact-note{display:block;margin:2px 0 0;color:var(--muted);font:700 11px/1.15 var(--fb);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .no-audio-note{margin:8px 2px 0;font-size:12px}
+.player-message{margin:8px 2px 0;color:var(--accent);font-weight:800}
 .player .merch{margin-top:14px}
 
 
