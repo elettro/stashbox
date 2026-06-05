@@ -129,6 +129,7 @@ const createDefaults = {
 
 let songs = [];
 let filteredSongs = [];
+let archivedSongs = [];
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
@@ -146,6 +147,7 @@ const els = {
   dashboardView: document.getElementById('dashboardView'),
   songsView: document.getElementById('songsView'),
   editView: document.getElementById('editView'),
+  archiveView: document.getElementById('archiveView'),
   refreshDashboardButton: document.getElementById('refreshDashboardButton'),
   kpiGrid: document.getElementById('kpiGrid'),
   topSongsTableBody: document.getElementById('topSongsTableBody'),
@@ -157,16 +159,25 @@ const els = {
   skipRateList: document.getElementById('skipRateList'),
   createSongButton: document.getElementById('createSongButton'),
   refreshSongsButton: document.getElementById('refreshSongsButton'),
+  refreshArchiveButton: document.getElementById('refreshArchiveButton'),
   songSearch: document.getElementById('songSearch'),
   songCount: document.getElementById('songCount'),
   songTableBody: document.getElementById('songTableBody'),
+  archiveCount: document.getElementById('archiveCount'),
+  archiveTableBody: document.getElementById('archiveTableBody'),
   editHeading: document.getElementById('editHeading'),
   selectedSongKey: document.getElementById('selectedSongKey'),
+  selectedVisibility: document.getElementById('selectedVisibility'),
   emptyEditor: document.getElementById('emptyEditor'),
   editForm: document.getElementById('editForm'),
   formFields: document.getElementById('formFields'),
   saveChangesButton: document.getElementById('saveChangesButton'),
   cancelChangesButton: document.getElementById('cancelChangesButton'),
+  dangerZone: document.getElementById('dangerZone'),
+  deleteSongButton: document.getElementById('deleteSongButton'),
+  deleteModal: document.getElementById('deleteModal'),
+  cancelDeleteButton: document.getElementById('cancelDeleteButton'),
+  confirmDeleteButton: document.getElementById('confirmDeleteButton'),
   message: document.getElementById('message')
 };
 
@@ -189,11 +200,20 @@ function bindEvents() {
   els.refreshDashboardButton.addEventListener('click', () => loadSongs());
   els.createSongButton.addEventListener('click', startCreateSong);
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
+  els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
     console.log("Save clicked");
   });
   els.editForm.addEventListener('submit', saveSelectedSong);
+  els.deleteSongButton.addEventListener('click', openDeleteModal);
+  els.cancelDeleteButton.addEventListener('click', closeDeleteModal);
+  els.confirmDeleteButton.addEventListener('click', archiveSelectedSong);
+  els.deleteModal.addEventListener('click', (event) => {
+    if (event.target === els.deleteModal) {
+      closeDeleteModal();
+    }
+  });
   els.cancelChangesButton.addEventListener('click', () => {
     if (editorMode === 'create') {
       clearEditor();
@@ -248,6 +268,7 @@ function clearToken() {
   selectedSongKey = '';
   renderDashboard();
   renderSongList();
+  renderArchiveList();
   clearEditor();
   updateTokenUi(false);
   setActiveTab(DEFAULT_TAB);
@@ -273,6 +294,7 @@ function setActiveTab(tabName) {
   [
     ['dashboard', els.dashboardView],
     ['songs', els.songsView],
+    ['archive', els.archiveView],
     ['edit', els.editView]
   ].forEach(([name, view]) => {
     view.classList.toggle('hidden', name !== activeTab);
@@ -373,6 +395,7 @@ async function loadSongs({ silent = false, preserveSelection = Boolean(selectedS
 
   setBusy(els.refreshDashboardButton, true);
   setBusy(els.refreshSongsButton, true);
+  setBusy(els.refreshArchiveButton, true);
 
   try {
     const data = await adminFetch(API_BASE_URL);
@@ -384,15 +407,17 @@ async function loadSongs({ silent = false, preserveSelection = Boolean(selectedS
 
     renderDashboard();
     renderSongList();
+    renderArchiveList();
 
     if (!silent) {
-      showMessage(`Loaded ${songs.length} song${songs.length === 1 ? '' : 's'}.`, 'success');
+      showMessage(`Loaded ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
     }
   } catch (error) {
     showMessage(`Could not load song list: ${error.message}`, 'error');
   } finally {
     setBusy(els.refreshDashboardButton, false);
     setBusy(els.refreshSongsButton, false);
+    setBusy(els.refreshArchiveButton, false);
   }
 }
 
@@ -443,15 +468,30 @@ function normalizeSongsResponse(data) {
   return [];
 }
 
+
+function getActiveSongs() {
+  return songs.filter((song) => !isArchivedSong(song));
+}
+
+function getArchivedSongs() {
+  archivedSongs = songs.filter((song) => isArchivedSong(song));
+  return archivedSongs;
+}
+
+function isArchivedSong(songOrValue) {
+  return normalizePublicVisibility(getPublicVisibilityValue(songOrValue)) === 'archived';
+}
+
 function renderDashboard() {
-  renderKpiCards(calculateDashboardTotals(songs));
-  renderTopSongsTable(sortSongsByMetric('total_plays'));
-  renderRankList(els.likedSongsList, sortSongsByMetric('likes').slice(0, 5), 'likes');
-  renderRankList(els.sharedSongsList, sortSongsByMetric('shares').slice(0, 5), 'shares');
-  renderRankList(els.watchedVideosList, sortSongsByMetric('video_clicks'), 'video clicks');
-  renderRankList(els.productClicksList, sortSongsByMetric('product_clicks'), 'product clicks');
-  renderRankList(els.engagementList, sortSongsByEngagement().slice(0, 5), 'engagement', getSongEngagement);
-  renderRankList(els.skipRateList, sortSongsBySkipRate(), 'skip rate', getSongSkipRate, formatPercent);
+  const activeSongs = getActiveSongs();
+  renderKpiCards(calculateDashboardTotals(activeSongs));
+  renderTopSongsTable(sortSongsByMetric('total_plays', activeSongs));
+  renderRankList(els.likedSongsList, sortSongsByMetric('likes', activeSongs).slice(0, 5), 'likes');
+  renderRankList(els.sharedSongsList, sortSongsByMetric('shares', activeSongs).slice(0, 5), 'shares');
+  renderRankList(els.watchedVideosList, sortSongsByMetric('video_clicks', activeSongs), 'video clicks');
+  renderRankList(els.productClicksList, sortSongsByMetric('product_clicks', activeSongs), 'product clicks');
+  renderRankList(els.engagementList, sortSongsByEngagement(activeSongs).slice(0, 5), 'engagement', getSongEngagement);
+  renderRankList(els.skipRateList, sortSongsBySkipRate(activeSongs), 'skip rate', getSongSkipRate, formatPercent);
 }
 
 function calculateDashboardTotals(songList) {
@@ -544,16 +584,16 @@ function renderRankList(container, songList, metricLabel, valueGetter = null, fo
   });
 }
 
-function sortSongsByMetric(metricKey) {
-  return [...songs].sort((a, b) => getMetricValue(b, metricKey) - getMetricValue(a, metricKey));
+function sortSongsByMetric(metricKey, songList = getActiveSongs()) {
+  return [...songList].sort((a, b) => getMetricValue(b, metricKey) - getMetricValue(a, metricKey));
 }
 
-function sortSongsByEngagement() {
-  return [...songs].sort((a, b) => getSongEngagement(b) - getSongEngagement(a));
+function sortSongsByEngagement(songList = getActiveSongs()) {
+  return [...songList].sort((a, b) => getSongEngagement(b) - getSongEngagement(a));
 }
 
-function sortSongsBySkipRate() {
-  return [...songs].sort((a, b) => getSongSkipRate(b) - getSongSkipRate(a));
+function sortSongsBySkipRate(songList = getActiveSongs()) {
+  return [...songList].sort((a, b) => getSongSkipRate(b) - getSongSkipRate(a));
 }
 
 function getSongEngagement(song) {
@@ -618,9 +658,10 @@ function buildQuickLinksCell(songKey) {
 
 function renderSongList() {
   const query = els.songSearch.value.trim().toLowerCase();
-  filteredSongs = songs.filter((song) => songMatchesQuery(song, query));
+  const activeSongs = getActiveSongs();
+  filteredSongs = activeSongs.filter((song) => songMatchesQuery(song, query));
 
-  els.songCount.textContent = `${filteredSongs.length} of ${songs.length} song${songs.length === 1 ? '' : 's'}`;
+  els.songCount.textContent = `${filteredSongs.length} of ${activeSongs.length} active song${activeSongs.length === 1 ? '' : 's'}`;
   els.songTableBody.innerHTML = '';
 
   if (!filteredSongs.length) {
@@ -702,7 +743,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('radio', getRadioVisibilityLabel(song), isShownInRadio(song)));
+  badges.appendChild(makeVisibilityBadge(song));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -750,6 +791,61 @@ function makeBadge(label, value, isOn = Boolean(value)) {
   badge.textContent = `${label}: ${formatDisplayValue(value)}`;
   return badge;
 }
+
+function makeVisibilityBadge(song) {
+  const badge = document.createElement('span');
+  badge.className = `badge ${isShownInRadio(song) ? 'badge-on' : ''} ${isArchivedSong(song) ? 'badge-archived' : ''}`;
+  badge.textContent = getRadioVisibilityLabel(song);
+  return badge;
+}
+
+function renderArchiveList() {
+  const archived = getArchivedSongs().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+  els.archiveCount.textContent = `${archived.length} archived song${archived.length === 1 ? '' : 's'}`;
+  els.archiveTableBody.innerHTML = '';
+
+  if (!archived.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="5" class="song-meta">No archived songs.</td>';
+    els.archiveTableBody.appendChild(row);
+    return;
+  }
+
+  archived.forEach((song) => {
+    const row = document.createElement('tr');
+    const songKey = getSongKey(song);
+    row.classList.toggle('is-selected', songKey === selectedSongKey);
+    row.appendChild(makeTextCell(formatSongTitle(song), 'song-title compact-title'));
+    row.appendChild(makeTextCell(song.artist || '—'));
+    row.appendChild(makeTextCell(songKey || '—', 'song-key-inline'));
+    row.appendChild(buildUpdatedCell(song));
+    row.appendChild(buildArchiveActionsCell(song, songKey));
+    els.archiveTableBody.appendChild(row);
+  });
+}
+
+function buildArchiveActionsCell(song, songKey) {
+  const cell = document.createElement('td');
+  const actions = document.createElement('div');
+  actions.className = 'song-card-actions table-actions';
+
+  const editButton = document.createElement('button');
+  editButton.className = 'song-action-button';
+  editButton.type = 'button';
+  editButton.textContent = 'Edit';
+  editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
+
+  const restoreButton = document.createElement('button');
+  restoreButton.className = 'song-action-button song-action-restore';
+  restoreButton.type = 'button';
+  restoreButton.textContent = 'Restore';
+  restoreButton.addEventListener('click', () => restoreArchivedSong(song, restoreButton));
+
+  actions.append(editButton, restoreButton);
+  cell.appendChild(actions);
+  return cell;
+}
+
 
 async function loadSongDetails(songKey, { openEditor = false } = {}) {
   if (!songKey) {
@@ -905,10 +1001,12 @@ function populateEditor(song, { mode = 'edit' } = {}) {
   selectedSongKey = mode === 'create' ? '' : getSongKey(song) || selectedSongKey;
   els.editHeading.textContent = mode === 'create' ? 'Create New Song' : song.display_title || song.song_name || 'Untitled song';
   els.selectedSongKey.textContent = mode === 'create' ? 'new song' : selectedSongKey;
+  updateEditorVisibilityStatus(song, mode);
   els.saveChangesButton.textContent = mode === 'create' ? 'Create Song' : 'Save Changes';
   els.cancelChangesButton.textContent = mode === 'create' ? 'Cancel' : 'Cancel/Revert';
   els.emptyEditor.classList.add('hidden');
   els.editForm.classList.remove('hidden');
+  els.dangerZone.classList.toggle('hidden', mode === 'create');
   applyEditorModeToFields(mode);
 
   editableFields.forEach((field) => {
@@ -931,6 +1029,21 @@ function populateEditor(song, { mode = 'edit' } = {}) {
       input.value = value;
     }
   });
+}
+
+
+function updateEditorVisibilityStatus(song, mode) {
+  if (mode === 'create') {
+    els.selectedVisibility.classList.add('hidden');
+    els.selectedVisibility.textContent = '';
+    return;
+  }
+
+  const isArchived = isArchivedSong(song);
+  els.selectedVisibility.textContent = getRadioVisibilityLabel(song);
+  els.selectedVisibility.classList.toggle('visibility-archived', isArchived);
+  els.selectedVisibility.classList.toggle('visibility-visible', isShownInRadio(song));
+  els.selectedVisibility.classList.remove('hidden');
 }
 
 function applyEditorModeToFields(mode) {
@@ -958,6 +1071,8 @@ function clearEditor() {
   els.cancelChangesButton.textContent = 'Cancel/Revert';
   els.emptyEditor.classList.remove('hidden');
   els.editForm.classList.add('hidden');
+  els.dangerZone.classList.add('hidden');
+  els.selectedVisibility.classList.add('hidden');
   selectedSong = null;
   selectedSongKey = '';
   applyEditorModeToFields('edit');
@@ -1023,6 +1138,7 @@ async function saveSelectedSong(event) {
     updateSongInList(updatedSong);
     renderDashboard();
     renderSongList();
+    renderArchiveList();
     populateEditor(updatedSong);
     setActiveTab('edit');
     showMessage('Saved successfully', 'success');
@@ -1031,6 +1147,107 @@ async function saveSelectedSong(event) {
   } finally {
     setBusy(els.saveChangesButton, false);
   }
+}
+
+function openDeleteModal() {
+  if (editorMode === 'create' || !selectedSongKey) {
+    return;
+  }
+
+  els.deleteModal.classList.remove('hidden');
+  els.confirmDeleteButton.focus();
+}
+
+function closeDeleteModal() {
+  els.deleteModal.classList.add('hidden');
+}
+
+async function archiveSelectedSong() {
+  if (!selectedSongKey) {
+    closeDeleteModal();
+    showMessage('Select a song before deleting.', 'error');
+    return;
+  }
+
+  const archivedAt = new Date().toLocaleString();
+  const archiveNote = `Archived from admin CMS on ${archivedAt}.`;
+  const currentNotes = String(selectedSong?.internal_notes || '').trim();
+  const payload = {
+    public_visibility: 'archived',
+    internal_notes: currentNotes ? [currentNotes, archiveNote].join('\n') : archiveNote
+  };
+
+  setBusy(els.confirmDeleteButton, true);
+  setBusy(els.deleteSongButton, true);
+  showMessage('Moving song to archive...', 'success');
+
+  try {
+    const result = await updateSongByKey(selectedSongKey, payload);
+    const returnedSong = normalizeSongResponse(result);
+    const archivedSong = returnedSong && Object.keys(returnedSong).length
+      ? { ...selectedSong, ...returnedSong, public_visibility: 'archived' }
+      : { ...selectedSong, ...payload };
+
+    updateSongInList(archivedSong);
+    closeDeleteModal();
+    clearEditor();
+    renderDashboard();
+    renderSongList();
+    renderArchiveList();
+    setActiveTab('songs');
+    showMessage('Song moved to archive.', 'success');
+  } catch (error) {
+    showMessage(error.message, 'error');
+  } finally {
+    setBusy(els.confirmDeleteButton, false);
+    setBusy(els.deleteSongButton, false);
+  }
+}
+
+async function restoreArchivedSong(song, button) {
+  const songKey = getSongKey(song);
+
+  if (!songKey) {
+    showMessage('Archived song is missing a song_key.', 'error');
+    return;
+  }
+
+  setBusy(button, true);
+  showMessage('Restoring song as hidden...', 'success');
+
+  try {
+    const result = await updateSongByKey(songKey, { public_visibility: 'hidden' });
+    const returnedSong = normalizeSongResponse(result);
+    const restoredSong = returnedSong && Object.keys(returnedSong).length
+      ? { ...song, ...returnedSong, public_visibility: 'hidden' }
+      : { ...song, public_visibility: 'hidden' };
+
+    updateSongInList(restoredSong);
+
+    if (selectedSongKey === songKey) {
+      selectedSong = restoredSong;
+      populateEditor(restoredSong);
+    }
+
+    renderDashboard();
+    renderSongList();
+    renderArchiveList();
+    showMessage('Song restored as hidden.', 'success');
+  } catch (error) {
+    showMessage(error.message, 'error');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function updateSongByKey(songKey, payload) {
+  return adminFetch(`${API_BASE_URL}/${encodeURIComponent(songKey)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
 }
 
 
@@ -1067,6 +1284,7 @@ async function createSelectedSong() {
     updateSongInList(createdSong);
     renderDashboard();
     renderSongList();
+    renderArchiveList();
     await loadSongs({ silent: true, preserveSelection: false });
 
     updateSongInList(createdSong);
@@ -1074,6 +1292,7 @@ async function createSelectedSong() {
     selectedSongKey = createdSongKey;
     populateEditor(createdSong, { mode: 'edit' });
     renderSongList();
+    renderArchiveList();
     setActiveTab('edit');
     showMessage('Song created successfully', 'success');
   } catch (error) {
@@ -1196,7 +1415,11 @@ function getFieldPayloadValue(field) {
   const input = fieldElements.get(field.name);
 
   if (field.name === 'public_visibility') {
-    return input.checked ? 'visible' : 'hidden';
+    if (input.checked) {
+      return 'visible';
+    }
+
+    return isArchivedSong(selectedSong) ? 'archived' : 'hidden';
   }
 
   if (booleanFields.has(field.name)) {
@@ -1270,15 +1493,16 @@ function parseCommaSeparatedArray(value) {
 
 
 function normalizePublicVisibility(value) {
-  return value === 'hidden' ? 'hidden' : 'visible';
+  return value === 'archived' || value === 'hidden' ? value : 'visible';
 }
 
 function getRadioVisibilityLabel(songOrValue) {
-  return normalizePublicVisibility(getPublicVisibilityValue(songOrValue));
+  const visibility = normalizePublicVisibility(getPublicVisibilityValue(songOrValue));
+  return visibility === 'archived' ? 'archived' : `radio: ${visibility}`;
 }
 
 function isShownInRadio(songOrValue) {
-  return getRadioVisibilityLabel(songOrValue) === 'visible';
+  return normalizePublicVisibility(getPublicVisibilityValue(songOrValue)) === 'visible';
 }
 
 function getPublicVisibilityValue(songOrValue) {
@@ -1331,6 +1555,7 @@ function setBusy(button, isBusy) {
 function setEditorLoading(isLoading) {
   els.saveChangesButton.disabled = isLoading;
   els.cancelChangesButton.disabled = isLoading;
+  els.deleteSongButton.disabled = isLoading;
   if (isLoading) {
     els.editHeading.textContent = 'Loading song…';
   }
