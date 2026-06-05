@@ -943,11 +943,12 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
     h('div', { className: 'player-media clickable-media', role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: videoFrameRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
     h('div', { className: 'player-bar' },
-      h('div', { className: 'player-info' }, h('h2', null, selected.title), h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey))),
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
-          h('div', { className: 'player-controls-left' },
-            h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
+          h('div', { className: 'player-info' },
+            h('h2', null, selected.title),
+            h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
+            selected.publicTrackNote ? h('p', { className: 'notes public-note compact-note' }, selected.publicTrackNote) : null
           ),
           h('div', { className: 'player-controls-center transport-controls', 'aria-label': 'Transport controls' },
             h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
@@ -958,12 +959,12 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
             h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
-            hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null
+            hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
+            h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
           )
         )
       )
     ),
-    selected.publicTrackNote ? h('p', { className: 'notes public-note' }, selected.publicTrackNote) : null,
     isVideoMode && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
     isVideoMode && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
     hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selected.videoOnly ? 'This is a video-only record. Use the main play button or Watch Video to start the YouTube player.' : 'No audio URL is available for this track.'),
