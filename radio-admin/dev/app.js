@@ -154,8 +154,11 @@ function bindEvents() {
   });
   els.clearTokenButton.addEventListener('click', clearToken);
   els.refreshDashboardButton.addEventListener('click', () => loadSongs());
-  els.refreshSongsButton.addEventListener('click', () => loadSongs());
+  els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.songSearch.addEventListener('input', renderSongList);
+  els.saveChangesButton.addEventListener('click', () => {
+    console.log("Save clicked");
+  });
   els.editForm.addEventListener('submit', saveSelectedSong);
   els.cancelChangesButton.addEventListener('click', () => {
     if (selectedSongKey) {
@@ -324,13 +327,20 @@ function parseJsonMaybe(value) {
   }
 }
 
-async function loadSongs({ silent = false } = {}) {
+async function loadSongs({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
+  const previousSelectedSongKey = preserveSelection ? selectedSongKey : '';
+
   setBusy(els.refreshDashboardButton, true);
   setBusy(els.refreshSongsButton, true);
 
   try {
     const data = await adminFetch(API_BASE_URL);
     songs = normalizeSongsResponse(data);
+
+    if (previousSelectedSongKey) {
+      preserveSelectedSong(previousSelectedSongKey);
+    }
+
     renderDashboard();
     renderSongList();
 
@@ -342,6 +352,24 @@ async function loadSongs({ silent = false } = {}) {
   } finally {
     setBusy(els.refreshDashboardButton, false);
     setBusy(els.refreshSongsButton, false);
+  }
+}
+
+function preserveSelectedSong(songKey) {
+  const refreshedSong = songs.find((song) => getSongKey(song) === songKey);
+
+  if (!refreshedSong) {
+    selectedSong = null;
+    selectedSongKey = '';
+    clearEditor();
+    return;
+  }
+
+  selectedSong = refreshedSong;
+  selectedSongKey = getSongKey(refreshedSong);
+
+  if (!els.editForm.classList.contains('hidden')) {
+    populateEditor(refreshedSong);
   }
 }
 
@@ -848,6 +876,8 @@ function clearEditor() {
 async function saveSelectedSong(event) {
   event.preventDefault();
 
+  console.log("Selected song before save:", selectedSong);
+
   if (!selectedSongKey) {
     showMessage('Select a song before saving.', 'error');
     return;
@@ -856,15 +886,20 @@ async function saveSelectedSong(event) {
   const payload = buildUpdatePayload();
   const changedFields = Object.keys(payload);
 
+  console.log("Admin PUT payload:", payload);
+
   if (!changedFields.length) {
-    showMessage('No changes to save. The selected song already matches the form values.', 'success');
+    showMessage('No changes to save', 'success');
     return;
   }
 
+  const url = `${API_BASE_URL}/${encodeURIComponent(selectedSongKey)}`;
+  console.log("Admin PUT URL:", url);
+  showMessage('Saving...', 'success');
   setBusy(els.saveChangesButton, true);
 
   try {
-    const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(selectedSongKey)}`, {
+    const result = await adminFetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -872,20 +907,43 @@ async function saveSelectedSong(event) {
       body: JSON.stringify(payload)
     });
 
-    const updatedSong = normalizeSongResponse(data);
-    showMessage(`Saved ${formatSongTitle(selectedSong)} (${changedFields.join(', ')}).`, 'success');
-    await loadSongs({ silent: true });
+    console.log("Admin PUT response:", result);
 
-    if (updatedSong && Object.keys(updatedSong).length) {
-      populateEditor({ ...selectedSong, ...updatedSong });
-    }
+    const returnedSong = normalizeSongResponse(result);
+    const updatedSong = returnedSong && Object.keys(returnedSong).length
+      ? { ...selectedSong, ...returnedSong }
+      : { ...selectedSong, ...payload };
 
-    await loadSongDetails(selectedSongKey);
+    selectedSong = updatedSong;
+    selectedSongKey = getSongKey(updatedSong) || selectedSongKey;
+    updateSongInList(updatedSong);
+    renderDashboard();
+    renderSongList();
+    populateEditor(updatedSong);
+    setActiveTab('edit');
+    showMessage('Saved successfully', 'success');
   } catch (error) {
-    showMessage(`Save failed for ${formatSongTitle(selectedSong)}: ${error.message}`, 'error');
+    showMessage(error.message, 'error');
   } finally {
     setBusy(els.saveChangesButton, false);
   }
+}
+
+function updateSongInList(updatedSong) {
+  const updatedSongKey = getSongKey(updatedSong) || selectedSongKey;
+
+  if (!updatedSongKey) {
+    return;
+  }
+
+  const index = songs.findIndex((song) => getSongKey(song) === updatedSongKey);
+
+  if (index === -1) {
+    songs = [updatedSong, ...songs];
+    return;
+  }
+
+  songs = songs.map((song, songIndex) => (songIndex === index ? { ...song, ...updatedSong } : song));
 }
 
 function buildUpdatePayload() {
@@ -930,7 +988,7 @@ function getFieldPayloadValue(field) {
 
 function getComparableFieldValue(field, value) {
   if (field.name === 'public_visibility') {
-    return getRadioVisibilityValue(value);
+    return normalizePublicVisibility(getPublicVisibilityValue(value));
   }
 
   if (booleanFields.has(field.name)) {
