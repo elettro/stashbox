@@ -737,6 +737,9 @@ function buildEditForm() {
     const fieldId = `field_${field.name}`;
 
     if (field.type === 'checkbox') {
+      const wrap = document.createElement('div');
+      wrap.className = 'checkbox-item';
+
       const label = document.createElement('label');
       label.className = 'checkbox-field';
       label.setAttribute('for', fieldId);
@@ -927,7 +930,7 @@ function getFieldPayloadValue(field) {
 
 function getComparableFieldValue(field, value) {
   if (field.name === 'public_visibility') {
-    return normalizePublicVisibility(value);
+    return getRadioVisibilityValue(value);
   }
 
   if (booleanFields.has(field.name)) {

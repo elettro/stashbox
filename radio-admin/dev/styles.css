@@ -544,6 +544,11 @@ textarea:focus {
   gap: 0.6rem;
 }
 
+.checkbox-item {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .checkbox-field {
   display: flex;
   align-items: center;
