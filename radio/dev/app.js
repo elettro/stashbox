@@ -583,6 +583,7 @@ function App() {
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const audioRef = useRef(null);
   const playerRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
   const hasHandledVideoEndRef = useRef(false);
   const mediaIsPlayingRef = useRef(false);
   const products = useProducts(selected);
@@ -736,12 +737,29 @@ function App() {
     selectTrack(next, { autoStart });
   }
 
+  function safelyCleanupYouTubeBeforeNext() {
+    console.log("Video cleanup before next");
+    const player = youtubePlayerRef.current;
+    if (!player) return;
+    try {
+      if (typeof player.pauseVideo === 'function') player.pauseVideo();
+    } catch (error) {
+      console.warn('Unable to pause YouTube player safely before manual next.', error.message || error);
+    }
+    try {
+      if (typeof player.destroy === 'function') player.destroy();
+    } catch (error) {
+      console.warn('Unable to destroy YouTube player safely before manual next.', error.message || error);
+    }
+    youtubePlayerRef.current = null;
+  }
+
   function handleManualNext() {
     const currentSong = selectedSong;
-    console.log("Manual next clicked");
-    console.log("Current song before next:", currentSong?.song_key);
+    console.log("Manual next clicked while mediaMode:", mediaMode);
+    console.log("Current video song:", currentSong?.song_key);
     const nextSong = resolveAdjacentPlayableSong(1, currentSong);
-    console.log("Next song resolved:", nextSong?.song_key);
+    console.log("Resolved next song before cleanup:", nextSong?.song_key);
     const audio = audioRef.current;
     const audioWasPlaying = Boolean(audio && !audio.paused && !audio.ended);
     const videoWasPlaying = mediaMode === 'video' && mediaIsPlayingRef.current;
@@ -750,7 +768,7 @@ function App() {
 
     if (!nextSong) {
       setPlayerMessage('No next playable song is available.');
-      console.log("Player should remain visible after next");
+      console.log("Player shell should stay mounted");
       window.requestAnimationFrame(() => playerRef.current?.focus?.());
       return;
     }
@@ -760,14 +778,17 @@ function App() {
       try { audio.currentTime = 0; } catch (_) {}
     }
 
+    if (mediaMode === 'video') safelyCleanupYouTubeBeforeNext();
+
     if (currentSong) sendTrackingEvent(currentSong, 'skip', sessionId);
     finishPlayback('play_partial', currentSong);
     setPlayerMessage('');
-    setSelected(nextSong);
-    setMediaMode('idle');
     setActiveVideoEmbedUrl('');
+    setMediaMode('idle');
+    setSelected(nextSong);
     setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: false } : null);
-    console.log("Player should remain visible after next");
+    console.log("Selected next song after video cleanup:", nextSong?.song_key);
+    console.log("Player shell should stay mounted");
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
@@ -898,7 +919,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), onYouTubeEnded: () => handleYouTubeEnded(selectedSong), onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), onYouTubeEnded: () => handleYouTubeEnded(selectedSong), onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
@@ -924,13 +945,14 @@ function LikeButton({ count, active, onLike, compact = false }) { return h('butt
 function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, compact = false }) { return h('span', { className: `song-actions ${compact ? 'compact' : ''}` }, h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(PlayCount, { count: playCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareCount, { count: shareCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareButton, { onShare, copied: shareCopied, compact })); }
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
-function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const videoFrameRef = useRef(null);
-  const youtubePlayerRef = useRef(null);
+  const localYoutubePlayerRef = useRef(null);
+  const youtubePlayerRef = externalYoutubePlayerRef || localYoutubePlayerRef;
   const hasHandledVideoEndRef = useRef(false);
   const onVideoStartRef = useRef(onVideoStart);
   const onVideoCompleteRef = useRef(onVideoComplete);
