@@ -98,6 +98,8 @@ h2 {
 
 .token-actions,
 .panel-header,
+.panel-actions,
+.field-label-row,
 .form-actions {
   display: flex;
   align-items: center;
@@ -139,6 +141,16 @@ h2 {
 .button-small {
   padding: 0.55rem 0.85rem;
   font-size: 0.9rem;
+}
+
+.panel-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.field-label-row {
+  align-items: center;
+  justify-content: space-between;
 }
 
 .token-panel {
@@ -532,6 +544,10 @@ textarea:focus {
   gap: 0.4rem;
 }
 
+.field.is-hidden-for-mode {
+  display: none;
+}
+
 .field-help {
   color: var(--muted);
   font-size: 0.78rem;
@@ -625,6 +641,8 @@ textarea {
   .topbar,
   .token-actions,
   .panel-header,
+  .panel-actions,
+  .field-label-row,
   .form-actions {
     align-items: stretch;
     flex-direction: column;

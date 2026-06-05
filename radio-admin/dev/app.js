@@ -4,6 +4,7 @@ const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
 
 const editableFields = [
+  { name: 'song_key', label: 'Song key', type: 'text', createOnly: true, full: true, help: 'Unique URL-safe key for this song. You can generate it from display title + artist, then edit it manually.' },
   { name: 'song_name', label: 'Song name', type: 'text' },
   { name: 'display_title', label: 'Display title', type: 'text' },
   { name: 'artist', label: 'Artist', type: 'text' },
@@ -11,6 +12,7 @@ const editableFields = [
   { name: 'genre', label: 'Genre', type: 'text' },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
   { name: 'release_format', label: 'Release format', type: 'text' },
+  { name: 'song_origin', label: 'Song origin', type: 'text' },
   { name: 'audio_url', label: 'Audio URL', type: 'url', full: true },
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
   { name: 'video_link', label: 'Video link', type: 'url', full: true },
@@ -56,6 +58,7 @@ const plainTextFields = new Set([
   'public_video_note',
   'video_setlist',
   'internal_notes',
+  'song_key',
   'song_name',
   'display_title',
   'artist',
@@ -63,6 +66,7 @@ const plainTextFields = new Set([
   'genre',
   'secondary_genre',
   'release_format',
+  'song_origin',
   'audio_url',
   'song_artwork_url',
   'video_link',
@@ -95,6 +99,33 @@ const kpiDefinitions = [
 ];
 
 const fieldElements = new Map();
+const fieldWrappers = new Map();
+
+const createRequiredFields = new Set([
+  'song_key',
+  'song_name',
+  'display_title',
+  'artist',
+  'release_format',
+  'public_visibility'
+]);
+
+const createDefaults = {
+  song_key: '',
+  song_name: '',
+  display_title: '',
+  artist: 'Stashbox',
+  release_format: 'single',
+  public_visibility: 'visible',
+  exclusive: true,
+  explicit: false,
+  live_recording: false,
+  featured: false,
+  show_public_note: false,
+  song_origin: 'original',
+  mood_tags: [],
+  specific_product_urls: []
+};
 
 let songs = [];
 let filteredSongs = [];
@@ -102,6 +133,7 @@ let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
 let activeTab = DEFAULT_TAB;
+let editorMode = 'edit';
 
 const els = {
   tokenPanel: document.getElementById('tokenPanel'),
@@ -123,6 +155,7 @@ const els = {
   productClicksList: document.getElementById('productClicksList'),
   engagementList: document.getElementById('engagementList'),
   skipRateList: document.getElementById('skipRateList'),
+  createSongButton: document.getElementById('createSongButton'),
   refreshSongsButton: document.getElementById('refreshSongsButton'),
   songSearch: document.getElementById('songSearch'),
   songCount: document.getElementById('songCount'),
@@ -154,6 +187,7 @@ function bindEvents() {
   });
   els.clearTokenButton.addEventListener('click', clearToken);
   els.refreshDashboardButton.addEventListener('click', () => loadSongs());
+  els.createSongButton.addEventListener('click', startCreateSong);
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
@@ -161,6 +195,11 @@ function bindEvents() {
   });
   els.editForm.addEventListener('submit', saveSelectedSong);
   els.cancelChangesButton.addEventListener('click', () => {
+    if (editorMode === 'create') {
+      clearEditor();
+      return;
+    }
+
     if (selectedSongKey) {
       loadSongDetails(selectedSongKey);
     }
@@ -269,11 +308,13 @@ async function adminFetch(url, options = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('Unauthorized. Check admin token.');
-    }
-
-    throw new Error(`API error ${response.status}: ${getApiErrorMessage(data, response.statusText)}`);
+    const message = response.status === 401
+      ? 'Unauthorized. Check admin token.'
+      : `API error ${response.status}: ${getApiErrorMessage(data, response.statusText)}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;
@@ -767,6 +808,8 @@ function buildEditForm() {
     if (field.type === 'checkbox') {
       const wrap = document.createElement('div');
       wrap.className = 'checkbox-item';
+      wrap.dataset.fieldName = field.name;
+      fieldWrappers.set(field.name, wrap);
 
       const label = document.createElement('label');
       label.className = 'checkbox-field';
@@ -799,10 +842,26 @@ function buildEditForm() {
 
     const wrap = document.createElement('div');
     wrap.className = `field ${field.full ? 'field-full' : ''}`;
+    wrap.dataset.fieldName = field.name;
+    fieldWrappers.set(field.name, wrap);
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'field-label-row';
 
     const label = document.createElement('label');
     label.setAttribute('for', fieldId);
     label.textContent = field.label;
+    labelRow.appendChild(label);
+
+    if (field.name === 'song_key') {
+      const generateButton = document.createElement('button');
+      generateButton.id = 'generateSongKeyButton';
+      generateButton.className = 'song-action-button';
+      generateButton.type = 'button';
+      generateButton.textContent = 'Generate Song Key';
+      generateButton.addEventListener('click', generateSongKeyFromForm);
+      labelRow.appendChild(generateButton);
+    }
 
     const input = field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
     input.id = fieldId;
@@ -813,7 +872,7 @@ function buildEditForm() {
     }
 
     fieldElements.set(field.name, input);
-    wrap.append(label, input);
+    wrap.append(labelRow, input);
 
     if (field.help) {
       const help = document.createElement('div');
@@ -828,13 +887,29 @@ function buildEditForm() {
   els.formFields.appendChild(checkboxWrap);
 }
 
-function populateEditor(song) {
-  selectedSong = song;
-  selectedSongKey = getSongKey(song) || selectedSongKey;
-  els.editHeading.textContent = song.display_title || song.song_name || 'Untitled song';
-  els.selectedSongKey.textContent = selectedSongKey;
+function startCreateSong() {
+  selectedSong = null;
+  selectedSongKey = '';
+  renderSongList();
+  populateEditor(getCreateSongDefaults(), { mode: 'create' });
+  setActiveTab('edit');
+}
+
+function getCreateSongDefaults() {
+  return { ...createDefaults };
+}
+
+function populateEditor(song, { mode = 'edit' } = {}) {
+  editorMode = mode;
+  selectedSong = mode === 'create' ? null : song;
+  selectedSongKey = mode === 'create' ? '' : getSongKey(song) || selectedSongKey;
+  els.editHeading.textContent = mode === 'create' ? 'Create New Song' : song.display_title || song.song_name || 'Untitled song';
+  els.selectedSongKey.textContent = mode === 'create' ? 'new song' : selectedSongKey;
+  els.saveChangesButton.textContent = mode === 'create' ? 'Create Song' : 'Save Changes';
+  els.cancelChangesButton.textContent = mode === 'create' ? 'Cancel' : 'Cancel/Revert';
   els.emptyEditor.classList.add('hidden');
   els.editForm.classList.remove('hidden');
+  applyEditorModeToFields(mode);
 
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
@@ -858,11 +933,34 @@ function populateEditor(song) {
   });
 }
 
+function applyEditorModeToFields(mode) {
+  editableFields.forEach((field) => {
+    const input = fieldElements.get(field.name);
+    const wrap = fieldWrappers.get(field.name);
+    const isCreateOnlyHidden = Boolean(field.createOnly && mode !== 'create');
+
+    if (wrap) {
+      wrap.classList.toggle('is-hidden-for-mode', isCreateOnlyHidden);
+    }
+
+    if (input) {
+      input.disabled = isCreateOnlyHidden;
+      input.required = mode === 'create' && createRequiredFields.has(field.name) && field.type !== 'checkbox';
+    }
+  });
+}
+
 function clearEditor() {
+  editorMode = 'edit';
   els.editHeading.textContent = 'Select a song';
   els.selectedSongKey.textContent = '';
+  els.saveChangesButton.textContent = 'Save Changes';
+  els.cancelChangesButton.textContent = 'Cancel/Revert';
   els.emptyEditor.classList.remove('hidden');
   els.editForm.classList.add('hidden');
+  selectedSong = null;
+  selectedSongKey = '';
+  applyEditorModeToFields('edit');
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     if (field.type === 'checkbox') {
@@ -871,12 +969,18 @@ function clearEditor() {
       input.value = '';
     }
   });
+  renderSongList();
 }
 
 async function saveSelectedSong(event) {
   event.preventDefault();
 
   console.log("Selected song before save:", selectedSong);
+
+  if (editorMode === 'create') {
+    await createSelectedSong();
+    return;
+  }
 
   if (!selectedSongKey) {
     showMessage('Select a song before saving.', 'error');
@@ -929,6 +1033,61 @@ async function saveSelectedSong(event) {
   }
 }
 
+
+async function createSelectedSong() {
+  const payload = buildCreatePayload();
+
+  if (!validateCreatePayload(payload)) {
+    return;
+  }
+
+  console.log("Admin POST payload:", payload);
+  showMessage('Creating song...', 'success');
+  setBusy(els.saveChangesButton, true);
+
+  try {
+    const result = await adminFetch(API_BASE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    console.log("Admin POST response:", result);
+
+    const returnedSong = normalizeSongResponse(result);
+    const createdSong = returnedSong && Object.keys(returnedSong).length
+      ? { ...payload, ...returnedSong }
+      : payload;
+    const createdSongKey = getSongKey(createdSong) || payload.song_key;
+
+    selectedSong = createdSong;
+    selectedSongKey = createdSongKey;
+    updateSongInList(createdSong);
+    renderDashboard();
+    renderSongList();
+    await loadSongs({ silent: true, preserveSelection: false });
+
+    updateSongInList(createdSong);
+    selectedSong = createdSong;
+    selectedSongKey = createdSongKey;
+    populateEditor(createdSong, { mode: 'edit' });
+    renderSongList();
+    setActiveTab('edit');
+    showMessage('Song created successfully', 'success');
+  } catch (error) {
+    if (error.status === 409) {
+      showMessage('Song key already exists. Choose a different song key.', 'error');
+      return;
+    }
+
+    showMessage(error.message, 'error');
+  } finally {
+    setBusy(els.saveChangesButton, false);
+  }
+}
+
 function updateSongInList(updatedSong) {
   const updatedSongKey = getSongKey(updatedSong) || selectedSongKey;
 
@@ -946,8 +1105,65 @@ function updateSongInList(updatedSong) {
   songs = songs.map((song, songIndex) => (songIndex === index ? { ...song, ...updatedSong } : song));
 }
 
+function buildCreatePayload() {
+  return editableFields.reduce((payload, field) => {
+    payload[field.name] = getFieldPayloadValue(field);
+    return payload;
+  }, {});
+}
+
+function validateCreatePayload(payload) {
+  const missingFields = Array.from(createRequiredFields).filter((fieldName) => {
+    if (fieldName === 'public_visibility') {
+      return !['visible', 'hidden'].includes(payload[fieldName]);
+    }
+
+    return !String(payload[fieldName] || '').trim();
+  });
+
+  if (missingFields.length) {
+    showMessage(`Fill required fields before creating: ${missingFields.join(', ')}.`, 'error');
+    return false;
+  }
+
+  if (!String(payload.audio_url || '').trim() && !String(payload.video_link || '').trim()) {
+    showMessage('Add either an Audio URL or Video Link before creating the song.', 'error');
+    return false;
+  }
+
+  return true;
+}
+
+function generateSongKeyFromForm() {
+  const displayTitle = fieldElements.get('display_title')?.value || '';
+  const artist = fieldElements.get('artist')?.value || '';
+  const generatedKey = slugifySongKey(`${displayTitle} ${artist}`);
+  const songKeyInput = fieldElements.get('song_key');
+
+  if (!generatedKey) {
+    showMessage('Enter a display title and artist before generating a song key.', 'error');
+    return;
+  }
+
+  songKeyInput.value = generatedKey;
+  songKeyInput.focus();
+}
+
+function slugifySongKey(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function buildUpdatePayload() {
   return editableFields.reduce((payload, field) => {
+    if (field.createOnly) {
+      return payload;
+    }
+
     const nextValue = getFieldPayloadValue(field);
     const currentValue = getComparableFieldValue(field, selectedSong?.[field.name]);
 
