@@ -74,8 +74,7 @@ const booleanFields = new Set([
   'exclusive',
   'explicit',
   'live_recording',
-  'featured',
-  'public_visibility'
+  'featured'
 ]);
 
 const kpiDefinitions = [
@@ -629,7 +628,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('public', toBoolean(song.public_visibility)));
+  badges.appendChild(makeBadge('public', isPubliclyVisible(song)));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -794,7 +793,9 @@ function populateEditor(song) {
     const input = fieldElements.get(field.name);
     const value = song[field.name];
 
-    if (field.type === 'checkbox') {
+    if (field.name === 'public_visibility') {
+      input.checked = isPubliclyVisible(song);
+    } else if (field.type === 'checkbox') {
       input.checked = toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
       input.value = normalizeArrayValue(value, '\n').join('\n');
@@ -885,6 +886,10 @@ function buildUpdatePayload() {
 function getFieldPayloadValue(field) {
   const input = fieldElements.get(field.name);
 
+  if (field.name === 'public_visibility') {
+    return input.checked ? 'visible' : 'hidden';
+  }
+
   if (booleanFields.has(field.name)) {
     return Boolean(input.checked);
   }
@@ -905,6 +910,10 @@ function getFieldPayloadValue(field) {
 }
 
 function getComparableFieldValue(field, value) {
+  if (field.name === 'public_visibility') {
+    return normalizePublicVisibility(value);
+  }
+
   if (booleanFields.has(field.name)) {
     return toBoolean(value);
   }
@@ -948,6 +957,22 @@ function parseCommaSeparatedArray(value) {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+
+function normalizePublicVisibility(value) {
+  if (typeof value === 'string') {
+    return value.trim().toLowerCase() === 'visible' ? 'visible' : 'hidden';
+  }
+
+  return toBoolean(value) ? 'visible' : 'hidden';
+}
+
+function isPubliclyVisible(songOrValue) {
+  const value = typeof songOrValue === 'object' && songOrValue !== null
+    ? songOrValue.public_visibility
+    : songOrValue;
+  return normalizePublicVisibility(value) === 'visible';
 }
 
 function toBoolean(value) {
