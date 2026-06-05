@@ -545,11 +545,14 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
 }
 
 function RadioHeader({ videoOnly = false, onToggleVideos, onShuffle, disableVideoFilter = false, disableShuffle = false }) {
-  return h('header', { className: 'page-heading' },
-    h('div', { className: 'header-title-block' }, h('p', { className: 'page-subtitle' }, 'Listen. Watch. Shop. Share.'), h('h1', null, 'STASHBOX RADIO'), h('p', { className: 'source-note' }, 'RDS-powered dev player · production /radio/ remains unchanged')),
-    h('div', { className: 'header-actions', 'aria-label': 'Radio quick actions' },
-      h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
-      h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
+  return h('header', { className: 'page-heading radio-hero-header' },
+    h('p', { className: 'page-subtitle' }, 'Listen. Watch. Shop. Share.'),
+    h('div', { className: 'radio-title-row' },
+      h('h1', null, 'STASHBOX RADIO'),
+      h('div', { className: 'radio-title-actions', 'aria-label': 'Radio quick actions' },
+        h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
+        h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
+      )
     )
   );
 }
