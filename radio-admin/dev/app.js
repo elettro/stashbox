@@ -2,6 +2,21 @@ const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/def
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
+const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" role="img" aria-label="Stashbox artwork placeholder">
+    <defs>
+      <linearGradient id="stashboxPlaceholderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#42d982"/>
+        <stop offset="52%" stop-color="#17241f"/>
+        <stop offset="100%" stop-color="#f0c04c"/>
+      </linearGradient>
+    </defs>
+    <rect width="88" height="88" rx="18" fill="#111816"/>
+    <rect x="7" y="7" width="74" height="74" rx="15" fill="url(#stashboxPlaceholderGradient)" opacity="0.72"/>
+    <circle cx="44" cy="44" r="20" fill="rgba(8,11,10,0.72)"/>
+    <path d="M38 31v26l22-13-22-13Z" fill="#f3f7ef"/>
+  </svg>
+`)}`;
 
 const editableFields = [
   { name: 'song_key', label: 'Song key', type: 'text', createOnly: true, full: true, help: 'Unique URL-safe key for this song. You can generate it from display title + artist, then edit it manually.' },
@@ -527,7 +542,7 @@ function renderTopSongsTable(songList) {
   songList.forEach((song) => {
     const row = document.createElement('tr');
     const songKey = getSongKey(song);
-    row.appendChild(makeTextCell(formatSongTitle(song), 'song-title compact-title'));
+    row.appendChild(buildSongTitleCell(song, songKey, 'compact-title'));
     row.appendChild(makeTextCell(song.artist || '—'));
     row.appendChild(makeTextCell(song.genre || '—'));
     row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'total_plays'))));
@@ -559,9 +574,11 @@ function renderRankList(container, songList, metricLabel, valueGetter = null, fo
     item.className = 'rank-item';
     item.innerHTML = `
       <span class="rank-number"></span>
-      <div class="rank-main">
-        <strong></strong>
-        <span></span>
+      <div class="song-cell-with-art rank-song-cell">
+        <div class="rank-main">
+          <strong></strong>
+          <span></span>
+        </div>
       </div>
       <div class="rank-value"></div>
       <div class="song-card-actions rank-actions">
@@ -570,6 +587,7 @@ function renderRankList(container, songList, metricLabel, valueGetter = null, fo
       </div>
     `;
     item.querySelector('.rank-number').textContent = String(index + 1);
+    item.querySelector('.rank-song-cell').prepend(buildSongArtworkImage(song));
     item.querySelector('.rank-main strong').textContent = formatSongTitle(song);
     item.querySelector('.rank-main span').textContent = [song.artist, song.genre].filter(Boolean).join(' · ') || songKey || '—';
     item.querySelector('.rank-value').textContent = `${formatter(value)} ${metricLabel}`;
@@ -619,6 +637,105 @@ function getMetricValue(song, key) {
   const rawValue = keys.map((fieldName) => song?.[fieldName]).find((value) => value !== undefined && value !== null && value !== '');
   const number = Number(rawValue || 0);
   return Number.isFinite(number) ? number : 0;
+}
+
+
+function getSongArtworkUrl(song) {
+  const directArtworkUrl = [song?.resolved_artwork_url, song?.song_artwork_url]
+    .map((value) => String(value || '').trim())
+    .find(Boolean);
+
+  if (directArtworkUrl) {
+    return directArtworkUrl;
+  }
+
+  const youtubeVideoId = getYouTubeVideoId(song?.video_link);
+
+  if (youtubeVideoId) {
+    return `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`;
+  }
+
+  return STASHBOX_PLACEHOLDER_ARTWORK;
+}
+
+function getYouTubeVideoId(videoLink) {
+  if (!videoLink) {
+    return '';
+  }
+
+  try {
+    const url = new URL(String(videoLink).trim());
+    const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+
+    if (hostname === 'youtu.be') {
+      return sanitizeYouTubeVideoId(url.pathname.split('/').filter(Boolean)[0]);
+    }
+
+    if (hostname === 'youtube.com' || hostname === 'm.youtube.com' || hostname.endsWith('.youtube.com')) {
+      const watchId = sanitizeYouTubeVideoId(url.searchParams.get('v'));
+
+      if (watchId) {
+        return watchId;
+      }
+
+      const pathParts = url.pathname.split('/').filter(Boolean);
+      const videoPathIndex = pathParts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
+
+      if (videoPathIndex !== -1) {
+        return sanitizeYouTubeVideoId(pathParts[videoPathIndex + 1]);
+      }
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+}
+
+function sanitizeYouTubeVideoId(value) {
+  const videoId = String(value || '').trim().match(/^[a-zA-Z0-9_-]{6,}$/)?.[0] || '';
+  return videoId.slice(0, 32);
+}
+
+function buildSongArtworkImage(song) {
+  const image = document.createElement('img');
+  image.className = 'song-thumb';
+  image.src = getSongArtworkUrl(song);
+  image.alt = `Artwork for ${formatSongTitle(song)}`;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.addEventListener('error', () => {
+    if (image.dataset.fallbackApplied === 'true') {
+      image.hidden = true;
+      return;
+    }
+
+    image.dataset.fallbackApplied = 'true';
+    image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+  });
+  return image;
+}
+
+function buildSongTitleCell(song, songKey, titleClassName = '') {
+  const cell = document.createElement('td');
+  const wrap = document.createElement('div');
+  wrap.className = 'song-cell-with-art';
+
+  const textWrap = document.createElement('div');
+  textWrap.className = 'song-cell-text';
+
+  const title = document.createElement('span');
+  title.className = ['song-title', titleClassName].filter(Boolean).join(' ');
+  title.textContent = formatSongTitle(song);
+
+  const meta = document.createElement('span');
+  meta.className = 'song-meta';
+  meta.textContent = [song.artist, song.album_name, song.genre].filter(Boolean).join(' · ') || songKey || '—';
+
+  textWrap.append(title, meta);
+  wrap.append(buildSongArtworkImage(song), textWrap);
+  cell.appendChild(wrap);
+  return cell;
 }
 
 function makeTextCell(text, className = '') {
@@ -717,18 +834,17 @@ function songMatchesQuery(song, query) {
 }
 
 function buildSongCell(song, songKey) {
-  const cell = document.createElement('td');
-  cell.innerHTML = `
-    <span class="song-title"></span>
-    <span class="song-meta"></span>
-    <div class="song-card-actions">
-      <button class="song-action-button" type="button">Edit</button>
-      <a class="song-action-button song-action-link" target="_blank" rel="noopener noreferrer">Open in Radio</a>
-    </div>
-    <div class="badges"></div>
+  const cell = buildSongTitleCell(song, songKey);
+  const textWrap = cell.querySelector('.song-cell-text');
+  const actions = document.createElement('div');
+  actions.className = 'song-card-actions';
+  actions.innerHTML = `
+    <button class="song-action-button" type="button">Edit</button>
+    <a class="song-action-button song-action-link" target="_blank" rel="noopener noreferrer">Open in Radio</a>
   `;
-  cell.querySelector('.song-title').textContent = song.display_title || song.song_name || 'Untitled song';
-  cell.querySelector('.song-meta').textContent = [song.artist, song.album_name, song.genre, song.release_format].filter(Boolean).join(' · ') || songKey;
+  const badges = document.createElement('div');
+  badges.className = 'badges';
+  textWrap.append(actions, badges);
 
   const editButton = cell.querySelector('.song-action-button[type="button"]');
   editButton.addEventListener('click', (event) => {
@@ -742,7 +858,6 @@ function buildSongCell(song, songKey) {
     event.stopPropagation();
   });
 
-  const badges = cell.querySelector('.badges');
   badges.appendChild(makeVisibilityBadge(song));
 
   if (song.album_name) {
