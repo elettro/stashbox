@@ -15,10 +15,15 @@ const editableFields = [
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
   { name: 'video_link', label: 'Video link', type: 'url', full: true },
   { name: 'public_track_note', label: 'Public track note', type: 'textarea', full: true },
-  { name: 'show_public_note', label: 'Show public note', type: 'checkbox' },
+  { name: 'show_public_note', label: 'Show Public Note', type: 'checkbox' },
   { name: 'public_video_note', label: 'Public video note', type: 'textarea', full: true },
   { name: 'video_setlist', label: 'Video setlist', type: 'textarea', full: true },
-  { name: 'public_visibility', label: 'Public visibility', type: 'checkbox' },
+  {
+    name: 'public_visibility',
+    label: 'Show in Radio',
+    type: 'checkbox',
+    help: 'Checked songs appear in the RDS-powered radio player. Uncheck only when you want to hide a song.'
+  },
   { name: 'exclusive', label: 'Exclusive', type: 'checkbox' },
   { name: 'explicit', label: 'Explicit', type: 'checkbox' },
   { name: 'live_recording', label: 'Live recording', type: 'checkbox' },
@@ -628,7 +633,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('public', isPubliclyVisible(song)));
+  badges.appendChild(makeBadge('radio', getRadioVisibilityLabel(song), isShownInRadio(song)));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -670,9 +675,9 @@ function buildUpdatedCell(song) {
   return cell;
 }
 
-function makeBadge(label, value) {
+function makeBadge(label, value, isOn = Boolean(value)) {
   const badge = document.createElement('span');
-  badge.className = `badge ${value ? 'badge-on' : ''}`;
+  badge.className = `badge ${isOn ? 'badge-on' : ''}`;
   badge.textContent = `${label}: ${formatDisplayValue(value)}`;
   return badge;
 }
@@ -742,10 +747,21 @@ function buildEditForm() {
       input.type = 'checkbox';
       fieldElements.set(field.name, input);
 
+      const textWrap = document.createElement('span');
+      textWrap.className = 'checkbox-text';
+
       const span = document.createElement('span');
       span.textContent = field.label;
+      textWrap.appendChild(span);
 
-      label.append(input, span);
+      if (field.help) {
+        const help = document.createElement('span');
+        help.className = 'checkbox-help';
+        help.textContent = field.help;
+        textWrap.appendChild(help);
+      }
+
+      label.append(input, textWrap);
       checkboxWrap.appendChild(label);
       return;
     }
@@ -794,7 +810,7 @@ function populateEditor(song) {
     const value = song[field.name];
 
     if (field.name === 'public_visibility') {
-      input.checked = isPubliclyVisible(song);
+      input.checked = isShownInRadio(song);
     } else if (field.type === 'checkbox') {
       input.checked = toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
@@ -819,7 +835,7 @@ function clearEditor() {
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     if (field.type === 'checkbox') {
-      input.checked = false;
+      input.checked = field.name === 'public_visibility';
     } else {
       input.value = '';
     }
@@ -961,18 +977,21 @@ function parseCommaSeparatedArray(value) {
 
 
 function normalizePublicVisibility(value) {
-  if (typeof value === 'string') {
-    return value.trim().toLowerCase() === 'visible' ? 'visible' : 'hidden';
-  }
-
-  return toBoolean(value) ? 'visible' : 'hidden';
+  return value === 'hidden' ? 'hidden' : 'visible';
 }
 
-function isPubliclyVisible(songOrValue) {
-  const value = typeof songOrValue === 'object' && songOrValue !== null
+function getRadioVisibilityLabel(songOrValue) {
+  return normalizePublicVisibility(getPublicVisibilityValue(songOrValue));
+}
+
+function isShownInRadio(songOrValue) {
+  return getRadioVisibilityLabel(songOrValue) === 'visible';
+}
+
+function getPublicVisibilityValue(songOrValue) {
+  return typeof songOrValue === 'object' && songOrValue !== null
     ? songOrValue.public_visibility
     : songOrValue;
-  return normalizePublicVisibility(value) === 'visible';
 }
 
 function toBoolean(value) {

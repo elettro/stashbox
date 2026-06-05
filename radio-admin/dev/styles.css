@@ -559,6 +559,18 @@ textarea:focus {
   accent-color: var(--green);
 }
 
+.checkbox-text {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.checkbox-help {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 textarea {
   min-height: 92px;
   resize: vertical;
