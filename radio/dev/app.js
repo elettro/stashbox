@@ -477,6 +477,7 @@ function App() {
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const audioRef = useRef(null);
   const playerRef = useRef(null);
+  const hasHandledVideoEndRef = useRef(false);
   const products = useProducts(selected);
 
   const selectedSong = selected || tracks[0] || null;
@@ -496,6 +497,7 @@ function App() {
   }, [selectedSong]);
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
+  useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -584,25 +586,9 @@ function App() {
   function selectTrack(track, { autoStart = false, preferVideo = false } = {}) {
     if (!track) return;
     setSelected(track);
-    setActiveVideoEmbedUrl('');
     setMediaMode('idle');
-    if (autoStart) {
-      // Audio remains the default for tracks that have both audio_url and video_link.
-      // When a YouTube video auto-advances, preferVideo keeps the explicit video autoplay chain going.
-      const shouldPlayVideo = track.hasVideo && (preferVideo || track.videoOnly || !track.hasAudio);
-      if (shouldPlayVideo) {
-        const embedUrl = youtubeEmbed(track.videoLink);
-        if (embedUrl) {
-          const autoPlayUrl = `${embedUrl}&auto_advance=${Date.now()}`;
-          setActiveVideoEmbedUrl(autoPlayUrl);
-          setMediaMode('video');
-          trackPlaybackStart(track, 'video');
-        }
-      }
-      setAutoPlayRequest({ idx: track.idx, requestedAt: Date.now(), preferVideo });
-    } else {
-      setAutoPlayRequest(null);
-    }
+    setActiveVideoEmbedUrl('');
+    setAutoPlayRequest(autoStart ? { idx: track.idx, requestedAt: Date.now(), preferVideo } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
@@ -622,6 +608,29 @@ function App() {
     selectTrack(next, { autoStart });
   }
 
+  function handleVideoEnded(song = selectedSong, { preferVideo = true } = {}) {
+    const endedSong = song || selectedRef.current;
+    if (hasHandledVideoEndRef.current) return;
+    hasHandledVideoEndRef.current = true;
+    console.log("YouTube ended for:", endedSong?.song_key);
+    finishPlayback('play_full', endedSong);
+    const currentIndex = playbackList.findIndex(track => track.idx === endedSong?.idx);
+    const nextSong = currentIndex >= 0
+      ? (playbackList.length > 1 ? playbackList[(currentIndex + 1) % playbackList.length] : null)
+      : (playbackList[0] || null);
+    console.log("Next song after video end:", nextSong?.song_key);
+    setMediaMode('idle');
+    setActiveVideoEmbedUrl('');
+    if (nextSong) {
+      setSelected(nextSong);
+      setAutoPlayRequest({ idx: nextSong.idx, requestedAt: Date.now(), preferVideo });
+    } else {
+      setAutoPlayRequest(null);
+    }
+    console.log("Keeping player visible after video end");
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+  }
+
   function autoAdvanceFromEnded(song = selectedSong, { preferVideo = false } = {}) {
     finishPlayback('play_full', song);
     if (!playbackList.length) return;
@@ -631,6 +640,24 @@ function App() {
     console.log("Next autoplay item:", next.song_key);
     selectTrack(next, { autoStart: true, preferVideo });
   }
+
+  useEffect(() => {
+    if (!autoPlayRequest || autoPlayRequest.idx !== selectedSong?.idx) return undefined;
+    const shouldPlayVideo = selectedSong?.hasVideo && (autoPlayRequest.preferVideo || selectedSong.videoOnly || !selectedSong.hasAudio);
+    if (!shouldPlayVideo) return undefined;
+    const startTimer = window.setTimeout(() => {
+      const embedUrl = youtubeEmbed(selectedSong.videoLink);
+      if (!embedUrl) {
+        console.warn('[Stashbox Radio Dev] unable to auto-start next video; keeping player visible', selectedSong.song_key);
+        setAutoPlayRequest(null);
+        return;
+      }
+      setActiveVideoEmbedUrl(`${embedUrl}&auto_advance=${Date.now()}`);
+      setMediaMode('video');
+      trackPlaybackStart(selectedSong, 'video');
+    }, 0);
+    return () => window.clearTimeout(startTimer);
+  }, [autoPlayRequest, selectedSong, trackPlaybackStart]);
 
   function pickRandomTrack() {
     if (!playableFiltered.length) return;
@@ -700,7 +727,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => autoAdvanceFromEnded(selectedSong, { preferVideo: true }), autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
@@ -756,6 +783,8 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
 
   useEffect(() => {
     if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
+    const shouldAutoPlayVideo = selected?.hasVideo && (autoPlayRequest.preferVideo || selected.videoOnly || !selected.hasAudio);
+    if (shouldAutoPlayVideo) return;
     const audio = audioRef.current;
     if (!audio || !hasAudio) return;
     const playTimer = window.setTimeout(() => {
@@ -773,9 +802,15 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
     let disposed = false;
     const destroyYoutubePlayer = () => {
       const player = youtubePlayerRef.current;
+      if (!player) return;
+      console.log("Destroying YouTube player safely");
+      try { player.stopVideo?.(); } catch (error) { console.warn('Unable to stop YouTube player safely.', error.message || error); }
+      try {
+        if (typeof player.destroy === 'function') player.destroy();
+      } catch (error) {
+        console.warn('Unable to destroy YouTube player safely.', error.message || error);
+      }
       youtubePlayerRef.current = null;
-      try { player?.stopVideo?.(); } catch (_) {}
-      try { player?.destroy?.(); } catch (_) {}
     };
     destroyYoutubePlayer();
     loadYouTubeIframeApi().then(YT => {
@@ -792,18 +827,23 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
           },
           onStateChange: event => {
             console.log("YouTube state changed:", event.data);
+            const handleVideoEnded = () => {
+              if (hasHandledVideoEndRef.current) return;
+              hasHandledVideoEndRef.current = true;
+              setIsVideoPlaying(false);
+              console.log("YouTube ended for:", selected?.song_key);
+              try {
+                onVideoCompleteRef.current?.();
+              } catch (error) {
+                console.warn('Unable to handle YouTube ended event safely.', error.message || error);
+              }
+            };
             if (event.data === YT.PlayerState.PLAYING || event.data === 1) {
               setIsVideoPlaying(true);
               onVideoStartRef.current?.();
             }
             if (event.data === YT.PlayerState.PAUSED || event.data === 2) setIsVideoPlaying(false);
-            if (event.data === YT.PlayerState.ENDED || event.data === 0) {
-              if (hasHandledVideoEndRef.current) return;
-              hasHandledVideoEndRef.current = true;
-              setIsVideoPlaying(false);
-              console.log("YouTube video ended, auto advancing:", selected.song_key);
-              onVideoCompleteRef.current?.();
-            }
+            if (event.data === YT.PlayerState.ENDED || event.data === 0) handleVideoEnded();
           }
         }
       });
@@ -826,7 +866,7 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
   function sendVideoCommand(func) {
     if (!youtubeVideo) return false;
     const player = youtubePlayerRef.current;
-    if (!player?.[func]) return false;
+    if (typeof player?.[func] !== 'function') return false;
     try {
       player[func]();
       return true;
