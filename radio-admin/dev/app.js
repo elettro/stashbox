@@ -5,6 +5,7 @@ const editableFields = [
   { name: 'song_name', label: 'Song name', type: 'text' },
   { name: 'display_title', label: 'Display title', type: 'text' },
   { name: 'artist', label: 'Artist', type: 'text' },
+  { name: 'album_name', label: 'Album', type: 'text', allowBlankSave: true },
   { name: 'genre', label: 'Genre', type: 'text' },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
   { name: 'release_format', label: 'Release format', type: 'text' },
@@ -51,6 +52,7 @@ const plainTextFields = new Set([
   'song_name',
   'display_title',
   'artist',
+  'album_name',
   'genre',
   'secondary_genre',
   'release_format',
@@ -322,7 +324,7 @@ function songMatchesQuery(song, query) {
     return true;
   }
 
-  return [song.display_title, song.artist, song.genre, getSongKey(song)]
+  return [song.display_title, song.artist, song.album_name, song.genre, getSongKey(song)]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(query));
 }
@@ -335,10 +337,15 @@ function buildSongCell(song, songKey) {
     <div class="badges"></div>
   `;
   cell.querySelector('.song-title').textContent = song.display_title || song.song_name || 'Untitled song';
-  cell.querySelector('.song-meta').textContent = [song.artist, song.genre, song.release_format].filter(Boolean).join(' · ') || songKey;
+  cell.querySelector('.song-meta').textContent = [song.artist, song.album_name, song.genre, song.release_format].filter(Boolean).join(' · ') || songKey;
 
   const badges = cell.querySelector('.badges');
   badges.appendChild(makeBadge('public', song.public_visibility));
+
+  if (song.album_name) {
+    badges.appendChild(makeBadge('album', song.album_name));
+  }
+
   badges.appendChild(makeBadge('format', song.release_format));
   return cell;
 }
@@ -571,7 +578,7 @@ function buildUpdatePayload() {
     const nextValue = getFieldPayloadValue(field);
     const currentValue = getComparableFieldValue(field, selectedSong?.[field.name]);
 
-    if (isBlankOptionalValue(nextValue)) {
+    if (isBlankOptionalValue(nextValue) && !field.allowBlankSave) {
       return payload;
     }
 
