@@ -1,6 +1,7 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
+const DEFAULT_TAB = 'dashboard';
 
 const editableFields = [
   { name: 'song_name', label: 'Song name', type: 'text' },
@@ -77,6 +78,18 @@ const booleanFields = new Set([
   'public_visibility'
 ]);
 
+const kpiDefinitions = [
+  { key: 'total_plays', label: 'Total Plays' },
+  { key: 'full_plays', label: 'Full Plays' },
+  { key: 'partial_plays', label: 'Partial Plays' },
+  { key: 'skip_count', label: 'Skips' },
+  { key: 'likes', label: 'Likes' },
+  { key: 'shares', label: 'Shares' },
+  { key: 'video_clicks', label: 'Video Clicks' },
+  { key: 'product_clicks', label: 'Product Clicks' },
+  { key: 'total_seconds_played', label: 'Total Seconds Played' }
+];
+
 const fieldElements = new Map();
 
 let songs = [];
@@ -84,6 +97,7 @@ let filteredSongs = [];
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
+let activeTab = DEFAULT_TAB;
 
 const els = {
   tokenPanel: document.getElementById('tokenPanel'),
@@ -92,6 +106,19 @@ const els = {
   saveTokenButton: document.getElementById('saveTokenButton'),
   clearTokenButton: document.getElementById('clearTokenButton'),
   tokenStatus: document.getElementById('tokenStatus'),
+  tabButtons: Array.from(document.querySelectorAll('.tab-button')),
+  dashboardView: document.getElementById('dashboardView'),
+  songsView: document.getElementById('songsView'),
+  editView: document.getElementById('editView'),
+  refreshDashboardButton: document.getElementById('refreshDashboardButton'),
+  kpiGrid: document.getElementById('kpiGrid'),
+  topSongsTableBody: document.getElementById('topSongsTableBody'),
+  likedSongsList: document.getElementById('likedSongsList'),
+  sharedSongsList: document.getElementById('sharedSongsList'),
+  watchedVideosList: document.getElementById('watchedVideosList'),
+  productClicksList: document.getElementById('productClicksList'),
+  engagementList: document.getElementById('engagementList'),
+  skipRateList: document.getElementById('skipRateList'),
   refreshSongsButton: document.getElementById('refreshSongsButton'),
   songSearch: document.getElementById('songSearch'),
   songCount: document.getElementById('songCount'),
@@ -109,6 +136,7 @@ const els = {
 document.addEventListener('DOMContentLoaded', () => {
   buildEditForm();
   bindEvents();
+  renderDashboard();
   initializeAdmin();
 });
 
@@ -121,6 +149,7 @@ function bindEvents() {
     }
   });
   els.clearTokenButton.addEventListener('click', clearToken);
+  els.refreshDashboardButton.addEventListener('click', () => loadSongs());
   els.refreshSongsButton.addEventListener('click', () => loadSongs());
   els.songSearch.addEventListener('input', renderSongList);
   els.editForm.addEventListener('submit', saveSelectedSong);
@@ -129,6 +158,9 @@ function bindEvents() {
       loadSongDetails(selectedSongKey);
     }
   });
+  els.tabButtons.forEach((button) => {
+    button.addEventListener('click', () => setActiveTab(button.dataset.tab));
+  });
 }
 
 function initializeAdmin() {
@@ -136,6 +168,7 @@ function initializeAdmin() {
   updateTokenUi(Boolean(token));
 
   if (token) {
+    setActiveTab(DEFAULT_TAB);
     loadSongs();
   } else {
     els.adminToken.focus();
@@ -157,6 +190,7 @@ function saveToken() {
   localStorage.setItem(TOKEN_STORAGE_KEY, token);
   els.adminToken.value = '';
   updateTokenUi(true);
+  setActiveTab(DEFAULT_TAB);
   loadSongs();
 }
 
@@ -166,9 +200,11 @@ function clearToken() {
   filteredSongs = [];
   selectedSong = null;
   selectedSongKey = '';
+  renderDashboard();
   renderSongList();
   clearEditor();
   updateTokenUi(false);
+  setActiveTab(DEFAULT_TAB);
   showMessage('Admin token cleared from this browser.', 'success');
   els.adminToken.focus();
 }
@@ -178,6 +214,23 @@ function updateTokenUi(hasToken) {
   els.tokenPanel.classList.toggle('hidden', hasToken);
   els.adminPanel.classList.toggle('hidden', !hasToken);
   els.clearTokenButton.classList.toggle('hidden', !hasToken);
+}
+
+function setActiveTab(tabName) {
+  activeTab = tabName || DEFAULT_TAB;
+  els.tabButtons.forEach((button) => {
+    const isActive = button.dataset.tab === activeTab;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
+
+  [
+    ['dashboard', els.dashboardView],
+    ['songs', els.songsView],
+    ['edit', els.editView]
+  ].forEach(([name, view]) => {
+    view.classList.toggle('hidden', name !== activeTab);
+  });
 }
 
 async function adminFetch(url, options = {}) {
@@ -268,11 +321,13 @@ function parseJsonMaybe(value) {
 }
 
 async function loadSongs({ silent = false } = {}) {
+  setBusy(els.refreshDashboardButton, true);
   setBusy(els.refreshSongsButton, true);
 
   try {
     const data = await adminFetch(API_BASE_URL);
     songs = normalizeSongsResponse(data);
+    renderDashboard();
     renderSongList();
 
     if (!silent) {
@@ -281,6 +336,7 @@ async function loadSongs({ silent = false } = {}) {
   } catch (error) {
     showMessage(`Could not load song list: ${error.message}`, 'error');
   } finally {
+    setBusy(els.refreshDashboardButton, false);
     setBusy(els.refreshSongsButton, false);
   }
 }
@@ -314,6 +370,179 @@ function normalizeSongsResponse(data) {
   return [];
 }
 
+function renderDashboard() {
+  renderKpiCards(calculateDashboardTotals(songs));
+  renderTopSongsTable(sortSongsByMetric('total_plays'));
+  renderRankList(els.likedSongsList, sortSongsByMetric('likes').slice(0, 5), 'likes');
+  renderRankList(els.sharedSongsList, sortSongsByMetric('shares').slice(0, 5), 'shares');
+  renderRankList(els.watchedVideosList, sortSongsByMetric('video_clicks'), 'video clicks');
+  renderRankList(els.productClicksList, sortSongsByMetric('product_clicks'), 'product clicks');
+  renderRankList(els.engagementList, sortSongsByEngagement().slice(0, 5), 'engagement', getSongEngagement);
+  renderRankList(els.skipRateList, sortSongsBySkipRate(), 'skip rate', getSongSkipRate, formatPercent);
+}
+
+function calculateDashboardTotals(songList) {
+  return kpiDefinitions.reduce((totals, metric) => {
+    totals[metric.key] = songList.reduce((sum, song) => sum + getMetricValue(song, metric.key), 0);
+    return totals;
+  }, {});
+}
+
+function renderKpiCards(totals) {
+  els.kpiGrid.innerHTML = '';
+
+  kpiDefinitions.forEach((metric) => {
+    const card = document.createElement('article');
+    card.className = 'kpi-card';
+    card.innerHTML = '<span class="kpi-label"></span><strong class="kpi-value"></strong>';
+    card.querySelector('.kpi-label').textContent = metric.label;
+    card.querySelector('.kpi-value').textContent = formatNumber(totals[metric.key]);
+    els.kpiGrid.appendChild(card);
+  });
+}
+
+function renderTopSongsTable(songList) {
+  els.topSongsTableBody.innerHTML = '';
+
+  if (!songList.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="10" class="song-meta">No songs loaded.</td>';
+    els.topSongsTableBody.appendChild(row);
+    return;
+  }
+
+  songList.forEach((song) => {
+    const row = document.createElement('tr');
+    const songKey = getSongKey(song);
+    row.appendChild(makeTextCell(formatSongTitle(song), 'song-title compact-title'));
+    row.appendChild(makeTextCell(song.artist || '—'));
+    row.appendChild(makeTextCell(song.genre || '—'));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'total_plays'))));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'likes'))));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'shares'))));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'video_clicks'))));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'product_clicks'))));
+    row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'skip_count'))));
+    row.appendChild(buildQuickLinksCell(songKey));
+    els.topSongsTableBody.appendChild(row);
+  });
+}
+
+function renderRankList(container, songList, metricLabel, valueGetter = null, formatter = formatNumber) {
+  container.innerHTML = '';
+
+  if (!songList.length) {
+    const empty = document.createElement('p');
+    empty.className = 'song-meta';
+    empty.textContent = 'No songs loaded.';
+    container.appendChild(empty);
+    return;
+  }
+
+  songList.forEach((song, index) => {
+    const songKey = getSongKey(song);
+    const value = valueGetter ? valueGetter(song) : getMetricValue(song, metricLabel.replaceAll(' ', '_'));
+    const item = document.createElement('div');
+    item.className = 'rank-item';
+    item.innerHTML = `
+      <span class="rank-number"></span>
+      <div class="rank-main">
+        <strong></strong>
+        <span></span>
+      </div>
+      <div class="rank-value"></div>
+      <div class="song-card-actions rank-actions">
+        <button class="song-action-button" type="button">Edit</button>
+        <a class="song-action-button song-action-link" target="_blank" rel="noopener noreferrer">Open in Radio</a>
+      </div>
+    `;
+    item.querySelector('.rank-number').textContent = String(index + 1);
+    item.querySelector('.rank-main strong').textContent = formatSongTitle(song);
+    item.querySelector('.rank-main span').textContent = [song.artist, song.genre].filter(Boolean).join(' · ') || songKey || '—';
+    item.querySelector('.rank-value').textContent = `${formatter(value)} ${metricLabel}`;
+
+    const editButton = item.querySelector('button');
+    editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
+
+    const radioLink = item.querySelector('a');
+    radioLink.href = getRadioSongUrl(songKey);
+
+    container.appendChild(item);
+  });
+}
+
+function sortSongsByMetric(metricKey) {
+  return [...songs].sort((a, b) => getMetricValue(b, metricKey) - getMetricValue(a, metricKey));
+}
+
+function sortSongsByEngagement() {
+  return [...songs].sort((a, b) => getSongEngagement(b) - getSongEngagement(a));
+}
+
+function sortSongsBySkipRate() {
+  return [...songs].sort((a, b) => getSongSkipRate(b) - getSongSkipRate(a));
+}
+
+function getSongEngagement(song) {
+  return getMetricValue(song, 'likes') + getMetricValue(song, 'shares') + getMetricValue(song, 'video_clicks') + getMetricValue(song, 'product_clicks');
+}
+
+function getSongSkipRate(song) {
+  const plays = getMetricValue(song, 'total_plays');
+
+  if (!plays) {
+    return 0;
+  }
+
+  return getMetricValue(song, 'skip_count') / plays;
+}
+
+function getMetricValue(song, key) {
+  const aliases = {
+    skip_count: ['skip_count', 'skips'],
+    total_seconds_played: ['total_seconds_played', 'seconds_played']
+  };
+  const keys = aliases[key] || [key];
+  const rawValue = keys.map((fieldName) => song?.[fieldName]).find((value) => value !== undefined && value !== null && value !== '');
+  const number = Number(rawValue || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function makeTextCell(text, className = '') {
+  const cell = document.createElement('td');
+  const span = document.createElement('span');
+  if (className) {
+    span.className = className;
+  }
+  span.textContent = text;
+  cell.appendChild(span);
+  return cell;
+}
+
+function buildQuickLinksCell(songKey) {
+  const cell = document.createElement('td');
+  cell.className = 'quick-links-cell';
+  const actions = document.createElement('div');
+  actions.className = 'song-card-actions table-actions';
+
+  const editButton = document.createElement('button');
+  editButton.className = 'song-action-button';
+  editButton.type = 'button';
+  editButton.textContent = 'Edit';
+  editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
+
+  const radioLink = document.createElement('a');
+  radioLink.className = 'song-action-button song-action-link';
+  radioLink.href = getRadioSongUrl(songKey);
+  radioLink.target = '_blank';
+  radioLink.rel = 'noopener noreferrer';
+  radioLink.textContent = 'Open in Radio';
+
+  actions.append(editButton, radioLink);
+  cell.appendChild(actions);
+  return cell;
+}
+
 function renderSongList() {
   const query = els.songSearch.value.trim().toLowerCase();
   filteredSongs = songs.filter((song) => songMatchesQuery(song, query));
@@ -339,7 +568,7 @@ function renderSongList() {
         return;
       }
 
-      loadSongDetails(songKey);
+      loadSongDetails(songKey, { openEditor: true });
     });
     row.addEventListener('keydown', (event) => {
       if (isCardActionEvent(event)) {
@@ -348,7 +577,7 @@ function renderSongList() {
 
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        loadSongDetails(songKey);
+        loadSongDetails(songKey, { openEditor: true });
       }
     });
 
@@ -368,7 +597,7 @@ function songMatchesQuery(song, query) {
     return true;
   }
 
-  return [song.display_title, song.artist, song.album_name, song.genre, getSongKey(song)]
+  return [song.display_title, song.song_name, song.artist, song.album_name, song.genre, getSongKey(song)]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(query));
 }
@@ -390,11 +619,11 @@ function buildSongCell(song, songKey) {
   const editButton = cell.querySelector('.song-action-button[type="button"]');
   editButton.addEventListener('click', (event) => {
     event.stopPropagation();
-    loadSongDetails(songKey);
+    loadSongDetails(songKey, { openEditor: true });
   });
 
   const radioLink = cell.querySelector('.song-action-link');
-  radioLink.href = `${RADIO_DEV_BASE_URL}?song=${encodeURIComponent(songKey)}`;
+  radioLink.href = getRadioSongUrl(songKey);
   radioLink.addEventListener('click', (event) => {
     event.stopPropagation();
   });
@@ -416,11 +645,12 @@ function buildStatsCell(song) {
   stats.className = 'stats-grid';
 
   [
-    ['plays', song.total_plays],
-    ['likes', song.likes],
-    ['shares', song.shares],
-    ['video', song.video_clicks],
-    ['products', song.product_clicks]
+    ['plays', getMetricValue(song, 'total_plays')],
+    ['likes', getMetricValue(song, 'likes')],
+    ['shares', getMetricValue(song, 'shares')],
+    ['video', getMetricValue(song, 'video_clicks')],
+    ['products', getMetricValue(song, 'product_clicks')],
+    ['skips', getMetricValue(song, 'skip_count')]
   ].forEach(([label, value]) => {
     const stat = document.createElement('span');
     stat.className = 'stat';
@@ -448,7 +678,7 @@ function makeBadge(label, value) {
   return badge;
 }
 
-async function loadSongDetails(songKey) {
+async function loadSongDetails(songKey, { openEditor = false } = {}) {
   if (!songKey) {
     showMessage('Selected song is missing a song_key.', 'error');
     return;
@@ -456,6 +686,11 @@ async function loadSongDetails(songKey) {
 
   selectedSongKey = songKey;
   renderSongList();
+
+  if (openEditor) {
+    setActiveTab('edit');
+  }
+
   setEditorLoading(true);
 
   try {
@@ -744,6 +979,10 @@ function getSongKey(song) {
   return song?.song_key || song?.id || song?.key || '';
 }
 
+function getRadioSongUrl(songKey) {
+  return `${RADIO_DEV_BASE_URL}?song=${encodeURIComponent(songKey)}`;
+}
+
 function formatSongTitle(song) {
   return song?.display_title || song?.song_name || selectedSongKey || 'selected song';
 }
@@ -772,6 +1011,11 @@ function showMessage(text, type = 'success') {
 function formatNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString() : '0';
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : '0.0%';
 }
 
 function formatDate(value) {
