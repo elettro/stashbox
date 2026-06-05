@@ -685,3 +685,111 @@ textarea {
     padding: 0.8rem;
   }
 }
+
+.editor-status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.visibility-pill {
+  border: 1px solid rgba(66, 217, 130, 0.45);
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--text);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.visibility-pill.visibility-archived,
+.badge-archived {
+  border-color: rgba(255, 104, 120, 0.65);
+  background: rgba(255, 104, 120, 0.12);
+  color: #ffd7dc;
+}
+
+.song-key-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.song-action-restore {
+  border-color: rgba(66, 217, 130, 0.55);
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.button-danger {
+  border-color: rgba(255, 104, 120, 0.72);
+  background: linear-gradient(180deg, #ff7786, #d83d50);
+  color: #160508;
+}
+
+.button-danger:hover,
+.button-danger:focus-visible {
+  border-color: #ff9aa5;
+  background: linear-gradient(180deg, #ff8794, #ea4c5f);
+}
+
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(255, 104, 120, 0.35);
+}
+
+.danger-eyebrow {
+  color: var(--red);
+}
+
+.danger-copy {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.modal-card {
+  width: min(460px, 100%);
+  border: 1px solid rgba(255, 104, 120, 0.45);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(17, 24, 22, 0.98), rgba(9, 13, 12, 0.98));
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+}
+
+.modal-card p:not(.eyebrow) {
+  color: var(--muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.3rem;
+}
+
+@media (max-width: 700px) {
+  .editor-status-stack,
+  .danger-zone,
+  .modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
