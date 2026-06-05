@@ -21,6 +21,8 @@ const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === String(ge
 const has = value => String(value || '').trim().length > 0;
 const RADIO_REACT_SOURCE_PAGE = '/stashbox/radio/react/';
 const MAX_PRODUCT_RECOMMENDATIONS = 50;
+const PRODUCT_CAROUSEL_AUTO_ADVANCE_MS = 15000;
+const PRODUCT_CAROUSEL_ADVANCE_COUNT = 4;
 const SESSION_STORAGE_KEY = 'stashbox-radio-react-session-id';
 const DUPLICATE_ERROR_CODES = new Set(['23505']);
 const PLAY_EVENT_TYPES = new Set(['play', 'pause', 'skip', 'complete', 'next_click', 'random_click', 'video_open']);
@@ -1150,11 +1152,40 @@ function ProductRecommendations({ products, onProductClick }) {
     };
   }, [updateCarouselState, visibleProducts]);
 
-  const moveCarousel = direction => {
+  const moveCarousel = useCallback((direction = 1, { wrap = false } = {}) => {
     const carousel = carouselRef.current;
     if (!carousel) return;
-    carousel.scrollBy({ left: direction * carousel.clientWidth, behavior: 'smooth' });
-  };
+
+    const firstProduct = carousel.querySelector('.product');
+    const styles = window.getComputedStyle(carousel);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap || '0') || 0;
+    const itemWidth = firstProduct?.getBoundingClientRect().width || (carousel.clientWidth / PRODUCT_CAROUSEL_ADVANCE_COUNT);
+    const scrollDistance = (itemWidth + gap) * PRODUCT_CAROUSEL_ADVANCE_COUNT;
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    const target = carousel.scrollLeft + (direction * scrollDistance);
+
+    if (wrap && direction > 0 && target >= maxScrollLeft - 1) {
+      carousel.scrollTo({ left: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (wrap && direction < 0 && target <= 1) {
+      carousel.scrollTo({ left: maxScrollLeft, behavior: 'smooth' });
+      return;
+    }
+
+    carousel.scrollTo({ left: Math.max(0, Math.min(target, maxScrollLeft)), behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    if (!showArrows) return undefined;
+
+    const autoAdvance = window.setInterval(() => {
+      moveCarousel(1, { wrap: true });
+    }, PRODUCT_CAROUSEL_AUTO_ADVANCE_MS);
+
+    return () => window.clearInterval(autoAdvance);
+  }, [moveCarousel, showArrows, visibleProducts]);
 
   const handleProductClick = product => {
     onProductClick?.(product);
