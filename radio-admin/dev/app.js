@@ -1,5 +1,6 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
+const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 
 const editableFields = [
   { name: 'song_name', label: 'Song name', type: 'text' },
@@ -334,10 +335,26 @@ function buildSongCell(song, songKey) {
   cell.innerHTML = `
     <span class="song-title"></span>
     <span class="song-meta"></span>
+    <div class="song-card-actions">
+      <button class="song-action-button" type="button">Edit</button>
+      <a class="song-action-button song-action-link" target="_blank" rel="noopener noreferrer">Open in Radio</a>
+    </div>
     <div class="badges"></div>
   `;
   cell.querySelector('.song-title').textContent = song.display_title || song.song_name || 'Untitled song';
   cell.querySelector('.song-meta').textContent = [song.artist, song.album_name, song.genre, song.release_format].filter(Boolean).join(' · ') || songKey;
+
+  const editButton = cell.querySelector('.song-action-button[type="button"]');
+  editButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    loadSongDetails(songKey);
+  });
+
+  const radioLink = cell.querySelector('.song-action-link');
+  radioLink.href = `${RADIO_DEV_BASE_URL}?song=${encodeURIComponent(songKey)}`;
+  radioLink.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
 
   const badges = cell.querySelector('.badges');
   badges.appendChild(makeBadge('public', song.public_visibility));
