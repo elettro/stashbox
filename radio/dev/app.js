@@ -713,7 +713,7 @@ function App() {
     const endedSong = song || selectedRef.current;
     if (hasHandledVideoEndRef.current) return;
     hasHandledVideoEndRef.current = true;
-    console.log("YouTube ended for:", endedSong?.song_key);
+    console.log("Video ended for:", endedSong?.song_key);
     finishPlayback('play_full', endedSong);
     const currentIndex = playbackList.findIndex(track => track.idx === endedSong?.idx);
     const nextSong = currentIndex >= 0
@@ -729,6 +729,16 @@ function App() {
       setAutoPlayRequest(null);
     }
     console.log("Keeping player visible after video end");
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+  }
+
+  function handleYouTubeEnded(song = selectedSong) {
+    const endedSong = song || selectedRef.current;
+    if (hasHandledVideoEndRef.current) return;
+    hasHandledVideoEndRef.current = true;
+    console.log("YouTube ended without auto-advance for:", endedSong?.song_key);
+    finishPlayback('play_full', endedSong);
+    setAutoPlayRequest(null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
@@ -828,7 +838,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious: () => shiftTrack(-1), onNext: () => shiftTrack(1, true), onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), onYouTubeEnded: () => handleYouTubeEnded(selectedSong), autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
@@ -854,7 +864,7 @@ function LikeButton({ count, active, onLike, compact = false }) { return h('butt
 function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, compact = false }) { return h('span', { className: `song-actions ${compact ? 'compact' : ''}` }, h(LikeButton, { count: likeCount, active: hasLiked, onLike, compact }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(PlayCount, { count: playCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareCount, { count: shareCount }), h('span', { className: 'song-actions-separator', 'aria-hidden': true }, '·'), h(ShareButton, { onShare, copied: shareCopied, compact })); }
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
-function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, autoPlayRequest }) {
+function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, autoPlayRequest }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -864,8 +874,10 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
   const hasHandledVideoEndRef = useRef(false);
   const onVideoStartRef = useRef(onVideoStart);
   const onVideoCompleteRef = useRef(onVideoComplete);
+  const onYouTubeEndedRef = useRef(onYouTubeEnded);
   useEffect(() => { onVideoStartRef.current = onVideoStart; }, [onVideoStart]);
   useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
+  useEffect(() => { onYouTubeEndedRef.current = onYouTubeEnded; }, [onYouTubeEnded]);
   useEffect(() => { setIsPlaying(false); setIsVideoPlaying(false); setCurrentTime(0); setDuration(0); }, [selected?.idx]);
   useEffect(() => { if (mediaMode !== 'video') setIsVideoPlaying(false); }, [mediaMode]);
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
@@ -934,7 +946,12 @@ function Player({ selected, audioRef, playerRef, mediaMode, activeVideoEmbedUrl,
               setIsVideoPlaying(false);
               console.log("YouTube ended for:", selected?.song_key);
               try {
-                onVideoCompleteRef.current?.();
+                event.target?.stopVideo?.();
+              } catch (error) {
+                console.warn('Unable to stop YouTube player after ended event safely.', error.message || error);
+              }
+              try {
+                onYouTubeEndedRef.current?.();
               } catch (error) {
                 console.warn('Unable to handle YouTube ended event safely.', error.message || error);
               }
