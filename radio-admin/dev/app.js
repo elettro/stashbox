@@ -1041,7 +1041,7 @@ async function createSelectedSong() {
     return;
   }
 
-  console.log("Admin POST payload:", payload);
+  console.log("Create Song payload:", payload);
   showMessage('Creating song...', 'success');
   setBusy(els.saveChangesButton, true);
 
@@ -1106,10 +1106,26 @@ function updateSongInList(updatedSong) {
 }
 
 function buildCreatePayload() {
-  return editableFields.reduce((payload, field) => {
-    payload[field.name] = getFieldPayloadValue(field);
-    return payload;
+  const payload = editableFields.reduce((createPayload, field) => {
+    createPayload[field.name] = getFieldPayloadValue(field);
+    return createPayload;
   }, {});
+
+  return normalizeCreatePayload(payload);
+}
+
+function normalizeCreatePayload(payload) {
+  return {
+    ...payload,
+    mood_tags: normalizeArrayValue(payload.mood_tags, ','),
+    specific_product_urls: normalizeArrayValue(payload.specific_product_urls, '\n'),
+    show_public_note: toBoolean(payload.show_public_note),
+    exclusive: toBoolean(payload.exclusive),
+    explicit: toBoolean(payload.explicit),
+    live_recording: toBoolean(payload.live_recording),
+    featured: toBoolean(payload.featured),
+    public_visibility: normalizePublicVisibility(payload.public_visibility)
+  };
 }
 
 function validateCreatePayload(payload) {
