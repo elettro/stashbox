@@ -6,7 +6,7 @@ const editableFields = [
   { name: 'song_name', label: 'Song name', type: 'text' },
   { name: 'display_title', label: 'Display title', type: 'text' },
   { name: 'artist', label: 'Artist', type: 'text' },
-  { name: 'album_name', label: 'Album', type: 'text', allowBlankSave: true },
+  { name: 'album_name', label: 'Album', type: 'text' },
   { name: 'genre', label: 'Genre', type: 'text' },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
   { name: 'release_format', label: 'Release format', type: 'text' },
@@ -60,7 +60,12 @@ const plainTextFields = new Set([
   'audio_url',
   'song_artwork_url',
   'video_link',
-  'shop_url'
+  'spotify_url',
+  'apple_music_url',
+  'youtube_music_url',
+  'official_song_page_url',
+  'shop_url',
+  'internal_version_name'
 ]);
 
 const booleanFields = new Set([
@@ -225,17 +230,41 @@ function getApiErrorMessage(data, fallback) {
     return data;
   }
 
-  const backendDetails = [data.error, data.message, data.detail, data.details, data.field]
+  const parsedBody = parseJsonMaybe(data.body);
+  const backendDetails = [
+    data.error,
+    data.message,
+    data.detail,
+    data.details,
+    data.field,
+    parsedBody?.error,
+    parsedBody?.message,
+    parsedBody?.detail,
+    parsedBody?.details,
+    parsedBody?.field
+  ]
     .filter(Boolean)
     .map((detail) => (typeof detail === 'string' ? detail : JSON.stringify(detail)));
 
-  const rawDetails = JSON.stringify(data);
+  const rawDetails = JSON.stringify(parsedBody || data);
 
   if (backendDetails.length && !backendDetails.includes(rawDetails)) {
     backendDetails.push(`Raw response: ${rawDetails}`);
   }
 
   return backendDetails.length ? backendDetails.join(' | ') : rawDetails || fallbackMessage;
+}
+
+function parseJsonMaybe(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 async function loadSongs({ silent = false } = {}) {
@@ -250,7 +279,7 @@ async function loadSongs({ silent = false } = {}) {
       showMessage(`Loaded ${songs.length} song${songs.length === 1 ? '' : 's'}.`, 'success');
     }
   } catch (error) {
-    showMessage(error.message, 'error');
+    showMessage(`Could not load song list: ${error.message}`, 'error');
   } finally {
     setBusy(els.refreshSongsButton, false);
   }
@@ -305,8 +334,18 @@ function renderSongList() {
     row.classList.toggle('is-selected', songKey === selectedSongKey);
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
-    row.addEventListener('click', () => loadSongDetails(songKey));
+    row.addEventListener('click', (event) => {
+      if (isCardActionEvent(event)) {
+        return;
+      }
+
+      loadSongDetails(songKey);
+    });
     row.addEventListener('keydown', (event) => {
+      if (isCardActionEvent(event)) {
+        return;
+      }
+
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         loadSongDetails(songKey);
@@ -318,6 +357,10 @@ function renderSongList() {
     row.appendChild(buildUpdatedCell(song));
     els.songTableBody.appendChild(row);
   });
+}
+
+function isCardActionEvent(event) {
+  return Boolean(event.target.closest('a, button'));
 }
 
 function songMatchesQuery(song, query) {
@@ -357,7 +400,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('public', song.public_visibility));
+  badges.appendChild(makeBadge('public', toBoolean(song.public_visibility)));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -517,7 +560,7 @@ function populateEditor(song) {
     const value = song[field.name];
 
     if (field.type === 'checkbox') {
-      input.checked = Boolean(value);
+      input.checked = toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
       input.value = normalizeArrayValue(value, '\n').join('\n');
     } else if (field.name === 'mood_tags') {
@@ -556,10 +599,10 @@ async function saveSelectedSong(event) {
   }
 
   const payload = buildUpdatePayload();
-  console.log('Admin PUT payload:', payload);
+  const changedFields = Object.keys(payload);
 
-  if (!Object.keys(payload).length) {
-    showMessage('No changes to save.', 'success');
+  if (!changedFields.length) {
+    showMessage('No changes to save. The selected song already matches the form values.', 'success');
     return;
   }
 
@@ -575,7 +618,7 @@ async function saveSelectedSong(event) {
     });
 
     const updatedSong = normalizeSongResponse(data);
-    showMessage('Song saved successfully.', 'success');
+    showMessage(`Saved ${formatSongTitle(selectedSong)} (${changedFields.join(', ')}).`, 'success');
     await loadSongs({ silent: true });
 
     if (updatedSong && Object.keys(updatedSong).length) {
@@ -584,7 +627,7 @@ async function saveSelectedSong(event) {
 
     await loadSongDetails(selectedSongKey);
   } catch (error) {
-    showMessage(error.message, 'error');
+    showMessage(`Save failed for ${formatSongTitle(selectedSong)}: ${error.message}`, 'error');
   } finally {
     setBusy(els.saveChangesButton, false);
   }
@@ -594,10 +637,6 @@ function buildUpdatePayload() {
   return editableFields.reduce((payload, field) => {
     const nextValue = getFieldPayloadValue(field);
     const currentValue = getComparableFieldValue(field, selectedSong?.[field.name]);
-
-    if (isBlankOptionalValue(nextValue) && !field.allowBlankSave) {
-      return payload;
-    }
 
     if (areFieldValuesEqual(nextValue, currentValue)) {
       return payload;
@@ -632,7 +671,7 @@ function getFieldPayloadValue(field) {
 
 function getComparableFieldValue(field, value) {
   if (booleanFields.has(field.name)) {
-    return Boolean(value);
+    return toBoolean(value);
   }
 
   if (field.name === 'specific_product_urls') {
@@ -676,13 +715,18 @@ function parseCommaSeparatedArray(value) {
     .filter(Boolean);
 }
 
-function isBlankOptionalValue(value) {
-  if (Array.isArray(value)) {
-    return value.length === 0;
+function toBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
   }
 
   if (typeof value === 'string') {
-    return value === '';
+    const normalized = value.trim().toLowerCase();
+    return ['true', '1', 'yes', 'y', 'on'].includes(normalized);
   }
 
   return false;
@@ -698,6 +742,10 @@ function areFieldValuesEqual(nextValue, currentValue) {
 
 function getSongKey(song) {
   return song?.song_key || song?.id || song?.key || '';
+}
+
+function formatSongTitle(song) {
+  return song?.display_title || song?.song_name || selectedSongKey || 'selected song';
 }
 
 function setBusy(button, isBusy) {
