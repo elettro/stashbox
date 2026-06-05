@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin · Dev</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">DEV ADMIN</p>
+      <h1>Stashbox Radio</h1>
+    </div>
+    <div class="token-actions">
+      <span id="tokenStatus" class="token-status">No token saved</span>
+      <button id="clearTokenButton" class="button button-ghost" type="button">Clear Token</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="tokenPanel" class="card token-panel" aria-labelledby="tokenHeading">
+      <h2 id="tokenHeading">Admin token</h2>
+      <p>Enter the dev admin token to load the song dashboard. The token is saved locally in this browser only.</p>
+      <div class="token-form">
+        <label for="adminToken">x-admin-token</label>
+        <input id="adminToken" type="password" autocomplete="off" placeholder="Paste admin token" />
+        <button id="saveTokenButton" class="button" type="button">Save Token</button>
+      </div>
+    </section>
+
+    <section id="adminPanel" class="admin-grid hidden" aria-live="polite">
+      <aside class="card list-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Songs</p>
+            <h2>Catalog</h2>
+          </div>
+          <button id="refreshSongsButton" class="button button-small" type="button">Refresh</button>
+        </div>
+
+        <label class="search-label" for="songSearch">Search title, artist, genre, or song key</label>
+        <input id="songSearch" class="search-input" type="search" placeholder="Filter songs…" />
+
+        <div id="songCount" class="song-count">No songs loaded</div>
+        <div class="table-wrap">
+          <table class="song-table">
+            <thead>
+              <tr>
+                <th>Song</th>
+                <th>Stats</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="songTableBody"></tbody>
+          </table>
+        </div>
+      </aside>
+
+      <section class="card edit-panel" aria-labelledby="editHeading">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Edit</p>
+            <h2 id="editHeading">Select a song</h2>
+          </div>
+          <span id="selectedSongKey" class="song-key-pill"></span>
+        </div>
+
+        <div id="emptyEditor" class="empty-editor">
+          Choose a song from the list to edit its admin fields.
+        </div>
+
+        <form id="editForm" class="edit-form hidden">
+          <div class="form-grid" id="formFields"></div>
+          <div class="form-actions">
+            <button id="saveChangesButton" class="button" type="submit">Save Changes</button>
+            <button id="cancelChangesButton" class="button button-ghost" type="button">Cancel/Revert</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
