@@ -564,8 +564,15 @@ textarea:focus {
   accent-color: var(--green);
 }
 
+.checkbox-text {
+  display: grid;
+  gap: 0.22rem;
+}
+
 .checkbox-help {
-  padding: 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
   line-height: 1.35;
 }
 

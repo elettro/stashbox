@@ -633,7 +633,7 @@ function buildSongCell(song, songKey) {
   });
 
   const badges = cell.querySelector('.badges');
-  badges.appendChild(makeBadge('radio', getRadioVisibilityValue(song.public_visibility), isSongVisibleInRadio(song.public_visibility)));
+  badges.appendChild(makeBadge('radio', getRadioVisibilityLabel(song), isShownInRadio(song)));
 
   if (song.album_name) {
     badges.appendChild(makeBadge('album', song.album_name));
@@ -675,9 +675,9 @@ function buildUpdatedCell(song) {
   return cell;
 }
 
-function makeBadge(label, value, isActive = Boolean(value)) {
+function makeBadge(label, value, isOn = Boolean(value)) {
   const badge = document.createElement('span');
-  badge.className = `badge ${isActive ? 'badge-on' : ''}`;
+  badge.className = `badge ${isOn ? 'badge-on' : ''}`;
   badge.textContent = `${label}: ${formatDisplayValue(value)}`;
   return badge;
 }
@@ -750,20 +750,22 @@ function buildEditForm() {
       input.type = 'checkbox';
       fieldElements.set(field.name, input);
 
+      const textWrap = document.createElement('span');
+      textWrap.className = 'checkbox-text';
+
       const span = document.createElement('span');
       span.textContent = field.label;
-
-      label.append(input, span);
-      wrap.appendChild(label);
+      textWrap.appendChild(span);
 
       if (field.help) {
-        const help = document.createElement('div');
-        help.className = 'field-help checkbox-help';
+        const help = document.createElement('span');
+        help.className = 'checkbox-help';
         help.textContent = field.help;
-        wrap.appendChild(help);
+        textWrap.appendChild(help);
       }
 
-      checkboxWrap.appendChild(wrap);
+      label.append(input, textWrap);
+      checkboxWrap.appendChild(label);
       return;
     }
 
@@ -810,8 +812,10 @@ function populateEditor(song) {
     const input = fieldElements.get(field.name);
     const value = song[field.name];
 
-    if (field.type === 'checkbox') {
-      input.checked = field.name === 'public_visibility' ? isSongVisibleInRadio(value) : toBoolean(value);
+    if (field.name === 'public_visibility') {
+      input.checked = isShownInRadio(song);
+    } else if (field.type === 'checkbox') {
+      input.checked = toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
       input.value = normalizeArrayValue(value, '\n').join('\n');
     } else if (field.name === 'mood_tags') {
@@ -975,12 +979,22 @@ function parseCommaSeparatedArray(value) {
 }
 
 
-function isSongVisibleInRadio(value) {
-  return getRadioVisibilityValue(value) === 'visible';
+function normalizePublicVisibility(value) {
+  return value === 'hidden' ? 'hidden' : 'visible';
 }
 
-function getRadioVisibilityValue(value) {
-  return typeof value === 'string' && value.trim().toLowerCase() === 'hidden' ? 'hidden' : 'visible';
+function getRadioVisibilityLabel(songOrValue) {
+  return normalizePublicVisibility(getPublicVisibilityValue(songOrValue));
+}
+
+function isShownInRadio(songOrValue) {
+  return getRadioVisibilityLabel(songOrValue) === 'visible';
+}
+
+function getPublicVisibilityValue(songOrValue) {
+  return typeof songOrValue === 'object' && songOrValue !== null
+    ? songOrValue.public_visibility
+    : songOrValue;
 }
 
 function toBoolean(value) {
