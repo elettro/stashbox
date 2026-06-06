@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
 
 const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
 const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
@@ -712,10 +713,12 @@ function App() {
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      try { audio.currentTime = 0; } catch (_) {}
-    }
+    return () => {
+      if (audio) {
+        audio.pause();
+        try { audio.currentTime = 0; } catch (_) {}
+      }
+    };
   }, [selectedSong?.idx]);
 
   useEffect(() => {
@@ -846,16 +849,16 @@ function App() {
     const playerShell = playerRef.current;
     const audio = audioRef.current;
     const youtubePlayer = youtubePlayerRef.current;
-    const youtubeIframe = playerShell?.querySelector?.('iframe[src*="youtube"], iframe[src*="youtu.be"]') || null;
+    const youtubeIframes = Array.from(playerShell?.querySelectorAll?.('iframe[src*="youtube"], iframe[src*="youtu.be"]') || []);
     const directVideo = playerShell?.querySelector?.('video') || null;
 
     console.log('[radio-dev] current playback mode before switch:', mediaMode);
     console.log('[radio-dev] selected song title:', nextSong?.title);
-    console.log('[radio-dev] youtube iframe exists before switch:', Boolean(youtubeIframe));
+    console.log('[radio-dev] youtube iframe exists before switch:', Boolean(youtubeIframes.length));
     console.log('[radio-dev] youtube player object exists before switch:', Boolean(youtubePlayer));
     console.log('[radio-dev] audio currently playing before switch:', Boolean(audio && !audio.paused && !audio.ended));
 
-    if (mediaMode !== 'video' && !youtubePlayer && !youtubeIframe && !directVideo) return;
+    if (mediaMode !== 'video' && !youtubePlayer && !youtubeIframes.length && !directVideo) return;
 
     videoCleanupInProgressRef.current = true;
     console.log('[radio-dev] resetting video mode');
@@ -889,7 +892,10 @@ function App() {
     }
 
     try {
-      if (youtubeIframe?.parentNode) youtubeIframe.remove();
+      youtubeIframes.forEach(iframe => {
+        try { iframe.src = ''; } catch (_) {}
+        iframe.remove();
+      });
     } catch (error) {
       console.warn('[radio-dev] iframe cleanup failed:', error.message || error);
     }
@@ -922,11 +928,70 @@ function App() {
     });
   }
 
+  function playSelectedSongAudioFromCardTap(track) {
+    if (!track) return;
+    const audio = audioRef.current;
+    const hasPlayableAudio = track.hasAudio && has(track.audioUrl) && !isVideoOnlyTrack(track);
+
+    if (!hasPlayableAudio) {
+      setAutoPlayRequest(null);
+      setPlayerMessage(track.hasVideo ? 'Video-only track selected. Tap Watch Video to start the video.' : 'No audio URL is available for this track.');
+      window.requestAnimationFrame(() => {
+        videoCleanupInProgressRef.current = false;
+        playerRef.current?.focus?.();
+      });
+      return;
+    }
+
+    if (!audio) {
+      console.warn('[radio-dev] Audio element was not ready after song card tap:', track.title);
+      window.requestAnimationFrame(() => {
+        videoCleanupInProgressRef.current = false;
+        playerRef.current?.focus?.();
+      });
+      return;
+    }
+
+    try { audio.pause(); } catch (_) {}
+    try { audio.currentTime = 0; } catch (_) {}
+    try { audio.load?.(); } catch (_) {}
+
+    console.log('[Stashbox Radio Dev] audio_url being played from song card tap', track.audioUrl);
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(error => {
+        console.warn('[radio-dev] Audio play failed after song card tap:', error.message || error);
+      });
+    }
+
+    window.requestAnimationFrame(() => {
+      videoCleanupInProgressRef.current = false;
+      playerRef.current?.focus?.();
+      console.log('[radio-dev] selected song render finished:', track?.title);
+    });
+  }
+
   function chooseSong(track) {
     console.log('[radio-dev] song selected:', track?.title);
-    if (!track || track.idx === selectedSong?.idx) return;
+    if (!track) return;
     finishPlayback('play_partial');
-    selectTrack(track);
+    resetVideoPlaybackBeforeSongSwitch(track);
+
+    const currentAudio = audioRef.current;
+    if (currentAudio) {
+      try { currentAudio.pause(); } catch (error) { console.warn('[radio-dev] Unable to pause current audio before song card tap:', error.message || error); }
+      try { currentAudio.currentTime = 0; } catch (_) {}
+    }
+
+    flushSync(() => {
+      setPlayerMessage('');
+      setSelected(track);
+      setMediaMode('idle');
+      setActiveVideoEmbedUrl('');
+      setAutoPlayRequest(null);
+    });
+
+    playSelectedSongAudioFromCardTap(track);
   }
 
   function resolveAdjacentPlayableSong(direction, song = selectedSong, { allowWrap = true } = {}) {
