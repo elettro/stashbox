@@ -54,6 +54,70 @@
           <div id="kpiGrid" class="kpi-grid"></div>
         </div>
 
+        <section class="card dashboard-section products-analytics-section" aria-labelledby="productsAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Products Analytics</p>
+              <h2 id="productsAnalyticsHeading">Product click analytics</h2>
+              <p class="panel-copy">Real product click data from the private RDS-backed admin stats API.</p>
+              <p id="productStatsGeneratedAt" class="stats-generated">Product stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="productStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="productKpiGrid" class="mini-stat-grid product-kpi-grid"></div>
+
+          <div class="product-tables-grid">
+            <section aria-labelledby="topClickedProductsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 25</p>
+                  <h3 id="topClickedProductsHeading">Top clicked products</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table product-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Related Songs</th>
+                      <th>Last Clicked</th>
+                      <th>Open Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topProductsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentProductClicksHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentProductClicksHeading">Recent product clicks</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table product-table recent-product-clicks-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Device</th>
+                      <th>Product</th>
+                      <th>Open Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentProductClicksTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <div class="dashboard-grid">
           <section class="card dashboard-section dashboard-section-wide" aria-labelledby="todayStatsHeading">
             <p class="eyebrow">Today</p>

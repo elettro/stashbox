@@ -1,6 +1,7 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
 const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/events';
 const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
+const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -129,6 +130,13 @@ const todayStatDefinitions = [
   { key: 'video_clicks_today', label: 'Video Clicks Today' }
 ];
 
+const productKpiDefinitions = [
+  { key: 'total_product_clicks', label: 'Total Product Clicks' },
+  { key: 'unique_products_clicked', label: 'Unique Products Clicked' },
+  { key: 'product_clicks_last_24h', label: 'Product Clicks Last 24h' },
+  { key: 'product_clicks_last_7d', label: 'Product Clicks Last 7 Days' }
+];
+
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 
@@ -165,6 +173,8 @@ let archivedSongs = [];
 let events = [];
 let statsSummary = null;
 let statsSummaryError = '';
+let productStats = null;
+let productStatsError = '';
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
@@ -188,6 +198,11 @@ const els = {
   kpiGrid: document.getElementById('kpiGrid'),
   statsSummaryWarning: document.getElementById('statsSummaryWarning'),
   statsGeneratedAt: document.getElementById('statsGeneratedAt'),
+  productStatsWarning: document.getElementById('productStatsWarning'),
+  productStatsGeneratedAt: document.getElementById('productStatsGeneratedAt'),
+  productKpiGrid: document.getElementById('productKpiGrid'),
+  topProductsTableBody: document.getElementById('topProductsTableBody'),
+  recentProductClicksTableBody: document.getElementById('recentProductClicksTableBody'),
   todayStatsGrid: document.getElementById('todayStatsGrid'),
   devicesStatsList: document.getElementById('devicesStatsList'),
   eventTypesStatsList: document.getElementById('eventTypesStatsList'),
@@ -317,6 +332,8 @@ function clearToken() {
   events = [];
   statsSummary = null;
   statsSummaryError = '';
+  productStats = null;
+  productStatsError = '';
   renderDashboard();
   renderSongList();
   renderArchiveList();
@@ -706,9 +723,10 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
 
-  const [songsResult, statsResult] = await Promise.allSettled([
+  const [songsResult, statsResult, productStatsResult] = await Promise.allSettled([
     fetchSongsData({ preserveSelection }),
-    fetchStatsSummaryData()
+    fetchStatsSummaryData(),
+    fetchProductStatsData()
   ]);
 
   if (songsResult.status === 'rejected') {
@@ -721,11 +739,17 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
     showMessage(`Could not load stats summary: ${statsSummaryError}`, 'error');
   }
 
+  if (productStatsResult.status === 'rejected') {
+    productStats = null;
+    productStatsError = productStatsResult.reason.message;
+    showMessage(`Could not load product stats: ${productStatsError}`, 'error');
+  }
+
   renderDashboard();
   renderSongList();
   renderArchiveList();
 
-  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled') {
+  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled') {
     showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
   }
 
@@ -751,6 +775,30 @@ async function fetchStatsSummaryData() {
   statsSummary = normalizeStatsSummaryResponse(data);
   statsSummaryError = '';
   return statsSummary;
+}
+
+async function fetchProductStatsData() {
+  const data = await adminFetch(PRODUCT_STATS_API_URL);
+  productStats = normalizeProductStatsResponse(data);
+  productStatsError = '';
+  return productStats;
+}
+
+function normalizeProductStatsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeProductStatsResponse(JSON.parse(data.body));
+    } catch {
+      return { summary: {}, products: [], recent_clicks: [], generated_at: '' };
+    }
+  }
+
+  return {
+    summary: data?.summary || {},
+    products: Array.isArray(data?.products) ? data.products : [],
+    recent_clicks: Array.isArray(data?.recent_clicks) ? data.recent_clicks : [],
+    generated_at: data?.generated_at || ''
+  };
 }
 
 function normalizeStatsSummaryResponse(data) {
@@ -874,6 +922,7 @@ function renderDashboard() {
   renderStatsSummaryWarning();
   renderStatsGeneratedAt();
   renderKpiCards(calculateDashboardTotals(activeSongs));
+  renderProductAnalytics();
   renderTodayStats();
   renderDevicesStats();
   renderEventTypesStats();
@@ -926,6 +975,167 @@ function renderKpiCards(totals) {
     els.kpiGrid.appendChild(card);
   });
 }
+
+function renderProductAnalytics() {
+  renderProductStatsWarning();
+  renderProductStatsGeneratedAt();
+  renderProductKpiCards();
+  renderTopProductsTable();
+  renderRecentProductClicksTable();
+}
+
+function renderProductStatsWarning() {
+  if (!els.productStatsWarning) {
+    return;
+  }
+
+  els.productStatsWarning.classList.toggle('hidden', !productStatsError);
+  els.productStatsWarning.textContent = productStatsError
+    ? `Product stats warning: ${productStatsError}`
+    : '';
+}
+
+function renderProductStatsGeneratedAt() {
+  if (!els.productStatsGeneratedAt) {
+    return;
+  }
+
+  els.productStatsGeneratedAt.textContent = productStats?.generated_at
+    ? `Product stats generated: ${formatDateTime(productStats.generated_at)}`
+    : 'Product stats generated: —';
+}
+
+function renderProductKpiCards() {
+  if (!els.productKpiGrid) {
+    return;
+  }
+
+  renderSummaryStatCards(els.productKpiGrid, productKpiDefinitions, productStats?.summary || {});
+}
+
+function renderTopProductsTable() {
+  if (!els.topProductsTableBody) {
+    return;
+  }
+
+  els.topProductsTableBody.innerHTML = '';
+  const products = productStats?.products || [];
+
+  if (!products.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="6" class="song-meta">No product clicks returned.</td>';
+    els.topProductsTableBody.appendChild(row);
+    return;
+  }
+
+  products.forEach((product) => {
+    const productUrl = product.product_url || '';
+    const songTitles = normalizeTextArray(product.song_titles).join(', ');
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatProductTitle(productUrl), 'product-title-cell'));
+    row.appendChild(makeTextCell(formatNumber(product.click_count)));
+    row.appendChild(makeTextCell(formatNumber(product.unique_sessions)));
+    row.appendChild(makeTruncatedTextCell(songTitles || '—', 'related-songs-cell'));
+    row.appendChild(makeTextCell(formatDateTime(product.last_clicked_at), 'event-time'));
+    row.appendChild(buildOpenProductCell(productUrl));
+    els.topProductsTableBody.appendChild(row);
+  });
+}
+
+function renderRecentProductClicksTable() {
+  if (!els.recentProductClicksTableBody) {
+    return;
+  }
+
+  els.recentProductClicksTableBody.innerHTML = '';
+  const recentClicks = productStats?.recent_clicks || [];
+
+  if (!recentClicks.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="6" class="song-meta">No recent product clicks returned.</td>';
+    els.recentProductClicksTableBody.appendChild(row);
+    return;
+  }
+
+  recentClicks.forEach((click) => {
+    const productUrl = click.product_url || '';
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatDateTime(click.created_at), 'event-time'));
+    row.appendChild(makeTextCell(click.song_title || click.song_key || '—'));
+    row.appendChild(makeTextCell(click.artist || '—'));
+    row.appendChild(makeTextCell(formatDisplayValue(click.device_type || '—')));
+    row.appendChild(makeTextCell(formatProductTitle(productUrl), 'product-title-cell'));
+    row.appendChild(buildOpenProductCell(productUrl));
+    els.recentProductClicksTableBody.appendChild(row);
+  });
+}
+
+function buildOpenProductCell(productUrl) {
+  const cell = document.createElement('td');
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    cell.textContent = '—';
+    return cell;
+  }
+
+  const link = document.createElement('a');
+  link.className = 'song-action-button event-product-link';
+  link.href = normalizedUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Open';
+  cell.appendChild(link);
+  return cell;
+}
+
+function makeTruncatedTextCell(text, className = '') {
+  const cell = makeTextCell(text, className);
+  cell.title = String(text || '');
+  return cell;
+}
+
+function normalizeTextArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
+function formatProductTitle(productUrl) {
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    return '—';
+  }
+
+  let slug = normalizedUrl;
+
+  try {
+    const url = new URL(normalizedUrl);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    slug = pathParts[pathParts.length - 1] || url.hostname || normalizedUrl;
+  } catch {
+    const pathParts = normalizedUrl.split(/[/?#]/)[0].split('/').filter(Boolean);
+    slug = pathParts[pathParts.length - 1] || normalizedUrl;
+  }
+
+  const title = decodeURIComponent(slug)
+    .replace(/\.[a-z0-9]+$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return title
+    ? title.replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : normalizedUrl;
+}
+
 
 function renderStatsSummaryWarning() {
   if (!els.statsSummaryWarning) {

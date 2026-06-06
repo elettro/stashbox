@@ -1017,3 +1017,58 @@ textarea {
     width: 100%;
   }
 }
+
+.products-analytics-section {
+  margin: 1rem 0;
+}
+
+.products-analytics-section h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.product-kpi-grid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.product-tables-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.product-table {
+  min-width: 980px;
+}
+
+.recent-product-clicks-table {
+  min-width: 900px;
+}
+
+.product-table tbody tr {
+  cursor: default;
+}
+
+.product-title-cell {
+  min-width: 220px;
+  font-weight: 800;
+}
+
+.related-songs-cell {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .product-kpi-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .product-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
