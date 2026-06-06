@@ -1,0 +1,250 @@
+/* Scoped mobile-layout experiments for /radio/dev/alt/ only. */
+.radio-dev-alt .mobile-reset-filters,
+.radio-dev-alt .mobile-sticky-player {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  body.radio-dev-alt {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .radio-dev-alt .radio-app {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+  }
+
+  .radio-dev-alt .radio-interface {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .radio-dev-alt .radio-main {
+    order: 1;
+    width: 100%;
+    min-width: 0;
+    padding-bottom: 16px;
+  }
+
+  .radio-dev-alt .player {
+    order: 2;
+    position: relative;
+    top: auto;
+    z-index: auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: none;
+    margin: 0;
+    padding: 0 0 16px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .radio-dev-alt .player > .player-media,
+  .radio-dev-alt .player > .player-bar,
+  .radio-dev-alt .player > .player-timeline,
+  .radio-dev-alt .player > .notes:not(.no-audio-note),
+  .radio-dev-alt .player > .no-audio-note {
+    display: none;
+  }
+
+  .radio-dev-alt .player .merch {
+    display: block;
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .radio-dev-alt .mobile-reset-filters {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-width: 34px;
+    min-height: 40px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #c7c8cc;
+    font: 900 11px/1.05 var(--fb);
+    letter-spacing: .02em;
+    text-align: center;
+    white-space: normal;
+    cursor: pointer;
+    opacity: .84;
+  }
+
+  .radio-dev-alt .mobile-reset-filters span {
+    display: block;
+  }
+
+  .radio-dev-alt .mobile-reset-filters:hover:not(:disabled),
+  .radio-dev-alt .mobile-reset-filters:focus-visible {
+    color: var(--accent);
+    background: rgba(240, 165, 0, .1);
+    outline: none;
+    opacity: 1;
+  }
+
+  .radio-dev-alt .mobile-reset-filters:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .radio-dev-alt .radio-control-brand-copy {
+    flex: 1 1 auto;
+  }
+
+  .radio-dev-alt .radio-control-search.mobile-search-panel:not(.open) {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  .radio-dev-alt .mobile-sticky-player {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, .12);
+    background: linear-gradient(180deg, rgba(26, 26, 31, .98), rgba(9, 9, 11, .99));
+    box-shadow: 0 -16px 38px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .04);
+    box-sizing: border-box;
+    backdrop-filter: blur(14px);
+  }
+
+  .radio-dev-alt .mobile-sticky-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 10px;
+    background: #050505;
+    color: var(--accent);
+    cursor: pointer;
+  }
+
+  .radio-dev-alt .mobile-sticky-art img {
+    display: block;
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+  }
+
+  .radio-dev-alt .mobile-sticky-art-fallback {
+    font: 400 22px/.9 var(--fh);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+
+  .radio-dev-alt .mobile-sticky-track-info {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .radio-dev-alt .mobile-sticky-title,
+  .radio-dev-alt .mobile-sticky-artist {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .radio-dev-alt .mobile-sticky-title {
+    color: var(--text);
+    font: 400 20px/.95 var(--fh);
+    letter-spacing: .055em;
+    text-transform: uppercase;
+  }
+
+  .radio-dev-alt .mobile-sticky-artist {
+    margin-top: 2px;
+    color: #c8c9ce;
+    font: 800 12px/1.15 var(--fb);
+  }
+
+  .radio-dev-alt .mobile-sticky-play,
+  .radio-dev-alt .mobile-sticky-video {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    font: 900 11px/1 var(--fb);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .radio-dev-alt .mobile-sticky-play {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border: 0;
+    background: var(--accent);
+    color: #000;
+    font-size: 0;
+    box-shadow: 0 8px 18px rgba(240, 165, 0, .18);
+  }
+
+  .radio-dev-alt .mobile-sticky-video {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid rgba(240, 165, 0, .42);
+    background: rgba(240, 165, 0, .1);
+    color: var(--accent);
+  }
+
+  .radio-dev-alt .mobile-sticky-play:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .radio-dev-alt .song-list,
+  .radio-dev-alt .sections,
+  .radio-dev-alt .song-section,
+  .radio-dev-alt .song-card {
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .radio-dev-alt .mobile-sticky-player {
+    gap: 8px;
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .radio-dev-alt .mobile-sticky-video {
+    padding: 0 8px;
+    font-size: 10px;
+  }
+}
