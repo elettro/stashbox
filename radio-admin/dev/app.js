@@ -20,8 +20,9 @@ const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
     </defs>
     <rect width="88" height="88" rx="18" fill="#111816"/>
     <rect x="7" y="7" width="74" height="74" rx="15" fill="url(#stashboxPlaceholderGradient)" opacity="0.72"/>
-    <circle cx="44" cy="44" r="20" fill="rgba(8,11,10,0.72)"/>
-    <path d="M38 31v26l22-13-22-13Z" fill="#f3f7ef"/>
+    <rect x="24" y="26" width="40" height="36" rx="8" fill="rgba(8,11,10,0.72)"/>
+    <circle cx="35" cy="39" r="5" fill="#f3f7ef" opacity="0.9"/>
+    <path d="M27 56l12-12 8 8 6-7 10 11H27Z" fill="#f3f7ef" opacity="0.9"/>
   </svg>
 `)}`;
 
@@ -521,6 +522,7 @@ async function loadEvents() {
   els.eventsStatus.textContent = `Loading latest ${limit} events…`;
 
   try {
+    await ensureSongsLoadedForEvents();
     const data = await adminFetch(url);
     events = normalizeEventsResponse(data);
     renderEvents();
@@ -532,6 +534,18 @@ async function loadEvents() {
   } finally {
     setBusy(els.refreshEventsButton, false);
   }
+}
+
+async function ensureSongsLoadedForEvents() {
+  if (songs.length && Object.keys(songsByKey).length) {
+    return;
+  }
+
+  els.eventsStatus.textContent = 'Loading songs before latest events…';
+  await fetchSongsData({ preserveSelection: Boolean(selectedSongKey) });
+  renderDashboard();
+  renderSongList();
+  renderArchiveList();
 }
 
 function getSelectedEventLimit() {
@@ -675,29 +689,34 @@ function getEventMatchedSong(event) {
 }
 
 function getEventArtworkSource(event, matchedSong = null) {
-  const eventArtworkSource = {
-    resolved_artwork_url: event?.resolved_artwork_url,
-    song_artwork_url: event?.song_artwork_url,
-    video_link: event?.video_link
-  };
+  const directArtworkUrl = firstNonEmptyString([
+    event?.song_artwork_url,
+    event?.resolved_artwork_url,
+    matchedSong?.resolved_artwork_url,
+    matchedSong?.song_artwork_url
+  ]);
 
-  if (hasArtworkSource(eventArtworkSource)) {
-    return eventArtworkSource;
+  if (directArtworkUrl) {
+    return { resolved_artwork_url: directArtworkUrl };
   }
 
-  return matchedSong || eventArtworkSource;
+  const videoLink = firstNonEmptyString([event?.video_link, matchedSong?.video_link]);
+
+  if (videoLink) {
+    return { video_link: videoLink };
+  }
+
+  return {};
 }
 
-function hasArtworkSource(songOrEvent) {
-  return Boolean(
-    String(songOrEvent?.resolved_artwork_url || '').trim()
-    || String(songOrEvent?.song_artwork_url || '').trim()
-    || String(songOrEvent?.video_link || '').trim()
-  );
+function firstNonEmptyString(values) {
+  return values
+    .map((value) => String(value || '').trim())
+    .find(Boolean) || '';
 }
 
 function getEventSongKey(event) {
-  return event?.song_key || event?.songKey || event?.song_id || event?.songId || '';
+  return firstNonEmptyString([event?.song_key, event?.songKey, event?.song_id, event?.songId]);
 }
 
 function formatEventSongMeta(event, matchedSong = null) {
@@ -800,6 +819,10 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   renderSongList();
   renderArchiveList();
 
+  if (events.length) {
+    renderEvents();
+  }
+
   if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled' && referrerStatsResult.status === 'fulfilled') {
     showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
   }
@@ -813,6 +836,7 @@ async function fetchSongsData({ preserveSelection = Boolean(selectedSongKey) } =
   const previousSelectedSongKey = preserveSelection ? selectedSongKey : '';
   const data = await adminFetch(API_BASE_URL);
   songs = normalizeSongsResponse(data);
+  songsByKey = buildSongsByKey(songs);
 
   if (previousSelectedSongKey) {
     preserveSelectedSong(previousSelectedSongKey);
