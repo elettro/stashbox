@@ -118,6 +118,46 @@
           </div>
         </section>
 
+        <section class="card dashboard-section song-analytics-section" aria-labelledby="songAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Song Analytics</p>
+              <h2 id="songAnalyticsHeading">Per-song performance</h2>
+              <p class="panel-copy">Private per-song play, completion, engagement, video, and product click stats.</p>
+              <p id="songStatsGeneratedAt" class="stats-generated">Song stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="songStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="songInsightGrid" class="mini-stat-grid song-insight-grid"></div>
+
+          <div class="table-wrap compact-table-wrap song-analytics-table-wrap">
+            <table class="song-table compact-table song-analytics-table">
+              <thead>
+                <tr>
+                  <th>Song</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="play_starts">Plays ↕</button></th>
+                  <th>Full</th>
+                  <th>Partial</th>
+                  <th>Skips</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="likes">Likes ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="shares">Shares ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="video_clicks">Video Clicks ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="product_clicks">Product Clicks ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="completion_rate">Completion % ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="skip_rate">Skip % ↕</button></th>
+                  <th>Like %</th>
+                  <th>Share %</th>
+                  <th>Product Click %</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="last_event_at">Last Event ↕</button></th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="songAnalyticsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <div class="dashboard-grid">
           <section class="card dashboard-section dashboard-section-wide" aria-labelledby="todayStatsHeading">
             <p class="eyebrow">Today</p>
