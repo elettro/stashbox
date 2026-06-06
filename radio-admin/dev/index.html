@@ -33,6 +33,7 @@
       <nav class="admin-tabs" aria-label="Admin sections">
         <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
         <button class="tab-button" type="button" data-tab="songs">Songs</button>
+        <button class="tab-button" type="button" data-tab="events">Events</button>
         <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
@@ -151,6 +152,49 @@
         </aside>
       </section>
 
+
+      <section id="eventsView" class="admin-view hidden" aria-labelledby="eventsHeading">
+        <aside class="card list-panel events-panel">
+          <div class="panel-header events-header">
+            <div>
+              <p class="eyebrow">Events</p>
+              <h2 id="eventsHeading">Private event log</h2>
+              <p class="panel-copy">Newest radio activity from the private dev RDS event log.</p>
+            </div>
+            <div class="panel-actions events-actions">
+              <label class="limit-label" for="eventLimit">Limit
+                <select id="eventLimit" class="limit-select">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="200">200</option>
+                </select>
+              </label>
+              <button id="refreshEventsButton" class="button button-small" type="button">Refresh Events</button>
+            </div>
+          </div>
+
+          <div id="eventsStatus" class="song-count">No events loaded</div>
+          <div class="table-wrap events-table-wrap">
+            <table class="song-table events-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Event Type</th>
+                  <th>Song</th>
+                  <th>Artist</th>
+                  <th>Device</th>
+                  <th>Seconds Played</th>
+                  <th>Completion %</th>
+                  <th>Product URL</th>
+                  <th>Session ID</th>
+                </tr>
+              </thead>
+              <tbody id="eventsTableBody"></tbody>
+            </table>
+          </div>
+        </aside>
+      </section>
 
       <section id="archiveView" class="admin-view hidden" aria-labelledby="archiveHeading">
         <aside class="card list-panel">
