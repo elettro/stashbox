@@ -31,6 +31,19 @@ const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
+function isVideoOnlyTrack(song) {
+  const releaseFormat = clean(song?.release_format ?? song?.releaseFormat).toLowerCase().replace(/[\s-]+/g, '_');
+  const videoLink = song?.video_link ?? song?.video_url ?? song?.videoUrl ?? song?.videoLink;
+  const audioUrl = song?.audio_url ?? song?.audioUrl;
+  return Boolean(
+    song &&
+    (
+      releaseFormat === 'video_only' ||
+      (song.videoOnly === true && has(videoLink) && !has(audioUrl)) ||
+      (has(videoLink) && !has(audioUrl))
+    )
+  );
+}
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === clean(genre).toLowerCase())?.key || 'Other';
 const countValue = value => Math.max(0, Number(value) || 0);
 const YOUTUBE_ORIGIN = 'https://elettro.github.io';
@@ -80,7 +93,7 @@ function normalizeSong(row, index) {
   const genre = clean(firstDefined(row, ['genre', 'primary_genre', 'section']));
   const hasAudio = has(row.audio_url);
   const hasVideo = has(row.video_link || row.video_url || row.videoUrl);
-  const videoOnly = bool(row.video_only);
+  const videoOnly = bool(row.video_only) || isVideoOnlyTrack(row);
   const rawKey = firstDefined(row, ['song_key', 'key', 'slug', 'id', 'track_id']);
   const likes = countValue(firstDefined(row, ['likes', 'like_count', 'total_likes']));
   const totalPlays = countValue(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
@@ -106,6 +119,8 @@ function normalizeSong(row, index) {
     audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
     imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
     videoLink: clean(row.video_link || row.video_url || row.videoUrl),
+    release_format: clean(row.release_format),
+    releaseFormat: clean(row.release_format),
     likes,
     total_plays: totalPlays,
     totalPlays,
@@ -607,6 +622,13 @@ function App() {
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
   useEffect(() => {
+    if (!isVideoOnlyTrack(selectedSong) || !selectedSong?.hasVideo) return;
+    const embedUrl = youtubeEmbed(selectedSong.videoLink);
+    if (!embedUrl) return;
+    setActiveVideoEmbedUrl(current => current || embedUrl);
+    setMediaMode('video');
+  }, [selectedSong?.idx, selectedSong?.videoLink]);
+  useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -699,11 +721,13 @@ function App() {
 
   function selectTrack(track, { autoStart = false, preferVideo = false } = {}) {
     if (!track) return;
+    const videoOnlyTrack = isVideoOnlyTrack(track);
+    const embedUrl = videoOnlyTrack && track.hasVideo ? youtubeEmbed(track.videoLink) : '';
     setPlayerMessage('');
     setSelected(track);
-    setMediaMode('idle');
-    setActiveVideoEmbedUrl('');
-    setAutoPlayRequest(autoStart ? { idx: track.idx, requestedAt: Date.now(), preferVideo } : null);
+    setMediaMode(embedUrl ? 'video' : 'idle');
+    setActiveVideoEmbedUrl(embedUrl);
+    setAutoPlayRequest(autoStart || embedUrl ? { idx: track.idx, requestedAt: Date.now(), preferVideo: preferVideo || videoOnlyTrack } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
@@ -876,6 +900,13 @@ function App() {
   }
 
   function closeVideo() {
+    const currentVideoSong = selectedRef.current || selectedSong;
+    if (isVideoOnlyTrack(currentVideoSong)) {
+      const embedUrl = currentVideoSong?.hasVideo ? youtubeEmbed(currentVideoSong.videoLink) : '';
+      if (embedUrl) setActiveVideoEmbedUrl(current => current || embedUrl);
+      setMediaMode('video');
+      return;
+    }
     finishPlayback('play_partial');
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
@@ -964,15 +995,18 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => { if (mediaMode !== 'video') setIsVideoPlaying(false); }, [mediaMode]);
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
+  const selectedIsVideoOnly = isVideoOnlyTrack(selected);
   const availableVideoEmbedUrl = selected.hasVideo ? youtubeEmbed(selected.videoLink) : '';
   const videoSrc = mediaMode === 'video' ? activeVideoEmbedUrl : '';
-  const posterImage = selected.imageUrl || (selected.videoOnly ? youtubeThumbnail(selected.videoLink) : '');
-  const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selected.videoOnly;
+  const posterImage = selected.imageUrl || (selectedIsVideoOnly ? youtubeThumbnail(selected.videoLink) : '');
+  const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selectedIsVideoOnly;
   const hasVideo = selected.hasVideo && has(availableVideoEmbedUrl);
   const isVideoMode = mediaMode === 'video' && has(videoSrc);
   const directVideo = isVideoMode && isDirectVideoUrl(selected.videoLink);
   const youtubeVideo = isVideoMode && /youtube\.com\/embed/i.test(videoSrc);
-  const canUsePrimaryPlay = isVideoMode ? hasVideo : hasAudio || (selected.videoOnly && hasVideo);
+  const canUsePrimaryPlay = isVideoMode ? hasVideo : hasAudio || (selectedIsVideoOnly && hasVideo);
+  const canCloseVideo = isVideoMode && hasVideo && !selectedIsVideoOnly;
+  const canWatchVideo = !isVideoMode && hasVideo && (selected.showWatchVideo || selectedIsVideoOnly);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
 
@@ -1105,6 +1139,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   }
 
   const handleCloseVideo = () => {
+    if (selectedIsVideoOnly) {
+      closeVideo?.();
+      return;
+    }
     pauseActiveVideo();
     closeVideo?.();
   };
@@ -1115,7 +1153,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       toggleActiveVideo();
       return;
     }
-    if (selected.videoOnly && hasVideo) {
+    if (selectedIsVideoOnly && hasVideo) {
       playActiveVideo();
       return;
     }
@@ -1153,7 +1191,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
             h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
-            hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
+            canCloseVideo || canWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
             h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
           )
         )
@@ -1162,7 +1200,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     playerMessage ? h('p', { className: 'notes player-message', 'aria-live': 'polite' }, playerMessage) : null,
     isVideoMode && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
     isVideoMode && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
-    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selected.videoOnly ? 'This is a video-only record. Use the main play button or Watch Video to start the YouTube player.' : 'No audio URL is available for this track.'),
+    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { key: selected.idx, className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'metadata', onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selectedIsVideoOnly ? 'This is a video-only record. Use the main play button or Watch Video to start the YouTube player.' : 'No audio URL is available for this track.'),
     h(ProductRecommendations, { products, onProductClick })
   );
 }
