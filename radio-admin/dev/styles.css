@@ -1177,6 +1177,30 @@ textarea {
   min-width: 1680px;
 }
 
+.song-analytics-table th:first-child,
+.song-analytics-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 320px;
+  background: var(--panel, #07130f);
+  box-shadow: 10px 0 18px rgba(0, 0, 0, 0.24);
+}
+
+.song-analytics-table th:first-child {
+  z-index: 3;
+  background: #0b120f;
+}
+
+.song-analytics-table tbody tr:hover > td:first-child,
+.song-analytics-table tbody tr.is-selected > td:first-child {
+  background: #17231e;
+}
+
+.song-analytics-table .song-cell-with-art {
+  min-width: 280px;
+}
+
 .song-analytics-table tbody tr {
   cursor: default;
 }
