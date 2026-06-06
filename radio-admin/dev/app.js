@@ -177,6 +177,10 @@ let statsSummary = null;
 let statsSummaryError = '';
 let productStats = null;
 let productStatsError = '';
+let productImagePreviewEl = null;
+let activeProductPreviewThumb = null;
+let productPreviewPinned = false;
+let productPreviewDismissListenerAttached = false;
 let songStats = null;
 let songStatsError = '';
 let songStatsSortKey = 'play_starts';
@@ -1135,11 +1139,30 @@ function buildProductTitleCell(productUrl) {
   image.alt = title === '—' ? 'Product image placeholder' : `Product image for ${title}`;
   image.loading = 'lazy';
   image.decoding = 'async';
-  image.addEventListener('error', () => {
-    if (image.src !== STASHBOX_PLACEHOLDER_ARTWORK) {
-      image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+  image.tabIndex = 0;
+  image.dataset.previewReady = 'false';
+  image.dataset.previewBroken = 'false';
+  image.addEventListener('load', () => {
+    if (image.dataset.loadingProductImage === 'true') {
+      image.dataset.previewReady = 'true';
+      image.dataset.previewBroken = 'false';
+      image.dataset.previewSrc = image.currentSrc || image.src;
+      image.dataset.loadingProductImage = 'false';
     }
   });
+  image.addEventListener('error', () => {
+    image.dataset.previewReady = 'false';
+    image.dataset.previewBroken = 'true';
+    image.dataset.loadingProductImage = 'false';
+    hideProductImagePreview(true);
+
+    if (image.src !== STASHBOX_PLACEHOLDER_ARTWORK) {
+      image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+    } else {
+      image.hidden = true;
+    }
+  });
+  attachProductImagePreviewHandlers(image);
 
   const meta = document.createElement('div');
   meta.className = 'product-cell-meta';
@@ -1155,12 +1178,156 @@ function buildProductTitleCell(productUrl) {
   cell.appendChild(wrap);
 
   getProductImageUrl(productUrl).then((imageUrl) => {
-    if (imageUrl) {
+    if (imageUrl && imageUrl !== STASHBOX_PLACEHOLDER_ARTWORK) {
+      image.hidden = false;
+      image.dataset.loadingProductImage = 'true';
+      image.dataset.previewBroken = 'false';
       image.src = imageUrl;
     }
   });
 
   return cell;
+}
+
+function attachProductImagePreviewHandlers(image) {
+  image.addEventListener('mouseenter', (event) => {
+    productPreviewPinned = false;
+    showProductImagePreview(image, event);
+  });
+  image.addEventListener('mousemove', (event) => {
+    if (!productPreviewPinned) {
+      positionProductImagePreview(event.clientX, event.clientY);
+    }
+  });
+  image.addEventListener('mouseleave', () => {
+    if (!productPreviewPinned) {
+      hideProductImagePreview();
+    }
+  });
+  image.addEventListener('focus', () => {
+    productPreviewPinned = false;
+    showProductImagePreview(image);
+  });
+  image.addEventListener('blur', () => {
+    hideProductImagePreview(true);
+  });
+  image.addEventListener('click', (event) => {
+    if (!canShowProductImagePreview(image)) {
+      return;
+    }
+
+    if (activeProductPreviewThumb === image && productPreviewPinned) {
+      hideProductImagePreview(true);
+      return;
+    }
+
+    productPreviewPinned = true;
+    showProductImagePreview(image, event);
+  });
+  image.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      hideProductImagePreview(true);
+      image.blur();
+    }
+  });
+
+  attachProductPreviewDismissListener();
+}
+
+function attachProductPreviewDismissListener() {
+  if (productPreviewDismissListenerAttached) {
+    return;
+  }
+
+  productPreviewDismissListenerAttached = true;
+  document.addEventListener('pointerdown', (event) => {
+    if (!productPreviewPinned || event.target.closest('.product-thumb')) {
+      return;
+    }
+
+    hideProductImagePreview(true);
+  });
+}
+
+function canShowProductImagePreview(image) {
+  return Boolean(
+    image
+    && image.dataset.previewReady === 'true'
+    && image.dataset.previewBroken !== 'true'
+    && image.dataset.previewSrc
+  );
+}
+
+function ensureProductImagePreview() {
+  if (productImagePreviewEl) {
+    return productImagePreviewEl;
+  }
+
+  const preview = document.createElement('div');
+  preview.className = 'product-image-preview hidden';
+  preview.setAttribute('aria-hidden', 'true');
+
+  const previewImage = document.createElement('img');
+  previewImage.alt = '';
+  previewImage.decoding = 'async';
+  preview.appendChild(previewImage);
+  document.body.appendChild(preview);
+  productImagePreviewEl = preview;
+  return productImagePreviewEl;
+}
+
+function showProductImagePreview(image, event) {
+  if (!canShowProductImagePreview(image)) {
+    return;
+  }
+
+  const preview = ensureProductImagePreview();
+  const previewImage = preview.querySelector('img');
+  previewImage.src = image.dataset.previewSrc;
+  activeProductPreviewThumb = image;
+  preview.classList.remove('hidden');
+
+  if (event) {
+    positionProductImagePreview(event.clientX, event.clientY);
+  } else {
+    const rect = image.getBoundingClientRect();
+    positionProductImagePreview(rect.right, rect.top + rect.height / 2);
+  }
+}
+
+function positionProductImagePreview(clientX, clientY) {
+  if (!productImagePreviewEl || productImagePreviewEl.classList.contains('hidden')) {
+    return;
+  }
+
+  const offset = 18;
+  const rect = productImagePreviewEl.getBoundingClientRect();
+  const previewWidth = rect.width || 260;
+  const previewHeight = rect.height || 260;
+  let left = clientX + offset;
+  let top = clientY + offset;
+
+  if (left + previewWidth > window.innerWidth - offset) {
+    left = clientX - previewWidth - offset;
+  }
+
+  if (top + previewHeight > window.innerHeight - offset) {
+    top = window.innerHeight - previewHeight - offset;
+  }
+
+  productImagePreviewEl.style.left = `${Math.max(offset, left)}px`;
+  productImagePreviewEl.style.top = `${Math.max(offset, top)}px`;
+}
+
+function hideProductImagePreview(force = false) {
+  if (!productImagePreviewEl || (!force && productPreviewPinned)) {
+    return;
+  }
+
+  productImagePreviewEl.classList.add('hidden');
+  productImagePreviewEl.querySelector('img').removeAttribute('src');
+  activeProductPreviewThumb = null;
+  productPreviewPinned = false;
 }
 
 function getProductHandle(productUrl) {
