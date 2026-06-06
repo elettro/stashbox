@@ -27,23 +27,58 @@ const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
   </svg>
 `)}`;
 
+
+const metadataSuggestions = {
+  artist: ['Stashbox', 'The Ras Box', 'Tahiti Cora', 'Reggaeland'],
+  genre: ['Reggae', 'Rock', 'Blues', 'Comedy Rap', 'Tropical Pop', 'Rumba Flamenco', 'Instrumental', 'Folk Rock', 'Country', 'Pop', 'Metal', 'Dance', 'Jazz', 'Live Jam'],
+  secondary_genre: ['Improv Jam', 'Live Recording', 'Acoustic', 'Dub', 'Dancehall', 'Folk', 'Blues Rock', 'Comedy', 'Tropical', 'World', 'Experimental'],
+  mood_tags: ['Happy', 'Chill', 'Uplifting', 'Funny', 'Sexy', 'Spiritual', 'Emotional', 'Party', 'Nostalgic', 'Energetic', 'Relaxed', 'Dark', 'Romantic', 'Trippy']
+};
+
+const metadataSelectOptions = {
+  release_format: [
+    { value: 'single', label: 'single' },
+    { value: 'video_only', label: 'video_only' },
+    { value: 'album_track', label: 'album_track' },
+    { value: 'live_recording', label: 'live_recording' },
+    { value: 'demo', label: 'demo' },
+    { value: 'unreleased', label: 'unreleased' }
+  ],
+  song_origin: [
+    { value: 'original', label: 'original' },
+    { value: 'cover', label: 'cover' },
+    { value: 'traditional', label: 'traditional' },
+    { value: 'live recording', label: 'live recording' },
+    { value: 'public domain', label: 'public domain' },
+    { value: 'remix', label: 'remix' },
+    { value: 'instrumental', label: 'instrumental' },
+    { value: 'AI assisted', label: 'AI assisted' },
+    { value: 'unknown', label: 'unknown' }
+  ],
+  public_visibility: [
+    { value: 'visible', label: 'Visible' },
+    { value: 'hidden', label: 'Hidden' },
+    { value: 'archived', label: 'Archived' }
+  ]
+};
+
 const editableFields = [
   { name: 'song_key', label: 'Song key', type: 'text', createOnly: true, full: true, help: 'Unique URL-safe key for this song. You can generate it from display title + artist, then edit it manually.' },
   { name: 'song_name', label: 'Song name', type: 'text' },
   { name: 'display_title', label: 'Display title', type: 'text' },
-  { name: 'artist', label: 'Artist', type: 'text' },
+  { name: 'artist', label: 'Artist', type: 'text', suggestions: metadataSuggestions.artist },
   { name: 'album_name', label: 'Album', type: 'text' },
-  { name: 'genre', label: 'Genre', type: 'text' },
+  { name: 'genre', label: 'Genre', type: 'text', suggestions: metadataSuggestions.genre },
   {
     name: 'languages',
     label: 'Languages',
     type: 'text',
     full: true,
-    help: 'Enter languages separated by commas. New songs default blank languages to English; existing songs can be blank for instrumentals.'
+    help: 'Use commas for multiple languages. Leave blank for instrumental/no language.'
   },
-  { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
-  { name: 'release_format', label: 'Release format', type: 'text' },
-  { name: 'song_origin', label: 'Song origin', type: 'text' },
+  { name: 'secondary_genre', label: 'Secondary genre', type: 'text', suggestions: metadataSuggestions.secondary_genre },
+  { name: 'release_format', label: 'Release format', type: 'select', options: metadataSelectOptions.release_format },
+  { name: 'song_origin', label: 'Song origin', type: 'select', options: metadataSelectOptions.song_origin },
   { name: 'audio_url', label: 'Audio URL', type: 'url', full: true },
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
   { name: 'video_link', label: 'Video link', type: 'url', full: true },
@@ -53,9 +88,10 @@ const editableFields = [
   { name: 'video_setlist', label: 'Video setlist', type: 'textarea', full: true },
   {
     name: 'public_visibility',
-    label: 'Show in Radio',
-    type: 'checkbox',
-    help: 'Checked songs appear in the RDS-powered radio player. Uncheck only when you want to hide a song.'
+    label: 'Public Visibility',
+    type: 'select',
+    options: metadataSelectOptions.public_visibility,
+    help: 'Controls whether this song is visible, hidden, or archived in radio/admin views.'
   },
   { name: 'exclusive', label: 'Exclusive', type: 'checkbox' },
   { name: 'explicit', label: 'Explicit', type: 'checkbox' },
@@ -76,10 +112,11 @@ const editableFields = [
   { name: 'internal_version_name', label: 'Internal version name', type: 'text' },
   {
     name: 'mood_tags',
-    label: 'Mood tags',
+    label: 'Mood',
     type: 'text',
     full: true,
-    help: 'Enter tags separated by commas. Empty tags are ignored.'
+    suggestions: metadataSuggestions.mood_tags,
+    help: 'Choose a common mood or enter custom comma-separated mood tags. Empty tags are ignored.'
   },
   { name: 'internal_notes', label: 'Internal notes', type: 'textarea', full: true }
 ];
@@ -2692,6 +2729,87 @@ function normalizeSongResponse(data) {
   return data || {};
 }
 
+function createFieldControl(field, fieldId) {
+  if (field.type === 'textarea') {
+    const textarea = document.createElement('textarea');
+    textarea.id = fieldId;
+    textarea.name = field.name;
+    return textarea;
+  }
+
+  if (field.type === 'select') {
+    const select = document.createElement('select');
+    select.id = fieldId;
+    select.name = field.name;
+    populateSelectOptions(select, field.options || []);
+    return select;
+  }
+
+  const input = document.createElement('input');
+  input.id = fieldId;
+  input.name = field.name;
+  input.type = field.type;
+
+  if (field.suggestions?.length) {
+    input.setAttribute('list', `${fieldId}_suggestions`);
+    input.autocomplete = 'off';
+  }
+
+  return input;
+}
+
+function createFieldDatalist(field, fieldId) {
+  const datalist = document.createElement('datalist');
+  datalist.id = `${fieldId}_suggestions`;
+
+  field.suggestions.forEach((suggestion) => {
+    const option = document.createElement('option');
+    option.value = suggestion;
+    datalist.appendChild(option);
+  });
+
+  return datalist;
+}
+
+function populateSelectOptions(select, options) {
+  select.innerHTML = '';
+
+  options.forEach((optionDefinition) => {
+    const option = document.createElement('option');
+    option.value = optionDefinition.value;
+    option.textContent = optionDefinition.label;
+    select.appendChild(option);
+  });
+}
+
+function setSelectValue(select, field, value) {
+  populateSelectOptions(select, field.options || []);
+
+  const normalizedValue = value === null || value === undefined ? '' : String(value);
+
+  if (!normalizedValue) {
+    const blankOption = document.createElement('option');
+    blankOption.value = '';
+    blankOption.textContent = '— No current value —';
+    select.prepend(blankOption);
+    select.value = '';
+    return;
+  }
+
+  if (!Array.from(select.options).some((option) => option.value === normalizedValue)) {
+    const customOption = document.createElement('option');
+    customOption.value = normalizedValue;
+    customOption.textContent = `${normalizedValue} (current custom value)`;
+    select.appendChild(customOption);
+  }
+
+  select.value = normalizedValue;
+}
+
+function getDefaultSelectValue(field) {
+  return field.options?.[0]?.value || '';
+}
+
 function buildEditForm() {
   const checkboxWrap = document.createElement('div');
   checkboxWrap.className = 'checkbox-grid';
@@ -2757,16 +2875,13 @@ function buildEditForm() {
       labelRow.appendChild(generateButton);
     }
 
-    const input = field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
-    input.id = fieldId;
-    input.name = field.name;
-
-    if (field.type !== 'textarea') {
-      input.type = field.type;
-    }
-
+    const input = createFieldControl(field, fieldId);
     fieldElements.set(field.name, input);
     wrap.append(labelRow, input);
+
+    if (field.suggestions?.length) {
+      wrap.appendChild(createFieldDatalist(field, fieldId));
+    }
 
     if (field.help) {
       const help = document.createElement('div');
@@ -2811,8 +2926,8 @@ function populateEditor(song, { mode = 'edit' } = {}) {
     const input = fieldElements.get(field.name);
     const value = song[field.name];
 
-    if (field.name === 'public_visibility') {
-      input.checked = isShownInRadio(song);
+    if (field.type === 'select') {
+      setSelectValue(input, field, field.name === 'public_visibility' ? normalizePublicVisibility(value) : value);
     } else if (field.type === 'checkbox') {
       input.checked = toBoolean(value);
     } else if (field.name === 'specific_product_urls') {
@@ -2879,7 +2994,9 @@ function clearEditor() {
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     if (field.type === 'checkbox') {
-      input.checked = field.name === 'public_visibility';
+      input.checked = false;
+    } else if (field.type === 'select') {
+      setSelectValue(input, field, getDefaultSelectValue(field));
     } else {
       input.value = '';
     }
@@ -3169,7 +3286,7 @@ function normalizeCreatePayload(payload) {
 function validateCreatePayload(payload) {
   const missingFields = Array.from(createRequiredFields).filter((fieldName) => {
     if (fieldName === 'public_visibility') {
-      return !['visible', 'hidden'].includes(payload[fieldName]);
+      return !['visible', 'hidden', 'archived'].includes(payload[fieldName]);
     }
 
     return !String(payload[fieldName] || '').trim();
@@ -3234,11 +3351,7 @@ function getFieldPayloadValue(field) {
   const input = fieldElements.get(field.name);
 
   if (field.name === 'public_visibility') {
-    if (input.checked) {
-      return 'visible';
-    }
-
-    return isArchivedSong(selectedSong) ? 'archived' : 'hidden';
+    return normalizePublicVisibility(input.value);
   }
 
   if (booleanFields.has(field.name)) {
