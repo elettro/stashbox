@@ -118,6 +118,77 @@
           </div>
         </section>
 
+        <section class="card dashboard-section referrers-analytics-section" aria-labelledby="referrersAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Referrers / Traffic Sources</p>
+              <h2 id="referrersAnalyticsHeading">Referrers / Traffic Sources</h2>
+              <p class="panel-copy">Private referrer, direct traffic, and recent traffic-source event stats.</p>
+              <p id="referrerStatsGeneratedAt" class="stats-generated">Referrer stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="referrerStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="referrerKpiGrid" class="mini-stat-grid referrer-kpi-grid"></div>
+
+          <div class="referrer-tables-grid">
+            <section aria-labelledby="topReferrersHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 50</p>
+                  <h3 id="topReferrersHeading">Top Referrers</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table referrer-table top-referrers-table">
+                  <thead>
+                    <tr>
+                      <th>Referrer</th>
+                      <th>Events</th>
+                      <th>Plays</th>
+                      <th>Full</th>
+                      <th>Partial</th>
+                      <th>Skips</th>
+                      <th>Likes</th>
+                      <th>Shares</th>
+                      <th>Video Clicks</th>
+                      <th>Product Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Last Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topReferrersTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentReferrerEventsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentReferrerEventsHeading">Recent Referrer Events</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table referrer-table recent-referrer-events-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Referrer</th>
+                      <th>Event Type</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Device</th>
+                      <th>Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentReferrerEventsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section class="card dashboard-section song-analytics-section" aria-labelledby="songAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
