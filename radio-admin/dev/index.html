@@ -44,15 +44,34 @@
             <div>
               <p class="eyebrow">Dashboard</p>
               <h2 id="dashboardHeading">Operational stats</h2>
-              <p class="panel-copy">Totals exclude archived songs returned by the dev admin songs API.</p>
+              <p class="panel-copy">Top KPI totals come from radio event stats; song rankings still use the dev admin songs API and exclude archived songs.</p>
+              <p id="statsGeneratedAt" class="stats-generated">Stats generated: —</p>
             </div>
             <button id="refreshDashboardButton" class="button button-small" type="button">Refresh Dashboard</button>
           </div>
 
+          <div id="statsSummaryWarning" class="stats-warning hidden" role="alert"></div>
           <div id="kpiGrid" class="kpi-grid"></div>
         </div>
 
         <div class="dashboard-grid">
+          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="todayStatsHeading">
+            <p class="eyebrow">Today</p>
+            <h2 id="todayStatsHeading">Today's event stats</h2>
+            <div id="todayStatsGrid" class="mini-stat-grid"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="devicesStatsHeading">
+            <p class="eyebrow">Devices</p>
+            <h2 id="devicesStatsHeading">Device event counts</h2>
+            <div id="devicesStatsList" class="summary-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="eventTypesStatsHeading">
+            <p class="eyebrow">Events</p>
+            <h2 id="eventTypesStatsHeading">Event type totals</h2>
+            <div id="eventTypesStatsList" class="summary-list"></div>
+          </section>
           <section class="card dashboard-section dashboard-section-wide" aria-labelledby="topSongsHeading">
             <div class="panel-header compact-header">
               <div>
