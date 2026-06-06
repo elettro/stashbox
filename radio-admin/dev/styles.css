@@ -1142,3 +1142,71 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.song-analytics-section {
+  margin: 1rem 0;
+}
+
+.song-insight-grid {
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.song-insight-card {
+  border: 1px solid rgba(66, 217, 130, 0.22);
+  border-radius: 14px;
+  background: rgba(66, 217, 130, 0.055);
+  padding: 0.8rem;
+}
+
+.song-insight-card .mini-stat-value {
+  font-size: 1.35rem;
+}
+
+.song-insight-card .song-meta {
+  display: block;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+}
+
+.song-analytics-table {
+  min-width: 1680px;
+}
+
+.song-analytics-table tbody tr {
+  cursor: default;
+}
+
+.song-analytics-table .quick-links-cell {
+  min-width: 180px;
+}
+
+.sort-header {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  white-space: nowrap;
+}
+
+.sort-header:hover,
+.sort-header.is-active {
+  color: var(--green);
+}
+
+@media (max-width: 1180px) {
+  .song-insight-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .song-insight-grid {
+    grid-template-columns: 1fr;
+  }
+}
