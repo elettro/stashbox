@@ -159,6 +159,7 @@ const createDefaults = {
 };
 
 let songs = [];
+let songsByKey = {};
 let filteredSongs = [];
 let archivedSongs = [];
 let events = [];
@@ -309,6 +310,7 @@ function saveToken() {
 function clearToken() {
   localStorage.removeItem(TOKEN_STORAGE_KEY);
   songs = [];
+  songsByKey = {};
   filteredSongs = [];
   selectedSong = null;
   selectedSongKey = '';
@@ -526,11 +528,12 @@ function renderEvents(errorMessage = '') {
   }
 
   events.forEach((event) => {
+    const matchedSong = getEventMatchedSong(event);
     const row = document.createElement('tr');
     row.appendChild(makeTextCell(formatDateTime(event.created_at || event.event_time || event.timestamp), 'event-time'));
     row.appendChild(buildEventTypeCell(event.event_type));
-    row.appendChild(makeTextCell(formatEventSongTitle(event), 'song-title compact-title'));
-    row.appendChild(makeTextCell(event.artist || event.artist_name || '—'));
+    row.appendChild(buildEventSongCell(event, matchedSong));
+    row.appendChild(makeTextCell(event.artist || event.artist_name || matchedSong?.artist || '—'));
     row.appendChild(makeTextCell(formatDisplayValue(event.device || event.device_type || event.platform || '—')));
     row.appendChild(makeTextCell(formatNumberOrDash(event.seconds_played ?? event.played_seconds ?? event.duration_seconds)));
     row.appendChild(makeTextCell(formatCompletionPercent(event.completion_percent ?? event.completion_pct ?? event.completion)));
@@ -568,8 +571,87 @@ function buildProductUrlCell(productUrl) {
   return cell;
 }
 
-function formatEventSongTitle(event) {
-  return event.display_title || event.song_name || event.song_key || '—';
+function buildEventSongCell(event, matchedSong = null) {
+  const cell = document.createElement('td');
+  const titleText = formatEventSongTitle(event, matchedSong);
+  const metaText = formatEventSongMeta(event, matchedSong);
+  const songForArtwork = getEventArtworkSource(event, matchedSong);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'event-song-cell';
+
+  const image = document.createElement('img');
+  image.className = 'event-song-thumb';
+  image.src = getSongArtworkUrl(songForArtwork);
+  image.alt = `Artwork for ${titleText}`;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.addEventListener('error', () => {
+    if (image.dataset.fallbackApplied === 'true') {
+      image.hidden = true;
+      return;
+    }
+
+    image.dataset.fallbackApplied = 'true';
+    image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+  });
+
+  const meta = document.createElement('div');
+  meta.className = 'event-song-meta';
+
+  const title = document.createElement('strong');
+  title.textContent = titleText;
+
+  meta.appendChild(title);
+
+  if (metaText) {
+    const detail = document.createElement('span');
+    detail.textContent = metaText;
+    meta.appendChild(detail);
+  }
+
+  wrap.append(image, meta);
+  cell.appendChild(wrap);
+  return cell;
+}
+
+function getEventMatchedSong(event) {
+  const songKey = getEventSongKey(event);
+  return songKey ? songsByKey[songKey] || null : null;
+}
+
+function getEventArtworkSource(event, matchedSong = null) {
+  const eventArtworkSource = {
+    resolved_artwork_url: event?.resolved_artwork_url,
+    song_artwork_url: event?.song_artwork_url,
+    video_link: event?.video_link
+  };
+
+  if (hasArtworkSource(eventArtworkSource)) {
+    return eventArtworkSource;
+  }
+
+  return matchedSong || eventArtworkSource;
+}
+
+function hasArtworkSource(songOrEvent) {
+  return Boolean(
+    String(songOrEvent?.resolved_artwork_url || '').trim()
+    || String(songOrEvent?.song_artwork_url || '').trim()
+    || String(songOrEvent?.video_link || '').trim()
+  );
+}
+
+function getEventSongKey(event) {
+  return event?.song_key || event?.songKey || event?.song_id || event?.songId || '';
+}
+
+function formatEventSongMeta(event, matchedSong = null) {
+  return event.artist || event.artist_name || matchedSong?.artist || getEventSongKey(event) || '';
+}
+
+function formatEventSongTitle(event, matchedSong = null) {
+  return event.display_title || event.song_name || matchedSong?.display_title || matchedSong?.song_name || getEventSongKey(event) || '—';
 }
 
 function formatEventType(eventType) {
@@ -699,6 +781,10 @@ async function loadSongs({ silent = false, preserveSelection = Boolean(selectedS
     renderSongList();
     renderArchiveList();
 
+    if (events.length) {
+      renderEvents();
+    }
+
     if (!silent) {
       showMessage(`Loaded ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
     }
@@ -726,6 +812,18 @@ function preserveSelectedSong(songKey) {
   if (!els.editForm.classList.contains('hidden')) {
     populateEditor(refreshedSong);
   }
+}
+
+function buildSongsByKey(songList) {
+  return songList.reduce((lookup, song) => {
+    const songKey = getSongKey(song);
+
+    if (songKey) {
+      lookup[songKey] = song;
+    }
+
+    return lookup;
+  }, {});
 }
 
 function normalizeSongsResponse(data) {
@@ -1072,8 +1170,8 @@ function getMetricValue(song, key) {
 }
 
 
-function getSongArtworkUrl(song) {
-  const directArtworkUrl = [song?.resolved_artwork_url, song?.song_artwork_url]
+function getSongArtworkUrl(songOrEvent) {
+  const directArtworkUrl = [songOrEvent?.resolved_artwork_url, songOrEvent?.song_artwork_url]
     .map((value) => String(value || '').trim())
     .find(Boolean);
 
@@ -1081,13 +1179,12 @@ function getSongArtworkUrl(song) {
     return directArtworkUrl;
   }
 
-  const youtubeVideoId = getYouTubeVideoId(song?.video_link);
+  return getYoutubeThumbnailUrl(songOrEvent?.video_link) || STASHBOX_PLACEHOLDER_ARTWORK;
+}
 
-  if (youtubeVideoId) {
-    return `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`;
-  }
-
-  return STASHBOX_PLACEHOLDER_ARTWORK;
+function getYoutubeThumbnailUrl(videoLink) {
+  const youtubeVideoId = getYouTubeVideoId(videoLink);
+  return youtubeVideoId ? `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg` : '';
 }
 
 function getYouTubeVideoId(videoLink) {
@@ -1686,6 +1783,10 @@ async function saveSelectedSong(event) {
     renderDashboard();
     renderSongList();
     renderArchiveList();
+
+    if (events.length) {
+      renderEvents();
+    }
     populateEditor(updatedSong);
     setActiveTab('edit');
     showMessage('Saved successfully', 'success');
@@ -1741,6 +1842,10 @@ async function archiveSelectedSong() {
     renderDashboard();
     renderSongList();
     renderArchiveList();
+
+    if (events.length) {
+      renderEvents();
+    }
     setActiveTab('songs');
     showMessage('Song moved to archive.', 'success');
   } catch (error) {
@@ -1779,6 +1884,10 @@ async function restoreArchivedSong(song, button) {
     renderDashboard();
     renderSongList();
     renderArchiveList();
+
+    if (events.length) {
+      renderEvents();
+    }
     showMessage('Song restored as hidden.', 'success');
   } catch (error) {
     showMessage(error.message, 'error');
@@ -1832,6 +1941,10 @@ async function createSelectedSong() {
     renderDashboard();
     renderSongList();
     renderArchiveList();
+
+    if (events.length) {
+      renderEvents();
+    }
     await loadSongs({ silent: true, preserveSelection: false });
 
     updateSongInList(createdSong);
@@ -1865,10 +1978,12 @@ function updateSongInList(updatedSong) {
 
   if (index === -1) {
     songs = [updatedSong, ...songs];
+    songsByKey = buildSongsByKey(songs);
     return;
   }
 
   songs = songs.map((song, songIndex) => (songIndex === index ? { ...song, ...updatedSong } : song));
+  songsByKey = buildSongsByKey(songs);
 }
 
 function buildCreatePayload() {
