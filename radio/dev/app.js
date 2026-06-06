@@ -31,15 +31,16 @@ const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
+
 function isVideoOnlyTrack(song) {
-  const releaseFormat = clean(song?.release_format ?? song?.releaseFormat).toLowerCase().replace(/[\s-]+/g, '_');
-  const videoLink = song?.video_link ?? song?.video_url ?? song?.videoUrl ?? song?.videoLink;
-  const audioUrl = song?.audio_url ?? song?.audioUrl;
+  const releaseFormat = String(song?.release_format || song?.raw?.release_format || '').toLowerCase().replace(/\s+/g, '_');
+  const videoLink = song?.video_link || song?.video_url || song?.videoUrl || song?.videoLink || song?.raw?.video_link || song?.raw?.video_url || song?.raw?.videoUrl;
+  const audioUrl = song?.audio_url || song?.audioUrl || song?.raw?.audio_url || song?.raw?.audioUrl;
   return Boolean(
     song &&
     (
+      song.videoOnly === true ||
       releaseFormat === 'video_only' ||
-      (song.videoOnly === true && has(videoLink) && !has(audioUrl)) ||
       (has(videoLink) && !has(audioUrl))
     )
   );
@@ -908,9 +909,26 @@ function App() {
       return;
     }
     finishPlayback('play_partial');
+
+    const player = youtubePlayerRef.current;
+    if (player) {
+      try {
+        if (typeof player.pauseVideo === 'function') player.pauseVideo();
+      } catch (error) {
+        console.warn('Unable to pause YouTube player safely while closing video.', error.message || error);
+      }
+      try {
+        if (typeof player.destroy === 'function') player.destroy();
+      } catch (error) {
+        console.warn('Unable to destroy YouTube player safely while closing video.', error.message || error);
+      }
+      youtubePlayerRef.current = null;
+    }
+
     setActiveVideoEmbedUrl('');
-    setMediaMode('idle');
+    setMediaMode(selectedSong?.hasAudio ? 'audio' : 'idle');
     setAutoPlayRequest(null);
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
   function likeSong(song) {
