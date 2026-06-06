@@ -568,10 +568,45 @@ async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) r
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, album, onAlbumChange, artist, onArtistChange, artistFilters = ['ALL'] }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
+  const searchPanelRef = useRef(null);
+  const searchToggleRef = useRef(null);
+
+  const closeMobileSearch = useCallback(() => setMobileSearchOpen(false), []);
+  const isMobileSearchViewport = useCallback(() => window.matchMedia('(max-width: 767px)').matches, []);
 
   useEffect(() => {
     if (mobileSearchOpen) searchInputRef.current?.focus();
   }, [mobileSearchOpen]);
+
+  useEffect(() => {
+    if (!mobileSearchOpen) return undefined;
+
+    const handleOutsidePointerDown = event => {
+      if (!isMobileSearchViewport()) return;
+      const target = event.target;
+      if (searchPanelRef.current?.contains(target) || searchToggleRef.current?.contains(target)) return;
+      closeMobileSearch();
+    };
+
+    const handleEscapeKey = event => {
+      if (!isMobileSearchViewport() || event.key !== 'Escape') return;
+      closeMobileSearch();
+      searchToggleRef.current?.focus();
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    document.addEventListener('keydown', handleEscapeKey);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [closeMobileSearch, isMobileSearchViewport, mobileSearchOpen]);
+
+  const openMobileSearch = event => {
+    event.stopPropagation();
+    setMobileSearchOpen(true);
+  };
 
   return h('nav', { className: `radio-control-bar ${mobileSearchOpen ? 'mobile-search-is-open' : ''}`, 'aria-label': 'Stashbox radio filters' },
     h('div', { className: 'radio-control-scroll' },
@@ -580,14 +615,14 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
           h('a', { className: 'radio-control-logo', href: '/radio/dev/', 'aria-label': 'Stashbox Radio RDS Dev' }, 'STASHBOX'),
           h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
         ),
-        h('button', { className: 'mobile-search-toggle', type: 'button', onClick: () => setMobileSearchOpen(true), disabled: isLoading, 'aria-label': 'Open song search', 'aria-expanded': mobileSearchOpen }, '🔍')
+        h('button', { ref: searchToggleRef, className: `mobile-search-toggle ${query ? 'active' : ''}`, type: 'button', onPointerDown: event => event.stopPropagation(), onClick: openMobileSearch, disabled: isLoading, 'aria-label': 'Open song search', 'aria-expanded': mobileSearchOpen }, '🔍')
       ),
       h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' }, GENRE_FILTERS.map(filter => h('button', { key: `genre-${filter}`, className: `radio-filter-pill ${genre === filter ? 'active' : ''}`, type: 'button', onClick: () => onGenreChange(filter), disabled: isLoading, 'aria-pressed': genre === filter }, filterLabel(filter)))),
       h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' }, h('span', { className: 'radio-filter-label' }, 'Album'), ALBUM_FILTERS.map(filter => h('button', { key: `album-${filter}`, className: `radio-filter-pill ${album === filter ? 'active' : ''}`, type: 'button', onClick: () => onAlbumChange(filter), disabled: isLoading, 'aria-pressed': album === filter }, filterLabel(filter)))),
       h('div', { className: 'radio-filter-row artist-filter-row', 'aria-label': 'Artist filters' }, artistFilters.map(filter => h('button', { key: `artist-${filter}`, className: `radio-filter-pill ${artist === filter ? 'active' : ''}`, type: 'button', onClick: () => onArtistChange(filter), disabled: isLoading, 'aria-pressed': artist === filter }, filterLabel(filter)))),
-      h('div', { className: `radio-control-search mobile-search-panel ${mobileSearchOpen ? 'open' : ''}` },
+      h('div', { ref: searchPanelRef, className: `radio-control-search mobile-search-panel ${mobileSearchOpen ? 'open' : ''}`, onPointerDown: event => event.stopPropagation() },
         h('input', { ref: searchInputRef, className: 'radio-top-search', type: 'search', placeholder: 'Search...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, 'aria-label': 'Search songs' }),
-        h('button', { className: 'mobile-search-close', type: 'button', onClick: () => setMobileSearchOpen(false), 'aria-label': 'Close song search' }, '×')
+        h('button', { className: 'mobile-search-close', type: 'button', onClick: closeMobileSearch, 'aria-label': 'Close song search' }, '×')
       )
     )
   );
