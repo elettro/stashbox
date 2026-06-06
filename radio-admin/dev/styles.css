@@ -856,6 +856,47 @@ textarea {
   white-space: nowrap;
 }
 
+.event-song-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 220px;
+  max-width: 280px;
+}
+
+.event-song-thumb {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.event-song-meta {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.event-song-meta strong,
+.event-song-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-song-meta strong {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.event-song-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .event-badge {
   display: inline-flex;
   align-items: center;
