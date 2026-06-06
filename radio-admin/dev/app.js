@@ -1,5 +1,6 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
 const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/events';
+const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -103,15 +104,29 @@ const booleanFields = new Set([
 ]);
 
 const kpiDefinitions = [
-  { key: 'total_plays', label: 'Total Plays' },
+  { key: 'total_events', label: 'Total Events' },
+  { key: 'events_last_24h', label: 'Events Last 24h' },
+  { key: 'events_last_7d', label: 'Events Last 7 Days' },
+  { key: 'play_starts', label: 'Play Starts' },
   { key: 'full_plays', label: 'Full Plays' },
   { key: 'partial_plays', label: 'Partial Plays' },
-  { key: 'skip_count', label: 'Skips' },
+  { key: 'skips', label: 'Skips' },
   { key: 'likes', label: 'Likes' },
   { key: 'shares', label: 'Shares' },
   { key: 'video_clicks', label: 'Video Clicks' },
   { key: 'product_clicks', label: 'Product Clicks' },
-  { key: 'total_seconds_played', label: 'Total Seconds Played' }
+  { key: 'total_seconds_played', label: 'Total Listening Time', formatter: formatListeningTime },
+  { key: 'average_seconds_played', label: 'Average Seconds Played', formatter: formatAverageSeconds },
+  { key: 'average_completion_percent', label: 'Average Completion %', formatter: formatPercentValue }
+];
+
+const todayStatDefinitions = [
+  { key: 'events_today', label: 'Events Today' },
+  { key: 'plays_today', label: 'Plays Today' },
+  { key: 'likes_today', label: 'Likes Today' },
+  { key: 'shares_today', label: 'Shares Today' },
+  { key: 'product_clicks_today', label: 'Product Clicks Today' },
+  { key: 'video_clicks_today', label: 'Video Clicks Today' }
 ];
 
 const fieldElements = new Map();
@@ -147,6 +162,8 @@ let songs = [];
 let filteredSongs = [];
 let archivedSongs = [];
 let events = [];
+let statsSummary = null;
+let statsSummaryError = '';
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
@@ -168,6 +185,11 @@ const els = {
   eventsView: document.getElementById('eventsView'),
   refreshDashboardButton: document.getElementById('refreshDashboardButton'),
   kpiGrid: document.getElementById('kpiGrid'),
+  statsSummaryWarning: document.getElementById('statsSummaryWarning'),
+  statsGeneratedAt: document.getElementById('statsGeneratedAt'),
+  todayStatsGrid: document.getElementById('todayStatsGrid'),
+  devicesStatsList: document.getElementById('devicesStatsList'),
+  eventTypesStatsList: document.getElementById('eventTypesStatsList'),
   topSongsTableBody: document.getElementById('topSongsTableBody'),
   likedSongsList: document.getElementById('likedSongsList'),
   sharedSongsList: document.getElementById('sharedSongsList'),
@@ -219,7 +241,7 @@ function bindEvents() {
     }
   });
   els.clearTokenButton.addEventListener('click', clearToken);
-  els.refreshDashboardButton.addEventListener('click', () => loadSongs());
+  els.refreshDashboardButton.addEventListener('click', () => loadDashboardData());
   els.createSongButton.addEventListener('click', startCreateSong);
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
@@ -259,7 +281,7 @@ function initializeAdmin() {
 
   if (token) {
     setActiveTab(DEFAULT_TAB);
-    loadSongs();
+    loadDashboardData();
   } else {
     els.adminToken.focus();
   }
@@ -281,7 +303,7 @@ function saveToken() {
   els.adminToken.value = '';
   updateTokenUi(true);
   setActiveTab(DEFAULT_TAB);
-  loadSongs();
+  loadDashboardData();
 }
 
 function clearToken() {
@@ -291,6 +313,8 @@ function clearToken() {
   selectedSong = null;
   selectedSongKey = '';
   events = [];
+  statsSummary = null;
+  statsSummaryError = '';
   renderDashboard();
   renderSongList();
   renderArchiveList();
@@ -594,21 +618,83 @@ function formatCompletionPercent(value) {
   return `${Math.round(percent)}%`;
 }
 
-async function loadSongs({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
-  const previousSelectedSongKey = preserveSelection ? selectedSongKey : '';
 
+async function loadDashboardData({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
   setBusy(els.refreshDashboardButton, true);
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
 
-  try {
-    const data = await adminFetch(API_BASE_URL);
-    songs = normalizeSongsResponse(data);
+  const [songsResult, statsResult] = await Promise.allSettled([
+    fetchSongsData({ preserveSelection }),
+    fetchStatsSummaryData()
+  ]);
 
-    if (previousSelectedSongKey) {
-      preserveSelectedSong(previousSelectedSongKey);
+  if (songsResult.status === 'rejected') {
+    showMessage(`Could not load song list: ${songsResult.reason.message}`, 'error');
+  }
+
+  if (statsResult.status === 'rejected') {
+    statsSummary = null;
+    statsSummaryError = statsResult.reason.message;
+    showMessage(`Could not load stats summary: ${statsSummaryError}`, 'error');
+  }
+
+  renderDashboard();
+  renderSongList();
+  renderArchiveList();
+
+  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled') {
+    showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
+  }
+
+  setBusy(els.refreshDashboardButton, false);
+  setBusy(els.refreshSongsButton, false);
+  setBusy(els.refreshArchiveButton, false);
+}
+
+async function fetchSongsData({ preserveSelection = Boolean(selectedSongKey) } = {}) {
+  const previousSelectedSongKey = preserveSelection ? selectedSongKey : '';
+  const data = await adminFetch(API_BASE_URL);
+  songs = normalizeSongsResponse(data);
+
+  if (previousSelectedSongKey) {
+    preserveSelectedSong(previousSelectedSongKey);
+  }
+
+  return songs;
+}
+
+async function fetchStatsSummaryData() {
+  const data = await adminFetch(STATS_SUMMARY_API_URL);
+  statsSummary = normalizeStatsSummaryResponse(data);
+  statsSummaryError = '';
+  return statsSummary;
+}
+
+function normalizeStatsSummaryResponse(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeStatsSummaryResponse(JSON.parse(data.body));
+    } catch {
+      return { summary: {}, today: {}, devices: [], event_types: [], generated_at: '' };
     }
+  }
 
+  return {
+    summary: data?.summary || {},
+    today: data?.today || {},
+    devices: Array.isArray(data?.devices) ? data.devices : [],
+    event_types: Array.isArray(data?.event_types) ? data.event_types : [],
+    generated_at: data?.generated_at || ''
+  };
+}
+
+async function loadSongs({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
+  setBusy(els.refreshSongsButton, true);
+  setBusy(els.refreshArchiveButton, true);
+
+  try {
+    await fetchSongsData({ preserveSelection });
     renderDashboard();
     renderSongList();
     renderArchiveList();
@@ -619,7 +705,6 @@ async function loadSongs({ silent = false, preserveSelection = Boolean(selectedS
   } catch (error) {
     showMessage(`Could not load song list: ${error.message}`, 'error');
   } finally {
-    setBusy(els.refreshDashboardButton, false);
     setBusy(els.refreshSongsButton, false);
     setBusy(els.refreshArchiveButton, false);
   }
@@ -688,7 +773,12 @@ function isArchivedSong(songOrValue) {
 
 function renderDashboard() {
   const activeSongs = getActiveSongs();
+  renderStatsSummaryWarning();
+  renderStatsGeneratedAt();
   renderKpiCards(calculateDashboardTotals(activeSongs));
+  renderTodayStats();
+  renderDevicesStats();
+  renderEventTypesStats();
   renderTopSongsTable(sortSongsByMetric('total_plays', activeSongs));
   renderRankList(els.likedSongsList, sortSongsByMetric('likes', activeSongs).slice(0, 5), 'likes');
   renderRankList(els.sharedSongsList, sortSongsByMetric('shares', activeSongs).slice(0, 5), 'shares');
@@ -699,10 +789,31 @@ function renderDashboard() {
 }
 
 function calculateDashboardTotals(songList) {
-  return kpiDefinitions.reduce((totals, metric) => {
-    totals[metric.key] = songList.reduce((sum, song) => sum + getMetricValue(song, metric.key), 0);
-    return totals;
-  }, {});
+  const summary = statsSummary?.summary;
+
+  if (summary) {
+    return kpiDefinitions.reduce((totals, metric) => {
+      totals[metric.key] = Number(summary[metric.key] || 0);
+      return totals;
+    }, {});
+  }
+
+  return {
+    total_events: 0,
+    events_last_24h: 0,
+    events_last_7d: 0,
+    play_starts: songList.reduce((sum, song) => sum + getMetricValue(song, 'total_plays'), 0),
+    full_plays: songList.reduce((sum, song) => sum + getMetricValue(song, 'full_plays'), 0),
+    partial_plays: songList.reduce((sum, song) => sum + getMetricValue(song, 'partial_plays'), 0),
+    skips: songList.reduce((sum, song) => sum + getMetricValue(song, 'skip_count'), 0),
+    likes: songList.reduce((sum, song) => sum + getMetricValue(song, 'likes'), 0),
+    shares: songList.reduce((sum, song) => sum + getMetricValue(song, 'shares'), 0),
+    video_clicks: songList.reduce((sum, song) => sum + getMetricValue(song, 'video_clicks'), 0),
+    product_clicks: songList.reduce((sum, song) => sum + getMetricValue(song, 'product_clicks'), 0),
+    total_seconds_played: songList.reduce((sum, song) => sum + getMetricValue(song, 'total_seconds_played'), 0),
+    average_seconds_played: 0,
+    average_completion_percent: 0
+  };
 }
 
 function renderKpiCards(totals) {
@@ -713,9 +824,141 @@ function renderKpiCards(totals) {
     card.className = 'kpi-card';
     card.innerHTML = '<span class="kpi-label"></span><strong class="kpi-value"></strong>';
     card.querySelector('.kpi-label').textContent = metric.label;
-    card.querySelector('.kpi-value').textContent = formatNumber(totals[metric.key]);
+    card.querySelector('.kpi-value').textContent = formatSummaryMetric(totals[metric.key], metric.formatter);
     els.kpiGrid.appendChild(card);
   });
+}
+
+function renderStatsSummaryWarning() {
+  if (!els.statsSummaryWarning) {
+    return;
+  }
+
+  els.statsSummaryWarning.classList.toggle('hidden', !statsSummaryError);
+  els.statsSummaryWarning.textContent = statsSummaryError
+    ? `Stats summary warning: ${statsSummaryError}`
+    : '';
+}
+
+function renderStatsGeneratedAt() {
+  if (!els.statsGeneratedAt) {
+    return;
+  }
+
+  els.statsGeneratedAt.textContent = statsSummary?.generated_at
+    ? `Stats generated: ${formatDateTime(statsSummary.generated_at)}`
+    : 'Stats generated: —';
+}
+
+function renderTodayStats() {
+  renderSummaryStatCards(els.todayStatsGrid, todayStatDefinitions, statsSummary?.today || {});
+}
+
+function renderSummaryStatCards(container, definitions, source) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = '';
+
+  definitions.forEach((metric) => {
+    const card = document.createElement('article');
+    card.className = 'mini-stat-card';
+    card.innerHTML = '<span class="mini-stat-label"></span><strong class="mini-stat-value"></strong>';
+    card.querySelector('.mini-stat-label').textContent = metric.label;
+    card.querySelector('.mini-stat-value').textContent = formatNumber(Number(source[metric.key] || 0));
+    container.appendChild(card);
+  });
+}
+
+function renderDevicesStats() {
+  renderNamedCountList(els.devicesStatsList, statsSummary?.devices || [], 'device_type', ['desktop', 'mobile', 'unknown']);
+}
+
+function renderEventTypesStats() {
+  renderNamedCountList(els.eventTypesStatsList, statsSummary?.event_types || [], 'event_type');
+}
+
+function renderNamedCountList(container, rows, labelKey, preferredOrder = []) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = '';
+  const counts = new Map();
+
+  rows.forEach((row) => {
+    const rawLabel = String(row[labelKey] || 'unknown').toLowerCase();
+    counts.set(rawLabel, (counts.get(rawLabel) || 0) + Number(row.event_count || 0));
+  });
+
+  const labels = [
+    ...preferredOrder,
+    ...Array.from(counts.keys()).filter((label) => !preferredOrder.includes(label)).sort()
+  ];
+
+  if (!labels.length) {
+    container.appendChild(makeEmptySummaryItem('No stats returned.'));
+    return;
+  }
+
+  labels.forEach((label) => {
+    const item = document.createElement('div');
+    item.className = 'summary-list-item';
+    item.innerHTML = '<span></span><strong></strong>';
+    item.querySelector('span').textContent = formatDisplayValue(label);
+    item.querySelector('strong').textContent = formatNumber(Number(counts.get(label) || 0));
+    container.appendChild(item);
+  });
+}
+
+function makeEmptySummaryItem(message) {
+  const item = document.createElement('div');
+  item.className = 'summary-list-item summary-list-empty';
+  item.textContent = message;
+  return item;
+}
+
+function formatSummaryMetric(value, formatter = formatNumber) {
+  return formatter(Number(value || 0));
+}
+
+function formatListeningTime(value) {
+  const totalSeconds = Math.max(0, Math.floor(Number(value || 0)));
+
+  if (totalSeconds < 60) {
+    return `${formatNumber(totalSeconds)}s`;
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [];
+
+  if (hours) {
+    parts.push(`${hours}h`);
+  }
+
+  if (minutes || hours) {
+    parts.push(`${minutes}m`);
+  }
+
+  parts.push(`${seconds}s`);
+  return parts.join(' ');
+}
+
+function formatAverageSeconds(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? `${formatNumber(roundMetric(number))}s` : '0s';
+}
+
+function formatPercentValue(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? `${formatNumber(roundMetric(number))}%` : '0%';
+}
+
+function roundMetric(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function renderTopSongsTable(songList) {
