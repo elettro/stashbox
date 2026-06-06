@@ -6,6 +6,7 @@ const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.c
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
+const DEFAULT_LANGUAGES = ['English'];
 const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';
 const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" role="img" aria-label="Stashbox artwork placeholder">
@@ -30,6 +31,13 @@ const editableFields = [
   { name: 'artist', label: 'Artist', type: 'text' },
   { name: 'album_name', label: 'Album', type: 'text' },
   { name: 'genre', label: 'Genre', type: 'text' },
+  {
+    name: 'languages',
+    label: 'Languages',
+    type: 'text',
+    full: true,
+    help: 'Enter languages separated by commas. Empty values default to English.'
+  },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
   { name: 'release_format', label: 'Release format', type: 'text' },
   { name: 'song_origin', label: 'Song origin', type: 'text' },
@@ -164,6 +172,7 @@ const createDefaults = {
   featured: false,
   show_public_note: false,
   song_origin: 'original',
+  languages: [...DEFAULT_LANGUAGES],
   mood_tags: [],
   specific_product_urls: []
 };
@@ -1997,7 +2006,9 @@ function buildSongTitleCell(song, songKey, titleClassName = '') {
   meta.className = 'song-meta';
   meta.textContent = [song.artist, song.album_name, song.genre].filter(Boolean).join(' · ') || songKey || '—';
 
-  textWrap.append(title, meta);
+  const languageBadges = buildLanguageBadges(song.languages);
+
+  textWrap.append(title, meta, languageBadges);
   wrap.append(buildSongArtworkImage(song), textWrap);
   cell.appendChild(wrap);
   return cell;
@@ -2093,7 +2104,7 @@ function songMatchesQuery(song, query) {
     return true;
   }
 
-  return [song.display_title, song.song_name, song.artist, song.album_name, song.genre, getSongKey(song)]
+  return [song.display_title, song.song_name, song.artist, song.album_name, song.genre, formatLanguages(song.languages), getSongKey(song)]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(query));
 }
@@ -2163,6 +2174,17 @@ function buildUpdatedCell(song) {
   line.textContent = formatDate(song.updated_at);
   cell.appendChild(line);
   return cell;
+}
+
+function buildLanguageBadges(languages) {
+  const badges = document.createElement('div');
+  badges.className = 'badges language-badges';
+
+  normalizeLanguages(languages).forEach((language) => {
+    badges.appendChild(makeBadge('language', language, true));
+  });
+
+  return badges;
 }
 
 function makeBadge(label, value, isOn = Boolean(value)) {
@@ -2401,6 +2423,8 @@ function populateEditor(song, { mode = 'edit' } = {}) {
       input.value = normalizeArrayValue(value, '\n').join('\n');
     } else if (field.name === 'mood_tags') {
       input.value = normalizeArrayValue(value, ',').join(', ');
+    } else if (field.name === 'languages') {
+      input.value = formatLanguages(value);
     } else if (Array.isArray(value)) {
       input.value = value.join('\n');
     } else if (value === null || value === undefined) {
@@ -2735,6 +2759,7 @@ function normalizeCreatePayload(payload) {
   return {
     ...payload,
     mood_tags: normalizeArrayValue(payload.mood_tags, ','),
+    languages: normalizeLanguages(payload.languages),
     specific_product_urls: normalizeArrayValue(payload.specific_product_urls, '\n'),
     show_public_note: toBoolean(payload.show_public_note),
     exclusive: toBoolean(payload.exclusive),
@@ -2832,6 +2857,10 @@ function getFieldPayloadValue(field) {
     return parseCommaSeparatedArray(input.value);
   }
 
+  if (field.name === 'languages') {
+    return normalizeLanguages(input.value);
+  }
+
   if (plainTextFields.has(field.name)) {
     return String(input.value || '').trim();
   }
@@ -2854,6 +2883,10 @@ function getComparableFieldValue(field, value) {
 
   if (field.name === 'mood_tags') {
     return normalizeArrayValue(value, ',');
+  }
+
+  if (field.name === 'languages') {
+    return normalizeLanguages(value);
   }
 
   return value === null || value === undefined ? '' : String(value).trim();
@@ -2883,10 +2916,32 @@ function parseLineSeparatedArray(value) {
 }
 
 function parseCommaSeparatedArray(value) {
+  const seen = new Set();
+
   return String(value || '')
     .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeLanguages(value) {
+  const languages = parseCommaSeparatedArray(Array.isArray(value) ? value.join(',') : value);
+
+  return languages.length ? languages : [...DEFAULT_LANGUAGES];
+}
+
+function formatLanguages(languages) {
+  return normalizeLanguages(languages).join(', ');
 }
 
 
