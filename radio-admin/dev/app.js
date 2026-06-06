@@ -177,10 +177,10 @@ let statsSummary = null;
 let statsSummaryError = '';
 let productStats = null;
 let productStatsError = '';
-let productImagePreviewEl = null;
-let activeProductPreviewThumb = null;
-let productPreviewPinned = false;
-let productPreviewDismissListenerAttached = false;
+let imagePreviewEl = null;
+let activeImagePreviewThumb = null;
+let imagePreviewPinned = false;
+let imagePreviewDismissListenerAttached = false;
 let songStats = null;
 let songStatsError = '';
 let songStatsSortKey = 'play_starts';
@@ -620,19 +620,7 @@ function buildEventSongCell(event, matchedSong = null) {
 
   const image = document.createElement('img');
   image.className = 'event-song-thumb';
-  image.src = getSongArtworkUrl(songForArtwork);
-  image.alt = `Artwork for ${titleText}`;
-  image.loading = 'lazy';
-  image.decoding = 'async';
-  image.addEventListener('error', () => {
-    if (image.dataset.fallbackApplied === 'true') {
-      image.hidden = true;
-      return;
-    }
-
-    image.dataset.fallbackApplied = 'true';
-    image.src = STASHBOX_PLACEHOLDER_ARTWORK;
-  });
+  configureSongArtworkImage(image, songForArtwork, `Artwork for ${titleText}`);
 
   const meta = document.createElement('div');
   meta.className = 'event-song-meta';
@@ -1134,7 +1122,7 @@ function buildProductTitleCell(productUrl) {
   wrap.className = 'product-cell-with-image';
 
   const image = document.createElement('img');
-  image.className = 'product-thumb';
+  image.className = 'product-thumb dashboard-art-thumb image-preview-trigger';
   image.src = STASHBOX_PLACEHOLDER_ARTWORK;
   image.alt = title === '—' ? 'Product image placeholder' : `Product image for ${title}`;
   image.loading = 'lazy';
@@ -1154,7 +1142,7 @@ function buildProductTitleCell(productUrl) {
     image.dataset.previewReady = 'false';
     image.dataset.previewBroken = 'true';
     image.dataset.loadingProductImage = 'false';
-    hideProductImagePreview(true);
+    hideImagePreview(true);
 
     if (image.src !== STASHBOX_PLACEHOLDER_ARTWORK) {
       image.src = STASHBOX_PLACEHOLDER_ARTWORK;
@@ -1162,7 +1150,7 @@ function buildProductTitleCell(productUrl) {
       image.hidden = true;
     }
   });
-  attachProductImagePreviewHandlers(image);
+  attachImagePreviewHandlers(image);
 
   const meta = document.createElement('div');
   meta.className = 'product-cell-meta';
@@ -1189,67 +1177,69 @@ function buildProductTitleCell(productUrl) {
   return cell;
 }
 
-function attachProductImagePreviewHandlers(image) {
+function attachImagePreviewHandlers(image, { enableClickToggle = true } = {}) {
   image.addEventListener('mouseenter', (event) => {
-    productPreviewPinned = false;
-    showProductImagePreview(image, event);
+    imagePreviewPinned = false;
+    showImagePreview(image, event);
   });
   image.addEventListener('mousemove', (event) => {
-    if (!productPreviewPinned) {
-      positionProductImagePreview(event.clientX, event.clientY);
+    if (!imagePreviewPinned) {
+      updateImagePreviewPosition(event.clientX, event.clientY);
     }
   });
   image.addEventListener('mouseleave', () => {
-    if (!productPreviewPinned) {
-      hideProductImagePreview();
+    if (!imagePreviewPinned) {
+      hideImagePreview();
     }
   });
   image.addEventListener('focus', () => {
-    productPreviewPinned = false;
-    showProductImagePreview(image);
+    imagePreviewPinned = false;
+    showImagePreview(image);
   });
   image.addEventListener('blur', () => {
-    hideProductImagePreview(true);
+    hideImagePreview(true);
   });
-  image.addEventListener('click', (event) => {
-    if (!canShowProductImagePreview(image)) {
-      return;
-    }
+  if (enableClickToggle) {
+    image.addEventListener('click', (event) => {
+      if (!canShowImagePreview(image)) {
+        return;
+      }
 
-    if (activeProductPreviewThumb === image && productPreviewPinned) {
-      hideProductImagePreview(true);
-      return;
-    }
+      if (activeImagePreviewThumb === image && imagePreviewPinned) {
+        hideImagePreview(true);
+        return;
+      }
 
-    productPreviewPinned = true;
-    showProductImagePreview(image, event);
-  });
+      imagePreviewPinned = true;
+      showImagePreview(image, event);
+    });
+  }
   image.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-      hideProductImagePreview(true);
+      hideImagePreview(true);
       image.blur();
     }
   });
 
-  attachProductPreviewDismissListener();
+  attachImagePreviewDismissListener();
 }
 
-function attachProductPreviewDismissListener() {
-  if (productPreviewDismissListenerAttached) {
+function attachImagePreviewDismissListener() {
+  if (imagePreviewDismissListenerAttached) {
     return;
   }
 
-  productPreviewDismissListenerAttached = true;
+  imagePreviewDismissListenerAttached = true;
   document.addEventListener('pointerdown', (event) => {
-    if (!productPreviewPinned || event.target.closest('.product-thumb')) {
+    if (!imagePreviewPinned || event.target.closest('.image-preview-trigger')) {
       return;
     }
 
-    hideProductImagePreview(true);
+    hideImagePreview(true);
   });
 }
 
-function canShowProductImagePreview(image) {
+function canShowImagePreview(image) {
   return Boolean(
     image
     && image.dataset.previewReady === 'true'
@@ -1258,13 +1248,13 @@ function canShowProductImagePreview(image) {
   );
 }
 
-function ensureProductImagePreview() {
-  if (productImagePreviewEl) {
-    return productImagePreviewEl;
+function ensureImagePreview() {
+  if (imagePreviewEl) {
+    return imagePreviewEl;
   }
 
   const preview = document.createElement('div');
-  preview.className = 'product-image-preview hidden';
+  preview.className = 'image-preview-popup product-image-preview hidden';
   preview.setAttribute('aria-hidden', 'true');
 
   const previewImage = document.createElement('img');
@@ -1272,36 +1262,36 @@ function ensureProductImagePreview() {
   previewImage.decoding = 'async';
   preview.appendChild(previewImage);
   document.body.appendChild(preview);
-  productImagePreviewEl = preview;
-  return productImagePreviewEl;
+  imagePreviewEl = preview;
+  return imagePreviewEl;
 }
 
-function showProductImagePreview(image, event) {
-  if (!canShowProductImagePreview(image)) {
+function showImagePreview(image, event) {
+  if (!canShowImagePreview(image)) {
     return;
   }
 
-  const preview = ensureProductImagePreview();
+  const preview = ensureImagePreview();
   const previewImage = preview.querySelector('img');
   previewImage.src = image.dataset.previewSrc;
-  activeProductPreviewThumb = image;
+  activeImagePreviewThumb = image;
   preview.classList.remove('hidden');
 
   if (event) {
-    positionProductImagePreview(event.clientX, event.clientY);
+    updateImagePreviewPosition(event.clientX, event.clientY);
   } else {
     const rect = image.getBoundingClientRect();
-    positionProductImagePreview(rect.right, rect.top + rect.height / 2);
+    updateImagePreviewPosition(rect.right, rect.top + rect.height / 2);
   }
 }
 
-function positionProductImagePreview(clientX, clientY) {
-  if (!productImagePreviewEl || productImagePreviewEl.classList.contains('hidden')) {
+function updateImagePreviewPosition(clientX, clientY) {
+  if (!imagePreviewEl || imagePreviewEl.classList.contains('hidden')) {
     return;
   }
 
   const offset = 18;
-  const rect = productImagePreviewEl.getBoundingClientRect();
+  const rect = imagePreviewEl.getBoundingClientRect();
   const previewWidth = rect.width || 260;
   const previewHeight = rect.height || 260;
   let left = clientX + offset;
@@ -1315,19 +1305,19 @@ function positionProductImagePreview(clientX, clientY) {
     top = window.innerHeight - previewHeight - offset;
   }
 
-  productImagePreviewEl.style.left = `${Math.max(offset, left)}px`;
-  productImagePreviewEl.style.top = `${Math.max(offset, top)}px`;
+  imagePreviewEl.style.left = `${Math.max(offset, left)}px`;
+  imagePreviewEl.style.top = `${Math.max(offset, top)}px`;
 }
 
-function hideProductImagePreview(force = false) {
-  if (!productImagePreviewEl || (!force && productPreviewPinned)) {
+function hideImagePreview(force = false) {
+  if (!imagePreviewEl || (!force && imagePreviewPinned)) {
     return;
   }
 
-  productImagePreviewEl.classList.add('hidden');
-  productImagePreviewEl.querySelector('img').removeAttribute('src');
-  activeProductPreviewThumb = null;
-  productPreviewPinned = false;
+  imagePreviewEl.classList.add('hidden');
+  imagePreviewEl.querySelector('img').removeAttribute('src');
+  activeImagePreviewThumb = null;
+  imagePreviewPinned = false;
 }
 
 function getProductHandle(productUrl) {
@@ -1951,22 +1941,43 @@ function sanitizeYouTubeVideoId(value) {
   return videoId.slice(0, 32);
 }
 
-function buildSongArtworkImage(song) {
-  const image = document.createElement('img');
-  image.className = 'song-thumb';
-  image.src = getSongArtworkUrl(song);
-  image.alt = `Artwork for ${formatSongTitle(song)}`;
+function configureSongArtworkImage(image, songOrEvent, altText) {
+  image.classList.add('dashboard-art-thumb', 'song-art-preview-trigger', 'image-preview-trigger');
+  image.alt = altText;
   image.loading = 'lazy';
   image.decoding = 'async';
+  image.tabIndex = 0;
+  image.dataset.previewReady = 'false';
+  image.dataset.previewBroken = 'false';
+  image.addEventListener('load', () => {
+    image.hidden = false;
+    image.dataset.previewReady = 'true';
+    image.dataset.previewBroken = 'false';
+    image.dataset.previewSrc = image.currentSrc || image.src;
+  });
   image.addEventListener('error', () => {
+    image.dataset.previewReady = 'false';
+    hideImagePreview(true);
+
     if (image.dataset.fallbackApplied === 'true') {
+      image.dataset.previewBroken = 'true';
       image.hidden = true;
+      image.removeAttribute('src');
       return;
     }
 
     image.dataset.fallbackApplied = 'true';
+    image.dataset.previewBroken = 'false';
     image.src = STASHBOX_PLACEHOLDER_ARTWORK;
   });
+  attachImagePreviewHandlers(image, { enableClickToggle: false });
+  image.src = getSongArtworkUrl(songOrEvent);
+}
+
+function buildSongArtworkImage(song) {
+  const image = document.createElement('img');
+  image.className = 'song-thumb';
+  configureSongArtworkImage(image, song, `Artwork for ${formatSongTitle(song)}`);
   return image;
 }
 
