@@ -404,3 +404,5 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
     aspect-ratio: 1/1;
   }
 }
+
+@media(max-width:767px){.radio-title-actions.mobile-outside-actions{display:none}}
