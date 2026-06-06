@@ -1274,6 +1274,41 @@ textarea {
   cursor: default;
 }
 
+.devices-analytics-section {
+  margin: 1rem 0;
+}
+
+.devices-analytics-section h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.device-kpi-grid {
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.device-tables-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.device-table {
+  min-width: 1120px;
+}
+
+.device-breakdown-table {
+  min-width: 1580px;
+}
+
+.recent-device-events-table {
+  min-width: 980px;
+}
+
+.device-table tbody tr {
+  cursor: default;
+}
+
 .referrer-table th,
 .referrer-table td {
   padding: 0.56rem 0.64rem;

@@ -4,6 +4,7 @@ const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaw
 const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
 const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/songs?limit=100';
 const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/referrers?limit=50';
+const DEVICE_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/devices?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -158,6 +159,16 @@ const referrerKpiDefinitions = [
   { key: 'events_last_7d', label: 'Events Last 7 Days' }
 ];
 
+const deviceKpiDefinitions = [
+  { key: 'total_events', label: 'Total Events' },
+  { key: 'desktop_events', label: 'Desktop Events' },
+  { key: 'mobile_events', label: 'Mobile Events' },
+  { key: 'other_or_unknown_events', label: 'Other / Unknown Events' },
+  { key: 'unique_device_types', label: 'Unique Device Types' },
+  { key: 'events_last_24h', label: 'Events Last 24h' },
+  { key: 'events_last_7d', label: 'Events Last 7 Days' }
+];
+
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 
@@ -199,6 +210,8 @@ let productStats = null;
 let productStatsError = '';
 let referrerStats = null;
 let referrerStatsError = '';
+let deviceStats = null;
+let deviceStatsError = '';
 let imagePreviewEl = null;
 let activeImagePreviewThumb = null;
 let imagePreviewPinned = false;
@@ -238,6 +251,11 @@ const els = {
   referrerKpiGrid: document.getElementById('referrerKpiGrid'),
   topReferrersTableBody: document.getElementById('topReferrersTableBody'),
   recentReferrerEventsTableBody: document.getElementById('recentReferrerEventsTableBody'),
+  deviceStatsWarning: document.getElementById('deviceStatsWarning'),
+  deviceStatsGeneratedAt: document.getElementById('deviceStatsGeneratedAt'),
+  deviceKpiGrid: document.getElementById('deviceKpiGrid'),
+  deviceBreakdownTableBody: document.getElementById('deviceBreakdownTableBody'),
+  recentDeviceEventsTableBody: document.getElementById('recentDeviceEventsTableBody'),
   songStatsWarning: document.getElementById('songStatsWarning'),
   songStatsGeneratedAt: document.getElementById('songStatsGeneratedAt'),
   songInsightGrid: document.getElementById('songInsightGrid'),
@@ -779,12 +797,13 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
 
-  const [songsResult, statsResult, productStatsResult, songStatsResult, referrerStatsResult] = await Promise.allSettled([
+  const [songsResult, statsResult, productStatsResult, songStatsResult, referrerStatsResult, deviceStatsResult] = await Promise.allSettled([
     fetchSongsData({ preserveSelection }),
     fetchStatsSummaryData(),
     fetchProductStatsData(),
     fetchSongStatsData(),
-    fetchReferrerStatsData()
+    fetchReferrerStatsData(),
+    fetchDeviceStatsData()
   ]);
 
   if (songsResult.status === 'rejected') {
@@ -815,6 +834,12 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
     showMessage(`Could not load referrer stats: ${referrerStatsError}`, 'error');
   }
 
+  if (deviceStatsResult.status === 'rejected') {
+    deviceStats = null;
+    deviceStatsError = deviceStatsResult.reason.message;
+    showMessage(`Could not load device stats: ${deviceStatsError}`, 'error');
+  }
+
   renderDashboard();
   renderSongList();
   renderArchiveList();
@@ -823,7 +848,7 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
     renderEvents();
   }
 
-  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled' && referrerStatsResult.status === 'fulfilled') {
+  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled' && referrerStatsResult.status === 'fulfilled' && deviceStatsResult.status === 'fulfilled') {
     showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
   }
 
@@ -873,6 +898,13 @@ async function fetchReferrerStatsData() {
   return referrerStats;
 }
 
+async function fetchDeviceStatsData() {
+  const data = await adminFetch(DEVICE_STATS_API_URL);
+  deviceStats = normalizeDeviceStatsResponse(data);
+  deviceStatsError = '';
+  return deviceStats;
+}
+
 function normalizeSongStatsResponse(data) {
   if (typeof data?.body === 'string') {
     try {
@@ -903,6 +935,23 @@ function normalizeReferrerStatsResponse(data) {
   return {
     summary: data?.summary || {},
     referrers: Array.isArray(data?.referrers) ? data.referrers : [],
+    recent_events: Array.isArray(data?.recent_events) ? data.recent_events : [],
+    generated_at: data?.generated_at || ''
+  };
+}
+
+function normalizeDeviceStatsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeDeviceStatsResponse(JSON.parse(data.body));
+    } catch {
+      return { summary: {}, devices: [], recent_events: [], generated_at: '' };
+    }
+  }
+
+  return {
+    summary: data?.summary || {},
+    devices: Array.isArray(data?.devices) ? data.devices : [],
     recent_events: Array.isArray(data?.recent_events) ? data.recent_events : [],
     generated_at: data?.generated_at || ''
   };
@@ -1048,6 +1097,7 @@ function renderDashboard() {
   renderKpiCards(calculateDashboardTotals(activeSongs));
   renderProductAnalytics();
   renderReferrerAnalytics();
+  renderDeviceAnalytics();
   renderSongAnalytics();
   renderTodayStats();
   renderDevicesStats();
@@ -1352,6 +1402,107 @@ function isDirectOrUnknownReferrer(referrer) {
     || normalizedReferrer === 'unknown'
     || normalizedReferrer === 'null'
     || normalizedReferrer === '(direct)';
+}
+
+
+function renderDeviceAnalytics() {
+  renderDeviceStatsWarning();
+  renderDeviceStatsGeneratedAt();
+  renderDeviceKpiCards();
+  renderDeviceBreakdownTable();
+  renderRecentDeviceEventsTable();
+}
+
+function renderDeviceStatsWarning() {
+  if (!els.deviceStatsWarning) {
+    return;
+  }
+
+  els.deviceStatsWarning.classList.toggle('hidden', !deviceStatsError);
+  els.deviceStatsWarning.textContent = deviceStatsError
+    ? `Device stats warning: ${deviceStatsError}`
+    : '';
+}
+
+function renderDeviceStatsGeneratedAt() {
+  if (!els.deviceStatsGeneratedAt) {
+    return;
+  }
+
+  els.deviceStatsGeneratedAt.textContent = deviceStats?.generated_at
+    ? `Device stats generated: ${formatDateTime(deviceStats.generated_at)}`
+    : 'Device stats generated: —';
+}
+
+function renderDeviceKpiCards() {
+  if (!els.deviceKpiGrid) {
+    return;
+  }
+
+  renderSummaryStatCards(els.deviceKpiGrid, deviceKpiDefinitions, deviceStats?.summary || {});
+}
+
+function renderDeviceBreakdownTable() {
+  if (!els.deviceBreakdownTableBody) {
+    return;
+  }
+
+  els.deviceBreakdownTableBody.innerHTML = '';
+  const devices = Array.isArray(deviceStats?.devices) ? deviceStats.devices : [];
+
+  if (!devices.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="14" class="song-meta">No device stats returned.</td>';
+    els.deviceBreakdownTableBody.appendChild(row);
+    return;
+  }
+
+  devices.forEach((device) => {
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatDisplayValue(device.device_type || 'unknown')));
+    row.appendChild(makeTextCell(formatNumber(device.event_count)));
+    row.appendChild(makeTextCell(formatNumber(device.play_starts)));
+    row.appendChild(makeTextCell(formatNumber(device.full_plays)));
+    row.appendChild(makeTextCell(formatNumber(device.partial_plays)));
+    row.appendChild(makeTextCell(formatNumber(device.skips)));
+    row.appendChild(makeTextCell(formatNumber(device.likes)));
+    row.appendChild(makeTextCell(formatNumber(device.shares)));
+    row.appendChild(makeTextCell(formatNumber(device.video_clicks)));
+    row.appendChild(makeTextCell(formatNumber(device.product_clicks)));
+    row.appendChild(makeTextCell(formatNumber(device.unique_sessions)));
+    row.appendChild(makeTextCell(formatAverageSeconds(device.average_seconds_played)));
+    row.appendChild(makeTextCell(formatPercentValue(device.average_completion_percent)));
+    row.appendChild(makeTextCell(formatDateTime(device.last_seen_at), 'event-time'));
+    els.deviceBreakdownTableBody.appendChild(row);
+  });
+}
+
+function renderRecentDeviceEventsTable() {
+  if (!els.recentDeviceEventsTableBody) {
+    return;
+  }
+
+  els.recentDeviceEventsTableBody.innerHTML = '';
+  const recentEvents = Array.isArray(deviceStats?.recent_events) ? deviceStats.recent_events : [];
+
+  if (!recentEvents.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="7" class="song-meta">No recent device events returned.</td>';
+    els.recentDeviceEventsTableBody.appendChild(row);
+    return;
+  }
+
+  recentEvents.forEach((event) => {
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatDateTime(event.created_at), 'event-time'));
+    row.appendChild(makeTextCell(formatDisplayValue(event.device_type || 'unknown')));
+    row.appendChild(buildEventTypeCell(event.event_type));
+    row.appendChild(makeTextCell(event.song_title || event.song_key || '—'));
+    row.appendChild(makeTextCell(event.artist || '—'));
+    row.appendChild(buildReferrerCell(event.referrer));
+    row.appendChild(buildProductUrlCell(event.product_url));
+    els.recentDeviceEventsTableBody.appendChild(row);
+  });
 }
 
 
@@ -2009,7 +2160,13 @@ function formatAverageSeconds(value) {
 
 function formatPercentValue(value) {
   const number = Number(value || 0);
-  return Number.isFinite(number) ? `${formatNumber(roundMetric(number))}%` : '0%';
+
+  if (!Number.isFinite(number)) {
+    return '0%';
+  }
+
+  const percent = number > 0 && number <= 1 ? number * 100 : number;
+  return `${formatNumber(roundMetric(percent))}%`;
 }
 
 function roundMetric(value) {
