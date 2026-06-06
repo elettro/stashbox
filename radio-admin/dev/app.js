@@ -1,4 +1,5 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
+const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/events';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -145,6 +146,7 @@ const createDefaults = {
 let songs = [];
 let filteredSongs = [];
 let archivedSongs = [];
+let events = [];
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
@@ -163,6 +165,7 @@ const els = {
   songsView: document.getElementById('songsView'),
   editView: document.getElementById('editView'),
   archiveView: document.getElementById('archiveView'),
+  eventsView: document.getElementById('eventsView'),
   refreshDashboardButton: document.getElementById('refreshDashboardButton'),
   kpiGrid: document.getElementById('kpiGrid'),
   topSongsTableBody: document.getElementById('topSongsTableBody'),
@@ -175,6 +178,10 @@ const els = {
   createSongButton: document.getElementById('createSongButton'),
   refreshSongsButton: document.getElementById('refreshSongsButton'),
   refreshArchiveButton: document.getElementById('refreshArchiveButton'),
+  refreshEventsButton: document.getElementById('refreshEventsButton'),
+  eventLimit: document.getElementById('eventLimit'),
+  eventsStatus: document.getElementById('eventsStatus'),
+  eventsTableBody: document.getElementById('eventsTableBody'),
   songSearch: document.getElementById('songSearch'),
   songCount: document.getElementById('songCount'),
   songTableBody: document.getElementById('songTableBody'),
@@ -216,6 +223,8 @@ function bindEvents() {
   els.createSongButton.addEventListener('click', startCreateSong);
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
+  els.refreshEventsButton.addEventListener('click', () => loadEvents());
+  els.eventLimit.addEventListener('change', () => loadEvents());
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
     console.log("Save clicked");
@@ -281,9 +290,11 @@ function clearToken() {
   filteredSongs = [];
   selectedSong = null;
   selectedSongKey = '';
+  events = [];
   renderDashboard();
   renderSongList();
   renderArchiveList();
+  renderEvents();
   clearEditor();
   updateTokenUi(false);
   setActiveTab(DEFAULT_TAB);
@@ -309,11 +320,16 @@ function setActiveTab(tabName) {
   [
     ['dashboard', els.dashboardView],
     ['songs', els.songsView],
+    ['events', els.eventsView],
     ['archive', els.archiveView],
     ['edit', els.editView]
   ].forEach(([name, view]) => {
     view.classList.toggle('hidden', name !== activeTab);
   });
+
+  if (activeTab === 'events' && !events.length) {
+    loadEvents();
+  }
 }
 
 async function adminFetch(url, options = {}) {
@@ -403,6 +419,179 @@ function parseJsonMaybe(value) {
   } catch {
     return null;
   }
+}
+
+async function loadEvents() {
+  const limit = getSelectedEventLimit();
+  const url = `${EVENTS_API_BASE_URL}?limit=${encodeURIComponent(limit)}`;
+
+  setBusy(els.refreshEventsButton, true);
+  els.eventsStatus.textContent = `Loading latest ${limit} events…`;
+
+  try {
+    const data = await adminFetch(url);
+    events = normalizeEventsResponse(data);
+    renderEvents();
+    showMessage(`Loaded ${events.length} event${events.length === 1 ? '' : 's'}.`, 'success');
+  } catch (error) {
+    events = [];
+    renderEvents(error.message);
+    showMessage(`Could not load events: ${error.message}`, 'error');
+  } finally {
+    setBusy(els.refreshEventsButton, false);
+  }
+}
+
+function getSelectedEventLimit() {
+  const selectedLimit = Number(els.eventLimit.value || 100);
+  return [25, 50, 100, 200].includes(selectedLimit) ? selectedLimit : 100;
+}
+
+function normalizeEventsResponse(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.events)) {
+    return data.events;
+  }
+
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+
+  if (Array.isArray(data?.rows)) {
+    return data.rows;
+  }
+
+  if (Array.isArray(data?.body)) {
+    return data.body;
+  }
+
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeEventsResponse(JSON.parse(data.body));
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function renderEvents(errorMessage = '') {
+  els.eventsTableBody.innerHTML = '';
+
+  if (errorMessage) {
+    els.eventsStatus.textContent = errorMessage;
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="9" class="song-meta">Could not load events.</td>';
+    els.eventsTableBody.appendChild(row);
+    return;
+  }
+
+  els.eventsStatus.textContent = events.length
+    ? `${events.length} event${events.length === 1 ? '' : 's'} loaded. Newest first.`
+    : 'No events loaded';
+
+  if (!events.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="9" class="song-meta">No events returned.</td>';
+    els.eventsTableBody.appendChild(row);
+    return;
+  }
+
+  events.forEach((event) => {
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatDateTime(event.created_at || event.event_time || event.timestamp), 'event-time'));
+    row.appendChild(buildEventTypeCell(event.event_type));
+    row.appendChild(makeTextCell(formatEventSongTitle(event), 'song-title compact-title'));
+    row.appendChild(makeTextCell(event.artist || event.artist_name || '—'));
+    row.appendChild(makeTextCell(formatDisplayValue(event.device || event.device_type || event.platform || '—')));
+    row.appendChild(makeTextCell(formatNumberOrDash(event.seconds_played ?? event.played_seconds ?? event.duration_seconds)));
+    row.appendChild(makeTextCell(formatCompletionPercent(event.completion_percent ?? event.completion_pct ?? event.completion)));
+    row.appendChild(buildProductUrlCell(event.product_url));
+    row.appendChild(makeTextCell(event.session_id || event.sessionId || '—', 'song-key-inline'));
+    els.eventsTableBody.appendChild(row);
+  });
+}
+
+function buildEventTypeCell(eventType) {
+  const cell = document.createElement('td');
+  const badge = document.createElement('span');
+  badge.className = `event-badge event-badge-${sanitizeClassName(eventType)}`;
+  badge.textContent = formatEventType(eventType);
+  cell.appendChild(badge);
+  return cell;
+}
+
+function buildProductUrlCell(productUrl) {
+  const cell = document.createElement('td');
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    cell.textContent = '—';
+    return cell;
+  }
+
+  const link = document.createElement('a');
+  link.className = 'song-action-button event-product-link';
+  link.href = normalizedUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Product';
+  cell.appendChild(link);
+  return cell;
+}
+
+function formatEventSongTitle(event) {
+  return event.display_title || event.song_name || event.song_key || '—';
+}
+
+function formatEventType(eventType) {
+  return String(eventType || 'unknown').replace(/_/g, ' ');
+}
+
+function sanitizeClassName(value) {
+  return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString();
+}
+
+function formatNumberOrDash(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? formatNumber(number) : String(value);
+}
+
+function formatCompletionPercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return String(value);
+  }
+
+  const percent = number > 0 && number <= 1 ? number * 100 : number;
+  return `${Math.round(percent)}%`;
 }
 
 async function loadSongs({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
