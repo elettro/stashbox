@@ -674,6 +674,7 @@ function App() {
   const youtubePlayerRef = useRef(null);
   const hasHandledVideoEndRef = useRef(false);
   const mediaIsPlayingRef = useRef(false);
+  const videoCleanupInProgressRef = useRef(false);
   const products = useProducts(selected);
 
   const selectedSong = selected || tracks[0] || null;
@@ -709,13 +710,6 @@ function App() {
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
-  useEffect(() => {
-    if (!isVideoOnlyTrack(selectedSong) || !selectedSong?.hasVideo) return;
-    const embedUrl = youtubeEmbed(selectedSong.videoLink);
-    if (!embedUrl) return;
-    setActiveVideoEmbedUrl(current => current || embedUrl);
-    setMediaMode('video');
-  }, [selectedSong?.idx, selectedSong?.videoLink]);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -847,19 +841,89 @@ function App() {
     return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', flush); flush(); };
   }, [finishPlayback]);
 
+  // Always tear down active video before changing songs so stale YouTube iframe state cannot hide or break the player shell.
+  function resetVideoPlaybackBeforeSongSwitch(nextSong = null) {
+    const playerShell = playerRef.current;
+    const audio = audioRef.current;
+    const youtubePlayer = youtubePlayerRef.current;
+    const youtubeIframe = playerShell?.querySelector?.('iframe[src*="youtube"], iframe[src*="youtu.be"]') || null;
+    const directVideo = playerShell?.querySelector?.('video') || null;
+
+    console.log('[radio-dev] current playback mode before switch:', mediaMode);
+    console.log('[radio-dev] selected song title:', nextSong?.title);
+    console.log('[radio-dev] youtube iframe exists before switch:', Boolean(youtubeIframe));
+    console.log('[radio-dev] youtube player object exists before switch:', Boolean(youtubePlayer));
+    console.log('[radio-dev] audio currently playing before switch:', Boolean(audio && !audio.paused && !audio.ended));
+
+    if (mediaMode !== 'video' && !youtubePlayer && !youtubeIframe && !directVideo) return;
+
+    videoCleanupInProgressRef.current = true;
+    console.log('[radio-dev] resetting video mode');
+
+    try {
+      if (typeof youtubePlayer?.stopVideo === 'function') youtubePlayer.stopVideo();
+    } catch (error) {
+      console.warn('[radio-dev] youtube stopVideo failed:', error.message || error);
+    }
+
+    try {
+      if (typeof youtubePlayer?.pauseVideo === 'function') youtubePlayer.pauseVideo();
+    } catch (error) {
+      console.warn('[radio-dev] youtube pauseVideo failed:', error.message || error);
+    }
+
+    try {
+      if (typeof youtubePlayer?.destroy === 'function') youtubePlayer.destroy();
+    } catch (error) {
+      console.warn('[radio-dev] youtube destroy failed:', error.message || error);
+    }
+
+    try {
+      if (directVideo) {
+        directVideo.pause?.();
+        directVideo.removeAttribute('src');
+        directVideo.load?.();
+      }
+    } catch (error) {
+      console.warn('[radio-dev] direct video cleanup failed:', error.message || error);
+    }
+
+    try {
+      if (youtubeIframe?.parentNode) youtubeIframe.remove();
+    } catch (error) {
+      console.warn('[radio-dev] iframe cleanup failed:', error.message || error);
+    }
+
+    youtubePlayerRef.current = null;
+    mediaIsPlayingRef.current = false;
+    setActiveVideoEmbedUrl('');
+    setMediaMode('idle');
+    setAutoPlayRequest(null);
+    document.body.classList.remove('video-active', 'is-video-playing');
+
+    console.log('[radio-dev] video reset complete');
+  }
+
   function selectTrack(track, { autoStart = false, preferVideo = false } = {}) {
     if (!track) return;
-    const videoOnlyTrack = isVideoOnlyTrack(track);
-    const embedUrl = videoOnlyTrack && track.hasVideo ? youtubeEmbed(track.videoLink) : '';
+    resetVideoPlaybackBeforeSongSwitch(track);
+    console.log('[radio-dev] rendering selected song:', track?.title);
+    const shouldStartVideo = Boolean(autoStart && preferVideo && track.hasVideo);
+    const embedUrl = shouldStartVideo ? youtubeEmbed(track.videoLink) : '';
     setPlayerMessage('');
     setSelected(track);
     setMediaMode(embedUrl ? 'video' : 'idle');
     setActiveVideoEmbedUrl(embedUrl);
-    setAutoPlayRequest(autoStart || embedUrl ? { idx: track.idx, requestedAt: Date.now(), preferVideo: preferVideo || videoOnlyTrack } : null);
-    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+    setAutoPlayRequest(autoStart ? { idx: track.idx, requestedAt: Date.now(), preferVideo: shouldStartVideo } : null);
+    window.requestAnimationFrame(() => {
+      videoCleanupInProgressRef.current = false;
+      playerRef.current?.focus?.();
+      console.log('[radio-dev] selected song render finished:', track?.title);
+    });
   }
 
   function chooseSong(track) {
+    console.log('[radio-dev] song selected:', track?.title);
     if (!track || track.idx === selectedSong?.idx) return;
     finishPlayback('play_partial');
     selectTrack(track);
@@ -889,21 +953,8 @@ function App() {
     selectTrack(next, { autoStart });
   }
 
-  function safelyCleanupYouTubeBeforeNext() {
-    console.log("Video cleanup before next");
-    const player = youtubePlayerRef.current;
-    if (!player) return;
-    try {
-      if (typeof player.pauseVideo === 'function') player.pauseVideo();
-    } catch (error) {
-      console.warn('Unable to pause YouTube player safely before manual next.', error.message || error);
-    }
-    try {
-      if (typeof player.destroy === 'function') player.destroy();
-    } catch (error) {
-      console.warn('Unable to destroy YouTube player safely before manual next.', error.message || error);
-    }
-    youtubePlayerRef.current = null;
+  function safelyCleanupYouTubeBeforeNext(nextSong = null) {
+    resetVideoPlaybackBeforeSongSwitch(nextSong);
   }
 
   function handleManualNext() {
@@ -930,7 +981,7 @@ function App() {
       try { audio.currentTime = 0; } catch (_) {}
     }
 
-    if (mediaMode === 'video') safelyCleanupYouTubeBeforeNext();
+    if (mediaMode === 'video') safelyCleanupYouTubeBeforeNext(nextSong);
 
     if (currentSong) sendTrackingEvent(currentSong, 'skip', sessionId);
     finishPlayback('play_partial', currentSong);
@@ -941,7 +992,11 @@ function App() {
     setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: false } : null);
     console.log("Selected next song after video cleanup:", nextSong?.song_key);
     console.log("Player shell should stay mounted");
-    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+    window.requestAnimationFrame(() => {
+      videoCleanupInProgressRef.current = false;
+      playerRef.current?.focus?.();
+      console.log('[radio-dev] selected song render finished:', nextSong?.title);
+    });
   }
 
   function handleVideoEnded(song = selectedSong, { preferVideo = true } = {}) {
@@ -1095,7 +1150,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
@@ -1127,6 +1182,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const videoFrameRef = useRef(null);
+  const youtubeMountRef = useRef(null);
   const localYoutubePlayerRef = useRef(null);
   const youtubePlayerRef = externalYoutubePlayerRef || localYoutubePlayerRef;
   const hasHandledVideoEndRef = useRef(false);
@@ -1165,7 +1221,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     if (!audio || !hasAudio) return;
     const playTimer = window.setTimeout(() => {
       console.log('[Stashbox Radio Dev] auto-playing next audio_url', selected.audioUrl);
-      audio.play().catch(error => console.warn('Unable to auto-play next audio.', error.message || error));
+      audio.play().catch(error => console.warn('[radio-dev] playback error: unable to auto-play next audio.', error.message || error));
     }, 0);
     return () => window.clearTimeout(playTimer);
   }, [autoPlayRequest, selected?.idx, selected?.audioUrl, mediaMode, hasAudio, audioRef]);
@@ -1190,8 +1246,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     };
     destroyYoutubePlayer();
     loadYouTubeIframeApi().then(YT => {
-      if (disposed || !videoFrameRef.current || !YT?.Player) return;
-      youtubePlayerRef.current = new YT.Player(videoFrameRef.current, {
+      const youtubeMount = youtubeMountRef.current;
+      if (disposed || !youtubeMount || !YT?.Player) return;
+      const youtubePlayerHost = document.createElement('div');
+      youtubeMount.replaceChildren(youtubePlayerHost);
+      youtubePlayerRef.current = new YT.Player(youtubePlayerHost, {
         videoId,
         playerVars: youtubePlayerVars({ autoplay: true }),
         events: {
@@ -1200,6 +1259,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             event.target?.playVideo?.();
           },
           onStateChange: event => {
+            if (disposed) return;
             console.log("YouTube state changed:", event.data);
             const handleVideoEnded = () => {
               if (hasHandledVideoEndRef.current) return;
@@ -1239,6 +1299,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       disposed = true;
       window.clearInterval(progressTimer);
       destroyYoutubePlayer();
+      youtubeMountRef.current?.replaceChildren();
     };
   }, [isVideoMode, youtubeVideo, onVideoProgress, playbackStartMs, selected?.idx, selected?.song_key, selected?.videoLink]);
 
@@ -1261,7 +1322,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       return true;
     }
     if (directVideo && videoFrameRef.current) {
-      videoFrameRef.current.play?.().catch?.(error => console.warn('Unable to play selected video.', error.message || error));
+      videoFrameRef.current.play?.().catch?.(error => console.warn('[radio-dev] playback error: unable to play selected video.', error.message || error));
       return true;
     }
     const sent = sendVideoCommand('playVideo');
@@ -1306,7 +1367,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     if (!audio || !hasAudio) return;
     if (audio.paused || audio.ended) {
       console.log('[Stashbox Radio Dev] audio_url being played', selected.audioUrl);
-      audio.play().catch(error => console.warn('Unable to play selected audio.', error.message || error));
+      audio.play().catch(error => console.warn('[radio-dev] playback error: unable to play selected audio.', error.message || error));
       return;
     }
     audio.pause();
@@ -1318,7 +1379,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   };
   const seekAudio = event => { const audio = audioRef.current; if (!audio || !hasAudio) return; const nextTime = Number(event.target.value); audio.currentTime = nextTime; setCurrentTime(nextTime); onAudioProgress?.(nextTime, duration); };
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { className: 'player-media clickable-media', role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: videoFrameRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
+    h('div', { className: 'player-media clickable-media', role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
