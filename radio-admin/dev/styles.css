@@ -1050,8 +1050,47 @@ textarea {
 }
 
 .product-title-cell {
-  min-width: 220px;
+  min-width: 260px;
+}
+
+.product-cell-with-image {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 260px;
+}
+
+.product-thumb {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.product-cell-meta {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.product-cell-meta strong,
+.product-cell-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-cell-meta strong {
+  color: var(--text);
   font-weight: 800;
+}
+
+.product-cell-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .related-songs-cell {

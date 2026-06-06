@@ -5,6 +5,7 @@ const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaw
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
+const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';
 const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" role="img" aria-label="Stashbox artwork placeholder">
     <defs>
@@ -175,6 +176,7 @@ let statsSummary = null;
 let statsSummaryError = '';
 let productStats = null;
 let productStatsError = '';
+const productMetadataCache = new Map();
 let selectedSong = null;
 let selectedSongKey = '';
 let messageTimer = null;
@@ -1032,7 +1034,7 @@ function renderTopProductsTable() {
     const productUrl = product.product_url || '';
     const songTitles = normalizeTextArray(product.song_titles).join(', ');
     const row = document.createElement('tr');
-    row.appendChild(makeTextCell(formatProductTitle(productUrl), 'product-title-cell'));
+    row.appendChild(buildProductTitleCell(productUrl));
     row.appendChild(makeTextCell(formatNumber(product.click_count)));
     row.appendChild(makeTextCell(formatNumber(product.unique_sessions)));
     row.appendChild(makeTruncatedTextCell(songTitles || '—', 'related-songs-cell'));
@@ -1064,10 +1066,143 @@ function renderRecentProductClicksTable() {
     row.appendChild(makeTextCell(click.song_title || click.song_key || '—'));
     row.appendChild(makeTextCell(click.artist || '—'));
     row.appendChild(makeTextCell(formatDisplayValue(click.device_type || '—')));
-    row.appendChild(makeTextCell(formatProductTitle(productUrl), 'product-title-cell'));
+    row.appendChild(buildProductTitleCell(productUrl));
     row.appendChild(buildOpenProductCell(productUrl));
     els.recentProductClicksTableBody.appendChild(row);
   });
+}
+
+
+function buildProductTitleCell(productUrl) {
+  const cell = document.createElement('td');
+  cell.className = 'product-title-cell';
+
+  const title = formatProductTitle(productUrl);
+  const wrap = document.createElement('div');
+  wrap.className = 'product-cell-with-image';
+
+  const image = document.createElement('img');
+  image.className = 'product-thumb';
+  image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+  image.alt = title === '—' ? 'Product image placeholder' : `Product image for ${title}`;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.addEventListener('error', () => {
+    if (image.src !== STASHBOX_PLACEHOLDER_ARTWORK) {
+      image.src = STASHBOX_PLACEHOLDER_ARTWORK;
+    }
+  });
+
+  const meta = document.createElement('div');
+  meta.className = 'product-cell-meta';
+
+  const titleEl = document.createElement('strong');
+  titleEl.textContent = title;
+
+  const hostEl = document.createElement('span');
+  hostEl.textContent = getProductHost(productUrl);
+
+  meta.append(titleEl, hostEl);
+  wrap.append(image, meta);
+  cell.appendChild(wrap);
+
+  getProductImageUrl(productUrl).then((imageUrl) => {
+    if (imageUrl) {
+      image.src = imageUrl;
+    }
+  });
+
+  return cell;
+}
+
+function getProductHandle(productUrl) {
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    return '';
+  }
+
+  try {
+    const url = new URL(normalizedUrl);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const productIndex = pathParts.indexOf('products');
+    return productIndex >= 0 ? pathParts[productIndex + 1] || '' : '';
+  } catch {
+    const pathWithoutQuery = normalizedUrl.split(/[?#]/)[0];
+    const pathParts = pathWithoutQuery.split('/').filter(Boolean);
+    const productIndex = pathParts.indexOf('products');
+    return productIndex >= 0 ? pathParts[productIndex + 1] || '' : '';
+  }
+}
+
+async function fetchProductByHandle(handle) {
+  const normalizedHandle = String(handle || '').trim();
+
+  if (!normalizedHandle) {
+    return null;
+  }
+
+  if (!productMetadataCache.has(normalizedHandle)) {
+    productMetadataCache.set(
+      normalizedHandle,
+      fetch(`${SHOPIFY_PRODUCT_BASE_URL}/${encodeURIComponent(normalizedHandle)}.js`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Shopify product request failed with ${response.status}`);
+          }
+
+          return response.json();
+        })
+    );
+  }
+
+  return productMetadataCache.get(normalizedHandle);
+}
+
+async function getProductImageUrl(productUrl) {
+  const handle = getProductHandle(productUrl);
+
+  if (!handle) {
+    return STASHBOX_PLACEHOLDER_ARTWORK;
+  }
+
+  try {
+    const product = await fetchProductByHandle(handle);
+    const imageUrl = product?.featured_image || product?.images?.[0] || '';
+
+    if (!imageUrl) {
+      return STASHBOX_PLACEHOLDER_ARTWORK;
+    }
+
+    return normalizeProductImageUrl(imageUrl);
+  } catch (error) {
+    console.warn('Could not load product image', productUrl, error);
+    return STASHBOX_PLACEHOLDER_ARTWORK;
+  }
+}
+
+function normalizeProductImageUrl(imageUrl) {
+  const normalizedUrl = String(imageUrl || '').trim();
+
+  if (normalizedUrl.startsWith('//')) {
+    return `https:${normalizedUrl}`;
+  }
+
+  return normalizedUrl || STASHBOX_PLACEHOLDER_ARTWORK;
+}
+
+function getProductHost(productUrl) {
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    return 'stashbox.ai';
+  }
+
+  try {
+    return new URL(normalizedUrl).hostname || 'stashbox.ai';
+  } catch {
+    return 'stashbox.ai';
+  }
 }
 
 function buildOpenProductCell(productUrl) {
