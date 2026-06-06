@@ -571,7 +571,10 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
   const searchPanelRef = useRef(null);
   const searchToggleRef = useRef(null);
 
-  const closeMobileSearch = useCallback(() => setMobileSearchOpen(false), []);
+  const closeMobileSearch = useCallback(() => {
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
+  }, []);
   const isMobileSearchViewport = useCallback(() => window.matchMedia('(max-width: 767px)').matches, []);
 
   useEffect(() => {
