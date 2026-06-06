@@ -8,10 +8,12 @@ a{color:inherit}
 .radio-control-scroll{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(190px,280px);grid-template-areas:"brand genre genre" "brand album search";align-items:center;gap:7px 14px;max-width:100%;min-width:0;padding:10px 12px;overflow:hidden}
 .radio-control-scroll::-webkit-scrollbar{display:none}
 .radio-control-brand{grid-area:brand;display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding-right:4px}
+.radio-control-brand-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px}
 .radio-control-logo{color:var(--text);font:400 30px/.9 var(--fh);letter-spacing:.08em;text-decoration:none;white-space:nowrap}
 .radio-filter-row{display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .genre-filter-row{grid-area:genre}
 .album-filter-row{grid-area:album}
+.artist-filter-row{grid-area:artist;display:none}
 .radio-filter-label{color:#c7c8cc;font:900 11px/1 var(--fb);letter-spacing:.1em;text-transform:uppercase}
 .radio-filter-pill{appearance:none;border:1px solid transparent;border-radius:999px;background:transparent;color:#b8bbc2;font:900 11px/1 var(--fb);letter-spacing:.04em;padding:5px 8px;cursor:pointer;white-space:nowrap}
 .radio-filter-row::-webkit-scrollbar{display:none}
@@ -19,6 +21,7 @@ a{color:inherit}
 .radio-filter-pill.active{border-color:rgba(240,165,0,.55);background:rgba(240,165,0,.14);color:var(--accent)}
 .radio-filter-pill:disabled,.radio-top-search:disabled{opacity:.55;cursor:not-allowed}
 .radio-control-search{grid-area:search;display:flex;align-items:center;justify-content:flex-end;min-width:0}
+.mobile-search-toggle,.mobile-search-close{display:none}
 .radio-control-count{color:var(--accent);font:900 11px/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 .radio-top-search{width:100%;max-width:280px;height:34px;border:1px solid var(--border);border-radius:999px;background:#0f1014;color:var(--text);font:700 13px var(--fb);padding:0 12px}
 .radio-top-search:focus{outline:1px solid rgba(240,165,0,.55)}
@@ -104,13 +107,18 @@ a{color:inherit}
 @media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto minmax(0,1fr) minmax(170px,240px);grid-template-areas:"brand genre genre" "brand album search";align-items:center}.radio-control-search{justify-self:stretch}.radio-top-search{max-width:240px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
 
 @media(max-width:767px){.radio-app{padding:0 0 34px;overflow:hidden}
-.radio-control-bar{margin:0 -12px 14px;border-left:0;border-right:0;border-radius:0}
-.radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "genre" "album" "search";gap:9px;padding:10px 12px 12px}
-.radio-control-logo{font-size:27px}
-.radio-filter-pill{font-size:10px;padding:6px 8px}
-.radio-control-search{width:100%;justify-self:stretch;justify-content:flex-start}
-.radio-control-count{font-size:11px}.radio-top-search{width:100%;max-width:none;height:36px}
-.page-heading{margin-bottom:8px}.radio-title-row{align-items:flex-start;gap:8px;flex-wrap:wrap}.radio-title-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}.radio-title-actions .button{width:100%;padding-left:10px;padding-right:10px}.page-subtitle{font-size:10px}.page-heading h1{font-size:clamp(42px,13vw,56px)}
+.radio-control-bar{margin:0 -12px 10px;border-left:0;border-right:0;border-radius:0}
+.radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "genre" "album" "artist";gap:7px;padding:8px 12px 10px}
+.radio-control-brand{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding-right:0}
+.radio-control-logo{font-size:26px}
+.radio-filter-pill{font-size:10px;padding:6px 8px;flex:0 0 auto}
+.artist-filter-row{display:flex}
+.radio-control-search.mobile-search-panel{position:absolute;top:7px;left:10px;right:10px;z-index:5;display:none;width:auto;justify-content:flex-start;gap:7px;padding:7px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(9,9,11,.98);box-shadow:0 12px 30px rgba(0,0,0,.36)}
+.radio-control-search.mobile-search-panel.open{display:flex}
+.mobile-search-toggle{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;border:1px solid rgba(240,165,0,.38);border-radius:999px;background:rgba(240,165,0,.12);color:var(--accent);font:900 24px/1 var(--fb);cursor:pointer}
+.mobile-search-close{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-width:34px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.05);color:var(--text);font:900 22px/1 var(--fb);cursor:pointer}
+.radio-control-count{font-size:11px}.radio-top-search{width:100%;max-width:none;height:34px}
+.page-heading{margin-bottom:6px}.mobile-hide-hero{display:none!important}.radio-title-row{align-items:flex-start;gap:8px;flex-wrap:wrap}.radio-title-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}.radio-title-actions .button{width:100%;padding-left:10px;padding-right:10px}.page-subtitle{font-size:10px}.page-heading h1{font-size:clamp(42px,13vw,56px)}
 .track-count{font-size:12px;margin-top:5px}
 .radio-interface{display:flex;flex-direction:column;gap:12px}
 .player{order:1}
