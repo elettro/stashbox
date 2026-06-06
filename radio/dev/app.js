@@ -7,6 +7,7 @@ const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const PRODUCT_POOL_LIMIT = 200;
 const COMPLETION_THRESHOLD = 0.95;
 const MIN_PARTIAL_SECONDS = 5;
+const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
@@ -581,6 +582,7 @@ function App() {
   const [playerMessage, setPlayerMessage] = useState('');
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
+  const currentPlayInstanceRef = useRef(null);
   const audioRef = useRef(null);
   const playerRef = useRef(null);
   const youtubePlayerRef = useRef(null);
@@ -603,6 +605,21 @@ function App() {
     setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.total_plays || 0 }));
     setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.shares || 0 }));
   }, [selectedSong]);
+
+  useEffect(() => {
+    if (!selectedSong?.songKey) {
+      currentPlayInstanceRef.current = null;
+      return;
+    }
+    currentPlayInstanceRef.current = {
+      songKey: selectedSong.songKey,
+      instanceId: `${selectedSong.songKey}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      listenedSeconds: 0,
+      playStartSent: false,
+      lastTickAt: null,
+      isPlaying: false
+    };
+  }, [selectedSong?.idx, selectedSong?.songKey]);
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
@@ -660,25 +677,63 @@ function App() {
 
   const grouped = useMemo(() => filtered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [filtered]);
 
-  const trackPlaybackStart = useCallback((song, mode = 'audio') => {
-    if (!song) return;
-    const state = playbackRef.current;
-    if (state.hasStarted && state.currentSongKey === song.songKey && state.mode === mode) return;
-    playbackRef.current = { currentSongKey: song.songKey, startedAt: Date.now(), hasStarted: true, secondsPlayed: 0, duration: 0, hasCompleted: false, mode };
+  const sendQualifiedPlayStart = useCallback((song, instance) => {
+    // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
+    if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) return;
+    instance.playStartSent = true;
     sendTrackingEvent(song, 'play_start', sessionId).then(result => {
       if (result?.response?.ok) setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.total_plays ?? 0) + 1 }));
     });
   }, [sessionId]);
 
+  const accumulateQualifiedPlayback = useCallback((song) => {
+    const instance = currentPlayInstanceRef.current;
+    if (!song || !instance || instance.songKey !== song.songKey || !instance.isPlaying) return;
+    const now = Date.now();
+    if (instance.lastTickAt) {
+      const elapsed = Math.max(0, (now - instance.lastTickAt) / 1000);
+      instance.listenedSeconds += Math.min(elapsed, 2);
+    }
+    instance.lastTickAt = now;
+    if (!instance.playStartSent && instance.listenedSeconds >= QUALIFIED_PLAY_SECONDS) {
+      sendQualifiedPlayStart(song, instance);
+    }
+  }, [sendQualifiedPlayStart]);
+
+  const pauseQualifiedPlayback = useCallback((song) => {
+    accumulateQualifiedPlayback(song);
+    const instance = currentPlayInstanceRef.current;
+    if (!song || !instance || instance.songKey !== song.songKey) return;
+    instance.isPlaying = false;
+    instance.lastTickAt = null;
+  }, [accumulateQualifiedPlayback]);
+
+  const trackPlaybackStart = useCallback((song, mode = 'audio') => {
+    if (!song) return;
+    const state = playbackRef.current;
+    if (!(state.hasStarted && state.currentSongKey === song.songKey && state.mode === mode)) {
+      playbackRef.current = { currentSongKey: song.songKey, startedAt: Date.now(), hasStarted: true, secondsPlayed: 0, duration: 0, hasCompleted: false, mode };
+    }
+    const instance = currentPlayInstanceRef.current;
+    if (instance?.songKey === song.songKey) {
+      instance.isPlaying = true;
+      instance.lastTickAt = null;
+    }
+  }, []);
+
   const updatePlaybackPosition = useCallback((secondsPlayed, duration) => {
     const state = playbackRef.current;
-    if (!state.hasStarted) return;
-    playbackRef.current = { ...state, secondsPlayed: Math.max(state.secondsPlayed || 0, Number(secondsPlayed) || 0), duration: Number(duration) || state.duration || 0 };
-  }, []);
+    const song = selectedRef.current;
+    if (state.hasStarted) {
+      playbackRef.current = { ...state, secondsPlayed: Math.max(state.secondsPlayed || 0, Number(secondsPlayed) || 0), duration: Number(duration) || state.duration || 0 };
+    }
+    accumulateQualifiedPlayback(song);
+  }, [accumulateQualifiedPlayback]);
 
   const finishPlayback = useCallback((eventType = 'play_partial', forcedSong = null) => {
     const state = playbackRef.current;
     const song = forcedSong || selectedRef.current;
+    pauseQualifiedPlayback(song);
     if (!state.hasStarted || state.hasCompleted || !song || state.currentSongKey !== song.songKey) return;
     const elapsed = state.mode === 'video' ? Math.max(state.secondsPlayed || 0, (Date.now() - state.startedAt) / 1000) : (state.secondsPlayed || 0);
     const duration = state.duration || 0;
@@ -688,7 +743,7 @@ function App() {
     if (finalType === 'play_partial' && elapsed < MIN_PARTIAL_SECONDS) return;
     const completion = duration ? Math.min(100, Math.round((elapsed / duration) * 100)) : undefined;
     sendTrackingEvent(song, finalType, sessionId, { seconds_played: Math.round(elapsed), completion_percent: completion });
-  }, [sessionId]);
+  }, [sessionId, pauseQualifiedPlayback]);
 
   useEffect(() => {
     const flush = () => finishPlayback('play_partial');
@@ -919,7 +974,7 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => finishPlayback('play_partial'), onAudioComplete: () => autoAdvanceFromEnded(selectedSong), onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => handleVideoEnded(selectedSong, { preferVideo: true }), onYouTubeEnded: () => handleYouTubeEnded(selectedSong), onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => trackPlaybackStart(selectedSong, 'video'), onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
         tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
