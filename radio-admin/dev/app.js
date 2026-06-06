@@ -3,6 +3,7 @@ const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.
 const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
 const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
 const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/songs?limit=100';
+const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/referrers?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -147,6 +148,15 @@ const productKpiDefinitions = [
   { key: 'product_clicks_last_7d', label: 'Product Clicks Last 7 Days' }
 ];
 
+const referrerKpiDefinitions = [
+  { key: 'total_events', label: 'Total Events' },
+  { key: 'events_with_referrer', label: 'Events With Referrer' },
+  { key: 'direct_or_unknown_events', label: 'Direct / Unknown Events' },
+  { key: 'unique_referrers', label: 'Unique Referrers' },
+  { key: 'events_last_24h', label: 'Events Last 24h' },
+  { key: 'events_last_7d', label: 'Events Last 7 Days' }
+];
+
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 
@@ -186,6 +196,8 @@ let statsSummary = null;
 let statsSummaryError = '';
 let productStats = null;
 let productStatsError = '';
+let referrerStats = null;
+let referrerStatsError = '';
 let imagePreviewEl = null;
 let activeImagePreviewThumb = null;
 let imagePreviewPinned = false;
@@ -220,6 +232,11 @@ const els = {
   statsGeneratedAt: document.getElementById('statsGeneratedAt'),
   productStatsWarning: document.getElementById('productStatsWarning'),
   productStatsGeneratedAt: document.getElementById('productStatsGeneratedAt'),
+  referrerStatsWarning: document.getElementById('referrerStatsWarning'),
+  referrerStatsGeneratedAt: document.getElementById('referrerStatsGeneratedAt'),
+  referrerKpiGrid: document.getElementById('referrerKpiGrid'),
+  topReferrersTableBody: document.getElementById('topReferrersTableBody'),
+  recentReferrerEventsTableBody: document.getElementById('recentReferrerEventsTableBody'),
   songStatsWarning: document.getElementById('songStatsWarning'),
   songStatsGeneratedAt: document.getElementById('songStatsGeneratedAt'),
   songInsightGrid: document.getElementById('songInsightGrid'),
@@ -362,6 +379,8 @@ function clearToken() {
   statsSummaryError = '';
   productStats = null;
   productStatsError = '';
+  referrerStats = null;
+  referrerStatsError = '';
   songStats = null;
   songStatsError = '';
   renderDashboard();
@@ -741,11 +760,12 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
 
-  const [songsResult, statsResult, productStatsResult, songStatsResult] = await Promise.allSettled([
+  const [songsResult, statsResult, productStatsResult, songStatsResult, referrerStatsResult] = await Promise.allSettled([
     fetchSongsData({ preserveSelection }),
     fetchStatsSummaryData(),
     fetchProductStatsData(),
-    fetchSongStatsData()
+    fetchSongStatsData(),
+    fetchReferrerStatsData()
   ]);
 
   if (songsResult.status === 'rejected') {
@@ -770,11 +790,17 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
     showMessage(`Could not load song analytics: ${songStatsError}`, 'error');
   }
 
+  if (referrerStatsResult.status === 'rejected') {
+    referrerStats = null;
+    referrerStatsError = referrerStatsResult.reason.message;
+    showMessage(`Could not load referrer stats: ${referrerStatsError}`, 'error');
+  }
+
   renderDashboard();
   renderSongList();
   renderArchiveList();
 
-  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled') {
+  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled' && referrerStatsResult.status === 'fulfilled') {
     showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
   }
 
@@ -816,6 +842,13 @@ async function fetchSongStatsData() {
   return songStats;
 }
 
+async function fetchReferrerStatsData() {
+  const data = await adminFetch(REFERRER_STATS_API_URL);
+  referrerStats = normalizeReferrerStatsResponse(data);
+  referrerStatsError = '';
+  return referrerStats;
+}
+
 function normalizeSongStatsResponse(data) {
   if (typeof data?.body === 'string') {
     try {
@@ -830,6 +863,23 @@ function normalizeSongStatsResponse(data) {
     count: Number(data?.count || 0),
     limit: Number(data?.limit || 100),
     songs: Array.isArray(data?.songs) ? data.songs : [],
+    generated_at: data?.generated_at || ''
+  };
+}
+
+function normalizeReferrerStatsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeReferrerStatsResponse(JSON.parse(data.body));
+    } catch {
+      return { summary: {}, referrers: [], recent_events: [], generated_at: '' };
+    }
+  }
+
+  return {
+    summary: data?.summary || {},
+    referrers: Array.isArray(data?.referrers) ? data.referrers : [],
+    recent_events: Array.isArray(data?.recent_events) ? data.recent_events : [],
     generated_at: data?.generated_at || ''
   };
 }
@@ -973,6 +1023,7 @@ function renderDashboard() {
   renderStatsGeneratedAt();
   renderKpiCards(calculateDashboardTotals(activeSongs));
   renderProductAnalytics();
+  renderReferrerAnalytics();
   renderSongAnalytics();
   renderTodayStats();
   renderDevicesStats();
@@ -1119,6 +1170,164 @@ function renderRecentProductClicksTable() {
     row.appendChild(buildOpenProductCell(productUrl));
     els.recentProductClicksTableBody.appendChild(row);
   });
+}
+
+
+
+function renderReferrerAnalytics() {
+  renderReferrerStatsWarning();
+  renderReferrerStatsGeneratedAt();
+  renderReferrerKpiCards();
+  renderTopReferrersTable();
+  renderRecentReferrerEventsTable();
+}
+
+function renderReferrerStatsWarning() {
+  if (!els.referrerStatsWarning) {
+    return;
+  }
+
+  els.referrerStatsWarning.classList.toggle('hidden', !referrerStatsError);
+  els.referrerStatsWarning.textContent = referrerStatsError
+    ? `Referrer stats warning: ${referrerStatsError}`
+    : '';
+}
+
+function renderReferrerStatsGeneratedAt() {
+  if (!els.referrerStatsGeneratedAt) {
+    return;
+  }
+
+  els.referrerStatsGeneratedAt.textContent = referrerStats?.generated_at
+    ? `Referrer stats generated: ${formatDateTime(referrerStats.generated_at)}`
+    : 'Referrer stats generated: —';
+}
+
+function renderReferrerKpiCards() {
+  if (!els.referrerKpiGrid) {
+    return;
+  }
+
+  renderSummaryStatCards(els.referrerKpiGrid, referrerKpiDefinitions, referrerStats?.summary || {});
+}
+
+function renderTopReferrersTable() {
+  if (!els.topReferrersTableBody) {
+    return;
+  }
+
+  els.topReferrersTableBody.innerHTML = '';
+  const referrers = Array.isArray(referrerStats?.referrers) ? referrerStats.referrers : [];
+
+  if (!referrers.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="12" class="song-meta">No referrer stats returned.</td>';
+    els.topReferrersTableBody.appendChild(row);
+    return;
+  }
+
+  referrers.forEach((referrer) => {
+    const row = document.createElement('tr');
+    row.appendChild(buildReferrerCell(referrer.referrer));
+    row.appendChild(makeTextCell(formatNumber(referrer.event_count)));
+    row.appendChild(makeTextCell(formatNumber(referrer.play_starts)));
+    row.appendChild(makeTextCell(formatNumber(referrer.full_plays)));
+    row.appendChild(makeTextCell(formatNumber(referrer.partial_plays)));
+    row.appendChild(makeTextCell(formatNumber(referrer.skips)));
+    row.appendChild(makeTextCell(formatNumber(referrer.likes)));
+    row.appendChild(makeTextCell(formatNumber(referrer.shares)));
+    row.appendChild(makeTextCell(formatNumber(referrer.video_clicks)));
+    row.appendChild(makeTextCell(formatNumber(referrer.product_clicks)));
+    row.appendChild(makeTextCell(formatNumber(referrer.unique_sessions)));
+    row.appendChild(makeTextCell(formatDateTime(referrer.last_seen_at), 'event-time'));
+    els.topReferrersTableBody.appendChild(row);
+  });
+}
+
+function renderRecentReferrerEventsTable() {
+  if (!els.recentReferrerEventsTableBody) {
+    return;
+  }
+
+  els.recentReferrerEventsTableBody.innerHTML = '';
+  const recentEvents = Array.isArray(referrerStats?.recent_events) ? referrerStats.recent_events : [];
+
+  if (!recentEvents.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="7" class="song-meta">No recent referrer events returned.</td>';
+    els.recentReferrerEventsTableBody.appendChild(row);
+    return;
+  }
+
+  recentEvents.forEach((event) => {
+    const row = document.createElement('tr');
+    row.appendChild(makeTextCell(formatDateTime(event.created_at), 'event-time'));
+    row.appendChild(buildReferrerCell(event.referrer));
+    row.appendChild(buildEventTypeCell(event.event_type));
+    row.appendChild(makeTextCell(event.song_title || event.song_key || '—'));
+    row.appendChild(makeTextCell(event.artist || '—'));
+    row.appendChild(makeTextCell(formatDisplayValue(event.device_type || '—')));
+    row.appendChild(buildReferrerProductCell(event.product_url));
+    els.recentReferrerEventsTableBody.appendChild(row);
+  });
+}
+
+function buildReferrerCell(referrer) {
+  const cell = document.createElement('td');
+  cell.className = 'referrer-cell';
+  const label = formatReferrerDisplay(referrer);
+  const span = document.createElement('span');
+  span.className = isDirectOrUnknownReferrer(referrer) ? 'referrer-direct' : 'referrer-label';
+  span.textContent = label;
+  span.title = String(referrer || label);
+  cell.appendChild(span);
+  return cell;
+}
+
+function buildReferrerProductCell(productUrl) {
+  const cell = document.createElement('td');
+  const normalizedUrl = String(productUrl || '').trim();
+
+  if (!normalizedUrl) {
+    cell.textContent = '—';
+    return cell;
+  }
+
+  const link = document.createElement('a');
+  link.className = 'song-action-button event-product-link';
+  link.href = normalizedUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Product';
+  cell.appendChild(link);
+  return cell;
+}
+
+function formatReferrerDisplay(referrer) {
+  const normalizedReferrer = String(referrer || '').trim();
+
+  if (isDirectOrUnknownReferrer(normalizedReferrer)) {
+    return 'Direct / Unknown';
+  }
+
+  try {
+    const url = new URL(normalizedReferrer);
+    const path = `${url.pathname || '/'}${url.search || ''}`;
+    const readablePath = path === '/' ? '' : ` ${path}`;
+    return `${url.hostname}${readablePath}`;
+  } catch {
+    return normalizedReferrer;
+  }
+}
+
+function isDirectOrUnknownReferrer(referrer) {
+  const normalizedReferrer = String(referrer || '').trim().toLowerCase();
+  return !normalizedReferrer
+    || normalizedReferrer === 'direct / unknown'
+    || normalizedReferrer === 'direct'
+    || normalizedReferrer === 'unknown'
+    || normalizedReferrer === 'null'
+    || normalizedReferrer === '(direct)';
 }
 
 

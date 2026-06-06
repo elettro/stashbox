@@ -1238,3 +1238,78 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.referrers-analytics-section {
+  margin: 1rem 0;
+}
+
+.referrers-analytics-section h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.referrer-kpi-grid {
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.referrer-tables-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.referrer-table {
+  min-width: 1260px;
+}
+
+.top-referrers-table {
+  min-width: 1460px;
+}
+
+.recent-referrer-events-table {
+  min-width: 980px;
+}
+
+.referrer-table tbody tr {
+  cursor: default;
+}
+
+.referrer-table th,
+.referrer-table td {
+  padding: 0.56rem 0.64rem;
+  vertical-align: middle;
+}
+
+.referrer-cell {
+  max-width: 340px;
+}
+
+.referrer-label,
+.referrer-direct {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referrer-direct {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--muted);
+  padding: 0.18rem 0.5rem;
+  font-weight: 800;
+}
+
+@media (max-width: 1180px) {
+  .referrer-kpi-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .referrer-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
