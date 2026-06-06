@@ -36,7 +36,7 @@ const editableFields = [
     label: 'Languages',
     type: 'text',
     full: true,
-    help: 'Enter languages separated by commas. Empty values default to English.'
+    help: 'Enter languages separated by commas. New songs default blank languages to English; existing songs can be blank for instrumentals.'
   },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text' },
   { name: 'release_format', label: 'Release format', type: 'text' },
@@ -2179,8 +2179,14 @@ function buildUpdatedCell(song) {
 function buildLanguageBadges(languages) {
   const badges = document.createElement('div');
   badges.className = 'badges language-badges';
+  const parsedLanguages = normalizeLanguages(languages);
 
-  normalizeLanguages(languages).forEach((language) => {
+  if (!parsedLanguages.length) {
+    badges.appendChild(makeBadge('language', getNoLanguageLabel(), true));
+    return badges;
+  }
+
+  parsedLanguages.forEach((language) => {
     badges.appendChild(makeBadge('language', language, true));
   });
 
@@ -2759,7 +2765,7 @@ function normalizeCreatePayload(payload) {
   return {
     ...payload,
     mood_tags: normalizeArrayValue(payload.mood_tags, ','),
-    languages: normalizeLanguages(payload.languages),
+    languages: normalizeLanguagesForCreate(payload.languages),
     specific_product_urls: normalizeArrayValue(payload.specific_product_urls, '\n'),
     show_public_note: toBoolean(payload.show_public_note),
     exclusive: toBoolean(payload.exclusive),
@@ -2935,13 +2941,21 @@ function parseCommaSeparatedArray(value) {
 }
 
 function normalizeLanguages(value) {
-  const languages = parseCommaSeparatedArray(Array.isArray(value) ? value.join(',') : value);
+  return parseCommaSeparatedArray(Array.isArray(value) ? value.join(',') : value);
+}
+
+function normalizeLanguagesForCreate(value) {
+  const languages = normalizeLanguages(value);
 
   return languages.length ? languages : [...DEFAULT_LANGUAGES];
 }
 
 function formatLanguages(languages) {
   return normalizeLanguages(languages).join(', ');
+}
+
+function getNoLanguageLabel() {
+  return 'No language / instrumental';
 }
 
 
