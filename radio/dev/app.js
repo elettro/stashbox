@@ -675,7 +675,7 @@ function RadioHeader({ videoOnly = false, onToggleVideos, onShuffle, disableVide
     h('p', { className: 'page-subtitle mobile-hide-hero' }, 'Listen. Watch. Shop. Share.'),
     h('div', { className: 'radio-title-row' },
       h('h1', { className: 'mobile-hide-hero' }, 'STASHBOX RADIO'),
-      h('div', { className: 'radio-title-actions', 'aria-label': 'Radio quick actions' },
+      h('div', { className: 'radio-title-actions mobile-outside-actions', 'aria-label': 'Radio quick actions' },
         h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
         h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
       )
