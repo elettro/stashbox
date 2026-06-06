@@ -2,6 +2,7 @@ const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/def
 const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/events';
 const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
 const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
+const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/songs?limit=100';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
@@ -176,6 +177,10 @@ let statsSummary = null;
 let statsSummaryError = '';
 let productStats = null;
 let productStatsError = '';
+let songStats = null;
+let songStatsError = '';
+let songStatsSortKey = 'play_starts';
+let songStatsSortDirection = 'desc';
 const productMetadataCache = new Map();
 let selectedSong = null;
 let selectedSongKey = '';
@@ -202,6 +207,11 @@ const els = {
   statsGeneratedAt: document.getElementById('statsGeneratedAt'),
   productStatsWarning: document.getElementById('productStatsWarning'),
   productStatsGeneratedAt: document.getElementById('productStatsGeneratedAt'),
+  songStatsWarning: document.getElementById('songStatsWarning'),
+  songStatsGeneratedAt: document.getElementById('songStatsGeneratedAt'),
+  songInsightGrid: document.getElementById('songInsightGrid'),
+  songAnalyticsTableBody: document.getElementById('songAnalyticsTableBody'),
+  songStatsSortButtons: Array.from(document.querySelectorAll('[data-song-stats-sort]')),
   productKpiGrid: document.getElementById('productKpiGrid'),
   topProductsTableBody: document.getElementById('topProductsTableBody'),
   recentProductClicksTableBody: document.getElementById('recentProductClicksTableBody'),
@@ -291,6 +301,9 @@ function bindEvents() {
   els.tabButtons.forEach((button) => {
     button.addEventListener('click', () => setActiveTab(button.dataset.tab));
   });
+  els.songStatsSortButtons.forEach((button) => {
+    button.addEventListener('click', () => setSongStatsSort(button.dataset.songStatsSort));
+  });
 }
 
 function initializeAdmin() {
@@ -336,6 +349,8 @@ function clearToken() {
   statsSummaryError = '';
   productStats = null;
   productStatsError = '';
+  songStats = null;
+  songStatsError = '';
   renderDashboard();
   renderSongList();
   renderArchiveList();
@@ -725,10 +740,11 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
 
-  const [songsResult, statsResult, productStatsResult] = await Promise.allSettled([
+  const [songsResult, statsResult, productStatsResult, songStatsResult] = await Promise.allSettled([
     fetchSongsData({ preserveSelection }),
     fetchStatsSummaryData(),
-    fetchProductStatsData()
+    fetchProductStatsData(),
+    fetchSongStatsData()
   ]);
 
   if (songsResult.status === 'rejected') {
@@ -747,11 +763,17 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
     showMessage(`Could not load product stats: ${productStatsError}`, 'error');
   }
 
+  if (songStatsResult.status === 'rejected') {
+    songStats = null;
+    songStatsError = songStatsResult.reason.message;
+    showMessage(`Could not load song analytics: ${songStatsError}`, 'error');
+  }
+
   renderDashboard();
   renderSongList();
   renderArchiveList();
 
-  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled') {
+  if (!silent && songsResult.status === 'fulfilled' && statsResult.status === 'fulfilled' && productStatsResult.status === 'fulfilled' && songStatsResult.status === 'fulfilled') {
     showMessage(`Loaded dashboard stats plus ${getActiveSongs().length} active and ${getArchivedSongs().length} archived song${songs.length === 1 ? '' : 's'}.`, 'success');
   }
 
@@ -784,6 +806,31 @@ async function fetchProductStatsData() {
   productStats = normalizeProductStatsResponse(data);
   productStatsError = '';
   return productStats;
+}
+
+async function fetchSongStatsData() {
+  const data = await adminFetch(SONG_STATS_API_URL);
+  songStats = normalizeSongStatsResponse(data);
+  songStatsError = '';
+  return songStats;
+}
+
+function normalizeSongStatsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return normalizeSongStatsResponse(JSON.parse(data.body));
+    } catch {
+      return { success: false, count: 0, limit: 100, songs: [], generated_at: '' };
+    }
+  }
+
+  return {
+    success: Boolean(data?.success),
+    count: Number(data?.count || 0),
+    limit: Number(data?.limit || 100),
+    songs: Array.isArray(data?.songs) ? data.songs : [],
+    generated_at: data?.generated_at || ''
+  };
 }
 
 function normalizeProductStatsResponse(data) {
@@ -925,6 +972,7 @@ function renderDashboard() {
   renderStatsGeneratedAt();
   renderKpiCards(calculateDashboardTotals(activeSongs));
   renderProductAnalytics();
+  renderSongAnalytics();
   renderTodayStats();
   renderDevicesStats();
   renderEventTypesStats();
@@ -1269,6 +1317,171 @@ function formatProductTitle(productUrl) {
   return title
     ? title.replace(/\b\w/g, (letter) => letter.toUpperCase())
     : normalizedUrl;
+}
+
+
+function renderSongAnalytics() {
+  renderSongStatsWarning();
+  renderSongStatsGeneratedAt();
+  renderSongInsightCards();
+  renderSongAnalyticsTable();
+  updateSongStatsSortControls();
+}
+
+function renderSongStatsWarning() {
+  if (!els.songStatsWarning) {
+    return;
+  }
+
+  els.songStatsWarning.classList.toggle('hidden', !songStatsError);
+  els.songStatsWarning.textContent = songStatsError
+    ? `Song analytics warning: ${songStatsError}`
+    : '';
+}
+
+function renderSongStatsGeneratedAt() {
+  if (!els.songStatsGeneratedAt) {
+    return;
+  }
+
+  const count = Number(songStats?.count || songStats?.songs?.length || 0);
+  const limit = Number(songStats?.limit || 100);
+  const generatedAt = songStats?.generated_at ? formatDateTime(songStats.generated_at) : '—';
+  els.songStatsGeneratedAt.textContent = `Song stats generated: ${generatedAt} · ${formatNumber(count)} of ${formatNumber(limit)} returned`;
+}
+
+function renderSongInsightCards() {
+  if (!els.songInsightGrid) {
+    return;
+  }
+
+  els.songInsightGrid.innerHTML = '';
+  const playableSongs = getSongStatsRows().filter((song) => getSongStatNumber(song, 'play_starts') >= 1);
+  const insights = [
+    { label: 'Highest Completion Rate', key: 'completion_rate' },
+    { label: 'Highest Skip Rate', key: 'skip_rate' },
+    { label: 'Most Liked Rate', key: 'like_rate' },
+    { label: 'Most Product Click Rate', key: 'product_click_rate' },
+    { label: 'Most Video Click Rate', key: 'video_click_rate' }
+  ];
+
+  insights.forEach((insight) => {
+    const song = getTopSongByStat(playableSongs, insight.key);
+    const card = document.createElement('article');
+    card.className = 'song-insight-card';
+    card.innerHTML = '<span class="mini-stat-label"></span><strong class="mini-stat-value"></strong><span class="song-meta"></span>';
+    card.querySelector('.mini-stat-label').textContent = insight.label;
+    card.querySelector('.mini-stat-value').textContent = song ? formatRatePercent(song[insight.key]) : '—';
+    card.querySelector('.song-meta').textContent = song ? `${formatSongTitle(song)} · ${formatNumber(getSongStatNumber(song, 'play_starts'))} plays` : 'No songs with plays yet.';
+    els.songInsightGrid.appendChild(card);
+  });
+}
+
+function getTopSongByStat(songList, statKey) {
+  return [...songList].sort((a, b) => getSongStatNumber(b, statKey) - getSongStatNumber(a, statKey))[0] || null;
+}
+
+function renderSongAnalyticsTable() {
+  if (!els.songAnalyticsTableBody) {
+    return;
+  }
+
+  els.songAnalyticsTableBody.innerHTML = '';
+  const rows = getSortedSongStatsRows();
+
+  if (!rows.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="16" class="song-meta">No per-song analytics returned.</td>';
+    els.songAnalyticsTableBody.appendChild(row);
+    return;
+  }
+
+  rows.forEach((song) => {
+    const songKey = getSongKey(song);
+    const row = document.createElement('tr');
+    row.appendChild(buildSongTitleCell(song, songKey, 'compact-title'));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'play_starts'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'full_plays'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'partial_plays'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'skips'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'likes'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'shares'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'video_clicks'))));
+    row.appendChild(makeTextCell(formatNumber(getSongStatNumber(song, 'product_clicks'))));
+    row.appendChild(makeTextCell(formatRatePercent(song.completion_rate)));
+    row.appendChild(makeTextCell(formatRatePercent(song.skip_rate)));
+    row.appendChild(makeTextCell(formatRatePercent(song.like_rate)));
+    row.appendChild(makeTextCell(formatRatePercent(song.share_rate)));
+    row.appendChild(makeTextCell(formatRatePercent(song.product_click_rate)));
+    row.appendChild(makeTextCell(formatDateTime(song.last_event_at), 'event-time'));
+    row.appendChild(buildQuickLinksCell(songKey));
+    els.songAnalyticsTableBody.appendChild(row);
+  });
+}
+
+function getSongStatsRows() {
+  return Array.isArray(songStats?.songs) ? songStats.songs : [];
+}
+
+function getSortedSongStatsRows() {
+  const directionMultiplier = songStatsSortDirection === 'asc' ? 1 : -1;
+
+  return [...getSongStatsRows()].sort((a, b) => {
+    let comparison = 0;
+
+    if (songStatsSortKey === 'last_event_at') {
+      comparison = getDateSortValue(a.last_event_at) - getDateSortValue(b.last_event_at);
+    } else {
+      comparison = getSongStatNumber(a, songStatsSortKey) - getSongStatNumber(b, songStatsSortKey);
+    }
+
+    if (comparison !== 0) {
+      return comparison * directionMultiplier;
+    }
+
+    return String(formatSongTitle(a)).localeCompare(String(formatSongTitle(b)));
+  });
+}
+
+function getDateSortValue(value) {
+  const time = new Date(value || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getSongStatNumber(song, key) {
+  const number = Number(song?.[key] || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatRatePercent(value) {
+  return `${Number(value || 0).toFixed(2)}%`;
+}
+
+function setSongStatsSort(nextSortKey) {
+  if (!nextSortKey) {
+    return;
+  }
+
+  if (songStatsSortKey === nextSortKey) {
+    songStatsSortDirection = songStatsSortDirection === 'desc' ? 'asc' : 'desc';
+  } else {
+    songStatsSortKey = nextSortKey;
+    songStatsSortDirection = 'desc';
+  }
+
+  renderSongAnalyticsTable();
+  updateSongStatsSortControls();
+}
+
+function updateSongStatsSortControls() {
+  els.songStatsSortButtons.forEach((button) => {
+    const isActive = button.dataset.songStatsSort === songStatsSortKey;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-sort', isActive ? (songStatsSortDirection === 'desc' ? 'descending' : 'ascending') : 'none');
+    const baseLabel = button.dataset.sortLabel || button.textContent.replace(/[↕↓↑]/g, '').trim();
+    button.dataset.sortLabel = baseLabel;
+    button.textContent = isActive ? `${baseLabel} ${songStatsSortDirection === 'desc' ? '↓' : '↑'}` : `${baseLabel} ↕`;
+  });
 }
 
 
