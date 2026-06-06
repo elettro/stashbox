@@ -31,6 +31,21 @@ const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
+
+function isVideoOnlyTrack(song) {
+  const releaseFormat = String(song?.release_format || song?.raw?.release_format || '').toLowerCase().replace(/\s+/g, '_');
+  const videoLink = song?.video_link || song?.video_url || song?.videoUrl || song?.videoLink || song?.raw?.video_link || song?.raw?.video_url || song?.raw?.videoUrl;
+  const audioUrl = song?.audio_url || song?.audioUrl || song?.raw?.audio_url || song?.raw?.audioUrl;
+  return Boolean(
+    song &&
+    (
+      song.videoOnly === true ||
+      releaseFormat === 'video_only' ||
+      (has(videoLink) && !has(audioUrl))
+    )
+  );
+}
+
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === clean(genre).toLowerCase())?.key || 'Other';
 const countValue = value => Math.max(0, Number(value) || 0);
 const YOUTUBE_ORIGIN = 'https://elettro.github.io';
@@ -80,7 +95,7 @@ function normalizeSong(row, index) {
   const genre = clean(firstDefined(row, ['genre', 'primary_genre', 'section']));
   const hasAudio = has(row.audio_url);
   const hasVideo = has(row.video_link || row.video_url || row.videoUrl);
-  const videoOnly = bool(row.video_only);
+  const videoOnly = bool(row.video_only) || isVideoOnlyTrack(row);
   const rawKey = firstDefined(row, ['song_key', 'key', 'slug', 'id', 'track_id']);
   const likes = countValue(firstDefined(row, ['likes', 'like_count', 'total_likes']));
   const totalPlays = countValue(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
@@ -876,10 +891,29 @@ function App() {
   }
 
   function closeVideo() {
+    if (isVideoOnlyTrack(selectedSong)) return;
+
     finishPlayback('play_partial');
+
+    const player = youtubePlayerRef.current;
+    if (player) {
+      try {
+        if (typeof player.pauseVideo === 'function') player.pauseVideo();
+      } catch (error) {
+        console.warn('Unable to pause YouTube player safely while closing video.', error.message || error);
+      }
+      try {
+        if (typeof player.destroy === 'function') player.destroy();
+      } catch (error) {
+        console.warn('Unable to destroy YouTube player safely while closing video.', error.message || error);
+      }
+      youtubePlayerRef.current = null;
+    }
+
     setActiveVideoEmbedUrl('');
-    setMediaMode('idle');
+    setMediaMode(selectedSong?.hasAudio ? 'audio' : 'idle');
     setAutoPlayRequest(null);
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
   function likeSong(song) {
@@ -972,6 +1006,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const isVideoMode = mediaMode === 'video' && has(videoSrc);
   const directVideo = isVideoMode && isDirectVideoUrl(selected.videoLink);
   const youtubeVideo = isVideoMode && /youtube\.com\/embed/i.test(videoSrc);
+  const canCloseVideo = isVideoMode && hasVideo && !isVideoOnlyTrack(selected);
   const canUsePrimaryPlay = isVideoMode ? hasVideo : hasAudio || (selected.videoOnly && hasVideo);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
@@ -1153,7 +1188,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
             h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
-            hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
+            canCloseVideo ? h(PlayerPill, { className: 'video-pill', onClick: handleCloseVideo }, 'Close Video') : (!isVideoMode && hasVideo && (selected.showWatchVideo || selected.videoOnly) ? h(PlayerPill, { className: 'video-pill', onClick: openVideo }, h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null),
             h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
           )
         )
