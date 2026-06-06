@@ -189,6 +189,79 @@
           </div>
         </section>
 
+        <section class="card dashboard-section devices-analytics-section" aria-labelledby="devicesAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Devices / Listener Devices</p>
+              <h2 id="devicesAnalyticsHeading">Devices / Listener Devices</h2>
+              <p class="panel-copy">Private listener device event totals, playback behavior, engagement, and recent device activity.</p>
+              <p id="deviceStatsGeneratedAt" class="stats-generated">Device stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="deviceStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="deviceKpiGrid" class="mini-stat-grid device-kpi-grid"></div>
+
+          <div class="device-tables-grid">
+            <section aria-labelledby="deviceBreakdownHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 50</p>
+                  <h3 id="deviceBreakdownHeading">Device Breakdown</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table device-table device-breakdown-table">
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>Events</th>
+                      <th>Plays</th>
+                      <th>Full</th>
+                      <th>Partial</th>
+                      <th>Skips</th>
+                      <th>Likes</th>
+                      <th>Shares</th>
+                      <th>Video Clicks</th>
+                      <th>Product Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Avg Seconds</th>
+                      <th>Avg Completion %</th>
+                      <th>Last Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody id="deviceBreakdownTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentDeviceEventsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentDeviceEventsHeading">Recent Device Events</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table device-table recent-device-events-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Device</th>
+                      <th>Event Type</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Referrer</th>
+                      <th>Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentDeviceEventsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section class="card dashboard-section song-analytics-section" aria-labelledby="songAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
