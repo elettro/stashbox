@@ -292,8 +292,9 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .player{position:relative;top:auto;z-index:auto;order:0;display:flex;flex-direction:column;max-height:none;overflow:visible;padding:10px 12px 12px;border-radius:16px}
 .radio-main{order:1}
 .player-media{order:1;min-height:auto;aspect-ratio:1/1;border-radius:12px 12px 0 0}
-.player-bar{order:2}
-.player>.player-timeline,.player>.no-audio-note{order:3}
+.player>.player-timeline{order:2}
+.player-bar{order:3}
+.player>.no-audio-note{order:4}
 .player-media img{height:100%;object-fit:contain}
 .player-media iframe,.player-media .youtube-player-frame{min-height:0;height:100%;aspect-ratio:1/1}
 .player-bar{grid-template-columns:1fr;padding-top:8px}
@@ -311,11 +312,11 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .player-timeline{gap:10px;margin-top:6px;padding:0 12px 8px}
 .timecode{min-width:34px;font-size:11px}
 .scrubber{height:16px}
-.player>.notes:not(.no-audio-note){order:4}
-.player .merch{order:5;margin-top:13px}
+.player>.notes:not(.no-audio-note){order:5}
+.player .merch{order:6;margin-top:13px}
 }
 
-@media(max-width:420px){.player-controls-layout{gap:7px}.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 9px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px;padding:0}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:10px}.player-timeline{gap:8px;padding:0 10px 8px}.timecode{min-width:32px;font-size:10px}}
+@media(max-width:420px){.player-controls-layout{gap:7px}.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 9px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px;padding:0}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:10px}.player-timeline{gap:8px;margin-top:0;padding:6px 10px 4px}.timecode{min-width:32px;font-size:10px}}
 @media(max-width:768px){
 .radio-app,
 .radio-interface,
@@ -330,9 +331,10 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .radio-main{padding-left:12px;padding-right:12px}
 .player{display:flex;flex-direction:column;margin-left:0;margin-right:0;padding:10px 0 10px;border-radius:16px;overflow:hidden}
 .player-media{order:1;min-height:0;aspect-ratio:1/1;border-left:0;border-right:0;border-radius:14px 14px 0 0}
-.player-bar{order:2}
-.player>.player-timeline,.player>.no-audio-note{order:3}
-.player>.notes:not(.no-audio-note){order:4}
+.player>.player-timeline{order:2}
+.player-bar{order:3}
+.player>.no-audio-note{order:4}
+.player>.notes:not(.no-audio-note){order:5}
 .player-art,
 .player-art img,
 .media-frame img,
@@ -357,9 +359,9 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .player-pill.transport-pill{width:34px;height:34px;min-height:34px;font-size:17px}
 .player-pill.play-toggle{width:42px;height:42px;min-width:42px;min-height:42px;font-size:16px}
 .transport-controls{gap:10px}
-.player-timeline{gap:8px;margin-top:4px;padding:0 10px 6px}
+.player-timeline{gap:8px;margin-top:0;padding:6px 10px 4px}
 .scrubber{height:14px}
-.player .merch{order:5;margin:8px 0 0;padding:8px 0 0}
+.player .merch{order:6;margin:8px 0 0;padding:8px 0 0}
 .merch-head{margin-bottom:6px;align-items:center;padding:0 10px}
 .merch-title{font-size:24px;line-height:.95}
 .player .merch .kicker{margin-bottom:5px}
@@ -371,7 +373,7 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .product-name{font-size:11px;line-height:1.08;font-weight:800;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
 .product-price{margin-top:auto;font-size:11px;line-height:1.1}
 }
-@media(max-width:420px){.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 8px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:9px}.player-timeline{gap:8px;padding:0 10px 8px}.timecode{min-width:32px;font-size:10px}}
+@media(max-width:420px){.player-controls-actions{gap:5px}.player-pill,.player-stat-pill,.player-controls .like-button{padding:0 8px;font-size:10px}.player-pill.transport-pill{width:36px;height:36px;min-height:36px}.player-pill.play-toggle{width:46px;height:46px;min-width:46px;min-height:46px}.transport-controls{gap:9px}.player-timeline{gap:8px;margin-top:0;padding:6px 10px 4px}.timecode{min-width:32px;font-size:10px}}
 .public-note,
 .video-note,
 .video-setlist,
