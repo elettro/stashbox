@@ -656,6 +656,40 @@ function sortSongs(songs, sortKey = 'latest', counts = {}) {
   return ordered;
 }
 
+function buildGroupedSongSections(songs, sortKey) {
+  if (sortKey !== 'genre' && sortKey !== 'artist') return [];
+  const isGenreGroup = sortKey === 'genre';
+  const groups = new Map();
+
+  songs.forEach(track => {
+    const groupName = isGenreGroup ? getSongGenre(track) : getSongArtist(track);
+    const title = clean(groupName) || (isGenreGroup ? 'Other' : 'Unknown Artist');
+    const groupKey = normalizeSortText(title) || title;
+    const existing = groups.get(groupKey) || { title, tracks: [] };
+    existing.tracks.push(track);
+    groups.set(groupKey, existing);
+  });
+
+  return [...groups.values()]
+    .filter(group => group.tracks.length > 0)
+    .sort((a, b) => {
+      const rankA = isGenreGroup ? genreRank(a.title) : artistRank(a.title);
+      const rankB = isGenreGroup ? genreRank(b.title) : artistRank(b.title);
+      return compareText(rankA, rankB);
+    })
+    .map(group => {
+      const displaySection = isGenreGroup
+        ? (SECTIONS.find(section => section.key.toLowerCase() === sectionFor(group.title).toLowerCase()) || SECTIONS[SECTIONS.length - 1])
+        : { key: group.title, emoji: '🎤', color: '#f0a500' };
+      const tracks = [...group.tracks].sort((a, b) => compareText(getSongTitle(a), getSongTitle(b)) || ((a.idx ?? 0) - (b.idx ?? 0)));
+      return {
+        key: `${sortKey}-${normalizeSortText(group.title)}`,
+        section: { ...displaySection, key: group.title },
+        tracks
+      };
+    });
+}
+
 
 function getSortLabel(sortKey) {
   return SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Latest';
@@ -1011,7 +1045,8 @@ function App() {
     setIsShuffleQueueActive(false);
   }, [activeShuffleSourceKey, isShuffleQueueActive, shuffleSourceKey]);
 
-  const grouped = useMemo(() => sortedFiltered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [sortedFiltered]);
+  const groupedSongSections = useMemo(() => buildGroupedSongSections(sortedFiltered, sortKey), [sortedFiltered, sortKey]);
+  const isGroupedSongView = sortKey === 'genre' || sortKey === 'artist';
 
   function resetRadioFilters() {
     setQuery('');
@@ -1417,8 +1452,9 @@ function App() {
     return () => window.clearTimeout(startTimer);
   }, [autoPlayRequest, selectedSong]);
 
-  function pickRandomTrack() {
-    const shuffleSource = playableFiltered;
+  function pickRandomTrack(sourceTracks = playableFiltered) {
+    const requestedSource = Array.isArray(sourceTracks) ? sourceTracks : playableFiltered;
+    const shuffleSource = requestedSource.filter(canPlayTrack);
     if (!shuffleSource.length) {
       setShuffleNotice('No songs available to shuffle.');
       setPlayerMessage('No songs available to shuffle.');
@@ -1432,7 +1468,7 @@ function App() {
     setActiveShuffleSourceKey(shuffleSourceKey);
     setIsShuffleQueueActive(true);
     setShuffleNotice('');
-    selectTrack(next, { autoStart: true, preferVideo: videoFocusedList && next.hasVideo });
+    selectTrack(next, { autoStart: true, preferVideo: (videoFocusedList && next.hasVideo) || isVideoOnlyTrack(next) || !next.hasAudio });
   }
 
   function openVideo({ startPlayback = false } = {}) {
@@ -1518,9 +1554,9 @@ function App() {
       h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
-        h(SongListContextRow, { title: listContextTitle, onShuffle: pickRandomTrack, disabled: !playableFiltered.length, notice: shuffleNotice }),
-        tracks.length ? (sortedFiltered.length ? h('div', { className: 'sections' }, sortKey === 'genre'
-          ? SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode }) : null)
+        !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
+        tracks.length ? (sortedFiltered.length ? h('div', { className: 'sections' }, isGroupedSongView
+          ? groupedSongSections.map(group => h(SongSection, { key: group.key, section: group.section, tracks: group.tracks, selected: selectedSong, chooseSong, onShuffle: () => pickRandomTrack(group.tracks), likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode }))
           : h(SongSection, { key: 'sorted-songs', section: { key: SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Songs', emoji: '🎧', color: '#f0a500' }, tracks: sortedFiltered, selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode })
         ) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
       )
@@ -1888,10 +1924,16 @@ function songArtworkUrl(track) {
   return track?.imageUrl || youtubeThumbnail(track?.videoLink) || '/images/branding/stashbox-logo-transparent-rastacolors.png';
 }
 
-function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list' }) {
+function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list' }) {
   const isVisual = viewMode === 'visual';
+  const canShuffleSection = typeof onShuffle === 'function' && tracks.some(canPlayTrack);
   return h('section', { className: `song-section song-section-${viewMode}`, style: { '--section-color': section.color } },
-    h('div', { className: 'section-title' }, h('span', null, section.emoji), h('h3', null, section.key), h('span', { className: 'count' }, tracks.length)),
+    onShuffle
+      ? h('div', { className: 'song-section-header' },
+        h('h3', { className: 'song-section-title' }, section.key),
+        h('button', { className: 'song-list-shuffle-button', type: 'button', onClick: onShuffle, disabled: !canShuffleSection, 'aria-label': `Shuffle all songs in ${section.key}` }, 'Shuffle All')
+      )
+      : h('div', { className: 'section-title' }, h('span', null, section.emoji), h('h3', null, section.key), h('span', { className: 'count' }, tracks.length)),
     h('div', { className: isVisual ? 'song-list song-list-visual' : 'song-list song-list-list' },
       tracks.map(track => {
         const isSelected = selected?.idx === track.idx;
