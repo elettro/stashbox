@@ -1774,7 +1774,9 @@ function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCo
       tracks.map(track => {
         const isSelected = selected?.idx === track.idx;
         const albumName = displayAlbumName(track);
-        const metaItems = [track.artist, albumName, track.genre || track.sectionKey].filter(Boolean);
+        const metaItems = isVisual
+          ? [track.artist, track.genre || track.sectionKey].filter(Boolean)
+          : [track.artist, albumName, track.genre || track.sectionKey].filter(Boolean);
         return h('article', {
           key: track.idx,
           className: `song-card song-card-${viewMode} ${isSelected ? 'active' : ''}`,
@@ -1786,14 +1788,15 @@ function SongSection({ section, tracks, selected, chooseSong, likeCounts, playCo
           h('div', { className: 'song-copy' },
             h('div', { className: 'song-title-row' },
               h('h4', null, track.title),
-              track.hasVideo && track.showWatchVideo ? h('span', { className: 'video-badge' }, 'Video') : null,
-              track.videoOnly ? h('span', { className: 'video-badge' }, 'Video only') : null
+              !isVisual && track.hasVideo && track.showWatchVideo ? h('span', { className: 'video-badge' }, 'Video') : null,
+              !isVisual && track.videoOnly ? h('span', { className: 'video-badge' }, 'Video only') : null
             ),
             h('div', { className: 'song-meta' }, metaItems.map((item, index) => h('span', { key: `${track.idx}-meta-${index}` }, item))),
-            track.publicTrackNote ? h('p', { className: 'song-note' }, track.publicTrackNote) : null
+            isVisual && track.videoOnly ? h('span', { className: 'video-badge video-badge-visual' }, 'Video only') : null,
+            !isVisual && track.publicTrackNote ? h('p', { className: 'song-note' }, track.publicTrackNote) : null
           ),
-          h('div', { className: 'song-card-stats' }, h(SongActions, { compact: true, likeCount: getSongLikes(track, likeCounts), playCount: getSongPlays(track, playCounts), shareCount: getSongShares(track, shareCounts), hasLiked: likedSongIds.has(track.songKey), onLike: () => onLike(track), onShare: () => onShare(track), shareCopied: copiedSongId === track.idx })),
-          h('button', { className: 'song-play', type: 'button', 'aria-label': `Select ${track.title}`, onClick: event => { event.stopPropagation(); chooseSong(track); } }, isSelected ? 'Playing' : 'Play')
+          !isVisual ? h('div', { className: 'song-card-stats' }, h(SongActions, { compact: true, likeCount: getSongLikes(track, likeCounts), playCount: getSongPlays(track, playCounts), shareCount: getSongShares(track, shareCounts), hasLiked: likedSongIds.has(track.songKey), onLike: () => onLike(track), onShare: () => onShare(track), shareCopied: copiedSongId === track.idx })) : null,
+          !isVisual ? h('button', { className: 'song-play', type: 'button', 'aria-label': `Select ${track.title}`, onClick: event => { event.stopPropagation(); chooseSong(track); } }, isSelected ? 'Playing' : 'Play') : null
         );
       })
     )
