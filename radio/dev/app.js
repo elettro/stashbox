@@ -867,6 +867,7 @@ async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) r
 
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, genreFilters = [DEFAULT_FILTER], album, onAlbumChange, albumFilters = [DEFAULT_FILTER], artist, onArtistChange, artistFilters = [DEFAULT_FILTER], mood, onMoodChange, moodFilters = MOOD_FILTERS, videoOnly = false, onToggleVideos, onShuffle, onReset, disableVideoFilter = false, disableShuffle = false }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
   const filterDrawerId = 'radioHeaderFilterDrawer';
   const renderFilterRow = (label, filters, selected, onChange) => h('div', { className: 'stashbox-filter-row', 'aria-label': `${label} filters` },
@@ -881,23 +882,24 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
     }, filterLabel(filter)))
   );
 
-  return h('header', { className: `stashbox-radio-header ${filtersOpen ? 'filters-open' : 'filters-closed'}`, 'aria-label': 'Stashbox Radio header and filters' },
+  return h('header', { className: `stashbox-radio-header ${filtersOpen ? 'filters-open' : 'filters-closed'} ${mobileSearchOpen ? 'mobile-search-open' : ''}`, 'aria-label': 'Stashbox Radio header and filters' },
     h('div', { className: 'stashbox-compact-top' },
       h('div', { className: 'stashbox-brand-block', 'aria-label': 'Stashbox Radio' },
         h('p', { className: 'stashbox-tagline' }, 'LISTEN. WATCH. SHOP. SHARE.'),
-        h('h1', null, 'STASHBOX RADIO'),
+        h('h1', null, h('span', null, 'STASHBOX'), h('span', { className: 'stashbox-radio-word' }, ' RADIO')),
         h('p', { className: 'stashbox-track-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
       ),
       h('div', { className: 'stashbox-right-stack' },
         h('label', { className: 'stashbox-search' },
           h('span', null, 'Search'),
-          h('input', { ref: searchInputRef, type: 'search', placeholder: 'Song, album, artist...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, autoComplete: 'off', 'aria-label': 'Search songs' })
+          h('input', { ref: searchInputRef, type: 'search', placeholder: 'Song, album, artist...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, autoComplete: 'off', 'aria-label': 'Search songs', onFocus: () => setMobileSearchOpen(true) })
         ),
         h('div', { className: 'stashbox-action-row', 'aria-label': 'Header actions' },
           h('button', { className: 'stashbox-header-btn stashbox-filter-toggle', type: 'button', onClick: () => setFiltersOpen(current => !current), disabled: isLoading, 'aria-expanded': filtersOpen, 'aria-controls': filterDrawerId }, filtersOpen ? 'FILTERS ▴' : 'FILTERS ▾'),
+          h('button', { className: `stashbox-header-btn stashbox-mobile-search-trigger ${mobileSearchOpen ? 'active' : ''}`, type: 'button', onClick: () => { setMobileSearchOpen(current => { const next = !current; window.requestAnimationFrame(() => { if (next) searchInputRef.current?.focus?.(); else searchInputRef.current?.blur?.(); }); return next; }); }, disabled: isLoading, 'aria-label': 'Search songs', 'aria-pressed': mobileSearchOpen }, '🔍'),
           h('button', { className: `stashbox-header-btn stashbox-video ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs With Videos'),
           h('button', { className: 'stashbox-header-btn stashbox-shuffle', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All'),
-          h('button', { className: 'stashbox-header-btn stashbox-utility', type: 'button', onClick: () => { onReset?.(); searchInputRef.current?.blur(); }, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, 'Reset Filters')
+          h('button', { className: 'stashbox-header-btn stashbox-utility', type: 'button', onClick: () => { onReset?.(); setMobileSearchOpen(false); searchInputRef.current?.blur(); }, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, h('span', { className: 'reset-label-desktop' }, 'Reset Filters'), h('span', { className: 'reset-label-mobile' }, 'Reset'))
         )
       )
     ),
