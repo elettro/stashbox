@@ -572,18 +572,28 @@ function formatTrackCount(trackCount, isLoading) { if (isLoading) return 'LOADIN
 function filterLabel(value) { return value === 'ALL' ? 'All' : value; }
 function albumMatches(trackAlbum, selectedAlbum) { if (selectedAlbum === 'ALL') return true; const a = clean(trackAlbum).toLowerCase(); const b = selectedAlbum.toLowerCase(); return a === b || a.includes(b); }
 function artistMatches(trackArtist, selectedArtist) { return selectedArtist === 'ALL' || clean(trackArtist).toLowerCase() === clean(selectedArtist).toLowerCase(); }
+function getFilterArtistName(track) {
+  return clean(firstDefined(track?.raw, ['artist', 'artist_name', 'band'])) || clean(track?.artist);
+}
 function buildArtistFilters(tracks) {
+  const requiredPriorityArtists = ['Stashbox', 'The Ras Box'];
   const counts = new Map();
+
   tracks.forEach(track => {
-    const artist = clean(track.artist) || 'Stashbox';
-    counts.set(artist, (counts.get(artist) || 0) + 1);
+    const artist = getFilterArtistName(track);
+    if (!artist) return;
+    const key = artist.toLowerCase();
+    const current = counts.get(key) || { artist, count: 0 };
+    current.count += 1;
+    counts.set(key, current);
   });
-  const pinned = ['Stashbox', 'The Ras Box'].filter(name => counts.has(name));
-  const pinnedKeys = new Set(pinned.map(name => name.toLowerCase()));
-  const others = [...counts.entries()]
-    .filter(([artist]) => !pinnedKeys.has(artist.toLowerCase()))
-    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
-  return ['ALL', ...pinned, ...others.map(([artist]) => artist)];
+
+  const pinnedKeys = new Set(requiredPriorityArtists.map(name => name.toLowerCase()));
+  const others = [...counts.values()]
+    .filter(({ artist }) => !pinnedKeys.has(artist.toLowerCase()))
+    .sort((a, b) => (b.count - a.count) || a.artist.localeCompare(b.artist, undefined, { sensitivity: 'base' }));
+
+  return ['ALL', ...requiredPriorityArtists, ...others.map(({ artist }) => artist)];
 }
 
 
@@ -832,11 +842,11 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
           h('button', { ref: searchToggleRef, className: `mobile-search-toggle ${query ? 'active' : ''}`, type: 'button', onPointerDown: event => event.stopPropagation(), onClick: openMobileSearch, disabled: isLoading, 'aria-label': 'Open song search', 'aria-expanded': mobileSearchOpen }, '🔍')
         )
       ),
-      h('button', { className: 'radio-reset-control radio-reset-control-desktop', type: 'button', onClick: resetAndCloseSearch, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, 'Reset'),
+      h('button', { className: 'radio-reset-control radio-reset-control-desktop', type: 'button', onClick: resetAndCloseSearch, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, 'Reset Filters'),
       h('div', { id: 'mobileFilterPanel', className: `mobile-filter-panel ${mobileFiltersOpen ? 'is-open' : ''} ${mobileFiltersClosing ? 'is-closing' : ''}` },
-        h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' }, GENRE_FILTERS.map(filter => h('button', { key: `genre-${filter}`, className: `radio-filter-pill ${genre === filter ? 'active' : ''}`, type: 'button', onClick: () => onGenreChange(filter), disabled: isLoading, 'aria-pressed': genre === filter }, filterLabel(filter)))),
+        h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' }, h('span', { className: 'radio-filter-label' }, 'Genre'), GENRE_FILTERS.map(filter => h('button', { key: `genre-${filter}`, className: `radio-filter-pill ${genre === filter ? 'active' : ''}`, type: 'button', onClick: () => onGenreChange(filter), disabled: isLoading, 'aria-pressed': genre === filter }, filterLabel(filter)))),
         h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' }, h('span', { className: 'radio-filter-label' }, 'Album'), ALBUM_FILTERS.map(filter => h('button', { key: `album-${filter}`, className: `radio-filter-pill ${album === filter ? 'active' : ''}`, type: 'button', onClick: () => onAlbumChange(filter), disabled: isLoading, 'aria-pressed': album === filter }, filterLabel(filter)))),
-        h('div', { className: 'radio-filter-row artist-filter-row', 'aria-label': 'Artist filters' }, artistFilters.map(filter => h('button', { key: `artist-${filter}`, className: `radio-filter-pill ${artist === filter ? 'active' : ''}`, type: 'button', onClick: () => onArtistChange(filter), disabled: isLoading, 'aria-pressed': artist === filter }, filterLabel(filter)))),
+        h('div', { className: 'radio-filter-row artist-filter-row', 'aria-label': 'Artist filters' }, h('span', { className: 'radio-filter-label' }, 'Artist'), artistFilters.map(filter => h('button', { key: `artist-${filter}`, className: `radio-filter-pill ${artist === filter ? 'active' : ''}`, type: 'button', onClick: () => onArtistChange(filter), disabled: isLoading, 'aria-pressed': artist === filter }, filterLabel(filter)))),
         h('div', { className: 'mobile-filter-actions', 'aria-label': 'Radio quick actions' },
           h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
           h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
