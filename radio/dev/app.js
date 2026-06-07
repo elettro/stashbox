@@ -23,6 +23,16 @@ const SECTIONS = [
 
 const GENRE_FILTERS = ['ALL', ...SECTIONS.map(section => section.key)];
 const ALBUM_FILTERS = ['ALL', 'Exclusive', 'Stashbox Does Dylan', 'Stashbox Radio', 'Thank You Giorgio'];
+const SORT_OPTIONS = [
+  { key: 'latest', label: 'Latest' },
+  { key: 'most-played', label: 'Most Played' },
+  { key: 'most-liked', label: 'Most Liked' },
+  { key: 'genre', label: 'Genre' },
+  { key: 'most-shared', label: 'Most Shared' },
+  { key: 'most-engaged', label: 'Most Engaged' },
+  { key: 'videos-first', label: 'Videos First' },
+  { key: 'artist', label: 'Artist' }
+];
 
 const h = React.createElement;
 const recentTrackingEvents = new Map();
@@ -146,6 +156,11 @@ function normalizeSong(row, index) {
     videoClicks,
     product_clicks: productClicks,
     productClicks,
+    created_at: clean(row.created_at),
+    createdAt: clean(row.created_at),
+    updated_at: clean(row.updated_at),
+    updatedAt: clean(row.updated_at),
+    apiOrder: index,
     hasAudio,
     hasVideo,
     videoOnly,
@@ -156,7 +171,6 @@ function normalizeSong(row, index) {
     notes: bool(row.show_public_note) ? clean(row.public_track_note) : '',
     specificProductUrls: parseStringList(row.specific_product_urls),
     sortOrder: Number(row.sort_order ?? row.display_order ?? index) || index,
-    createdAt: row.created_at || row.updated_at || '',
     idx: clean(rawKey) || `rds-song-${index}`
   };
 }
@@ -569,6 +583,75 @@ function buildArtistFilters(tracks) {
   return ['ALL', ...pinned, ...others.map(([artist]) => artist)];
 }
 
+
+function normalizeSortText(value) { return clean(value).toLowerCase(); }
+function compareText(a, b) { return normalizeSortText(a).localeCompare(normalizeSortText(b), undefined, { sensitivity: 'base' }); }
+function getSongTitle(song) { return clean(song?.title || song?.display_title || song?.song_name || song?.raw?.display_title || song?.raw?.song_name || UNTITLED_STASHBOX_TRACK); }
+function getSongGenre(song) { return clean(song?.genre || song?.raw?.genre || song?.raw?.primary_genre || song?.sectionKey || 'Other'); }
+function getSongArtist(song) { return clean(song?.artist || song?.raw?.artist || song?.raw?.artist_name || song?.raw?.band || 'Stashbox'); }
+function getSongPlays(song, playCounts = {}) {
+  const counted = playCounts?.[song?.songKey];
+  if (counted !== undefined && counted !== null) return Number(counted || 0);
+  return Number((firstDefined(song, ['total_plays', 'play_starts', 'full_play_count', 'totalPlays', 'fullPlayCount']) || firstDefined(song?.raw, ['total_plays', 'play_starts', 'full_play_count', 'plays', 'play_count', 'full_plays'])) || 0);
+}
+function getSongLikes(song, likeCounts = {}) {
+  const counted = likeCounts?.[song?.songKey];
+  if (counted !== undefined && counted !== null) return Number(counted || 0);
+  return Number((firstDefined(song, ['likes', 'like_count', 'total_likes']) || firstDefined(song?.raw, ['likes', 'like_count', 'total_likes'])) || 0);
+}
+function getSongShares(song, shareCounts = {}) {
+  const counted = shareCounts?.[song?.songKey];
+  if (counted !== undefined && counted !== null) return Number(counted || 0);
+  return Number((firstDefined(song, ['shares', 'share_count', 'total_shares']) || firstDefined(song?.raw, ['shares', 'share_count', 'total_shares'])) || 0);
+}
+function getSongEngagement(song, counts = {}) {
+  return Number(getSongLikes(song, counts.likeCounts) || 0)
+    + Number(getSongShares(song, counts.shareCounts) || 0)
+    + Number((song?.video_clicks || song?.videoClicks || song?.raw?.video_clicks || song?.raw?.video_click_count || song?.raw?.total_video_clicks) || 0)
+    + Number((song?.product_clicks || song?.productClicks || song?.raw?.product_clicks || song?.raw?.product_click_count || song?.raw?.total_product_clicks) || 0);
+}
+function newestSongDate(song) {
+  const value = clean(song?.created_at || song?.createdAt || song?.raw?.created_at) || clean(song?.updated_at || song?.updatedAt || song?.raw?.updated_at);
+  if (!value) return 0;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+function genreRank(genreName) { return normalizeSortText(genreName) === 'reggae' ? '0' : `1-${normalizeSortText(genreName)}`; }
+function artistRank(artistName) {
+  const normalized = normalizeSortText(artistName);
+  if (normalized === 'stashbox') return '0';
+  if (normalized === 'the ras box') return '1';
+  return `2-${normalized}`;
+}
+function sortSongs(songs, sortKey = 'latest', counts = {}) {
+  const originalOrder = new Map(songs.map((song, index) => [song.idx, index]));
+  const ordered = [...songs];
+  const stable = (a, b, result) => result || ((originalOrder.get(a.idx) ?? 0) - (originalOrder.get(b.idx) ?? 0));
+
+  ordered.sort((a, b) => {
+    if (sortKey === 'most-played') return stable(a, b, Number(getSongPlays(b, counts.playCounts) || 0) - Number(getSongPlays(a, counts.playCounts) || 0));
+    if (sortKey === 'most-liked') return stable(a, b, Number(getSongLikes(b, counts.likeCounts) || 0) - Number(getSongLikes(a, counts.likeCounts) || 0));
+    if (sortKey === 'genre') return stable(a, b, compareText(genreRank(getSongGenre(a)), genreRank(getSongGenre(b))) || compareText(getSongTitle(a), getSongTitle(b)));
+    if (sortKey === 'most-shared') return stable(a, b, Number(getSongShares(b, counts.shareCounts) || 0) - Number(getSongShares(a, counts.shareCounts) || 0));
+    if (sortKey === 'most-engaged') return stable(a, b, Number(getSongEngagement(b, counts) || 0) - Number(getSongEngagement(a, counts) || 0));
+    if (sortKey === 'videos-first') return stable(a, b, Number(Boolean(b?.videoLink || b?.hasVideo)) - Number(Boolean(a?.videoLink || a?.hasVideo)) || compareText(getSongTitle(a), getSongTitle(b)));
+    if (sortKey === 'artist') return stable(a, b, compareText(artistRank(getSongArtist(a)), artistRank(getSongArtist(b))) || compareText(getSongTitle(a), getSongTitle(b)));
+    const dateDelta = newestSongDate(b) - newestSongDate(a);
+    return stable(a, b, dateDelta);
+  });
+
+  return ordered;
+}
+
+function SortControl({ sortKey, onSortChange }) {
+  return h('label', { className: 'sort-control' },
+    h('span', { className: 'sort-control-label' }, 'Sort by'),
+    h('select', { className: 'sort-select', value: sortKey, onChange: event => onSortChange(event.target.value), 'aria-label': 'Sort songs by' },
+      SORT_OPTIONS.map(option => h('option', { key: option.key, value: option.key }, option.label))
+    )
+  );
+}
+
 function getShareUrl(song) { const shareUrl = new URL(window.location.href); shareUrl.searchParams.set('song', song?.songKey || song?.idx || ''); shareUrl.hash = ''; return shareUrl.toString(); }
 async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text); const input = document.createElement('textarea'); input.value = text; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
 
@@ -700,6 +783,7 @@ function App() {
   const [album, setAlbum] = useState('ALL');
   const [artist, setArtist] = useState('ALL');
   const [videoOnly, setVideoOnly] = useState(false);
+  const [sortKey, setSortKey] = useState('latest');
   const [mediaMode, setMediaMode] = useState('idle');
   const [activeVideoEmbedUrl, setActiveVideoEmbedUrl] = useState('');
   const [likeCounts, setLikeCounts] = useState({});
@@ -802,7 +886,9 @@ function App() {
     return queryMatch && (genre === 'ALL' || track.sectionKey === genre) && albumMatches(track.album, album) && artistMatches(track.artist, artist) && (!videoOnly || track.hasVideo);
   }), [tracks, query, genre, album, artist, videoOnly]);
 
-  const playableFiltered = useMemo(() => filtered.filter(canPlayTrack), [filtered]);
+  const sortedFiltered = useMemo(() => sortSongs(filtered, sortKey, { likeCounts, playCounts, shareCounts }), [filtered, sortKey, likeCounts, playCounts, shareCounts]);
+
+  const playableFiltered = useMemo(() => sortedFiltered.filter(canPlayTrack), [sortedFiltered]);
   const playbackList = useMemo(() => {
     if (!shuffleActive) return playableFiltered;
     const byIdx = new Map(playableFiltered.map(track => [track.idx, track]));
@@ -811,7 +897,7 @@ function App() {
     return ordered.concat(playableFiltered.filter(track => !orderedIds.has(track.idx)));
   }, [playableFiltered, shuffleActive, shuffleOrder]);
 
-  const grouped = useMemo(() => filtered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [filtered]);
+  const grouped = useMemo(() => sortedFiltered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [sortedFiltered]);
 
   const sendQualifiedPlayStart = useCallback((song, instance) => {
     // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
@@ -1261,8 +1347,11 @@ function App() {
     h('div', { className: 'radio-interface' },
       h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
-        h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h('div', { className: 'count' }, `${filtered.length} of ${tracks.length} tracks`))),
-        tracks.length ? (filtered.length ? h('div', { className: 'sections' }, SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
+        h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`))),
+        tracks.length ? (sortedFiltered.length ? h('div', { className: 'sections' }, sortKey === 'genre'
+          ? SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId }) : null)
+          : h(SongSection, { key: 'sorted-songs', section: { key: SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Songs', emoji: '🎧', color: '#f0a500' }, tracks: sortedFiltered, selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId })
+        ) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
       )
     )
   );

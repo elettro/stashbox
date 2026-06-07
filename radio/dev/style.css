@@ -199,6 +199,12 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .song-card-title-row{display:flex;align-items:start;justify-content:space-between;gap:8px;min-width:0}
 .song-card-title-row .song-title{flex:1;min-width:0}
 .list-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.sort-control{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.sort-control-label{color:#c7c8cc;font:900 11px/1 var(--fb);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.sort-select{appearance:none;min-width:154px;height:38px;border:1px solid rgba(240,165,0,.38);border-radius:999px;background:linear-gradient(180deg,rgba(24,24,29,.98),rgba(12,12,14,.98));color:var(--text);font:900 12px var(--fb);letter-spacing:.04em;padding:0 36px 0 14px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%),linear-gradient(180deg,rgba(24,24,29,.98),rgba(12,12,14,.98));background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%,0 0;background-size:5px 5px,5px 5px,100% 100%;background-repeat:no-repeat;box-shadow:0 0 0 1px rgba(255,255,255,.025),0 10px 24px rgba(0,0,0,.18)}
+.sort-select:hover{border-color:rgba(240,165,0,.62);background-color:rgba(240,165,0,.08)}
+.sort-select:focus{outline:2px solid rgba(240,165,0,.5);outline-offset:2px}
+.sort-select option{background:#131316;color:var(--text)}
 @media(max-width:767px){.player-title-row{align-items:flex-start}.like-button{min-height:34px}.list-actions{align-items:flex-end;flex-direction:column;gap:8px}.list-actions .button{min-height:38px}}
 .song-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:4px 0 8px;color:var(--muted);font-size:12px;font-weight:900;line-height:1.1}
 .song-actions.compact{gap:5px;margin:6px 0 5px;font-size:11px}
@@ -482,3 +488,5 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
     gap: 0;
   }
 }
+
+@media(max-width:767px){.list-head{align-items:stretch;flex-direction:column;margin-top:18px}.list-actions{align-items:stretch;flex-direction:column;justify-content:flex-start}.sort-control{justify-content:space-between;width:100%;padding:0}.sort-select{flex:1;min-width:0;max-width:100%}}
