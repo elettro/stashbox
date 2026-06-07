@@ -1557,7 +1557,7 @@ function App() {
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
         tracks.length ? (sortedFiltered.length ? h('div', { className: 'sections' }, isGroupedSongView
           ? groupedSongSections.map(group => h(SongSection, { key: group.key, section: group.section, tracks: group.tracks, selected: selectedSong, chooseSong, onShuffle: () => pickRandomTrack(group.tracks), likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode }))
-          : h(SongSection, { key: 'sorted-songs', section: { key: SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Songs', emoji: '🎧', color: '#f0a500' }, tracks: sortedFiltered, selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode })
+          : h(SongSection, { key: 'sorted-songs', section: { key: SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Songs', emoji: '🎧', color: '#f0a500' }, tracks: sortedFiltered, selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode, showHeader: false })
         ) : h('div', { className: 'empty' }, 'No tracks match this search/filter combination.')) : h('div', { className: 'empty' }, 'No songs were returned by the RDS API yet.')
       )
     )
@@ -1924,16 +1924,17 @@ function songArtworkUrl(track) {
   return track?.imageUrl || youtubeThumbnail(track?.videoLink) || '/images/branding/stashbox-logo-transparent-rastacolors.png';
 }
 
-function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list' }) {
+function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list', showHeader = true }) {
   const isVisual = viewMode === 'visual';
   const canShuffleSection = typeof onShuffle === 'function' && tracks.some(canPlayTrack);
+  const sectionHeader = !showHeader ? null : (onShuffle
+    ? h('div', { className: 'song-section-header' },
+      h('h3', { className: 'song-section-title' }, section.key),
+      h('button', { className: 'song-list-shuffle-button', type: 'button', onClick: onShuffle, disabled: !canShuffleSection, 'aria-label': `Shuffle all songs in ${section.key}` }, 'Shuffle All')
+    )
+    : h('div', { className: 'section-title' }, h('span', null, section.emoji), h('h3', null, section.key), h('span', { className: 'count' }, tracks.length)));
   return h('section', { className: `song-section song-section-${viewMode}`, style: { '--section-color': section.color } },
-    onShuffle
-      ? h('div', { className: 'song-section-header' },
-        h('h3', { className: 'song-section-title' }, section.key),
-        h('button', { className: 'song-list-shuffle-button', type: 'button', onClick: onShuffle, disabled: !canShuffleSection, 'aria-label': `Shuffle all songs in ${section.key}` }, 'Shuffle All')
-      )
-      : h('div', { className: 'section-title' }, h('span', null, section.emoji), h('h3', null, section.key), h('span', { className: 'count' }, tracks.length)),
+    sectionHeader,
     h('div', { className: isVisual ? 'song-list song-list-visual' : 'song-list song-list-list' },
       tracks.map(track => {
         const isSelected = selected?.idx === track.idx;
