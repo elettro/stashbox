@@ -3,166 +3,216 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stashbox Radio Header Options</title>
-  <meta name="description" content="Standalone desktop header layout design options for Stashbox Radio.">
+  <title>Stashbox Radio Desktop Header Options</title>
+  <meta name="description" content="Desktop header layout options for Stashbox Radio controls.">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <main class="page-shell">
-    <section class="hero" aria-labelledby="page-title">
+    <section class="intro" aria-labelledby="page-title">
       <p class="eyebrow">Desktop header exploration</p>
-      <h1 id="page-title">Stashbox Radio Header Options</h1>
-      <p class="hero-copy">Fifteen standalone visual concepts for reducing header height, improving symmetry, and keeping the Stashbox Radio controls clean before touching the real player.</p>
+      <h1 id="page-title">Desktop header layout options for Stashbox Radio.</h1>
+      <p class="intro-copy">Fifteen realistic desktop-only header candidates for organizing brand, track count, search, top-level actions, and Genre / Album / Artist / Mood filters before changing the real radio page.</p>
     </section>
 
-    <section class="options-grid" aria-label="Stashbox Radio desktop header options">
-      <article class="option-card">
-        <div class="option-heading"><span>Option 01</span><strong>Compact Three-Row Classic</strong></div>
-        <div class="mockup option-01">
-          <div class="top-line">
-            <div class="brand-block"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div>
-            <div class="utility-stack"><button class="reset">Reset Filters</button><label class="search"><span>Search</span><input value="" placeholder="Search songs"></label></div>
-          </div>
-          <div class="filter-rows compact">
-            <div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div>
-            <div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div>
-            <div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div>
-          </div>
-        </div>
-        <p class="note">Keeps the familiar organization but tightens padding, places utilities together, and makes each filter row deliberately compact.</p>
-      </article>
-
-      <article class="option-card">
-        <div class="option-heading"><span>Option 02</span><strong>Two-Column Filter Grid</strong></div>
-        <div class="mockup option-02">
-          <aside class="brand-tile"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></aside>
-          <section class="right-panel">
-            <div class="utility-row"><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div>
-            <div class="filter-grid two-col">
-              <div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div>
-              <div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div>
-              <div class="filter-row span-all"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div>
+    <section class="options" aria-label="Stashbox Radio desktop header options">
+      <article class="option-card option-01">
+        <header class="option-title"><span>Option 01</span><strong>Compact Brand Left, Actions Right</strong></header>
+        <div class="mockup">
+          <div class="compact-top">
+            <div class="brand-block">__BRAND__</div>
+            <div class="right-stack">
+              <div class="search-reset">__SEARCH__<button class="btn utility">Reset Filters</button></div>
+              <div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button></div>
             </div>
-          </section>
+          </div>
+          <div class="filter-stack tight">__FILTER_ROWS__</div>
         </div>
-        <p class="note">Turns the filter area into a balanced grid so long rows do not dictate the entire header shape.</p>
+        <p class="notes"><b>Best for:</b> a practical final header with familiar scanning. <b>Tradeoff:</b> the right-side control stack carries most of the visual weight.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 03</span><strong>Single-Line Top Bar + Collapsed Filter Rows</strong></div>
-        <div class="mockup option-03">
-          <div class="top-line single"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div>
-          <div class="filter-rows low"><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-02">
+        <header class="option-title"><span>Option 02</span><strong>Premium Hero Strip</strong></header>
+        <div class="mockup hero-strip">
+          <div class="hero-left"><div class="brand-block large">__BRAND__</div></div>
+          <div class="hero-actions">
+            <div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div>
+            __SEARCH__
+          </div>
+          <div class="filter-stack two-rows">__FILTER_ROWS__</div>
         </div>
-        <p class="note">Creates one strong utility line above condensed filter rows, making the header easier to scan horizontally.</p>
+        <p class="notes"><b>Best for:</b> a premium landing-style radio header. <b>Tradeoff:</b> taller than the most compact toolbar options.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 04</span><strong>Desktop Filters Button Like Mobile</strong></div>
-        <div class="mockup option-04">
-          <div class="top-line single"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="filter-button">Filters</button><button class="reset">Reset Filters</button></div>
-          <div class="drawer"><div class="drawer-title">Open filter drawer</div><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-03">
+        <header class="option-title"><span>Option 03</span><strong>Filter Console</strong></header>
+        <div class="mockup">
+          <div class="compact-top"><div class="brand-block">__BRAND__</div>__SEARCH__</div>
+          <div class="console-strip">
+            <div class="console-filters">__FILTER_GROUPS_SHORT__</div>
+            <div class="console-actions"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div>
+          </div>
         </div>
-        <p class="note">Uses the mobile filter pattern on desktop, keeping the normal header short while still showing an open drawer state for comparison.</p>
+        <p class="notes"><b>Best for:</b> keeping all controls inside one intentional console. <b>Tradeoff:</b> compact chip limits require “+ more” behavior in production.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 05</span><strong>Horizontal Toolbar</strong></div>
-        <div class="mockup toolbar option-05">
-          <span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span><label class="select-wrap">Genre<select><option>All</option><option>Reggae</option><option>Rock</option><option>Blues</option><option>Funk</option><option>Electronic</option><option>Spanish</option><option>Calypso</option><option>Soul</option><option>Pop</option><option>Other</option></select></label><label class="select-wrap">Album<select><option>All</option><option>Exclusive</option><option>Stashbox Does Dylan</option><option>Stashbox Radio</option><option>Thank You Giorgio</option></select></label><label class="select-wrap">Artist<select><option>All</option><option>Stashbox</option><option>The Ras Box</option><option>Tahiti Cora</option></select></label><label class="search"><span>Search</span><input placeholder="Search"></label><button class="reset">Reset Filters</button>
+      <article class="option-card option-04">
+        <header class="option-title"><span>Option 04</span><strong>Minimal Top Bar with Filters Drawer</strong></header>
+        <div class="mockup">
+          <div class="toolbar-top"><div class="brand-block small">__BRAND__</div><div class="toolbar-actions">__SEARCH__<button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button><button class="btn filter-toggle">Filters ▾</button></div></div>
+          <div class="drawer open"><div class="drawer-title">Filters open</div>__FILTER_ROWS__</div>
         </div>
-        <p class="note">Moves everything into one compact desktop toolbar with dropdown controls replacing tall chip rows.</p>
+        <p class="notes"><b>Best for:</b> pages where filters should be hidden until needed. <b>Tradeoff:</b> one extra click before filter editing.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 06</span><strong>Search-First Header</strong></div>
-        <div class="mockup option-06">
-          <div class="top-line search-first"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="search big"><span>Search</span><input placeholder="Search all tracks"></label><button class="reset">Reset Filters</button></div>
-          <div class="filter-rows centered"><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-05">
+        <header class="option-title"><span>Option 05</span><strong>Dropdown Power Header</strong></header>
+        <div class="mockup dropdown-power">
+          <div class="brand-block tiny">__BRAND__</div>
+          <div class="select-grid">__SELECTS__</div>
+          __SEARCH__
+          <div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div>
         </div>
-        <p class="note">Prioritizes search as the primary action while reducing filter prominence into small secondary rows.</p>
+        <p class="notes"><b>Best for:</b> very low header height and production efficiency. <b>Tradeoff:</b> dropdowns hide available filter choices.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 07</span><strong>Left Logo Sidebar + Right Filters</strong></div>
-        <div class="mockup split option-07">
-          <aside class="brand-sidebar"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></aside>
-          <div class="content-side"><div class="utility-row"><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div><div class="filter-grid three-box"><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div></div>
+      <article class="option-card option-06">
+        <header class="option-title"><span>Option 06</span><strong>Two-Column Header</strong></header>
+        <div class="mockup two-column">
+          <aside class="brand-panel"><div class="brand-block">__BRAND__</div></aside>
+          <section class="control-panel"><div class="control-top">__SEARCH__<button class="btn utility">Reset Filters</button></div><div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button></div><div class="filter-grid">__FILTER_ROWS__</div></section>
         </div>
-        <p class="note">Uses a compact brand sidebar to anchor the header and frees the right side for a balanced filter grid.</p>
+        <p class="notes"><b>Best for:</b> strong hierarchy with filters in a neat two-column grid. <b>Tradeoff:</b> uses more vertical space than a single toolbar.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 08</span><strong>Filter Chips in One Scroll Row</strong></div>
-        <div class="mockup option-08">
-          <div class="top-line single"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div>
-          <div class="chip-rail"><b>Genre:</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span><b>Album:</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span><b>Artist:</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div>
+      <article class="option-card option-07">
+        <header class="option-title"><span>Option 07</span><strong>Radio Station Console</strong></header>
+        <div class="mockup station-console">
+          <div class="station-brand"><div class="brand-block centerish">__BRAND__</div><div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div>
+          <div class="station-right">__SEARCH__<div class="filter-stack console-chips">__FILTER_ROWS__</div></div>
         </div>
-        <p class="note">Compresses all filters into one horizontal rail to minimize height on wide desktop screens.</p>
+        <p class="notes"><b>Best for:</b> a tactile “radio board” feel with clear primary actions. <b>Tradeoff:</b> brand area is more stylized than minimal options.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 09</span><strong>Tabbed Filter Categories</strong></div>
-        <div class="mockup option-09">
-          <div class="top-line single"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div>
-          <div class="tabs"><button class="active-tab">Genre</button><button>Album</button><button>Artist</button></div>
-          <div class="filter-row tab-content"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span><span class="hidden-set">Album: All Exclusive Stashbox Does Dylan Stashbox Radio Thank You Giorgio Artist: All Stashbox The Ras Box Tahiti Cora</span></div>
+      <article class="option-card option-08">
+        <header class="option-title"><span>Option 08</span><strong>Tabbed Filter Header</strong></header>
+        <div class="mockup tabbed">
+          <div class="compact-top"><div class="brand-block">__BRAND__</div><div class="right-stack">__SEARCH__<div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div></div>
+          <div class="tabs"><button class="active">Genre</button><button>Album</button><button>Artist</button><button>Mood</button></div>
+          <div class="active-tab-row">__GENRE_ROW__</div>
+          <div class="represented">Album, Artist, and Mood are represented by tabs; Mood values: __MOOD_TEXT__</div>
         </div>
-        <p class="note">Shows one active filter category at a time, trading one click for a much shorter desktop header.</p>
+        <p class="notes"><b>Best for:</b> reducing chip density while preserving all filter groups. <b>Tradeoff:</b> only one group is fully visible at a time.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 10</span><strong>Minimal Header + Filter Drawer</strong></div>
-        <div class="mockup option-10">
-          <div class="microbar"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span><button class="filter-button">Filters</button><label class="search mini"><span>Search</span><input placeholder="Search"></label><button class="reset">Reset Filters</button></div>
-          <div class="drawer slim"><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-09">
+        <header class="option-title"><span>Option 09</span><strong>All-in-One Toolbar</strong></header>
+        <div class="mockup all-toolbar">
+          <div class="brand-block micro">__BRAND__</div>
+          __SEARCH__
+          <div class="select-grid compact-selects">__SELECTS__</div>
+          <button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button>
         </div>
-        <p class="note">Presents the shortest everyday header with filters treated as a temporary drawer state.</p>
+        <p class="notes"><b>Best for:</b> dense production pages where everything must be above the fold. <b>Tradeoff:</b> least expressive visually.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 11</span><strong>Symmetrical Centered Brand</strong></div>
-        <div class="mockup option-11">
-          <div class="center-brand-row"><label class="search"><span>Search</span><input placeholder="Search songs"></label><div class="brand-center"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><button class="reset">Reset Filters</button></div>
-          <div class="filter-rows centered"><div class="filter-row"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="filter-row"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="filter-row"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-10">
+        <header class="option-title"><span>Option 10</span><strong>Stacked Brand with Horizontal Filter Rail</strong></header>
+        <div class="mockup stacked-rail">
+          <div class="compact-top"><div class="brand-block wide">__BRAND__</div><div class="right-stack">__SEARCH__<div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div></div>
+          <div class="rail" tabindex="0">__FILTER_INLINE__</div>
         </div>
-        <p class="note">Centers the brand for a more symmetrical, poster-like header while keeping search and reset balanced at the edges.</p>
+        <p class="notes"><b>Best for:</b> showing every value without wrapping the full page. <b>Tradeoff:</b> the filter rail scrolls internally on narrower desktops.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 12</span><strong>Split Utility and Filters</strong></div>
-        <div class="mockup option-12">
-          <div class="utility-thin"><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button></div>
-          <div class="main-filter-line"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><div class="combo-chips"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-11">
+        <header class="option-title"><span>Option 11</span><strong>Symmetrical Center Brand</strong></header>
+        <div class="mockup centered-brand">
+          <div class="center-layout"><div class="left-search">__SEARCH__</div><div class="brand-block centered">__BRAND__</div><div class="action-row right-actions"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div>
+          <div class="filter-stack centered-filters">__FILTER_ROWS__</div>
         </div>
-        <p class="note">Separates utility actions into a thin strip, then lets logo and filters share a dense main row.</p>
+        <p class="notes"><b>Best for:</b> a balanced, editorial desktop header. <b>Tradeoff:</b> center alignment can be harder to adapt to future controls.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 13</span><strong>Dropdown Controls Only</strong></div>
-        <div class="mockup toolbar option-13">
-          <div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><label class="select-wrap">Genre<select><option>All</option><option>Reggae</option><option>Rock</option><option>Blues</option><option>Funk</option><option>Electronic</option><option>Spanish</option><option>Calypso</option><option>Soul</option><option>Pop</option><option>Other</option></select></label><label class="select-wrap">Album<select><option>All</option><option>Exclusive</option><option>Stashbox Does Dylan</option><option>Stashbox Radio</option><option>Thank You Giorgio</option></select></label><label class="select-wrap">Artist<select><option>All</option><option>Stashbox</option><option>The Ras Box</option><option>Tahiti Cora</option></select></label><label class="search"><span>Search</span><input placeholder="Search songs"></label><button class="reset">Reset Filters</button>
+      <article class="option-card option-12">
+        <header class="option-title"><span>Option 12</span><strong>Utility Row + Brand Row + Filter Row</strong></header>
+        <div class="mockup utility-brand-filter">
+          <div class="utility-line">__SEARCH__<button class="btn utility">Reset Filters</button></div>
+          <div class="main-line"><div class="brand-block">__BRAND__</div><div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button></div></div>
+          <div class="filter-stack tight">__FILTER_ROWS__</div>
         </div>
-        <p class="note">The most compact traditional desktop approach: all categories are represented as labeled selects instead of chips.</p>
+        <p class="notes"><b>Best for:</b> separating utility, identity, and filtering into clear rows. <b>Tradeoff:</b> three rows feel more conventional.</p>
       </article>
 
-      <article class="option-card">
-        <div class="option-heading"><span>Option 14</span><strong>Mega Filter Bar</strong></div>
-        <div class="mockup option-14">
-          <div class="mega-layout"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><div class="mega-bar"><div><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div><div class="utility-stack"><label class="search"><span>Search</span><input placeholder="Search"></label><button class="reset">Reset Filters</button></div></div>
+      <article class="option-card option-13">
+        <header class="option-title"><span>Option 13</span><strong>Mobile-Inspired Desktop</strong></header>
+        <div class="mockup mobile-desktop">
+          <div class="toolbar-top"><div class="brand-block small">__BRAND__</div><div class="toolbar-actions"><button class="btn filter-toggle">Filters ▾</button>__SEARCH__<button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div>
+          <div class="expanded-panel">__FILTER_GROUPS_SHORT__</div>
         </div>
-        <p class="note">Packages filters into a single dashboard-style control bar with clearly divided columns.</p>
+        <p class="notes"><b>Best for:</b> matching mobile mental models while staying desktop-readable. <b>Tradeoff:</b> less direct than always-visible chip rows.</p>
       </article>
 
-      <article class="option-card recommended">
-        <div class="option-heading"><span>Option 15</span><strong>Premium Radio Console Header</strong></div>
-        <div class="mockup option-15">
-          <div class="console-top"><div class="brand-inline"><span class="logo">STASHBOX</span><span class="tracks">6 Tracks</span></div><div class="utility-row"><label class="search"><span>Search</span><input placeholder="Search tracks"></label><button class="reset">Reset Filters</button></div></div>
-          <div class="console-strip"><div class="console-group"><b>Genre</b><span class="pill active">All</span><span class="pill">Reggae</span><span class="pill">Rock</span><span class="pill">Blues</span><span class="pill">Funk</span><span class="pill">Electronic</span><span class="pill">Spanish</span><span class="pill">Calypso</span><span class="pill">Soul</span><span class="pill">Pop</span><span class="pill">Other</span></div><div class="console-group"><b>Album</b><span class="pill active">All</span><span class="pill">Exclusive</span><span class="pill">Stashbox Does Dylan</span><span class="pill">Stashbox Radio</span><span class="pill">Thank You Giorgio</span></div><div class="console-group"><b>Artist</b><span class="pill active">All</span><span class="pill">Stashbox</span><span class="pill">The Ras Box</span><span class="pill">Tahiti Cora</span></div></div>
+      <article class="option-card option-14">
+        <header class="option-title"><span>Option 14</span><strong>Dashboard Grid Header</strong></header>
+        <div class="mockup dashboard-grid">
+          <div class="dash-top"><div class="brand-block">__BRAND__</div><div class="dash-actions">__SEARCH__<div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button><button class="btn utility">Reset Filters</button></div></div></div>
+          <div class="panel-grid">__FILTER_PANELS__</div>
         </div>
-        <p class="note">Most polished option: a short branded utility top and a sleek console strip for dense but premium-feeling filter controls.</p>
+        <p class="notes"><b>Best for:</b> a dashboard-style page where filter groups deserve equal weight. <b>Tradeoff:</b> panels add visual structure and slightly more height.</p>
+      </article>
+
+      <article class="option-card option-15 recommended">
+        <header class="option-title"><span>Option 15</span><strong>Recommended Polished Final Candidate</strong></header>
+        <div class="mockup polished-final">
+          <div class="compact-top polished-top">
+            <div class="brand-block">__BRAND__</div>
+            <div class="right-stack polished-actions"><div class="search-reset">__SEARCH__<button class="btn utility">Reset Filters</button></div><div class="action-row"><button class="btn video">Songs With Videos</button><button class="btn shuffle">Shuffle All</button></div></div>
+          </div>
+          <div class="filter-stack polished-filters">__FILTER_ROWS__</div>
+        </div>
+        <p class="notes"><b>Best for:</b> the most balanced final desktop header candidate. <b>Tradeoff:</b> still needs responsive tuning before replacing the real header.</p>
       </article>
     </section>
   </main>
+
+  <script>
+    const filters = {
+      Genre: ['All', 'Reggae', 'Rock', 'Blues', 'Funk', 'Electronic', 'Spanish', 'Calypso', 'Soul', 'Pop', 'Other'],
+      Album: ['All', 'Exclusive', 'Stashbox Does Dylan', 'Stashbox Radio', 'Thank You Giorgio'],
+      Artist: ['All', 'Stashbox', 'The Ras Box', 'Tahiti Cora'],
+      Mood: ['All', 'Happy', 'Chill', 'Uplifting', 'Funny', 'Sexy', 'Spiritual', 'Emotional', 'Party', 'Nostalgic', 'Energetic', 'Relaxed', 'Dark', 'Romantic', 'Trippy']
+    };
+
+    const brand = '<p class="tagline">LISTEN. WATCH. SHOP. SHARE.</p><h2>STASHBOX RADIO</h2><p class="track-count">6 TRACKS</p>';
+    const search = '<label class="search"><span>Search</span><input type="search" placeholder="Search songs" aria-label="Search songs"></label>';
+
+    const chips = (items, limit = items.length) => items.slice(0, limit).map((item, index) => `<span class="pill${index === 0 ? ' active' : ''}">${item}</span>`).join('') + (limit < items.length ? `<span class="pill more">+${items.length - limit} more</span>` : '');
+    const filterRow = (name, items = filters[name], limit = items.length) => `<div class="filter-row"><b>${name}</b>${chips(items, limit)}</div>`;
+    const filterRows = Object.keys(filters).map((name) => filterRow(name)).join('');
+    const genreRow = filterRow('Genre');
+    const filterGroupsShort = Object.keys(filters).map((name) => `<div class="filter-group"><b>${name}</b><div>${chips(filters[name], name === 'Mood' ? 7 : 5)}</div></div>`).join('');
+    const filterPanels = Object.keys(filters).map((name) => `<div class="filter-panel"><b>${name}</b><div>${chips(filters[name], name === 'Mood' ? 8 : 6)}</div></div>`).join('');
+    const selects = Object.keys(filters).map((name) => `<label class="select-wrap"><span>${name}</span><select aria-label="${name} filter">${filters[name].map((item) => `<option>${item}</option>`).join('')}</select></label>`).join('');
+    const filterInline = Object.keys(filters).map((name) => `<div class="inline-group"><b>${name}:</b>${chips(filters[name])}</div>`).join('');
+
+    const replacements = {
+      __BRAND__: brand,
+      __SEARCH__: search,
+      __FILTER_ROWS__: filterRows,
+      __FILTER_GROUPS_SHORT__: filterGroupsShort,
+      __FILTER_PANELS__: filterPanels,
+      __SELECTS__: selects,
+      __FILTER_INLINE__: filterInline,
+      __GENRE_ROW__: genreRow,
+      __MOOD_TEXT__: filters.Mood.join(', ')
+    };
+
+    document.querySelectorAll('.mockup').forEach((mockup) => {
+      Object.entries(replacements).forEach(([token, value]) => {
+        mockup.innerHTML = mockup.innerHTML.replaceAll(token, value);
+      });
+    });
+  </script>
 </body>
 </html>
