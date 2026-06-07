@@ -183,6 +183,12 @@ label,
   font-weight: 700;
 }
 
+.required-star {
+  color: #ff4d4d;
+  font-weight: 800;
+  margin-left: 4px;
+}
+
 input,
 select,
 textarea {
