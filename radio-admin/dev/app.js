@@ -64,7 +64,7 @@ const metadataSelectOptions = {
 
 const editableFields = [
   { name: 'song_key', label: 'Song key', type: 'text', createOnly: true, full: true, help: 'Unique URL-safe key for this song. You can generate it from display title + artist, then edit it manually.' },
-  { name: 'song_name', label: 'Song name', type: 'text' },
+  { name: 'song_name', label: 'Song Name', type: 'text' },
   { name: 'display_title', label: 'Display title', type: 'text' },
   { name: 'artist', label: 'Artist', type: 'text', suggestions: metadataSuggestions.artist },
   { name: 'album_name', label: 'Album', type: 'text' },
@@ -77,11 +77,11 @@ const editableFields = [
     help: 'Use commas for multiple languages. Leave blank for instrumental/no language.'
   },
   { name: 'secondary_genre', label: 'Secondary genre', type: 'text', suggestions: metadataSuggestions.secondary_genre },
-  { name: 'release_format', label: 'Release format', type: 'select', options: metadataSelectOptions.release_format },
+  { name: 'release_format', label: 'Release Format', type: 'select', options: metadataSelectOptions.release_format },
   { name: 'song_origin', label: 'Song origin', type: 'select', options: metadataSelectOptions.song_origin },
-  { name: 'audio_url', label: 'Audio URL', type: 'url', full: true },
+  { name: 'audio_url', label: 'Audio URL', type: 'url', full: true, help: 'At least one is required: Audio URL or Video Link.' },
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
-  { name: 'video_link', label: 'Video link', type: 'url', full: true },
+  { name: 'video_link', label: 'Video Link', type: 'url', full: true, help: 'At least one is required: Audio URL or Video Link.' },
   { name: 'public_track_note', label: 'Public track note', type: 'textarea', full: true },
   { name: 'show_public_note', label: 'Show Public Note', type: 'checkbox' },
   { name: 'public_video_note', label: 'Public video note', type: 'textarea', full: true },
@@ -209,13 +209,30 @@ const deviceKpiDefinitions = [
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 
-const createRequiredFields = new Set([
-  'song_key',
+const requiredSongFields = new Set([
   'song_name',
-  'display_title',
   'artist',
+  'genre',
   'release_format',
   'public_visibility'
+]);
+
+const mediaRequiredFields = new Set([
+  'audio_url',
+  'video_link'
+]);
+
+const requiredFieldLabels = {
+  song_name: 'Song Name',
+  artist: 'Artist',
+  genre: 'Genre',
+  release_format: 'Release Format',
+  public_visibility: 'Public Visibility'
+};
+
+const fieldsWithRequiredMarkers = new Set([
+  ...requiredSongFields,
+  ...mediaRequiredFields
 ]);
 
 const createDefaults = {
@@ -2829,6 +2846,14 @@ function getDefaultSelectValue(field) {
   return field.options?.[0]?.value || '';
 }
 
+function createRequiredStar() {
+  const star = document.createElement('span');
+  star.className = 'required-star';
+  star.setAttribute('aria-hidden', 'true');
+  star.textContent = '*';
+  return star;
+}
+
 function buildEditForm() {
   const checkboxWrap = document.createElement('div');
   checkboxWrap.className = 'checkbox-grid';
@@ -2882,6 +2907,11 @@ function buildEditForm() {
     const label = document.createElement('label');
     label.setAttribute('for', fieldId);
     label.textContent = field.label;
+
+    if (fieldsWithRequiredMarkers.has(field.name)) {
+      label.appendChild(createRequiredStar());
+    }
+
     labelRow.appendChild(label);
 
     if (field.name === 'song_key') {
@@ -2992,7 +3022,9 @@ function applyEditorModeToFields(mode) {
 
     if (input) {
       input.disabled = isCreateOnlyHidden;
-      input.required = mode === 'create' && createRequiredFields.has(field.name) && field.type !== 'checkbox';
+      input.required = !isCreateOnlyHidden
+        && requiredSongFields.has(field.name)
+        && field.type !== 'checkbox';
     }
   });
 }
@@ -3035,6 +3067,12 @@ async function saveSelectedSong(event) {
 
   if (!selectedSongKey) {
     showMessage('Select a song before saving.', 'error');
+    return;
+  }
+
+  const validationPayload = buildCurrentEditorPayload({ includeCreateOnly: false });
+
+  if (!validateSongPayload(validationPayload, { action: 'saving' })) {
     return;
   }
 
@@ -3279,12 +3317,20 @@ function updateSongInList(updatedSong) {
 }
 
 function buildCreatePayload() {
-  const payload = editableFields.reduce((createPayload, field) => {
-    createPayload[field.name] = getFieldPayloadValue(field);
-    return createPayload;
-  }, {});
+  const payload = buildCurrentEditorPayload({ includeCreateOnly: true });
 
   return normalizeCreatePayload(payload);
+}
+
+function buildCurrentEditorPayload({ includeCreateOnly = true } = {}) {
+  return editableFields.reduce((payload, field) => {
+    if (!includeCreateOnly && field.createOnly) {
+      return payload;
+    }
+
+    payload[field.name] = getFieldPayloadValue(field);
+    return payload;
+  }, {});
 }
 
 function normalizeCreatePayload(payload) {
@@ -3303,7 +3349,11 @@ function normalizeCreatePayload(payload) {
 }
 
 function validateCreatePayload(payload) {
-  const missingFields = Array.from(createRequiredFields).filter((fieldName) => {
+  return validateSongPayload(payload, { action: 'creating' });
+}
+
+function validateSongPayload(payload, { action = 'saving' } = {}) {
+  const missingFields = Array.from(requiredSongFields).filter((fieldName) => {
     if (fieldName === 'public_visibility') {
       return !['visible', 'hidden', 'archived'].includes(payload[fieldName]);
     }
@@ -3312,12 +3362,13 @@ function validateCreatePayload(payload) {
   });
 
   if (missingFields.length) {
-    showMessage(`Fill required fields before creating: ${missingFields.join(', ')}.`, 'error');
+    const missingLabels = missingFields.map((fieldName) => requiredFieldLabels[fieldName] || fieldName);
+    showMessage(`Fill required fields before ${action}: ${missingLabels.join(', ')}.`, 'error');
     return false;
   }
 
   if (!String(payload.audio_url || '').trim() && !String(payload.video_link || '').trim()) {
-    showMessage('Add either an Audio URL or Video Link before creating the song.', 'error');
+    showMessage('Audio URL or Video Link is required.', 'error');
     return false;
   }
 
