@@ -89,6 +89,12 @@ function firstDefined(row, names) {
   return '';
 }
 
+function normalizedAlbumName(row) {
+  if (!row) return '';
+  if (Object.prototype.hasOwnProperty.call(row, 'album_name')) return clean(row.album_name);
+  return clean(firstDefined(row, ['album', 'album_title', 'release_title']));
+}
+
 function normalizeSong(row, index) {
   const displayTitle = clean(row?.display_title);
   const songName = clean(row?.song_name);
@@ -115,7 +121,7 @@ function normalizeSong(row, index) {
     display_title: displayTitle,
     song_name: songName,
     title,
-    album: clean(firstDefined(row, ['album', 'album_title', 'release_title'])) || 'Stashbox Radio',
+    album: normalizedAlbumName(row),
     artist: clean(firstDefined(row, ['artist', 'artist_name', 'band'])) || 'Stashbox',
     genre,
     sectionKey: sectionFor(genre),
