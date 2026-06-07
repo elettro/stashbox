@@ -903,9 +903,6 @@
       <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
       <p class="footer__credit">Built by <a href="https://elettro.com" target="_blank" rel="noopener noreferrer">Elettro.com</a></p>
     </div>
-    <div class="footer__lowest-row">
-      <a href="/shop/productmap-quick-guide.png" class="footer__quick-guide-link" data-quick-guide-open>ProductMap Quick Guide</a>
-    </div>
   </div>
 </footer>
 
@@ -941,7 +938,6 @@
     });
   }
 
-  wireImageModal('[data-quick-guide-open]', '[data-quick-guide-modal]', '[data-quick-guide-close]', 'quick-guide-modal-open');
   wireImageModal('[data-custom-radio-open]', '[data-custom-radio-modal]', '[data-custom-radio-close]', 'custom-radio-modal-open');
 
   /* ── Jon Phillips testimonial video: play once on click ── */
@@ -958,13 +954,6 @@
   })();
 })();
 </script>
-<div class="quick-guide-modal" data-quick-guide-modal hidden>
-  <button type="button" class="quick-guide-modal__backdrop" data-quick-guide-close aria-label="Close ProductMap Quick Guide"></button>
-  <div class="quick-guide-modal__panel" role="dialog" aria-modal="true" aria-label="ProductMap Quick Guide image">
-    <button type="button" class="quick-guide-modal__close" data-quick-guide-close aria-label="Close ProductMap Quick Guide">×</button>
-    <img src="/shop/productmap-quick-guide.png" alt="ProductMap Quick Guide" class="quick-guide-modal__image" loading="lazy">
-  </div>
-</div>
 <div class="quick-guide-modal" data-custom-radio-modal hidden>
   <button type="button" class="quick-guide-modal__backdrop" data-custom-radio-close aria-label="Close Custom Radio Via Google Sheet image"></button>
   <div class="quick-guide-modal__panel" role="dialog" aria-modal="true" aria-label="Custom Radio Via Google Sheet image">
