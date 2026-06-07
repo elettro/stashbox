@@ -8,6 +8,7 @@ const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const VIEW_MODE_STORAGE_KEY = 'stashbox_radio_view_mode';
 const DEFAULT_FILTER = 'ALL';
 const DEFAULT_SORT = 'latest';
+const DEFAULT_VIEW_MODE = 'visual';
 const PRODUCT_POOL_LIMIT = 200;
 const COMPLETION_THRESHOLD = 0.95;
 const MIN_PARTIAL_SECONDS = 5;
@@ -821,9 +822,9 @@ function SortControl({ sortKey, onSortChange }) {
 function getInitialSongViewMode() {
   try {
     const stored = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    return stored === 'visual' ? 'visual' : 'list';
+    return stored === 'list' ? 'list' : DEFAULT_VIEW_MODE;
   } catch (_) {
-    return 'list';
+    return DEFAULT_VIEW_MODE;
   }
 }
 
