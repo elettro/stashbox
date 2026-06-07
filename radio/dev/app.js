@@ -646,6 +646,44 @@ function sortSongs(songs, sortKey = 'latest', counts = {}) {
   return ordered;
 }
 
+
+function getSortLabel(sortKey) {
+  return SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Latest';
+}
+
+function getListContextTitle({ query, artist, genre, album, videoOnly, sortKey }) {
+  const searchQuery = clean(query);
+  if (searchQuery) return `Search: ${searchQuery}`;
+  if (artist !== DEFAULT_FILTER) return artist;
+  if (genre !== DEFAULT_FILTER) return genre;
+  if (album !== DEFAULT_FILTER) return album;
+  if (videoOnly) return 'Songs With Videos';
+  return getSortLabel(sortKey);
+}
+
+function isVideoFocusedList({ videoOnly, sortKey }) {
+  return Boolean(videoOnly || sortKey === 'videos-first');
+}
+
+function shuffleTracks(tracks) {
+  const shuffled = [...tracks];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function SongListContextRow({ title, onShuffle, disabled = false, notice = '' }) {
+  return h('div', { className: 'song-list-context-wrap' },
+    h('div', { className: 'song-list-context-row', 'aria-label': 'Current song list context' },
+      h('h3', { className: 'song-list-context-title' }, title),
+      h('button', { className: 'song-list-shuffle-button', type: 'button', onClick: onShuffle, disabled }, 'Shuffle All')
+    ),
+    notice ? h('p', { className: 'song-list-shuffle-notice', 'aria-live': 'polite' }, notice) : null
+  );
+}
+
 function SortControl({ sortKey, onSortChange }) {
   return h('label', { className: 'sort-control' },
     h('span', { className: 'sort-control-label' }, 'Sort by'),
@@ -845,8 +883,11 @@ function App() {
   const [shareCounts, setShareCounts] = useState({});
   const [likedSongIds, setLikedSongIds] = useState(() => new Set());
   const [copiedSongId, setCopiedSongId] = useState(null);
-  const [shuffleOrder, setShuffleOrder] = useState([]);
-  const [shuffleActive, setShuffleActive] = useState(false);
+  const [activeShuffleQueue, setActiveShuffleQueue] = useState([]);
+  const [activeShuffleIndex, setActiveShuffleIndex] = useState(0);
+  const [activeShuffleSourceKey, setActiveShuffleSourceKey] = useState('');
+  const [isShuffleQueueActive, setIsShuffleQueueActive] = useState(false);
+  const [shuffleNotice, setShuffleNotice] = useState('');
   const [autoPlayRequest, setAutoPlayRequest] = useState(null);
   const [playerMessage, setPlayerMessage] = useState('');
   const selectedRef = useRef(null);
@@ -941,19 +982,24 @@ function App() {
   }), [tracks, query, genre, album, artist, videoOnly]);
 
   const sortedFiltered = useMemo(() => sortSongs(filtered, sortKey, { likeCounts, playCounts, shareCounts }), [filtered, sortKey, likeCounts, playCounts, shareCounts]);
+  const shuffleSourceKey = useMemo(() => JSON.stringify({ query: clean(query), genre, album, artist, videoOnly, sortKey }), [query, genre, album, artist, videoOnly, sortKey]);
+  const listContextTitle = useMemo(() => getListContextTitle({ query, artist, genre, album, videoOnly, sortKey }), [query, artist, genre, album, videoOnly, sortKey]);
+  const videoFocusedList = useMemo(() => isVideoFocusedList({ videoOnly, sortKey }), [videoOnly, sortKey]);
 
   useEffect(() => {
     try { window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, songViewMode); } catch (_) {}
   }, [songViewMode]);
 
   const playableFiltered = useMemo(() => sortedFiltered.filter(canPlayTrack), [sortedFiltered]);
-  const playbackList = useMemo(() => {
-    if (!shuffleActive) return playableFiltered;
-    const byIdx = new Map(playableFiltered.map(track => [track.idx, track]));
-    const ordered = shuffleOrder.map(idx => byIdx.get(idx)).filter(Boolean);
-    const orderedIds = new Set(ordered.map(track => track.idx));
-    return ordered.concat(playableFiltered.filter(track => !orderedIds.has(track.idx)));
-  }, [playableFiltered, shuffleActive, shuffleOrder]);
+  const playbackList = useMemo(() => isShuffleQueueActive ? activeShuffleQueue : playableFiltered, [activeShuffleQueue, isShuffleQueueActive, playableFiltered]);
+
+  useEffect(() => {
+    if (!isShuffleQueueActive || !activeShuffleSourceKey || activeShuffleSourceKey === shuffleSourceKey) return;
+    setActiveShuffleQueue([]);
+    setActiveShuffleIndex(0);
+    setActiveShuffleSourceKey('');
+    setIsShuffleQueueActive(false);
+  }, [activeShuffleSourceKey, isShuffleQueueActive, shuffleSourceKey]);
 
   const grouped = useMemo(() => sortedFiltered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [sortedFiltered]);
 
@@ -964,8 +1010,11 @@ function App() {
     setArtist(DEFAULT_FILTER);
     setVideoOnly(false);
     setSortKey(DEFAULT_SORT);
-    setShuffleOrder([]);
-    setShuffleActive(false);
+    setActiveShuffleQueue([]);
+    setActiveShuffleIndex(0);
+    setActiveShuffleSourceKey('');
+    setIsShuffleQueueActive(false);
+    setShuffleNotice('');
   }
 
   const sendQualifiedPlayStart = useCallback((song, instance) => {
@@ -1173,6 +1222,11 @@ function App() {
   function chooseSong(track) {
     console.log('[radio-dev] song selected:', track?.title);
     if (!track) return;
+    setActiveShuffleQueue([]);
+    setActiveShuffleIndex(0);
+    setActiveShuffleSourceKey('');
+    setIsShuffleQueueActive(false);
+    setShuffleNotice('');
     finishPlayback('play_partial');
     resetVideoPlaybackBeforeSongSwitch(track);
 
@@ -1195,26 +1249,40 @@ function App() {
 
   function resolveAdjacentPlayableSong(direction, song = selectedSong, { allowWrap = true } = {}) {
     if (!playbackList.length) return null;
+    if (isShuffleQueueActive && activeShuffleQueue.length === 1) return activeShuffleQueue[0];
     if (playbackList.length === 1) {
       return playbackList[0].idx === song?.idx ? null : playbackList[0];
     }
-    const currentIndex = playbackList.findIndex(track => track.idx === song?.idx);
+    const currentIndex = isShuffleQueueActive
+      ? Math.max(0, activeShuffleQueue.findIndex(track => track.idx === song?.idx))
+      : playbackList.findIndex(track => track.idx === song?.idx);
     const startIndex = currentIndex >= 0 ? currentIndex : (direction > 0 ? -1 : playbackList.length);
     for (let step = 1; step <= playbackList.length; step += 1) {
       const candidateIndex = startIndex + (direction * step);
       if (!allowWrap && (candidateIndex < 0 || candidateIndex >= playbackList.length)) return null;
-      const next = playbackList[((candidateIndex % playbackList.length) + playbackList.length) % playbackList.length];
-      if (next && next.idx !== song?.idx) return next;
+      const wrappedIndex = ((candidateIndex % playbackList.length) + playbackList.length) % playbackList.length;
+      const next = playbackList[wrappedIndex];
+      if (next && (isShuffleQueueActive || next.idx !== song?.idx)) return next;
     }
     return null;
   }
 
-  function shiftTrack(direction, { autoStart = false, finishType = 'play_partial', forcedSong = null } = {}) {
+  function getNextShuffleQueueItem(direction, song = selectedSong) {
+    if (!isShuffleQueueActive || !activeShuffleQueue.length) return null;
+    const currentIndex = activeShuffleQueue.findIndex(track => track.idx === song?.idx);
+    const startIndex = currentIndex >= 0 ? currentIndex : activeShuffleIndex;
+    const nextIndex = ((startIndex + direction) % activeShuffleQueue.length + activeShuffleQueue.length) % activeShuffleQueue.length;
+    return { track: activeShuffleQueue[nextIndex], index: nextIndex };
+  }
+
+  function shiftTrack(direction, { autoStart = false, finishType = 'play_partial', forcedSong = null, preferVideo = false } = {}) {
     if (!playbackList.length) return;
-    const next = resolveAdjacentPlayableSong(direction, forcedSong || selectedSong);
+    const queuedNext = getNextShuffleQueueItem(direction, forcedSong || selectedSong);
+    const next = queuedNext?.track || resolveAdjacentPlayableSong(direction, forcedSong || selectedSong);
     if (!next) return;
+    if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     finishPlayback(finishType, forcedSong);
-    selectTrack(next, { autoStart });
+    selectTrack(next, { autoStart, preferVideo });
   }
 
   function safelyCleanupYouTubeBeforeNext(nextSong = null) {
@@ -1225,7 +1293,8 @@ function App() {
     const currentSong = selectedSong;
     console.log("Manual next clicked while mediaMode:", mediaMode);
     console.log("Current video song:", currentSong?.song_key);
-    const nextSong = resolveAdjacentPlayableSong(1, currentSong);
+    const queuedNext = getNextShuffleQueueItem(1, currentSong);
+    const nextSong = queuedNext?.track || resolveAdjacentPlayableSong(1, currentSong);
     console.log("Resolved next song before cleanup:", nextSong?.song_key);
     const audio = audioRef.current;
     const audioWasPlaying = Boolean(audio && !audio.paused && !audio.ended);
@@ -1247,13 +1316,14 @@ function App() {
 
     if (mediaMode === 'video') safelyCleanupYouTubeBeforeNext(nextSong);
 
+    if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     if (currentSong) sendTrackingEvent(currentSong, 'skip', sessionId);
     finishPlayback('play_partial', currentSong);
     setPlayerMessage('');
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
     setSelected(nextSong);
-    setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: false } : null);
+    setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     console.log("Selected next song after video cleanup:", nextSong?.song_key);
     console.log("Player shell should stay mounted");
     window.requestAnimationFrame(() => {
@@ -1269,16 +1339,18 @@ function App() {
     hasHandledVideoEndRef.current = true;
     console.log("Video ended for:", endedSong?.song_key);
     finishPlayback('play_full', endedSong);
+    const queuedNext = getNextShuffleQueueItem(1, endedSong);
     const currentIndex = playbackList.findIndex(track => track.idx === endedSong?.idx);
-    const nextSong = currentIndex >= 0
+    const nextSong = queuedNext?.track || (currentIndex >= 0
       ? (playbackList.length > 1 ? playbackList[(currentIndex + 1) % playbackList.length] : null)
-      : (playbackList[0] || null);
+      : (playbackList[0] || null));
+    if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     console.log("Next song after video end:", nextSong?.song_key);
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
     if (nextSong) {
       setSelected(nextSong);
-      setAutoPlayRequest({ idx: nextSong.idx, requestedAt: Date.now(), preferVideo });
+      setAutoPlayRequest({ idx: nextSong.idx, requestedAt: Date.now(), preferVideo: preferVideo || (videoFocusedList && nextSong.hasVideo) });
     } else {
       setAutoPlayRequest(null);
     }
@@ -1290,20 +1362,32 @@ function App() {
     const endedSong = song || selectedRef.current;
     if (hasHandledVideoEndRef.current) return;
     hasHandledVideoEndRef.current = true;
-    console.log("YouTube ended without auto-advance for:", endedSong?.song_key);
+    console.log("YouTube ended for:", endedSong?.song_key);
     finishPlayback('play_full', endedSong);
-    setAutoPlayRequest(null);
+    const queuedNext = getNextShuffleQueueItem(1, endedSong);
+    const currentIndex = playbackList.findIndex(track => track.idx === endedSong?.idx);
+    const nextSong = queuedNext?.track || (currentIndex >= 0
+      ? (playbackList.length > 1 ? playbackList[(currentIndex + 1) % playbackList.length] : null)
+      : (playbackList[0] || null));
+    if (queuedNext) setActiveShuffleIndex(queuedNext.index);
+    setMediaMode('idle');
+    setActiveVideoEmbedUrl('');
+    if (nextSong) setSelected(nextSong);
+    setAutoPlayRequest(nextSong ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
   function autoAdvanceFromEnded(song = selectedSong, { preferVideo = false } = {}) {
     finishPlayback('play_full', song);
     if (!playbackList.length) return;
+    const queuedNext = getNextShuffleQueueItem(1, song);
     const currentIndex = Math.max(0, playbackList.findIndex(track => track.idx === song?.idx));
-    const next = playbackList[(currentIndex + 1) % playbackList.length];
+    const nextIndex = (currentIndex + 1) % playbackList.length;
+    const next = queuedNext?.track || playbackList[nextIndex];
     if (!next) return;
+    if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     console.log("Next autoplay item:", next.song_key);
-    selectTrack(next, { autoStart: true, preferVideo });
+    selectTrack(next, { autoStart: true, preferVideo: preferVideo || (videoFocusedList && next.hasVideo) });
   }
 
   useEffect(() => {
@@ -1324,14 +1408,21 @@ function App() {
   }, [autoPlayRequest, selectedSong]);
 
   function pickRandomTrack() {
-    if (!playableFiltered.length) return;
+    const shuffleSource = playableFiltered;
+    if (!shuffleSource.length) {
+      setShuffleNotice('No songs available to shuffle.');
+      setPlayerMessage('No songs available to shuffle.');
+      return;
+    }
     finishPlayback('play_partial');
-    const shuffled = [...playableFiltered].sort(() => Math.random() - 0.5);
-    const candidates = shuffled.filter(track => track.idx !== selectedSong?.idx);
-    const next = candidates[0] || shuffled[0];
-    setShuffleOrder(shuffled.map(track => track.idx));
-    setShuffleActive(true);
-    selectTrack(next);
+    const shuffled = shuffleTracks(shuffleSource);
+    const next = shuffled[0];
+    setActiveShuffleQueue(shuffled);
+    setActiveShuffleIndex(0);
+    setActiveShuffleSourceKey(shuffleSourceKey);
+    setIsShuffleQueueActive(true);
+    setShuffleNotice('');
+    selectTrack(next, { autoStart: true, preferVideo: videoFocusedList && next.hasVideo });
   }
 
   function openVideo({ startPlayback = false } = {}) {
@@ -1414,9 +1505,10 @@ function App() {
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
+        h(SongListContextRow, { title: listContextTitle, onShuffle: pickRandomTrack, disabled: !playableFiltered.length, notice: shuffleNotice }),
         tracks.length ? (sortedFiltered.length ? h('div', { className: 'sections' }, sortKey === 'genre'
           ? SECTIONS.map(section => grouped[section.key]?.length ? h(SongSection, { key: section.key, section, tracks: grouped[section.key], selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode }) : null)
           : h(SongSection, { key: 'sorted-songs', section: { key: SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Songs', emoji: '🎧', color: '#f0a500' }, tracks: sortedFiltered, selected: selectedSong, chooseSong, likeCounts, playCounts, shareCounts, likedSongIds, onLike: likeSong, onShare: shareSong, copiedSongId, viewMode: songViewMode })
