@@ -509,9 +509,7 @@ async function adminFetch(url, options = {}) {
   }
 
   if (!response.ok) {
-    const message = response.status === 401
-      ? 'Unauthorized. Check admin token.'
-      : `API error ${response.status}: ${getApiErrorMessage(data, response.statusText)}`;
+    const message = getApiErrorMessage(data, response.statusText, response.status);
     const error = new Error(message);
     error.status = response.status;
     error.data = data;
@@ -521,8 +519,10 @@ async function adminFetch(url, options = {}) {
   return data;
 }
 
-function getApiErrorMessage(data, fallback) {
-  const fallbackMessage = fallback || 'API request failed.';
+function getApiErrorMessage(data, fallback, status) {
+  const fallbackMessage = status === 401
+    ? 'Unauthorized. Check admin token.'
+    : fallback || 'API request failed.';
 
   if (!data) {
     return fallbackMessage;
@@ -533,13 +533,20 @@ function getApiErrorMessage(data, fallback) {
   }
 
   const parsedBody = parseJsonMaybe(data.body);
+
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return data.error;
+  }
+
+  if (typeof parsedBody?.error === 'string' && parsedBody.error.trim()) {
+    return parsedBody.error;
+  }
+
   const backendDetails = [
-    data.error,
     data.message,
     data.detail,
     data.details,
     data.field,
-    parsedBody?.error,
     parsedBody?.message,
     parsedBody?.detail,
     parsedBody?.details,
@@ -548,13 +555,7 @@ function getApiErrorMessage(data, fallback) {
     .filter(Boolean)
     .map((detail) => (typeof detail === 'string' ? detail : JSON.stringify(detail)));
 
-  const rawDetails = JSON.stringify(parsedBody || data);
-
-  if (backendDetails.length && !backendDetails.includes(rawDetails)) {
-    backendDetails.push(`Raw response: ${rawDetails}`);
-  }
-
-  return backendDetails.length ? backendDetails.join(' | ') : rawDetails || fallbackMessage;
+  return backendDetails.length ? backendDetails.join(' | ') : fallbackMessage;
 }
 
 function parseJsonMaybe(value) {
@@ -567,6 +568,24 @@ function parseJsonMaybe(value) {
   } catch {
     return null;
   }
+}
+
+function getBackendErrorField(data) {
+  if (!data || typeof data === 'string') {
+    return '';
+  }
+
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return data.error;
+  }
+
+  const parsedBody = parseJsonMaybe(data.body);
+
+  if (typeof parsedBody?.error === 'string' && parsedBody.error.trim()) {
+    return parsedBody.error;
+  }
+
+  return '';
 }
 
 async function loadEvents() {
@@ -3229,7 +3248,7 @@ async function createSelectedSong() {
     setActiveTab('edit');
     showMessage('Song created successfully', 'success');
   } catch (error) {
-    if (error.status === 409) {
+    if (error.status === 409 && !getBackendErrorField(error.data)) {
       showMessage('Song key already exists. Choose a different song key.', 'error');
       return;
     }
