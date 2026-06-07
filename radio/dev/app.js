@@ -6,6 +6,8 @@ const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/de
 const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const VIEW_MODE_STORAGE_KEY = 'stashbox_radio_view_mode';
+const DEFAULT_FILTER = 'ALL';
+const DEFAULT_SORT = 'latest';
 const PRODUCT_POOL_LIMIT = 200;
 const COMPLETION_THRESHOLD = 0.95;
 const MIN_PARTIAL_SECONDS = 5;
@@ -699,7 +701,7 @@ function VisualViewIcon() {
 function getShareUrl(song) { const shareUrl = new URL(window.location.href); shareUrl.searchParams.set('song', song?.songKey || song?.idx || ''); shareUrl.hash = ''; return shareUrl.toString(); }
 async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text); const input = document.createElement('textarea'); input.value = text; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
 
-function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, album, onAlbumChange, artist, onArtistChange, artistFilters = ['ALL'], videoOnly = false, onToggleVideos, onShuffle, disableVideoFilter = false, disableShuffle = false }) {
+function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, album, onAlbumChange, artist, onArtistChange, artistFilters = [DEFAULT_FILTER], videoOnly = false, onToggleVideos, onShuffle, onReset, disableVideoFilter = false, disableShuffle = false }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [mobileFiltersClosing, setMobileFiltersClosing] = useState(false);
@@ -752,6 +754,11 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
     setMobileSearchOpen(true);
   };
 
+  const resetAndCloseSearch = () => {
+    onReset?.();
+    closeMobileSearch();
+  };
+
   const toggleMobileFilters = () => {
     if (closeFiltersTimerRef.current) {
       window.clearTimeout(closeFiltersTimerRef.current);
@@ -771,7 +778,7 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
     }
   };
 
-  const filtersAreActive = genre !== 'ALL' || album !== 'ALL' || artist !== 'ALL' || videoOnly;
+  const filtersAreActive = genre !== DEFAULT_FILTER || album !== DEFAULT_FILTER || artist !== DEFAULT_FILTER || videoOnly;
   const mobileFiltersLabel = filtersAreActive ? 'Filters •' : 'Filters';
 
   return h('nav', { className: `radio-control-bar ${mobileSearchOpen ? 'mobile-search-is-open' : ''} ${mobileFiltersOpen ? 'mobile-filters-is-open' : ''}`, 'aria-label': 'Stashbox radio filters' },
@@ -782,10 +789,12 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
           h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
         ),
         h('div', { className: 'radio-mobile-actions' },
+          h('button', { className: 'radio-reset-control radio-reset-control-mobile', type: 'button', onClick: resetAndCloseSearch, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, 'Reset'),
           h('button', { className: `mobile-filters-toggle ${filtersAreActive ? 'active' : ''}`, type: 'button', onClick: toggleMobileFilters, disabled: isLoading, 'aria-expanded': mobileFiltersOpen, 'aria-controls': 'mobileFilterPanel' }, mobileFiltersLabel),
           h('button', { ref: searchToggleRef, className: `mobile-search-toggle ${query ? 'active' : ''}`, type: 'button', onPointerDown: event => event.stopPropagation(), onClick: openMobileSearch, disabled: isLoading, 'aria-label': 'Open song search', 'aria-expanded': mobileSearchOpen }, '🔍')
         )
       ),
+      h('button', { className: 'radio-reset-control radio-reset-control-desktop', type: 'button', onClick: resetAndCloseSearch, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, 'Reset'),
       h('div', { id: 'mobileFilterPanel', className: `mobile-filter-panel ${mobileFiltersOpen ? 'is-open' : ''} ${mobileFiltersClosing ? 'is-closing' : ''}` },
         h('div', { className: 'radio-filter-row genre-filter-row', 'aria-label': 'Genre filters' }, GENRE_FILTERS.map(filter => h('button', { key: `genre-${filter}`, className: `radio-filter-pill ${genre === filter ? 'active' : ''}`, type: 'button', onClick: () => onGenreChange(filter), disabled: isLoading, 'aria-pressed': genre === filter }, filterLabel(filter)))),
         h('div', { className: 'radio-filter-row album-filter-row', 'aria-label': 'Album filters' }, h('span', { className: 'radio-filter-label' }, 'Album'), ALBUM_FILTERS.map(filter => h('button', { key: `album-${filter}`, className: `radio-filter-pill ${album === filter ? 'active' : ''}`, type: 'button', onClick: () => onAlbumChange(filter), disabled: isLoading, 'aria-pressed': album === filter }, filterLabel(filter)))),
@@ -823,11 +832,11 @@ function App() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
-  const [genre, setGenre] = useState('ALL');
-  const [album, setAlbum] = useState('ALL');
-  const [artist, setArtist] = useState('ALL');
+  const [genre, setGenre] = useState(DEFAULT_FILTER);
+  const [album, setAlbum] = useState(DEFAULT_FILTER);
+  const [artist, setArtist] = useState(DEFAULT_FILTER);
   const [videoOnly, setVideoOnly] = useState(false);
-  const [sortKey, setSortKey] = useState('latest');
+  const [sortKey, setSortKey] = useState(DEFAULT_SORT);
   const [songViewMode, setSongViewMode] = useState(getInitialSongViewMode);
   const [mediaMode, setMediaMode] = useState('idle');
   const [activeVideoEmbedUrl, setActiveVideoEmbedUrl] = useState('');
@@ -928,7 +937,7 @@ function App() {
   const filtered = useMemo(() => tracks.filter(track => {
     const q = query.trim().toLowerCase();
     const queryMatch = !q || [track.title, track.artist, track.album, track.genre, track.publicTrackNote].some(value => clean(value).toLowerCase().includes(q));
-    return queryMatch && (genre === 'ALL' || track.sectionKey === genre) && albumMatches(track.album, album) && artistMatches(track.artist, artist) && (!videoOnly || track.hasVideo);
+    return queryMatch && (genre === DEFAULT_FILTER || track.sectionKey === genre) && albumMatches(track.album, album) && artistMatches(track.artist, artist) && (!videoOnly || track.hasVideo);
   }), [tracks, query, genre, album, artist, videoOnly]);
 
   const sortedFiltered = useMemo(() => sortSongs(filtered, sortKey, { likeCounts, playCounts, shareCounts }), [filtered, sortKey, likeCounts, playCounts, shareCounts]);
@@ -947,6 +956,17 @@ function App() {
   }, [playableFiltered, shuffleActive, shuffleOrder]);
 
   const grouped = useMemo(() => sortedFiltered.reduce((groups, track) => { const key = track.sectionKey || 'Other'; (groups[key] ||= []).push(track); return groups; }, {}), [sortedFiltered]);
+
+  function resetRadioFilters() {
+    setQuery('');
+    setGenre(DEFAULT_FILTER);
+    setAlbum(DEFAULT_FILTER);
+    setArtist(DEFAULT_FILTER);
+    setVideoOnly(false);
+    setSortKey(DEFAULT_SORT);
+    setShuffleOrder([]);
+    setShuffleActive(false);
+  }
 
   const sendQualifiedPlayStart = useCallback((song, instance) => {
     // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
@@ -1381,7 +1401,7 @@ function App() {
 
   function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
 
-  if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: true, disableShuffle: true }), h(RadioHeader, { disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
+  if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: true, disableShuffle: true }), h(RadioHeader, { disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
   if (status === 'error') return h('section', { className: 'error', role: 'alert' },
     h('strong', null, 'ERROR'),
     h('p', null, `Endpoint: ${error.endpoint || SONGS_API_URL}`),
@@ -1391,7 +1411,7 @@ function App() {
   );
 
   return h('div', { className: 'radio-app' },
-    h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
+    h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, album, onAlbumChange: setAlbum, artist, onArtistChange: setArtist, artistFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h(RadioHeader, { videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
       h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
