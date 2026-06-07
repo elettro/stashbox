@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stashbox Radio Header Option 1 Filters Prototype</title>
+  <meta name="description" content="Standalone desktop header prototype for Stashbox Radio Option 1 with a functional filters dropdown.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page-shell" aria-labelledby="page-title">
+    <section class="prototype-card" aria-label="Stashbox Radio header prototype">
+      <div class="prototype-label" id="page-title">Header Option 01 Prototype</div>
+
+      <header class="radio-header">
+        <div class="compact-top">
+          <div class="brand-block" aria-label="Stashbox Radio">
+            <p class="tagline">LISTEN. WATCH. SHOP. SHARE.</p>
+            <h1>STASHBOX RADIO</h1>
+            <p class="track-count">6 TRACKS</p>
+          </div>
+
+          <div class="right-stack">
+            <div class="search-reset">
+              <label class="search" for="song-search">
+                <span>Search</span>
+                <input id="song-search" type="search" name="search" placeholder="Song, album, artist..." autocomplete="off">
+              </label>
+            </div>
+
+            <div class="action-row" aria-label="Header actions">
+              <button class="btn filter-toggle" type="button" aria-expanded="false" aria-controls="filter-drawer">FILTERS ▾</button>
+              <button class="btn video" type="button" aria-pressed="false">Songs With Videos</button>
+              <button class="btn shuffle" type="button">Shuffle All</button>
+              <button class="btn utility" type="button">Reset Filters</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="filter-drawer" id="filter-drawer" aria-label="Radio filters" aria-hidden="true" data-state="closed" inert>
+          <div class="filter-stack tight">
+            <div class="filter-row" data-filter-row="Genre">
+              <b>Genre:</b>
+              <button class="pill active" type="button" aria-pressed="true">All</button>
+              <button class="pill" type="button" aria-pressed="false">Reggae</button>
+              <button class="pill" type="button" aria-pressed="false">Rock</button>
+              <button class="pill" type="button" aria-pressed="false">Blues</button>
+              <button class="pill" type="button" aria-pressed="false">Funk</button>
+              <button class="pill" type="button" aria-pressed="false">Electronic</button>
+              <button class="pill" type="button" aria-pressed="false">Spanish</button>
+              <button class="pill" type="button" aria-pressed="false">Calypso</button>
+              <button class="pill" type="button" aria-pressed="false">Soul</button>
+              <button class="pill" type="button" aria-pressed="false">Pop</button>
+              <button class="pill" type="button" aria-pressed="false">Other</button>
+            </div>
+
+            <div class="filter-row" data-filter-row="Album">
+              <b>Album:</b>
+              <button class="pill active" type="button" aria-pressed="true">All</button>
+              <button class="pill" type="button" aria-pressed="false">Exclusive</button>
+              <button class="pill" type="button" aria-pressed="false">Stashbox Does Dylan</button>
+              <button class="pill" type="button" aria-pressed="false">Stashbox Radio</button>
+              <button class="pill" type="button" aria-pressed="false">Thank You Giorgio</button>
+            </div>
+
+            <div class="filter-row" data-filter-row="Artist">
+              <b>Artist:</b>
+              <button class="pill active" type="button" aria-pressed="true">All</button>
+              <button class="pill" type="button" aria-pressed="false">Stashbox</button>
+              <button class="pill" type="button" aria-pressed="false">The Ras Box</button>
+              <button class="pill" type="button" aria-pressed="false">Tahiti Cora</button>
+            </div>
+
+            <div class="filter-row" data-filter-row="Mood">
+              <b>Mood:</b>
+              <button class="pill active" type="button" aria-pressed="true">All</button>
+              <button class="pill" type="button" aria-pressed="false">Happy</button>
+              <button class="pill" type="button" aria-pressed="false">Chill</button>
+              <button class="pill" type="button" aria-pressed="false">Uplifting</button>
+              <button class="pill" type="button" aria-pressed="false">Funny</button>
+              <button class="pill" type="button" aria-pressed="false">Sexy</button>
+              <button class="pill" type="button" aria-pressed="false">Spiritual</button>
+              <button class="pill" type="button" aria-pressed="false">Emotional</button>
+              <button class="pill" type="button" aria-pressed="false">Party</button>
+              <button class="pill" type="button" aria-pressed="false">Nostalgic</button>
+              <button class="pill" type="button" aria-pressed="false">Energetic</button>
+              <button class="pill" type="button" aria-pressed="false">Relaxed</button>
+              <button class="pill" type="button" aria-pressed="false">Dark</button>
+              <button class="pill" type="button" aria-pressed="false">Romantic</button>
+              <button class="pill" type="button" aria-pressed="false">Trippy</button>
+            </div>
+          </div>
+        </section>
+      </header>
+
+      <p class="prototype-note">Prototype scope: desktop header controls only. No media player, song list, products, tracking, playback, or API calls.</p>
+      <div class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
