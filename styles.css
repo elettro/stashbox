@@ -2176,28 +2176,6 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 700px) {
   .footer__radio-one-sheet-btn { width: 100%; justify-content: center; margin-left: 0; margin-top: 10px; }
 }
-.footer__social .footer__quick-guide-link {
-  margin-left: auto;
-}
-
-.footer__lowest-row {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
-  text-align: center;
-}
-
-.footer__quick-guide-link {
-  color: var(--color-accent);
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.footer__quick-guide-link:hover {
-  color: var(--color-text);
-}
-
 .quick-guide-modal {
   position: fixed;
   inset: 0;
@@ -2250,7 +2228,6 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-.quick-guide-modal-open,
 .custom-radio-modal-open {
   overflow: hidden;
 }
