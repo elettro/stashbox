@@ -405,4 +405,26 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   }
 }
 
-@media(max-width:767px){.radio-title-actions.mobile-outside-actions{display:none}}
+@media(max-width:760px) {
+  .radio-hero-header {
+    display: none;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .radio-title-actions.mobile-outside-actions {
+    display: none;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .radio-control-bar {
+    margin-bottom: 0;
+  }
+}
