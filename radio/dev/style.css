@@ -6,11 +6,14 @@ a{color:inherit}
 main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .radio-app{max-width:1500px;margin:0 auto;padding:10px clamp(14px,3vw,34px) 58px}
 .radio-control-bar{position:relative;z-index:20;margin:0 0 16px;border:1px solid rgba(255,255,255,.1);border-radius:0 0 18px 18px;background:linear-gradient(180deg,rgba(9,9,11,.96),rgba(18,18,22,.94));box-shadow:0 18px 46px rgba(0,0,0,.25)}
-.radio-control-scroll{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(190px,280px);grid-template-areas:"brand genre genre" "brand album search";align-items:center;gap:7px 14px;max-width:100%;min-width:0;padding:10px 12px;overflow:hidden}
+.radio-control-scroll{display:grid;grid-template-columns:auto auto minmax(0,1fr) minmax(190px,280px);grid-template-areas:"brand reset genre genre" "brand reset album search";align-items:center;gap:7px 14px;max-width:100%;min-width:0;padding:10px 12px;overflow:hidden}
 .radio-control-scroll::-webkit-scrollbar{display:none}
 .radio-control-brand{grid-area:brand;display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding-right:4px}
 .radio-control-brand-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px}
 .radio-control-logo{color:var(--text);font:400 30px/.9 var(--fh);letter-spacing:.08em;text-decoration:none;white-space:nowrap}
+.radio-reset-control{grid-area:reset;appearance:none;border:1px solid rgba(240,165,0,.38);border-radius:999px;background:rgba(240,165,0,.08);color:var(--accent);font:900 11px/1 var(--fb);letter-spacing:.09em;text-transform:uppercase;padding:7px 10px;cursor:pointer;white-space:nowrap;align-self:center;justify-self:center}
+.radio-reset-control:hover:not(:disabled),.radio-reset-control:focus-visible:not(:disabled){border-color:rgba(240,165,0,.7);background:rgba(240,165,0,.16);color:#ffd36f;outline:none}
+.radio-reset-control:disabled{opacity:.55;cursor:not-allowed}.radio-reset-control-mobile{display:none}
 .radio-filter-row{display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .genre-filter-row{grid-area:genre}
 .album-filter-row{grid-area:album}
@@ -106,13 +109,13 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .seo-fallback{max-width:980px;margin:0 auto 52px;padding:28px clamp(18px,4vw,34px);border-top:1px solid var(--border);color:#b9bbc2;line-height:1.6}
 .seo-fallback h2{font:400 36px/1 var(--fh);color:var(--text);margin:0 0 10px}
 
-@media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto minmax(0,1fr) minmax(170px,240px);grid-template-areas:"brand genre genre" "brand album search";align-items:center}.radio-control-search{justify-self:stretch}.radio-top-search{max-width:240px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
+@media(max-width:1100px){.radio-control-scroll{grid-template-columns:auto auto minmax(0,1fr) minmax(170px,240px);grid-template-areas:"brand reset genre genre" "brand reset album search";align-items:center}.radio-control-search{justify-self:stretch}.radio-top-search{max-width:240px}.radio-filter-row{scroll-snap-type:x proximity}.radio-filter-pill{flex:0 0 auto;scroll-snap-align:start}}
 
 @media(max-width:767px){.radio-app{padding:0 0 34px;overflow:hidden}
 .radio-control-bar{margin:0 -12px 10px;border-left:0;border-right:0;border-radius:0}
 .radio-control-scroll{grid-template-columns:1fr;grid-template-areas:"brand" "filters";gap:0;padding:8px 12px 10px}
 .radio-control-brand{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding-right:0}
-.radio-control-logo{font-size:26px}.radio-mobile-actions{flex:0 0 auto}.mobile-filter-panel{grid-area:filters;display:flex;flex-direction:column;gap:7px;width:100%;max-width:100%;max-height:0;opacity:0;overflow:hidden;visibility:hidden;transform:translateY(-6px);transition:max-height 240ms ease,opacity 180ms ease,transform 240ms ease,padding-top 240ms ease,margin-top 240ms ease,visibility 0s linear 240ms;pointer-events:none}
+.radio-control-logo{font-size:26px}.radio-mobile-actions{flex:0 0 auto;gap:7px}.radio-reset-control-desktop{display:none}.radio-reset-control-mobile{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:5px 8px;font-size:10px;letter-spacing:.08em}.mobile-filter-panel{grid-area:filters;display:flex;flex-direction:column;gap:7px;width:100%;max-width:100%;max-height:0;opacity:0;overflow:hidden;visibility:hidden;transform:translateY(-6px);transition:max-height 240ms ease,opacity 180ms ease,transform 240ms ease,padding-top 240ms ease,margin-top 240ms ease,visibility 0s linear 240ms;pointer-events:none}
 .mobile-filter-panel.is-open{max-height:340px;opacity:1;visibility:visible;transform:translateY(0);padding-top:9px;transition-delay:0s;pointer-events:auto}.mobile-filter-panel.is-closing{visibility:visible;pointer-events:none}
 .mobile-filter-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px -12px -10px;padding:16px 12px 10px;border-top:1px solid rgba(255,255,255,.06);background:rgba(240,165,0,.04)}
 .mobile-filter-actions .button{width:100%;min-height:46px;padding-left:8px;padding-right:8px}
