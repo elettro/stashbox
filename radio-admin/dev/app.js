@@ -242,7 +242,7 @@ const createDefaults = {
   artist: 'Stashbox',
   release_format: 'single',
   public_visibility: 'visible',
-  exclusive: true,
+  exclusive: false,
   explicit: false,
   live_recording: false,
   featured: false,
