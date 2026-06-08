@@ -1402,3 +1402,36 @@ textarea {
   background: rgba(255, 255, 255, 0.06);
   object-fit: cover;
 }
+
+/* DEV Ads MVP */
+.ads-panel,
+.ads-edit-panel,
+.ads-stats-panel {
+  margin-bottom: 1rem;
+}
+
+.ads-table td,
+.ads-stats-table td {
+  vertical-align: top;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stats-warning code {
+  display: inline-block;
+  margin: 0.15rem 0.25rem 0.15rem 0;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 0.78rem;
+}
+
+.visibility-pill.hidden-state {
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.68);
+}

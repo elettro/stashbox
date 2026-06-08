@@ -874,3 +874,39 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
     display:none;
   }
 }
+
+/* DEV Ads MVP */
+.ad-player .player-media,
+.ad-player-media {
+  background: #050806;
+}
+
+.ad-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.ad-label-pill {
+  background: rgba(240, 192, 76, 0.16);
+  border-color: rgba(240, 192, 76, 0.35);
+  color: #f0c04c;
+}
+
+.ad-actions {
+  gap: 0.6rem;
+}
+
+.cta-pill {
+  background: linear-gradient(135deg, #42d982, #f0c04c);
+  color: #06110c;
+  border-color: transparent;
+  font-weight: 800;
+}
+
+.skip-ad-pill:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}

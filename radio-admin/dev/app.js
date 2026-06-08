@@ -8,6 +8,69 @@ const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazona
 const DEVICE_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/devices?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
+
+const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
+const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
+const AD_TYPE_OPTIONS = ['Merch', 'Event', 'Sponsor', 'Artist', 'Song', 'Donation', 'Station Promo', 'Global Promo'];
+const AD_FREQUENCY_OPTIONS = ['Low', 'Medium', 'High'];
+const S3_AD_FOLDER_HELP = [
+  'radio-assets/ads/video/global/',
+  'radio-assets/ads/video/merch/',
+  'radio-assets/ads/video/events/',
+  'radio-assets/ads/video/sponsors/',
+  'radio-assets/ads/video/campaigns/',
+  'radio-assets/ads/video/artists/stashbox/',
+  'radio-assets/ads/video/artists/therasbox/',
+  'radio-assets/ads/video/artists/tahiticora/',
+  'radio-assets/ads/video/genres/reggae/',
+  'radio-assets/ads/video/genres/rock/',
+  'radio-assets/ads/video/genres/blues/'
+];
+const DEFAULT_DEV_AD = {
+  id: 'dev-sample-stashbox-radio-test-video-ad',
+  internal_title: 'Stashbox Radio Test Video Ad',
+  internal_description: 'Test 10-second video ad for dev playback.',
+  ad_type: 'Station Promo',
+  media_type: 'Video',
+  media_url: '',
+  poster_image_url: '',
+  cta_label: 'Shop Stashbox Merch',
+  cta_url: 'https://stashbox.ai',
+  active: false,
+  frequency: 'Medium',
+  genre_associations: '',
+  mood_associations: '',
+  artist_associations: '',
+  song_associations: '',
+  skip_enabled: true,
+  skip_after_seconds: 5,
+  max_plays_per_session: 1,
+  start_date: '',
+  end_date: '',
+  notes: 'DEV fixture only. Paste a hosted MP4 URL and toggle Active to test playback.'
+};
+const adFields = [
+  { name: 'internal_title', label: 'Internal Title', type: 'text', required: true },
+  { name: 'internal_description', label: 'Internal Description', type: 'textarea' },
+  { name: 'ad_type', label: 'Ad Type', type: 'select', options: AD_TYPE_OPTIONS },
+  { name: 'media_type', label: 'Media Type', type: 'select', options: ['Video'], help: 'MVP supports video only.' },
+  { name: 'media_url', label: 'Media URL', type: 'url', full: true, help: 'Paste an S3 MP4 URL or direct hosted MP4 URL. Expected S3 folders: ' + S3_AD_FOLDER_HELP.join(' ') },
+  { name: 'poster_image_url', label: 'Poster Image URL', type: 'url', full: true },
+  { name: 'cta_label', label: 'CTA Label', type: 'text' },
+  { name: 'cta_url', label: 'CTA URL', type: 'url' },
+  { name: 'active', label: 'Active', type: 'checkbox' },
+  { name: 'frequency', label: 'Frequency', type: 'select', options: AD_FREQUENCY_OPTIONS },
+  { name: 'genre_associations', label: 'Genre associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'mood_associations', label: 'Mood associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'artist_associations', label: 'Artist associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'song_associations', label: 'Song associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'skip_enabled', label: 'Skip Enabled', type: 'checkbox' },
+  { name: 'skip_after_seconds', label: 'Skip After Seconds', type: 'number', min: 0, help: 'Default 5 seconds.' },
+  { name: 'max_plays_per_session', label: 'Max Plays Per Session', type: 'number', min: 1, help: 'Default 1 per listener session.' },
+  { name: 'start_date', label: 'Start Date', type: 'date' },
+  { name: 'end_date', label: 'End Date', type: 'date' },
+  { name: 'notes', label: 'Notes', type: 'textarea', full: true }
+];
 const DEFAULT_TAB = 'dashboard';
 const DEFAULT_LANGUAGES = ['English'];
 const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';
@@ -309,6 +372,8 @@ let selectedSongKey = '';
 let messageTimer = null;
 let activeTab = DEFAULT_TAB;
 let editorMode = 'edit';
+let ads = [];
+let selectedAdId = '';
 
 const els = {
   tokenPanel: document.getElementById('tokenPanel'),
@@ -323,6 +388,7 @@ const els = {
   editView: document.getElementById('editView'),
   archiveView: document.getElementById('archiveView'),
   eventsView: document.getElementById('eventsView'),
+  adsView: document.getElementById('adsView'),
   refreshDashboardButton: document.getElementById('refreshDashboardButton'),
   kpiGrid: document.getElementById('kpiGrid'),
   statsSummaryWarning: document.getElementById('statsSummaryWarning'),
@@ -382,11 +448,23 @@ const els = {
   deleteModal: document.getElementById('deleteModal'),
   cancelDeleteButton: document.getElementById('cancelDeleteButton'),
   confirmDeleteButton: document.getElementById('confirmDeleteButton'),
+  adsStatus: document.getElementById('adsStatus'),
+  adsTableBody: document.getElementById('adsTableBody'),
+  adStatsTableBody: document.getElementById('adStatsTableBody'),
+  adForm: document.getElementById('adForm'),
+  adFormFields: document.getElementById('adFormFields'),
+  adFormHeading: document.getElementById('adFormHeading'),
+  createAdButton: document.getElementById('createAdButton'),
+  refreshAdsButton: document.getElementById('refreshAdsButton'),
+  saveAdButton: document.getElementById('saveAdButton'),
+  cancelAdButton: document.getElementById('cancelAdButton'),
+  adsStorageNote: document.getElementById('adsStorageNote'),
   message: document.getElementById('message')
 };
 
 document.addEventListener('DOMContentLoaded', () => {
   buildEditForm();
+  buildAdForm();
   bindEvents();
   renderDashboard();
   initializeAdmin();
@@ -406,6 +484,10 @@ function bindEvents() {
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshEventsButton.addEventListener('click', () => loadEvents());
+  els.createAdButton?.addEventListener('click', () => startCreateAd());
+  els.refreshAdsButton?.addEventListener('click', () => loadAds());
+  els.cancelAdButton?.addEventListener('click', () => renderAdForm(null));
+  els.adForm?.addEventListener('submit', saveAd);
   els.eventLimit.addEventListener('change', () => loadEvents());
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
@@ -489,6 +571,7 @@ function clearToken() {
   renderSongList();
   renderArchiveList();
   renderEvents();
+  loadAds();
   clearEditor();
   updateTokenUi(false);
   setActiveTab(DEFAULT_TAB);
@@ -515,11 +598,16 @@ function setActiveTab(tabName) {
     ['dashboard', els.dashboardView],
     ['songs', els.songsView],
     ['events', els.eventsView],
+    ['ads', els.adsView],
     ['archive', els.archiveView],
     ['edit', els.editView]
   ].forEach(([name, view]) => {
     view.classList.toggle('hidden', name !== activeTab);
   });
+
+  if (activeTab === 'ads') {
+    loadAds();
+  }
 
   if (activeTab === 'events' && !events.length) {
     loadEvents();
@@ -3954,4 +4042,211 @@ function formatDisplayValue(value) {
   }
 
   return String(value);
+}
+
+function ensureDefaultAds(nextAds) {
+  const normalized = Array.isArray(nextAds) ? nextAds : [];
+  return normalized.some(ad => ad.id === DEFAULT_DEV_AD.id)
+    ? normalized
+    : [typeof structuredClone === 'function' ? structuredClone(DEFAULT_DEV_AD) : { ...DEFAULT_DEV_AD }, ...normalized];
+}
+
+function readJsonStorage(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeJsonStorage(key, value) {
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function loadAds() {
+  ads = ensureDefaultAds(readJsonStorage(ADS_STORAGE_KEY, []));
+  writeJsonStorage(ADS_STORAGE_KEY, ads);
+  renderAds();
+  renderAdStats();
+}
+
+function buildAdForm() {
+  if (!els.adFormFields) return;
+  els.adFormFields.innerHTML = '';
+  adFields.forEach(field => {
+    const wrapper = document.createElement('label');
+    wrapper.className = `field ${field.full ? 'field-full' : ''}`;
+    wrapper.htmlFor = `ad_${field.name}`;
+    const label = document.createElement('span');
+    label.textContent = field.label;
+    wrapper.appendChild(label);
+    let input;
+    if (field.type === 'textarea') {
+      input = document.createElement('textarea');
+      input.rows = 3;
+    } else if (field.type === 'select') {
+      input = document.createElement('select');
+      field.options.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.textContent = option;
+        input.appendChild(opt);
+      });
+    } else {
+      input = document.createElement('input');
+      input.type = field.type;
+      if (field.min !== undefined) input.min = field.min;
+    }
+    input.id = `ad_${field.name}`;
+    input.name = field.name;
+    if (field.required) input.required = true;
+    wrapper.appendChild(input);
+    if (field.help) {
+      const help = document.createElement('small');
+      help.textContent = field.help;
+      wrapper.appendChild(help);
+    }
+    els.adFormFields.appendChild(wrapper);
+  });
+}
+
+function emptyAd() {
+  return {
+    ...DEFAULT_DEV_AD,
+    id: `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    internal_title: '',
+    internal_description: '',
+    media_url: '',
+    poster_image_url: '',
+    cta_label: '',
+    cta_url: '',
+    active: false,
+    notes: ''
+  };
+}
+
+function startCreateAd() {
+  renderAdForm(emptyAd(), true);
+}
+
+function renderAdForm(ad = null, isNew = false) {
+  if (!els.adForm) return;
+  selectedAdId = ad?.id || '';
+  els.adForm.classList.toggle('hidden', !ad);
+  if (els.adFormHeading) els.adFormHeading.textContent = ad ? (isNew ? 'Create Ad' : `Edit Ad · ${ad.internal_title || ad.id}`) : 'Select or create an ad';
+  adFields.forEach(field => {
+    const input = els.adForm.elements[field.name];
+    if (!input || !ad) return;
+    const value = ad[field.name] ?? DEFAULT_DEV_AD[field.name] ?? '';
+    if (field.type === 'checkbox') input.checked = Boolean(value);
+    else input.value = value;
+  });
+}
+
+function serializeAdForm() {
+  const form = els.adForm;
+  const existing = ads.find(ad => ad.id === selectedAdId) || emptyAd();
+  const next = { ...existing, id: selectedAdId || existing.id };
+  adFields.forEach(field => {
+    const input = form.elements[field.name];
+    if (!input) return;
+    if (field.type === 'checkbox') next[field.name] = input.checked;
+    else if (field.type === 'number') next[field.name] = Number(input.value || DEFAULT_DEV_AD[field.name] || 0);
+    else next[field.name] = input.value.trim();
+  });
+  next.media_type = 'Video';
+  next.skip_after_seconds = Number.isFinite(next.skip_after_seconds) ? next.skip_after_seconds : 5;
+  next.max_plays_per_session = Math.max(1, Number(next.max_plays_per_session) || 1);
+  next.updated_at = new Date().toISOString();
+  return next;
+}
+
+function saveAd(event) {
+  event.preventDefault();
+  const ad = serializeAdForm();
+  const existingIndex = ads.findIndex(item => item.id === ad.id);
+  if (existingIndex >= 0) ads.splice(existingIndex, 1, ad);
+  else ads.unshift(ad);
+  writeJsonStorage(ADS_STORAGE_KEY, ads);
+  renderAds();
+  renderAdStats();
+  renderAdForm(ad);
+  showMessage(`Saved ad: ${ad.internal_title || ad.id}`, 'success');
+}
+
+function deleteAd(adId) {
+  const ad = ads.find(item => item.id === adId);
+  if (!ad || ad.id === DEFAULT_DEV_AD.id) {
+    showMessage('The sample dev ad stays available as a reusable fixture.', 'error');
+    return;
+  }
+  ads = ads.filter(item => item.id !== adId);
+  writeJsonStorage(ADS_STORAGE_KEY, ads);
+  renderAdForm(null);
+  renderAds();
+  renderAdStats();
+}
+
+function renderAds() {
+  if (!els.adsTableBody) return;
+  els.adsTableBody.innerHTML = '';
+  els.adsStatus.textContent = `${ads.length} dev ad${ads.length === 1 ? '' : 's'} loaded from browser localStorage.`;
+  if (els.adsStorageNote) els.adsStorageNote.textContent = `MVP persistence: ${ADS_STORAGE_KEY} localStorage. Connect this shape to the real dev backend later.`;
+  ads.forEach(ad => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><strong>${escapeHtml(ad.internal_title || 'Untitled ad')}</strong><div class="song-meta">${escapeHtml(ad.internal_description || '')}</div></td>
+      <td>${escapeHtml(ad.ad_type || '')}</td>
+      <td>${ad.active ? '<span class="visibility-pill visible">Active</span>' : '<span class="visibility-pill hidden-state">Inactive</span>'}</td>
+      <td>${escapeHtml(ad.frequency || 'Medium')}</td>
+      <td>${ad.media_url ? '<span class="visibility-pill visible">URL set</span>' : '<span class="visibility-pill hidden-state">No URL</span>'}</td>
+      <td>${Number(ad.skip_after_seconds) || 0}s / ${Number(ad.max_plays_per_session) || 1}</td>
+      <td class="row-actions"><button class="button button-small" type="button" data-edit-ad="${escapeHtml(ad.id)}">Edit</button><button class="button button-small button-ghost" type="button" data-delete-ad="${escapeHtml(ad.id)}">Delete</button></td>`;
+    els.adsTableBody.appendChild(row);
+  });
+  els.adsTableBody.querySelectorAll('[data-edit-ad]').forEach(button => button.addEventListener('click', () => renderAdForm(ads.find(ad => ad.id === button.dataset.editAd))));
+  els.adsTableBody.querySelectorAll('[data-delete-ad]').forEach(button => button.addEventListener('click', () => deleteAd(button.dataset.deleteAd)));
+}
+
+function adStatsSummary() {
+  const events = readJsonStorage(ADS_STATS_STORAGE_KEY, []);
+  const byAd = new Map(ads.map(ad => [ad.id, { ad, ad_impression: 0, ad_started: 0, ad_completed: 0, ad_skipped: 0, ad_cta_clicked: 0, ad_error: 0 }]));
+  events.forEach(event => {
+    const id = event.ad_id || event.adId;
+    if (!byAd.has(id)) byAd.set(id, { ad: { id, internal_title: event.ad_title || event.adTitle || id }, ad_impression: 0, ad_started: 0, ad_completed: 0, ad_skipped: 0, ad_cta_clicked: 0, ad_error: 0 });
+    const row = byAd.get(id);
+    if (row[event.event_type] !== undefined) row[event.event_type] += 1;
+  });
+  return Array.from(byAd.values());
+}
+
+function pct(part, total) {
+  return total ? `${Math.round((part / total) * 100)}%` : '0%';
+}
+
+function renderAdStats() {
+  if (!els.adStatsTableBody) return;
+  els.adStatsTableBody.innerHTML = '';
+  adStatsSummary().forEach(row => {
+    const tr = document.createElement('tr');
+    const impressions = row.ad_impression;
+    const starts = row.ad_started;
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(row.ad.internal_title || row.ad.id)}</strong></td>
+      <td>${impressions}</td><td>${starts}</td><td>${row.ad_completed}</td><td>${row.ad_skipped}</td><td>${row.ad_cta_clicked}</td><td>${row.ad_error}</td>
+      <td>${pct(row.ad_completed, starts)}</td><td>${pct(row.ad_skipped, starts)}</td><td>${pct(row.ad_cta_clicked, impressions)}</td>`;
+    els.adStatsTableBody.appendChild(tr);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
