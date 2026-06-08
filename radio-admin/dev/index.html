@@ -472,17 +472,17 @@
             <div>
               <p class="eyebrow">Ads MVP</p>
               <h2 id="adsHeading">Ads manager</h2>
-              <p class="panel-copy">DEV-only first pass for video ads. No upload support yet; paste a hosted MP4 URL in Media URL.</p>
+              <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
               <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
             </div>
             <div class="panel-actions events-actions">
-              <button id="createAdButton" class="button button-small" type="button">Create Ad</button>
+              <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
               <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
             </div>
           </div>
 
           <div class="stats-warning" role="note">
-            Expected S3 video folders for labels/reference only:
+            Expected DEV S3 video/thumbnail folders for upload routing:
             <code>radio-assets/ads/video/global/</code>
             <code>radio-assets/ads/video/merch/</code>
             <code>radio-assets/ads/video/events/</code>
@@ -494,6 +494,14 @@
             <code>radio-assets/ads/video/genres/reggae/</code>
             <code>radio-assets/ads/video/genres/rock/</code>
             <code>radio-assets/ads/video/genres/blues/</code>
+            <code>radio-assets/ads/video/genres/rap/</code>
+            <code>radio-assets/ads/video/genres/edm/</code>
+            <code>radio-assets/ads/thumbnails/branding/</code>
+            <code>radio-assets/ads/thumbnails/global/</code>
+            <code>radio-assets/ads/thumbnails/merch/</code>
+            <code>radio-assets/ads/thumbnails/events/</code>
+            <code>radio-assets/ads/thumbnails/sponsors/</code>
+            <code>radio-assets/ads/thumbnails/campaigns/</code>
           </div>
 
           <div id="adsStatus" class="song-count">No ads loaded</div>
@@ -501,12 +509,13 @@
             <table class="song-table ads-table">
               <thead>
                 <tr>
-                  <th>Ad</th>
-                  <th>Type</th>
+                  <th>Thumbnail</th>
+                  <th>Internal Title</th>
+                  <th>Ad Type</th>
+                  <th>Media Type</th>
                   <th>Status</th>
                   <th>Frequency</th>
-                  <th>Media</th>
-                  <th>Skip / Session Max</th>
+                  <th>Preview</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -526,7 +535,10 @@
             <div class="form-grid" id="adFormFields"></div>
             <div class="form-actions">
               <button id="saveAdButton" class="button" type="submit">Save Ad</button>
+              <button id="saveAdAsNewButton" class="button button-ghost" type="button">Save as New Ad</button>
+              <button id="previewAdButton" class="button button-ghost" type="button">Preview Ad</button>
               <button id="cancelAdButton" class="button button-ghost" type="button">Cancel</button>
+              <button id="deleteAdButton" class="button button-danger" type="button">Delete</button>
             </div>
           </form>
         </section>
