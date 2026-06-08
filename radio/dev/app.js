@@ -10,6 +10,8 @@ const DEFAULT_FILTER = 'ALL';
 const DEFAULT_SORT = 'latest';
 const DEFAULT_VIEW_MODE = 'visual';
 const PRODUCT_POOL_LIMIT = 200;
+const MEDIA_SESSION_ARTWORK_SIZES = [96, 128, 192, 256, 512];
+const APP_FALLBACK_ARTWORK_URL = '/images/branding/stashbox-logo-transparent-rastacolors.png';
 const COMPLETION_THRESHOLD = 0.95;
 const MIN_PARTIAL_SECONDS = 5;
 const QUALIFIED_PLAY_SECONDS = 10;
@@ -256,6 +258,7 @@ function normalizeSong(row, index) {
     moodTags: parseStringList(firstDefined(row, ['mood_tags', 'moods'])),
     sectionKey: sectionFor(genre),
     audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
+    song_artwork_url: fixDropbox(clean(row.song_artwork_url || row.songArtworkUrl)),
     imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
     videoLink: clean(row.video_link || row.video_url || row.videoUrl),
     release_format: clean(row.release_format),
@@ -450,6 +453,45 @@ function canPlayTrack(track) {
 function youtubeThumbnail(url) {
   const id = getYouTubeId(url);
   return id ? `https://img.youtube.com/vi/${encodeURIComponent(id)}/hqdefault.jpg` : '';
+}
+
+
+function firstMediaSessionArtworkUrl(track) {
+  return fixDropbox(clean(track?.song_artwork_url || track?.songArtworkUrl || track?.raw?.song_artwork_url))
+    || clean(track?.imageUrl)
+    || youtubeThumbnail(track?.videoLink)
+    || APP_FALLBACK_ARTWORK_URL;
+}
+
+function buildMediaSessionArtwork(track) {
+  const artworkUrl = firstMediaSessionArtworkUrl(track);
+  if (!artworkUrl) return [];
+  return MEDIA_SESSION_ARTWORK_SIZES.map(size => ({
+    src: artworkUrl,
+    sizes: `${size}x${size}`
+  }));
+}
+
+function buildMediaSessionMetadata(track) {
+  if (!track) return null;
+  return {
+    title: clean(track.display_title) || clean(track.song_name) || clean(track.title) || UNTITLED_STASHBOX_TRACK,
+    artist: clean(track.artist),
+    album: getRealAlbumName(track),
+    artwork: buildMediaSessionArtwork(track)
+  };
+}
+
+function updateMediaSessionMetadata(track) {
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  const metadata = buildMediaSessionMetadata(track);
+  if (!metadata) return;
+  navigator.mediaSession.metadata = new MediaMetadata(metadata);
+}
+
+function setMediaSessionPlaybackState(state) {
+  if (!('mediaSession' in navigator)) return;
+  try { navigator.mediaSession.playbackState = state; } catch (_) {}
 }
 
 function rotateBySeed(items, seed) {
@@ -1147,6 +1189,10 @@ function App() {
   }, [selectedSong]);
 
   useEffect(() => {
+    updateMediaSessionMetadata(selectedSong);
+  }, [selectedSong?.idx, selectedSong?.display_title, selectedSong?.song_name, selectedSong?.title, selectedSong?.artist, selectedSong?.raw?.album_name, selectedSong?.song_artwork_url, selectedSong?.imageUrl, selectedSong?.videoLink]);
+
+  useEffect(() => {
     if (!selectedSong?.songKey) {
       currentPlayInstanceRef.current = null;
       return;
@@ -1374,6 +1420,8 @@ function App() {
 
   const trackPlaybackStart = useCallback((song, mode = 'audio') => {
     if (!song) return;
+    updateMediaSessionMetadata(song);
+    setMediaSessionPlaybackState('playing');
     const state = playbackRef.current;
     if (!(state.hasStarted && state.currentSongKey === song.songKey && state.mode === mode)) {
       playbackRef.current = { currentSongKey: song.songKey, startedAt: Date.now(), hasStarted: true, secondsPlayed: 0, duration: 0, hasCompleted: false, mode };
@@ -1796,6 +1844,59 @@ function App() {
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return undefined;
+
+    const playHandler = () => {
+      updateMediaSessionMetadata(selectedRef.current || selectedSong);
+      if (mediaMode === 'video') {
+        const youtubePlayer = youtubePlayerRef.current;
+        try {
+          if (typeof youtubePlayer?.playVideo === 'function') {
+            youtubePlayer.playVideo();
+            setMediaSessionPlaybackState('playing');
+            return;
+          }
+        } catch (error) {
+          console.warn('[radio-dev] Media Session video play handler failed.', error.message || error);
+        }
+      }
+      const audio = audioRef.current;
+      if (audio) audio.play().then(() => setMediaSessionPlaybackState('playing')).catch(error => console.warn('[radio-dev] Media Session play handler failed.', error.message || error));
+    };
+
+    const pauseHandler = () => {
+      if (mediaMode === 'video') {
+        const youtubePlayer = youtubePlayerRef.current;
+        try {
+          if (typeof youtubePlayer?.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        } catch (error) {
+          console.warn('[radio-dev] Media Session video pause handler failed.', error.message || error);
+        }
+      }
+      const audio = audioRef.current;
+      if (audio && !audio.paused) audio.pause();
+      setMediaSessionPlaybackState('paused');
+    };
+
+    const setHandler = (action, handler) => {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch (_) {}
+    };
+
+    setHandler('play', playHandler);
+    setHandler('pause', pauseHandler);
+    setHandler('previoustrack', () => shiftTrack(-1, { autoStart: true, preferVideo: videoFocusedList && selectedRef.current?.hasVideo }));
+    setHandler('nexttrack', handleManualNext);
+
+    return () => {
+      setHandler('play', null);
+      setHandler('pause', null);
+      setHandler('previoustrack', null);
+      setHandler('nexttrack', null);
+    };
+  }, [handleManualNext, mediaMode, shiftTrack, videoFocusedList, selectedSong]);
+
   function likeSong(song) {
     if (!song || likedSongIds.has(song.songKey)) return;
     sendTrackingEvent(song, 'like', sessionId).then(result => {
@@ -1832,7 +1933,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      activeAd ? h(AdPlayer, { ad: activeAd, playerRef, onStarted: handleAdStarted, onCompleted: () => continueAfterAd('ad_completed'), onSkipped: () => continueAfterAd('ad_skipped'), onCtaClicked: handleAdCtaClicked, onError: handleAdError }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest, onAdStarted: handleAdStarted, onAdCompleted: () => continueAfterAd('ad_completed'), onAdSkipped: () => continueAfterAd('ad_skipped'), onAdCtaClicked: handleAdCtaClicked, onAdError: handleAdError }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -2292,7 +2393,7 @@ function displayAlbumName(track) {
 }
 
 function songArtworkUrl(track) {
-  return track?.imageUrl || youtubeThumbnail(track?.videoLink) || '/images/branding/stashbox-logo-transparent-rastacolors.png';
+  return track?.imageUrl || youtubeThumbnail(track?.videoLink) || APP_FALLBACK_ARTWORK_URL;
 }
 
 function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list', showHeader = true }) {
