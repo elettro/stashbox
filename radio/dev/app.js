@@ -29,6 +29,7 @@ const PREFERRED_MOOD_FILTERS = ['Happy', 'Chill', 'Uplifting', 'Funny', 'Sexy', 
 const MOOD_FILTERS = [DEFAULT_FILTER, ...PREFERRED_MOOD_FILTERS];
 const SORT_OPTIONS = [
   { key: 'latest', label: 'Latest' },
+  { key: 'random', label: 'Random' },
   { key: 'most-played', label: 'Most Played' },
   { key: 'most-liked', label: 'Most Liked' },
   { key: 'genre', label: 'Genre' },
@@ -777,6 +778,7 @@ function getSortLabel(sortKey) {
 }
 
 function getListContextTitle({ query, artist, genre, album, mood, videoOnly, sortKey }) {
+  if (sortKey === 'random') return getSortLabel(sortKey);
   const searchQuery = clean(query);
   if (searchQuery) return `Search: ${searchQuery}`;
   if (artist !== DEFAULT_FILTER) return artist;
@@ -798,6 +800,19 @@ function shuffleTracks(tracks) {
     [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
   }
   return shuffled;
+}
+
+function getRandomSortTrackKey(track) {
+  return clean(track?.songKey || track?.song_key || track?.id || track?.idx);
+}
+
+function orderSongsByRandomKeys(songs, randomKeys) {
+  if (!Array.isArray(randomKeys) || !randomKeys.length) return songs;
+  const byKey = new Map(songs.map(song => [getRandomSortTrackKey(song), song]));
+  const ordered = randomKeys.map(key => byKey.get(key)).filter(Boolean);
+  const orderedKeys = new Set(ordered.map(getRandomSortTrackKey));
+  const remaining = songs.filter(song => !orderedKeys.has(getRandomSortTrackKey(song)));
+  return [...ordered, ...remaining];
 }
 
 function SongListContextRow({ title, onShuffle, disabled = false, notice = '' }) {
@@ -970,6 +985,8 @@ function App() {
   const [mood, setMood] = useState(DEFAULT_FILTER);
   const [videoOnly, setVideoOnly] = useState(false);
   const [sortKey, setSortKey] = useState(DEFAULT_SORT);
+  const [randomSortKeys, setRandomSortKeys] = useState([]);
+  const [randomSortSourceKey, setRandomSortSourceKey] = useState('');
   const [songViewMode, setSongViewMode] = useState(getInitialSongViewMode);
   const [mediaMode, setMediaMode] = useState('idle');
   const [activeVideoEmbedUrl, setActiveVideoEmbedUrl] = useState('');
@@ -1074,16 +1091,37 @@ function App() {
   const artistFilters = useMemo(() => buildArtistFilters(activePublicTracks), [activePublicTracks]);
   const moodFilters = useMemo(() => buildMoodFilters(activePublicTracks), [activePublicTracks]);
 
-  const filtered = useMemo(() => tracks.filter(track => {
+  const filtered = useMemo(() => activePublicTracks.filter(track => {
     const q = query.trim().toLowerCase();
     const queryMatch = !q || [track.title, track.artist, track.album, track.genre, track.mood, track.publicTrackNote, ...parseStringList(track.moodTags)].some(value => clean(value).toLowerCase().includes(q));
     return queryMatch && (genre === DEFAULT_FILTER || track.sectionKey === genre) && albumMatches(track.album, album) && artistMatches(track.artist, artist) && moodMatches(track, mood) && (!videoOnly || track.hasVideo);
-  }), [tracks, query, genre, album, artist, mood, videoOnly]);
+  }), [activePublicTracks, query, genre, album, artist, mood, videoOnly]);
 
-  const sortedFiltered = useMemo(() => sortSongs(filtered, sortKey, { likeCounts, playCounts, shareCounts }), [filtered, sortKey, likeCounts, playCounts, shareCounts]);
+  const randomFilterSourceKey = useMemo(() => JSON.stringify({
+    query: clean(query),
+    genre,
+    album,
+    artist,
+    mood,
+    videoOnly,
+    songKeys: filtered.map(getRandomSortTrackKey)
+  }), [query, genre, album, artist, mood, videoOnly, filtered]);
+  const baseSortedFiltered = useMemo(() => sortSongs(filtered, sortKey === 'random' ? DEFAULT_SORT : sortKey, { likeCounts, playCounts, shareCounts }), [filtered, sortKey, likeCounts, playCounts, shareCounts]);
+  const sortedFiltered = useMemo(() => sortKey === 'random' ? orderSongsByRandomKeys(baseSortedFiltered, randomSortKeys) : baseSortedFiltered, [baseSortedFiltered, randomSortKeys, sortKey]);
   const shuffleSourceKey = useMemo(() => JSON.stringify({ query: clean(query), genre, album, artist, mood, videoOnly, sortKey }), [query, genre, album, artist, mood, videoOnly, sortKey]);
   const listContextTitle = useMemo(() => getListContextTitle({ query, artist, genre, album, mood, videoOnly, sortKey }), [query, artist, genre, album, mood, videoOnly, sortKey]);
   const videoFocusedList = useMemo(() => isVideoFocusedList({ videoOnly, sortKey }), [videoOnly, sortKey]);
+
+  useEffect(() => {
+    if (sortKey !== 'random') {
+      setRandomSortKeys([]);
+      setRandomSortSourceKey('');
+      return;
+    }
+    if (randomSortSourceKey === randomFilterSourceKey) return;
+    setRandomSortKeys(shuffleTracks(filtered.map(getRandomSortTrackKey)));
+    setRandomSortSourceKey(randomFilterSourceKey);
+  }, [filtered, randomFilterSourceKey, randomSortSourceKey, sortKey]);
 
   useEffect(() => {
     try { window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, songViewMode); } catch (_) {}
@@ -1111,6 +1149,8 @@ function App() {
     setMood(DEFAULT_FILTER);
     setVideoOnly(false);
     setSortKey(DEFAULT_SORT);
+    setRandomSortKeys([]);
+    setRandomSortSourceKey('');
     setActiveShuffleQueue([]);
     setActiveShuffleIndex(0);
     setActiveShuffleSourceKey('');
