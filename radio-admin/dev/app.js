@@ -53,10 +53,18 @@ const S3_AD_FOLDER_HELP = [
   'radio-assets/ads/thumbnails/merch/',
   'radio-assets/ads/thumbnails/events/',
   'radio-assets/ads/thumbnails/sponsors/',
-  'radio-assets/ads/thumbnails/campaigns/'
+  'radio-assets/ads/thumbnails/campaigns/',
+  'radio-assets/ads/thumbnails/artists/stashbox/',
+  'radio-assets/ads/thumbnails/artists/therasbox/',
+  'radio-assets/ads/thumbnails/artists/tahiticora/',
+  'radio-assets/ads/thumbnails/genres/reggae/',
+  'radio-assets/ads/thumbnails/genres/rock/',
+  'radio-assets/ads/thumbnails/genres/blues/',
+  'radio-assets/ads/thumbnails/genres/rap/',
+  'radio-assets/ads/thumbnails/genres/edm/'
 ];
 const DEFAULT_DEV_AD = {
-  id: 'dev-sample-stashbox-radio-branding-test-ad',
+  id: 'ad-stashbox-branding-test',
   internal_title: 'Stashbox Radio Branding Test Ad',
   internal_description: 'Primary Stashbox Radio station branding video ad for dev testing.',
   ad_type: 'Stashbox Radio Branding',
@@ -77,7 +85,7 @@ const DEFAULT_DEV_AD = {
   max_plays_per_session: 3,
   start_date: '',
   end_date: '',
-  notes: 'DEV fixture only. Upload a branding MP4 before activating.'
+  notes: 'Dev sample ad.'
 };
 const adFields = [
   { name: 'internal_title', label: 'Internal Title', type: 'text', required: true },
@@ -530,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildAdForm();
   bindEvents();
   renderDashboard();
+  renderAdsTab();
   initializeAdmin();
 });
 
@@ -4129,19 +4138,76 @@ function cloneDefaultAd() {
   return typeof structuredClone === 'function' ? structuredClone(DEFAULT_DEV_AD) : { ...DEFAULT_DEV_AD };
 }
 
+function getAdValue(ad, snakeName, camelName) {
+  if (!ad) return undefined;
+  if (ad[snakeName] !== undefined) return ad[snakeName];
+  return ad[camelName];
+}
+
 function normalizeAdRecord(ad) {
-  const next = { ...cloneDefaultAd(), ...(ad || {}) };
-  next.id = String(next.id || `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  next.ad_type = AD_TYPE_OPTIONS.includes(next.ad_type) ? next.ad_type : DEFAULT_DEV_AD.ad_type;
-  next.media_type = 'Video';
-  next.frequency = AD_FREQUENCY_OPTIONS.includes(next.frequency) ? next.frequency : DEFAULT_DEV_AD.frequency;
-  next.thumbnail_url = String(next.thumbnail_url || next.poster_image_url || '').trim();
+  const source = ad || {};
+  const next = { ...cloneDefaultAd() };
+  next.id = String(source.id || next.id || `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  next.internal_title = String(getAdValue(source, 'internal_title', 'internalTitle') ?? next.internal_title ?? '').trim();
+  next.internal_description = String(getAdValue(source, 'internal_description', 'internalDescription') ?? next.internal_description ?? '').trim();
+  next.ad_type = getAdValue(source, 'ad_type', 'adType') || next.ad_type;
+  next.media_type = getAdValue(source, 'media_type', 'mediaType') || next.media_type;
+  next.media_url = String(getAdValue(source, 'media_url', 'mediaUrl') ?? next.media_url ?? '').trim();
+  next.thumbnail_url = String(getAdValue(source, 'thumbnail_url', 'thumbnailUrl') ?? source.poster_image_url ?? next.thumbnail_url ?? '').trim();
   next.poster_image_url = next.thumbnail_url;
-  next.media_url = String(next.media_url || '').trim();
+  next.cta_label = String(getAdValue(source, 'cta_label', 'ctaLabel') ?? next.cta_label ?? '').trim();
+  next.cta_url = String(getAdValue(source, 'cta_url', 'ctaUrl') ?? next.cta_url ?? '').trim();
+  next.active = Boolean(source.active ?? next.active);
+  next.frequency = getAdValue(source, 'frequency', 'frequency') || next.frequency;
+  next.skip_enabled = getAdValue(source, 'skip_enabled', 'skipEnabled');
+  next.skip_after_seconds = getAdValue(source, 'skip_after_seconds', 'skipAfterSeconds');
+  next.max_plays_per_session = getAdValue(source, 'max_plays_per_session', 'maxPlaysPerSession');
+  next.start_date = String(getAdValue(source, 'start_date', 'startDate') ?? next.start_date ?? '');
+  next.end_date = String(getAdValue(source, 'end_date', 'endDate') ?? next.end_date ?? '');
+  next.genre_associations = String(getAdValue(source, 'genre_associations', 'genreAssociations') ?? next.genre_associations ?? '');
+  next.mood_associations = String(getAdValue(source, 'mood_associations', 'moodAssociations') ?? next.mood_associations ?? '');
+  next.artist_associations = String(getAdValue(source, 'artist_associations', 'artistAssociations') ?? next.artist_associations ?? '');
+  next.song_associations = String(getAdValue(source, 'song_associations', 'songAssociations') ?? next.song_associations ?? '');
+  next.notes = String(getAdValue(source, 'notes', 'notes') ?? next.notes ?? '');
+  next.ad_type = AD_TYPE_OPTIONS.includes(next.ad_type) ? next.ad_type : DEFAULT_DEV_AD.ad_type;
+  next.media_type = AD_MEDIA_TYPE_OPTIONS.includes(next.media_type) ? next.media_type : DEFAULT_DEV_AD.media_type;
+  next.frequency = AD_FREQUENCY_OPTIONS.includes(next.frequency) ? next.frequency : DEFAULT_DEV_AD.frequency;
   next.skip_enabled = next.skip_enabled === undefined ? true : Boolean(next.skip_enabled);
   next.skip_after_seconds = Math.max(0, Number(next.skip_after_seconds ?? DEFAULT_DEV_AD.skip_after_seconds) || 0);
   next.max_plays_per_session = Math.max(1, Number(next.max_plays_per_session ?? DEFAULT_DEV_AD.max_plays_per_session) || DEFAULT_DEV_AD.max_plays_per_session);
   return next;
+}
+
+function toStoredAdRecord(ad) {
+  const next = normalizeAdRecord(ad);
+  const stored = {
+    id: next.id,
+    internalTitle: next.internal_title,
+    internalDescription: next.internal_description,
+    adType: next.ad_type,
+    mediaType: next.media_type,
+    mediaUrl: next.media_url,
+    thumbnailUrl: next.thumbnail_url,
+    ctaLabel: next.cta_label,
+    ctaUrl: next.cta_url,
+    active: next.active,
+    frequency: next.frequency,
+    skipEnabled: next.skip_enabled,
+    skipAfterSeconds: next.skip_after_seconds,
+    maxPlaysPerSession: next.max_plays_per_session,
+    genreAssociations: next.genre_associations,
+    moodAssociations: next.mood_associations,
+    artistAssociations: next.artist_associations,
+    songAssociations: next.song_associations,
+    notes: next.notes
+  };
+  if (next.start_date) stored.startDate = next.start_date;
+  if (next.end_date) stored.endDate = next.end_date;
+  return stored;
+}
+
+function writeAdsStorage() {
+  writeJsonStorage(ADS_STORAGE_KEY, ads.map(toStoredAdRecord));
 }
 
 function ensureDefaultAds(nextAds) {
@@ -4179,8 +4245,8 @@ function loadAds({ preserveEditor = true } = {}) {
   const previousSelectedAdId = selectedAdId;
   const previousMode = els.adForm?.dataset.mode || 'idle';
   ads = ensureDefaultAds(readJsonStorage(ADS_STORAGE_KEY, []));
-  writeJsonStorage(ADS_STORAGE_KEY, ads);
-  renderAds();
+  writeAdsStorage();
+  renderAdsTab();
   renderAdStats();
 
   if (preserveEditor && previousSelectedAdId) {
@@ -4362,8 +4428,8 @@ function persistAd(ad) {
   if (existingIndex >= 0) ads.splice(existingIndex, 1, ad);
   else ads.unshift(ad);
   ads = ensureDefaultAds(ads);
-  writeJsonStorage(ADS_STORAGE_KEY, ads);
-  renderAds();
+  writeAdsStorage();
+  renderAdsTab();
   renderAdStats();
   renderAdForm(ad);
   showMessage(`Saved ad: ${ad.internal_title || ad.id}`, 'success');
@@ -4392,20 +4458,85 @@ function deleteSelectedAd() {
 
 function deleteAd(adId) {
   const ad = ads.find(item => item.id === adId);
-  if (!ad || ad.id === DEFAULT_DEV_AD.id) {
-    showMessage('The sample Stashbox Radio Branding Test Ad stays available as a reusable inactive fixture.', 'error');
+  if (!ad) {
+    showMessage('Ad not found.', 'error');
     return;
   }
+  if (!window.confirm(`Delete ad: ${ad.internal_title || ad.id}?`)) return;
   ads = ads.filter(item => item.id !== adId);
-  writeJsonStorage(ADS_STORAGE_KEY, ads);
-  renderAdForm(null);
-  renderAds();
+  writeAdsStorage();
+  if (selectedAdId === adId) renderAdForm(null);
+  renderAdsTab();
   renderAdStats();
   showMessage(`Deleted ad: ${ad.internal_title || ad.id}`, 'success');
 }
 
 function getAdThumbnail(ad) {
   return String(ad?.thumbnail_url || ad?.poster_image_url || '').trim();
+}
+
+function renderAdsTab() {
+  ensureAdsManagerLayout();
+  renderAds();
+}
+
+function ensureAdsManagerLayout() {
+  if (!els.adsView) return;
+
+  if (!els.adsTableBody) {
+    const editorPanel = els.adsView.querySelector('.ads-edit-panel, [aria-labelledby="adFormHeading"]');
+    const manager = document.createElement('aside');
+    manager.className = 'card list-panel ads-panel';
+    manager.innerHTML = `
+      <div class="panel-header events-header">
+        <div>
+          <p class="eyebrow">ADS MANAGER</p>
+          <h2 id="adsHeading">Ads Manager</h2>
+          <p class="panel-copy">DEV-only ads manager for previewing and saving pasted video ad URLs.</p>
+          <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
+        </div>
+        <div class="panel-actions events-actions">
+          <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
+          <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
+        </div>
+      </div>
+      <div class="stats-warning ads-folder-help" role="note">
+        <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
+        <div id="adsFolderHelp"></div>
+        <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
+      </div>
+      <div id="adsStatus" class="song-count">No ads loaded</div>
+      <div class="table-wrap events-table-wrap">
+        <table class="song-table ads-table">
+          <thead>
+            <tr>
+              <th>Thumbnail</th>
+              <th>Internal Title</th>
+              <th>Ad Type</th>
+              <th>Media Type</th>
+              <th>Status</th>
+              <th>Frequency</th>
+              <th>Preview</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adsTableBody"></tbody>
+        </table>
+      </div>`;
+    els.adsView.insertBefore(manager, editorPanel || els.adsView.firstChild);
+    els.adsStatus = document.getElementById('adsStatus');
+    els.adsTableBody = document.getElementById('adsTableBody');
+    els.adsStorageNote = document.getElementById('adsStorageNote');
+    els.createAdButton = document.getElementById('createAdButton');
+    els.refreshAdsButton = document.getElementById('refreshAdsButton');
+    els.createAdButton?.addEventListener('click', () => startCreateAd());
+    els.refreshAdsButton?.addEventListener('click', () => loadAds());
+  }
+
+  const folderHelp = document.getElementById('adsFolderHelp');
+  if (folderHelp) {
+    folderHelp.innerHTML = S3_AD_FOLDER_HELP.map(folder => `<code>${escapeHtml(folder)}</code>`).join('');
+  }
 }
 
 function renderAds() {
@@ -4431,7 +4562,7 @@ function renderAds() {
       <td>${escapeHtml(ad.media_type || 'Video')}</td>
       <td>${ad.active ? '<span class="visibility-pill visible">Active</span>' : '<span class="visibility-pill hidden-state">Inactive</span>'}</td>
       <td>${escapeHtml(ad.frequency || 'Medium')}</td>
-      <td><button class="button button-small button-ghost" type="button" data-preview-ad="${escapeHtml(ad.id)}" ${ad.media_url ? '' : 'disabled'}>Play</button></td>
+      <td><button class="button button-small button-ghost" type="button" data-preview-ad="${escapeHtml(ad.id)}">Play</button></td>
       <td class="row-actions"><button class="button button-small" type="button" data-edit-ad="${escapeHtml(ad.id)}">Edit</button><button class="button button-small button-ghost" type="button" data-delete-ad="${escapeHtml(ad.id)}">Delete</button></td>`;
     els.adsTableBody.appendChild(row);
   });
@@ -4442,7 +4573,11 @@ function renderAds() {
 
 function showListAdPreview(adId, anchorRow) {
   const ad = ads.find(item => item.id === adId);
-  if (!ad?.media_url || !anchorRow) return;
+  if (!ad?.media_url) {
+    window.alert('No video URL yet.');
+    return;
+  }
+  if (!anchorRow) return;
   const nextRow = anchorRow.nextElementSibling;
   if (nextRow?.classList.contains('ad-inline-preview-row') && nextRow.dataset.previewFor === adId) {
     nextRow.remove();

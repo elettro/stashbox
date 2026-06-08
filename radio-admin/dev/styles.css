@@ -1527,3 +1527,19 @@ textarea {
   font-size: 0.82rem;
   font-weight: 800;
 }
+
+.ads-folder-help p {
+  margin: 0 0 0.45rem;
+}
+
+.ads-folder-help #adsFolderHelp {
+  max-height: 8.5rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.ads-upload-note {
+  margin-top: 0.55rem !important;
+  color: var(--muted);
+  font-weight: 800;
+}
