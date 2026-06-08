@@ -35,6 +35,7 @@
         <button class="tab-button" type="button" data-tab="songs">Songs</button>
         <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
         <button class="tab-button" type="button" data-tab="events">Events</button>
+        <button class="tab-button" type="button" data-tab="ads">Ads</button>
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
 
@@ -461,6 +462,103 @@
             </table>
           </div>
         </aside>
+      </section>
+
+
+
+      <section id="adsView" class="admin-view hidden" aria-labelledby="adsHeading">
+        <aside class="card list-panel ads-panel">
+          <div class="panel-header events-header">
+            <div>
+              <p class="eyebrow">Ads MVP</p>
+              <h2 id="adsHeading">Ads manager</h2>
+              <p class="panel-copy">DEV-only first pass for video ads. No upload support yet; paste a hosted MP4 URL in Media URL.</p>
+              <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
+            </div>
+            <div class="panel-actions events-actions">
+              <button id="createAdButton" class="button button-small" type="button">Create Ad</button>
+              <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
+            </div>
+          </div>
+
+          <div class="stats-warning" role="note">
+            Expected S3 video folders for labels/reference only:
+            <code>radio-assets/ads/video/global/</code>
+            <code>radio-assets/ads/video/merch/</code>
+            <code>radio-assets/ads/video/events/</code>
+            <code>radio-assets/ads/video/sponsors/</code>
+            <code>radio-assets/ads/video/campaigns/</code>
+            <code>radio-assets/ads/video/artists/stashbox/</code>
+            <code>radio-assets/ads/video/artists/therasbox/</code>
+            <code>radio-assets/ads/video/artists/tahiticora/</code>
+            <code>radio-assets/ads/video/genres/reggae/</code>
+            <code>radio-assets/ads/video/genres/rock/</code>
+            <code>radio-assets/ads/video/genres/blues/</code>
+          </div>
+
+          <div id="adsStatus" class="song-count">No ads loaded</div>
+          <div class="table-wrap events-table-wrap">
+            <table class="song-table ads-table">
+              <thead>
+                <tr>
+                  <th>Ad</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Frequency</th>
+                  <th>Media</th>
+                  <th>Skip / Session Max</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adsTableBody"></tbody>
+            </table>
+          </div>
+        </aside>
+
+        <section class="card edit-panel ads-edit-panel" aria-labelledby="adFormHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Ad Editor</p>
+              <h2 id="adFormHeading">Select or create an ad</h2>
+            </div>
+          </div>
+          <form id="adForm" class="edit-form hidden">
+            <div class="form-grid" id="adFormFields"></div>
+            <div class="form-actions">
+              <button id="saveAdButton" class="button" type="submit">Save Ad</button>
+              <button id="cancelAdButton" class="button button-ghost" type="button">Cancel</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card dashboard-section ads-stats-panel" aria-labelledby="adStatsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Dev stats</p>
+              <h2 id="adStatsHeading">Ads dashboard stats</h2>
+              <p class="panel-copy">Session/local DEV data only. Public player writes ad events to browser localStorage until backend persistence is connected.</p>
+            </div>
+          </div>
+          <div class="table-wrap compact-table-wrap">
+            <table class="song-table compact-table ads-stats-table">
+              <thead>
+                <tr>
+                  <th>Ad</th>
+                  <th>Impressions</th>
+                  <th>Starts</th>
+                  <th>Completions</th>
+                  <th>Skips</th>
+                  <th>CTA Clicks</th>
+                  <th>Errors</th>
+                  <th>Completion Rate</th>
+                  <th>Skip Rate</th>
+                  <th>CTA Click Rate</th>
+                </tr>
+              </thead>
+              <tbody id="adStatsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       <section id="archiveView" class="admin-view hidden" aria-labelledby="archiveHeading">
