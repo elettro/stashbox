@@ -538,7 +538,6 @@ document.addEventListener('DOMContentLoaded', () => {
   buildAdForm();
   bindEvents();
   watchAdsPanelRemoval();
-  forceStaticAdsManagerVisible('dom-content-loaded');
   renderDashboard();
   renderAdsTab();
   initializeAdmin();
