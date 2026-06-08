@@ -591,7 +591,7 @@ function initializeAdmin() {
   updateTokenUi(Boolean(token));
 
   if (token) {
-    setActiveTab(DEFAULT_TAB);
+    setActiveTab(activeTab || DEFAULT_TAB, { forceReloadAds: false });
     loadDashboardData();
   } else {
     els.adminToken.focus();
@@ -652,8 +652,9 @@ function updateTokenUi(hasToken) {
   els.clearTokenButton.classList.toggle('hidden', !hasToken);
 }
 
-function setActiveTab(tabName) {
-  activeTab = tabName || DEFAULT_TAB;
+function setActiveTab(tabName, { forceReloadAds = true } = {}) {
+  const requestedTab = tabName || DEFAULT_TAB;
+  activeTab = ['dashboard', 'songs', 'events', 'ads', 'archive', 'edit'].includes(requestedTab) ? requestedTab : DEFAULT_TAB;
   els.tabButtons.forEach((button) => {
     const isActive = button.dataset.tab === activeTab;
     button.classList.toggle('is-active', isActive);
@@ -671,7 +672,7 @@ function setActiveTab(tabName) {
     view.classList.toggle('hidden', name !== activeTab);
   });
 
-  if (activeTab === 'ads') {
+  if (activeTab === 'ads' && forceReloadAds) {
     loadAds();
   }
 
@@ -1049,6 +1050,7 @@ function formatCompletionPercent(value) {
 
 
 async function loadDashboardData({ silent = false, preserveSelection = Boolean(selectedSongKey) } = {}) {
+  const tabBeforeRefresh = activeTab;
   setBusy(els.refreshDashboardButton, true);
   setBusy(els.refreshSongsButton, true);
   setBusy(els.refreshArchiveButton, true);
@@ -1099,6 +1101,7 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   renderDashboard();
   renderSongList();
   renderArchiveList();
+  preserveActiveTabAfterAsyncRefresh(tabBeforeRefresh);
 
   if (events.length) {
     renderEvents();
@@ -1111,6 +1114,18 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   setBusy(els.refreshDashboardButton, false);
   setBusy(els.refreshSongsButton, false);
   setBusy(els.refreshArchiveButton, false);
+}
+
+function preserveActiveTabAfterAsyncRefresh(tabName) {
+  if (!tabName || tabName !== activeTab) {
+    return;
+  }
+
+  setActiveTab(tabName, { forceReloadAds: false });
+
+  if (tabName === 'ads') {
+    loadAds({ preserveEditor: true });
+  }
 }
 
 async function fetchSongsData({ preserveSelection = Boolean(selectedSongKey) } = {}) {
@@ -4156,14 +4171,27 @@ function readJsonStorage(key, fallback) {
 }
 
 function writeJsonStorage(key, value) {
-  window.localStorage.setItem(key, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (_) {
+    // DEV localStorage can be blocked or full; keep the in-memory Ads panel usable.
+  }
 }
 
-function loadAds() {
+function loadAds({ preserveEditor = true } = {}) {
+  const previousSelectedAdId = selectedAdId;
+  const previousMode = els.adForm?.dataset.mode || 'idle';
   ads = ensureDefaultAds(readJsonStorage(ADS_STORAGE_KEY, []));
   writeJsonStorage(ADS_STORAGE_KEY, ads);
   renderAds();
   renderAdStats();
+
+  if (preserveEditor && previousSelectedAdId) {
+    const refreshedAd = ads.find(ad => ad.id === previousSelectedAdId);
+    if (refreshedAd) {
+      renderAdForm(refreshedAd, previousMode === 'create');
+    }
+  }
 }
 
 function buildAdForm() {
@@ -4568,7 +4596,8 @@ function setAdUploadStatus(configKey, message, status = 'idle') {
 }
 
 function adStatsSummary() {
-  const events = readJsonStorage(ADS_STATS_STORAGE_KEY, []);
+  const storedEvents = readJsonStorage(ADS_STATS_STORAGE_KEY, []);
+  const events = Array.isArray(storedEvents) ? storedEvents : [];
   const byAd = new Map(ads.map(ad => [ad.id, { ad, ad_impression: 0, ad_started: 0, ad_completed: 0, ad_skipped: 0, ad_cta_clicked: 0, ad_error: 0 }]));
   events.forEach(event => {
     const id = event.ad_id || event.adId;
