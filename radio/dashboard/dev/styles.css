@@ -117,14 +117,20 @@ h2 { margin-bottom: 0.25rem; font-size: clamp(1.2rem, 2vw, 1.65rem); }
 .rank-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.8rem; }
 .rank-card { display: grid; gap: 0.62rem; }
 .rank-top { display: flex; align-items: center; gap: 0.65rem; }
+.song-identity { display: flex; align-items: center; min-width: 0; gap: 0.72rem; }
+.song-identity__copy { min-width: 0; }
+.song-identity__copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-artwork { display: block; flex: 0 0 auto; width: 3rem; height: 3rem; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; background: rgba(255, 255, 255, 0.08); object-fit: cover; box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22); }
+.song-artwork--xs { width: 2.35rem; height: 2.35rem; border-radius: 10px; }
 .rank-number { display: inline-grid; place-items: center; flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: var(--gold-soft); color: var(--gold); font-weight: 900; }
 .rank-title { min-width: 0; margin: 0; font-weight: 850; }
-.rank-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-title .song-identity { gap: 0.62rem; }
+.rank-title .song-artwork { width: 2.55rem; height: 2.55rem; border-radius: 11px; }
 .rank-value { color: var(--green); font-size: 1.25rem; font-weight: 900; }
 .open-radio { justify-self: start; color: #06100a; font-size: 0.82rem; }
 
 .table-wrap { width: 100%; overflow-x: auto; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 16px; }
-.data-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+.data-table { width: 100%; min-width: 820px; border-collapse: collapse; }
 th, td { padding: 0.8rem 0.85rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); text-align: left; vertical-align: top; }
 th { color: var(--gold); background: rgba(240, 192, 76, 0.08); font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; }
 td { color: var(--text); font-size: 0.92rem; }
