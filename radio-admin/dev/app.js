@@ -11,9 +11,30 @@ const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 
 const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
 const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
-const AD_TYPE_OPTIONS = ['Merch', 'Event', 'Sponsor', 'Artist', 'Song', 'Donation', 'Station Promo', 'Global Promo'];
+const AD_TYPE_OPTIONS = [
+  'Stashbox Radio Branding',
+  'Merch Promo',
+  'Event Promo',
+  'Sponsor Ad',
+  'Artist Promo',
+  'Song Promo',
+  'Donation Campaign',
+  'Global Promo'
+];
+const AD_MEDIA_TYPE_OPTIONS = ['Video'];
 const AD_FREQUENCY_OPTIONS = ['Low', 'Medium', 'High'];
+const AD_UPLOAD_FOLDER_ROUTES = {
+  'Stashbox Radio Branding': { video: 'radio-assets/ads/video/branding/', thumbnail: 'radio-assets/ads/thumbnails/branding/' },
+  'Merch Promo': { video: 'radio-assets/ads/video/merch/', thumbnail: 'radio-assets/ads/thumbnails/merch/' },
+  'Event Promo': { video: 'radio-assets/ads/video/events/', thumbnail: 'radio-assets/ads/thumbnails/events/' },
+  'Sponsor Ad': { video: 'radio-assets/ads/video/sponsors/', thumbnail: 'radio-assets/ads/thumbnails/sponsors/' },
+  'Artist Promo': { video: 'radio-assets/ads/video/campaigns/', thumbnail: 'radio-assets/ads/thumbnails/campaigns/' },
+  'Song Promo': { video: 'radio-assets/ads/video/campaigns/', thumbnail: 'radio-assets/ads/thumbnails/campaigns/' },
+  'Donation Campaign': { video: 'radio-assets/ads/video/campaigns/', thumbnail: 'radio-assets/ads/thumbnails/campaigns/' },
+  'Global Promo': { video: 'radio-assets/ads/video/global/', thumbnail: 'radio-assets/ads/thumbnails/global/' }
+};
 const S3_AD_FOLDER_HELP = [
+  'radio-assets/ads/video/branding/',
   'radio-assets/ads/video/global/',
   'radio-assets/ads/video/merch/',
   'radio-assets/ads/video/events/',
@@ -24,18 +45,27 @@ const S3_AD_FOLDER_HELP = [
   'radio-assets/ads/video/artists/tahiticora/',
   'radio-assets/ads/video/genres/reggae/',
   'radio-assets/ads/video/genres/rock/',
-  'radio-assets/ads/video/genres/blues/'
+  'radio-assets/ads/video/genres/blues/',
+  'radio-assets/ads/video/genres/rap/',
+  'radio-assets/ads/video/genres/edm/',
+  'radio-assets/ads/thumbnails/branding/',
+  'radio-assets/ads/thumbnails/global/',
+  'radio-assets/ads/thumbnails/merch/',
+  'radio-assets/ads/thumbnails/events/',
+  'radio-assets/ads/thumbnails/sponsors/',
+  'radio-assets/ads/thumbnails/campaigns/'
 ];
 const DEFAULT_DEV_AD = {
-  id: 'dev-sample-stashbox-radio-test-video-ad',
-  internal_title: 'Stashbox Radio Test Video Ad',
-  internal_description: 'Test 10-second video ad for dev playback.',
-  ad_type: 'Station Promo',
+  id: 'dev-sample-stashbox-radio-branding-test-ad',
+  internal_title: 'Stashbox Radio Branding Test Ad',
+  internal_description: 'Primary Stashbox Radio station branding video ad for dev testing.',
+  ad_type: 'Stashbox Radio Branding',
   media_type: 'Video',
   media_url: '',
+  thumbnail_url: '',
   poster_image_url: '',
-  cta_label: 'Shop Stashbox Merch',
-  cta_url: 'https://stashbox.ai',
+  cta_label: 'Explore Stashbox Radio',
+  cta_url: 'https://stashbox.com/stashbox/radio/',
   active: false,
   frequency: 'Medium',
   genre_associations: '',
@@ -44,31 +74,31 @@ const DEFAULT_DEV_AD = {
   song_associations: '',
   skip_enabled: true,
   skip_after_seconds: 5,
-  max_plays_per_session: 1,
+  max_plays_per_session: 3,
   start_date: '',
   end_date: '',
-  notes: 'DEV fixture only. Paste a hosted MP4 URL and toggle Active to test playback.'
+  notes: 'DEV fixture only. Upload a branding MP4 before activating.'
 };
 const adFields = [
   { name: 'internal_title', label: 'Internal Title', type: 'text', required: true },
   { name: 'internal_description', label: 'Internal Description', type: 'textarea' },
-  { name: 'ad_type', label: 'Ad Type', type: 'select', options: AD_TYPE_OPTIONS },
-  { name: 'media_type', label: 'Media Type', type: 'select', options: ['Video'], help: 'MVP supports video only.' },
-  { name: 'media_url', label: 'Media URL', type: 'url', full: true, help: 'Paste an S3 MP4 URL or direct hosted MP4 URL. Expected S3 folders: ' + S3_AD_FOLDER_HELP.join(' ') },
-  { name: 'poster_image_url', label: 'Poster Image URL', type: 'url', full: true },
+  { name: 'ad_type', label: 'Ad Type', type: 'select', options: AD_TYPE_OPTIONS, required: true },
+  { name: 'media_type', label: 'Media Type', type: 'select', options: AD_MEDIA_TYPE_OPTIONS, required: true, help: 'MVP supports video only.' },
+  { name: 'media_url', label: 'Video File / Media URL', type: 'url', full: true, upload: 'adVideo', help: 'Upload an MP4 with the same presigned S3 flow used by Songs audio/artwork, or paste a direct hosted MP4 URL.' },
+  { name: 'thumbnail_url', label: 'Thumbnail File / Thumbnail URL', type: 'url', full: true, upload: 'adThumbnail', help: 'Upload JPG, PNG, or WebP artwork with the same presigned S3 flow used by song artwork.' },
   { name: 'cta_label', label: 'CTA Label', type: 'text' },
   { name: 'cta_url', label: 'CTA URL', type: 'url' },
   { name: 'active', label: 'Active', type: 'checkbox' },
   { name: 'frequency', label: 'Frequency', type: 'select', options: AD_FREQUENCY_OPTIONS },
-  { name: 'genre_associations', label: 'Genre associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
-  { name: 'mood_associations', label: 'Mood associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
-  { name: 'artist_associations', label: 'Artist associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
-  { name: 'song_associations', label: 'Song associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
   { name: 'skip_enabled', label: 'Skip Enabled', type: 'checkbox' },
   { name: 'skip_after_seconds', label: 'Skip After Seconds', type: 'number', min: 0, help: 'Default 5 seconds.' },
-  { name: 'max_plays_per_session', label: 'Max Plays Per Session', type: 'number', min: 1, help: 'Default 1 per listener session.' },
+  { name: 'max_plays_per_session', label: 'Max Plays Per Session', type: 'number', min: 1, help: 'Default 3 per listener session.' },
   { name: 'start_date', label: 'Start Date', type: 'date' },
   { name: 'end_date', label: 'End Date', type: 'date' },
+  { name: 'genre_associations', label: 'Genre Associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'mood_associations', label: 'Mood Associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'artist_associations', label: 'Artist Associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
+  { name: 'song_associations', label: 'Song Associations', type: 'text', full: true, help: 'Comma-separated for MVP.' },
   { name: 'notes', label: 'Notes', type: 'textarea', full: true }
 ];
 const DEFAULT_TAB = 'dashboard';
@@ -273,6 +303,7 @@ const deviceKpiDefinitions = [
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 const mediaUploadElements = new Map();
+const adUploadElements = new Map();
 
 const requiredSongFields = new Set([
   'song_name',
@@ -327,6 +358,35 @@ const uploadConfigs = {
   }
 };
 
+
+const adUploadConfigs = {
+  adVideo: {
+    fieldName: 'media_url',
+    folderType: 'video',
+    purpose: 'ad_video',
+    buttonText: 'Upload Ad Video',
+    uploadingMessage: 'Uploading ad video...',
+    successMessage: 'Ad video uploaded. Media URL added.',
+    failurePrefix: 'Ad video upload failed',
+    accept: 'video/mp4,.mp4',
+    allowedExtensions: ['mp4'],
+    allowedMimeTypes: ['video/mp4'],
+    previewType: 'video'
+  },
+  adThumbnail: {
+    fieldName: 'thumbnail_url',
+    folderType: 'thumbnail',
+    purpose: 'ad_thumbnail',
+    buttonText: 'Upload Thumbnail',
+    uploadingMessage: 'Uploading thumbnail...',
+    successMessage: 'Thumbnail uploaded. Thumbnail URL added.',
+    failurePrefix: 'Thumbnail upload failed',
+    accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+    allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    previewType: 'image'
+  }
+};
 const createDefaults = {
   song_key: '',
   song_name: '',
@@ -457,7 +517,10 @@ const els = {
   createAdButton: document.getElementById('createAdButton'),
   refreshAdsButton: document.getElementById('refreshAdsButton'),
   saveAdButton: document.getElementById('saveAdButton'),
+  saveAdAsNewButton: document.getElementById('saveAdAsNewButton'),
+  previewAdButton: document.getElementById('previewAdButton'),
   cancelAdButton: document.getElementById('cancelAdButton'),
+  deleteAdButton: document.getElementById('deleteAdButton'),
   adsStorageNote: document.getElementById('adsStorageNote'),
   message: document.getElementById('message')
 };
@@ -486,7 +549,10 @@ function bindEvents() {
   els.refreshEventsButton.addEventListener('click', () => loadEvents());
   els.createAdButton?.addEventListener('click', () => startCreateAd());
   els.refreshAdsButton?.addEventListener('click', () => loadAds());
+  els.saveAdAsNewButton?.addEventListener('click', saveAdAsNew);
+  els.previewAdButton?.addEventListener('click', updateAdPreview);
   els.cancelAdButton?.addEventListener('click', () => renderAdForm(null));
+  els.deleteAdButton?.addEventListener('click', deleteSelectedAd);
   els.adForm?.addEventListener('submit', saveAd);
   els.eventLimit.addEventListener('change', () => loadEvents());
   els.songSearch.addEventListener('input', renderSongList);
@@ -3635,8 +3701,8 @@ function getUploadContentType(file) {
   return file.type || 'application/octet-stream';
 }
 
-function validateUploadFile(fieldName, file) {
-  const config = uploadConfigs[fieldName];
+function validateUploadFile(fieldName, file, configs = uploadConfigs) {
+  const config = configs[fieldName];
   const extension = getFileExtension(file.name);
   const contentType = getUploadContentType(file).toLowerCase();
   const hasAllowedExtension = config.allowedExtensions.includes(extension);
@@ -4044,11 +4110,38 @@ function formatDisplayValue(value) {
   return String(value);
 }
 
+function cloneDefaultAd() {
+  return typeof structuredClone === 'function' ? structuredClone(DEFAULT_DEV_AD) : { ...DEFAULT_DEV_AD };
+}
+
+function normalizeAdRecord(ad) {
+  const next = { ...cloneDefaultAd(), ...(ad || {}) };
+  next.id = String(next.id || `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  next.ad_type = AD_TYPE_OPTIONS.includes(next.ad_type) ? next.ad_type : DEFAULT_DEV_AD.ad_type;
+  next.media_type = 'Video';
+  next.frequency = AD_FREQUENCY_OPTIONS.includes(next.frequency) ? next.frequency : DEFAULT_DEV_AD.frequency;
+  next.thumbnail_url = String(next.thumbnail_url || next.poster_image_url || '').trim();
+  next.poster_image_url = next.thumbnail_url;
+  next.media_url = String(next.media_url || '').trim();
+  next.skip_enabled = next.skip_enabled === undefined ? true : Boolean(next.skip_enabled);
+  next.skip_after_seconds = Math.max(0, Number(next.skip_after_seconds ?? DEFAULT_DEV_AD.skip_after_seconds) || 0);
+  next.max_plays_per_session = Math.max(1, Number(next.max_plays_per_session ?? DEFAULT_DEV_AD.max_plays_per_session) || DEFAULT_DEV_AD.max_plays_per_session);
+  return next;
+}
+
 function ensureDefaultAds(nextAds) {
-  const normalized = Array.isArray(nextAds) ? nextAds : [];
-  return normalized.some(ad => ad.id === DEFAULT_DEV_AD.id)
-    ? normalized
-    : [typeof structuredClone === 'function' ? structuredClone(DEFAULT_DEV_AD) : { ...DEFAULT_DEV_AD }, ...normalized];
+  const normalized = (Array.isArray(nextAds) ? nextAds : [])
+    .filter(ad => ad && ad.id !== 'dev-sample-stashbox-radio-test-video-ad')
+    .map(normalizeAdRecord);
+  const sample = cloneDefaultAd();
+  const sampleIndex = normalized.findIndex(ad => ad.id === sample.id);
+
+  if (sampleIndex >= 0) {
+    normalized[sampleIndex] = normalizeAdRecord({ ...sample, ...normalized[sampleIndex] });
+    return normalized;
+  }
+
+  return [sample, ...normalized];
 }
 
 function readJsonStorage(key, fallback) {
@@ -4076,12 +4169,14 @@ function loadAds() {
 function buildAdForm() {
   if (!els.adFormFields) return;
   els.adFormFields.innerHTML = '';
+  adUploadElements.clear();
   adFields.forEach(field => {
     const wrapper = document.createElement('label');
     wrapper.className = `field ${field.full ? 'field-full' : ''}`;
     wrapper.htmlFor = `ad_${field.name}`;
     const label = document.createElement('span');
     label.textContent = field.label;
+    if (field.required) label.appendChild(createRequiredStar());
     wrapper.appendChild(label);
     let input;
     if (field.type === 'textarea') {
@@ -4103,7 +4198,11 @@ function buildAdForm() {
     input.id = `ad_${field.name}`;
     input.name = field.name;
     if (field.required) input.required = true;
+    if (field.name === 'media_type') input.disabled = true;
+    input.addEventListener('input', updateAdPreview);
+    input.addEventListener('change', updateAdPreview);
     wrapper.appendChild(input);
+    if (field.upload) wrapper.appendChild(createAdUploadControls(field.upload));
     if (field.help) {
       const help = document.createElement('small');
       help.textContent = field.help;
@@ -4111,21 +4210,79 @@ function buildAdForm() {
     }
     els.adFormFields.appendChild(wrapper);
   });
+
+  const preview = document.createElement('section');
+  preview.className = 'ad-editor-preview field-full';
+  preview.setAttribute('aria-labelledby', 'adPreviewHeading');
+  preview.innerHTML = `
+    <div class="section-heading compact-heading">
+      <p class="eyebrow">Preview</p>
+      <h3 id="adPreviewHeading">Ad preview</h3>
+      <p class="panel-copy">Preview plays are local editor checks only and do not write ad impressions, starts, or completions.</p>
+    </div>
+    <div id="adThumbnailPreview" class="ad-thumbnail-preview"></div>
+    <div id="adVideoPreview" class="ad-video-preview"></div>`;
+  els.adFormFields.appendChild(preview);
+}
+
+function createAdUploadControls(configKey) {
+  const config = adUploadConfigs[configKey];
+  const controls = document.createElement('div');
+  controls.className = 'upload-controls ad-upload-controls';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button button-ghost button-small upload-button';
+  button.textContent = config.buttonText;
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = config.accept;
+  fileInput.className = 'hidden';
+
+  const status = document.createElement('div');
+  status.className = 'upload-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+
+  button.addEventListener('click', () => {
+    const validationError = getAdUploadMetadataValidationError();
+    if (validationError) {
+      setAdUploadStatus(configKey, validationError, 'error');
+      return;
+    }
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      setAdUploadStatus(configKey, 'No file selected.', 'error');
+      return;
+    }
+    uploadAdMedia(configKey, file);
+  });
+
+  controls.append(button, fileInput, status);
+  adUploadElements.set(configKey, { button, fileInput, status });
+  return controls;
 }
 
 function emptyAd() {
-  return {
-    ...DEFAULT_DEV_AD,
+  return normalizeAdRecord({
+    ...cloneDefaultAd(),
     id: `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     internal_title: '',
     internal_description: '',
     media_url: '',
+    thumbnail_url: '',
     poster_image_url: '',
     cta_label: '',
     cta_url: '',
     active: false,
     notes: ''
-  };
+  });
 }
 
 function startCreateAd() {
@@ -4135,6 +4292,7 @@ function startCreateAd() {
 function renderAdForm(ad = null, isNew = false) {
   if (!els.adForm) return;
   selectedAdId = ad?.id || '';
+  els.adForm.dataset.mode = isNew ? 'create' : (ad ? 'edit' : 'idle');
   els.adForm.classList.toggle('hidden', !ad);
   if (els.adFormHeading) els.adFormHeading.textContent = ad ? (isNew ? 'Create Ad' : `Edit Ad · ${ad.internal_title || ad.id}`) : 'Select or create an ad';
   adFields.forEach(field => {
@@ -4144,12 +4302,14 @@ function renderAdForm(ad = null, isNew = false) {
     if (field.type === 'checkbox') input.checked = Boolean(value);
     else input.value = value;
   });
+  Object.keys(adUploadConfigs).forEach(key => setAdUploadStatus(key, '', 'idle'));
+  updateAdPreview();
 }
 
-function serializeAdForm() {
+function serializeAdForm({ forceNew = false } = {}) {
   const form = els.adForm;
-  const existing = ads.find(ad => ad.id === selectedAdId) || emptyAd();
-  const next = { ...existing, id: selectedAdId || existing.id };
+  const existing = !forceNew && selectedAdId ? ads.find(ad => ad.id === selectedAdId) : null;
+  const next = { ...(existing || emptyAd()), id: forceNew || !selectedAdId ? `dev-ad-${Date.now()}-${Math.random().toString(16).slice(2)}` : selectedAdId };
   adFields.forEach(field => {
     const input = form.elements[field.name];
     if (!input) return;
@@ -4158,18 +4318,35 @@ function serializeAdForm() {
     else next[field.name] = input.value.trim();
   });
   next.media_type = 'Video';
-  next.skip_after_seconds = Number.isFinite(next.skip_after_seconds) ? next.skip_after_seconds : 5;
-  next.max_plays_per_session = Math.max(1, Number(next.max_plays_per_session) || 1);
+  next.thumbnail_url = next.thumbnail_url || next.poster_image_url || '';
+  next.poster_image_url = next.thumbnail_url;
+  next.skip_after_seconds = Number.isFinite(next.skip_after_seconds) ? Math.max(0, next.skip_after_seconds) : 5;
+  next.max_plays_per_session = Math.max(1, Number(next.max_plays_per_session) || 3);
   next.updated_at = new Date().toISOString();
-  return next;
+  return normalizeAdRecord(next);
 }
 
-function saveAd(event) {
-  event.preventDefault();
-  const ad = serializeAdForm();
+function validateAd(ad) {
+  const missing = [];
+  if (!ad.internal_title) missing.push('Internal Title');
+  if (!AD_TYPE_OPTIONS.includes(ad.ad_type)) missing.push('Ad Type');
+  if (ad.media_type !== 'Video') missing.push('Media Type');
+  if (missing.length) {
+    showMessage(`Fill required ad fields before saving: ${missing.join(', ')}.`, 'error');
+    return false;
+  }
+  if (ad.active && !ad.media_url) {
+    showMessage('Add or upload a video before activating this ad.', 'error');
+    return false;
+  }
+  return true;
+}
+
+function persistAd(ad) {
   const existingIndex = ads.findIndex(item => item.id === ad.id);
   if (existingIndex >= 0) ads.splice(existingIndex, 1, ad);
   else ads.unshift(ad);
+  ads = ensureDefaultAds(ads);
   writeJsonStorage(ADS_STORAGE_KEY, ads);
   renderAds();
   renderAdStats();
@@ -4177,10 +4354,31 @@ function saveAd(event) {
   showMessage(`Saved ad: ${ad.internal_title || ad.id}`, 'success');
 }
 
+function saveAd(event) {
+  event.preventDefault();
+  const ad = serializeAdForm();
+  if (!validateAd(ad)) return;
+  persistAd(ad);
+}
+
+function saveAdAsNew() {
+  const ad = serializeAdForm({ forceNew: true });
+  if (!validateAd(ad)) return;
+  persistAd(ad);
+}
+
+function deleteSelectedAd() {
+  if (!selectedAdId) {
+    showMessage('Select an ad before deleting.', 'error');
+    return;
+  }
+  deleteAd(selectedAdId);
+}
+
 function deleteAd(adId) {
   const ad = ads.find(item => item.id === adId);
   if (!ad || ad.id === DEFAULT_DEV_AD.id) {
-    showMessage('The sample dev ad stays available as a reusable fixture.', 'error');
+    showMessage('The sample Stashbox Radio Branding Test Ad stays available as a reusable inactive fixture.', 'error');
     return;
   }
   ads = ads.filter(item => item.id !== adId);
@@ -4188,27 +4386,185 @@ function deleteAd(adId) {
   renderAdForm(null);
   renderAds();
   renderAdStats();
+  showMessage(`Deleted ad: ${ad.internal_title || ad.id}`, 'success');
+}
+
+function getAdThumbnail(ad) {
+  return String(ad?.thumbnail_url || ad?.poster_image_url || '').trim();
 }
 
 function renderAds() {
   if (!els.adsTableBody) return;
   els.adsTableBody.innerHTML = '';
   els.adsStatus.textContent = `${ads.length} dev ad${ads.length === 1 ? '' : 's'} loaded from browser localStorage.`;
-  if (els.adsStorageNote) els.adsStorageNote.textContent = `MVP persistence: ${ADS_STORAGE_KEY} localStorage. Connect this shape to the real dev backend later.`;
+  if (els.adsStorageNote) els.adsStorageNote.textContent = `DEV persistence: ad records save to ${ADS_STORAGE_KEY} localStorage using the same record shape consumed by /stashbox/radio/dev/. Connect this shape to the real dev backend when the ads API is available.`;
+
+  if (!ads.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="8" class="empty-state">No ads yet. Click Add New Ad to create your first Stashbox Radio Branding ad.</td>';
+    els.adsTableBody.appendChild(row);
+    return;
+  }
+
   ads.forEach(ad => {
+    const thumb = getAdThumbnail(ad);
     const row = document.createElement('tr');
     row.innerHTML = `
+      <td>${thumb ? `<img class="ad-list-thumb" src="${escapeHtml(thumb)}" alt="${escapeHtml(ad.internal_title || 'Ad')} thumbnail" loading="lazy">` : '<div class="ad-list-thumb ad-list-thumb-empty">No thumbnail</div>'}</td>
       <td><strong>${escapeHtml(ad.internal_title || 'Untitled ad')}</strong><div class="song-meta">${escapeHtml(ad.internal_description || '')}</div></td>
       <td>${escapeHtml(ad.ad_type || '')}</td>
+      <td>${escapeHtml(ad.media_type || 'Video')}</td>
       <td>${ad.active ? '<span class="visibility-pill visible">Active</span>' : '<span class="visibility-pill hidden-state">Inactive</span>'}</td>
       <td>${escapeHtml(ad.frequency || 'Medium')}</td>
-      <td>${ad.media_url ? '<span class="visibility-pill visible">URL set</span>' : '<span class="visibility-pill hidden-state">No URL</span>'}</td>
-      <td>${Number(ad.skip_after_seconds) || 0}s / ${Number(ad.max_plays_per_session) || 1}</td>
+      <td><button class="button button-small button-ghost" type="button" data-preview-ad="${escapeHtml(ad.id)}" ${ad.media_url ? '' : 'disabled'}>Play</button></td>
       <td class="row-actions"><button class="button button-small" type="button" data-edit-ad="${escapeHtml(ad.id)}">Edit</button><button class="button button-small button-ghost" type="button" data-delete-ad="${escapeHtml(ad.id)}">Delete</button></td>`;
     els.adsTableBody.appendChild(row);
   });
   els.adsTableBody.querySelectorAll('[data-edit-ad]').forEach(button => button.addEventListener('click', () => renderAdForm(ads.find(ad => ad.id === button.dataset.editAd))));
   els.adsTableBody.querySelectorAll('[data-delete-ad]').forEach(button => button.addEventListener('click', () => deleteAd(button.dataset.deleteAd)));
+  els.adsTableBody.querySelectorAll('[data-preview-ad]').forEach(button => button.addEventListener('click', () => showListAdPreview(button.dataset.previewAd, button.closest('tr'))));
+}
+
+function showListAdPreview(adId, anchorRow) {
+  const ad = ads.find(item => item.id === adId);
+  if (!ad?.media_url || !anchorRow) return;
+  const nextRow = anchorRow.nextElementSibling;
+  if (nextRow?.classList.contains('ad-inline-preview-row') && nextRow.dataset.previewFor === adId) {
+    nextRow.remove();
+    return;
+  }
+  els.adsTableBody.querySelectorAll('.ad-inline-preview-row').forEach(row => row.remove());
+  const row = document.createElement('tr');
+  row.className = 'ad-inline-preview-row';
+  row.dataset.previewFor = adId;
+  row.innerHTML = `<td colspan="8"><div class="ad-inline-preview"><video controls playsinline preload="metadata" src="${escapeHtml(ad.media_url)}" poster="${escapeHtml(getAdThumbnail(ad))}"></video><p>Preview only — no ad tracking events are recorded.</p></div></td>`;
+  anchorRow.insertAdjacentElement('afterend', row);
+}
+
+function updateAdPreview() {
+  const thumbnailPreview = document.getElementById('adThumbnailPreview');
+  const videoPreview = document.getElementById('adVideoPreview');
+  if (!thumbnailPreview || !videoPreview || !els.adForm) return;
+  const mediaUrl = String(els.adForm.elements.media_url?.value || '').trim();
+  const thumbnailUrl = String(els.adForm.elements.thumbnail_url?.value || '').trim();
+  thumbnailPreview.innerHTML = thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="Ad thumbnail preview" loading="lazy">` : '<div class="ad-preview-empty">No thumbnail URL yet.</div>';
+  videoPreview.innerHTML = mediaUrl
+    ? `<video controls playsinline preload="metadata" src="${escapeHtml(mediaUrl)}" ${thumbnailUrl ? `poster="${escapeHtml(thumbnailUrl)}"` : ''}></video>`
+    : '<div class="ad-preview-empty">No video URL yet. Upload or paste a Media URL, then click Preview Ad.</div>';
+}
+
+function getAdUploadMetadataValidationError() {
+  const title = String(els.adForm?.elements.internal_title?.value || '').trim();
+  if (!title) return 'Internal Title is required before upload.';
+  return '';
+}
+
+function getAdUploadRoute(adType, folderType) {
+  return (AD_UPLOAD_FOLDER_ROUTES[adType] || AD_UPLOAD_FOLDER_ROUTES[DEFAULT_DEV_AD.ad_type])[folderType];
+}
+
+function slugifyAdTitle(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, ' and ')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'stashbox-radio-ad';
+}
+
+function buildAdUploadKey(config, file) {
+  const title = String(els.adForm?.elements.internal_title?.value || '').trim();
+  const adType = String(els.adForm?.elements.ad_type?.value || DEFAULT_DEV_AD.ad_type).trim();
+  const folder = getAdUploadRoute(adType, config.folderType);
+  const originalExtension = getFileExtension(file.name);
+  const extension = originalExtension || (config.previewType === 'video' ? 'mp4' : 'png');
+  const slug = slugifyAdTitle(title);
+  const baseKey = `${folder}${slug}.${extension}`;
+  const existingKeys = ads.flatMap(ad => [ad.media_url, getAdThumbnail(ad)]).filter(Boolean);
+  const alreadyUsed = existingKeys.some(url => String(url).includes(baseKey));
+  return alreadyUsed ? `${folder}${slug}-${Date.now()}.${extension}` : baseKey;
+}
+
+async function uploadAdMedia(configKey, file) {
+  const config = adUploadConfigs[configKey];
+  const metadataError = getAdUploadMetadataValidationError();
+  if (metadataError) {
+    setAdUploadStatus(configKey, metadataError, 'error');
+    return;
+  }
+  const fileError = validateUploadFile(configKey, file, adUploadConfigs);
+  if (fileError) {
+    setAdUploadStatus(configKey, fileError, 'error');
+    return;
+  }
+
+  const title = String(els.adForm.elements.internal_title.value || '').trim();
+  const adType = String(els.adForm.elements.ad_type.value || DEFAULT_DEV_AD.ad_type).trim();
+  const contentType = getUploadContentType(file);
+  const targetKey = buildAdUploadKey(config, file);
+  const keyPrefix = getAdUploadRoute(adType, config.folderType);
+
+  setAdUploadStatus(configKey, config.uploadingMessage, 'busy');
+  setAdUploadControlDisabled(configKey, true);
+
+  try {
+    const presignResult = normalizeUploadPresignResponse(await adminFetch(UPLOAD_PRESIGN_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: config.purpose,
+        filename: file.name,
+        content_type: contentType,
+        ad_id: selectedAdId || '',
+        ad_title: title,
+        ad_type: adType,
+        song_key: slugifyAdTitle(title),
+        song_name: title,
+        artist: 'Stashbox Radio Ads',
+        key_prefix: keyPrefix,
+        target_key: targetKey
+      })
+    }));
+
+    const uploadUrl = presignResult?.upload_url;
+    const publicUrl = presignResult?.public_url;
+    if (!uploadUrl || !publicUrl) throw new Error('Presign response was missing upload_url or public_url.');
+
+    const s3Response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: file
+    });
+    if (!s3Response.ok) throw new Error(`S3 upload failed with status ${s3Response.status}.`);
+
+    const input = els.adForm.elements[config.fieldName];
+    input.value = publicUrl;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    setAdUploadStatus(configKey, config.successMessage, 'success');
+    showMessage(config.successMessage, 'success');
+  } catch (error) {
+    setAdUploadStatus(configKey, `${config.failurePrefix}: ${error.message}`, 'error');
+  } finally {
+    setAdUploadControlDisabled(configKey, false);
+  }
+}
+
+function setAdUploadControlDisabled(configKey, isDisabled) {
+  const controls = adUploadElements.get(configKey);
+  if (controls?.button) controls.button.disabled = Boolean(isDisabled);
+}
+
+function setAdUploadStatus(configKey, message, status = 'idle') {
+  const statusEl = adUploadElements.get(configKey)?.status;
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.classList.toggle('is-error', status === 'error');
+  statusEl.classList.toggle('is-success', status === 'success');
+  statusEl.classList.toggle('is-busy', status === 'busy');
 }
 
 function adStatsSummary() {

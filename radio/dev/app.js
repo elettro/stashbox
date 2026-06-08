@@ -24,20 +24,21 @@ const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
 const AD_INSERT_AFTER_SONGS = 4;
 const AD_FREQUENCY_WEIGHTS = { Low: 1, Medium: 3, High: 6 };
 const DEFAULT_DEV_AD = {
-  id: 'dev-sample-stashbox-radio-test-video-ad',
-  internal_title: 'Stashbox Radio Test Video Ad',
-  internal_description: 'Test 10-second video ad for dev playback.',
-  ad_type: 'Station Promo',
+  id: 'dev-sample-stashbox-radio-branding-test-ad',
+  internal_title: 'Stashbox Radio Branding Test Ad',
+  internal_description: 'Primary Stashbox Radio station branding video ad for dev testing.',
+  ad_type: 'Stashbox Radio Branding',
   media_type: 'Video',
   media_url: '',
+  thumbnail_url: '',
   poster_image_url: '',
-  cta_label: 'Shop Stashbox Merch',
-  cta_url: 'https://stashbox.ai',
+  cta_label: 'Explore Stashbox Radio',
+  cta_url: 'https://stashbox.com/stashbox/radio/',
   active: false,
   frequency: 'Medium',
   skip_enabled: true,
   skip_after_seconds: 5,
-  max_plays_per_session: 1,
+  max_plays_per_session: 3,
   notes: 'DEV fixture only.'
 };
 
@@ -91,9 +92,10 @@ function writeJsonStorage(key, value) {
 
 function getStoredAds() {
   const storedAds = readJsonStorage(ADS_STORAGE_KEY, []);
-  const withSample = Array.isArray(storedAds) && storedAds.some(ad => ad.id === DEFAULT_DEV_AD.id)
-    ? storedAds
-    : [DEFAULT_DEV_AD, ...(Array.isArray(storedAds) ? storedAds : [])];
+  const storedList = (Array.isArray(storedAds) ? storedAds : []).filter(ad => ad?.id !== 'dev-sample-stashbox-radio-test-video-ad');
+  const withSample = storedList.some(ad => ad.id === DEFAULT_DEV_AD.id)
+    ? storedList
+    : [DEFAULT_DEV_AD, ...storedList];
   writeJsonStorage(ADS_STORAGE_KEY, withSample);
   return withSample;
 }
@@ -112,7 +114,8 @@ function normalizeAd(row) {
     ad_type: clean(row.ad_type || 'Station Promo'),
     media_type: clean(row.media_type || 'Video') || 'Video',
     media_url: clean(row.media_url || row.mediaUrl),
-    poster_image_url: clean(row.poster_image_url || row.posterImageUrl),
+    thumbnail_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
+    poster_image_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
     cta_label: clean(row.cta_label || row.ctaLabel),
     cta_url: clean(row.cta_url || row.ctaUrl),
     active: bool(row.active),
