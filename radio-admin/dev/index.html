@@ -471,7 +471,7 @@
           <div class="panel-header events-header">
             <div>
               <p class="eyebrow">ADS MANAGER</p>
-              <h2 id="adsHeading">Ads manager</h2>
+              <h2 id="adsHeading">Ads Manager</h2>
               <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
               <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
             </div>
@@ -481,8 +481,10 @@
             </div>
           </div>
 
-          <div class="stats-warning" role="note">
-            Upload connection pending. Paste S3/CloudFront URL for now.
+          <div class="stats-warning ads-folder-help" role="note">
+            <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
+            <div id="adsFolderHelp"></div>
+            <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
           </div>
 
           <div id="adsStatus" class="song-count">No ads loaded</div>
@@ -508,7 +510,7 @@
         <section class="card edit-panel ads-edit-panel" aria-labelledby="adFormHeading">
           <div class="panel-header">
             <div>
-              <p class="eyebrow">Ad Editor</p>
+              <p class="eyebrow">AD EDITOR</p>
               <h2 id="adFormHeading">Select or create an ad</h2>
             </div>
           </div>
@@ -516,10 +518,7 @@
             <div class="form-grid" id="adFormFields"></div>
             <div class="form-actions">
               <button id="saveAdButton" class="button" type="submit">Save Ad</button>
-              <button id="saveAdAsNewButton" class="button button-ghost" type="button">Save as New Ad</button>
-              <button id="previewAdButton" class="button button-ghost" type="button">Preview Ad</button>
               <button id="cancelAdButton" class="button button-ghost" type="button">Cancel</button>
-              <button id="deleteAdButton" class="button button-danger" type="button">Delete</button>
             </div>
           </form>
         </section>
@@ -527,7 +526,7 @@
         <section class="card dashboard-section ads-stats-panel" aria-labelledby="adStatsHeading">
           <div class="panel-header dashboard-header">
             <div>
-              <p class="eyebrow">Dev stats</p>
+              <p class="eyebrow">DEV STATS</p>
               <h2 id="adStatsHeading">Ads dashboard stats</h2>
               <p class="panel-copy">Session/local DEV data only. Public player writes ad events to browser localStorage until backend persistence is connected.</p>
             </div>
