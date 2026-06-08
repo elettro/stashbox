@@ -470,7 +470,7 @@
         <aside class="card list-panel ads-panel">
           <div class="panel-header events-header">
             <div>
-              <p class="eyebrow">Ads MVP</p>
+              <p class="eyebrow">ADS MANAGER</p>
               <h2 id="adsHeading">Ads manager</h2>
               <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
               <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
@@ -482,26 +482,7 @@
           </div>
 
           <div class="stats-warning" role="note">
-            Expected DEV S3 video/thumbnail folders for upload routing:
-            <code>radio-assets/ads/video/global/</code>
-            <code>radio-assets/ads/video/merch/</code>
-            <code>radio-assets/ads/video/events/</code>
-            <code>radio-assets/ads/video/sponsors/</code>
-            <code>radio-assets/ads/video/campaigns/</code>
-            <code>radio-assets/ads/video/artists/stashbox/</code>
-            <code>radio-assets/ads/video/artists/therasbox/</code>
-            <code>radio-assets/ads/video/artists/tahiticora/</code>
-            <code>radio-assets/ads/video/genres/reggae/</code>
-            <code>radio-assets/ads/video/genres/rock/</code>
-            <code>radio-assets/ads/video/genres/blues/</code>
-            <code>radio-assets/ads/video/genres/rap/</code>
-            <code>radio-assets/ads/video/genres/edm/</code>
-            <code>radio-assets/ads/thumbnails/branding/</code>
-            <code>radio-assets/ads/thumbnails/global/</code>
-            <code>radio-assets/ads/thumbnails/merch/</code>
-            <code>radio-assets/ads/thumbnails/events/</code>
-            <code>radio-assets/ads/thumbnails/sponsors/</code>
-            <code>radio-assets/ads/thumbnails/campaigns/</code>
+            Upload connection pending. Paste S3/CloudFront URL for now.
           </div>
 
           <div id="adsStatus" class="song-count">No ads loaded</div>
@@ -571,6 +552,8 @@
             </table>
           </div>
         </section>
+
+        <p class="ads-ui-version">Ads UI version: ads-manager-20260608</p>
       </section>
 
       <section id="archiveView" class="admin-view hidden" aria-labelledby="archiveHeading">
@@ -653,6 +636,6 @@
     </div>
   </main>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=ads-manager-20260608"></script>
 </body>
 </html>
