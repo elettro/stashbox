@@ -775,3 +775,33 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   .stashbox-track-count{font-size:12px;letter-spacing:.14em}
   .stashbox-action-row{gap:4px}
 }
+
+/* Header search expansion: keep the real query input collapsed until the magnifier opens it. */
+.stashbox-header-search-area{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;max-width:100%;flex:0 1 auto}
+.stashbox-header-search-area .stashbox-search{display:flex;align-items:center;gap:8px;min-width:0;width:0;max-width:0;overflow:hidden;opacity:0;pointer-events:none;transition:width .18s ease,max-width .18s ease,opacity .14s ease}
+.stashbox-header-search-area.open .stashbox-search{width:clamp(190px,28vw,340px);max-width:min(340px,calc(100vw - 110px));opacity:1;pointer-events:auto}
+.stashbox-header-search-area .stashbox-search input{flex:1 1 auto;min-width:0}
+.stashbox-search-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:30px;height:30px;border:1px solid rgba(242,189,85,.36);border-radius:999px;color:#ffd978;background:rgba(0,0,0,.3);font:900 22px/1 var(--fb);cursor:pointer;opacity:1;transform:scale(1);transition:opacity .14s ease,transform .14s ease,width .14s ease,border-color .14s ease}
+.stashbox-search-close:hover:not(:disabled){border-color:rgba(255,217,120,.8);background:rgba(242,189,85,.14)}
+.stashbox-header-search-area.closed .stashbox-search-close{width:0;border-width:0;opacity:0;pointer-events:none;transform:scale(.72)}
+.stashbox-mobile-search-trigger{display:inline-flex;align-items:center;justify-content:center;width:40px;min-width:40px;height:40px;min-height:40px;padding:0;font-size:19px;line-height:1;letter-spacing:0}
+.stashbox-mobile-search-trigger.active{border-color:rgba(240,165,0,.8);color:#ffd36f;background:rgba(240,165,0,.2);box-shadow:0 0 0 1px rgba(240,165,0,.14),0 10px 24px rgba(0,0,0,.22)}
+
+@media(max-width:860px){
+  .stashbox-action-row{width:100%;justify-content:flex-end;flex-wrap:nowrap;overflow:hidden}
+  .stashbox-header-search-area{order:5;flex:1 1 auto}
+  .stashbox-header-search-area.open .stashbox-search{width:100%;max-width:100%}
+  .stashbox-header-search-area .stashbox-search span{display:none}
+}
+
+@media(max-width:520px){
+  .stashbox-radio-header{overflow:hidden}
+  .stashbox-action-row{grid-column:1 / -1;grid-row:2;width:100%;justify-content:flex-end;gap:7px;margin-top:8px}
+  .stashbox-header-search-area{order:3;flex:0 1 auto;max-width:100%}
+  .header-search-open .stashbox-header-search-area{flex:1 1 100%}
+  .header-search-open .stashbox-filter-toggle,
+  .header-search-open .stashbox-utility{display:none}
+  .stashbox-header-search-area .stashbox-search{position:static;left:auto;right:auto;top:auto;z-index:auto;width:0;min-width:0;max-width:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;visibility:visible;transform:none;transition:width .18s ease,max-width .18s ease,opacity .14s ease}
+  .stashbox-header-search-area.open .stashbox-search{width:100%;max-width:100%;opacity:1;pointer-events:auto}
+  .stashbox-search input{height:40px;font-size:16px}
+}
