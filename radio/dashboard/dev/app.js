@@ -416,6 +416,7 @@ function renderRankings() {
 }
 
 function renderRankGrid(container, songs, metricFormatter, label) {
+  container.classList.add('rank-grid--compact');
   container.innerHTML = '';
   if (!songs.length) {
     container.innerHTML = `<article class="rank-card muted">No public ${label} data returned.</article>`;
