@@ -84,8 +84,8 @@ const adFields = [
   { name: 'internal_description', label: 'Internal Description', type: 'textarea' },
   { name: 'ad_type', label: 'Ad Type', type: 'select', options: AD_TYPE_OPTIONS, required: true },
   { name: 'media_type', label: 'Media Type', type: 'select', options: AD_MEDIA_TYPE_OPTIONS, required: true, help: 'MVP supports video only.' },
-  { name: 'media_url', label: 'Video File / Media URL', type: 'url', full: true, upload: 'adVideo', help: 'Upload an MP4 with the same presigned S3 flow used by Songs audio/artwork, or paste a direct hosted MP4 URL.' },
-  { name: 'thumbnail_url', label: 'Thumbnail File / Thumbnail URL', type: 'url', full: true, upload: 'adThumbnail', help: 'Upload JPG, PNG, or WebP artwork with the same presigned S3 flow used by song artwork.' },
+  { name: 'media_url', label: 'Media URL', type: 'url', full: true, upload: 'adVideo', help: 'Upload connection pending. Paste S3/CloudFront URL for now.' },
+  { name: 'thumbnail_url', label: 'Thumbnail URL', type: 'url', full: true, upload: 'adThumbnail', help: 'Upload connection pending. Paste S3/CloudFront URL for now.' },
   { name: 'cta_label', label: 'CTA Label', type: 'text' },
   { name: 'cta_url', label: 'CTA URL', type: 'url' },
   { name: 'active', label: 'Active', type: 'checkbox' },
@@ -4148,15 +4148,12 @@ function ensureDefaultAds(nextAds) {
   const normalized = (Array.isArray(nextAds) ? nextAds : [])
     .filter(ad => ad && ad.id !== 'dev-sample-stashbox-radio-test-video-ad')
     .map(normalizeAdRecord);
-  const sample = cloneDefaultAd();
-  const sampleIndex = normalized.findIndex(ad => ad.id === sample.id);
 
-  if (sampleIndex >= 0) {
-    normalized[sampleIndex] = normalizeAdRecord({ ...sample, ...normalized[sampleIndex] });
+  if (normalized.length) {
     return normalized;
   }
 
-  return [sample, ...normalized];
+  return [normalizeAdRecord(cloneDefaultAd())];
 }
 
 function readJsonStorage(key, fallback) {
@@ -4262,34 +4259,24 @@ function createAdUploadControls(configKey) {
   button.type = 'button';
   button.className = 'button button-ghost button-small upload-button';
   button.textContent = config.buttonText;
+  button.disabled = true;
+  button.title = 'Upload connection pending. Paste S3/CloudFront URL for now.';
 
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = config.accept;
   fileInput.className = 'hidden';
+  fileInput.disabled = true;
 
   const status = document.createElement('div');
   status.className = 'upload-status';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
 
-  button.addEventListener('click', () => {
-    const validationError = getAdUploadMetadataValidationError();
-    if (validationError) {
-      setAdUploadStatus(configKey, validationError, 'error');
-      return;
-    }
-    fileInput.value = '';
-    fileInput.click();
-  });
+  status.textContent = 'Upload connection pending. Paste S3/CloudFront URL for now.';
 
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (!file) {
-      setAdUploadStatus(configKey, 'No file selected.', 'error');
-      return;
-    }
-    uploadAdMedia(configKey, file);
+  button.addEventListener('click', () => {
+    setAdUploadStatus(configKey, 'Upload connection pending. Paste S3/CloudFront URL for now.', 'idle');
   });
 
   controls.append(button, fileInput, status);
@@ -4330,7 +4317,7 @@ function renderAdForm(ad = null, isNew = false) {
     if (field.type === 'checkbox') input.checked = Boolean(value);
     else input.value = value;
   });
-  Object.keys(adUploadConfigs).forEach(key => setAdUploadStatus(key, '', 'idle'));
+  Object.keys(adUploadConfigs).forEach(key => setAdUploadStatus(key, 'Upload connection pending. Paste S3/CloudFront URL for now.', 'idle'));
   updateAdPreview();
 }
 
@@ -4364,7 +4351,7 @@ function validateAd(ad) {
     return false;
   }
   if (ad.active && !ad.media_url) {
-    showMessage('Add or upload a video before activating this ad.', 'error');
+    showMessage('Add a Media URL before activating this ad.', 'error');
     return false;
   }
   return true;
