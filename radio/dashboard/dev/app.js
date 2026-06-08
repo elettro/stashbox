@@ -1,4 +1,5 @@
 const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+const FALLBACK_ARTWORK_URL = '/images/branding/stashbox-logo-transparent-rastacolors.png';
 const PUBLIC_SONGS_URL = `${API_ROOT}/radio/songs`;
 const PUBLIC_DASHBOARD_ENDPOINTS = {
   summary: `${API_ROOT}/dashboard/summary`,
@@ -68,6 +69,13 @@ function formatPercent(value) {
   return `${number.toFixed(number >= 10 ? 0 : 1)}%`;
 }
 
+function fixDropbox(url) {
+  const image = typeof url === 'object' && url !== null ? (url.src || url.url || '') : url;
+  const value = clean(image);
+  if (!value) return '';
+  return value.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
+}
+
 function formatDateTime(value) {
   if (!clean(value)) return '—';
   const date = new Date(value);
@@ -110,7 +118,8 @@ function isPublicUsefulUrl(value) {
 }
 
 function normalizeSong(row, index = 0) {
-  const songKey = clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key'])) || `song-${index + 1}`;
+  const songKey = clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key', 'id', 'track_id'])) || `song-${index + 1}`;
+  const artworkUrl = fixDropbox(firstDefined(row, ['resolved_artwork_url', 'artwork_url', 'image_url', 'cover_url', 'imageUrl', 'artwork', 'cover']));
   const plays = count(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
   const likes = count(firstDefined(row, ['likes', 'like_count', 'total_likes']));
   const shares = count(firstDefined(row, ['shares', 'share_count', 'total_shares']));
@@ -126,6 +135,7 @@ function normalizeSong(row, index = 0) {
     title: clean(firstDefined(row, ['display_title', 'song_name', 'title', 'name'])) || 'Untitled Stashbox Track',
     artist: clean(firstDefined(row, ['artist', 'artist_name', 'band'])) || 'Stashbox',
     genre: clean(firstDefined(row, ['genre', 'primary_genre', 'section'])) || 'Other',
+    artworkUrl,
     plays,
     likes,
     shares,
@@ -142,13 +152,16 @@ function normalizeSong(row, index = 0) {
 
 function normalizeEvent(event) {
   const productUrl = firstDefined(event, ['product_url', 'productUrl', 'product_link']);
+  const songKey = clean(firstDefined(event, ['song_key', 'track_key', 'key', 'slug', 'track_id']));
   return {
     time: firstDefined(event, ['created_at', 'timestamp', 'time', 'event_time']),
     eventType: clean(firstDefined(event, ['event_type', 'type', 'event'])) || 'unknown',
-    song: clean(firstDefined(event, ['song_title', 'song_name', 'title', 'display_title'])) || clean(firstDefined(event, ['song_key', 'track_key'])) || '—',
+    songKey,
+    song: clean(firstDefined(event, ['song_title', 'song_name', 'title', 'display_title'])) || songKey || '—',
     artist: clean(firstDefined(event, ['artist', 'artist_name', 'band'])) || '—',
     deviceType: clean(firstDefined(event, ['device_type', 'device', 'listener_device'])) || '—',
     referrer: clean(firstDefined(event, ['referrer', 'source', 'track_source', 'traffic_source'])) || '—',
+    artworkUrl: fixDropbox(firstDefined(event, ['resolved_artwork_url', 'artwork_url', 'image_url', 'cover_url', 'imageUrl', 'artwork', 'cover'])),
     productUrl: isPublicUsefulUrl(productUrl) ? clean(productUrl) : ''
   };
 }
@@ -309,15 +322,80 @@ function renderStatGrid(container, stats) {
   });
 }
 
+function songArtworkUrl(song) {
+  return clean(song?.artworkUrl) || FALLBACK_ARTWORK_URL;
+}
+
+function createSongArtwork(song, size = 'sm') {
+  const img = document.createElement('img');
+  img.className = `song-artwork song-artwork--${size}`;
+  img.src = songArtworkUrl(song);
+  img.alt = `${clean(song?.title) || clean(song?.song) || 'Song'} artwork`;
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.onerror = () => {
+    if (img.src.endsWith(FALLBACK_ARTWORK_URL)) return;
+    img.src = FALLBACK_ARTWORK_URL;
+  };
+  return img;
+}
+
+function createSongIdentity(song, { includeGenre = true, size = 'sm' } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'song-identity';
+  wrap.appendChild(createSongArtwork(song, size));
+
+  const copy = document.createElement('div');
+  copy.className = 'song-identity__copy';
+  const title = document.createElement('strong');
+  title.textContent = clean(song?.title || song?.song) || 'Untitled Stashbox Track';
+  copy.appendChild(title);
+
+  if (includeGenre && clean(song?.genre)) {
+    const subtext = document.createElement('div');
+    subtext.className = 'song-subtext';
+    subtext.textContent = song.genre;
+    copy.appendChild(subtext);
+  }
+
+  wrap.appendChild(copy);
+  return wrap;
+}
+
+function findSongForEvent(event) {
+  const eventKey = clean(event?.songKey);
+  if (eventKey) {
+    const byKey = state.songs.find(song => song.songKey === eventKey);
+    if (byKey) return byKey;
+  }
+
+  const eventSong = clean(event?.song).toLowerCase();
+  const eventArtist = clean(event?.artist).toLowerCase();
+  return state.songs.find(song => {
+    const sameTitle = clean(song.title).toLowerCase() === eventSong;
+    const sameArtist = !eventArtist || eventArtist === '—' || clean(song.artist).toLowerCase() === eventArtist;
+    return sameTitle && sameArtist;
+  }) || null;
+}
+
+function songIdentityForEvent(event) {
+  const matchedSong = findSongForEvent(event);
+  return createSongIdentity({
+    title: event.song,
+    song: event.song,
+    artworkUrl: event.artworkUrl || matchedSong?.artworkUrl || '',
+    genre: matchedSong?.genre || ''
+  }, { includeGenre: false, size: 'xs' });
+}
+
 function renderSongTables() {
   const topSongs = sortSongs('plays').slice(0, 25);
   els.topSongsBody.innerHTML = '';
   if (!topSongs.length) return renderEmptyRow(els.topSongsBody, 7, 'No public song rows returned.');
   topSongs.forEach((song, index) => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${index + 1}</td><td><strong></strong><div class="song-subtext"></div></td><td></td><td>${formatNumber(song.plays)}</td><td>${formatNumber(song.likes)}</td><td>${formatNumber(song.shares)}</td><td></td>`;
-    row.querySelector('strong').textContent = song.title;
-    row.querySelector('.song-subtext').textContent = song.genre;
+    row.innerHTML = `<td>${index + 1}</td><td></td><td></td><td>${formatNumber(song.plays)}</td><td>${formatNumber(song.likes)}</td><td>${formatNumber(song.shares)}</td><td></td>`;
+    row.children[1].appendChild(createSongIdentity(song));
     row.children[2].textContent = song.artist;
     row.children[6].appendChild(openRadioButton(song));
     els.topSongsBody.appendChild(row);
@@ -347,8 +425,8 @@ function renderRankGrid(container, songs, metricFormatter, label) {
   songs.forEach((song, index) => {
     const card = document.createElement('article');
     card.className = 'rank-card';
-    card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span><p class="rank-title"><span></span></p></div><div class="rank-meta"></div><div class="rank-value"></div>`;
-    card.querySelector('.rank-title span').textContent = song.title;
+    card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span><div class="rank-title"></div></div><div class="rank-meta"></div><div class="rank-value"></div>`;
+    card.querySelector('.rank-title').appendChild(createSongIdentity(song, { includeGenre: false }));
     card.querySelector('.rank-meta').textContent = `${song.artist} · ${song.genre}`;
     card.querySelector('.rank-value').textContent = metricFormatter(song);
     card.appendChild(openRadioButton(song));
@@ -382,7 +460,7 @@ function renderEventsBody(body, events) {
     row.innerHTML = `<td></td><td class="event-type"></td><td></td><td></td><td></td><td></td><td></td>`;
     row.children[0].textContent = formatDateTime(event.time);
     row.children[1].textContent = event.eventType.replace(/_/g, ' ');
-    row.children[2].textContent = event.song;
+    row.children[2].appendChild(songIdentityForEvent(event));
     row.children[3].textContent = event.artist;
     row.children[4].textContent = event.deviceType;
     row.children[5].textContent = event.referrer;
