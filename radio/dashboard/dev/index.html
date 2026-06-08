@@ -4,14 +4,45 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stashbox Radio Dashboard · Dev</title>
+  <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
-  <header class="hero">
-    <div class="hero__content">
+<body class="dashboard-page">
+  <nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo" aria-label="Stashbox — Home">
+        <img src="/images/branding/stashbox-logo-transparent-rasta-colors.png"
+             alt="Stashbox"
+             class="nav__logo-img"
+             onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+        <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+      </a>
+      <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+        <span class="nav__bar" aria-hidden="true"></span>
+        <span class="nav__bar" aria-hidden="true"></span>
+        <span class="nav__bar" aria-hidden="true"></span>
+      </button>
+      <ul class="nav__links" id="navLinks" role="list">
+        <li><a href="/">Home</a></li>
+        <li><a href="/radio/">Radio</a></li>
+        <li><a href="/videos/">Videos</a></li>
+        <li><a href="/sessions/">Sessions</a></li>
+        <li><a href="/shop/">Shop</a></li>
+        <li><a href="/setlists/">Setlists</a></li>
+        <li><a href="/booking/">Book Band</a></li>
+        <li><a href="/custom/">Custom Music</a></li>
+        <li><a href="/about/">About</a></li>
+        <li><a href="/dashboard/">Dashboard</a></li>
+      </ul>
+      <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+    </div>
+  </nav>
+
+  <header class="dashboard-hero">
+    <div class="dashboard-hero__content">
       <p class="eyebrow">Public Performance Dashboard · Dev</p>
       <h1>STASHBOX RADIO DASHBOARD</h1>
-      <p class="intro">Track what listeners are playing, liking, sharing, watching, and clicking across Stashbox Radio. This public dashboard highlights song performance, engagement trends, listening activity, devices, referrers, and recent radio events.</p>
+      <p class="intro">Track what listeners are playing, liking, sharing, watching, and clicking across Stashbox Radio. This public dashboard highlights song performance, engagement trends, and listening activity.</p>
     </div>
     <a id="headerRadioLink" class="radio-link" href="/radio/dev/">Open Stashbox Radio</a>
   </header>
@@ -25,10 +56,6 @@
       <p>This dashboard keeps private controls, unsafe identifiers, visitor network details, and backend diagnostics out of the public view.</p>
     </section>
 
-    <nav class="tabs" aria-label="Radio dashboard tabs">
-      <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
-      <button class="tab-button" type="button" data-tab="events">Events</button>
-    </nav>
 
     <div id="statusBanner" class="status-banner" role="status" aria-live="polite">Loading public dashboard data…</div>
 
@@ -50,64 +77,82 @@
         <div class="table-wrap"><table class="data-table"><thead><tr><th>Rank</th><th>Song</th><th>Artist</th><th>Plays</th><th>Likes</th><th>Shares</th><th>Open</th></tr></thead><tbody id="topSongsBody"></tbody></table></div>
       </section>
 
-      <section class="card" aria-labelledby="eventsPreviewHeading">
-        <div class="section-heading"><div><p class="eyebrow">3. Events</p><h2 id="eventsPreviewHeading">Events</h2></div></div>
-        <p class="section-copy">Recent public-safe listener events, when a read-only events endpoint is available.</p>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Event Type</th><th>Song</th><th>Artist</th><th>Device Type</th><th>Referrer / Source</th><th>Product URL</th></tr></thead><tbody id="eventsPreviewBody"></tbody></table></div>
-      </section>
-
-      <section class="card" aria-labelledby="likedSongsHeading"><div class="section-heading"><div><p class="eyebrow">4. Top 10 - Most Liked Songs</p><h2 id="likedSongsHeading">Top 10 - Most Liked Songs</h2></div></div><div id="likedSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="engagementHeading"><div class="section-heading"><div><p class="eyebrow">5. Top 10 - Engagement Rate</p><h2 id="engagementHeading">Top 10 - Engagement Rate</h2></div></div><div id="engagementSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="sharedSongsHeading"><div class="section-heading"><div><p class="eyebrow">6. Top 10 - Most Shared Songs</p><h2 id="sharedSongsHeading">Top 10 - Most Shared Songs</h2></div></div><div id="sharedSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="videoClicksHeading"><div class="section-heading"><div><p class="eyebrow">7. Top 10 - Ranked by Video Clicks</p><h2 id="videoClicksHeading">Top 10 - Ranked by Video Clicks</h2></div></div><div id="videoClicks" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="productClicksHeading"><div class="section-heading"><div><p class="eyebrow">8. Top 10 - Ranked by Product Clicks</p><h2 id="productClicksHeading">Top 10 - Ranked by Product Clicks</h2></div></div><div id="productClicks" class="rank-grid"></div></section>
+      <section class="card" aria-labelledby="likedSongsHeading"><div class="section-heading"><div><p class="eyebrow">3. Top 10 - Most Liked Songs</p><h2 id="likedSongsHeading">Top 10 - Most Liked Songs</h2></div></div><div id="likedSongs" class="rank-grid"></div></section>
+      <section class="card" aria-labelledby="engagementHeading"><div class="section-heading"><div><p class="eyebrow">4. Top 10 - Engagement Rate</p><h2 id="engagementHeading">Top 10 - Engagement Rate</h2></div></div><div id="engagementSongs" class="rank-grid"></div></section>
+      <section class="card" aria-labelledby="sharedSongsHeading"><div class="section-heading"><div><p class="eyebrow">5. Top 10 - Most Shared Songs</p><h2 id="sharedSongsHeading">Top 10 - Most Shared Songs</h2></div></div><div id="sharedSongs" class="rank-grid"></div></section>
+      <section class="card" aria-labelledby="videoClicksHeading"><div class="section-heading"><div><p class="eyebrow">6. Top 10 - Ranked by Video Clicks</p><h2 id="videoClicksHeading">Top 10 - Ranked by Video Clicks</h2></div></div><div id="videoClicks" class="rank-grid"></div></section>
+      <section class="card" aria-labelledby="productClicksHeading"><div class="section-heading"><div><p class="eyebrow">7. Top 10 - Ranked by Product Clicks</p><h2 id="productClicksHeading">Top 10 - Ranked by Product Clicks</h2></div></div><div id="productClicks" class="rank-grid"></div></section>
 
       <section class="card" aria-labelledby="songAnalyticsHeading">
-        <div class="section-heading"><div><p class="eyebrow">9. Song Analytics Stats</p><h2 id="songAnalyticsHeading">Song Analytics Stats</h2></div></div>
+        <div class="section-heading"><div><p class="eyebrow">8. Song Analytics Stats</p><h2 id="songAnalyticsHeading">Song Analytics Stats</h2></div></div>
         <div id="songAnalyticsStats" class="stat-grid stat-grid--small"></div>
       </section>
 
-      <section class="card" aria-labelledby="todayHeading">
-        <div class="section-heading"><div><p class="eyebrow">10. Today</p><h2 id="todayHeading">Today</h2></div></div>
-        <div id="todayStats" class="stat-grid stat-grid--small"></div>
-      </section>
-
       <section class="card" aria-labelledby="productAnalyticsHeading">
-        <div class="section-heading"><div><p class="eyebrow">11. Product Click Analytics</p><h2 id="productAnalyticsHeading">Product Click Analytics</h2></div></div>
+        <div class="section-heading"><div><p class="eyebrow">9. Product Click Analytics</p><h2 id="productAnalyticsHeading">Product Click Analytics</h2></div></div>
         <div id="productAnalytics" class="stat-grid stat-grid--small"></div>
       </section>
 
-      <section class="card" aria-labelledby="referrersHeading">
-        <div class="section-heading"><div><p class="eyebrow">12. Referrers / Track Sources</p><h2 id="referrersHeading">Referrers / Track Sources</h2></div></div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Referrer / Source</th><th>Events</th><th>Last Seen</th></tr></thead><tbody id="referrersBody"></tbody></table></div>
-      </section>
-
-      <section class="card" aria-labelledby="devicesHeading">
-        <div class="section-heading"><div><p class="eyebrow">13. Devices / Listener Devices</p><h2 id="devicesHeading">Devices / Listener Devices</h2></div></div>
-        <div id="devicesStats" class="rank-grid"></div>
-      </section>
-
       <section class="card" aria-labelledby="skipRateHeading">
-        <div class="section-heading"><div><p class="eyebrow">14. Skip Count / Plays</p><h2 id="skipRateHeading">Skip Count / Plays</h2></div></div>
+        <div class="section-heading"><div><p class="eyebrow">10. Skip Count / Plays</p><h2 id="skipRateHeading">Skip Count / Plays</h2></div></div>
         <div id="skipRateSongs" class="rank-grid"></div>
       </section>
     </section>
 
-    <section id="eventsView" class="view hidden" aria-labelledby="eventsHeading">
-      <section class="card">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Events</p>
-            <h2 id="eventsHeading">Recent Radio Events</h2>
-            <p class="section-copy">Public-safe event rows only show time, type, song, artist, device, referrer/source, and useful public product URLs.</p>
-          </div>
-          <button id="refreshEventsButton" class="button" type="button">Refresh Events</button>
-        </div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Event Type</th><th>Song</th><th>Artist</th><th>Device Type</th><th>Referrer / Source</th><th>Product URL</th></tr></thead><tbody id="eventsBody"></tbody></table></div>
-      </section>
-    </section>
   </main>
 
+
+  <footer class="footer" role="contentinfo">
+    <div class="footer__inner container">
+      <div class="footer__brand">
+        <a href="/" class="footer__logo" aria-label="Stashbox">
+          <img src="/images/branding/stashbox-logo-transparent-rasta-colors.png"
+               alt="Stashbox"
+               class="footer__logo-img"
+               onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='block'">
+          <span class="footer__logo-text" style="display:none">STASHBOX</span>
+        </a>
+        <p class="footer__tagline">Rock · Reggae · Blues · Originals · South Florida</p>
+        <div class="footer__contact">
+          <a href="tel:3104086687">310.408.6687</a>
+          <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+        </div>
+      </div>
+      <div class="footer__nav-cols">
+        <div class="footer__col">
+          <h4 class="footer__col-title">Music</h4>
+          <ul>
+            <li><a href="/radio/">Radio</a></li>
+            <li><a href="/videos/">Videos</a></li>
+            <li><a href="/sessions/">Sessions</a></li>
+            <li><a href="/setlists/">Setlists</a></li>
+          </ul>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">Explore</h4>
+          <ul>
+            <li><a href="/booking/">Booking</a></li>
+            <li><a href="/shop/">Shop</a></li>
+            <li><a href="/custom/">Custom Music</a></li>
+            <li><a href="/about/">About</a></li>
+          </ul>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">Dashboards</h4>
+          <ul>
+            <li><a href="/dashboard/">Dashboard</a></li>
+            <li><a href="/radio/dashboard/dev/">Radio Dashboard Dev</a></li>
+            <li><a href="/radio/dev/">Radio Dev</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p class="footer__copy">© 2026 Stashbox · South Florida Live Music · Dean Palermo</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/main.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
