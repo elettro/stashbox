@@ -795,7 +795,7 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 }
 
 @media(max-width:520px){
-  .stashbox-radio-header{overflow:hidden}
+  .stashbox-radio-header{overflow:visible}
   .stashbox-compact-top{grid-template-columns:minmax(0,1fr) auto}
   .stashbox-brand-block h1{font-size:clamp(32px,10vw,42px)}
   .stashbox-action-row{grid-column:2;grid-row:1;width:auto;justify-content:flex-end;flex-wrap:nowrap;gap:6px;margin-top:0}
@@ -803,11 +803,11 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   .stashbox-filter-toggle{min-width:96px}
   .stashbox-mobile-search-trigger{width:44px;min-width:44px;height:44px;min-height:44px;font-size:20px}
   .stashbox-header-search-area{order:3;flex:0 0 auto;max-width:100%}
-  .header-search-open .stashbox-header-search-area{flex:1 1 auto}
+  .header-search-open .stashbox-header-search-area{flex:0 0 auto}
   .header-search-open .stashbox-filter-toggle,
   .header-search-open .stashbox-utility{display:none}
-  .stashbox-header-search-area .stashbox-search{position:absolute;left:10px;right:10px;top:calc(100% + 6px);z-index:12;width:auto;min-width:0;max-width:none;padding:8px;border:1px solid rgba(240,165,0,.34);border-radius:999px;background:rgba(9,9,11,.98);box-shadow:0 16px 34px rgba(0,0,0,.42);visibility:hidden;transform:translateY(-5px);transition:opacity .16s ease,visibility .16s ease,transform .16s ease}
-  .stashbox-header-search-area.open .stashbox-search{width:auto;max-width:none;opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+  .stashbox-header-search-area .stashbox-search{position:absolute;left:10px;right:96px;top:50%;z-index:12;width:auto;min-width:0;max-width:none;padding:8px;border:1px solid rgba(240,165,0,.34);border-radius:999px;background:rgba(9,9,11,.98);box-shadow:0 16px 34px rgba(0,0,0,.42);visibility:hidden;transform:translate(10px,-50%);transition:opacity .16s ease,visibility .16s ease,transform .16s ease}
+  .stashbox-header-search-area.open .stashbox-search{width:auto;max-width:none;opacity:1;visibility:visible;pointer-events:auto;transform:translate(0,-50%)}
   .stashbox-search input{height:40px;font-size:16px}
 }
 @media(max-width:360px){
