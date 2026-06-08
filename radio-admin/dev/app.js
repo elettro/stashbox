@@ -541,13 +541,10 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAdsTab();
   initializeAdmin();
 
-  setTimeout(() => {
-    if (activeTab === 'ads') {
-      refreshAdsDomRefs();
-      if (!hasLiveAdsManager()) {
-        console.warn('[Ads Dev] Ads Manager disappeared after load. Rebuilding.');
-        renderAdsTab();
-      }
+  window.setTimeout(() => {
+    if (activeTab === 'ads' && !hasLiveAdsManager()) {
+      console.warn('[Ads Dev] Ads Manager disappeared after load. Rebuilding.');
+      renderAdsTab();
     }
   }, 1500);
 });
@@ -567,13 +564,19 @@ function refreshAdsDomRefs() {
   els.adsStorageNote = document.getElementById('adsStorageNote');
 }
 
+function isLiveNode(node) {
+  return Boolean(node && document.body.contains(node));
+}
+
 function hasLiveAdsManager() {
+  refreshAdsDomRefs();
+
   return Boolean(
-    els.adsView
-    && document.body.contains(els.adsView)
+    isLiveNode(els.adsView)
     && els.adsView.querySelector('.ads-panel')
-    && els.adsView.querySelector('#adsTableBody')
-    && els.adsView.querySelector('#createAdButton')
+    && isLiveNode(els.adsTableBody)
+    && isLiveNode(els.createAdButton)
+    && isLiveNode(els.refreshAdsButton)
   );
 }
 
@@ -4539,45 +4542,18 @@ function renderAdsTab() {
   renderAdsFolderHelp();
   renderAds();
   renderAdStats();
-}
-
-function updateAdsDomStatus() {
-  refreshAdsDomRefs();
-  if (!els.adsView || !document.body.contains(els.adsView)) return;
-
-  let status = document.getElementById('adsDomStatus');
-  if (!status) {
-    status = document.createElement('p');
-    status.id = 'adsDomStatus';
-    status.className = 'ads-dom-status stats-generated';
-    const versionLine = els.adsView.querySelector('.ads-ui-version');
-    if (versionLine) {
-      versionLine.insertAdjacentElement('afterend', status);
-    } else {
-      els.adsView.appendChild(status);
-    }
-  }
-
-  const isLive = (node) => Boolean(node && document.body.contains(node));
-  status.textContent = `Ads DOM status: adsPanel: ${isLive(els.adsView.querySelector('.ads-panel')) ? 'live' : 'missing'} • adsTableBody: ${isLive(els.adsTableBody) ? 'live' : 'missing'} • createAdButton: ${isLive(els.createAdButton) ? 'live' : 'missing'} • last render: ${new Date().toLocaleTimeString()}`;
+  renderAdsDomStatus();
 }
 
 function rebuildAdsManagerLayout() {
   refreshAdsDomRefs();
-  if (!els.adsView || !document.body.contains(els.adsView)) return;
+  if (!isLiveNode(els.adsView)) return;
 
   console.warn('[Ads Dev] Rebuilding Ads Manager layout because manager DOM was missing or detached');
 
-  const panels = Array.from(els.adsView.querySelectorAll('.ads-panel'));
-  panels.forEach((panel, index) => {
-    const isBroken = !panel.querySelector('#adsTableBody') || !panel.querySelector('#createAdButton');
-    const isDuplicate = index > 0;
-    if (isBroken || isDuplicate || !hasLiveAdsManager()) {
-      panel.remove();
-    }
-  });
+  els.adsView.querySelectorAll('.ads-panel').forEach(panel => panel.remove());
 
-  const editorPanel = els.adsView.querySelector('.ads-edit-panel, [aria-labelledby="adFormHeading"]');
+  const editorPanel = els.adsView.querySelector('.ads-edit-panel');
   const manager = document.createElement('aside');
   manager.className = 'card list-panel ads-panel';
   manager.innerHTML = `
@@ -4619,28 +4595,51 @@ function rebuildAdsManagerLayout() {
       </table>
     </div>`;
   els.adsView.insertBefore(manager, editorPanel || els.adsView.firstChild);
-  refreshAdsDomRefs();
-  updateAdsDomStatus();
 }
 
 function renderAdsFolderHelp() {
   const folderHelp = document.getElementById('adsFolderHelp');
-  if (folderHelp) {
-    folderHelp.innerHTML = S3_AD_FOLDER_HELP.map(folder => `<code>${escapeHtml(folder)}</code>`).join('');
+  if (!folderHelp) return;
+
+  folderHelp.innerHTML = S3_AD_FOLDER_HELP
+    .map(folder => `<code>${escapeHtml(folder)}</code>`)
+    .join('');
+}
+
+function renderAdsDomStatus() {
+  const adsView = document.getElementById('adsView');
+  if (!adsView) return;
+
+  let status = adsView.querySelector('#adsDomStatus');
+
+  if (!status) {
+    status = document.createElement('p');
+    status.id = 'adsDomStatus';
+    status.className = 'ads-ui-version';
+    adsView.appendChild(status);
   }
+
+  status.textContent = [
+    'Ads DOM status:',
+    `adsPanel=${adsView.querySelector('.ads-panel') ? 'live' : 'missing'}`,
+    `adsTableBody=${document.body.contains(document.getElementById('adsTableBody')) ? 'live' : 'missing'}`,
+    `createAdButton=${document.body.contains(document.getElementById('createAdButton')) ? 'live' : 'missing'}`,
+    `lastRender=${new Date().toLocaleTimeString()}`
+  ].join(' ');
 }
 
 function renderAds() {
   refreshAdsDomRefs();
 
-  if (!hasLiveAdsManager()) {
+  if (!isLiveNode(els.adsTableBody)) {
     rebuildAdsManagerLayout();
     refreshAdsDomRefs();
     bindAdsEvents();
+    renderAdsFolderHelp();
   }
 
-  if (!els.adsTableBody || !document.body.contains(els.adsTableBody)) {
-    console.error('[Ads Dev] adsTableBody missing or detached after repair');
+  if (!isLiveNode(els.adsTableBody)) {
+    console.error('[Ads Dev] adsTableBody missing after rebuild');
     return;
   }
 
@@ -4652,7 +4651,7 @@ function renderAds() {
     const row = document.createElement('tr');
     row.innerHTML = '<td colspan="8" class="empty-state">No ads yet. Click Add New Ad to create your first Stashbox Radio Branding ad.</td>';
     els.adsTableBody.appendChild(row);
-    updateAdsDomStatus();
+    renderAdsDomStatus();
     return;
   }
 
@@ -4673,7 +4672,7 @@ function renderAds() {
   els.adsTableBody.querySelectorAll('[data-edit-ad]').forEach(button => button.addEventListener('click', () => renderAdForm(ads.find(ad => ad.id === button.dataset.editAd))));
   els.adsTableBody.querySelectorAll('[data-delete-ad]').forEach(button => button.addEventListener('click', () => deleteAd(button.dataset.deleteAd)));
   els.adsTableBody.querySelectorAll('[data-preview-ad]').forEach(button => button.addEventListener('click', () => showListAdPreview(button.dataset.previewAd, button.closest('tr'))));
-  updateAdsDomStatus();
+  renderAdsDomStatus();
 }
 
 function showListAdPreview(adId, anchorRow) {
