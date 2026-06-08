@@ -115,13 +115,30 @@ h2 { margin-bottom: 0.25rem; font-size: clamp(1.2rem, 2vw, 1.65rem); }
 .stat-value { display: block; margin-top: 0.35rem; color: var(--text); font-size: clamp(1.45rem, 3vw, 2.15rem); font-weight: 900; letter-spacing: -0.05em; }
 
 .rank-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.8rem; }
+.rank-grid--compact { grid-template-columns: 1fr; gap: 0.45rem; }
 .rank-card { display: grid; gap: 0.62rem; }
+.rank-grid--compact .rank-card {
+  align-items: center;
+  grid-template-areas:
+    "title value action"
+    "meta value action";
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.16rem 0.55rem;
+  padding: 0.56rem 0.65rem;
+}
 .rank-top { display: flex; align-items: center; gap: 0.65rem; }
 .rank-number { display: inline-grid; place-items: center; flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: var(--gold-soft); color: var(--gold); font-weight: 900; }
+.rank-grid--compact .rank-number { width: 1.65rem; height: 1.65rem; font-size: 0.78rem; }
 .rank-title { min-width: 0; margin: 0; font-weight: 850; }
 .rank-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-grid--compact .rank-top, .rank-grid--compact .rank-title { min-width: 0; }
+.rank-grid--compact .rank-top { grid-area: title; overflow: hidden; }
+.rank-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-grid--compact .rank-meta { grid-area: meta; min-width: 0; }
 .rank-value { color: var(--green); font-size: 1.25rem; font-weight: 900; }
+.rank-grid--compact .rank-value { grid-area: value; font-size: 1rem; text-align: right; white-space: nowrap; }
 .open-radio { justify-self: start; color: #06100a; font-size: 0.82rem; }
+.rank-grid--compact .open-radio { grid-area: action; justify-self: end; padding: 0.48rem 0.72rem; font-size: 0.76rem; white-space: nowrap; }
 
 .table-wrap { width: 100%; overflow-x: auto; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 16px; }
 .data-table { width: 100%; min-width: 760px; border-collapse: collapse; }
@@ -137,12 +154,20 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 1100px) {
   .stat-grid, .stat-grid--small { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rank-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rank-grid--compact { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
   .hero, .notice, .section-heading { align-items: stretch; flex-direction: column; }
   .radio-link, .button { text-align: center; }
   .stat-grid, .stat-grid--small, .rank-grid { grid-template-columns: 1fr; }
+  .rank-grid--compact .rank-card {
+    grid-template-areas:
+      "title value"
+      "meta value";
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .rank-grid--compact .open-radio { display: none; }
   .data-table { min-width: 680px; }
   th, td { padding: 0.7rem; }
 }
