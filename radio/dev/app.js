@@ -867,9 +867,49 @@ async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) r
 
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, genreFilters = [DEFAULT_FILTER], album, onAlbumChange, albumFilters = [DEFAULT_FILTER], artist, onArtistChange, artistFilters = [DEFAULT_FILTER], mood, onMoodChange, moodFilters = MOOD_FILTERS, videoOnly = false, onToggleVideos, onShuffle, onReset, disableVideoFilter = false, disableShuffle = false }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
+  const searchAreaRef = useRef(null);
   const filterDrawerId = 'radioHeaderFilterDrawer';
+
+  useEffect(() => {
+    if (!headerSearchOpen) return undefined;
+    const focusFrame = window.requestAnimationFrame(() => searchInputRef.current?.focus?.());
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [headerSearchOpen]);
+
+  useEffect(() => {
+    if (!headerSearchOpen) return undefined;
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') {
+        setHeaderSearchOpen(false);
+        searchInputRef.current?.blur?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [headerSearchOpen]);
+
+  useEffect(() => {
+    if (!headerSearchOpen) return undefined;
+    const handlePointerDown = event => {
+      if (searchAreaRef.current?.contains(event.target)) return;
+      setHeaderSearchOpen(false);
+      searchInputRef.current?.blur?.();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [headerSearchOpen]);
+
+  const openHeaderSearch = () => {
+    setHeaderSearchOpen(true);
+    window.requestAnimationFrame(() => searchInputRef.current?.focus?.());
+  };
+
+  const closeHeaderSearch = () => {
+    setHeaderSearchOpen(false);
+    searchInputRef.current?.blur?.();
+  };
   const renderFilterRow = (label, filters, selected, onChange) => h('div', { className: 'stashbox-filter-row', 'aria-label': `${label} filters` },
     h('b', null, `${label}:`),
     filters.map(filter => h('button', {
@@ -882,7 +922,7 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
     }, filterLabel(filter)))
   );
 
-  return h('header', { className: `stashbox-radio-header ${filtersOpen ? 'filters-open' : 'filters-closed'} ${mobileSearchOpen ? 'mobile-search-open' : ''}`, 'aria-label': 'Stashbox Radio header and filters' },
+  return h('header', { className: `stashbox-radio-header ${filtersOpen ? 'filters-open' : 'filters-closed'} ${headerSearchOpen ? 'header-search-open' : 'header-search-closed'}`, 'aria-label': 'Stashbox Radio header and filters' },
     h('div', { className: 'stashbox-compact-top' },
       h('div', { className: 'stashbox-brand-block', 'aria-label': 'Stashbox Radio' },
         h('p', { className: 'stashbox-tagline' }, 'LISTEN. WATCH. SHOP. SHARE.'),
@@ -890,16 +930,19 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
         h('p', { className: 'stashbox-track-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
       ),
       h('div', { className: 'stashbox-right-stack' },
-        h('label', { className: 'stashbox-search' },
-          h('span', null, 'Search'),
-          h('input', { ref: searchInputRef, type: 'search', placeholder: 'Song, album, artist...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, autoComplete: 'off', 'aria-label': 'Search songs', onFocus: () => setMobileSearchOpen(true) })
-        ),
         h('div', { className: 'stashbox-action-row', 'aria-label': 'Header actions' },
+          h('div', { ref: searchAreaRef, className: `stashbox-header-search-area ${headerSearchOpen ? 'open' : 'closed'}` },
+            h('label', { className: 'stashbox-search' },
+              h('span', null, 'Search'),
+              h('input', { ref: searchInputRef, id: 'stashboxHeaderSearchInput', type: 'search', placeholder: 'Song, album, artist...', value: query, onChange: event => onQueryChange(event.target.value), disabled: isLoading, autoComplete: 'off', 'aria-label': 'Search songs', onFocus: openHeaderSearch })
+            ),
+            h('button', { className: 'stashbox-search-close', type: 'button', onClick: closeHeaderSearch, disabled: isLoading, 'aria-label': 'Close search', title: 'Close search' }, '×'),
+            h('button', { className: `stashbox-header-btn stashbox-mobile-search-trigger ${headerSearchOpen ? 'active' : ''}`, type: 'button', onClick: openHeaderSearch, disabled: isLoading, 'aria-label': 'Open search', 'aria-expanded': headerSearchOpen, 'aria-controls': 'stashboxHeaderSearchInput' }, '🔍')
+          ),
           h('button', { className: 'stashbox-header-btn stashbox-filter-toggle', type: 'button', onClick: () => setFiltersOpen(current => !current), disabled: isLoading, 'aria-expanded': filtersOpen, 'aria-controls': filterDrawerId }, filtersOpen ? 'FILTERS ▴' : 'FILTERS ▾'),
-          h('button', { className: `stashbox-header-btn stashbox-mobile-search-trigger ${mobileSearchOpen ? 'active' : ''}`, type: 'button', onClick: () => { setMobileSearchOpen(current => { const next = !current; window.requestAnimationFrame(() => { if (next) searchInputRef.current?.focus?.(); else searchInputRef.current?.blur?.(); }); return next; }); }, disabled: isLoading, 'aria-label': 'Search songs', 'aria-pressed': mobileSearchOpen }, '🔍'),
           h('button', { className: `stashbox-header-btn stashbox-video ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs With Videos'),
           h('button', { className: 'stashbox-header-btn stashbox-shuffle', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All'),
-          h('button', { className: 'stashbox-header-btn stashbox-utility', type: 'button', onClick: () => { onReset?.(); setMobileSearchOpen(false); searchInputRef.current?.blur(); }, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, h('span', { className: 'reset-label-desktop' }, 'Reset Filters'), h('span', { className: 'reset-label-mobile' }, 'Reset'))
+          h('button', { className: 'stashbox-header-btn stashbox-utility', type: 'button', onClick: () => { onReset?.(); closeHeaderSearch(); }, disabled: isLoading, 'aria-label': 'Reset browsing filters' }, h('span', { className: 'reset-label-desktop' }, 'Reset Filters'), h('span', { className: 'reset-label-mobile' }, 'Reset'))
         )
       )
     ),
