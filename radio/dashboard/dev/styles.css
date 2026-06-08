@@ -69,8 +69,7 @@ h2 { margin-bottom: 0.25rem; font-size: clamp(1.2rem, 2vw, 1.65rem); }
 }
 .notice p:last-child { max-width: 740px; margin-bottom: 0; color: var(--muted); line-height: 1.55; }
 
-.tabs { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; }
-.tab-button, .button, .radio-link {
+.button, .radio-link {
   border: 1px solid rgba(66, 217, 130, 0.55);
   border-radius: 999px;
   background: linear-gradient(180deg, #4aea91, #2fb965);
@@ -80,9 +79,7 @@ h2 { margin-bottom: 0.25rem; font-size: clamp(1.2rem, 2vw, 1.65rem); }
   text-decoration: none;
   transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
-.tab-button:hover, .button:hover, .radio-link:hover { transform: translateY(-1px); }
-.tab-button { border-color: var(--border); background: rgba(255, 255, 255, 0.045); color: var(--muted); }
-.tab-button.is-active { border-color: rgba(240, 192, 76, 0.75); background: var(--gold-soft); color: var(--gold); }
+.button:hover, .radio-link:hover { transform: translateY(-1px); }
 .radio-link { white-space: nowrap; }
 
 .status-banner {
@@ -152,8 +149,6 @@ th { color: var(--gold); background: rgba(240, 192, 76, 0.08); font-size: 0.76re
 td { color: var(--text); font-size: 0.92rem; }
 tr:last-child td { border-bottom: 0; }
 .song-subtext, .muted { color: var(--muted); font-size: 0.82rem; }
-.event-type { text-transform: capitalize; }
-.product-link { color: var(--green); word-break: break-word; }
 .empty-cell { color: var(--muted); text-align: center; }
 
 @media (max-width: 1100px) {
