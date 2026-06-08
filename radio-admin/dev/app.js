@@ -3,6 +3,7 @@ const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.
 const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
 const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
 const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/songs?limit=100';
+const UPLOAD_PRESIGN_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/uploads/presign';
 const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/referrers?limit=50';
 const DEVICE_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/devices?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
@@ -208,6 +209,7 @@ const deviceKpiDefinitions = [
 
 const fieldElements = new Map();
 const fieldWrappers = new Map();
+const mediaUploadElements = new Map();
 
 const requiredSongFields = new Set([
   'song_name',
@@ -234,6 +236,33 @@ const fieldsWithRequiredMarkers = new Set([
   ...requiredSongFields,
   ...mediaRequiredFields
 ]);
+
+const uploadConfigs = {
+  audio_url: {
+    purpose: 'audio',
+    buttonText: 'Upload Audio',
+    idleLabel: 'audio',
+    uploadingMessage: 'Uploading audio...',
+    successMessage: 'Audio uploaded. URL added.',
+    failurePrefix: 'Upload failed',
+    accept: 'audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/flac,audio/aiff,audio/x-aiff,.wav,.mp3,.m4a,.flac,.aiff,.aif',
+    allowedExtensions: ['wav', 'mp3', 'm4a', 'flac', 'aiff', 'aif'],
+    allowedMimeTypes: ['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/aiff', 'audio/x-aiff'],
+    previewType: 'audio'
+  },
+  song_artwork_url: {
+    purpose: 'artwork',
+    buttonText: 'Upload Artwork',
+    idleLabel: 'artwork',
+    uploadingMessage: 'Uploading artwork...',
+    successMessage: 'Artwork uploaded. URL added.',
+    failurePrefix: 'Artwork upload failed',
+    accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+    allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    previewType: 'image'
+  }
+};
 
 const createDefaults = {
   song_key: '',
@@ -2928,6 +2957,11 @@ function buildEditForm() {
     fieldElements.set(field.name, input);
     wrap.append(labelRow, input);
 
+    if (uploadConfigs[field.name]) {
+      wrap.appendChild(createUploadControls(field.name));
+      input.addEventListener('input', () => updateMediaPreview(field.name));
+    }
+
     if (field.suggestions?.length) {
       wrap.appendChild(createFieldDatalist(field, fieldId));
     }
@@ -2943,6 +2977,58 @@ function buildEditForm() {
   });
 
   els.formFields.appendChild(checkboxWrap);
+}
+
+
+function createUploadControls(fieldName) {
+  const config = uploadConfigs[fieldName];
+  const controls = document.createElement('div');
+  controls.className = 'upload-controls';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button button-ghost button-small upload-button';
+  button.textContent = config.buttonText;
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = config.accept;
+  fileInput.className = 'hidden';
+
+  const status = document.createElement('div');
+  status.className = 'upload-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+
+  const preview = document.createElement('div');
+  preview.className = 'media-preview compact-media-preview';
+
+  button.addEventListener('click', () => {
+    const validationError = getUploadMetadataValidationError();
+
+    if (validationError) {
+      setUploadStatus(fieldName, validationError, 'error');
+      return;
+    }
+
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      setUploadStatus(fieldName, 'No file selected.', 'error');
+      return;
+    }
+
+    uploadSongMedia(fieldName, file);
+  });
+
+  controls.append(button, fileInput, status, preview);
+  mediaUploadElements.set(fieldName, { button, fileInput, status, preview });
+  return controls;
 }
 
 function startCreateSong() {
@@ -2992,6 +3078,11 @@ function populateEditor(song, { mode = 'edit' } = {}) {
     } else {
       input.value = value;
     }
+
+    if (uploadConfigs[field.name]) {
+      setUploadStatus(field.name, '', 'idle');
+      updateMediaPreview(field.name);
+    }
   });
 }
 
@@ -3026,6 +3117,10 @@ function applyEditorModeToFields(mode) {
         && requiredSongFields.has(field.name)
         && field.type !== 'checkbox';
     }
+
+    if (uploadConfigs[field.name]) {
+      setUploadControlDisabled(field.name, isCreateOnlyHidden);
+    }
   });
 }
 
@@ -3050,6 +3145,11 @@ function clearEditor() {
       setSelectValue(input, field, getDefaultSelectValue(field));
     } else {
       input.value = '';
+    }
+
+    if (uploadConfigs[field.name]) {
+      setUploadStatus(field.name, '', 'idle');
+      updateMediaPreview(field.name);
     }
   });
   renderSongList();
@@ -3376,13 +3476,13 @@ function validateSongPayload(payload, { action = 'saving' } = {}) {
 }
 
 function generateSongKeyFromForm() {
-  const displayTitle = fieldElements.get('display_title')?.value || '';
+  const songName = fieldElements.get('song_name')?.value || '';
   const artist = fieldElements.get('artist')?.value || '';
-  const generatedKey = slugifySongKey(`${displayTitle} ${artist}`);
+  const generatedKey = generateSongKey(songName, artist);
   const songKeyInput = fieldElements.get('song_key');
 
   if (!generatedKey) {
-    showMessage('Enter a display title and artist before generating a song key.', 'error');
+    showMessage('Enter a song name and artist before generating a song key.', 'error');
     return;
   }
 
@@ -3390,13 +3490,219 @@ function generateSongKeyFromForm() {
   songKeyInput.focus();
 }
 
+function generateSongKey(songName, artist) {
+  return slugifySongKey(`${songName || ''}-${artist || ''}`);
+}
+
 function slugifySongKey(value) {
   return String(value || '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .trim()
+    .replace(/&/g, ' and ')
+    .replace(/[’']/g, '')
     .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+
+function getUploadMetadataValidationError() {
+  const songName = String(fieldElements.get('song_name')?.value || '').trim();
+  const artist = String(fieldElements.get('artist')?.value || '').trim();
+
+  if (!songName) {
+    return 'Song Name is required before upload.';
+  }
+
+  if (!artist) {
+    return 'Artist is required before upload.';
+  }
+
+  if (!getCurrentUploadSongKey(songName, artist)) {
+    return 'Song Key is required before upload.';
+  }
+
+  return '';
+}
+
+function getCurrentUploadSongKey(songName, artist) {
+  const existingKey = String(fieldElements.get('song_key')?.value || selectedSongKey || '').trim();
+
+  if (existingKey) {
+    return existingKey;
+  }
+
+  return generateSongKey(songName, artist);
+}
+
+function getFileExtension(filename) {
+  const name = String(filename || '');
+  const dotIndex = name.lastIndexOf('.');
+  return dotIndex === -1 ? '' : name.slice(dotIndex + 1).toLowerCase();
+}
+
+function getUploadContentType(file) {
+  return file.type || 'application/octet-stream';
+}
+
+function validateUploadFile(fieldName, file) {
+  const config = uploadConfigs[fieldName];
+  const extension = getFileExtension(file.name);
+  const contentType = getUploadContentType(file).toLowerCase();
+  const hasAllowedExtension = config.allowedExtensions.includes(extension);
+  const hasAllowedMimeType = config.allowedMimeTypes.includes(contentType);
+
+  if (!hasAllowedExtension) {
+    return `${config.buttonText.replace('Upload ', '')} file type is not allowed.`;
+  }
+
+  if (!hasAllowedMimeType && !(contentType === 'application/octet-stream' && hasAllowedExtension)) {
+    return `${config.buttonText.replace('Upload ', '')} MIME type is not allowed.`;
+  }
+
+  return '';
+}
+
+async function uploadSongMedia(fieldName, file) {
+  const config = uploadConfigs[fieldName];
+  const metadataError = getUploadMetadataValidationError();
+
+  if (metadataError) {
+    setUploadStatus(fieldName, metadataError, 'error');
+    return;
+  }
+
+  const fileError = validateUploadFile(fieldName, file);
+
+  if (fileError) {
+    setUploadStatus(fieldName, fileError, 'error');
+    return;
+  }
+
+  const songName = String(fieldElements.get('song_name')?.value || '').trim();
+  const artist = String(fieldElements.get('artist')?.value || '').trim();
+  const songKey = getCurrentUploadSongKey(songName, artist);
+  const songKeyInput = fieldElements.get('song_key');
+
+  if (editorMode === 'create' && songKeyInput && !String(songKeyInput.value || '').trim()) {
+    songKeyInput.value = songKey;
+  }
+
+  setUploadStatus(fieldName, config.uploadingMessage, 'busy');
+  setUploadControlDisabled(fieldName, true);
+
+  try {
+    const contentType = getUploadContentType(file);
+    const presignResult = normalizeUploadPresignResponse(await adminFetch(UPLOAD_PRESIGN_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        song_key: songKey,
+        song_name: songName,
+        artist,
+        purpose: config.purpose,
+        filename: file.name,
+        content_type: contentType
+      })
+    }));
+
+    const uploadUrl = presignResult?.upload_url;
+    const publicUrl = presignResult?.public_url;
+
+    if (!uploadUrl || !publicUrl) {
+      throw new Error('Presign response was missing upload_url or public_url.');
+    }
+
+    const s3Response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType
+      },
+      body: file
+    });
+
+    if (!s3Response.ok) {
+      throw new Error(`S3 upload failed with status ${s3Response.status}.`);
+    }
+
+    const urlInput = fieldElements.get(fieldName);
+    urlInput.value = publicUrl;
+    urlInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setUploadStatus(fieldName, config.successMessage, 'success');
+    showMessage(config.successMessage, 'success');
+  } catch (error) {
+    setUploadStatus(fieldName, `${config.failurePrefix}: ${error.message}`, 'error');
+  } finally {
+    setUploadControlDisabled(fieldName, false);
+  }
+}
+
+
+function normalizeUploadPresignResponse(data) {
+  if (typeof data?.body === 'string') {
+    return parseJsonMaybe(data.body) || data;
+  }
+
+  return data || {};
+}
+
+function setUploadControlDisabled(fieldName, isDisabled) {
+  const controls = mediaUploadElements.get(fieldName);
+
+  if (controls?.button) {
+    controls.button.disabled = Boolean(isDisabled);
+  }
+}
+
+function setUploadStatus(fieldName, message, status = 'idle') {
+  const statusEl = mediaUploadElements.get(fieldName)?.status;
+
+  if (!statusEl) {
+    return;
+  }
+
+  statusEl.textContent = message || '';
+  statusEl.classList.toggle('is-error', status === 'error');
+  statusEl.classList.toggle('is-success', status === 'success');
+  statusEl.classList.toggle('is-busy', status === 'busy');
+}
+
+function updateMediaPreview(fieldName) {
+  const controls = mediaUploadElements.get(fieldName);
+  const config = uploadConfigs[fieldName];
+  const url = String(fieldElements.get(fieldName)?.value || '').trim();
+
+  if (!controls?.preview) {
+    return;
+  }
+
+  controls.preview.innerHTML = '';
+  controls.preview.classList.toggle('hidden', !url);
+
+  if (!url) {
+    return;
+  }
+
+  if (config.previewType === 'audio') {
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.preload = 'metadata';
+    audio.src = url;
+    controls.preview.appendChild(audio);
+    return;
+  }
+
+  if (config.previewType === 'image') {
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = 'Song artwork preview';
+    image.loading = 'lazy';
+    controls.preview.appendChild(image);
+  }
 }
 
 function buildUpdatePayload() {
