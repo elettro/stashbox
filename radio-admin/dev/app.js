@@ -70,6 +70,7 @@ const editableFields = [
   { name: 'artist', label: 'Artist', type: 'text', suggestions: metadataSuggestions.artist },
   { name: 'album_name', label: 'Album', type: 'text' },
   { name: 'genre', label: 'Genre', type: 'text', suggestions: metadataSuggestions.genre },
+  { name: 'internal_version_name', label: 'Internal version name', type: 'text', full: true },
   {
     name: 'languages',
     label: 'Languages',
@@ -110,7 +111,6 @@ const editableFields = [
   { name: 'youtube_music_url', label: 'YouTube Music URL', type: 'url', full: true },
   { name: 'official_song_page_url', label: 'Official song page URL', type: 'url', full: true },
   { name: 'shop_url', label: 'Shop URL', type: 'url', full: true },
-  { name: 'internal_version_name', label: 'Internal version name', type: 'text' },
   {
     name: 'mood_tags',
     label: 'Mood',
