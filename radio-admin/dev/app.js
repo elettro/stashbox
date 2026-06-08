@@ -716,6 +716,7 @@ function setActiveTab(tabName, { forceReloadAds = true } = {}) {
 
   if (activeTab === 'ads') {
     watchAdsPanelRemoval();
+    forceStaticAdsManagerVisible('set-active-tab');
 
     if (forceReloadAds) {
       loadAds();
@@ -4404,10 +4405,12 @@ function emptyAd() {
 }
 
 function startCreateAd() {
+  forceStaticAdsManagerVisible('start-create-ad');
   renderAdForm(emptyAd(), true);
 }
 
 function renderAdForm(ad = null, isNew = false) {
+  forceStaticAdsManagerVisible('render-ad-form');
   if (!els.adForm) return;
   selectedAdId = ad?.id || '';
   els.adForm.dataset.mode = isNew ? 'create' : (ad ? 'edit' : 'idle');
@@ -4514,6 +4517,7 @@ function getAdThumbnail(ad) {
 
 function renderAdsTab() {
   refreshAdsDomRefs();
+  forceStaticAdsManagerVisible('render-ads-tab');
   bindAdsEvents();
   renderAdsFolderHelp();
   renderAds();
@@ -4530,6 +4534,37 @@ function renderAdsFolderHelp() {
     .join('');
 }
 
+function setImportantStyle(element, property, value) {
+  if (element.style.getPropertyValue(property) === value
+    && element.style.getPropertyPriority(property) === 'important') {
+    return;
+  }
+
+  element.style.setProperty(property, value, 'important');
+}
+
+function forceStaticAdsManagerVisible(reason = 'manual') {
+  const adsView = document.getElementById('adsView');
+  const adsPanel = adsView?.querySelector('.ads-panel');
+
+  if (!adsPanel) {
+    return;
+  }
+
+  adsPanel.hidden = false;
+  adsPanel.removeAttribute('aria-hidden');
+  adsPanel.classList.remove('hidden');
+  adsPanel.dataset.adsVisibilityGuard = reason;
+
+  setImportantStyle(adsPanel, 'display', 'block');
+  setImportantStyle(adsPanel, 'visibility', 'visible');
+  setImportantStyle(adsPanel, 'opacity', '1');
+  setImportantStyle(adsPanel, 'position', 'relative');
+  setImportantStyle(adsPanel, 'height', 'auto');
+  setImportantStyle(adsPanel, 'max-height', 'none');
+  setImportantStyle(adsPanel, 'overflow', 'visible');
+}
+
 function watchAdsPanelRemoval() {
   const adsView = document.getElementById('adsView');
 
@@ -4540,6 +4575,8 @@ function watchAdsPanelRemoval() {
   adsView.dataset.adsRemovalWatcher = 'true';
 
   const observer = new MutationObserver((mutations) => {
+    let shouldRefreshStatus = false;
+
     mutations.forEach((mutation) => {
       mutation.removedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE && node.matches && node.matches('.ads-panel')) {
@@ -4548,19 +4585,46 @@ function watchAdsPanelRemoval() {
             removedNode: node,
             adsViewHtml: adsView.innerHTML.slice(0, 500)
           });
+          shouldRefreshStatus = true;
         }
       });
+
+      if (mutation.type === 'attributes'
+        && mutation.target?.nodeType === Node.ELEMENT_NODE
+        && mutation.target.matches?.('.ads-panel')) {
+        forceStaticAdsManagerVisible(`ads-panel-${mutation.attributeName}-mutation`);
+        shouldRefreshStatus = true;
+      }
     });
 
-    renderAdsDomStatus();
+    if (shouldRefreshStatus) {
+      renderAdsDomStatus();
+    }
   });
 
-  observer.observe(adsView, { childList: true });
+  observer.observe(adsView, {
+    childList: true,
+    attributes: true,
+    subtree: true,
+    attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
+  });
 }
 
 function renderAdsDomStatus() {
   const adsView = document.getElementById('adsView');
   if (!adsView) return;
+
+  forceStaticAdsManagerVisible('render-dom-status');
+
+  const adsPanel = adsView.querySelector('.ads-panel');
+  const panelStyle = adsPanel ? window.getComputedStyle(adsPanel) : null;
+  const panelRect = adsPanel ? adsPanel.getBoundingClientRect() : null;
+  const panelIsVisible = Boolean(adsPanel
+    && panelStyle.display !== 'none'
+    && panelStyle.visibility !== 'hidden'
+    && panelStyle.opacity !== '0'
+    && panelRect.height > 0
+    && panelRect.width > 0);
 
   let status = document.getElementById('adsDomStatus');
 
@@ -4573,7 +4637,10 @@ function renderAdsDomStatus() {
 
   status.textContent = [
     'Ads DOM status:',
-    `adsPanel=${adsView.querySelector('.ads-panel') ? 'live' : 'missing'}`,
+    `adsPanel=${adsPanel ? 'live' : 'missing'}`,
+    `adsPanelVisible=${panelIsVisible ? 'visible' : 'hidden'}`,
+    `adsPanelDisplay=${panelStyle?.display || 'missing'}`,
+    `adsPanelHeight=${panelRect ? Math.round(panelRect.height) : 0}`,
     `adsTableBody=${document.body.contains(document.getElementById('adsTableBody')) ? 'live' : 'missing'}`,
     `createAdButton=${document.body.contains(document.getElementById('createAdButton')) ? 'live' : 'missing'}`,
     `lastRender=${new Date().toLocaleTimeString()}`
@@ -4582,6 +4649,7 @@ function renderAdsDomStatus() {
 
 function renderAds() {
   refreshAdsDomRefs();
+  forceStaticAdsManagerVisible('render-ads');
 
   if (!els.adsTableBody || !document.body.contains(els.adsTableBody)) {
     console.error('[Ads Dev] #adsTableBody is missing from the live DOM. Static Ads Manager was removed by another function.');
