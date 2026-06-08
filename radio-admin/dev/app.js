@@ -537,16 +537,10 @@ document.addEventListener('DOMContentLoaded', () => {
   buildEditForm();
   buildAdForm();
   bindEvents();
+  watchAdsPanelRemoval();
   renderDashboard();
   renderAdsTab();
   initializeAdmin();
-
-  window.setTimeout(() => {
-    if (activeTab === 'ads' && !hasLiveAdsManager()) {
-      console.warn('[Ads Dev] Ads Manager disappeared after load. Rebuilding.');
-      renderAdsTab();
-    }
-  }, 1500);
 });
 
 function refreshAdsDomRefs() {
@@ -562,22 +556,6 @@ function refreshAdsDomRefs() {
   els.cancelAdButton = document.getElementById('cancelAdButton');
   els.saveAdButton = document.getElementById('saveAdButton');
   els.adsStorageNote = document.getElementById('adsStorageNote');
-}
-
-function isLiveNode(node) {
-  return Boolean(node && document.body.contains(node));
-}
-
-function hasLiveAdsManager() {
-  refreshAdsDomRefs();
-
-  return Boolean(
-    isLiveNode(els.adsView)
-    && els.adsView.querySelector('.ads-panel')
-    && isLiveNode(els.adsTableBody)
-    && isLiveNode(els.createAdButton)
-    && isLiveNode(els.refreshAdsButton)
-  );
 }
 
 function bindAdsEvents() {
@@ -736,8 +714,12 @@ function setActiveTab(tabName, { forceReloadAds = true } = {}) {
     view.classList.toggle('hidden', name !== activeTab);
   });
 
-  if (activeTab === 'ads' && forceReloadAds) {
-    loadAds();
+  if (activeTab === 'ads') {
+    watchAdsPanelRemoval();
+
+    if (forceReloadAds) {
+      loadAds();
+    }
   }
 
   if (activeTab === 'events' && !events.length) {
@@ -4532,69 +4514,11 @@ function getAdThumbnail(ad) {
 
 function renderAdsTab() {
   refreshAdsDomRefs();
-
-  if (!hasLiveAdsManager()) {
-    rebuildAdsManagerLayout();
-    refreshAdsDomRefs();
-  }
-
   bindAdsEvents();
   renderAdsFolderHelp();
   renderAds();
   renderAdStats();
   renderAdsDomStatus();
-}
-
-function rebuildAdsManagerLayout() {
-  refreshAdsDomRefs();
-  if (!isLiveNode(els.adsView)) return;
-
-  console.warn('[Ads Dev] Rebuilding Ads Manager layout because manager DOM was missing or detached');
-
-  els.adsView.querySelectorAll('.ads-panel').forEach(panel => panel.remove());
-
-  const editorPanel = els.adsView.querySelector('.ads-edit-panel');
-  const manager = document.createElement('aside');
-  manager.className = 'card list-panel ads-panel';
-  manager.innerHTML = `
-    <div class="panel-header events-header">
-      <div>
-        <p class="eyebrow">ADS MANAGER</p>
-        <h2 id="adsHeading">Ads Manager</h2>
-        <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
-        <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
-      </div>
-      <div class="panel-actions events-actions">
-        <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
-        <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
-      </div>
-    </div>
-
-    <div class="stats-warning ads-folder-help" role="note">
-      <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
-      <div id="adsFolderHelp"></div>
-      <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
-    </div>
-
-    <div id="adsStatus" class="song-count">No ads loaded</div>
-    <div class="table-wrap events-table-wrap">
-      <table class="song-table ads-table">
-        <thead>
-          <tr>
-            <th>Thumbnail</th>
-            <th>Internal Title</th>
-            <th>Ad Type</th>
-            <th>Media Type</th>
-            <th>Status</th>
-            <th>Frequency</th>
-            <th>Preview</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="adsTableBody"></tbody>
-      </table>
-    </div>`;
-  els.adsView.insertBefore(manager, editorPanel || els.adsView.firstChild);
 }
 
 function renderAdsFolderHelp() {
@@ -4606,11 +4530,39 @@ function renderAdsFolderHelp() {
     .join('');
 }
 
+function watchAdsPanelRemoval() {
+  const adsView = document.getElementById('adsView');
+
+  if (!adsView || adsView.dataset.adsRemovalWatcher === 'true') {
+    return;
+  }
+
+  adsView.dataset.adsRemovalWatcher = 'true';
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.removedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE && node.matches && node.matches('.ads-panel')) {
+          console.error('[Ads Dev] .ads-panel was removed from #adsView. This should not happen.', {
+            activeTab,
+            removedNode: node,
+            adsViewHtml: adsView.innerHTML.slice(0, 500)
+          });
+        }
+      });
+    });
+
+    renderAdsDomStatus();
+  });
+
+  observer.observe(adsView, { childList: true });
+}
+
 function renderAdsDomStatus() {
   const adsView = document.getElementById('adsView');
   if (!adsView) return;
 
-  let status = adsView.querySelector('#adsDomStatus');
+  let status = document.getElementById('adsDomStatus');
 
   if (!status) {
     status = document.createElement('p');
@@ -4631,15 +4583,9 @@ function renderAdsDomStatus() {
 function renderAds() {
   refreshAdsDomRefs();
 
-  if (!isLiveNode(els.adsTableBody)) {
-    rebuildAdsManagerLayout();
-    refreshAdsDomRefs();
-    bindAdsEvents();
-    renderAdsFolderHelp();
-  }
-
-  if (!isLiveNode(els.adsTableBody)) {
-    console.error('[Ads Dev] adsTableBody missing after rebuild');
+  if (!els.adsTableBody || !document.body.contains(els.adsTableBody)) {
+    console.error('[Ads Dev] #adsTableBody is missing from the live DOM. Static Ads Manager was removed by another function.');
+    renderAdsDomStatus();
     return;
   }
 
