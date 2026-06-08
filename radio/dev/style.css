@@ -910,3 +910,127 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   opacity: 0.58;
   cursor: not-allowed;
 }
+
+/* Branding video interludes */
+.branding-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(240, 165, 0, 0.35);
+  border-radius: 999px;
+  background: rgba(240, 165, 0, 0.06);
+  color: var(--muted);
+  font: 900 11px/1 var(--fb);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.branding-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.branding-toggle.active {
+  border-color: rgba(240, 165, 0, 0.7);
+  background: rgba(240, 165, 0, 0.14);
+  color: var(--accent);
+}
+
+.branding-toggle.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.branding-toggle.disabled input {
+  cursor: not-allowed;
+}
+
+.player-mobile-branding-row {
+  display: none;
+}
+
+.branding-player .player-media,
+.branding-player-media {
+  position: relative;
+  background: radial-gradient(circle at 50% 10%, rgba(240, 165, 0, 0.16), rgba(0, 0, 0, 0.92) 58%);
+}
+
+.branding-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #000;
+}
+
+.branding-label-pill {
+  background: rgba(240, 165, 0, 0.16);
+  border-color: rgba(240, 165, 0, 0.42);
+  color: var(--accent);
+}
+
+.branding-actions {
+  gap: 0.6rem;
+}
+
+.branding-skip-pill,
+.branding-play-pill {
+  border-color: rgba(240, 165, 0, 0.42);
+}
+
+.branding-continue-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--text);
+}
+
+.branding-continue-overlay strong {
+  color: var(--accent);
+  font: 950 18px/1 var(--fb);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.branding-continue-overlay span {
+  max-width: 360px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.branding-continue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media(max-width:720px) {
+  .player-controls-actions .branding-toggle {
+    display: none;
+  }
+
+  .player-mobile-branding-row {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 2px;
+  }
+
+  .player-mobile-branding-row .branding-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -17,6 +17,8 @@ const MIN_PARTIAL_SECONDS = 5;
 const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
+const BRANDING_VIDEO_MANIFEST_URL = 'https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/ads/video/branding/manifest.json';
+const BRANDING_VIDEOS_STORAGE_KEY = 'stashbox-radio-branding-videos-enabled';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
 const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
@@ -74,6 +76,45 @@ const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxuserco
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
 
+
+
+function readBooleanStorage(key, fallback = false) {
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (stored === null) return fallback;
+    return stored === 'true' || stored === '1';
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeBooleanStorage(key, value) {
+  try { window.localStorage.setItem(key, value ? 'true' : 'false'); } catch (_) {}
+}
+
+function normalizeBrandingVideoManifestItem(item, index = 0) {
+  if (!item || item.active !== true) return null;
+  const mediaUrl = clean(item.media_url || item.mediaUrl || item.video_url || item.videoUrl || item.url || item.src);
+  if (!mediaUrl) return null;
+  return {
+    ...item,
+    id: clean(item.id || item.key || item.slug || `branding-video-${index}`),
+    title: clean(item.title || item.name || item.internal_title || item.label || `Stashbox Branding Video ${index + 1}`),
+    mediaUrl,
+    poster: clean(item.poster_image_url || item.posterImageUrl || item.thumbnail_url || item.thumbnailUrl || item.poster || item.image_url || item.imageUrl),
+    active: true
+  };
+}
+
+function normalizeBrandingVideoManifest(payload) {
+  const rawItems = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.items) ? payload.items
+      : (Array.isArray(payload?.videos) ? payload.videos
+        : (Array.isArray(payload?.branding_videos) ? payload.branding_videos
+          : (Array.isArray(payload?.brandingVideos) ? payload.brandingVideos : []))));
+  return rawItems.map(normalizeBrandingVideoManifestItem).filter(Boolean);
+}
 
 function readJsonStorage(key, fallback) {
   try {
@@ -1162,6 +1203,12 @@ function App() {
   const [playerMessage, setPlayerMessage] = useState('');
   const [activeAd, setActiveAd] = useState(null);
   const [songsSinceLastAd, setSongsSinceLastAd] = useState(0);
+  const [brandingVideosEnabled, setBrandingVideosEnabled] = useState(() => readBooleanStorage(BRANDING_VIDEOS_STORAGE_KEY, false));
+  const [brandingVideoManifest, setBrandingVideoManifest] = useState([]);
+  const [brandingManifestLoaded, setBrandingManifestLoaded] = useState(false);
+  const [activeBrandingVideo, setActiveBrandingVideo] = useState(null);
+  const [isBrandingVideoPlaying, setIsBrandingVideoPlaying] = useState(false);
+  const [pendingNextSongAfterBranding, setPendingNextSongAfterBranding] = useState(null);
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const currentPlayInstanceRef = useRef(null);
@@ -1172,8 +1219,9 @@ function App() {
   const mediaIsPlayingRef = useRef(false);
   const adPlayCountsRef = useRef({});
   const pendingAdNextSongRef = useRef(null);
+  const pendingNextSongAfterBrandingRef = useRef(null);
   const videoCleanupInProgressRef = useRef(false);
-  const products = useProducts(activeAd ? null : selected);
+  const products = useProducts(activeAd || activeBrandingVideo ? null : selected);
 
   const selectedSong = selected || tracks[0] || null;
   useEffect(() => {
@@ -1221,6 +1269,41 @@ function App() {
       }
     };
   }, [selectedSong?.idx]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(BRANDING_VIDEO_MANIFEST_URL, { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error(`Branding video manifest request failed with ${response.status}`);
+        return response.json();
+      })
+      .then(payload => {
+        if (!alive) return;
+        const activeItems = normalizeBrandingVideoManifest(payload);
+        setBrandingVideoManifest(activeItems);
+        setBrandingManifestLoaded(true);
+        if (!activeItems.length) {
+          console.warn('[Stashbox Radio Dev] branding video manifest loaded with no active videos.');
+          setBrandingVideosEnabled(false);
+        }
+      })
+      .catch(manifestError => {
+        if (!alive) return;
+        console.warn('[Stashbox Radio Dev] branding video manifest failed to load; continuing normal song playback.', manifestError.message || manifestError);
+        setBrandingVideoManifest([]);
+        setBrandingManifestLoaded(true);
+        setBrandingVideosEnabled(false);
+      });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (brandingManifestLoaded && brandingVideosEnabled && !brandingVideoManifest.length) {
+      setBrandingVideosEnabled(false);
+      return;
+    }
+    writeBooleanStorage(BRANDING_VIDEOS_STORAGE_KEY, brandingVideosEnabled);
+  }, [brandingVideosEnabled, brandingVideoManifest.length, brandingManifestLoaded]);
 
   useEffect(() => {
     let alive = true;
@@ -1667,6 +1750,10 @@ function App() {
   }
 
   function handleManualNext() {
+    if (activeBrandingVideo) {
+      continueAfterBrandingVideo({ autoStart: true });
+      return;
+    }
     const currentSong = selectedSong;
     console.log("Manual next clicked while mediaMode:", mediaMode);
     console.log("Current video song:", currentSong?.song_key);
@@ -1710,6 +1797,20 @@ function App() {
     });
   }
 
+  function handleBrandingPrevious() {
+    if (!activeBrandingVideo) return false;
+    const previousSong = resolveAdjacentPlayableSong(-1, selectedSong);
+    pendingNextSongAfterBrandingRef.current = null;
+    setPendingNextSongAfterBranding(null);
+    stopBrandingVideoState();
+    if (previousSong) {
+      selectTrack(previousSong, { autoStart: true, preferVideo: videoFocusedList && previousSong.hasVideo });
+    } else if (selectedSong) {
+      selectTrack(selectedSong, { autoStart: false });
+    }
+    return true;
+  }
+
   function handleVideoEnded(song = selectedSong, { preferVideo = true } = {}) {
     const endedSong = song || selectedRef.current;
     if (hasHandledVideoEndRef.current) return;
@@ -1733,6 +1834,64 @@ function App() {
     }
     console.log("Keeping player visible after video end");
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
+  }
+
+  function pickRandomBrandingVideo() {
+    if (!brandingVideoManifest.length) return null;
+    const index = Math.floor(Math.random() * brandingVideoManifest.length);
+    return brandingVideoManifest[index] || null;
+  }
+
+  function shouldPlayBrandingVideoAfterSong(song) {
+    return Boolean(
+      brandingVideosEnabled &&
+      brandingVideoManifest.length &&
+      song?.hasAudio &&
+      has(song?.audioUrl) &&
+      !isVideoOnlyTrack(song) &&
+      mediaMode === 'audio'
+    );
+  }
+
+  function startBrandingVideoInterlude(nextSong, currentSong) {
+    const brandingVideo = pickRandomBrandingVideo();
+    if (!brandingVideo) return false;
+    const audio = audioRef.current;
+    if (audio) {
+      try { audio.pause(); } catch (_) {}
+      try { audio.currentTime = 0; } catch (_) {}
+    }
+    pendingNextSongAfterBrandingRef.current = nextSong || null;
+    setPendingNextSongAfterBranding(nextSong || null);
+    setActiveBrandingVideo(brandingVideo);
+    setIsBrandingVideoPlaying(true);
+    setPlayerMessage('Stashbox Radio branding video. Song playback will continue after this clip.');
+    setAutoPlayRequest(null);
+    setMediaMode('branding');
+    setActiveVideoEmbedUrl('');
+    console.log('[Stashbox Radio Dev] starting branding video interlude', { title: brandingVideo.title, after_song: currentSong?.song_key, next_song: nextSong?.song_key });
+    window.requestAnimationFrame(() => playerRef.current?.focus?.());
+    return true;
+  }
+
+  function stopBrandingVideoState() {
+    setActiveBrandingVideo(null);
+    setIsBrandingVideoPlaying(false);
+    setPlayerMessage('');
+    setMediaMode('idle');
+  }
+
+  function continueAfterBrandingVideo({ autoStart = true, preferVideo = false } = {}) {
+    const nextSong = pendingNextSongAfterBrandingRef.current || pendingNextSongAfterBranding;
+    pendingNextSongAfterBrandingRef.current = null;
+    setPendingNextSongAfterBranding(null);
+    stopBrandingVideoState();
+    if (nextSong) selectTrack(nextSong, { autoStart, preferVideo: preferVideo || (videoFocusedList && nextSong.hasVideo) });
+  }
+
+  function handleBrandingVideoError(errorMessage = '') {
+    console.warn('[Stashbox Radio Dev] branding video failed; skipping to next song.', errorMessage);
+    continueAfterBrandingVideo({ autoStart: true });
   }
 
   function handleYouTubeEnded(song = selectedSong) {
@@ -1764,6 +1923,7 @@ function App() {
     if (!next) return;
     if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     console.log("Next autoplay item:", next.song_key);
+    if (shouldPlayBrandingVideoAfterSong(song) && startBrandingVideoInterlude(next, song)) return;
     if (maybeStartAdBeforeNextSong(next, song)) return;
     selectTrack(next, { autoStart: true, preferVideo: preferVideo || (videoFocusedList && next.hasVideo) });
   }
@@ -1936,7 +2096,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => { if (!handleBrandingPrevious()) shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }); }, onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest, brandingVideosEnabled, brandingVideosAvailable: Boolean(brandingVideoManifest.length), onBrandingVideosToggle: setBrandingVideosEnabled, activeBrandingVideo, onBrandingVideoEnded: () => continueAfterBrandingVideo({ autoStart: true }), onBrandingVideoError: handleBrandingVideoError }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -2038,11 +2198,12 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   );
 }
 
-function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, brandingVideosEnabled = false, brandingVideosAvailable = false, onBrandingVideosToggle, activeBrandingVideo = null, onBrandingVideoEnded, onBrandingVideoError }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [brandingAutoplayBlocked, setBrandingAutoplayBlocked] = useState(false);
   const videoFrameRef = useRef(null);
   const youtubeMountRef = useRef(null);
   const localYoutubePlayerRef = useRef(null);
@@ -2055,7 +2216,80 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
   useEffect(() => { onYouTubeEndedRef.current = onYouTubeEnded; }, [onYouTubeEnded]);
   useEffect(() => { setIsPlaying(false); setIsVideoPlaying(false); setCurrentTime(0); setDuration(0); }, [selected?.idx]);
+  useEffect(() => {
+    if (!activeBrandingVideo) return undefined;
+    setBrandingAutoplayBlocked(false);
+    const timer = window.setTimeout(() => {
+      const video = videoFrameRef.current;
+      if (!video) return;
+      video.play?.().catch?.(error => {
+        console.warn('[radio-dev] Branding video autoplay was blocked.', error.message || error);
+        setIsVideoPlaying(false);
+        setBrandingAutoplayBlocked(true);
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeBrandingVideo?.id, activeBrandingVideo?.mediaUrl]);
   useEffect(() => { if (mediaMode !== 'video') setIsVideoPlaying(false); }, [mediaMode]);
+  if (activeBrandingVideo) {
+    const playBrandingVideo = () => {
+      const video = videoFrameRef.current;
+      if (!video) return;
+      setBrandingAutoplayBlocked(false);
+      video.play?.().catch?.(error => {
+        console.warn('[radio-dev] Branding video play failed.', error.message || error);
+        setBrandingAutoplayBlocked(true);
+      });
+    };
+    return h('aside', { className: 'panel player branding-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Stashbox Radio branding video player' },
+      h('div', { className: 'player-media branding-player-media' },
+        h('video', {
+          key: activeBrandingVideo.id || activeBrandingVideo.mediaUrl,
+          ref: videoFrameRef,
+          className: 'branding-video',
+          src: activeBrandingVideo.mediaUrl,
+          poster: activeBrandingVideo.poster || undefined,
+          controls: true,
+          playsInline: true,
+          autoPlay: true,
+          onPlay: () => { setIsVideoPlaying(true); setBrandingAutoplayBlocked(false); },
+          onPause: () => setIsVideoPlaying(false),
+          onEnded: () => { setIsVideoPlaying(false); onBrandingVideoEnded?.(); },
+          onError: event => onBrandingVideoError?.(event?.currentTarget?.error?.message || 'Branding video failed to load or play.')
+        }),
+        brandingAutoplayBlocked ? h('div', { className: 'branding-continue-overlay', role: 'status', 'aria-live': 'polite' },
+          h('strong', null, 'Tap to continue'),
+          h('span', null, 'Your browser blocked autoplay for this branding video.'),
+          h('div', { className: 'branding-continue-actions' },
+            h(PlayerPill, { className: 'branding-play-pill', onClick: playBrandingVideo }, 'Play Video'),
+            h(PlayerPill, { className: 'branding-skip-pill', onClick: onNext }, 'Skip to Song')
+          )
+        ) : null
+      ),
+      h('div', { className: 'player-bar' },
+        h('div', { className: 'player-controls', 'aria-label': 'Branding video controls' },
+          h('div', { className: 'player-controls-layout' },
+            h('div', { className: 'player-info' },
+              h('div', { className: 'player-title-row' },
+                h('h2', null, activeBrandingVideo.title || 'Stashbox Radio Branding'),
+                h('span', { className: 'player-stat-pill branding-label-pill' }, 'Stashbox Radio Branding')
+              ),
+              h('p', { className: 'notes public-note compact-note' }, 'Song playback will continue after this short branding video.')
+            ),
+            h('div', { className: 'player-controls-center transport-controls', 'aria-label': 'Branding transport controls' },
+              h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
+              h(PlayerPill, { className: 'transport-pill play-toggle', onClick: () => { const video = videoFrameRef.current; if (!video) return; if (video.paused || video.ended) playBrandingVideo(); else video.pause?.(); }, 'aria-pressed': isVideoPlaying, 'aria-label': isVideoPlaying ? 'Pause branding video' : 'Play branding video' }, isVideoPlaying ? h(PauseIcon) : h(PlayIcon)),
+              h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›')
+            ),
+            h('div', { className: 'player-controls-actions branding-actions' },
+              h(PlayerPill, { className: 'branding-skip-pill', onClick: onNext }, 'Next Song')
+            )
+          )
+        )
+      ),
+      playerMessage ? h('p', { className: 'notes player-message', 'aria-live': 'polite' }, playerMessage) : null
+    );
+  }
   if (!selected) return h('aside', { className: 'panel player player-empty', ref: playerRef }, h('p', null, 'Choose a song to start the preview player.'));
   const section = SECTIONS.find(s => s.key === selected.sectionKey) || SECTIONS[SECTIONS.length - 1];
   const selectedIsVideoOnly = isVideoOnlyTrack(selected);
@@ -2277,11 +2511,21 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›')
           ),
           h('div', { className: 'player-controls-actions' },
+            h('label', { className: `branding-toggle ${brandingVideosEnabled ? 'active' : ''} ${!brandingVideosAvailable ? 'disabled' : ''}` },
+              h('input', { type: 'checkbox', checked: brandingVideosEnabled, disabled: !brandingVideosAvailable, onChange: event => onBrandingVideosToggle?.(event.currentTarget.checked), 'aria-label': 'Play Branding Videos' }),
+              h('span', null, 'Play Branding Videos')
+            ),
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
             h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
             canCloseVideo || canWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
             h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
+          ),
+          h('div', { className: 'player-mobile-branding-row' },
+            h('label', { className: `branding-toggle ${brandingVideosEnabled ? 'active' : ''} ${!brandingVideosAvailable ? 'disabled' : ''}` },
+              h('input', { type: 'checkbox', checked: brandingVideosEnabled, disabled: !brandingVideosAvailable, onChange: event => onBrandingVideosToggle?.(event.currentTarget.checked), 'aria-label': 'Play Branding Videos' }),
+              h('span', null, 'Play Branding Videos')
+            )
           ),
           h('div', { className: 'player-mobile-main-controls', 'aria-label': 'Mobile playback controls' },
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
