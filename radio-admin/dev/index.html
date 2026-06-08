@@ -35,7 +35,6 @@
         <button class="tab-button" type="button" data-tab="songs">Songs</button>
         <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
         <button class="tab-button" type="button" data-tab="events">Events</button>
-        <button class="tab-button" type="button" data-tab="ads">Ads</button>
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
 
@@ -464,98 +463,6 @@
         </aside>
       </section>
 
-
-
-      <section id="adsView" class="admin-view hidden" aria-labelledby="adsHeading">
-        <aside class="card list-panel ads-panel">
-          <div class="panel-header events-header">
-            <div>
-              <p class="eyebrow">ADS MANAGER</p>
-              <h2 id="adsHeading">Ads Manager</h2>
-              <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
-              <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
-            </div>
-            <div class="panel-actions events-actions">
-              <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
-              <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
-            </div>
-          </div>
-
-          <div class="stats-warning ads-folder-help" role="note">
-            <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
-            <div id="adsFolderHelp"></div>
-            <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
-          </div>
-
-          <div id="adsStatus" class="song-count">No ads loaded</div>
-          <div class="table-wrap events-table-wrap">
-            <table class="song-table ads-table">
-              <thead>
-                <tr>
-                  <th>Thumbnail</th>
-                  <th>Internal Title</th>
-                  <th>Ad Type</th>
-                  <th>Media Type</th>
-                  <th>Status</th>
-                  <th>Frequency</th>
-                  <th>Preview</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="adsTableBody"></tbody>
-            </table>
-          </div>
-        </aside>
-
-        <section class="card edit-panel ads-edit-panel" aria-labelledby="adFormHeading">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">AD EDITOR</p>
-              <h2 id="adFormHeading">Select or create an ad</h2>
-            </div>
-          </div>
-          <form id="adForm" class="edit-form hidden">
-            <div class="form-grid" id="adFormFields"></div>
-            <div class="form-actions">
-              <button id="saveAdButton" class="button" type="submit">Save Ad</button>
-              <button id="cancelAdButton" class="button button-ghost" type="button">Cancel</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card dashboard-section ads-stats-panel" aria-labelledby="adStatsHeading">
-          <div class="panel-header dashboard-header">
-            <div>
-              <p class="eyebrow">DEV STATS</p>
-              <h2 id="adStatsHeading">Ads dashboard stats</h2>
-              <p class="panel-copy">Session/local DEV data only. Public player writes ad events to browser localStorage until backend persistence is connected.</p>
-            </div>
-          </div>
-          <div class="table-wrap compact-table-wrap">
-            <table class="song-table compact-table ads-stats-table">
-              <thead>
-                <tr>
-                  <th>Ad</th>
-                  <th>Impressions</th>
-                  <th>Starts</th>
-                  <th>Completions</th>
-                  <th>Skips</th>
-                  <th>CTA Clicks</th>
-                  <th>Errors</th>
-                  <th>Completion Rate</th>
-                  <th>Skip Rate</th>
-                  <th>CTA Click Rate</th>
-                </tr>
-              </thead>
-              <tbody id="adStatsTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <p class="ads-ui-version">Ads UI version: ads-manager-20260608</p>
-        <p id="adsDomStatus" class="ads-dom-status stats-generated">Ads DOM status: adsPanel: pending • adsTableBody: pending • createAdButton: pending • last render: pending</p>
-      </section>
-
       <section id="archiveView" class="admin-view hidden" aria-labelledby="archiveHeading">
         <aside class="card list-panel">
           <div class="panel-header">
@@ -636,6 +543,6 @@
     </div>
   </main>
 
-  <script src="./app.js?v=ads-manager-20260608"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
