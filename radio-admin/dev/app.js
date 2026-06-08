@@ -540,7 +540,62 @@ document.addEventListener('DOMContentLoaded', () => {
   renderDashboard();
   renderAdsTab();
   initializeAdmin();
+
+  setTimeout(() => {
+    if (activeTab === 'ads') {
+      refreshAdsDomRefs();
+      if (!hasLiveAdsManager()) {
+        console.warn('[Ads Dev] Ads Manager disappeared after load. Rebuilding.');
+        renderAdsTab();
+      }
+    }
+  }, 1500);
 });
+
+function refreshAdsDomRefs() {
+  els.adsView = document.getElementById('adsView');
+  els.adsStatus = document.getElementById('adsStatus');
+  els.adsTableBody = document.getElementById('adsTableBody');
+  els.adStatsTableBody = document.getElementById('adStatsTableBody');
+  els.adForm = document.getElementById('adForm');
+  els.adFormFields = document.getElementById('adFormFields');
+  els.adFormHeading = document.getElementById('adFormHeading');
+  els.createAdButton = document.getElementById('createAdButton');
+  els.refreshAdsButton = document.getElementById('refreshAdsButton');
+  els.cancelAdButton = document.getElementById('cancelAdButton');
+  els.saveAdButton = document.getElementById('saveAdButton');
+  els.adsStorageNote = document.getElementById('adsStorageNote');
+}
+
+function hasLiveAdsManager() {
+  return Boolean(
+    els.adsView
+    && document.body.contains(els.adsView)
+    && els.adsView.querySelector('.ads-panel')
+    && els.adsView.querySelector('#adsTableBody')
+    && els.adsView.querySelector('#createAdButton')
+  );
+}
+
+function bindAdsEvents() {
+  refreshAdsDomRefs();
+
+  if (els.createAdButton) {
+    els.createAdButton.onclick = () => startCreateAd();
+  }
+
+  if (els.refreshAdsButton) {
+    els.refreshAdsButton.onclick = () => loadAds();
+  }
+
+  if (els.cancelAdButton) {
+    els.cancelAdButton.onclick = () => renderAdForm(null);
+  }
+
+  if (els.adForm) {
+    els.adForm.onsubmit = saveAd;
+  }
+}
 
 function bindEvents() {
   els.saveTokenButton.addEventListener('click', saveToken);
@@ -556,13 +611,10 @@ function bindEvents() {
   els.refreshSongsButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshEventsButton.addEventListener('click', () => loadEvents());
-  els.createAdButton?.addEventListener('click', () => startCreateAd());
-  els.refreshAdsButton?.addEventListener('click', () => loadAds());
+  bindAdsEvents();
   els.saveAdAsNewButton?.addEventListener('click', saveAdAsNew);
   els.previewAdButton?.addEventListener('click', updateAdPreview);
-  els.cancelAdButton?.addEventListener('click', () => renderAdForm(null));
   els.deleteAdButton?.addEventListener('click', deleteSelectedAd);
-  els.adForm?.addEventListener('submit', saveAd);
   els.eventLimit.addEventListener('change', () => loadEvents());
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
@@ -4476,63 +4528,102 @@ function getAdThumbnail(ad) {
 }
 
 function renderAdsTab() {
-  ensureAdsManagerLayout();
-  renderAds();
-}
+  refreshAdsDomRefs();
 
-function ensureAdsManagerLayout() {
-  if (!els.adsView) return;
-
-  if (!els.adsTableBody) {
-    const editorPanel = els.adsView.querySelector('.ads-edit-panel, [aria-labelledby="adFormHeading"]');
-    const manager = document.createElement('aside');
-    manager.className = 'card list-panel ads-panel';
-    manager.innerHTML = `
-      <div class="panel-header events-header">
-        <div>
-          <p class="eyebrow">ADS MANAGER</p>
-          <h2 id="adsHeading">Ads Manager</h2>
-          <p class="panel-copy">DEV-only ads manager for previewing and saving pasted video ad URLs.</p>
-          <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
-        </div>
-        <div class="panel-actions events-actions">
-          <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
-          <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
-        </div>
-      </div>
-      <div class="stats-warning ads-folder-help" role="note">
-        <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
-        <div id="adsFolderHelp"></div>
-        <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
-      </div>
-      <div id="adsStatus" class="song-count">No ads loaded</div>
-      <div class="table-wrap events-table-wrap">
-        <table class="song-table ads-table">
-          <thead>
-            <tr>
-              <th>Thumbnail</th>
-              <th>Internal Title</th>
-              <th>Ad Type</th>
-              <th>Media Type</th>
-              <th>Status</th>
-              <th>Frequency</th>
-              <th>Preview</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="adsTableBody"></tbody>
-        </table>
-      </div>`;
-    els.adsView.insertBefore(manager, editorPanel || els.adsView.firstChild);
-    els.adsStatus = document.getElementById('adsStatus');
-    els.adsTableBody = document.getElementById('adsTableBody');
-    els.adsStorageNote = document.getElementById('adsStorageNote');
-    els.createAdButton = document.getElementById('createAdButton');
-    els.refreshAdsButton = document.getElementById('refreshAdsButton');
-    els.createAdButton?.addEventListener('click', () => startCreateAd());
-    els.refreshAdsButton?.addEventListener('click', () => loadAds());
+  if (!hasLiveAdsManager()) {
+    rebuildAdsManagerLayout();
+    refreshAdsDomRefs();
   }
 
+  bindAdsEvents();
+  renderAdsFolderHelp();
+  renderAds();
+  renderAdStats();
+}
+
+function updateAdsDomStatus() {
+  refreshAdsDomRefs();
+  if (!els.adsView || !document.body.contains(els.adsView)) return;
+
+  let status = document.getElementById('adsDomStatus');
+  if (!status) {
+    status = document.createElement('p');
+    status.id = 'adsDomStatus';
+    status.className = 'ads-dom-status stats-generated';
+    const versionLine = els.adsView.querySelector('.ads-ui-version');
+    if (versionLine) {
+      versionLine.insertAdjacentElement('afterend', status);
+    } else {
+      els.adsView.appendChild(status);
+    }
+  }
+
+  const isLive = (node) => Boolean(node && document.body.contains(node));
+  status.textContent = `Ads DOM status: adsPanel: ${isLive(els.adsView.querySelector('.ads-panel')) ? 'live' : 'missing'} • adsTableBody: ${isLive(els.adsTableBody) ? 'live' : 'missing'} • createAdButton: ${isLive(els.createAdButton) ? 'live' : 'missing'} • last render: ${new Date().toLocaleTimeString()}`;
+}
+
+function rebuildAdsManagerLayout() {
+  refreshAdsDomRefs();
+  if (!els.adsView || !document.body.contains(els.adsView)) return;
+
+  console.warn('[Ads Dev] Rebuilding Ads Manager layout because manager DOM was missing or detached');
+
+  const panels = Array.from(els.adsView.querySelectorAll('.ads-panel'));
+  panels.forEach((panel, index) => {
+    const isBroken = !panel.querySelector('#adsTableBody') || !panel.querySelector('#createAdButton');
+    const isDuplicate = index > 0;
+    if (isBroken || isDuplicate || !hasLiveAdsManager()) {
+      panel.remove();
+    }
+  });
+
+  const editorPanel = els.adsView.querySelector('.ads-edit-panel, [aria-labelledby="adFormHeading"]');
+  const manager = document.createElement('aside');
+  manager.className = 'card list-panel ads-panel';
+  manager.innerHTML = `
+    <div class="panel-header events-header">
+      <div>
+        <p class="eyebrow">ADS MANAGER</p>
+        <h2 id="adsHeading">Ads Manager</h2>
+        <p class="panel-copy">DEV-only ads manager for adding, editing, uploading, previewing, and saving video ads.</p>
+        <p id="adsStorageNote" class="stats-generated">MVP persistence: browser localStorage. Connect real persistence later.</p>
+      </div>
+      <div class="panel-actions events-actions">
+        <button id="createAdButton" class="button button-small" type="button">Add New Ad</button>
+        <button id="refreshAdsButton" class="button button-small button-ghost" type="button">Refresh Ads</button>
+      </div>
+    </div>
+
+    <div class="stats-warning ads-folder-help" role="note">
+      <p><strong>Expected DEV S3 video/thumbnail folders for upload routing:</strong></p>
+      <div id="adsFolderHelp"></div>
+      <p class="ads-upload-note">Upload connection pending. Paste S3/CloudFront URL for now.</p>
+    </div>
+
+    <div id="adsStatus" class="song-count">No ads loaded</div>
+    <div class="table-wrap events-table-wrap">
+      <table class="song-table ads-table">
+        <thead>
+          <tr>
+            <th>Thumbnail</th>
+            <th>Internal Title</th>
+            <th>Ad Type</th>
+            <th>Media Type</th>
+            <th>Status</th>
+            <th>Frequency</th>
+            <th>Preview</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adsTableBody"></tbody>
+      </table>
+    </div>`;
+  els.adsView.insertBefore(manager, editorPanel || els.adsView.firstChild);
+  refreshAdsDomRefs();
+  updateAdsDomStatus();
+}
+
+function renderAdsFolderHelp() {
   const folderHelp = document.getElementById('adsFolderHelp');
   if (folderHelp) {
     folderHelp.innerHTML = S3_AD_FOLDER_HELP.map(folder => `<code>${escapeHtml(folder)}</code>`).join('');
@@ -4540,15 +4631,28 @@ function ensureAdsManagerLayout() {
 }
 
 function renderAds() {
-  if (!els.adsTableBody) return;
+  refreshAdsDomRefs();
+
+  if (!hasLiveAdsManager()) {
+    rebuildAdsManagerLayout();
+    refreshAdsDomRefs();
+    bindAdsEvents();
+  }
+
+  if (!els.adsTableBody || !document.body.contains(els.adsTableBody)) {
+    console.error('[Ads Dev] adsTableBody missing or detached after repair');
+    return;
+  }
+
   els.adsTableBody.innerHTML = '';
-  els.adsStatus.textContent = `${ads.length} dev ad${ads.length === 1 ? '' : 's'} loaded from browser localStorage.`;
+  if (els.adsStatus) els.adsStatus.textContent = `${ads.length} dev ad${ads.length === 1 ? '' : 's'} loaded from browser localStorage.`;
   if (els.adsStorageNote) els.adsStorageNote.textContent = `DEV persistence: ad records save to ${ADS_STORAGE_KEY} localStorage using the same record shape consumed by /stashbox/radio/dev/. Connect this shape to the real dev backend when the ads API is available.`;
 
   if (!ads.length) {
     const row = document.createElement('tr');
     row.innerHTML = '<td colspan="8" class="empty-state">No ads yet. Click Add New Ad to create your first Stashbox Radio Branding ad.</td>';
     els.adsTableBody.appendChild(row);
+    updateAdsDomStatus();
     return;
   }
 
@@ -4569,6 +4673,7 @@ function renderAds() {
   els.adsTableBody.querySelectorAll('[data-edit-ad]').forEach(button => button.addEventListener('click', () => renderAdForm(ads.find(ad => ad.id === button.dataset.editAd))));
   els.adsTableBody.querySelectorAll('[data-delete-ad]').forEach(button => button.addEventListener('click', () => deleteAd(button.dataset.deleteAd)));
   els.adsTableBody.querySelectorAll('[data-preview-ad]').forEach(button => button.addEventListener('click', () => showListAdPreview(button.dataset.previewAd, button.closest('tr'))));
+  updateAdsDomStatus();
 }
 
 function showListAdPreview(adId, anchorRow) {
