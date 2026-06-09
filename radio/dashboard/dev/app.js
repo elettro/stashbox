@@ -359,7 +359,6 @@ function renderEmptyRow(body, colspan, message) {
 }
 
 function bindDashboardControls() {
-  els.headerRadioLink.href = getRadioBasePath();
   els.refreshButton.addEventListener('click', loadDashboardData);
 }
 
