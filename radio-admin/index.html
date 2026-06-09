@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="topbar-title-link" href="/stashbox/" aria-label="Open Stashbox site">
+      <p class="eyebrow">ADMIN</p>
+      <h1>Stashbox Radio</h1>
+    </a>
+    <div class="token-actions">
+      <span id="tokenStatus" class="token-status">No token saved</span>
+      <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="tokenPanel" class="card token-panel" aria-labelledby="tokenHeading">
+      <h2 id="tokenHeading">Admin token</h2>
+      <p>Enter the admin token to load the private dashboard and song editor. The token is saved locally in this browser only.</p>
+      <div class="token-form">
+        <label for="adminToken">x-admin-token</label>
+        <input id="adminToken" type="password" autocomplete="off" placeholder="Paste admin token" />
+        <button id="saveTokenButton" class="button" type="button">Save Token</button>
+      </div>
+    </section>
+
+    <section id="adminPanel" class="admin-panel hidden" aria-live="polite">
+      <nav class="admin-tabs" aria-label="Admin sections">
+        <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
+        <button class="tab-button" type="button" data-tab="songs">Songs</button>
+        <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
+        <button class="tab-button" type="button" data-tab="events">Events</button>
+        <button class="tab-button" type="button" data-tab="archive">Archive</button>
+      </nav>
+
+      <section id="dashboardView" class="admin-view" aria-labelledby="dashboardHeading">
+        <div class="card dashboard-card">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Dashboard</p>
+              <h2 id="dashboardHeading">Operational stats</h2>
+              <p class="panel-copy">Top KPI totals come from radio event stats; song rankings use the admin songs API and exclude archived songs.</p>
+              <p id="statsGeneratedAt" class="stats-generated">Stats generated: —</p>
+            </div>
+            <button id="refreshDashboardButton" class="button button-small" type="button">Refresh Dashboard</button>
+          </div>
+
+          <div id="statsSummaryWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="kpiGrid" class="kpi-grid"></div>
+        </div>
+
+        <section class="card dashboard-section products-analytics-section" aria-labelledby="productsAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Products Analytics</p>
+              <h2 id="productsAnalyticsHeading">Product click analytics</h2>
+              <p class="panel-copy">Real product click data from the private RDS-backed admin stats API.</p>
+              <p id="productStatsGeneratedAt" class="stats-generated">Product stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="productStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="productKpiGrid" class="mini-stat-grid product-kpi-grid"></div>
+
+          <div class="product-tables-grid">
+            <section aria-labelledby="topClickedProductsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 25</p>
+                  <h3 id="topClickedProductsHeading">Top clicked products</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table product-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Related Songs</th>
+                      <th>Last Clicked</th>
+                      <th>Open Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topProductsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentProductClicksHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentProductClicksHeading">Recent product clicks</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table product-table recent-product-clicks-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Device</th>
+                      <th>Product</th>
+                      <th>Open Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentProductClicksTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="card dashboard-section referrers-analytics-section" aria-labelledby="referrersAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Referrers / Traffic Sources</p>
+              <h2 id="referrersAnalyticsHeading">Referrers / Traffic Sources</h2>
+              <p class="panel-copy">Private referrer, direct traffic, and recent traffic-source event stats.</p>
+              <p id="referrerStatsGeneratedAt" class="stats-generated">Referrer stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="referrerStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="referrerKpiGrid" class="mini-stat-grid referrer-kpi-grid"></div>
+
+          <div class="referrer-tables-grid">
+            <section aria-labelledby="topReferrersHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 50</p>
+                  <h3 id="topReferrersHeading">Top Referrers</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table referrer-table top-referrers-table">
+                  <thead>
+                    <tr>
+                      <th>Referrer</th>
+                      <th>Events</th>
+                      <th>Plays</th>
+                      <th>Full</th>
+                      <th>Partial</th>
+                      <th>Skips</th>
+                      <th>Likes</th>
+                      <th>Shares</th>
+                      <th>Video Clicks</th>
+                      <th>Product Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Last Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topReferrersTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentReferrerEventsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentReferrerEventsHeading">Recent Referrer Events</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table referrer-table recent-referrer-events-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Referrer</th>
+                      <th>Event Type</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Device</th>
+                      <th>Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentReferrerEventsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="card dashboard-section devices-analytics-section" aria-labelledby="devicesAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Devices / Listener Devices</p>
+              <h2 id="devicesAnalyticsHeading">Devices / Listener Devices</h2>
+              <p class="panel-copy">Private listener device event totals, playback behavior, engagement, and recent device activity.</p>
+              <p id="deviceStatsGeneratedAt" class="stats-generated">Device stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="deviceStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="deviceKpiGrid" class="mini-stat-grid device-kpi-grid"></div>
+
+          <div class="device-tables-grid">
+            <section aria-labelledby="deviceBreakdownHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Top 50</p>
+                  <h3 id="deviceBreakdownHeading">Device Breakdown</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table device-table device-breakdown-table">
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>Events</th>
+                      <th>Plays</th>
+                      <th>Full</th>
+                      <th>Partial</th>
+                      <th>Skips</th>
+                      <th>Likes</th>
+                      <th>Shares</th>
+                      <th>Video Clicks</th>
+                      <th>Product Clicks</th>
+                      <th>Unique Sessions</th>
+                      <th>Avg Seconds</th>
+                      <th>Avg Completion %</th>
+                      <th>Last Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody id="deviceBreakdownTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section aria-labelledby="recentDeviceEventsHeading">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Newest</p>
+                  <h3 id="recentDeviceEventsHeading">Recent Device Events</h3>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="song-table compact-table device-table recent-device-events-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Device</th>
+                      <th>Event Type</th>
+                      <th>Song</th>
+                      <th>Artist</th>
+                      <th>Referrer</th>
+                      <th>Product</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentDeviceEventsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="card dashboard-section song-analytics-section" aria-labelledby="songAnalyticsHeading">
+          <div class="panel-header dashboard-header">
+            <div>
+              <p class="eyebrow">Song Analytics</p>
+              <h2 id="songAnalyticsHeading">Per-song performance</h2>
+              <p class="panel-copy">Private per-song play, completion, engagement, video, and product click stats.</p>
+              <p id="songStatsGeneratedAt" class="stats-generated">Song stats generated: —</p>
+            </div>
+          </div>
+
+          <div id="songStatsWarning" class="stats-warning hidden" role="alert"></div>
+          <div id="songInsightGrid" class="mini-stat-grid song-insight-grid"></div>
+
+          <div class="table-wrap compact-table-wrap song-analytics-table-wrap">
+            <table class="song-table compact-table song-analytics-table">
+              <thead>
+                <tr>
+                  <th>Song</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="play_starts">Plays ↕</button></th>
+                  <th>Full</th>
+                  <th>Partial</th>
+                  <th>Skips</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="likes">Likes ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="shares">Shares ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="video_clicks">Video Clicks ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="product_clicks">Product Clicks ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="completion_rate">Completion % ↕</button></th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="skip_rate">Skip % ↕</button></th>
+                  <th>Like %</th>
+                  <th>Share %</th>
+                  <th>Product Click %</th>
+                  <th><button class="sort-header" type="button" data-song-stats-sort="last_event_at">Last Event ↕</button></th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="songAnalyticsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="todayStatsHeading">
+            <p class="eyebrow">Today</p>
+            <h2 id="todayStatsHeading">Today's event stats</h2>
+            <div id="todayStatsGrid" class="mini-stat-grid"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="devicesStatsHeading">
+            <p class="eyebrow">Devices</p>
+            <h2 id="devicesStatsHeading">Device event counts</h2>
+            <div id="devicesStatsList" class="summary-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="eventTypesStatsHeading">
+            <p class="eyebrow">Events</p>
+            <h2 id="eventTypesStatsHeading">Event type totals</h2>
+            <div id="eventTypesStatsList" class="summary-list"></div>
+          </section>
+          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="topSongsHeading">
+            <div class="panel-header compact-header">
+              <div>
+                <p class="eyebrow">Ranked by plays</p>
+                <h2 id="topSongsHeading">Top songs</h2>
+              </div>
+            </div>
+            <div class="table-wrap compact-table-wrap">
+              <table class="song-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Song</th>
+                    <th>Artist</th>
+                    <th>Genre</th>
+                    <th>Plays</th>
+                    <th>Likes</th>
+                    <th>Shares</th>
+                    <th>Video Clicks</th>
+                    <th>Product Clicks</th>
+                    <th>Skips</th>
+                    <th>Links</th>
+                  </tr>
+                </thead>
+                <tbody id="topSongsTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="likedSongsHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="likedSongsHeading">Most liked songs</h2>
+            <div id="likedSongsList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="sharedSongsHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="sharedSongsHeading">Most shared songs</h2>
+            <div id="sharedSongsList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="watchedVideosHeading">
+            <p class="eyebrow">Ranked by video clicks</p>
+            <h2 id="watchedVideosHeading">Most watched videos</h2>
+            <div id="watchedVideosList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="productClicksHeading">
+            <p class="eyebrow">Ranked by product clicks</p>
+            <h2 id="productClicksHeading">Highest product click songs</h2>
+            <div id="productClicksList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="engagementHeading">
+            <p class="eyebrow">Top 5</p>
+            <h2 id="engagementHeading">Engagement rate</h2>
+            <p class="section-note">Engagement = likes + shares + video clicks + product clicks.</p>
+            <div id="engagementList" class="rank-list"></div>
+          </section>
+
+          <section class="card dashboard-section" aria-labelledby="skipRateHeading">
+            <p class="eyebrow">Skip count / plays</p>
+            <h2 id="skipRateHeading">Skip rate</h2>
+            <div id="skipRateList" class="rank-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="songsView" class="admin-view hidden" aria-labelledby="songsHeading">
+        <aside class="card list-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Songs</p>
+              <h2 id="songsHeading">Catalog</h2>
+            </div>
+            <div class="panel-actions">
+              <button id="createSongButton" class="button button-small" type="button">Create New Song</button>
+              <button id="refreshSongsButton" class="button button-small button-ghost" type="button">Refresh List</button>
+            </div>
+          </div>
+
+          <label class="search-label" for="songSearch">Search title, artist, genre, or song key</label>
+          <input id="songSearch" class="search-input" type="search" placeholder="Filter songs…" />
+
+          <div id="songCount" class="song-count">No songs loaded</div>
+          <div class="table-wrap">
+            <table class="song-table">
+              <thead>
+                <tr>
+                  <th>Song</th>
+                  <th>Stats</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="songTableBody"></tbody>
+            </table>
+          </div>
+        </aside>
+      </section>
+
+
+      <section id="eventsView" class="admin-view hidden" aria-labelledby="eventsHeading">
+        <aside class="card list-panel events-panel">
+          <div class="panel-header events-header">
+            <div>
+              <p class="eyebrow">Events</p>
+              <h2 id="eventsHeading">Private event log</h2>
+              <p class="panel-copy">Newest radio activity from the private RDS event log.</p>
+            </div>
+            <div class="panel-actions events-actions">
+              <label class="limit-label" for="eventLimit">Limit
+                <select id="eventLimit" class="limit-select">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="200">200</option>
+                </select>
+              </label>
+              <button id="refreshEventsButton" class="button button-small" type="button">Refresh Events</button>
+            </div>
+          </div>
+
+          <div id="eventsStatus" class="song-count">No events loaded</div>
+          <div class="table-wrap events-table-wrap">
+            <table class="song-table events-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Event Type</th>
+                  <th>Song</th>
+                  <th>Artist</th>
+                  <th>Device</th>
+                  <th>Seconds Played</th>
+                  <th>Completion %</th>
+                  <th>Product URL</th>
+                  <th>Session ID</th>
+                </tr>
+              </thead>
+              <tbody id="eventsTableBody"></tbody>
+            </table>
+          </div>
+        </aside>
+      </section>
+
+      <section id="archiveView" class="admin-view hidden" aria-labelledby="archiveHeading">
+        <aside class="card list-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Archive</p>
+              <h2 id="archiveHeading">Archived songs</h2>
+              <p class="panel-copy">Songs moved to archive are hidden from the main admin catalog and dashboard calculations.</p>
+            </div>
+            <button id="refreshArchiveButton" class="button button-small button-ghost" type="button">Refresh Archive</button>
+          </div>
+
+          <div id="archiveCount" class="song-count">No archived songs loaded</div>
+          <div class="table-wrap">
+            <table class="song-table">
+              <thead>
+                <tr>
+                  <th>Song</th>
+                  <th>Artist</th>
+                  <th>Song key</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="archiveTableBody"></tbody>
+            </table>
+          </div>
+        </aside>
+      </section>
+
+      <section id="editView" class="admin-view hidden" aria-labelledby="editHeading">
+        <section class="card edit-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Edit</p>
+              <h2 id="editHeading">Select a song</h2>
+            </div>
+            <div class="editor-status-stack">
+              <span id="selectedSongKey" class="song-key-pill"></span>
+              <span id="selectedVisibility" class="visibility-pill hidden"></span>
+            </div>
+          </div>
+
+          <div id="emptyEditor" class="empty-editor">
+            Choose a song from the Songs tab or dashboard links to edit its admin fields.
+          </div>
+
+          <form id="editForm" class="edit-form hidden" novalidate>
+            <div class="form-grid" id="formFields"></div>
+            <div class="form-actions">
+              <button id="saveChangesButton" class="button" type="submit">Save Changes</button>
+              <button id="cancelChangesButton" class="button button-ghost" type="button">Cancel/Revert</button>
+            </div>
+
+            <section id="dangerZone" class="danger-zone hidden" aria-labelledby="dangerZoneHeading">
+              <div>
+                <p class="eyebrow danger-eyebrow" id="dangerZoneHeading">Danger Zone</p>
+                <p class="danger-copy">Move this song to the archive. This is a safe soft-delete and does not remove it from RDS.</p>
+              </div>
+              <button id="deleteSongButton" class="button button-danger" type="button">Delete Song</button>
+            </section>
+          </form>
+        </section>
+      </section>
+    </section>
+
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <div id="deleteModal" class="modal-backdrop hidden" role="presentation">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle" aria-describedby="deleteModalCopy">
+        <p class="eyebrow danger-eyebrow">Confirm archive</p>
+        <h2 id="deleteModalTitle">Delete Song</h2>
+        <p id="deleteModalCopy">Are you sure you want to delete this song?</p>
+        <div class="modal-actions">
+          <button id="cancelDeleteButton" class="button button-ghost" type="button">Cancel</button>
+          <button id="confirmDeleteButton" class="button button-danger" type="button">Delete</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
