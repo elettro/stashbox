@@ -546,6 +546,20 @@ tr:last-child td {
 .data-table .rank-col {
   width: 4.5rem;
 }
+.ranked-plays-table .rank-col {
+  width: 2.75rem;
+}
+.ranked-plays-table th:first-child,
+.ranked-plays-table .rank-column {
+  width: 2.75rem;
+  padding-right: 0.25rem;
+  text-align: center;
+  white-space: nowrap;
+}
+.ranked-plays-table th:nth-child(2),
+.ranked-plays-table .song-column {
+  padding-left: 0.45rem;
+}
 .data-table .artist-col {
   width: 17%;
 }
