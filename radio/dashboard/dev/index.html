@@ -1,115 +1,317 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio Dashboard · Dev</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <header class="global-radio-header" aria-label="Stashbox Radio global header">
-    <a class="global-radio-brand" href="https://stashbox.com/radio/dev/" aria-label="Open Stashbox Radio player">
-      <span class="global-radio-mark" aria-hidden="true">SR</span>
-      <span>
-        <span class="global-radio-title">STASHBOX RADIO</span>
-        <span class="global-radio-subtitle">Public Dashboard</span>
-      </span>
-    </a>
-    <nav class="global-radio-nav" aria-label="Stashbox Radio navigation">
-      <a href="https://stashbox.com/radio/dev/">Radio Player</a>
-      <a href="/stashbox/radio/dashboard/dev/" aria-current="page">Dashboard</a>
-    </nav>
-  </header>
-
-  <header class="hero">
-    <div class="hero__content">
-      <p class="eyebrow">Public Performance Dashboard · Dev</p>
-      <h1>STASHBOX RADIO DASHBOARD</h1>
-      <p class="intro">Track what listeners are playing, liking, sharing, watching, and clicking across Stashbox Radio. This public dashboard highlights song performance, engagement trends, listening activity, devices, and referrers.</p>
-    </div>
-    <a class="radio-link" href="https://stashbox.com/radio/dev/">Open Stashbox Radio</a>
-  </header>
-
-  <main class="shell">
-    <section class="notice" aria-labelledby="publicSafeHeading">
-      <div>
-        <p class="eyebrow">Public-safe view</p>
-        <h2 id="publicSafeHeading">Read-only radio analytics</h2>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stashbox Radio Dashboard · Dev</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="stashbox-site-header" aria-label="Stashbox global header">
+      <div class="stashbox-site-header__inner">
+        <a
+          class="stashbox-site-header__brand"
+          href="https://stashbox.com/"
+          aria-label="Stashbox — Home"
+          >STASHBOX</a
+        >
+        <nav class="stashbox-site-header__nav" aria-label="Main navigation">
+          <a href="https://stashbox.com/">Home</a>
+          <a href="https://stashbox.com/radio/dev/">Radio</a>
+          <a href="https://stashbox.com/videos/">Videos</a>
+          <a href="https://stashbox.com/sessions/">Sessions</a>
+          <a href="https://stashbox.ai/">Shop</a>
+          <a href="https://stashbox.com/setlists/">Setlists</a>
+          <a href="https://stashbox.com/booking/">Book Band</a>
+          <a href="https://stashbox.com/custom-music/">Custom Music</a>
+          <a href="https://stashbox.com/about/">About</a>
+          <a
+            href="https://stashbox.com/radio/dashboard/dev/"
+            aria-current="page"
+            >Dashboard</a
+          >
+        </nav>
+        <a
+          class="stashbox-site-header__cta"
+          href="https://www.youtube.com/@stashboxband"
+          target="_blank"
+          rel="noopener noreferrer"
+          >SUBSCRIBE ON YOUTUBE</a
+        >
       </div>
-      <p>This dashboard keeps private controls, unsafe identifiers, visitor network details, and backend diagnostics out of the public view.</p>
-    </section>
+    </header>
 
-    <div id="statusBanner" class="status-banner" role="status" aria-live="polite">Loading public dashboard data…</div>
+    <header class="hero">
+      <div class="hero__content">
+        <p class="eyebrow">Public Performance Dashboard · Dev</p>
+        <h1>STASHBOX RADIO DASHBOARD</h1>
+        <p class="intro">
+          Track what listeners are playing, liking, sharing, watching, and
+          clicking across Stashbox Radio. This public dashboard highlights song
+          performance, engagement trends, listening activity, devices, and
+          referrers.
+        </p>
+      </div>
+      <a class="radio-link" href="https://stashbox.com/radio/dev/"
+        >Open Stashbox Radio</a
+      >
+    </header>
 
-    <section id="dashboardView" class="view" aria-labelledby="dashboardHeading">
-      <section class="card" aria-labelledby="operationalStatsHeading">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">1. Operational Stats</p>
-            <h2 id="operationalStatsHeading">Operational Stats</h2>
-          </div>
-          <button id="refreshButton" class="button" type="button">Refresh</button>
+    <main class="shell">
+      <section class="notice" aria-labelledby="publicSafeHeading">
+        <div>
+          <p class="eyebrow">Public-safe view</p>
+          <h2 id="publicSafeHeading">Read-only radio analytics</h2>
         </div>
-        <p class="section-copy">High-level public totals from available read-only song and dashboard stats.</p>
-        <div id="operationalStats" class="stat-grid"></div>
+        <p>
+          This dashboard keeps private controls, unsafe identifiers, visitor
+          network details, and backend diagnostics out of the public view.
+        </p>
       </section>
 
-      <section class="card" aria-labelledby="rankedByPlaysHeading">
-        <div class="section-heading"><div><p class="eyebrow">2. Ranked by Plays - Top Songs</p><h2 id="rankedByPlaysHeading">Ranked by Plays - Top Songs</h2></div></div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Rank</th><th>Song</th><th>Artist</th><th>Plays</th><th>Likes</th><th>Shares</th><th>Open</th></tr></thead><tbody id="topSongsBody"></tbody></table></div>
+      <div
+        id="statusBanner"
+        class="status-banner"
+        role="status"
+        aria-live="polite"
+      >
+        Loading public dashboard data…
+      </div>
+
+      <section
+        id="dashboardView"
+        class="view"
+        aria-labelledby="dashboardHeading"
+      >
+        <section class="card" aria-labelledby="operationalStatsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">1. Operational Stats</p>
+              <h2 id="operationalStatsHeading">Operational Stats</h2>
+            </div>
+            <button id="refreshButton" class="button" type="button">
+              Refresh
+            </button>
+          </div>
+          <p class="section-copy">
+            High-level public totals from available read-only song and dashboard
+            stats.
+          </p>
+          <div id="operationalStats" class="stat-grid"></div>
+        </section>
+
+        <section class="card" aria-labelledby="rankedByPlaysHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">2. Ranked by Plays - Top Songs</p>
+              <h2 id="rankedByPlaysHeading">Ranked by Plays - Top Songs</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Song</th>
+                  <th>Artist</th>
+                  <th>Plays</th>
+                  <th>Likes</th>
+                  <th>Shares</th>
+                  <th>Open</th>
+                </tr>
+              </thead>
+              <tbody id="topSongsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="likedSongsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">3. Top 10 - Most Liked Songs</p>
+              <h2 id="likedSongsHeading">Top 10 - Most Liked Songs</h2>
+            </div>
+          </div>
+          <div id="likedSongs" class="rank-grid"></div>
+        </section>
+        <section class="card" aria-labelledby="engagementHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">4. Top 10 - Engagement Rate</p>
+              <h2 id="engagementHeading">Top 10 - Engagement Rate</h2>
+            </div>
+          </div>
+          <div id="engagementSongs" class="rank-grid"></div>
+        </section>
+        <section class="card" aria-labelledby="sharedSongsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">5. Top 10 - Most Shared Songs</p>
+              <h2 id="sharedSongsHeading">Top 10 - Most Shared Songs</h2>
+            </div>
+          </div>
+          <div id="sharedSongs" class="rank-grid"></div>
+        </section>
+        <section class="card" aria-labelledby="videoClicksHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">6. Top 10 - Ranked by Video Clicks</p>
+              <h2 id="videoClicksHeading">Top 10 - Ranked by Video Clicks</h2>
+            </div>
+          </div>
+          <div id="videoClicks" class="rank-grid"></div>
+        </section>
+        <section class="card" aria-labelledby="productClicksHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">7. Top 10 - Ranked by Product Clicks</p>
+              <h2 id="productClicksHeading">
+                Top 10 - Ranked by Product Clicks
+              </h2>
+            </div>
+          </div>
+          <div id="productClicks" class="rank-grid"></div>
+        </section>
+
+        <section class="card" aria-labelledby="songAnalyticsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">8. Song Analytics Stats</p>
+              <h2 id="songAnalyticsHeading">Song Analytics Stats</h2>
+            </div>
+          </div>
+          <div id="songAnalyticsStats" class="stat-grid stat-grid--small"></div>
+        </section>
+
+        <section class="card" aria-labelledby="todayHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">9. Today</p>
+              <h2 id="todayHeading">Today</h2>
+            </div>
+          </div>
+          <div id="todayStats" class="stat-grid stat-grid--small"></div>
+        </section>
+
+        <section class="card" aria-labelledby="productAnalyticsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">10. Product Click Analytics</p>
+              <h2 id="productAnalyticsHeading">Product Click Analytics</h2>
+            </div>
+          </div>
+          <div id="productAnalytics" class="stat-grid stat-grid--small"></div>
+        </section>
+
+        <section class="card" aria-labelledby="referrersHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">11. Referrers / Track Sources</p>
+              <h2 id="referrersHeading">Referrers / Track Sources</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Referrer / Source</th>
+                  <th>Count</th>
+                  <th>Last Seen</th>
+                </tr>
+              </thead>
+              <tbody id="referrersBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="devicesHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">12. Devices / Listener Devices</p>
+              <h2 id="devicesHeading">Devices / Listener Devices</h2>
+            </div>
+          </div>
+          <div id="devicesStats" class="rank-grid"></div>
+        </section>
+
+        <section class="card" aria-labelledby="skipRateHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">13. Skip Count / Plays</p>
+              <h2 id="skipRateHeading">Skip Count / Plays</h2>
+            </div>
+          </div>
+          <div id="skipRateSongs" class="rank-grid"></div>
+        </section>
       </section>
+    </main>
 
-      <section class="card" aria-labelledby="likedSongsHeading"><div class="section-heading"><div><p class="eyebrow">3. Top 10 - Most Liked Songs</p><h2 id="likedSongsHeading">Top 10 - Most Liked Songs</h2></div></div><div id="likedSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="engagementHeading"><div class="section-heading"><div><p class="eyebrow">4. Top 10 - Engagement Rate</p><h2 id="engagementHeading">Top 10 - Engagement Rate</h2></div></div><div id="engagementSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="sharedSongsHeading"><div class="section-heading"><div><p class="eyebrow">5. Top 10 - Most Shared Songs</p><h2 id="sharedSongsHeading">Top 10 - Most Shared Songs</h2></div></div><div id="sharedSongs" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="videoClicksHeading"><div class="section-heading"><div><p class="eyebrow">6. Top 10 - Ranked by Video Clicks</p><h2 id="videoClicksHeading">Top 10 - Ranked by Video Clicks</h2></div></div><div id="videoClicks" class="rank-grid"></div></section>
-      <section class="card" aria-labelledby="productClicksHeading"><div class="section-heading"><div><p class="eyebrow">7. Top 10 - Ranked by Product Clicks</p><h2 id="productClicksHeading">Top 10 - Ranked by Product Clicks</h2></div></div><div id="productClicks" class="rank-grid"></div></section>
+    <footer class="stashbox-site-footer" aria-label="Stashbox global footer">
+      <div class="stashbox-site-footer__inner">
+        <div class="stashbox-site-footer__brand-block">
+          <a
+            class="stashbox-site-footer__brand"
+            href="https://stashbox.com/"
+            aria-label="Stashbox — Home"
+            >STASHBOX</a
+          >
+          <p class="stashbox-site-footer__tagline">
+            Rock · Reggae · Blues · Originals · South Florida
+          </p>
+          <p class="stashbox-site-footer__booking-text">
+            Music, booking, custom songs, sessions, setlists, videos, and public
+            radio analytics from Stashbox.
+          </p>
+          <div class="stashbox-site-footer__contact">
+            <a href="tel:3104086687">310.408.6687</a>
+            <a href="mailto:booking@stashbox.com">booking@stashbox.com</a>
+          </div>
+        </div>
+        <nav
+          class="stashbox-site-footer__nav"
+          aria-label="Stashbox footer navigation"
+        >
+          <div class="stashbox-site-footer__col">
+            <h2>Music</h2>
+            <a href="https://stashbox.com/radio/dev/">Radio</a>
+            <a href="https://stashbox.com/videos/">Videos</a>
+            <a href="https://stashbox.com/sessions/">Sessions</a>
+            <a href="https://stashbox.com/setlists/">Setlists</a>
+          </div>
+          <div class="stashbox-site-footer__col">
+            <h2>Booking</h2>
+            <a href="https://stashbox.com/booking/">Book Band</a>
+            <a href="https://stashbox.com/custom-music/">Custom Music</a>
+            <a href="https://stashbox.ai/">Shop</a>
+          </div>
+          <div class="stashbox-site-footer__col">
+            <h2>Stashbox</h2>
+            <a href="https://stashbox.com/">Home</a>
+            <a href="https://stashbox.com/about/">About</a>
+            <a href="https://stashbox.com/radio/dashboard/dev/">Dashboard</a>
+            <a
+              href="https://elettro.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Elettro</a
+            >
+          </div>
+        </nav>
+        <div class="stashbox-site-footer__bottom">
+          <p>© 2026 Stashbox</p>
+          <p>
+            Built by
+            <a
+              href="https://elettro.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Elettro.com</a
+            >
+          </p>
+        </div>
+      </div>
+    </footer>
 
-      <section class="card" aria-labelledby="songAnalyticsHeading">
-        <div class="section-heading"><div><p class="eyebrow">8. Song Analytics Stats</p><h2 id="songAnalyticsHeading">Song Analytics Stats</h2></div></div>
-        <div id="songAnalyticsStats" class="stat-grid stat-grid--small"></div>
-      </section>
-
-      <section class="card" aria-labelledby="todayHeading">
-        <div class="section-heading"><div><p class="eyebrow">9. Today</p><h2 id="todayHeading">Today</h2></div></div>
-        <div id="todayStats" class="stat-grid stat-grid--small"></div>
-      </section>
-
-      <section class="card" aria-labelledby="productAnalyticsHeading">
-        <div class="section-heading"><div><p class="eyebrow">10. Product Click Analytics</p><h2 id="productAnalyticsHeading">Product Click Analytics</h2></div></div>
-        <div id="productAnalytics" class="stat-grid stat-grid--small"></div>
-      </section>
-
-      <section class="card" aria-labelledby="referrersHeading">
-        <div class="section-heading"><div><p class="eyebrow">11. Referrers / Track Sources</p><h2 id="referrersHeading">Referrers / Track Sources</h2></div></div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Referrer / Source</th><th>Count</th><th>Last Seen</th></tr></thead><tbody id="referrersBody"></tbody></table></div>
-      </section>
-
-      <section class="card" aria-labelledby="devicesHeading">
-        <div class="section-heading"><div><p class="eyebrow">12. Devices / Listener Devices</p><h2 id="devicesHeading">Devices / Listener Devices</h2></div></div>
-        <div id="devicesStats" class="rank-grid"></div>
-      </section>
-
-      <section class="card" aria-labelledby="skipRateHeading">
-        <div class="section-heading"><div><p class="eyebrow">13. Skip Count / Plays</p><h2 id="skipRateHeading">Skip Count / Plays</h2></div></div>
-        <div id="skipRateSongs" class="rank-grid"></div>
-      </section>
-    </section>
-
-  </main>
-
-  <footer class="global-radio-footer" aria-label="Stashbox Radio footer">
-    <div class="global-radio-footer__brand">
-      <p class="global-radio-title">STASHBOX RADIO</p>
-      <p>Listener activity, song performance, and engagement insights.</p>
-    </div>
-    <nav class="global-radio-footer__links" aria-label="Stashbox Radio footer links">
-      <a href="https://stashbox.com/radio/dev/">Radio Player</a>
-      <a href="https://stashbox.ai/">Stashbox.ai</a>
-    </nav>
-    <p class="global-radio-footer__copyright">© 2026 Stashbox. All rights reserved.</p>
-  </footer>
-
-  <script src="./app.js"></script>
-</body>
+    <script src="./app.js"></script>
+  </body>
 </html>
