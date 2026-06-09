@@ -5,6 +5,8 @@ const PUBLIC_DASHBOARD_ENDPOINTS = {
   songs: `${API_ROOT}/dashboard/songs`
 };
 
+const ARTWORK_FIELDS = ['song_artwork_url', 'artwork_url', 'image_url', 'cover_url', 'artwork'];
+
 const state = {
   songs: [],
   summary: null,
@@ -45,6 +47,17 @@ function firstDefined(row, names) {
   return '';
 }
 
+function getSongArtworkUrl(song) {
+  return clean(song?.artworkUrl || firstDefined(song, ARTWORK_FIELDS));
+}
+
+function getSongIdentity(row, index = 0) {
+  return {
+    songKey: clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key'])) || `song-${index + 1}`,
+    title: clean(firstDefined(row, ['display_title', 'song_name', 'title', 'name'])) || 'Untitled Stashbox Track'
+  };
+}
+
 function formatNumber(value) {
   return new Intl.NumberFormat('en-US').format(count(value));
 }
@@ -69,7 +82,7 @@ function radioUrlForSong(song) {
 }
 
 function normalizeSong(row, index = 0) {
-  const songKey = clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key'])) || `song-${index + 1}`;
+  const { songKey, title } = getSongIdentity(row, index);
   const plays = count(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
   const likes = count(firstDefined(row, ['likes', 'like_count', 'total_likes']));
   const shares = count(firstDefined(row, ['shares', 'share_count', 'total_shares']));
@@ -82,7 +95,7 @@ function normalizeSong(row, index = 0) {
 
   return {
     songKey,
-    title: clean(firstDefined(row, ['display_title', 'song_name', 'title', 'name'])) || 'Untitled Stashbox Track',
+    title,
     artist: clean(firstDefined(row, ['artist', 'artist_name', 'band'])) || 'Stashbox',
     genre: clean(firstDefined(row, ['genre', 'primary_genre', 'section'])) || 'Other',
     plays,
@@ -93,6 +106,7 @@ function normalizeSong(row, index = 0) {
     skips,
     fullPlays,
     partialPlays,
+    artworkUrl: getSongArtworkUrl(row),
     engagementRate: plays ? (engagementTotal / plays) * 100 : 0,
     skipRate: plays ? (skips / plays) * 100 : 0,
     updatedAt: clean(firstDefined(row, ['updated_at', 'updatedAt', 'modified_at']))
@@ -179,6 +193,7 @@ async function loadDashboardData() {
   const fallbackSongRows = extractArray(publicSongs, ['songs', 'items', 'results']);
   const statsSummary = normalizeStatsSummaryResponse(summary);
   state.songs = (songRows.length ? songRows : fallbackSongRows).map(normalizeSong);
+  hydrateArtworkFromPublicSongs(fallbackSongRows);
   state.summary = summary?.summary || summary || null;
   state.today = summary?.today || null;
   state.productStats = summary?.products || summary?.product_stats || null;
@@ -186,6 +201,26 @@ async function loadDashboardData() {
   renderAll();
   setStatus(statusMessage(), state.songs.length ? 'success' : 'error');
   els.refreshButton.disabled = false;
+}
+
+function hydrateArtworkFromPublicSongs(publicSongRows) {
+  if (!publicSongRows.length || !state.songs.length) return;
+
+  const artworkByKey = new Map();
+  const artworkByTitle = new Map();
+  publicSongRows.forEach((row, index) => {
+    const artworkUrl = getSongArtworkUrl(row);
+    if (!artworkUrl) return;
+
+    const identity = getSongIdentity(row, index);
+    artworkByKey.set(identity.songKey, artworkUrl);
+    artworkByTitle.set(identity.title.toLowerCase(), artworkUrl);
+  });
+
+  state.songs = state.songs.map(song => ({
+    ...song,
+    artworkUrl: song.artworkUrl || artworkByKey.get(song.songKey) || artworkByTitle.get(song.title.toLowerCase()) || ''
+  }));
 }
 
 function statusMessage() {
@@ -280,15 +315,54 @@ function renderStatGrid(container, stats) {
   });
 }
 
+function renderSongArtwork(song) {
+  const artworkUrl = getSongArtworkUrl(song);
+  if (!artworkUrl) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'song-art-thumb song-art-placeholder';
+    placeholder.setAttribute('aria-hidden', 'true');
+    placeholder.textContent = '♪';
+    return placeholder;
+  }
+
+  const image = document.createElement('img');
+  image.className = 'song-art-thumb';
+  image.src = artworkUrl;
+  image.alt = `${song.title} artwork`;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.addEventListener('error', () => {
+    const placeholder = renderSongArtwork({ ...song, artworkUrl: '' });
+    image.replaceWith(placeholder);
+  }, { once: true });
+  return image;
+}
+
+function renderSongCell(song) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'song-cell-with-art';
+
+  const copy = document.createElement('div');
+  copy.className = 'song-cell-copy';
+  const title = document.createElement('strong');
+  title.textContent = song.title;
+  const meta = document.createElement('span');
+  meta.className = 'song-subtext';
+  meta.textContent = song.genre;
+
+  copy.append(title, meta);
+  wrapper.append(renderSongArtwork(song), copy);
+  return wrapper;
+}
+
 function renderSongTables() {
   const topSongs = sortSongs('plays').slice(0, 25);
   els.topSongsBody.innerHTML = '';
   if (!topSongs.length) return renderEmptyRow(els.topSongsBody, 7, 'No public song rows returned.');
   topSongs.forEach((song, index) => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${index + 1}</td><td><strong></strong><div class="song-subtext"></div></td><td></td><td>${formatNumber(song.plays)}</td><td>${formatNumber(song.likes)}</td><td>${formatNumber(song.shares)}</td><td></td>`;
-    row.querySelector('strong').textContent = song.title;
-    row.querySelector('.song-subtext').textContent = song.genre;
+    row.innerHTML = `<td>${index + 1}</td><td></td><td></td><td>${formatNumber(song.plays)}</td><td>${formatNumber(song.likes)}</td><td>${formatNumber(song.shares)}</td><td></td>`;
+    row.children[1].appendChild(renderSongCell(song));
     row.children[2].textContent = song.artist;
     row.children[6].appendChild(openRadioButton(song));
     els.topSongsBody.appendChild(row);
@@ -318,8 +392,8 @@ function renderRankGrid(container, songs, metricFormatter, label) {
   songs.forEach((song, index) => {
     const card = document.createElement('article');
     card.className = 'rank-card';
-    card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span><p class="rank-title"><span></span></p></div><div class="rank-meta"></div><div class="rank-value"></div>`;
-    card.querySelector('.rank-title span').textContent = song.title;
+    card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span></div><div class="rank-meta"></div><div class="rank-value"></div>`;
+    card.querySelector('.rank-top').appendChild(renderSongCell(song));
     card.querySelector('.rank-meta').textContent = `${song.artist} · ${song.genre}`;
     card.querySelector('.rank-value').textContent = metricFormatter(song);
     card.appendChild(openRadioButton(song));
