@@ -211,44 +211,93 @@ function parseApiPayload(data) {
   return data;
 }
 
+const TODAY_STAT_FIELD_NAMES = [
+  'events_today',
+  'eventsToday',
+  'activity_today',
+  'activityToday',
+  'total_events_today',
+  'totalEventsToday',
+  'event_count_today',
+  'eventCountToday',
+  'plays_today',
+  'playsToday',
+  'play_starts_today',
+  'playStartsToday',
+  'total_plays_today',
+  'totalPlaysToday',
+  'play_count_today',
+  'playCountToday',
+  'likes_today',
+  'likesToday',
+  'total_likes_today',
+  'totalLikesToday',
+  'like_count_today',
+  'likeCountToday',
+  'shares_today',
+  'sharesToday',
+  'total_shares_today',
+  'totalSharesToday',
+  'share_count_today',
+  'shareCountToday',
+  'video_clicks_today',
+  'videoClicksToday',
+  'total_video_clicks_today',
+  'totalVideoClicksToday',
+  'video_click_count_today',
+  'videoClickCountToday',
+  'product_clicks_today',
+  'productClicksToday',
+  'total_product_clicks_today',
+  'totalProductClicksToday',
+  'product_click_count_today',
+  'productClickCountToday',
+  'skips_today',
+  'skipsToday',
+  'skip_count_today',
+  'skipCountToday',
+  'total_skips_today',
+  'totalSkipsToday',
+  'active_songs_today',
+  'activeSongsToday',
+  'songs_played_today',
+  'songsPlayedToday',
+  'songs_today',
+  'songsToday',
+  'unique_songs_today',
+  'uniqueSongsToday'
+];
+
 function hasTodayStatsFields(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
 
-  return [
-    'events_today',
-    'activity_today',
-    'total_events_today',
-    'event_count_today',
-    'plays_today',
-    'play_starts_today',
-    'total_plays_today',
-    'play_count_today',
-    'likes_today',
-    'total_likes_today',
-    'like_count_today',
-    'shares_today',
-    'total_shares_today',
-    'share_count_today',
-    'video_clicks_today',
-    'total_video_clicks_today',
-    'video_click_count_today',
-    'product_clicks_today',
-    'total_product_clicks_today',
-    'product_click_count_today',
-    'skips_today',
-    'skip_count_today',
-    'total_skips_today',
-    'active_songs_today',
-    'songs_played_today',
-    'songs_today',
-    'unique_songs_today'
-  ].some((key) => value[key] !== undefined && value[key] !== null);
+  return TODAY_STAT_FIELD_NAMES.some((key) => value[key] !== undefined && value[key] !== null);
 }
 
-function firstPayloadObject(candidates) {
+function firstPayloadObject(candidates, predicate = null) {
+  let firstObject = null;
+
   for (const candidate of candidates) {
     const parsed = parseApiPayload(candidate);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    if (!firstObject) firstObject = parsed;
+    if (!predicate || predicate(parsed)) return parsed;
+  }
+
+  return predicate ? null : firstObject;
+}
+
+function findNestedTodayStats(value, seen = new Set()) {
+  const parsed = parseApiPayload(value);
+  if (!parsed || typeof parsed !== 'object' || seen.has(parsed)) return null;
+  seen.add(parsed);
+
+  if (!Array.isArray(parsed) && hasTodayStatsFields(parsed)) return parsed;
+
+  const nestedValues = Array.isArray(parsed) ? parsed : Object.values(parsed);
+  for (const nestedValue of nestedValues) {
+    const match = findNestedTodayStats(nestedValue, seen);
+    if (match) return match;
   }
 
   return null;
@@ -266,7 +315,7 @@ function normalizeStatsSummaryResponse(data) {
     stats.summary,
     payload
   ]) || {};
-  const today = firstPayloadObject([
+  const todayCandidates = [
     payload.today,
     payload.today_stats,
     payload.stats_today,
@@ -278,9 +327,13 @@ function normalizeStatsSummaryResponse(data) {
     stats.today_stats,
     summary.today,
     summary.today_stats,
-    hasTodayStatsFields(summary) ? summary : null,
-    hasTodayStatsFields(payload) ? payload : null
-  ]) || {};
+    summary,
+    stats,
+    dashboard,
+    dataPayload,
+    payload
+  ];
+  const today = firstPayloadObject(todayCandidates, hasTodayStatsFields) || findNestedTodayStats(payload) || {};
   const products = firstPayloadObject([
     payload.products,
     payload.product_stats,
@@ -303,14 +356,14 @@ function normalizeStatsSummaryResponse(data) {
 }
 
 function normalizeTodayStats(today = {}) {
-  const playsToday = count(firstDefined(today, ['plays_today', 'play_starts_today', 'total_plays_today', 'play_count_today', 'play_starts', 'plays', 'total_plays', 'play_count']));
-  const likesToday = count(firstDefined(today, ['likes_today', 'total_likes_today', 'like_count_today', 'likes', 'total_likes', 'like_count']));
-  const sharesToday = count(firstDefined(today, ['shares_today', 'total_shares_today', 'share_count_today', 'shares', 'total_shares', 'share_count']));
-  const videoClicksToday = count(firstDefined(today, ['video_clicks_today', 'total_video_clicks_today', 'video_click_count_today', 'video_clicks', 'total_video_clicks', 'video_click_count']));
-  const productClicksToday = count(firstDefined(today, ['product_clicks_today', 'total_product_clicks_today', 'product_click_count_today', 'product_clicks', 'total_product_clicks', 'product_click_count']));
-  const skipsToday = count(firstDefined(today, ['skips_today', 'skip_count_today', 'total_skips_today', 'skips', 'skip_count', 'total_skips']));
-  const activeSongsToday = count(firstDefined(today, ['active_songs_today', 'songs_played_today', 'songs_today', 'unique_songs_today', 'active_songs', 'songs_played', 'unique_songs']));
-  const explicitActivityToday = firstDefined(today, ['events_today', 'activity_today', 'total_events_today', 'event_count_today', 'events', 'activity', 'total_events', 'event_count']);
+  const playsToday = count(firstDefined(today, ['plays_today', 'playsToday', 'play_starts_today', 'playStartsToday', 'total_plays_today', 'totalPlaysToday', 'play_count_today', 'playCountToday', 'play_starts', 'playStarts', 'plays', 'total_plays', 'totalPlays', 'play_count', 'playCount']));
+  const likesToday = count(firstDefined(today, ['likes_today', 'likesToday', 'total_likes_today', 'totalLikesToday', 'like_count_today', 'likeCountToday', 'likes', 'total_likes', 'totalLikes', 'like_count', 'likeCount']));
+  const sharesToday = count(firstDefined(today, ['shares_today', 'sharesToday', 'total_shares_today', 'totalSharesToday', 'share_count_today', 'shareCountToday', 'shares', 'total_shares', 'totalShares', 'share_count', 'shareCount']));
+  const videoClicksToday = count(firstDefined(today, ['video_clicks_today', 'videoClicksToday', 'total_video_clicks_today', 'totalVideoClicksToday', 'video_click_count_today', 'videoClickCountToday', 'video_clicks', 'videoClicks', 'total_video_clicks', 'totalVideoClicks', 'video_click_count', 'videoClickCount']));
+  const productClicksToday = count(firstDefined(today, ['product_clicks_today', 'productClicksToday', 'total_product_clicks_today', 'totalProductClicksToday', 'product_click_count_today', 'productClickCountToday', 'product_clicks', 'productClicks', 'total_product_clicks', 'totalProductClicks', 'product_click_count', 'productClickCount']));
+  const skipsToday = count(firstDefined(today, ['skips_today', 'skipsToday', 'skip_count_today', 'skipCountToday', 'total_skips_today', 'totalSkipsToday', 'skips', 'skip_count', 'skipCount', 'total_skips', 'totalSkips']));
+  const activeSongsToday = count(firstDefined(today, ['active_songs_today', 'activeSongsToday', 'songs_played_today', 'songsPlayedToday', 'songs_today', 'songsToday', 'unique_songs_today', 'uniqueSongsToday', 'active_songs', 'activeSongs', 'songs_played', 'songsPlayed', 'unique_songs', 'uniqueSongs']));
+  const explicitActivityToday = firstDefined(today, ['events_today', 'eventsToday', 'activity_today', 'activityToday', 'total_events_today', 'totalEventsToday', 'event_count_today', 'eventCountToday', 'events', 'activity', 'total_events', 'totalEvents', 'event_count', 'eventCount']);
 
   return {
     events_today: explicitActivityToday === '' ? playsToday + likesToday + sharesToday + videoClicksToday + productClicksToday + skipsToday : count(explicitActivityToday),
