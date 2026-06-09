@@ -33,8 +33,7 @@ const els = {
   productAnalytics: document.getElementById('productAnalytics'),
   referrersBody: document.getElementById('referrersBody'),
   devicesStats: document.getElementById('devicesStats'),
-  skipRateSongs: document.getElementById('skipRateSongs'),
-  headerRadioLink: document.getElementById('headerRadioLink')
+  skipRateSongs: document.getElementById('skipRateSongs')
 };
 
 function clean(value) {

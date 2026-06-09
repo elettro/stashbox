@@ -7,13 +7,28 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+  <header class="global-radio-header" aria-label="Stashbox Radio global header">
+    <a class="global-radio-brand" href="/stashbox/radio/dev/" aria-label="Open Stashbox Radio player">
+      <span class="global-radio-mark" aria-hidden="true">SR</span>
+      <span>
+        <span class="global-radio-title">STASHBOX RADIO</span>
+        <span class="global-radio-subtitle">Public Dashboard</span>
+      </span>
+    </a>
+    <nav class="global-radio-nav" aria-label="Stashbox Radio navigation">
+      <a href="/stashbox/radio/dev/">Radio Player</a>
+      <a href="/stashbox/radio/dashboard/dev/" aria-current="page">Dashboard</a>
+      <a href="/stashbox/">Stashbox</a>
+    </nav>
+  </header>
+
   <header class="hero">
     <div class="hero__content">
       <p class="eyebrow">Public Performance Dashboard · Dev</p>
       <h1>STASHBOX RADIO DASHBOARD</h1>
       <p class="intro">Track what listeners are playing, liking, sharing, watching, and clicking across Stashbox Radio. This public dashboard highlights song performance, engagement trends, listening activity, devices, and referrers.</p>
     </div>
-    <a id="headerRadioLink" class="radio-link" href="/radio/dev/">Open Stashbox Radio</a>
+    <a class="radio-link" href="/stashbox/radio/dev/">Open Stashbox Radio</a>
   </header>
 
   <main class="shell">
@@ -83,6 +98,19 @@
     </section>
 
   </main>
+
+  <footer class="global-radio-footer" aria-label="Stashbox Radio footer">
+    <div class="global-radio-footer__brand">
+      <p class="global-radio-title">STASHBOX RADIO</p>
+      <p>Listener activity, song performance, and engagement insights.</p>
+    </div>
+    <nav class="global-radio-footer__links" aria-label="Stashbox Radio footer links">
+      <a href="/stashbox/radio/dev/">Radio Player</a>
+      <a href="/stashbox/">Stashbox</a>
+      <a href="https://stashbox.ai/">Stashbox.ai</a>
+    </nav>
+    <p class="global-radio-footer__copyright">© 2026 Stashbox. All rights reserved.</p>
+  </footer>
 
   <script src="./app.js"></script>
 </body>
