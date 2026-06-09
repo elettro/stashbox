@@ -33,7 +33,7 @@ const DEFAULT_DEV_AD = {
   thumbnail_url: '',
   poster_image_url: '',
   cta_label: 'Explore Stashbox Radio',
-  cta_url: 'https://stashbox.com/stashbox/radio/',
+  cta_url: 'https://stashbox.com/radio/dev/',
   active: false,
   frequency: 'Medium',
   skip_enabled: true,
