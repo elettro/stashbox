@@ -938,6 +938,14 @@
       updatePreviewFromUrl();
     }
 
+    function todayDateString() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     function createDefaultAd() {
       return normalizeAd({
         internal_title: '',
@@ -946,6 +954,7 @@
         ad_ratio_label: 'Auto Detect',
         frequency: 'Medium',
         skip_after_seconds: 5,
+        start_date: todayDateString(),
         active: true,
         hidden: false,
         start_date: todayString(),
