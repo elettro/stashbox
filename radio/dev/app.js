@@ -17,7 +17,7 @@ const MIN_PARTIAL_SECONDS = 5;
 const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
-const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio at Stashbox.com';
+const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
 const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
