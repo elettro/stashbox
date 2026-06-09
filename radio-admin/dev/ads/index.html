@@ -359,7 +359,7 @@
           <p class="eyebrow">Global Settings</p>
           <h2 id="settingsHeading">Ads Master Switch</h2>
           <p class="copy">This controls future ad availability only. Public player integration is not connected yet.</p>
-          <p id="tokenStatus" class="status-line">Upload token: checking browser storage…</p>
+          <p id="tokenStatus" class="status-line">Admin token: checking browser storage…</p>
         </div>
         <button id="addNewButton" class="button" type="button">Add New Ad</button>
       </div>
@@ -372,7 +372,7 @@
     <section class="card" aria-labelledby="statsHeading">
       <div class="panel-header">
         <div>
-          <p class="eyebrow">Local Storage Stats</p>
+          <p class="eyebrow">RDS Stats</p>
           <h2 id="statsHeading">Ad Overview</h2>
         </div>
       </div>
@@ -383,7 +383,7 @@
       <div class="panel-header">
         <div>
           <p class="eyebrow">Top Sections</p>
-          <h2 id="topsHeading">Local top 10 ads</h2>
+          <h2 id="topsHeading">RDS top 10 ads</h2>
         </div>
       </div>
       <div class="top-grid">
@@ -398,7 +398,7 @@
         <div>
           <p class="eyebrow">Video Interlude Ad</p>
           <h2 id="formHeading">Add New Ad</h2>
-          <p class="copy">Metadata is saved in browser localStorage for Phase A1. Video only; no public player integration yet.</p>
+          <p class="copy">Metadata is saved to the dev RDS ad inventory. Video only; no public player integration yet.</p>
         </div>
       </div>
 
@@ -511,7 +511,7 @@
         </label>
       </div>
 
-      <div id="emptyState" class="empty-state hidden" style="margin-top: 1rem;">No dev ads saved yet. Use Add New Ad to create the first record.</div>
+      <div id="emptyState" class="empty-state hidden" style="margin-top: 1rem;">No dev ads saved yet. Use Add New Ad to create the first RDS record.</div>
       <div class="table-wrap" style="margin-top: 1rem;">
         <table aria-label="Dev ads list">
           <thead>
@@ -538,7 +538,9 @@
     const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads_v1';
     const SETTINGS_STORAGE_KEY = 'stashbox_radio_dev_ads_settings_v1';
     const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
-    const UPLOAD_PRESIGN_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/uploads/presign';
+    const API_ROOT_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+    const ADS_API_URL = `${API_ROOT_URL}/admin/ads`;
+    const UPLOAD_PRESIGN_API_URL = `${API_ROOT_URL}/admin/uploads/presign`;
 
     const AD_TYPES = [
       'Stashbox Radio Branding',
@@ -569,6 +571,8 @@
       ads: [],
       settings: { masterEnabled: false },
       selectedId: null,
+      usingFallback: false,
+      adsLoaded: false,
       lastDetected: { ad_ratio_label: 'Auto Detect', video_width: 0, video_height: 0 }
     };
 
@@ -628,11 +632,12 @@
       fillSelect(els.adRatio, RATIO_OPTIONS);
       fillSelect(els.filterRatio, RATIO_OPTIONS.filter((ratio) => ratio !== 'Auto Detect'), true, 'All ratios');
       fillSelect(els.frequency, FREQUENCY_OPTIONS);
-      loadState();
+      loadSettings();
       bindEvents();
       resetForm();
       renderAll();
       updateTokenStatus();
+      fetchAds();
     }
 
     function fillSelect(select, options, keepFirst = false, firstLabel = '') {
@@ -675,9 +680,40 @@
       });
     }
 
-    function loadState() {
-      state.ads = readJson(ADS_STORAGE_KEY, []).map(normalizeAd);
+    function loadSettings() {
       state.settings = { masterEnabled: false, ...readJson(SETTINGS_STORAGE_KEY, {}) };
+    }
+
+    async function fetchAds() {
+      showMessage('Loading ads from RDS...', 'success');
+      try {
+        const data = normalizeAdsResponse(await adminFetch(ADS_API_URL));
+        state.ads = data.ads.map(normalizeAd);
+        state.usingFallback = false;
+        state.adsLoaded = true;
+        writeAdsFallback();
+        renderAll();
+        showMessage(`Loaded ${state.ads.length} ad${state.ads.length === 1 ? '' : 's'} from RDS.`, 'success');
+      } catch (error) {
+        state.ads = readJson(ADS_STORAGE_KEY, []).map(normalizeAd);
+        state.usingFallback = true;
+        state.adsLoaded = false;
+        renderAll();
+        showMessage(`RDS unavailable. Showing local browser fallback. ${error.message || error}`, 'warning');
+      } finally {
+        updateTokenStatus();
+      }
+    }
+
+    function normalizeAdsResponse(data) {
+      if (typeof data?.body === 'string') {
+        try { return normalizeAdsResponse(JSON.parse(data.body)); } catch { return { success: false, count: 0, ads: [] }; }
+      }
+      return {
+        success: Boolean(data?.success),
+        count: Number(data?.count || 0),
+        ads: Array.isArray(data?.ads) ? data.ads : []
+      };
     }
 
     function readJson(key, fallback) {
@@ -689,7 +725,7 @@
       }
     }
 
-    function writeAds() {
+    function writeAdsFallback() {
       localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(state.ads));
     }
 
@@ -709,7 +745,8 @@
         description: String(ad.description || ''),
         ad_type: AD_TYPES.includes(ad.ad_type) ? ad.ad_type : 'Stashbox Radio Branding',
         video_url: String(ad.video_url || ''),
-        click_video_url: String(ad.click_video_url || ''),
+        click_url: String(ad.click_url || ad.click_video_url || ''),
+        click_video_url: String(ad.click_video_url || ad.click_url || ''),
         ad_ratio: RATIO_OPTIONS.includes(ad.ad_ratio) ? ad.ad_ratio : 'Auto Detect',
         ad_ratio_label: String(ad.ad_ratio_label || ad.ad_ratio || 'Auto Detect'),
         video_width: Number(ad.video_width || 0),
@@ -723,7 +760,7 @@
         mood_targeting: String(ad.mood_targeting || ''),
         artist_targeting: String(ad.artist_targeting || ''),
         song_targeting: String(ad.song_targeting || ''),
-        start_date: String(ad.start_date || ''),
+        start_date: normalizeDate(ad.start_date || todayString()),
         end_date: String(ad.end_date || ''),
         notes: String(ad.notes || ''),
         views,
@@ -739,6 +776,14 @@
         return window.crypto.randomUUID();
       }
       return `ad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function normalizeDate(value) {
+      return value ? String(value).slice(0, 10) : '';
+    }
+
+    function todayString() {
+      return new Date().toISOString().slice(0, 10);
     }
 
     function computeCtr(views, clicks) {
@@ -901,8 +946,9 @@
         ad_ratio_label: 'Auto Detect',
         frequency: 'Medium',
         skip_after_seconds: 5,
-        active: false,
+        active: true,
         hidden: false,
+        start_date: todayString(),
         views: 0,
         clicks: 0,
         ctr: 0
@@ -914,7 +960,7 @@
       els.description.value = ad.description || '';
       els.adType.value = ad.ad_type || 'Stashbox Radio Branding';
       els.videoUrl.value = ad.video_url || '';
-      els.clickVideoUrl.value = ad.click_video_url || '';
+      els.clickVideoUrl.value = ad.click_url || ad.click_video_url || '';
       els.adRatio.value = ad.ad_ratio || 'Auto Detect';
       els.frequency.value = ad.frequency || 'Medium';
       els.skipAfterSeconds.value = ad.skip_after_seconds ?? 5;
@@ -950,6 +996,7 @@
         description: els.description.value.trim(),
         ad_type: els.adType.value,
         video_url: els.videoUrl.value.trim(),
+        click_url: els.clickVideoUrl.value.trim(),
         click_video_url: els.clickVideoUrl.value.trim(),
         ad_ratio: ratioChoice,
         ad_ratio_label: ratioChoice === 'Auto Detect' ? detected.ad_ratio_label : ratioChoice,
@@ -977,71 +1024,166 @@
     function validateAd(ad) {
       if (!ad.internal_title) return 'Internal Title is required.';
       if (!ad.ad_type) return 'Ad Type is required.';
-      if (ad.active && !ad.video_url) return 'Add or upload a Video URL before activating this ad.';
+      if (!ad.video_url) return 'Video URL is required.';
       if (ad.hidden && ad.active) return 'Hidden and Active cannot both be true. Turn one off before saving.';
       if (ad.start_date && ad.end_date && ad.end_date < ad.start_date) return 'End Date cannot be before Start Date.';
       return '';
     }
 
-    function saveCurrentAd(saveAsNew) {
+    async function saveCurrentAd(saveAsNew) {
       const ad = collectForm();
       const validationError = validateAd(ad);
       if (validationError) {
         showMessage(validationError, 'error');
         return;
       }
-      if (saveAsNew || !state.selectedId) {
-        ad.id = createId();
-        ad.created_at = new Date().toISOString();
-        state.ads.unshift(ad);
-        state.selectedId = ad.id;
-      } else {
-        state.ads = state.ads.map((item) => item.id === state.selectedId ? ad : item);
+
+      const isCreate = saveAsNew || !state.selectedId;
+      const url = isCreate ? ADS_API_URL : `${ADS_API_URL}/${encodeURIComponent(state.selectedId)}`;
+      const method = isCreate ? 'POST' : 'PUT';
+      setBusy(els.saveButton, true);
+      setBusy(els.saveAsNewButton, true);
+      showMessage(isCreate ? 'Creating ad in RDS...' : 'Updating ad in RDS...', 'success');
+
+      try {
+        const result = await adminFetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildAdPayload(ad))
+        });
+        const savedAd = normalizeAd(parseAdResponse(result, ad));
+        upsertAd(savedAd, { prepend: isCreate });
+        state.selectedId = savedAd.id;
+        state.usingFallback = false;
+        state.adsLoaded = true;
+        writeAdsFallback();
+        renderAll();
+        openForm(savedAd.id);
+        showMessage(isCreate ? 'Ad created in RDS.' : 'Ad updated in RDS.', 'success');
+      } catch (error) {
+        showMessage(`Could not save ad to RDS: ${error.message || error}`, 'error');
+      } finally {
+        setBusy(els.saveButton, false);
+        setBusy(els.saveAsNewButton, false);
       }
-      writeAds();
-      renderAll();
-      openForm(ad.id);
-      showMessage('Ad saved to localStorage.', 'success');
     }
 
-    function duplicateAd(id) {
+    function buildAdPayload(ad) {
+      return {
+        internal_title: ad.internal_title,
+        description: ad.description,
+        ad_type: ad.ad_type,
+        video_url: ad.video_url,
+        click_url: ad.click_url || ad.click_video_url,
+        ad_ratio_label: ad.ad_ratio_label || ad.ad_ratio,
+        video_width: Number(ad.video_width || 0) || null,
+        video_height: Number(ad.video_height || 0) || null,
+        frequency: ad.frequency,
+        skip_after_seconds: Number(ad.skip_after_seconds || 5),
+        no_skipping: Boolean(ad.no_skipping),
+        active: Boolean(ad.active) && !Boolean(ad.hidden),
+        hidden: Boolean(ad.hidden),
+        genre_targeting: ad.genre_targeting,
+        mood_targeting: ad.mood_targeting,
+        artist_targeting: ad.artist_targeting,
+        song_targeting: ad.song_targeting,
+        start_date: ad.start_date || todayString(),
+        end_date: ad.end_date || null,
+        notes: ad.notes
+      };
+    }
+
+    function parseAdResponse(data, fallback) {
+      if (typeof data?.body === 'string') {
+        try { return parseAdResponse(JSON.parse(data.body), fallback); } catch { return fallback; }
+      }
+      return data?.ad || fallback;
+    }
+
+    function upsertAd(ad, { prepend = false } = {}) {
+      const existingIndex = state.ads.findIndex((item) => item.id === ad.id);
+      if (existingIndex >= 0) {
+        state.ads = state.ads.map((item) => item.id === ad.id ? ad : item);
+      } else if (prepend) {
+        state.ads.unshift(ad);
+      } else {
+        state.ads.push(ad);
+      }
+    }
+
+    async function duplicateAd(id) {
       const original = state.ads.find((ad) => ad.id === id);
       if (!original) return;
       const copy = normalizeAd({
         ...original,
-        id: createId(),
+        id: '',
         internal_title: `${original.internal_title || 'Untitled'} Copy`,
         active: false,
+        hidden: false,
+        views: 0,
+        clicks: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
-      state.ads.unshift(copy);
-      writeAds();
-      renderAll();
-      openForm(copy.id);
-      showMessage('Ad duplicated. Duplicate is inactive.', 'success');
+      const validationError = validateAd(copy);
+      if (validationError) {
+        showMessage(validationError, 'error');
+        return;
+      }
+
+      showMessage('Duplicating ad in RDS...', 'success');
+      try {
+        const result = await adminFetch(ADS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildAdPayload(copy))
+        });
+        const savedCopy = normalizeAd(parseAdResponse(result, copy));
+        upsertAd(savedCopy, { prepend: true });
+        state.usingFallback = false;
+        writeAdsFallback();
+        renderAll();
+        openForm(savedCopy.id);
+        showMessage('Ad duplicated in RDS. Duplicate is inactive.', 'success');
+      } catch (error) {
+        showMessage(`Could not duplicate ad in RDS: ${error.message || error}`, 'error');
+      }
     }
 
-    function deleteAd(id) {
+    async function deleteAd(id) {
       const ad = state.ads.find((item) => item.id === id);
       if (!ad) return;
       if (!window.confirm(`Delete "${ad.internal_title || 'Untitled'}"?`)) return;
-      state.ads = state.ads.filter((item) => item.id !== id);
-      writeAds();
-      renderAll();
-      closeForm();
-      showMessage('Ad deleted from localStorage.', 'success');
+
+      try {
+        await adminFetch(`${ADS_API_URL}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        state.ads = state.ads.filter((item) => item.id !== id);
+        writeAdsFallback();
+        renderAll();
+        closeForm();
+        showMessage('Ad deleted from RDS.', 'success');
+      } catch (error) {
+        showMessage(`Could not delete ad from RDS: ${error.message || error}`, 'error');
+      }
     }
 
     function incrementStat(id, key) {
+      if (!state.usingFallback) {
+        showMessage('View/click counters are read from RDS rows. Public player stat writes are intentionally not connected in this phase.', 'warning');
+        return;
+      }
       state.ads = state.ads.map((ad) => {
         if (ad.id !== id) return ad;
         const views = Number(ad.views || 0) + (key === 'views' ? 1 : 0);
         const clicks = Number(ad.clicks || 0) + (key === 'clicks' ? 1 : 0);
         return normalizeAd({ ...ad, views, clicks, ctr: computeCtr(views, clicks), updated_at: new Date().toISOString() });
       });
-      writeAds();
+      writeAdsFallback();
       renderAll();
+    }
+
+    function setBusy(button, busy) {
+      if (button) button.disabled = Boolean(busy);
     }
 
     function updatePreviewFromUrl() {
@@ -1183,8 +1325,8 @@
     function updateTokenStatus() {
       const hasToken = Boolean(localStorage.getItem(TOKEN_STORAGE_KEY));
       els.tokenStatus.textContent = hasToken
-        ? 'Upload token: saved locally from main dev admin.'
-        : 'Upload token: not saved. Upload Video needs the main dev admin token; manual Video URL paste still works.';
+        ? 'Admin token: saved locally from main dev admin. RDS ad inventory and uploads are available.'
+        : 'Admin token: not saved. RDS ad inventory and Upload Video need the main dev admin token; local browser fallback may be shown if RDS cannot load.';
     }
 
     function showMessage(message, type = '') {
