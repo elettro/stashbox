@@ -25,11 +25,9 @@ const els = {
   refreshButton: document.getElementById('refreshButton'),
   refreshEventsButton: document.getElementById('refreshEventsButton'),
   dashboardView: document.getElementById('dashboardView'),
-  eventsView: document.getElementById('eventsView'),
   operationalStats: document.getElementById('operationalStats'),
   topSongsBody: document.getElementById('topSongsBody'),
   eventsPreviewBody: document.getElementById('eventsPreviewBody'),
-  eventsBody: document.getElementById('eventsBody'),
   likedSongs: document.getElementById('likedSongs'),
   engagementSongs: document.getElementById('engagementSongs'),
   sharedSongs: document.getElementById('sharedSongs'),
@@ -40,8 +38,7 @@ const els = {
   productAnalytics: document.getElementById('productAnalytics'),
   referrersBody: document.getElementById('referrersBody'),
   devicesStats: document.getElementById('devicesStats'),
-  skipRateSongs: document.getElementById('skipRateSongs'),
-  headerRadioLink: document.getElementById('headerRadioLink')
+  skipRateSongs: document.getElementById('skipRateSongs')
 };
 
 function clean(value) {
@@ -207,6 +204,7 @@ async function loadDashboardData() {
 }
 
 async function loadEventsOnly() {
+  if (!els.refreshEventsButton) return;
   els.refreshEventsButton.disabled = true;
   const events = await fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.events, 'GET /dashboard/events');
   state.events = extractArray(events, ['events', 'items', 'results']).map(normalizeEvent);
@@ -367,8 +365,7 @@ function openRadioButton(song) {
 }
 
 function renderEventsTables() {
-  renderEventsBody(els.eventsPreviewBody, state.events.slice(0, 8));
-  renderEventsBody(els.eventsBody, state.events);
+  if (els.eventsPreviewBody) renderEventsBody(els.eventsPreviewBody, state.events.slice(0, 8));
 }
 
 function renderEventsBody(body, events) {
@@ -447,16 +444,14 @@ function setActiveTab(tabName) {
     button.classList.toggle('is-active', button.dataset.tab === tabName);
   });
   els.dashboardView.classList.toggle('hidden', tabName !== 'dashboard');
-  els.eventsView.classList.toggle('hidden', tabName !== 'events');
 }
 
 function bindEvents() {
-  els.headerRadioLink.href = getRadioBasePath();
   document.querySelectorAll('.tab-button').forEach(button => {
     button.addEventListener('click', () => setActiveTab(button.dataset.tab));
   });
   els.refreshButton.addEventListener('click', loadDashboardData);
-  els.refreshEventsButton.addEventListener('click', loadEventsOnly);
+  if (els.refreshEventsButton) els.refreshEventsButton.addEventListener('click', loadEventsOnly);
 }
 
 bindEvents();
