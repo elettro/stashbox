@@ -184,7 +184,7 @@
       Mood: ['All', 'Happy', 'Chill', 'Uplifting', 'Funny', 'Sexy', 'Spiritual', 'Emotional', 'Party', 'Nostalgic', 'Energetic', 'Relaxed', 'Dark', 'Romantic', 'Trippy']
     };
 
-    const brand = '<p class="tagline">LISTEN. WATCH. SHOP. SHARE.</p><h2>STASHBOX RADIO</h2><p class="track-count">6 TRACKS</p>';
+    const brand = '<a class="brand-home-link" href="https://stashbox.com/" aria-label="Stashbox homepage"><p class="tagline">LISTEN. WATCH. SHOP. SHARE.</p><h2>STASHBOX RADIO</h2></a><p class="track-count">6 TRACKS</p>';
     const search = '<label class="search"><span>Search</span><input type="search" placeholder="Search songs" aria-label="Search songs"></label>';
 
     const chips = (items, limit = items.length) => items.slice(0, limit).map((item, index) => `<span class="pill${index === 0 ? ' active' : ''}">${item}</span>`).join('') + (limit < items.length ? `<span class="pill more">+${items.length - limit} more</span>` : '');

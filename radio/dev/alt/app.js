@@ -627,7 +627,7 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
     h('div', { className: 'radio-control-scroll' },
       h('div', { className: 'radio-control-brand' },
         h('div', { className: 'radio-control-brand-copy' },
-          h('a', { className: 'radio-control-logo', href: '/radio/dev/alt/', 'aria-label': 'Stashbox Radio RDS Dev Alt' }, 'STASHBOX'),
+          h('a', { className: 'radio-control-logo', href: 'https://stashbox.com/', 'aria-label': 'Stashbox homepage' }, 'STASHBOX'),
           h('span', { className: 'radio-control-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
         ),
         h('button', { className: 'mobile-reset-filters', type: 'button', onPointerDown: event => event.stopPropagation(), onClick: resetMobileFilters, disabled: isLoading, 'aria-label': 'Reset filters' }, h('span', null, 'Reset'), h('span', null, 'Filters')),
@@ -648,7 +648,7 @@ function RadioHeader({ videoOnly = false, onToggleVideos, onShuffle, disableVide
   return h('header', { className: 'page-heading radio-hero-header' },
     h('p', { className: 'page-subtitle mobile-hide-hero' }, 'Listen. Watch. Shop. Share.'),
     h('div', { className: 'radio-title-row' },
-      h('h1', { className: 'mobile-hide-hero' }, 'STASHBOX RADIO'),
+      h('h1', { className: 'mobile-hide-hero' }, h('a', { className: 'radio-title-home-link', href: 'https://stashbox.com/', 'aria-label': 'Stashbox homepage' }, 'STASHBOX RADIO')),
       h('div', { className: 'radio-title-actions', 'aria-label': 'Radio quick actions' },
         h('button', { className: `button video-filter-button ${videoOnly ? 'active' : ''}`, type: 'button', onClick: onToggleVideos, disabled: disableVideoFilter, 'aria-pressed': videoOnly }, 'Songs with Videos'),
         h('button', { className: 'button accent', type: 'button', onClick: onShuffle, disabled: disableShuffle }, 'Shuffle All')
