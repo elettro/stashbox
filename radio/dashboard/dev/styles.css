@@ -147,7 +147,6 @@ th { color: var(--gold); background: rgba(240, 192, 76, 0.08); font-size: 0.76re
 td { color: var(--text); font-size: 0.92rem; }
 tr:last-child td { border-bottom: 0; }
 .song-subtext, .muted { color: var(--muted); font-size: 0.82rem; }
-.event-type { text-transform: capitalize; }
 .product-link { color: var(--green); word-break: break-word; }
 .empty-cell { color: var(--muted); text-align: center; }
 

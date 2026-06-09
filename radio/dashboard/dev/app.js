@@ -3,14 +3,12 @@ const PUBLIC_SONGS_URL = `${API_ROOT}/radio/songs`;
 const PUBLIC_DASHBOARD_ENDPOINTS = {
   summary: `${API_ROOT}/dashboard/summary`,
   songs: `${API_ROOT}/dashboard/songs`,
-  events: `${API_ROOT}/dashboard/events?limit=100`,
   referrers: `${API_ROOT}/dashboard/referrers?limit=50`,
   devices: `${API_ROOT}/dashboard/devices?limit=50`
 };
 
 const state = {
   songs: [],
-  events: [],
   summary: null,
   referrers: [],
   devices: [],
@@ -23,13 +21,8 @@ const state = {
 const els = {
   statusBanner: document.getElementById('statusBanner'),
   refreshButton: document.getElementById('refreshButton'),
-  refreshEventsButton: document.getElementById('refreshEventsButton'),
-  dashboardView: document.getElementById('dashboardView'),
-  eventsView: document.getElementById('eventsView'),
   operationalStats: document.getElementById('operationalStats'),
   topSongsBody: document.getElementById('topSongsBody'),
-  eventsPreviewBody: document.getElementById('eventsPreviewBody'),
-  eventsBody: document.getElementById('eventsBody'),
   likedSongs: document.getElementById('likedSongs'),
   engagementSongs: document.getElementById('engagementSongs'),
   sharedSongs: document.getElementById('sharedSongs'),
@@ -94,21 +87,6 @@ function radioUrlForSong(song) {
   return song?.songKey ? `${basePath}?song=${encodeURIComponent(song.songKey)}` : basePath;
 }
 
-function isPublicUsefulUrl(value) {
-  try {
-    const url = new URL(clean(value));
-    const hostname = url.hostname.toLowerCase();
-    return ['http:', 'https:'].includes(url.protocol)
-      && hostname !== 'localhost'
-      && !hostname.endsWith('.local')
-      && !hostname.startsWith('10.')
-      && !hostname.startsWith('192.168.')
-      && !/^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
-  } catch (_) {
-    return false;
-  }
-}
-
 function normalizeSong(row, index = 0) {
   const songKey = clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key'])) || `song-${index + 1}`;
   const plays = count(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
@@ -137,19 +115,6 @@ function normalizeSong(row, index = 0) {
     engagementRate: plays ? (engagementTotal / plays) * 100 : 0,
     skipRate: plays ? (skips / plays) * 100 : 0,
     updatedAt: clean(firstDefined(row, ['updated_at', 'updatedAt', 'modified_at']))
-  };
-}
-
-function normalizeEvent(event) {
-  const productUrl = firstDefined(event, ['product_url', 'productUrl', 'product_link']);
-  return {
-    time: firstDefined(event, ['created_at', 'timestamp', 'time', 'event_time']),
-    eventType: clean(firstDefined(event, ['event_type', 'type', 'event'])) || 'unknown',
-    song: clean(firstDefined(event, ['song_title', 'song_name', 'title', 'display_title'])) || clean(firstDefined(event, ['song_key', 'track_key'])) || '—',
-    artist: clean(firstDefined(event, ['artist', 'artist_name', 'band'])) || '—',
-    deviceType: clean(firstDefined(event, ['device_type', 'device', 'listener_device'])) || '—',
-    referrer: clean(firstDefined(event, ['referrer', 'source', 'track_source', 'traffic_source'])) || '—',
-    productUrl: isPublicUsefulUrl(productUrl) ? clean(productUrl) : ''
   };
 }
 
@@ -182,11 +147,10 @@ async function loadDashboardData() {
   setStatus('Loading public dashboard data…');
   els.refreshButton.disabled = true;
 
-  const [publicSongs, dashboardSongs, summary, events, referrers, devices] = await Promise.all([
+  const [publicSongs, dashboardSongs, summary, referrers, devices] = await Promise.all([
     fetchJson(PUBLIC_SONGS_URL, 'public radio songs', { optional: false }),
     fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.songs, 'GET /dashboard/songs'),
     fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.summary, 'GET /dashboard/summary'),
-    fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.events, 'GET /dashboard/events'),
     fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.referrers, 'GET /dashboard/referrers'),
     fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.devices, 'GET /dashboard/devices')
   ]);
@@ -197,7 +161,6 @@ async function loadDashboardData() {
   state.summary = summary?.summary || summary || null;
   state.today = summary?.today || null;
   state.productStats = summary?.products || summary?.product_stats || null;
-  state.events = extractArray(events, ['events', 'items', 'results']).map(normalizeEvent);
   state.referrers = extractArray(referrers, ['referrers', 'sources', 'items', 'results']);
   state.devices = extractArray(devices, ['devices', 'items', 'results']);
 
@@ -206,22 +169,13 @@ async function loadDashboardData() {
   els.refreshButton.disabled = false;
 }
 
-async function loadEventsOnly() {
-  els.refreshEventsButton.disabled = true;
-  const events = await fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.events, 'GET /dashboard/events');
-  state.events = extractArray(events, ['events', 'items', 'results']).map(normalizeEvent);
-  renderEventsTables();
-  setStatus(statusMessage(), state.songs.length ? 'success' : 'error');
-  els.refreshEventsButton.disabled = false;
-}
-
 function statusMessage() {
   if (!state.songs.length) {
     return 'No public song analytics could be loaded. A public-safe read-only songs endpoint is required for this dashboard.';
   }
   const missing = [...state.missingPublicEndpoints];
-  if (!missing.length) return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} and ${state.events.length} public event row${state.events.length === 1 ? '' : 's'}.`;
-  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} from the public radio songs API. Missing public-safe dashboard endpoints: ${missing.join(', ')}. Backend read-only endpoints are required for live events, referrers, devices, and full dashboard summary data.`;
+  if (!missing.length) return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'}.`;
+  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} from the public radio songs API. Missing public-safe dashboard endpoints: ${missing.join(', ')}. Backend read-only endpoints are required for referrers, devices, and full dashboard summary data.`;
 }
 
 function setStatus(message, tone = '') {
@@ -234,7 +188,6 @@ function renderAll() {
   renderStats();
   renderSongTables();
   renderRankings();
-  renderEventsTables();
   renderReferrers();
   renderDevices();
 }
@@ -262,7 +215,6 @@ function renderStats() {
     ['Total Shares', state.summary?.total_shares ?? total.shares],
     ['Video Clicks', state.summary?.total_video_clicks ?? total.videoClicks],
     ['Product Clicks', state.summary?.total_product_clicks ?? total.productClicks],
-    ['Recent Events', state.summary?.total_events ?? state.events.length],
     ['Skip Count', state.summary?.skip_count ?? total.skips]
   ]);
 
@@ -276,7 +228,7 @@ function renderStats() {
   ]);
 
   renderStatGrid(els.todayStats, [
-    ['Events Today', state.today?.events_today ?? 0],
+    ['Activity Today', state.today?.events_today ?? 0],
     ['Plays Today', state.today?.plays_today ?? 0],
     ['Likes Today', state.today?.likes_today ?? 0],
     ['Shares Today', state.today?.shares_today ?? 0],
@@ -366,41 +318,6 @@ function openRadioButton(song) {
   return link;
 }
 
-function renderEventsTables() {
-  renderEventsBody(els.eventsPreviewBody, state.events.slice(0, 8));
-  renderEventsBody(els.eventsBody, state.events);
-}
-
-function renderEventsBody(body, events) {
-  body.innerHTML = '';
-  if (!events.length) {
-    renderEmptyRow(body, 7, 'No public-safe events endpoint returned data yet. GET /dashboard/events is required for live event rows.');
-    return;
-  }
-  events.forEach(event => {
-    const row = document.createElement('tr');
-    row.innerHTML = `<td></td><td class="event-type"></td><td></td><td></td><td></td><td></td><td></td>`;
-    row.children[0].textContent = formatDateTime(event.time);
-    row.children[1].textContent = event.eventType.replace(/_/g, ' ');
-    row.children[2].textContent = event.song;
-    row.children[3].textContent = event.artist;
-    row.children[4].textContent = event.deviceType;
-    row.children[5].textContent = event.referrer;
-    if (event.productUrl) {
-      const link = document.createElement('a');
-      link.className = 'product-link';
-      link.href = event.productUrl;
-      link.textContent = 'Open product';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      row.children[6].appendChild(link);
-    } else {
-      row.children[6].textContent = '—';
-    }
-    body.appendChild(row);
-  });
-}
-
 function renderReferrers() {
   els.referrersBody.innerHTML = '';
   if (!state.referrers.length) return renderEmptyRow(els.referrersBody, 3, 'No public-safe referrer endpoint returned data yet. GET /dashboard/referrers is required.');
@@ -427,7 +344,7 @@ function renderDevices() {
     const events = firstDefined(device, ['event_count', 'events', 'count']);
     card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span><p class="rank-title"><span></span></p></div><div class="rank-meta">Listener device type</div><div class="rank-value"></div>`;
     card.querySelector('.rank-title span').textContent = name;
-    card.querySelector('.rank-value').textContent = `${formatNumber(events)} events`;
+    card.querySelector('.rank-value').textContent = `${formatNumber(events)} activity`;
     els.devicesStats.appendChild(card);
   });
 }
@@ -442,23 +359,10 @@ function renderEmptyRow(body, colspan, message) {
   body.appendChild(row);
 }
 
-function setActiveTab(tabName) {
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.tab === tabName);
-  });
-  els.dashboardView.classList.toggle('hidden', tabName !== 'dashboard');
-  els.eventsView.classList.toggle('hidden', tabName !== 'events');
-}
-
-function bindEvents() {
+function bindDashboardControls() {
   els.headerRadioLink.href = getRadioBasePath();
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', () => setActiveTab(button.dataset.tab));
-  });
   els.refreshButton.addEventListener('click', loadDashboardData);
-  els.refreshEventsButton.addEventListener('click', loadEventsOnly);
 }
 
-bindEvents();
-setActiveTab('dashboard');
+bindDashboardControls();
 loadDashboardData();
