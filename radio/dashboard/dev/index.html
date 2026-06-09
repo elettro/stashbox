@@ -48,8 +48,7 @@
         <p class="intro">
           Track what listeners are playing, liking, sharing, watching, and
           clicking across Stashbox Radio. This public dashboard highlights song
-          performance, engagement trends, listening activity, devices, and
-          referrers.
+          performance, engagement trends, and listening activity.
         </p>
       </div>
       <a class="radio-link" href="https://stashbox.com/radio/dev/"
@@ -109,6 +108,15 @@
           </div>
           <div class="table-wrap">
             <table class="data-table">
+              <colgroup>
+                <col class="rank-col" />
+                <col class="song-col" />
+                <col class="artist-col" />
+                <col class="metric-col" />
+                <col class="metric-col" />
+                <col class="metric-col" />
+                <col class="open-col" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Rank</th>
@@ -183,26 +191,30 @@
           <div id="songAnalyticsStats" class="stat-grid stat-grid--small"></div>
         </section>
 
-      <section class="card" aria-labelledby="skipRateHeading">
-        <div class="section-heading"><div><p class="eyebrow">11. Skip Count / Plays</p><h2 id="skipRateHeading">Skip Count / Plays</h2></div></div>
-        <div id="skipRateSongs" class="rank-grid"></div>
-      </section>
-    </section>
-
-        <section class="card" aria-labelledby="devicesHeading">
+        <section class="card" aria-labelledby="todayStatsHeading">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">12. Devices / Listener Devices</p>
-              <h2 id="devicesHeading">Devices / Listener Devices</h2>
+              <p class="eyebrow">9. Today Stats</p>
+              <h2 id="todayStatsHeading">Today Stats</h2>
             </div>
           </div>
-          <div id="devicesStats" class="rank-grid"></div>
+          <div id="todayStats" class="stat-grid stat-grid--small"></div>
+        </section>
+
+        <section class="card" aria-labelledby="productAnalyticsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">10. Product Analytics</p>
+              <h2 id="productAnalyticsHeading">Product Analytics</h2>
+            </div>
+          </div>
+          <div id="productAnalytics" class="stat-grid stat-grid--small"></div>
         </section>
 
         <section class="card" aria-labelledby="skipRateHeading">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">13. Skip Count / Plays</p>
+              <p class="eyebrow">11. Skip Count / Plays</p>
               <h2 id="skipRateHeading">Skip Count / Plays</h2>
             </div>
           </div>

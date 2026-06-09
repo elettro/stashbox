@@ -5,7 +5,33 @@ const PUBLIC_DASHBOARD_ENDPOINTS = {
   songs: `${API_ROOT}/dashboard/songs`
 };
 
-const ARTWORK_FIELDS = ['song_artwork_url', 'artwork_url', 'image_url', 'cover_url', 'artwork'];
+const ARTWORK_FIELDS = [
+  'song_artwork_url',
+  'artwork_url',
+  'artworkUrl',
+  'artwork',
+  'Artwork',
+  'artworkLink',
+  'Artwork Link',
+  'image_url',
+  'imageUrl',
+  'image',
+  'Image',
+  'cover_url',
+  'coverUrl',
+  'cover',
+  'Cover',
+  'cover_image_url',
+  'coverImage',
+  'thumbnail_url',
+  'thumbnailUrl',
+  'thumbnail',
+  'thumb',
+  'song_image_url',
+  'songImage',
+  'songGraphic',
+  'graphic'
+];
 
 const state = {
   songs: [],
@@ -47,8 +73,30 @@ function firstDefined(row, names) {
   return '';
 }
 
+function normalizeArtworkValue(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string' || typeof value === 'number') return clean(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const artworkUrl = normalizeArtworkValue(item);
+      if (artworkUrl) return artworkUrl;
+    }
+    return '';
+  }
+  if (typeof value === 'object') {
+    return getSongArtworkUrl(value);
+  }
+  return '';
+}
+
 function getSongArtworkUrl(song) {
-  return clean(song?.artworkUrl || firstDefined(song, ARTWORK_FIELDS));
+  if (!song) return '';
+  for (const field of ARTWORK_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(song, field)) continue;
+    const artworkUrl = normalizeArtworkValue(song[field]);
+    if (artworkUrl) return artworkUrl;
+  }
+  return '';
 }
 
 function getSongIdentity(row, index = 0) {
@@ -194,9 +242,9 @@ async function loadDashboardData() {
   const statsSummary = normalizeStatsSummaryResponse(summary);
   state.songs = (songRows.length ? songRows : fallbackSongRows).map(normalizeSong);
   hydrateArtworkFromPublicSongs(fallbackSongRows);
-  state.summary = summary?.summary || summary || null;
-  state.today = summary?.today || null;
-  state.productStats = summary?.products || summary?.product_stats || null;
+  state.summary = statsSummary.summary || null;
+  state.today = normalizeTodayStats(statsSummary.today);
+  state.productStats = statsSummary.products || null;
 
   renderAll();
   setStatus(statusMessage(), state.songs.length ? 'success' : 'error');
@@ -361,7 +409,7 @@ function renderSongTables() {
   if (!topSongs.length) return renderEmptyRow(els.topSongsBody, 7, 'No public song rows returned.');
   topSongs.forEach((song, index) => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${index + 1}</td><td></td><td></td><td>${formatNumber(song.plays)}</td><td>${formatNumber(song.likes)}</td><td>${formatNumber(song.shares)}</td><td></td>`;
+    row.innerHTML = `<td class="rank-column">${index + 1}</td><td class="song-column"></td><td class="artist-column"></td><td class="metric-column">${formatNumber(song.plays)}</td><td class="metric-column">${formatNumber(song.likes)}</td><td class="metric-column">${formatNumber(song.shares)}</td><td class="open-column"></td>`;
     row.children[1].appendChild(renderSongCell(song));
     row.children[2].textContent = song.artist;
     row.children[6].appendChild(openRadioButton(song));
