@@ -219,6 +219,10 @@ const requiredSongFields = new Set([
   'public_visibility'
 ]);
 
+const createRequiredSongFields = new Set([
+  'song_key'
+]);
+
 const mediaRequiredFields = new Set([
   'audio_url',
   'video_link'
@@ -229,11 +233,13 @@ const requiredFieldLabels = {
   artist: 'Artist',
   genre: 'Genre',
   release_format: 'Release Format',
-  public_visibility: 'Public Visibility'
+  public_visibility: 'Public Visibility',
+  song_key: 'Song Key'
 };
 
 const fieldsWithRequiredMarkers = new Set([
   ...requiredSongFields,
+  ...createRequiredSongFields,
   ...mediaRequiredFields
 ]);
 
@@ -3114,8 +3120,9 @@ function applyEditorModeToFields(mode) {
     if (input) {
       input.disabled = isCreateOnlyHidden;
       input.required = !isCreateOnlyHidden
-        && requiredSongFields.has(field.name)
-        && field.type !== 'checkbox';
+        && field.type !== 'checkbox'
+        && (requiredSongFields.has(field.name)
+          || (mode === 'create' && createRequiredSongFields.has(field.name)));
     }
 
     if (uploadConfigs[field.name]) {
@@ -3449,6 +3456,16 @@ function normalizeCreatePayload(payload) {
 }
 
 function validateCreatePayload(payload) {
+  if (!String(payload.song_key || '').trim()) {
+    showMessage('Song Key is required. Click Generate Key or enter a unique song key manually.', 'error');
+    return false;
+  }
+
+  if (songs.some((song) => String(getSongKey(song) || '').trim() === payload.song_key)) {
+    showMessage('Song key already exists. Choose a different song key.', 'error');
+    return false;
+  }
+
   return validateSongPayload(payload, { action: 'creating' });
 }
 
@@ -3520,21 +3537,15 @@ function getUploadMetadataValidationError() {
     return 'Artist is required before upload.';
   }
 
-  if (!getCurrentUploadSongKey(songName, artist)) {
+  if (!getCurrentUploadSongKey()) {
     return 'Song Key is required before upload.';
   }
 
   return '';
 }
 
-function getCurrentUploadSongKey(songName, artist) {
-  const existingKey = String(fieldElements.get('song_key')?.value || selectedSongKey || '').trim();
-
-  if (existingKey) {
-    return existingKey;
-  }
-
-  return generateSongKey(songName, artist);
+function getCurrentUploadSongKey() {
+  return String(fieldElements.get('song_key')?.value || selectedSongKey || '').trim();
 }
 
 function getFileExtension(filename) {
@@ -3583,12 +3594,7 @@ async function uploadSongMedia(fieldName, file) {
 
   const songName = String(fieldElements.get('song_name')?.value || '').trim();
   const artist = String(fieldElements.get('artist')?.value || '').trim();
-  const songKey = getCurrentUploadSongKey(songName, artist);
-  const songKeyInput = fieldElements.get('song_key');
-
-  if (editorMode === 'create' && songKeyInput && !String(songKeyInput.value || '').trim()) {
-    songKeyInput.value = songKey;
-  }
+  const songKey = getCurrentUploadSongKey();
 
   setUploadStatus(fieldName, config.uploadingMessage, 'busy');
   setUploadControlDisabled(fieldName, true);
