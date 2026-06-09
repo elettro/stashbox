@@ -17,6 +17,7 @@ const MIN_PARTIAL_SECONDS = 5;
 const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
+const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio at Stashbox.com';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
 const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
@@ -475,12 +476,17 @@ function buildMediaSessionArtwork(track) {
   }));
 }
 
+function mediaSessionAlbumName(track) {
+  const mediaAlbum = clean(track?.raw?.album_name);
+  return mediaAlbum || MEDIA_SESSION_DEFAULT_ALBUM;
+}
+
 function buildMediaSessionMetadata(track) {
   if (!track) return null;
   return {
     title: clean(track.display_title) || clean(track.song_name) || clean(track.title) || UNTITLED_STASHBOX_TRACK,
     artist: clean(track.artist),
-    album: getRealAlbumName(track),
+    album: mediaSessionAlbumName(track),
     artwork: buildMediaSessionArtwork(track)
   };
 }
