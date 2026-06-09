@@ -1104,8 +1104,10 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
   return h('header', { className: `stashbox-radio-header ${filtersOpen ? 'filters-open' : 'filters-closed'} ${headerSearchOpen ? 'header-search-open' : 'header-search-closed'}`, 'aria-label': 'Stashbox Radio header and filters' },
     h('div', { className: 'stashbox-compact-top' },
       h('div', { className: 'stashbox-brand-block', 'aria-label': 'Stashbox Radio' },
-        h('p', { className: 'stashbox-tagline' }, 'LISTEN. WATCH. SHOP. SHARE.'),
-        h('h1', null, h('span', null, 'STASHBOX'), h('span', { className: 'stashbox-radio-word' }, ' RADIO')),
+        h('a', { className: 'stashbox-brand-home-link', href: 'https://stashbox.com/', 'aria-label': 'Stashbox homepage' },
+          h('p', { className: 'stashbox-tagline' }, 'LISTEN. WATCH. SHOP. SHARE.'),
+          h('h1', null, h('span', null, 'STASHBOX'), h('span', { className: 'stashbox-radio-word' }, ' RADIO'))
+        ),
         h('p', { className: 'stashbox-track-count', 'aria-live': 'polite' }, formatTrackCount(trackCount, isLoading))
       ),
       h('div', { className: 'stashbox-right-stack' },
