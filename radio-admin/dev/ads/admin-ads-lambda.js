@@ -60,7 +60,7 @@ function getPath(event) {
 }
 
 function getAdId(event) {
-  return event.pathParameters?.ad_id || event.pathParameters?.adId || getPath(event).match(/\/admin\/ads\/([^/?#]+)/)?.[1] || '';
+  return event.pathParameters?.ad_id || event.pathParameters?.adId || getPath(event).match(/\/(?:admin|radio)\/ads\/([^/?#]+)/)?.[1] || '';
 }
 
 function normalizePayload(input, { partial = false } = {}) {
@@ -143,6 +143,44 @@ async function listAds() {
   return response(200, { success: true, count: result.rowCount, ads: result.rows });
 }
 
+async function listPublicAds() {
+  const result = await pool.query(`
+    SELECT
+      id,
+      internal_title,
+      description,
+      ad_type,
+      video_url,
+      click_url,
+      ad_ratio_label,
+      video_width,
+      video_height,
+      frequency,
+      skip_after_seconds,
+      no_skipping,
+      active,
+      hidden,
+      genre_targeting,
+      mood_targeting,
+      artist_targeting,
+      song_targeting,
+      start_date,
+      end_date,
+      views,
+      clicks,
+      created_at,
+      updated_at
+    FROM radio.ads
+    WHERE active = true
+      AND hidden = false
+      AND (start_date IS NULL OR start_date <= CURRENT_DATE)
+      AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+    ORDER BY created_at DESC
+  `);
+
+  return response(200, { success: true, count: result.rowCount, ads: result.rows });
+}
+
 async function createAd(event) {
   const payload = normalizePayload(parseBody(event));
   const validationError = validatePayload(payload);
@@ -177,6 +215,55 @@ async function deleteAd(event) {
   return response(200, { success: true, message: 'Ad deleted', ad_id: adId });
 }
 
+function getAdEventType(event) {
+  const pathMatch = getPath(event).match(/\/radio\/ads\/[^/?#]+\/events\/?$/);
+  if (!pathMatch) return '';
+
+  try {
+    const body = parseBody(event);
+    return String(body.event_type || body.eventType || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+async function recordPublicAdEvent(event) {
+  const adId = getAdId(event);
+  if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
+
+  const eventType = getAdEventType(event);
+  const incrementsView = eventType === 'ad_impression';
+  const incrementsClick = eventType === 'ad_cta_clicked';
+
+  if (!incrementsView && !incrementsClick) {
+    return response(202, { success: true, message: 'Ad event accepted without counter update.', ad_id: adId, event_type: eventType });
+  }
+
+  const result = await pool.query(
+    `UPDATE radio.ads
+     SET views = views + $2, clicks = clicks + $3, updated_at = now()
+     WHERE id = $1 AND active = true AND hidden = false
+     RETURNING id, views, clicks`,
+    [adId, incrementsView ? 1 : 0, incrementsClick ? 1 : 0]
+  );
+
+  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
+  return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+}
+
+async function handlePublicAdsRoute(event) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+
+  const method = getMethod(event);
+  const adId = getAdId(event);
+  const isEventRoute = /\/radio\/ads\/[^/?#]+\/events\/?$/.test(getPath(event));
+
+  if (method === 'GET' && !adId) return listPublicAds();
+  if (method === 'POST' && adId && isEventRoute) return recordPublicAdEvent(event);
+
+  return response(404, { success: false, error: 'Not found.' });
+}
+
 async function handleAdminAdsRoute(event, { requireAdmin }) {
   if (getMethod(event) === 'OPTIONS') return response(204, {});
 
@@ -195,7 +282,10 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 
 module.exports = {
   handleAdminAdsRoute,
+  handlePublicAdsRoute,
   listAds,
+  listPublicAds,
+  recordPublicAdEvent,
   createAd,
   updateAd,
   deleteAd
