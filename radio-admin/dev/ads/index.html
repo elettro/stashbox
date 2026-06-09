@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Ads · Dev</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090d0b;
+      --panel: #111a15;
+      --panel-2: #17231d;
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #f5fff8;
+      --muted: #a8b8ad;
+      --accent: #e6c65f;
+      --accent-2: #45c46f;
+      --danger: #ff7676;
+      --warning: #ffcf66;
+      --shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(69, 196, 111, 0.16), transparent 28rem),
+        radial-gradient(circle at top right, rgba(230, 198, 95, 0.12), transparent 24rem),
+        var(--bg);
+      color: var(--text);
+    }
+
+    a { color: var(--accent); }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem clamp(1rem, 3vw, 2.5rem);
+      border-bottom: 1px solid var(--border);
+      background: rgba(9, 13, 11, 0.84);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .eyebrow {
+      margin: 0 0 0.25rem;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.1;
+    }
+
+    h1 { font-size: clamp(1.6rem, 4vw, 3rem); }
+    h2 { font-size: clamp(1.25rem, 2.4vw, 1.85rem); }
+    h3 { font-size: 1rem; }
+
+    .back-link {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.7rem 1rem;
+      text-decoration: none;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      white-space: nowrap;
+    }
+
+    .shell {
+      width: min(1500px, calc(100% - 2rem));
+      margin: 1.5rem auto 4rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(23, 35, 29, 0.96), rgba(17, 26, 21, 0.96));
+      box-shadow: var(--shadow);
+      padding: clamp(1rem, 2vw, 1.4rem);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .copy,
+    .helper,
+    .status-line {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .copy { margin: 0.5rem 0 0; }
+    .helper { margin: 0.35rem 0 0; font-size: 0.9rem; }
+    .status-line { margin: 0.4rem 0 0; font-size: 0.9rem; }
+
+    .button,
+    .button-secondary,
+    .button-danger,
+    .button-ghost {
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-weight: 800;
+      padding: 0.75rem 1rem;
+      min-height: 2.55rem;
+      transition: transform 160ms ease, opacity 160ms ease, border-color 160ms ease;
+    }
+
+    .button:hover,
+    .button-secondary:hover,
+    .button-danger:hover,
+    .button-ghost:hover { transform: translateY(-1px); }
+
+    .button:disabled,
+    .button-secondary:disabled,
+    .button-danger:disabled,
+    .button-ghost:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+    }
+
+    .button { background: var(--accent); color: #12110a; }
+    .button-secondary { background: var(--accent-2); color: #041208; }
+    .button-danger { background: var(--danger); color: #160707; }
+    .button-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid var(--border); }
+    .button-small { min-height: 2.1rem; padding: 0.45rem 0.7rem; font-size: 0.85rem; }
+
+    .controls-row,
+    .filter-grid,
+    .stats-grid,
+    .top-grid,
+    .form-grid {
+      display: grid;
+      gap: 0.8rem;
+    }
+
+    .controls-row {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      align-items: end;
+    }
+
+    .filter-grid { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+    .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .top-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    label {
+      display: grid;
+      gap: 0.4rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(2, 5, 3, 0.45);
+      color: var(--text);
+      padding: 0.75rem 0.85rem;
+      outline: none;
+    }
+
+    textarea { resize: vertical; min-height: 88px; }
+
+    input:focus,
+    select:focus,
+    textarea:focus { border-color: rgba(230, 198, 95, 0.72); }
+
+    .full { grid-column: 1 / -1; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .checkbox-row input { width: auto; }
+
+    .switch-group {
+      display: inline-flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .switch-button.is-active { outline: 2px solid var(--accent); }
+
+    .stat-card,
+    .top-list,
+    .empty-state {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.045);
+      border-radius: 16px;
+      padding: 1rem;
+    }
+
+    .stat-value {
+      margin-top: 0.35rem;
+      font-size: 1.65rem;
+      font-weight: 900;
+    }
+
+    .top-list ol {
+      margin: 0.7rem 0 0;
+      padding-left: 1.25rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      min-width: 1040px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--accent);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .video-thumb {
+      width: 140px;
+      max-height: 90px;
+      border-radius: 12px;
+      background: #020503;
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+
+    .badge-row,
+    .actions-row,
+    .form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.28rem 0.55rem;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .badge.active { color: #06150b; background: var(--accent-2); }
+    .badge.hidden { color: #170807; background: var(--danger); }
+
+    .message {
+      border-radius: 16px;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+    }
+
+    .message.error { border-color: rgba(255, 118, 118, 0.7); color: #ffd6d6; }
+    .message.success { border-color: rgba(69, 196, 111, 0.7); color: #d8ffe2; }
+    .message.warning { border-color: rgba(255, 207, 102, 0.7); color: #fff0c4; }
+
+    .hidden { display: none !important; }
+
+    .preview-shell video {
+      display: block;
+      width: min(620px, 100%);
+      max-height: 420px;
+      margin-top: 0.75rem;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: #020503;
+    }
+
+    .upload-inline {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .upload-inline input[type="file"] { max-width: 320px; }
+
+    @media (max-width: 800px) {
+      .topbar,
+      .panel-header { align-items: stretch; flex-direction: column; }
+      .form-grid { grid-template-columns: 1fr; }
+      .back-link { text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">DEV ADMIN</p>
+      <h1>Stashbox Radio Ads</h1>
+    </div>
+    <a class="back-link" href="../">Back to Radio Admin</a>
+  </header>
+
+  <main class="shell">
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section class="card" aria-labelledby="settingsHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Global Settings</p>
+          <h2 id="settingsHeading">Ads Master Switch</h2>
+          <p class="copy">This controls future ad availability only. Public player integration is not connected yet.</p>
+          <p id="tokenStatus" class="status-line">Upload token: checking browser storage…</p>
+        </div>
+        <button id="addNewButton" class="button" type="button">Add New Ad</button>
+      </div>
+      <div class="switch-group" role="group" aria-label="Ads Master Switch">
+        <button id="masterOffButton" class="button-ghost switch-button" type="button">Off</button>
+        <button id="masterOnButton" class="button-ghost switch-button" type="button">On</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="statsHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Local Storage Stats</p>
+          <h2 id="statsHeading">Ad Overview</h2>
+        </div>
+      </div>
+      <div id="statsGrid" class="stats-grid"></div>
+    </section>
+
+    <section class="card" aria-labelledby="topsHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Top Sections</p>
+          <h2 id="topsHeading">Local top 10 ads</h2>
+        </div>
+      </div>
+      <div class="top-grid">
+        <div class="top-list"><h3>Top 10 Most Viewed</h3><ol id="topViewedList"></ol></div>
+        <div class="top-list"><h3>Top 10 Most Clicked</h3><ol id="topClickedList"></ol></div>
+        <div class="top-list"><h3>Top 10 CTR %</h3><ol id="topCtrList"></ol></div>
+      </div>
+    </section>
+
+    <section id="formCard" class="card hidden" aria-labelledby="formHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Video Interlude Ad</p>
+          <h2 id="formHeading">Add New Ad</h2>
+          <p class="copy">Metadata is saved in browser localStorage for Phase A1. Video only; no public player integration yet.</p>
+        </div>
+      </div>
+
+      <form id="adForm" novalidate>
+        <div class="form-grid">
+          <label>Internal Title *
+            <input id="internalTitle" type="text" required />
+          </label>
+          <label>Ad Type *
+            <select id="adType" required></select>
+          </label>
+          <label class="full">Description
+            <textarea id="description" placeholder="Internal description"></textarea>
+          </label>
+          <label class="full">Video URL
+            <input id="videoUrl" type="url" placeholder="Filled automatically after upload, or paste an S3 URL" />
+          </label>
+          <div class="full upload-inline">
+            <input id="videoFile" type="file" accept="video/mp4,.mp4" />
+            <button id="uploadButton" class="button-secondary" type="button">Upload Video</button>
+            <span id="uploadStatus" class="helper">Select an MP4. Upload uses the existing dev presign endpoint with purpose ad_video.</span>
+          </div>
+          <label class="full">Click Video URL
+            <input id="clickVideoUrl" type="url" placeholder="Future CTA destination URL" />
+          </label>
+          <label>Ad Size / Ratio
+            <select id="adRatio"></select>
+          </label>
+          <label>Frequency
+            <select id="frequency"></select>
+          </label>
+          <label>Skip After Seconds
+            <input id="skipAfterSeconds" type="number" min="0" step="1" value="5" />
+          </label>
+          <label>Start Date
+            <input id="startDate" type="date" />
+          </label>
+          <label>End Date
+            <input id="endDate" type="date" />
+          </label>
+          <label class="checkbox-row"><input id="noSkipping" type="checkbox" /> No Skipping</label>
+          <label class="checkbox-row"><input id="active" type="checkbox" /> Active</label>
+          <label class="checkbox-row"><input id="hiddenAd" type="checkbox" /> Hidden</label>
+          <label class="full">Genre Targeting
+            <input id="genreTargeting" type="text" placeholder="Comma-separated genres" />
+          </label>
+          <label class="full">Mood Targeting
+            <input id="moodTargeting" type="text" placeholder="Comma-separated moods" />
+          </label>
+          <label class="full">Artist Targeting
+            <input id="artistTargeting" type="text" placeholder="Comma-separated artists" />
+          </label>
+          <label class="full">Song Targeting
+            <input id="songTargeting" type="text" placeholder="Comma-separated songs" />
+          </label>
+          <label class="full">Notes
+            <textarea id="notes"></textarea>
+          </label>
+        </div>
+
+        <div class="preview-shell full">
+          <p id="ratioStatus" class="status-line">Detected video metadata: —</p>
+          <video id="videoPreview" class="hidden" controls playsinline preload="metadata"></video>
+        </div>
+
+        <div class="form-actions" style="margin-top: 1rem;">
+          <button id="saveButton" class="button" type="submit">Save Ad</button>
+          <button id="saveAsNewButton" class="button-secondary" type="button">Save as New</button>
+          <button id="cancelButton" class="button-ghost" type="button">Cancel</button>
+          <button id="duplicateFormButton" class="button-ghost" type="button">Duplicate</button>
+          <button id="deleteFormButton" class="button-danger" type="button">Delete</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="listHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Ads Library</p>
+          <h2 id="listHeading">Latest Ads</h2>
+          <p class="copy">Active means available for future live placement. Hidden means it will not play live.</p>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label>Presentation Mode
+          <select id="viewMode">
+            <option value="latest">Latest Ads</option>
+            <option value="views">Most Viewed</option>
+            <option value="clicks">Most Clicked</option>
+            <option value="ctr">Highest CTR</option>
+            <option value="active">Active only</option>
+            <option value="hidden">Hidden only</option>
+          </select>
+        </label>
+        <label>Filter by Artist
+          <input id="filterArtist" type="search" placeholder="Artist targeting" />
+        </label>
+        <label>Filter by Genre
+          <input id="filterGenre" type="search" placeholder="Genre targeting" />
+        </label>
+        <label>Filter by Mood
+          <input id="filterMood" type="search" placeholder="Mood targeting" />
+        </label>
+        <label>Filter by Ad Type
+          <select id="filterAdType"><option value="">All types</option></select>
+        </label>
+        <label>Filter by Ratio
+          <select id="filterRatio"><option value="">All ratios</option></select>
+        </label>
+      </div>
+
+      <div id="emptyState" class="empty-state hidden" style="margin-top: 1rem;">No dev ads saved yet. Use Add New Ad to create the first record.</div>
+      <div class="table-wrap" style="margin-top: 1rem;">
+        <table aria-label="Dev ads list">
+          <thead>
+            <tr>
+              <th>Video preview / first frame</th>
+              <th>Internal Title</th>
+              <th>Ad Type</th>
+              <th>Ratio</th>
+              <th>Status</th>
+              <th>Frequency</th>
+              <th>Views</th>
+              <th>Clicks</th>
+              <th>CTR %</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads_v1';
+    const SETTINGS_STORAGE_KEY = 'stashbox_radio_dev_ads_settings_v1';
+    const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
+    const UPLOAD_PRESIGN_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/uploads/presign';
+
+    const AD_TYPES = [
+      'Stashbox Radio Branding',
+      'Song Promo',
+      'Merch Promo',
+      'Elettro Promo',
+      'Sponsor Ad',
+      'Event Promo',
+      'Donation Campaign',
+      'Global Promo'
+    ];
+
+    const RATIO_OPTIONS = ['Auto Detect', '1:1', '9:16', '16:9', '3:4', 'Custom'];
+    const FREQUENCY_OPTIONS = ['Low', 'Medium', 'High'];
+
+    const FOLDER_BY_AD_TYPE = {
+      'Stashbox Radio Branding': 'radio-assets/ads/video/branding/',
+      'Song Promo': 'radio-assets/ads/video/campaigns/',
+      'Merch Promo': 'radio-assets/ads/video/merch/',
+      'Elettro Promo': 'radio-assets/ads/video/campaigns/',
+      'Sponsor Ad': 'radio-assets/ads/video/sponsors/',
+      'Event Promo': 'radio-assets/ads/video/events/',
+      'Donation Campaign': 'radio-assets/ads/video/campaigns/',
+      'Global Promo': 'radio-assets/ads/video/global/'
+    };
+
+    const state = {
+      ads: [],
+      settings: { masterEnabled: false },
+      selectedId: null,
+      lastDetected: { ad_ratio_label: 'Auto Detect', video_width: 0, video_height: 0 }
+    };
+
+    const els = {
+      message: document.getElementById('message'),
+      tokenStatus: document.getElementById('tokenStatus'),
+      masterOffButton: document.getElementById('masterOffButton'),
+      masterOnButton: document.getElementById('masterOnButton'),
+      addNewButton: document.getElementById('addNewButton'),
+      statsGrid: document.getElementById('statsGrid'),
+      topViewedList: document.getElementById('topViewedList'),
+      topClickedList: document.getElementById('topClickedList'),
+      topCtrList: document.getElementById('topCtrList'),
+      formCard: document.getElementById('formCard'),
+      formHeading: document.getElementById('formHeading'),
+      adForm: document.getElementById('adForm'),
+      internalTitle: document.getElementById('internalTitle'),
+      description: document.getElementById('description'),
+      adType: document.getElementById('adType'),
+      videoUrl: document.getElementById('videoUrl'),
+      videoFile: document.getElementById('videoFile'),
+      uploadButton: document.getElementById('uploadButton'),
+      uploadStatus: document.getElementById('uploadStatus'),
+      clickVideoUrl: document.getElementById('clickVideoUrl'),
+      adRatio: document.getElementById('adRatio'),
+      frequency: document.getElementById('frequency'),
+      skipAfterSeconds: document.getElementById('skipAfterSeconds'),
+      startDate: document.getElementById('startDate'),
+      endDate: document.getElementById('endDate'),
+      noSkipping: document.getElementById('noSkipping'),
+      active: document.getElementById('active'),
+      hiddenAd: document.getElementById('hiddenAd'),
+      genreTargeting: document.getElementById('genreTargeting'),
+      moodTargeting: document.getElementById('moodTargeting'),
+      artistTargeting: document.getElementById('artistTargeting'),
+      songTargeting: document.getElementById('songTargeting'),
+      notes: document.getElementById('notes'),
+      ratioStatus: document.getElementById('ratioStatus'),
+      videoPreview: document.getElementById('videoPreview'),
+      saveAsNewButton: document.getElementById('saveAsNewButton'),
+      cancelButton: document.getElementById('cancelButton'),
+      duplicateFormButton: document.getElementById('duplicateFormButton'),
+      deleteFormButton: document.getElementById('deleteFormButton'),
+      viewMode: document.getElementById('viewMode'),
+      filterArtist: document.getElementById('filterArtist'),
+      filterGenre: document.getElementById('filterGenre'),
+      filterMood: document.getElementById('filterMood'),
+      filterAdType: document.getElementById('filterAdType'),
+      filterRatio: document.getElementById('filterRatio'),
+      emptyState: document.getElementById('emptyState'),
+      adsTableBody: document.getElementById('adsTableBody')
+    };
+
+    function init() {
+      fillSelect(els.adType, AD_TYPES);
+      fillSelect(els.filterAdType, AD_TYPES, true, 'All types');
+      fillSelect(els.adRatio, RATIO_OPTIONS);
+      fillSelect(els.filterRatio, RATIO_OPTIONS.filter((ratio) => ratio !== 'Auto Detect'), true, 'All ratios');
+      fillSelect(els.frequency, FREQUENCY_OPTIONS);
+      loadState();
+      bindEvents();
+      resetForm();
+      renderAll();
+      updateTokenStatus();
+    }
+
+    function fillSelect(select, options, keepFirst = false, firstLabel = '') {
+      const first = keepFirst ? `<option value="">${escapeHtml(firstLabel)}</option>` : '';
+      select.innerHTML = first + options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('');
+    }
+
+    function bindEvents() {
+      els.masterOffButton.addEventListener('click', () => saveSettings(false));
+      els.masterOnButton.addEventListener('click', () => saveSettings(true));
+      els.addNewButton.addEventListener('click', () => openForm());
+      els.adForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        saveCurrentAd(false);
+      });
+      els.saveAsNewButton.addEventListener('click', () => saveCurrentAd(true));
+      els.cancelButton.addEventListener('click', () => closeForm());
+      els.duplicateFormButton.addEventListener('click', () => state.selectedId && duplicateAd(state.selectedId));
+      els.deleteFormButton.addEventListener('click', () => state.selectedId && deleteAd(state.selectedId));
+      els.uploadButton.addEventListener('click', uploadVideo);
+      els.videoUrl.addEventListener('input', updatePreviewFromUrl);
+      els.videoPreview.addEventListener('loadedmetadata', () => {
+        applyDetectedRatio(els.videoPreview.videoWidth, els.videoPreview.videoHeight);
+      });
+      els.hiddenAd.addEventListener('change', () => {
+        if (els.hiddenAd.checked) {
+          els.active.checked = false;
+          showMessage('Hidden ads cannot be active. Active was turned off.', 'warning');
+        }
+      });
+      els.active.addEventListener('change', () => {
+        if (els.active.checked && els.hiddenAd.checked) {
+          els.hiddenAd.checked = false;
+          showMessage('Active ads cannot be hidden. Hidden was turned off.', 'warning');
+        }
+      });
+      [els.viewMode, els.filterArtist, els.filterGenre, els.filterMood, els.filterAdType, els.filterRatio].forEach((control) => {
+        control.addEventListener('input', renderList);
+        control.addEventListener('change', renderList);
+      });
+    }
+
+    function loadState() {
+      state.ads = readJson(ADS_STORAGE_KEY, []).map(normalizeAd);
+      state.settings = { masterEnabled: false, ...readJson(SETTINGS_STORAGE_KEY, {}) };
+    }
+
+    function readJson(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function writeAds() {
+      localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(state.ads));
+    }
+
+    function saveSettings(masterEnabled) {
+      state.settings.masterEnabled = Boolean(masterEnabled);
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+      renderSettings();
+      showMessage(`Ads Master Switch saved: ${state.settings.masterEnabled ? 'On' : 'Off'}.`, 'success');
+    }
+
+    function normalizeAd(ad) {
+      const views = Number(ad.views || 0);
+      const clicks = Number(ad.clicks || 0);
+      return {
+        id: ad.id || createId(),
+        internal_title: String(ad.internal_title || ''),
+        description: String(ad.description || ''),
+        ad_type: AD_TYPES.includes(ad.ad_type) ? ad.ad_type : 'Stashbox Radio Branding',
+        video_url: String(ad.video_url || ''),
+        click_video_url: String(ad.click_video_url || ''),
+        ad_ratio: RATIO_OPTIONS.includes(ad.ad_ratio) ? ad.ad_ratio : 'Auto Detect',
+        ad_ratio_label: String(ad.ad_ratio_label || ad.ad_ratio || 'Auto Detect'),
+        video_width: Number(ad.video_width || 0),
+        video_height: Number(ad.video_height || 0),
+        frequency: FREQUENCY_OPTIONS.includes(ad.frequency) ? ad.frequency : 'Medium',
+        skip_after_seconds: Number.isFinite(Number(ad.skip_after_seconds)) ? Number(ad.skip_after_seconds) : 5,
+        no_skipping: Boolean(ad.no_skipping),
+        active: Boolean(ad.active) && !Boolean(ad.hidden),
+        hidden: Boolean(ad.hidden),
+        genre_targeting: String(ad.genre_targeting || ''),
+        mood_targeting: String(ad.mood_targeting || ''),
+        artist_targeting: String(ad.artist_targeting || ''),
+        song_targeting: String(ad.song_targeting || ''),
+        start_date: String(ad.start_date || ''),
+        end_date: String(ad.end_date || ''),
+        notes: String(ad.notes || ''),
+        views,
+        clicks,
+        ctr: computeCtr(views, clicks),
+        created_at: ad.created_at || new Date().toISOString(),
+        updated_at: ad.updated_at || new Date().toISOString()
+      };
+    }
+
+    function createId() {
+      if (window.crypto?.randomUUID) {
+        return window.crypto.randomUUID();
+      }
+      return `ad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function computeCtr(views, clicks) {
+      const safeViews = Number(views || 0);
+      if (!safeViews) return 0;
+      return Number(((Number(clicks || 0) / safeViews) * 100).toFixed(2));
+    }
+
+    function renderAll() {
+      renderSettings();
+      renderStats();
+      renderTopLists();
+      renderList();
+    }
+
+    function renderSettings() {
+      els.masterOffButton.classList.toggle('is-active', !state.settings.masterEnabled);
+      els.masterOnButton.classList.toggle('is-active', state.settings.masterEnabled);
+    }
+
+    function renderStats() {
+      const totalViews = sum(state.ads, 'views');
+      const totalClicks = sum(state.ads, 'clicks');
+      const avgCtr = state.ads.length ? (state.ads.reduce((acc, ad) => acc + Number(ad.ctr || 0), 0) / state.ads.length) : 0;
+      const cards = [
+        ['Total Ads', state.ads.length],
+        ['Active Ads', state.ads.filter((ad) => ad.active).length],
+        ['Hidden Ads', state.ads.filter((ad) => ad.hidden).length],
+        ['Total Views', totalViews],
+        ['Total Clicks', totalClicks],
+        ['Average CTR', `${avgCtr.toFixed(2)}%`]
+      ];
+      els.statsGrid.innerHTML = cards.map(([label, value]) => `<div class="stat-card"><div class="eyebrow">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div></div>`).join('');
+    }
+
+    function sum(items, key) {
+      return items.reduce((total, item) => total + Number(item[key] || 0), 0);
+    }
+
+    function renderTopLists() {
+      renderTopList(els.topViewedList, [...state.ads].sort((a, b) => b.views - a.views), 'views');
+      renderTopList(els.topClickedList, [...state.ads].sort((a, b) => b.clicks - a.clicks), 'clicks');
+      renderTopList(els.topCtrList, [...state.ads].sort((a, b) => b.ctr - a.ctr), 'ctr');
+    }
+
+    function renderTopList(list, ads, metric) {
+      const topAds = ads.slice(0, 10);
+      if (!topAds.length) {
+        list.innerHTML = '<li>No saved ads yet.</li>';
+        return;
+      }
+      list.innerHTML = topAds.map((ad) => {
+        const value = metric === 'ctr' ? `${Number(ad.ctr || 0).toFixed(2)}%` : Number(ad[metric] || 0);
+        return `<li>${escapeHtml(ad.internal_title || 'Untitled')} — ${escapeHtml(value)}</li>`;
+      }).join('');
+    }
+
+    function renderList() {
+      const ads = getFilteredAds();
+      els.emptyState.classList.toggle('hidden', state.ads.length > 0);
+      els.adsTableBody.innerHTML = ads.map((ad) => `
+        <tr>
+          <td>${ad.video_url ? `<video class="video-thumb" src="${escapeAttribute(ad.video_url)}" playsinline preload="metadata" muted></video>` : '<span class="helper">No video URL</span>'}</td>
+          <td><strong>${escapeHtml(ad.internal_title || 'Untitled')}</strong></td>
+          <td>${escapeHtml(ad.ad_type)}</td>
+          <td>${escapeHtml(ad.ad_ratio_label || ad.ad_ratio)}</td>
+          <td><span class="badge-row">${statusBadges(ad)}</span></td>
+          <td>${escapeHtml(ad.frequency)}</td>
+          <td>${Number(ad.views || 0)}</td>
+          <td>${Number(ad.clicks || 0)}</td>
+          <td>${Number(ad.ctr || 0).toFixed(2)}%</td>
+          <td><div class="actions-row">
+            <button class="button-ghost button-small" data-action="preview" data-id="${escapeAttribute(ad.id)}" type="button">Preview</button>
+            <button class="button-ghost button-small" data-action="edit" data-id="${escapeAttribute(ad.id)}" type="button">Edit</button>
+            <button class="button-ghost button-small" data-action="duplicate" data-id="${escapeAttribute(ad.id)}" type="button">Duplicate</button>
+            <button class="button-danger button-small" data-action="delete" data-id="${escapeAttribute(ad.id)}" type="button">Delete</button>
+            <button class="button-secondary button-small" data-action="view" data-id="${escapeAttribute(ad.id)}" type="button">* View</button>
+            <button class="button-secondary button-small" data-action="click" data-id="${escapeAttribute(ad.id)}" type="button">* Click</button>
+          </div></td>
+        </tr>`).join('');
+
+      els.adsTableBody.querySelectorAll('button[data-action]').forEach((button) => {
+        button.addEventListener('click', () => handleTableAction(button.dataset.action, button.dataset.id));
+      });
+    }
+
+    function getFilteredAds() {
+      let ads = [...state.ads];
+      const mode = els.viewMode.value;
+      if (mode === 'active') ads = ads.filter((ad) => ad.active);
+      if (mode === 'hidden') ads = ads.filter((ad) => ad.hidden);
+      ads = filterText(ads, 'artist_targeting', els.filterArtist.value);
+      ads = filterText(ads, 'genre_targeting', els.filterGenre.value);
+      ads = filterText(ads, 'mood_targeting', els.filterMood.value);
+      if (els.filterAdType.value) ads = ads.filter((ad) => ad.ad_type === els.filterAdType.value);
+      if (els.filterRatio.value) ads = ads.filter((ad) => (ad.ad_ratio_label || ad.ad_ratio) === els.filterRatio.value);
+      if (mode === 'views') ads.sort((a, b) => b.views - a.views);
+      else if (mode === 'clicks') ads.sort((a, b) => b.clicks - a.clicks);
+      else if (mode === 'ctr') ads.sort((a, b) => b.ctr - a.ctr);
+      else ads.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return ads;
+    }
+
+    function filterText(ads, key, value) {
+      const needle = String(value || '').trim().toLowerCase();
+      if (!needle) return ads;
+      return ads.filter((ad) => String(ad[key] || '').toLowerCase().includes(needle));
+    }
+
+    function statusBadges(ad) {
+      const badges = [];
+      if (ad.active) badges.push('<span class="badge active">Active</span>');
+      if (ad.hidden) badges.push('<span class="badge hidden">Hidden</span>');
+      if (!ad.active && !ad.hidden) badges.push('<span class="badge">Draft</span>');
+      if (ad.no_skipping) badges.push('<span class="badge">No Skip</span>');
+      return badges.join(' ');
+    }
+
+    function handleTableAction(action, id) {
+      if (action === 'edit') return openForm(id);
+      if (action === 'preview') return openForm(id, true);
+      if (action === 'duplicate') return duplicateAd(id);
+      if (action === 'delete') return deleteAd(id);
+      if (action === 'view') return incrementStat(id, 'views');
+      if (action === 'click') return incrementStat(id, 'clicks');
+    }
+
+    function openForm(id = null, scrollToPreview = false) {
+      const ad = id ? state.ads.find((item) => item.id === id) : null;
+      state.selectedId = ad?.id || null;
+      els.formHeading.textContent = ad ? 'Edit Ad' : 'Add New Ad';
+      fillForm(ad || createDefaultAd());
+      els.formCard.classList.remove('hidden');
+      els.duplicateFormButton.disabled = !ad;
+      els.deleteFormButton.disabled = !ad;
+      updatePreviewFromUrl();
+      const target = scrollToPreview ? els.videoPreview : els.formCard;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeForm() {
+      state.selectedId = null;
+      els.formCard.classList.add('hidden');
+      resetForm();
+    }
+
+    function resetForm() {
+      state.lastDetected = { ad_ratio_label: 'Auto Detect', video_width: 0, video_height: 0 };
+      fillForm(createDefaultAd());
+      els.duplicateFormButton.disabled = true;
+      els.deleteFormButton.disabled = true;
+      updatePreviewFromUrl();
+    }
+
+    function createDefaultAd() {
+      return normalizeAd({
+        internal_title: '',
+        ad_type: 'Stashbox Radio Branding',
+        ad_ratio: 'Auto Detect',
+        ad_ratio_label: 'Auto Detect',
+        frequency: 'Medium',
+        skip_after_seconds: 5,
+        active: false,
+        hidden: false,
+        views: 0,
+        clicks: 0,
+        ctr: 0
+      });
+    }
+
+    function fillForm(ad) {
+      els.internalTitle.value = ad.internal_title || '';
+      els.description.value = ad.description || '';
+      els.adType.value = ad.ad_type || 'Stashbox Radio Branding';
+      els.videoUrl.value = ad.video_url || '';
+      els.clickVideoUrl.value = ad.click_video_url || '';
+      els.adRatio.value = ad.ad_ratio || 'Auto Detect';
+      els.frequency.value = ad.frequency || 'Medium';
+      els.skipAfterSeconds.value = ad.skip_after_seconds ?? 5;
+      els.noSkipping.checked = Boolean(ad.no_skipping);
+      els.active.checked = Boolean(ad.active);
+      els.hiddenAd.checked = Boolean(ad.hidden);
+      els.genreTargeting.value = ad.genre_targeting || '';
+      els.moodTargeting.value = ad.mood_targeting || '';
+      els.artistTargeting.value = ad.artist_targeting || '';
+      els.songTargeting.value = ad.song_targeting || '';
+      els.startDate.value = ad.start_date || '';
+      els.endDate.value = ad.end_date || '';
+      els.notes.value = ad.notes || '';
+      els.videoFile.value = '';
+      state.lastDetected = {
+        ad_ratio_label: ad.ad_ratio_label || ad.ad_ratio || 'Auto Detect',
+        video_width: Number(ad.video_width || 0),
+        video_height: Number(ad.video_height || 0)
+      };
+      updateRatioStatus();
+      setUploadStatus('');
+    }
+
+    function collectForm() {
+      const existing = state.ads.find((ad) => ad.id === state.selectedId);
+      const detected = state.lastDetected;
+      const views = Number(existing?.views || 0);
+      const clicks = Number(existing?.clicks || 0);
+      const ratioChoice = els.adRatio.value || 'Auto Detect';
+      return normalizeAd({
+        ...(existing || {}),
+        internal_title: els.internalTitle.value.trim(),
+        description: els.description.value.trim(),
+        ad_type: els.adType.value,
+        video_url: els.videoUrl.value.trim(),
+        click_video_url: els.clickVideoUrl.value.trim(),
+        ad_ratio: ratioChoice,
+        ad_ratio_label: ratioChoice === 'Auto Detect' ? detected.ad_ratio_label : ratioChoice,
+        video_width: detected.video_width,
+        video_height: detected.video_height,
+        frequency: els.frequency.value || 'Medium',
+        skip_after_seconds: Number(els.skipAfterSeconds.value || 5),
+        no_skipping: els.noSkipping.checked,
+        active: els.active.checked,
+        hidden: els.hiddenAd.checked,
+        genre_targeting: els.genreTargeting.value.trim(),
+        mood_targeting: els.moodTargeting.value.trim(),
+        artist_targeting: els.artistTargeting.value.trim(),
+        song_targeting: els.songTargeting.value.trim(),
+        start_date: els.startDate.value,
+        end_date: els.endDate.value,
+        notes: els.notes.value.trim(),
+        views,
+        clicks,
+        ctr: computeCtr(views, clicks),
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    function validateAd(ad) {
+      if (!ad.internal_title) return 'Internal Title is required.';
+      if (!ad.ad_type) return 'Ad Type is required.';
+      if (ad.active && !ad.video_url) return 'Add or upload a Video URL before activating this ad.';
+      if (ad.hidden && ad.active) return 'Hidden and Active cannot both be true. Turn one off before saving.';
+      if (ad.start_date && ad.end_date && ad.end_date < ad.start_date) return 'End Date cannot be before Start Date.';
+      return '';
+    }
+
+    function saveCurrentAd(saveAsNew) {
+      const ad = collectForm();
+      const validationError = validateAd(ad);
+      if (validationError) {
+        showMessage(validationError, 'error');
+        return;
+      }
+      if (saveAsNew || !state.selectedId) {
+        ad.id = createId();
+        ad.created_at = new Date().toISOString();
+        state.ads.unshift(ad);
+        state.selectedId = ad.id;
+      } else {
+        state.ads = state.ads.map((item) => item.id === state.selectedId ? ad : item);
+      }
+      writeAds();
+      renderAll();
+      openForm(ad.id);
+      showMessage('Ad saved to localStorage.', 'success');
+    }
+
+    function duplicateAd(id) {
+      const original = state.ads.find((ad) => ad.id === id);
+      if (!original) return;
+      const copy = normalizeAd({
+        ...original,
+        id: createId(),
+        internal_title: `${original.internal_title || 'Untitled'} Copy`,
+        active: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      state.ads.unshift(copy);
+      writeAds();
+      renderAll();
+      openForm(copy.id);
+      showMessage('Ad duplicated. Duplicate is inactive.', 'success');
+    }
+
+    function deleteAd(id) {
+      const ad = state.ads.find((item) => item.id === id);
+      if (!ad) return;
+      if (!window.confirm(`Delete "${ad.internal_title || 'Untitled'}"?`)) return;
+      state.ads = state.ads.filter((item) => item.id !== id);
+      writeAds();
+      renderAll();
+      closeForm();
+      showMessage('Ad deleted from localStorage.', 'success');
+    }
+
+    function incrementStat(id, key) {
+      state.ads = state.ads.map((ad) => {
+        if (ad.id !== id) return ad;
+        const views = Number(ad.views || 0) + (key === 'views' ? 1 : 0);
+        const clicks = Number(ad.clicks || 0) + (key === 'clicks' ? 1 : 0);
+        return normalizeAd({ ...ad, views, clicks, ctr: computeCtr(views, clicks), updated_at: new Date().toISOString() });
+      });
+      writeAds();
+      renderAll();
+    }
+
+    function updatePreviewFromUrl() {
+      const url = els.videoUrl.value.trim();
+      if (!url) {
+        els.videoPreview.removeAttribute('src');
+        els.videoPreview.classList.add('hidden');
+        updateRatioStatus();
+        return;
+      }
+      if (els.videoPreview.getAttribute('src') !== url) {
+        els.videoPreview.src = url;
+        els.videoPreview.load();
+      }
+      els.videoPreview.classList.remove('hidden');
+    }
+
+    function applyDetectedRatio(width, height) {
+      if (!width || !height) return;
+      const label = detectRatioLabel(width, height);
+      state.lastDetected = { ad_ratio_label: label, video_width: width, video_height: height };
+      if (els.adRatio.value === 'Auto Detect') {
+        updateRatioStatus();
+      }
+    }
+
+    function detectRatioLabel(width, height) {
+      const ratio = width / height;
+      if (Math.abs(ratio - 1) <= 0.06) return '1:1';
+      if (Math.abs(ratio - 0.5625) <= 0.06) return '9:16';
+      if (Math.abs(ratio - 1.777) <= 0.08) return '16:9';
+      if (Math.abs(ratio - 0.75) <= 0.06) return '3:4';
+      return 'Custom';
+    }
+
+    function updateRatioStatus() {
+      const { video_width, video_height, ad_ratio_label } = state.lastDetected;
+      els.ratioStatus.textContent = video_width && video_height
+        ? `Detected video metadata: ${video_width}×${video_height}, ${ad_ratio_label}`
+        : 'Detected video metadata: —';
+    }
+
+    async function uploadVideo() {
+      const file = els.videoFile.files?.[0];
+      const title = els.internalTitle.value.trim();
+      const adType = els.adType.value;
+      if (!file) return setUploadStatus('Select an MP4 file first.', 'error');
+      if (!title) return setUploadStatus('Internal Title is required before upload.', 'error');
+      if (!adType) return setUploadStatus('Ad Type is required before upload.', 'error');
+      const fileError = validateVideoFile(file);
+      if (fileError) return setUploadStatus(fileError, 'error');
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+      if (!token) {
+        return setUploadStatus('Upload needs a saved dev admin token. Save the token on the main dev admin page, or paste S3 URL for now.', 'error');
+      }
+
+      els.uploadButton.disabled = true;
+      setUploadStatus('Requesting S3 upload URL for ad_video...', 'busy');
+      try {
+        const contentType = file.type || 'video/mp4';
+        const presignPayload = {
+          purpose: 'ad_video',
+          ad_type: adType,
+          internal_title: title,
+          filename: file.name,
+          content_type: contentType,
+          requested_prefix: FOLDER_BY_AD_TYPE[adType]
+        };
+        const presign = normalizePresignResponse(await adminFetch(UPLOAD_PRESIGN_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(presignPayload)
+        }));
+        const uploadUrl = presign.upload_url;
+        const publicUrl = presign.public_url;
+        if (!uploadUrl || !publicUrl) {
+          throw new Error('Presign response was missing upload_url or public_url. Upload needs backend presign support for ad_video. Paste S3 URL for now.');
+        }
+        setUploadStatus('Uploading MP4 to S3...', 'busy');
+        const s3Response = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: file
+        });
+        if (!s3Response.ok) {
+          throw new Error(`S3 upload failed with status ${s3Response.status}.`);
+        }
+        els.videoUrl.value = publicUrl;
+        updatePreviewFromUrl();
+        setUploadStatus('Video uploaded. URL added.', 'success');
+        showMessage('Video uploaded. URL added.', 'success');
+      } catch (error) {
+        setUploadStatus(`${error.message || error} Upload needs backend presign support for ad_video. Paste S3 URL for now.`, 'error');
+      } finally {
+        els.uploadButton.disabled = false;
+        updateTokenStatus();
+      }
+    }
+
+    function validateVideoFile(file) {
+      const extension = String(file.name || '').split('.').pop().toLowerCase();
+      const contentType = String(file.type || '').toLowerCase();
+      if (extension !== 'mp4') return 'Video file type is not allowed. Use .mp4.';
+      if (contentType && contentType !== 'video/mp4') return 'Video MIME type is not allowed. Use video/mp4.';
+      return '';
+    }
+
+    async function adminFetch(url, options = {}) {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+      if (!token) throw new Error('Enter and save an admin token first.');
+      const response = await fetch(url, {
+        ...options,
+        headers: { 'x-admin-token': token, ...(options.headers || {}) }
+      });
+      const text = await response.text();
+      let data = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch { data = text; }
+      }
+      if (!response.ok) {
+        const apiMessage = typeof data === 'string' ? data : (data?.error || data?.message || data?.body || response.statusText);
+        throw new Error(apiMessage || `API request failed with status ${response.status}.`);
+      }
+      return data;
+    }
+
+    function normalizePresignResponse(data) {
+      if (typeof data?.body === 'string') {
+        try { return JSON.parse(data.body); } catch { return data; }
+      }
+      return data || {};
+    }
+
+    function setUploadStatus(message, status = '') {
+      els.uploadStatus.textContent = message || 'Select an MP4. Upload uses the existing dev presign endpoint with purpose ad_video.';
+      els.uploadStatus.style.color = status === 'error' ? 'var(--danger)' : status === 'success' ? 'var(--accent-2)' : status === 'busy' ? 'var(--warning)' : 'var(--muted)';
+    }
+
+    function updateTokenStatus() {
+      const hasToken = Boolean(localStorage.getItem(TOKEN_STORAGE_KEY));
+      els.tokenStatus.textContent = hasToken
+        ? 'Upload token: saved locally from main dev admin.'
+        : 'Upload token: not saved. Upload Video needs the main dev admin token; manual Video URL paste still works.';
+    }
+
+    function showMessage(message, type = '') {
+      els.message.textContent = message;
+      els.message.className = `message ${type}`.trim();
+      els.message.classList.remove('hidden');
+      window.clearTimeout(showMessage.timer);
+      showMessage.timer = window.setTimeout(() => els.message.classList.add('hidden'), 6000);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+    }
+
+    function escapeAttribute(value) {
+      return escapeHtml(value).replace(/'/g, '&#39;');
+    }
+
+    init();
+  </script>
+</body>
+</html>
