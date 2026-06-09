@@ -8,22 +8,26 @@ const PUBLIC_DASHBOARD_ENDPOINTS = {
 const ARTWORK_FIELDS = [
   'song_artwork_url',
   'artwork_url',
-  'artworkUrl',
+  'image_url',
+  'cover_url',
   'artwork',
+  'thumbnail_url',
+  'album_artwork_url',
+  'album_artwork',
+  'artworkUrl',
+  'songArtworkUrl',
+  'resolved_artwork_url',
   'Artwork',
   'artworkLink',
   'Artwork Link',
-  'image_url',
   'imageUrl',
   'image',
   'Image',
-  'cover_url',
   'coverUrl',
   'cover',
   'Cover',
   'cover_image_url',
   'coverImage',
-  'thumbnail_url',
   'thumbnailUrl',
   'thumbnail',
   'thumb',
@@ -32,6 +36,8 @@ const ARTWORK_FIELDS = [
   'songGraphic',
   'graphic'
 ];
+
+const ARTWORK_OBJECT_URL_FIELDS = ['url', 'src', 'href'];
 
 const state = {
   songs: [],
@@ -73,9 +79,19 @@ function firstDefined(row, names) {
   return '';
 }
 
+function isUsableArtworkUrl(value) {
+  const artworkUrl = clean(value);
+  if (!artworkUrl) return '';
+
+  const lowerArtworkUrl = artworkUrl.toLowerCase();
+  if (['null', 'undefined', 'none', 'n/a'].includes(lowerArtworkUrl)) return '';
+
+  return artworkUrl;
+}
+
 function normalizeArtworkValue(value) {
   if (value === undefined || value === null) return '';
-  if (typeof value === 'string' || typeof value === 'number') return clean(value);
+  if (typeof value === 'string' || typeof value === 'number') return isUsableArtworkUrl(value);
   if (Array.isArray(value)) {
     for (const item of value) {
       const artworkUrl = normalizeArtworkValue(item);
@@ -84,6 +100,11 @@ function normalizeArtworkValue(value) {
     return '';
   }
   if (typeof value === 'object') {
+    for (const field of ARTWORK_OBJECT_URL_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(value, field)) continue;
+      const artworkUrl = normalizeArtworkValue(value[field]);
+      if (artworkUrl) return artworkUrl;
+    }
     return getSongArtworkUrl(value);
   }
   return '';
@@ -101,7 +122,7 @@ function getSongArtworkUrl(song) {
 
 function getSongIdentity(row, index = 0) {
   return {
-    songKey: clean(firstDefined(row, ['song_key', 'key', 'slug', 'track_key'])) || `song-${index + 1}`,
+    songKey: clean(firstDefined(row, ['song_key', 'key', 'slug', 'id', 'track_id', 'track_key'])) || `song-${index + 1}`,
     title: clean(firstDefined(row, ['display_title', 'song_name', 'title', 'name'])) || 'Untitled Stashbox Track'
   };
 }
@@ -140,6 +161,7 @@ function normalizeSong(row, index = 0) {
   const fullPlays = count(firstDefined(row, ['full_play_count', 'full_plays']));
   const partialPlays = count(firstDefined(row, ['partial_play_count', 'partial_plays']));
   const engagementTotal = likes + shares + videoClicks + productClicks;
+  const artworkUrl = getSongArtworkUrl(row);
 
   return {
     songKey,
@@ -154,7 +176,8 @@ function normalizeSong(row, index = 0) {
     skips,
     fullPlays,
     partialPlays,
-    artworkUrl: getSongArtworkUrl(row),
+    song_artwork_url: artworkUrl,
+    artworkUrl,
     engagementRate: plays ? (engagementTotal / plays) * 100 : 0,
     skipRate: plays ? (skips / plays) * 100 : 0,
     updatedAt: clean(firstDefined(row, ['updated_at', 'updatedAt', 'modified_at']))
@@ -351,10 +374,14 @@ function hydrateArtworkFromPublicSongs(publicSongRows) {
     artworkByTitle.set(identity.title.toLowerCase(), artworkUrl);
   });
 
-  state.songs = state.songs.map(song => ({
-    ...song,
-    artworkUrl: song.artworkUrl || artworkByKey.get(song.songKey) || artworkByTitle.get(song.title.toLowerCase()) || ''
-  }));
+  state.songs = state.songs.map(song => {
+    const artworkUrl = getSongArtworkUrl(song) || artworkByKey.get(song.songKey) || artworkByTitle.get(song.title.toLowerCase()) || '';
+    return {
+      ...song,
+      song_artwork_url: artworkUrl,
+      artworkUrl
+    };
+  });
 }
 
 function statusMessage() {
@@ -449,15 +476,17 @@ function renderStatGrid(container, stats) {
   });
 }
 
+function renderArtworkPlaceholder() {
+  const placeholder = document.createElement('div');
+  placeholder.className = 'song-art-thumb song-art-placeholder';
+  placeholder.setAttribute('aria-hidden', 'true');
+  placeholder.textContent = '♪';
+  return placeholder;
+}
+
 function renderSongArtwork(song) {
   const artworkUrl = getSongArtworkUrl(song);
-  if (!artworkUrl) {
-    const placeholder = document.createElement('div');
-    placeholder.className = 'song-art-thumb song-art-placeholder';
-    placeholder.setAttribute('aria-hidden', 'true');
-    placeholder.textContent = '♪';
-    return placeholder;
-  }
+  if (!artworkUrl) return renderArtworkPlaceholder();
 
   const image = document.createElement('img');
   image.className = 'song-art-thumb';
@@ -466,8 +495,7 @@ function renderSongArtwork(song) {
   image.loading = 'lazy';
   image.decoding = 'async';
   image.addEventListener('error', () => {
-    const placeholder = renderSongArtwork({ ...song, artworkUrl: '' });
-    image.replaceWith(placeholder);
+    image.replaceWith(renderArtworkPlaceholder());
   }, { once: true });
   return image;
 }
