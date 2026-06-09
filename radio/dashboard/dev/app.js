@@ -114,11 +114,52 @@ async function fetchJson(url, label, { optional = true } = {}) {
   }
 }
 
-function extractArray(data, keys) {
-  for (const key of keys) {
-    if (Array.isArray(data?.[key])) return data[key];
+function parseApiPayload(data) {
+  if (typeof data?.body === 'string') {
+    try {
+      return parseApiPayload(JSON.parse(data.body));
+    } catch {
+      return data;
+    }
   }
-  if (Array.isArray(data)) return data;
+
+  return data;
+}
+
+function normalizeStatsSummaryResponse(data) {
+  const payload = parseApiPayload(data) || {};
+  const summary = parseApiPayload(payload.summary) || payload;
+  const today = parseApiPayload(payload.today || summary.today) || {};
+  const products = parseApiPayload(payload.products || payload.product_stats || summary.products || summary.product_stats) || null;
+
+  return {
+    summary,
+    today,
+    products,
+    generated_at: payload.generated_at || summary.generated_at || ''
+  };
+}
+
+function normalizeTodayStats(today = {}) {
+  return {
+    events_today: count(firstDefined(today, ['events_today', 'activity_today', 'total_events_today', 'event_count_today'])),
+    plays_today: count(firstDefined(today, ['plays_today', 'play_starts_today', 'total_plays_today', 'play_count_today'])),
+    likes_today: count(firstDefined(today, ['likes_today', 'total_likes_today', 'like_count_today'])),
+    shares_today: count(firstDefined(today, ['shares_today', 'total_shares_today', 'share_count_today'])),
+    video_clicks_today: count(firstDefined(today, ['video_clicks_today', 'total_video_clicks_today', 'video_click_count_today'])),
+    product_clicks_today: count(firstDefined(today, ['product_clicks_today', 'total_product_clicks_today', 'product_click_count_today'])),
+    skips_today: count(firstDefined(today, ['skips_today', 'skip_count_today', 'total_skips_today'])),
+    active_songs_today: count(firstDefined(today, ['active_songs_today', 'songs_played_today', 'songs_today', 'unique_songs_today']))
+  };
+}
+
+function extractArray(data, keys) {
+  const payload = parseApiPayload(data);
+
+  for (const key of keys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
   return [];
 }
 
@@ -136,6 +177,7 @@ async function loadDashboardData() {
 
   const songRows = extractArray(dashboardSongs, ['songs', 'items', 'results']);
   const fallbackSongRows = extractArray(publicSongs, ['songs', 'items', 'results']);
+  const statsSummary = normalizeStatsSummaryResponse(summary);
   state.songs = (songRows.length ? songRows : fallbackSongRows).map(normalizeSong);
   state.summary = summary?.summary || summary || null;
   state.today = summary?.today || null;
@@ -203,12 +245,14 @@ function renderStats() {
   ]);
 
   renderStatGrid(els.todayStats, [
-    ['Activity Today', state.today?.events_today ?? 0],
     ['Plays Today', state.today?.plays_today ?? 0],
     ['Likes Today', state.today?.likes_today ?? 0],
     ['Shares Today', state.today?.shares_today ?? 0],
+    ['Video Clicks Today', state.today?.video_clicks_today ?? 0],
     ['Product Clicks Today', state.today?.product_clicks_today ?? 0],
-    ['Video Clicks Today', state.today?.video_clicks_today ?? 0]
+    ['Skips Today', state.today?.skips_today ?? 0],
+    ['Active Songs Today', state.today?.active_songs_today ?? 0],
+    ['Activity Today', state.today?.events_today ?? 0]
   ]);
 
   renderStatGrid(els.productAnalytics, [
