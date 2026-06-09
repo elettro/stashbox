@@ -822,3 +822,439 @@ tr:last-child td {
   .song-art-thumb { width: 42px; height: 42px; border-radius: 10px; }
   th, td { padding: 0.7rem; }
 }
+
+@media (max-width: 768px) {
+  :root {
+    --radius: 16px;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(66, 217, 130, 0.12), transparent 18rem),
+      linear-gradient(135deg, #050705 0%, #111814 58%, #090b0a 100%);
+  }
+
+  .stashbox-site-header__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.42rem 0.65rem;
+    padding: 0.55rem 0.72rem 0.48rem;
+  }
+
+  .stashbox-site-header__brand {
+    min-width: 0;
+    font-size: clamp(1.15rem, 6vw, 1.45rem);
+  }
+
+  .stashbox-site-header__cta {
+    width: auto;
+    max-width: 43vw;
+    min-height: 2rem;
+    padding: 0.48rem 0.58rem;
+    font-size: 0.58rem;
+    line-height: 1.05;
+    white-space: normal;
+  }
+
+  .stashbox-site-header__nav {
+    grid-column: 1 / -1;
+    order: initial;
+    justify-content: flex-start;
+    width: 100%;
+    max-height: 4.2rem;
+    overflow: auto;
+    gap: 0.24rem;
+    padding: 0.12rem 0 0.04rem;
+    scrollbar-width: none;
+  }
+
+  .stashbox-site-header__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .stashbox-site-header__nav a {
+    padding: 0.38rem 0.46rem;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.61rem;
+    letter-spacing: 0.07em;
+  }
+
+  h1 {
+    margin-bottom: 0.48rem;
+    font-size: clamp(1.75rem, 10.5vw, 2.55rem);
+    line-height: 0.98;
+  }
+
+  h2 {
+    font-size: clamp(1.08rem, 5.3vw, 1.32rem);
+  }
+
+  .hero {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.78rem;
+    padding: 1rem 0.85rem;
+  }
+
+  .intro {
+    font-size: 0.94rem;
+    line-height: 1.46;
+  }
+
+  .eyebrow {
+    margin-bottom: 0.28rem;
+    font-size: 0.64rem;
+    letter-spacing: 0.13em;
+  }
+
+  .shell {
+    padding: 0.75rem;
+  }
+
+  .view {
+    gap: 0.72rem;
+  }
+
+  .notice,
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.62rem;
+  }
+
+  .notice,
+  .card {
+    border-radius: var(--radius);
+  }
+
+  .notice {
+    margin-bottom: 0.72rem;
+    padding: 0.82rem;
+  }
+
+  .notice p:last-child,
+  .section-copy {
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .card {
+    padding: 0.85rem;
+  }
+
+  .section-heading {
+    margin-bottom: 0.68rem;
+  }
+
+  .section-copy {
+    margin-bottom: 0.72rem;
+  }
+
+  .radio-link,
+  .button {
+    min-height: 2.75rem;
+    text-align: center;
+  }
+
+  .stat-grid,
+  .stat-grid--small {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .stat-card {
+    min-width: 0;
+    padding: 0.72rem;
+  }
+
+  .stat-label {
+    display: block;
+    min-height: 2.2em;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.1;
+    overflow-wrap: normal;
+  }
+
+  .stat-value {
+    margin-top: 0.28rem;
+    font-size: clamp(1.45rem, 8.5vw, 2rem);
+    line-height: 1;
+  }
+
+  .rank-grid,
+  .rank-grid--compact {
+    grid-template-columns: 1fr;
+    gap: 0.58rem;
+  }
+
+  .rank-card,
+  .rank-grid--compact .rank-card {
+    display: grid;
+    grid-template-areas:
+      "top top"
+      "meta meta"
+      "value action";
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.52rem 0.62rem;
+    padding: 0.72rem;
+  }
+
+  .rank-top,
+  .rank-grid--compact .rank-top {
+    grid-area: top;
+    align-items: center;
+    gap: 0.52rem;
+    overflow: visible;
+  }
+
+  .rank-meta,
+  .rank-grid--compact .rank-meta {
+    grid-area: meta;
+    white-space: normal;
+  }
+
+  .rank-value,
+  .rank-grid--compact .rank-value {
+    grid-area: value;
+    justify-self: start;
+    border: 1px solid rgba(66, 217, 130, 0.24);
+    border-radius: 999px;
+    background: var(--green-soft);
+    padding: 0.36rem 0.55rem;
+    font-size: 0.94rem;
+    line-height: 1.1;
+    text-align: left;
+  }
+
+  .rank-grid--compact .open-radio,
+  .open-radio {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    grid-area: action;
+    justify-self: end;
+    min-height: 2.75rem;
+    padding: 0.64rem 0.8rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .rank-number,
+  .rank-grid--compact .rank-number {
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 0.82rem;
+  }
+
+  .rank-title span,
+  .rank-top .song-cell-copy strong {
+    white-space: normal;
+  }
+
+  .song-cell-with-art {
+    gap: 0.58rem;
+  }
+
+  .song-art-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+  }
+
+  .song-cell-copy strong {
+    font-size: 0.98rem;
+  }
+
+  .song-subtext,
+  .muted,
+  .rank-meta {
+    font-size: 0.78rem;
+  }
+
+  .table-wrap {
+    overflow-x: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .data-table thead,
+  .data-table colgroup {
+    display: none;
+  }
+
+  .data-table tbody {
+    display: grid;
+    gap: 0.62rem;
+  }
+
+  .data-table tr {
+    display: grid;
+    grid-template-areas:
+      "rank song"
+      "artist artist"
+      "plays likes"
+      "shares shares"
+      "open open";
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5rem 0.58rem;
+    border: 1px solid rgba(255, 255, 255, 0.085);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.72rem;
+  }
+
+  .data-table td {
+    border-bottom: 0;
+    padding: 0;
+    text-align: left;
+  }
+
+  .ranked-plays-table .rank-column {
+    grid-area: rank;
+    display: inline-grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 999px;
+    background: var(--gold-soft);
+    color: var(--gold);
+    font-size: 0.82rem;
+    font-weight: 900;
+    padding: 0;
+    text-align: center;
+  }
+
+  .data-table .song-column {
+    grid-area: song;
+    padding-left: 0;
+  }
+
+  .data-table .artist-column {
+    grid-area: artist;
+    padding-left: calc(1.9rem + 0.58rem);
+    font-size: 0.8rem;
+  }
+
+  .data-table .artist-column::before {
+    content: "Artist: ";
+    color: var(--gold);
+    font-weight: 850;
+  }
+
+  .data-table .metric-column {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid rgba(66, 217, 130, 0.2);
+    border-radius: 999px;
+    background: var(--green-soft);
+    padding: 0.42rem 0.58rem;
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 850;
+    text-align: right;
+  }
+
+  .data-table .metric-column::before {
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .data-table .metric-column:nth-child(4) {
+    grid-area: plays;
+  }
+
+  .data-table .metric-column:nth-child(4)::before {
+    content: "Plays";
+  }
+
+  .data-table .metric-column:nth-child(5) {
+    grid-area: likes;
+  }
+
+  .data-table .metric-column:nth-child(5)::before {
+    content: "Likes";
+  }
+
+  .data-table .metric-column:nth-child(6) {
+    grid-area: shares;
+  }
+
+  .data-table .metric-column:nth-child(6)::before {
+    content: "Shares";
+  }
+
+  .data-table .open-column {
+    grid-area: open;
+    text-align: left;
+  }
+
+  .data-table .open-column .open-radio {
+    width: 100%;
+    min-height: 2.85rem;
+    padding: 0.72rem 0.85rem;
+  }
+
+  .empty-cell {
+    display: block;
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .stat-grid,
+  .stat-grid--small {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-label {
+    min-height: 0;
+  }
+
+  .rank-card,
+  .rank-grid--compact .rank-card {
+    grid-template-areas:
+      "top"
+      "meta"
+      "value"
+      "action";
+    grid-template-columns: 1fr;
+  }
+
+  .rank-grid--compact .open-radio,
+  .open-radio {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .data-table tr {
+    grid-template-areas:
+      "rank song"
+      "artist artist"
+      "plays plays"
+      "likes likes"
+      "shares shares"
+      "open open";
+  }
+
+  .song-art-thumb {
+    width: 48px;
+    height: 48px;
+  }
+}
