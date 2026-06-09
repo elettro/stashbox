@@ -2,16 +2,12 @@ const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default
 const PUBLIC_SONGS_URL = `${API_ROOT}/radio/songs`;
 const PUBLIC_DASHBOARD_ENDPOINTS = {
   summary: `${API_ROOT}/dashboard/summary`,
-  songs: `${API_ROOT}/dashboard/songs`,
-  referrers: `${API_ROOT}/dashboard/referrers?limit=50`,
-  devices: `${API_ROOT}/dashboard/devices?limit=50`
+  songs: `${API_ROOT}/dashboard/songs`
 };
 
 const state = {
   songs: [],
   summary: null,
-  referrers: [],
-  devices: [],
   today: null,
   productStats: null,
   missingPublicEndpoints: new Set(),
@@ -31,8 +27,6 @@ const els = {
   songAnalyticsStats: document.getElementById('songAnalyticsStats'),
   todayStats: document.getElementById('todayStats'),
   productAnalytics: document.getElementById('productAnalytics'),
-  referrersBody: document.getElementById('referrersBody'),
-  devicesStats: document.getElementById('devicesStats'),
   skipRateSongs: document.getElementById('skipRateSongs')
 };
 
@@ -58,18 +52,6 @@ function formatNumber(value) {
 function formatPercent(value) {
   const number = Number.isFinite(value) ? value : 0;
   return `${number.toFixed(number >= 10 ? 0 : 1)}%`;
-}
-
-function formatDateTime(value) {
-  if (!clean(value)) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return clean(value);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  }).format(date);
 }
 
 function getSitePrefix() {
@@ -187,23 +169,19 @@ async function loadDashboardData() {
   setStatus('Loading public dashboard data…');
   els.refreshButton.disabled = true;
 
-  const [publicSongs, dashboardSongs, summary, referrers, devices] = await Promise.all([
+  const [publicSongs, dashboardSongs, summary] = await Promise.all([
     fetchJson(PUBLIC_SONGS_URL, 'public radio songs', { optional: false }),
     fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.songs, 'GET /dashboard/songs'),
-    fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.summary, 'GET /dashboard/summary'),
-    fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.referrers, 'GET /dashboard/referrers'),
-    fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.devices, 'GET /dashboard/devices')
+    fetchJson(PUBLIC_DASHBOARD_ENDPOINTS.summary, 'GET /dashboard/summary')
   ]);
 
   const songRows = extractArray(dashboardSongs, ['songs', 'items', 'results']);
   const fallbackSongRows = extractArray(publicSongs, ['songs', 'items', 'results']);
   const statsSummary = normalizeStatsSummaryResponse(summary);
   state.songs = (songRows.length ? songRows : fallbackSongRows).map(normalizeSong);
-  state.summary = statsSummary.summary;
-  state.today = normalizeTodayStats(statsSummary.today);
-  state.productStats = statsSummary.products;
-  state.referrers = extractArray(referrers, ['referrers', 'sources', 'items', 'results']);
-  state.devices = extractArray(devices, ['devices', 'items', 'results']);
+  state.summary = summary?.summary || summary || null;
+  state.today = summary?.today || null;
+  state.productStats = summary?.products || summary?.product_stats || null;
 
   renderAll();
   setStatus(statusMessage(), state.songs.length ? 'success' : 'error');
@@ -216,7 +194,7 @@ function statusMessage() {
   }
   const missing = [...state.missingPublicEndpoints];
   if (!missing.length) return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'}.`;
-  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} from the public radio songs API. Missing public-safe dashboard endpoints: ${missing.join(', ')}. Backend read-only endpoints are required for referrers, devices, and full dashboard summary data.`;
+  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} from the public radio songs API. Missing public-safe dashboard endpoints: ${missing.join(', ')}. Backend read-only endpoints are required for full dashboard summary data.`;
 }
 
 function setStatus(message, tone = '') {
@@ -229,8 +207,6 @@ function renderAll() {
   renderStats();
   renderSongTables();
   renderRankings();
-  renderReferrers();
-  renderDevices();
 }
 
 function totals() {
@@ -359,37 +335,6 @@ function openRadioButton(song) {
   link.target = '_blank';
   link.rel = 'noopener';
   return link;
-}
-
-function renderReferrers() {
-  els.referrersBody.innerHTML = '';
-  if (!state.referrers.length) return renderEmptyRow(els.referrersBody, 3, 'No public-safe referrer endpoint returned data yet. GET /dashboard/referrers is required.');
-  state.referrers.slice(0, 25).forEach(referrer => {
-    const row = document.createElement('tr');
-    row.innerHTML = '<td></td><td></td><td></td>';
-    row.children[0].textContent = clean(firstDefined(referrer, ['referrer', 'source', 'track_source'])) || 'Direct / Unknown';
-    row.children[1].textContent = formatNumber(firstDefined(referrer, ['event_count', 'events', 'count']));
-    row.children[2].textContent = formatDateTime(firstDefined(referrer, ['last_seen_at', 'last_seen', 'updated_at']));
-    els.referrersBody.appendChild(row);
-  });
-}
-
-function renderDevices() {
-  els.devicesStats.innerHTML = '';
-  if (!state.devices.length) {
-    els.devicesStats.innerHTML = '<article class="rank-card muted">No public-safe device endpoint returned data yet. GET /dashboard/devices is required.</article>';
-    return;
-  }
-  state.devices.slice(0, 10).forEach((device, index) => {
-    const card = document.createElement('article');
-    card.className = 'rank-card';
-    const name = clean(firstDefined(device, ['device_type', 'device', 'listener_device'])) || 'Unknown';
-    const events = firstDefined(device, ['event_count', 'events', 'count']);
-    card.innerHTML = `<div class="rank-top"><span class="rank-number">${index + 1}</span><p class="rank-title"><span></span></p></div><div class="rank-meta">Listener device type</div><div class="rank-value"></div>`;
-    card.querySelector('.rank-title span').textContent = name;
-    card.querySelector('.rank-value').textContent = `${formatNumber(events)} activity`;
-    els.devicesStats.appendChild(card);
-  });
 }
 
 function renderEmptyRow(body, colspan, message) {
