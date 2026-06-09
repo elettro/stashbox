@@ -490,6 +490,44 @@ tr:last-child td {
 }
 
 .stashbox-site-footer {
+.rank-top { display: flex; align-items: center; gap: 0.65rem; }
+.rank-number { display: inline-grid; place-items: center; flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: var(--gold-soft); color: var(--gold); font-weight: 900; }
+.rank-grid--compact .rank-number { width: 1.65rem; height: 1.65rem; font-size: 0.78rem; }
+.rank-title { min-width: 0; margin: 0; font-weight: 850; }
+.rank-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-grid--compact .rank-top, .rank-grid--compact .rank-title { min-width: 0; }
+.rank-grid--compact .rank-top { grid-area: title; overflow: hidden; }
+.rank-top .song-cell-with-art { min-width: 0; }
+.rank-top .song-cell-copy { min-width: 0; }
+.rank-top .song-cell-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-top .song-subtext { display: none; }
+.rank-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-grid--compact .rank-meta { grid-area: meta; min-width: 0; }
+.rank-value { color: var(--green); font-size: 1.25rem; font-weight: 900; }
+.rank-grid--compact .rank-value { grid-area: value; font-size: 1rem; text-align: right; white-space: nowrap; }
+.open-radio { justify-self: start; color: #06100a; font-size: 0.82rem; }
+.rank-grid--compact .open-radio { grid-area: action; justify-self: end; padding: 0.48rem 0.72rem; font-size: 0.76rem; white-space: nowrap; }
+
+.table-wrap { width: 100%; overflow-x: auto; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 16px; }
+.data-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+th, td { padding: 0.8rem 0.85rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); text-align: left; vertical-align: top; }
+th { color: var(--gold); background: rgba(240, 192, 76, 0.08); font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; }
+td { color: var(--text); font-size: 0.92rem; }
+tr:last-child td { border-bottom: 0; }
+.song-cell-with-art { display: flex; align-items: center; gap: 0.72rem; min-width: 0; }
+.song-cell-copy { display: grid; gap: 0.16rem; min-width: 0; }
+.song-cell-copy strong { line-height: 1.24; }
+.song-subtext, .muted { color: var(--muted); font-size: 0.82rem; }
+.song-art-thumb { display: inline-grid; place-items: center; flex: 0 0 auto; width: 52px; height: 52px; border: 1px solid rgba(240, 192, 76, 0.22); border-radius: 12px; background: rgba(255, 255, 255, 0.055); object-fit: cover; color: var(--gold); font-size: 1.15rem; font-weight: 900; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); }
+.song-art-placeholder { background: radial-gradient(circle at 30% 24%, rgba(240, 192, 76, 0.2), rgba(255, 255, 255, 0.055)); }
+.product-link { color: var(--green); word-break: break-word; }
+.empty-cell { color: var(--muted); text-align: center; }
+
+.global-radio-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem 1.5rem;
   margin-top: clamp(1rem, 3vw, 2rem);
   border-top: 1px solid rgba(240, 192, 76, 0.2);
   background:
@@ -687,9 +725,11 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
   .rank-grid--compact .rank-card {
+    align-items: start;
     grid-template-areas:
       "title value"
-      "meta value";
+      "meta meta"
+      "action action";
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .rank-grid--compact .open-radio {
@@ -708,4 +748,9 @@ tr:last-child td {
   .stashbox-site-footer__nav {
     grid-template-columns: 1fr;
   }
+  .rank-grid--compact .open-radio { justify-self: start; }
+  .data-table { min-width: 680px; }
+  .song-cell-with-art { gap: 0.55rem; }
+  .song-art-thumb { width: 42px; height: 42px; border-radius: 10px; }
+  th, td { padding: 0.7rem; }
 }
