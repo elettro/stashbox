@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stashbox Radio Project Report</title>
+  <style>
+    :root {
+      --bg: #080b09;
+      --panel: #101711;
+      --panel-2: #15120d;
+      --gold: #f4c542;
+      --gold-2: #d39b20;
+      --green: #2ee880;
+      --text: #f7f2df;
+      --muted: #b9b29d;
+      --line: rgba(244, 197, 66, 0.28);
+      --soft: rgba(255, 255, 255, 0.06);
+      --danger: #ff5d5d;
+      --blue: #7cc7ff;
+      --radius: 22px;
+      --shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+    }
+
+```
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(244, 197, 66, 0.12), transparent 34%),
+    radial-gradient(circle at 90% 10%, rgba(46, 232, 128, 0.08), transparent 30%),
+    linear-gradient(180deg, #070907 0%, #080b09 48%, #050605 100%);
+  color: var(--text);
+  line-height: 1.55;
+}
+
+a {
+  color: var(--gold);
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 18px 70px;
+}
+
+.hero {
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 34px;
+  background:
+    linear-gradient(135deg, rgba(244, 197, 66, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    var(--panel);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -80px -120px auto;
+  width: 320px;
+  height: 320px;
+  border-radius: 999px;
+  background: rgba(244, 197, 66, 0.08);
+  filter: blur(2px);
+}
+
+.eyebrow {
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 800;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 7vw, 5.4rem);
+  line-height: 0.95;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  max-width: 850px;
+  color: var(--muted);
+  font-size: 1.12rem;
+  margin-top: 18px;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.hero-card {
+  border: 1px solid rgba(244, 197, 66, 0.22);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 16px;
+}
+
+.hero-card strong {
+  display: block;
+  font-size: 1.55rem;
+  line-height: 1;
+  color: var(--green);
+  margin-bottom: 6px;
+}
+
+.hero-card span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+section {
+  margin-top: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius);
+  background: rgba(16, 23, 17, 0.78);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.22);
+  padding: 26px;
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-size: clamp(1.55rem, 3vw, 2.25rem);
+  line-height: 1.08;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+h3 {
+  margin: 22px 0 8px;
+  color: var(--gold);
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+p {
+  margin: 0 0 14px;
+  color: #e9e2cf;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.box {
+  border: 1px solid rgba(244, 197, 66, 0.17);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 18px;
+}
+
+.box h3:first-child {
+  margin-top: 0;
+}
+
+ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: #e8e0ca;
+}
+
+li {
+  margin: 7px 0;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pill {
+  border: 1px solid rgba(244, 197, 66, 0.3);
+  background: rgba(244, 197, 66, 0.08);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.api-list {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.72fr) 1.4fr 2fr;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  margin-top: 14px;
+}
+
+.api-list div {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e9e1cc;
+}
+
+.api-list div:nth-child(3n) {
+  border-right: none;
+}
+
+.api-list .head {
+  background: rgba(244, 197, 66, 0.13);
+  color: var(--gold);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+
+.api-list code,
+code {
+  color: #c9f7d7;
+  background: rgba(46, 232, 128, 0.08);
+  border: 1px solid rgba(46, 232, 128, 0.16);
+  border-radius: 7px;
+  padding: 2px 6px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.92em;
+}
+
+.flow {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.flow-step {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.num {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--gold);
+  color: #0b0c08;
+  font-weight: 900;
+}
+
+.timeline {
+  position: relative;
+  margin-top: 18px;
+  padding-left: 24px;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(var(--gold), var(--green));
+}
+
+.timeline-item {
+  position: relative;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -23px;
+  top: 20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 0 0 0 4px rgba(244, 197, 66, 0.13);
+}
+
+.timeline-item strong {
+  display: block;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.86rem;
+  margin-bottom: 5px;
+}
+
+.callout {
+  border-left: 5px solid var(--gold);
+  background: rgba(244, 197, 66, 0.09);
+  border-radius: 16px;
+  padding: 18px;
+  margin-top: 16px;
+}
+
+.footer {
+  text-align: center;
+  color: var(--muted);
+  padding: 34px 10px 10px;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 880px) {
+  .hero-grid,
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .api-list {
+    grid-template-columns: 1fr;
+  }
+
+  .api-list div {
+    border-right: none;
+  }
+
+  .api-list .head:nth-child(1),
+  .api-list .head:nth-child(2),
+  .api-list .head:nth-child(3) {
+    display: none;
+  }
+
+  .api-list div:nth-child(3n + 1)::before {
+    content: "Method: ";
+    color: var(--gold);
+    font-weight: 800;
+  }
+
+  .api-list div:nth-child(3n + 2)::before {
+    content: "Endpoint: ";
+    color: var(--gold);
+    font-weight: 800;
+  }
+
+  .api-list div:nth-child(3n + 3)::before {
+    content: "Purpose: ";
+    color: var(--gold);
+    font-weight: 800;
+  }
+
+  .hero {
+    padding: 26px 20px;
+  }
+}
+```
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="eyebrow">Listen. Watch. Shop. Share.</div>
+      <h1>Stashbox Radio</h1>
+      <p class="subtitle">
+        A custom RDS-backed music, video, merchandise, and advertising platform built to feel simple on the surface while running a sophisticated stack underneath.
+      </p>
+
+```
+  <div class="hero-grid">
+    <div class="hero-card">
+      <strong>33+</strong>
+      <span>Tracks managed from RDS</span>
+    </div>
+    <div class="hero-card">
+      <strong>3</strong>
+      <span>Active ad inventory tests</span>
+    </div>
+    <div class="hero-card">
+      <strong>2</strong>
+      <span>Ad break methodologies</span>
+    </div>
+    <div class="hero-card">
+      <strong>Live</strong>
+      <span>Dev to production workflow</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>Executive Summary</h2>
+  <p>
+    Stashbox Radio began as a music player and evolved into a custom media platform that connects songs, videos, merchandise, advertising, analytics, and admin publishing tools into one lightweight experience. The public player is intentionally simple: a listener can play a song, watch a video, like, share, shop, and continue through the catalog. Behind that simple interface is a custom backend system using AWS, PostgreSQL, API Gateway, Lambda, S3 media, and a custom admin console.
+  </p>
+  <p>
+    The sophistication of the system is in its simplicity. The user sees a radio experience. The admin sees editable song records, product links, ads, settings, and stats. The platform quietly handles media playback, deep links, persistent likes, ad delivery rules, ad tracking, product carousels, and RDS-backed content management without requiring a full commercial CMS.
+  </p>
+  <div class="callout">
+    <strong>Core idea:</strong> Stashbox Radio is not just a playlist. It is a lightweight custom radio station, video player, ad server, merchandise gateway, and music CMS built around the Stashbox catalog.
+  </div>
+</section>
+
+<section>
+  <h2>Primary Tools and Platforms Used</h2>
+  <div class="grid-3">
+    <div class="box">
+      <h3>Frontend</h3>
+      <ul>
+        <li>HTML for page structure</li>
+        <li>CSS for responsive player/admin styling</li>
+        <li>JavaScript for player logic, UI state, tracking, filters, ads, and admin forms</li>
+        <li>GitHub Pages for static site hosting</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Backend</h3>
+      <ul>
+        <li>AWS Lambda running Node.js 22.x</li>
+        <li>AWS API Gateway HTTP API</li>
+        <li>PostgreSQL on AWS RDS</li>
+        <li>DBeaver for RDS inspection and SQL updates</li>
+        <li>CloudWatch for Lambda logs and error diagnosis</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Media and Commerce</h3>
+      <ul>
+        <li>AWS S3 for audio, artwork, and ad media files</li>
+        <li>YouTube embeds for music videos and video-only records</li>
+        <li>Shopify product data for merch cards</li>
+        <li>Specific product URLs per song</li>
+        <li>Future external Shopify metadata support planned</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Languages and Technical Stack</h3>
+  <div class="pill-row">
+    <span class="pill">HTML</span>
+    <span class="pill">CSS</span>
+    <span class="pill">JavaScript</span>
+    <span class="pill">Node.js</span>
+    <span class="pill">SQL</span>
+    <span class="pill">PostgreSQL</span>
+    <span class="pill">JSON</span>
+    <span class="pill">REST APIs</span>
+    <span class="pill">AWS Lambda</span>
+    <span class="pill">API Gateway</span>
+    <span class="pill">S3</span>
+    <span class="pill">RDS</span>
+  </div>
+</section>
+
+<section>
+  <h2>The Architecture</h2>
+  <p>
+    The architecture separates the public listening experience from the admin publishing experience. The public site is static and fast. The dynamic behavior comes from API calls to Lambda, which reads and writes to RDS.
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div>
+        <strong>Public player loads</strong>
+        <p class="muted">The browser opens <code>/radio/</code> or <code>/radio/dev/</code> and loads songs, counts, ad settings, products, and active ads from API endpoints.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div>
+        <strong>Lambda processes API requests</strong>
+        <p class="muted">API Gateway routes requests into the Lambda function, which normalizes paths, validates requests, and queries PostgreSQL.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div>
+        <strong>RDS stores the source of truth</strong>
+        <p class="muted">Songs, ads, settings, likes, stats events, product URLs, and admin-managed fields live in PostgreSQL.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div>
+        <strong>Admin updates the system</strong>
+        <p class="muted">The admin dashboard edits songs, saves specific product URLs, manages ads, updates ad delivery settings, and reviews stats.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div>
+        <strong>Listener actions feed analytics</strong>
+        <p class="muted">Likes, plays, shares, ad starts, ad clicks, ad skips, product clicks, and other events are tracked through API calls.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Public Radio Player Features</h2>
+  <div class="grid-2">
+    <div class="box">
+      <h3>Music and Video</h3>
+      <ul>
+        <li>Audio-only songs</li>
+        <li>Song plus video records</li>
+        <li>Video-only tracks</li>
+        <li>YouTube video support</li>
+        <li>Deep links by song key, such as <code>/radio/?song=&lt;song_key&gt;</code></li>
+        <li>Spacebar play/pause behavior</li>
+        <li>Mobile and desktop playback handling</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Engagement</h3>
+      <ul>
+        <li>Persistent likes saved to RDS</li>
+        <li>Share links using production song URLs</li>
+        <li>Play counts</li>
+        <li>Product click tracking</li>
+        <li>Video click tracking</li>
+        <li>Mobile share URL repair</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Shopping</h3>
+      <ul>
+        <li>Song-specific product URLs</li>
+        <li>Fallback Shopify product carousel</li>
+        <li>Product cards with image, title, and price where available</li>
+        <li>Specific product links saved from admin</li>
+        <li>Future support for external Shopify metadata</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Sorting and Filtering</h3>
+      <ul>
+        <li>Song list filtering</li>
+        <li>Videos-only quick filter</li>
+        <li>Shuffle all</li>
+        <li>Latest sorting</li>
+        <li>Most played sorting support</li>
+        <li>Reset filters</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Admin System</h2>
+  <p>
+    The admin system turns Stashbox Radio into a manageable platform rather than a hard-coded player. The admin can edit songs, manage product links, review dashboard stats, archive records, and operate the ad system.
+  </p>
+
+  <div class="grid-3">
+    <div class="box">
+      <h3>Dashboard</h3>
+      <ul>
+        <li>Operational stats</li>
+        <li>Play starts</li>
+        <li>Shares</li>
+        <li>Likes</li>
+        <li>Product clicks</li>
+        <li>Listening time</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Song Management</h3>
+      <ul>
+        <li>Edit Song loads saved RDS data</li>
+        <li>Save Song updates RDS</li>
+        <li>Specific product URLs save correctly</li>
+        <li>Public notes and internal notes</li>
+        <li>Artist, genre, mood, release format, artwork, video, and audio fields</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Ads Admin</h3>
+      <ul>
+        <li>Ad inventory list</li>
+        <li>Ad title and description</li>
+        <li>Active/inactive controls</li>
+        <li>Ad ratio and media metadata</li>
+        <li>View, click, skip, CTR, and skip-rate stats</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>API Overview</h2>
+  <p>
+    The system uses a practical REST-style API design. Static pages stay simple and fast, while dynamic data is requested only when needed.
+  </p>
+
+  <div class="api-list">
+    <div class="head">Method</div>
+    <div class="head">Endpoint</div>
+    <div class="head">Purpose</div>
+
+    <div>GET</div>
+    <div><code>/radio/songs</code></div>
+    <div>Returns public songs, audio/video metadata, artwork URLs, counts, and deep-link data.</div>
+
+    <div>GET</div>
+    <div><code>/radio/ads</code></div>
+    <div>Returns active ad inventory for the public player, including video URL, title, description, skip rules, stats, and targeting fields.</div>
+
+    <div>GET</div>
+    <div><code>/radio/ad-settings</code></div>
+    <div>Returns public ad delivery settings, including master ads on/off, count mode, seconds mode, ads per break, target seconds, and break interval.</div>
+
+    <div>POST</div>
+    <div><code>/radio/track</code></div>
+    <div>Tracks plays, full plays, likes, shares, product clicks, video clicks, ad starts, ad clicks, ad skips, ad completes, and other events.</div>
+
+    <div>GET</div>
+    <div><code>/admin/stats/summary</code></div>
+    <div>Returns private dashboard totals for events, plays, likes, shares, clicks, and listening time.</div>
+
+    <div>GET</div>
+    <div><code>/admin/songs</code></div>
+    <div>Returns admin song records for song management.</div>
+
+    <div>GET</div>
+    <div><code>/admin/songs/:song_key</code></div>
+    <div>Loads an individual song record for Edit Song.</div>
+
+    <div>PUT</div>
+    <div><code>/admin/songs/:song_key</code></div>
+    <div>Saves song edits, including specific product URLs and metadata fields.</div>
+
+    <div>GET</div>
+    <div><code>/admin/ads</code></div>
+    <div>Returns private ad inventory for the ads admin panel.</div>
+
+    <div>POST</div>
+    <div><code>/admin/ads</code></div>
+    <div>Creates new ad inventory records.</div>
+
+    <div>PUT</div>
+    <div><code>/admin/ads/:id</code></div>
+    <div>Updates existing ad inventory records.</div>
+
+    <div>DELETE</div>
+    <div><code>/admin/ads/:id</code></div>
+    <div>Deletes or removes ad records from the admin inventory.</div>
+
+    <div>GET</div>
+    <div><code>/admin/ad-settings</code></div>
+    <div>Loads private ad controller settings for the admin panel.</div>
+
+    <div>PUT</div>
+    <div><code>/admin/ad-settings</code></div>
+    <div>Saves ad controller settings to RDS.</div>
+
+    <div>POST</div>
+    <div><code>/admin/uploads/presign</code></div>
+    <div>Supports secure media upload workflows through S3 presigned URLs where enabled.</div>
+  </div>
+
+  <div class="callout">
+    <strong>API sophistication:</strong> The API is intentionally small, but it handles a wide range of platform behavior: content retrieval, admin editing, stats tracking, ad serving, ad settings, persistent likes, product links, and analytics.
+  </div>
+</section>
+
+<section>
+  <h2>How the Ads Roll</h2>
+  <p>
+    The ad system functions like a lightweight custom ad server for Stashbox Radio. Ads are stored in RDS, served through the public API, controlled by the admin panel, and tracked through events.
+  </p>
+
+  <div class="grid-2">
+    <div class="box">
+      <h3>Ad Inventory</h3>
+      <ul>
+        <li>Ad title</li>
+        <li>Description</li>
+        <li>Video URL</li>
+        <li>Click URL</li>
+        <li>Ratio label and dimensions</li>
+        <li>Skip-after seconds</li>
+        <li>No-skip option</li>
+        <li>Active/hidden status</li>
+        <li>Frequency/rotation weight</li>
+        <li>Optional genre, mood, artist, and song targeting fields</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Ad Playback UX</h3>
+      <ul>
+        <li>Ads play after songs or videos based on controller settings</li>
+        <li>Ad title and description show in the ad player</li>
+        <li>Learn More button opens the CTA link</li>
+        <li>Skip countdown shows when skipping is allowed</li>
+        <li>Ad duration shows as current time / total time</li>
+        <li>Ad break indicator shows progress, such as Ad 2 of 4</li>
+        <li>Seconds mode can show a master ad break countdown</li>
+        <li>Tap-to-resume handles paused ad playback</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Two Ad Delivery Methodologies</h3>
+  <div class="grid-2">
+    <div class="box">
+      <h3>Method 1: By Number of Ads</h3>
+      <p>
+        The admin can choose how many ads play in a break. Current options are 1, 2, 3, 4, or 5 ads per break.
+      </p>
+      <ul>
+        <li>Example: Ads Per Break = 3</li>
+        <li>The listener sees Ad 1 of 3, Ad 2 of 3, Ad 3 of 3</li>
+        <li>After the final ad, the next song or video resumes</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Method 2: By Total Seconds</h3>
+      <p>
+        The admin can choose a target amount of ad time, such as 15, 30, 45, 60, or 90 seconds.
+      </p>
+      <ul>
+        <li>Example: Target Ad Break Length = 30 seconds</li>
+        <li>The player continues selecting ads until the break reaches the target duration</li>
+        <li>This prevents one short 5-second ad from counting as a full break</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Ad Rotation and Frequency</h3>
+  <p>
+    Each ad has a Low, Medium, or High frequency setting. This is best understood as rotation weight, not break frequency. High-weight ads are more likely to be selected. Low-weight ads are less likely. The break frequency itself is controlled by the Ad Controller.
+  </p>
+
+  <h3>Ad Controller Settings</h3>
+  <ul>
+    <li><strong>Master Ads On/Off:</strong> turns ad breaks on or off globally.</li>
+    <li><strong>Ad Break Method:</strong> chooses count mode or seconds mode.</li>
+    <li><strong>Ads Per Break:</strong> used when the method is by number of ads.</li>
+    <li><strong>Target Ad Break Length:</strong> used when the method is by total seconds.</li>
+    <li><strong>Ad Break Timing:</strong> controls whether breaks happen after every song/video, every 2, or every 3.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Sort Methods and Discovery</h2>
+  <p>
+    Stashbox Radio uses simple listener-facing controls to keep discovery easy. The goal is not to overload the listener with a complex database interface. It is to give them fast ways to find songs and videos.
+  </p>
+
+  <div class="grid-3">
+    <div class="box">
+      <h3>Latest</h3>
+      <p>
+        Sorts the catalog toward newer or recently added content, helping the radio experience feel alive and current.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Most Played</h3>
+      <p>
+        Uses play metrics to surface tracks with stronger listener activity.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Videos Filter</h3>
+      <p>
+        Quickly narrows the catalog to songs and records with video content.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Shuffle All</h3>
+      <p>
+        Creates a radio-style experience by moving away from manual selection and into discovery mode.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Deep Links</h3>
+      <p>
+        Every song can be shared as a direct URL using a song key.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Search and Filters</h3>
+      <p>
+        The player supports simple filtering across song, album, artist, and metadata-oriented discovery.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Data Model Overview</h2>
+  <p>
+    The database model is built around a few practical entities rather than an overcomplicated enterprise CMS.
+  </p>
+
+  <div class="grid-2">
+    <div class="box">
+      <h3>Songs</h3>
+      <ul>
+        <li>Song key</li>
+        <li>Song name and display title</li>
+        <li>Artist</li>
+        <li>Genre and secondary genre</li>
+        <li>Mood and mood tags</li>
+        <li>Release format</li>
+        <li>Album name</li>
+        <li>Audio URL</li>
+        <li>Video URL or YouTube link</li>
+        <li>Artwork URL</li>
+        <li>Specific product URLs</li>
+        <li>Persistent likes</li>
+        <li>Visibility and feature flags</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Ads</h3>
+      <ul>
+        <li>Ad title</li>
+        <li>Description</li>
+        <li>Video URL</li>
+        <li>Click URL</li>
+        <li>Frequency weight</li>
+        <li>Skip settings</li>
+        <li>Views</li>
+        <li>Clicks</li>
+        <li>Skips</li>
+        <li>CTR</li>
+        <li>Skip rate</li>
+        <li>Targeting fields</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Ad Settings</h3>
+      <ul>
+        <li>Master ads enabled</li>
+        <li>Break method</li>
+        <li>Ads per break</li>
+        <li>Target seconds</li>
+        <li>Break interval</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Events and Analytics</h3>
+      <ul>
+        <li>Play starts</li>
+        <li>Full plays</li>
+        <li>Partial plays</li>
+        <li>Likes</li>
+        <li>Shares</li>
+        <li>Video clicks</li>
+        <li>Product clicks</li>
+        <li>Ad starts</li>
+        <li>Ad clicks</li>
+        <li>Ad skips</li>
+        <li>Ad completes</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sophistication Through Simplicity</h2>
+  <p>
+    The platform avoids the trap of looking complicated to the user. The public interface is simple enough for a fan to understand instantly, while the backend keeps track of many moving pieces.
+  </p>
+
+  <div class="grid-2">
+    <div class="box">
+      <h3>Simple to the Listener</h3>
+      <ul>
+        <li>Click play</li>
+        <li>Watch a video</li>
+        <li>Like a song</li>
+        <li>Share a link</li>
+        <li>Shop the track</li>
+        <li>Continue listening</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Sophisticated Underneath</h3>
+      <ul>
+        <li>RDS-backed song records</li>
+        <li>Persistent likes and stats</li>
+        <li>Ad server logic</li>
+        <li>Ad controller settings</li>
+        <li>Count-based and seconds-based ad breaks</li>
+        <li>Shopify product integrations</li>
+        <li>Admin dashboard and edit flows</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    The system is custom enough to fit Stashbox specifically, but simple enough to operate without becoming a bloated platform.
+  </div>
+</section>
+
+<section>
+  <h2>Project Timeline</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <strong>Phase I: Player Foundation</strong>
+      <p>
+        Built the public Stashbox Radio experience with song cards, playback controls, artwork, video support, basic filtering, and shopping placement.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase II: Dev and Production Strategy</strong>
+      <p>
+        Established a safer workflow separating <code>/radio/dev/</code> from <code>/radio/</code> and <code>/radio-admin/dev/</code> from <code>/radio-admin/</code>.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-A: RDS and API Foundation</strong>
+      <p>
+        Connected the system to AWS RDS PostgreSQL using Lambda and API Gateway. Songs and stats began moving away from legacy static or sheet-based workflows.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-B: Admin and Song Management</strong>
+      <p>
+        Expanded the admin environment so song records could load from RDS, be edited, saved, and managed with metadata fields.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-C: Ads Inventory</strong>
+      <p>
+        Added RDS-backed ad inventory with video URLs, click URLs, active status, frequency weight, and public ad loading.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-D: Ad Stats</strong>
+      <p>
+        Added ad views, clicks, skips, CTR, and skip-rate tracking. Improved skip countdown, Learn More click behavior, and ad resume handling.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-E: Ad Controller and Multi-Ad Breaks</strong>
+      <p>
+        Added admin-controlled ad delivery settings including master ads on/off, ads per break, target ad seconds, and ad break timing. Added count mode and seconds mode.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Phase III-F: Product Links and Persistent Likes</strong>
+      <p>
+        Fixed Edit Song product URL saving, added persistent likes to RDS, repaired deep-link likes, and made song-specific product links usable in the public player.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Production Promotion</strong>
+      <p>
+        Promoted tested dev work from <code>/radio/dev/</code> to <code>/radio/</code>, from <code>/radio-admin/dev/</code> to <code>/radio-admin/</code>, and from <code>/radio-admin/dev/ads/</code> to <code>/radio-admin/ads/</code>, with backups and rollback awareness.
+      </p>
+    </div>
+
+    <div class="timeline-item">
+      <strong>Future Phase: External Shopify Metadata</strong>
+      <p>
+        Planned expansion to fetch product image, title, price, and source metadata from outside Shopify stores when those stores allow metadata access.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Current Environment URLs</h2>
+  <div class="grid-2">
+    <div class="box">
+      <h3>Production</h3>
+      <ul>
+        <li><a href="https://stashbox.com/radio/">https://stashbox.com/radio/</a></li>
+        <li><a href="https://stashbox.com/radio-admin/">https://stashbox.com/radio-admin/</a></li>
+        <li><a href="https://stashbox.com/radio-admin/ads/">https://stashbox.com/radio-admin/ads/</a></li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Development</h3>
+      <ul>
+        <li><a href="https://stashbox.com/radio/dev/">https://stashbox.com/radio/dev/</a></li>
+        <li><a href="https://stashbox.com/radio-admin/dev/">https://stashbox.com/radio-admin/dev/</a></li>
+        <li><a href="https://stashbox.com/radio-admin/dev/ads/">https://stashbox.com/radio-admin/dev/ads/</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Future Roadmap</h2>
+  <div class="grid-2">
+    <div class="box">
+      <h3>External Product Metadata</h3>
+      <p>
+        Add metadata fetching for external Shopify and product URLs that allow data access. Cards should show image, title, price, and source when available, with a clean fallback when blocked.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Production API Separation</h3>
+      <p>
+        The current working API base may still include a dev name. A future cleanup can create separately named production Lambda/API resources once the system is fully stabilized.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Expanded Ad Targeting</h3>
+      <p>
+        Genre, mood, artist, and song targeting can become smarter so ads can match the listening context more precisely.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Intro and Outro System</h3>
+      <p>
+        Add randomized DJ-style voice intros and outros by global, artist, genre, or song-specific rules.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>Additional Analytics</h3>
+      <p>
+        Expand dashboards with completion curves, repeat listeners, product conversion paths, and ad break performance by setting.
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>CloudFront Media Optimization</h3>
+      <p>
+        Add or expand CDN delivery for audio, artwork, and ad media to improve speed and reduce direct S3 delivery dependency.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Conclusion</h2>
+  <p>
+    Stashbox Radio is now a custom digital music platform with a strong foundation: a public player, RDS-backed content, admin publishing tools, ad inventory, ad delivery controls, persistent likes, product links, and analytics. The system is built in a way that keeps the fan experience simple while giving the admin practical control over the catalog, ads, and engagement data.
+  </p>
+  <p>
+    The project demonstrates a useful model for independent music brands: own the platform, own the data, connect the music directly to merchandise, and create a custom ad system that can grow without depending entirely on third-party platforms.
+  </p>
+</section>
+
+<div class="footer">
+  Stashbox Radio Project Report · Generated for internal project documentation
+</div>
+```
+
+  </main>
+</body>
+</html>
