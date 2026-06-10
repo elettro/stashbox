@@ -921,31 +921,26 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   }
 
   if (statsResult.status === 'rejected') {
-    statsSummary = null;
     statsSummaryError = statsResult.reason.message;
     showMessage(`Could not load stats summary: ${statsSummaryError}`, 'error');
   }
 
   if (productStatsResult.status === 'rejected') {
-    productStats = null;
     productStatsError = productStatsResult.reason.message;
     showMessage(`Could not load product stats: ${productStatsError}`, 'error');
   }
 
   if (songStatsResult.status === 'rejected') {
-    songStats = null;
     songStatsError = songStatsResult.reason.message;
     showMessage(`Could not load song analytics: ${songStatsError}`, 'error');
   }
 
   if (referrerStatsResult.status === 'rejected') {
-    referrerStats = null;
     referrerStatsError = referrerStatsResult.reason.message;
     showMessage(`Could not load referrer stats: ${referrerStatsError}`, 'error');
   }
 
   if (deviceStatsResult.status === 'rejected') {
-    deviceStats = null;
     deviceStatsError = deviceStatsResult.reason.message;
     showMessage(`Could not load device stats: ${deviceStatsError}`, 'error');
   }
