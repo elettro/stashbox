@@ -1195,8 +1195,10 @@ async function updateSong(event) {
 async function trackSongEvent(client, event) {
   const body = parseBody(event);
   const eventType = String(body.event_type || body.eventType || '').trim();
-  const songKey = String(body.song_key || body.songKey || '').trim();
-  const songId = String(body.song_id || body.songId || body.id || '').trim();
+  const normalizedSongKey = String(body.song_key || body.songKey || body.track_key || '').trim();
+  const normalizedSongId = String(body.song_id || body.songId || body.id || '').trim();
+  const songKey = normalizedSongKey || null;
+  const songId = normalizedSongId || null;
   const songIdentity = songKey || songId;
 
   if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
@@ -1240,52 +1242,50 @@ async function trackSongEvent(client, event) {
 
   if (eventType === 'like') {
     console.log('[Stashbox Radio API Dev] like event received', {
-      song_key: songKey,
-      song_id: songId
+      songKey,
+      songId,
+      bodySongKey: body.song_key,
+      bodySongId: body.song_id,
+      event_type: body.event_type
     });
 
     await ensureSongsLikesColumn(client);
-    const songColumns = await getTableColumns('radio', 'songs');
-    const matchSongKey = songColumns.has('song_key') ? songKey || songIdentity : '';
-    const matchSongId = songColumns.has('id') ? songId || (!songKey ? songIdentity : '') : '';
-    const updatedAt = songColumns.has('updated_at') ? ', updated_at = now()' : '';
-    const likeUpdate = await client.query(
+    const result = await client.query(
       `UPDATE radio.songs
-       SET likes = COALESCE(likes, 0) + 1${updatedAt}
-       WHERE ($1::text <> '' AND song_key = $1)
-          OR ($2::text <> '' AND id::text = $2)
-       RETURNING id, song_key, likes`,
-      [matchSongKey, matchSongId]
+       SET likes = COALESCE(likes, 0) + 1,
+           updated_at = now()
+       WHERE song_key = $1
+          OR id::text = $2
+       RETURNING id, song_key, display_title, likes`,
+      [songKey, songId]
     );
 
-    if (!likeUpdate.rowCount) {
-      console.warn('[Stashbox Radio API Dev] like event did not match a song', {
-        song_key: songKey,
-        song_id: songId
+    console.log('[Stashbox Radio API Dev] like update result', {
+      rowCount: result.rowCount,
+      rows: result.rows
+    });
+
+    if (!result.rowCount) {
+      console.warn('[Stashbox Radio API Dev] like did not match song', {
+        songKey,
+        songId
       });
       return response(404, {
         success: false,
-        error: 'Like event did not match a song.',
-        event_type: eventType,
-        song_key: songKey || songIdentity,
-        song_id: songId || songIdentity
+        error: 'Like did not match a song',
+        song_key: songKey,
+        song_id: songId
       });
     }
 
-    const updatedSong = likeUpdate.rows[0];
-    console.log('[Stashbox Radio API Dev] like count updated', {
-      song_key: updatedSong.song_key || songKey,
-      song_id: String(updatedSong.id || songId || ''),
-      likes: updatedSong.likes
-    });
-
+    const updated = result.rows[0];
     return response(200, {
       success: true,
-      message: 'Song event recorded.',
-      event_type: eventType,
-      song_key: updatedSong.song_key || songKey || songIdentity,
-      song_id: String(updatedSong.id || songId || songIdentity),
-      likes: Number(updatedSong.likes || 0)
+      event_type: 'like',
+      id: updated.id,
+      song_key: updated.song_key,
+      display_title: updated.display_title,
+      likes: Number(updated.likes || 0)
     });
   }
 
