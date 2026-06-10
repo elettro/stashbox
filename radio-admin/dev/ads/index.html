@@ -216,60 +216,29 @@
 
     .master-toggle {
       display: inline-flex;
-      align-items: center;
-      gap: 0.75rem;
+      gap: 0.25rem;
+      flex-wrap: wrap;
       margin-top: 0.75rem;
-      border: 1px solid rgba(69, 196, 111, 0.65);
+      border: 1px solid var(--border);
       border-radius: 999px;
-      background: rgba(69, 196, 111, 0.16);
-      color: #f6fff8;
-      cursor: pointer;
-      font-weight: 900;
-      min-height: 3rem;
-      min-width: 11.5rem;
-      padding: 0.35rem 1rem 0.35rem 0.35rem;
-      transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.25rem;
     }
 
-    .master-toggle:hover { transform: translateY(-1px); }
-
-    .master-toggle:focus-visible {
-      outline: 3px solid rgba(244, 211, 94, 0.72);
-      outline-offset: 3px;
+    .ad-toggle-button {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      min-width: 5rem;
     }
 
-    .master-toggle-track {
-      align-items: center;
-      background: #45c46f;
-      border-radius: 999px;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
-      display: inline-flex;
-      height: 2.25rem;
-      padding: 0.2rem;
-      width: 4.25rem;
-      transition: background 160ms ease;
+    .ad-toggle-button.is-active {
+      border-color: #f4d35e;
+      background: #f4d35e;
+      color: #08140d;
+      font-weight: 800;
+      box-shadow: 0 0 0 2px rgba(244, 211, 94, 0.18);
     }
-
-    .master-toggle-knob {
-      background: #f8fff9;
-      border-radius: 50%;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-      height: 1.85rem;
-      transform: translateX(2rem);
-      transition: transform 160ms ease;
-      width: 1.85rem;
-    }
-
-    .master-toggle-label { letter-spacing: 0.02em; }
-
-    .master-toggle.is-off {
-      border-color: rgba(255, 118, 118, 0.72);
-      background: rgba(255, 118, 118, 0.16);
-      color: #ffecec;
-    }
-
-    .master-toggle.is-off .master-toggle-track { background: #d94343; }
-    .master-toggle.is-off .master-toggle-knob { transform: translateX(0); }
 
 
     .controller-grid {
@@ -453,10 +422,10 @@
       <div class="controller-grid">
         <div>
           <span class="controller-label">Master Ads</span>
-          <button id="masterToggleButton" class="master-toggle" type="button" role="switch" aria-checked="true">
-            <span class="master-toggle-track" aria-hidden="true"><span class="master-toggle-knob"></span></span>
-            <span id="masterToggleLabel" class="master-toggle-label">Ads ON</span>
-          </button>
+          <div class="switch-group" role="group" aria-label="Master Ads">
+            <button id="masterOnButton" class="button-ghost switch-button ad-toggle-button" type="button" aria-pressed="true">On</button>
+            <button id="masterOffButton" class="button-ghost switch-button ad-toggle-button" type="button" aria-pressed="false">Off</button>
+          </div>
         </div>
         <label>Ad Break Method
           <select id="breakMethod">
@@ -788,7 +757,8 @@
     }
 
     function bindEvents() {
-      els.masterToggleButton.addEventListener('click', () => setMasterAds(!state.settings.ads_enabled));
+      els.masterOffButton.addEventListener('click', () => setMasterAds(false));
+      els.masterOnButton.addEventListener('click', () => setMasterAds(true));
       els.breakMethod.addEventListener('change', () => {
         state.settings.break_method = els.breakMethod.value === 'seconds' ? 'seconds' : 'count';
         renderSettings();
@@ -1027,10 +997,10 @@
     function renderSettings() {
       state.settings = normalizeSettings(state.settings);
       const adsEnabled = state.settings.ads_enabled === true;
-      els.masterToggleButton.classList.toggle('is-off', !adsEnabled);
-      els.masterToggleButton.setAttribute('aria-checked', String(adsEnabled));
-      els.masterToggleButton.setAttribute('aria-label', `Master Ads ${adsEnabled ? 'ON' : 'OFF'}`);
-      els.masterToggleLabel.textContent = adsEnabled ? 'Ads ON' : 'Ads OFF';
+      els.masterOnButton.classList.toggle('is-active', adsEnabled);
+      els.masterOffButton.classList.toggle('is-active', !adsEnabled);
+      els.masterOnButton.setAttribute('aria-pressed', String(adsEnabled));
+      els.masterOffButton.setAttribute('aria-pressed', String(!adsEnabled));
       els.breakMethod.value = state.settings.break_method;
       els.adsPerBreak.value = String(state.settings.ads_per_break);
       els.targetAdSeconds.value = String(state.settings.target_ad_seconds);
