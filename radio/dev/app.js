@@ -833,6 +833,7 @@ function formatShareCount(count) { const value = Math.max(0, Number(count) || 0)
 function formatPlayerPlayCount(count) { const value = Math.max(0, Number(count) || 0); return `${value} ${value === 1 ? 'Play' : 'Plays'}`; }
 function formatPlayerShareText(count) { const value = Math.max(0, Number(count) || 0); return value ? `Share ${value}` : 'Share'; }
 function formatTime(seconds) { const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0; const minutes = Math.floor(safe / 60); const secs = Math.floor(safe % 60).toString().padStart(2, '0'); return `${minutes}:${secs}`; }
+function formatAdTime(seconds) { const value = Number(seconds); const safe = Number.isFinite(value) ? Math.max(0, value) : 0; const minutes = Math.floor(safe / 60); const secs = Math.floor(safe % 60).toString().padStart(2, '0'); return `${minutes}:${secs}`; }
 function formatTrackCount(trackCount, isLoading) { if (isLoading) return 'LOADING TRACKS'; return `${trackCount} ${trackCount === 1 ? 'TRACK' : 'TRACKS'}`; }
 function filterLabel(value) { return value === 'ALL' ? 'All' : value; }
 function albumMatches(trackAlbum, selectedAlbum) { if (selectedAlbum === DEFAULT_FILTER) return true; const a = clean(trackAlbum).toLowerCase(); const b = clean(selectedAlbum).toLowerCase(); return a === b || a.includes(b); }
@@ -2113,6 +2114,8 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   const [skipCountdown, setSkipCountdown] = useState(skipAfter);
   const [started, setStarted] = useState(false);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
+  const [adCurrentTime, setAdCurrentTime] = useState(0);
+  const [adDuration, setAdDuration] = useState(0);
   const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
   const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
 
@@ -2122,6 +2125,8 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
     setSkipCountdown(skipAfter);
     setStarted(false);
     setNeedsManualPlay(false);
+    setAdCurrentTime(0);
+    setAdDuration(0);
     if (initialCanSkip) return undefined;
 
     let remainingSeconds = skipAfter;
@@ -2193,6 +2198,22 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   };
 
   const skipAdLabel = canSkip ? 'Skip Ad' : `Skip in ${formatSkipCountdown(skipCountdown)}`;
+  const adProgress = Number.isFinite(adDuration) && adDuration > 0 ? Math.min(100, Math.max(0, (adCurrentTime / adDuration) * 100)) : 0;
+
+  const updateAdDuration = media => {
+    const nextDuration = Number.isFinite(media?.duration) ? Math.max(0, media.duration) : 0;
+    setAdDuration(nextDuration);
+  };
+
+  const updateAdTime = event => {
+    const media = event?.currentTarget;
+    setAdCurrentTime(Number.isFinite(media?.currentTime) ? Math.max(0, media.currentTime) : 0);
+    updateAdDuration(media);
+  };
+
+  const updateAdMetadata = event => {
+    updateAdDuration(event?.currentTarget);
+  };
 
   const startAd = () => {
     if (!isAudio) console.log('Ad video playing');
@@ -2229,6 +2250,9 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
             preload: 'auto',
             autoPlay: true,
             onPlay: startAd,
+            onLoadedMetadata: updateAdMetadata,
+            onDurationChange: updateAdMetadata,
+            onTimeUpdate: updateAdTime,
             onEnded: completeAd,
             onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Audio ad failed to load or play.')
           })
@@ -2242,6 +2266,9 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
           playsInline: true,
           autoPlay: true,
           onPlay: startAd,
+          onLoadedMetadata: updateAdMetadata,
+          onDurationChange: updateAdMetadata,
+          onTimeUpdate: updateAdTime,
           onEnded: () => { console.log('Ad video ended'); completeAd(); },
           onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
         })
@@ -2258,6 +2285,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
             ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note' }, ad.description || ad.internal_description) : null
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
+            h('span', { className: 'ad-time-display', 'aria-live': 'polite' }, `${formatAdTime(adCurrentTime)} / ${formatAdTime(adDuration)}`),
             (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill', onClick: clickCta }, ad.cta_label) : null,
             h('button', {
               type: 'button',
@@ -2269,6 +2297,9 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
               },
               disabled: !canSkip
             }, skipAdLabel)
+          ),
+          h('div', { className: 'ad-progress', role: 'progressbar', 'aria-label': 'Ad progress', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(adProgress) },
+            h('div', { className: 'ad-progress-fill', style: { width: `${adProgress}%` } })
           )
         )
       )
