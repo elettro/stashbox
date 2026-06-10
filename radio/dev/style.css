@@ -1015,20 +1015,37 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
 .ad-player .player-title-row {
   width: 100%;
-  justify-content: space-between;
+  justify-content: center;
+  text-align: center;
 }
 
 .ad-player .ad-label-pill {
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
 .ad-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   justify-self: stretch;
-  gap: 0.6rem;
+  width: 100%;
+}
+
+.ad-controls-center-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 auto;
+}
+
+.ad-time-display,
+.ad-break-indicator,
+.ad-badge,
+.ad-cta-button,
+.ad-skip-button {
+  flex: 0 0 auto;
 }
 
 .ad-time-display {
@@ -1047,7 +1064,6 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   letter-spacing: 0.01em;
   opacity: 0.92;
   white-space: nowrap;
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1120,9 +1136,13 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
     font-size: 0.8rem;
   }
 
-  .ad-break-indicator {
-    margin-left: 0;
+  .ad-controls-center-group {
+    gap: 10px;
+    justify-content: center;
     width: 100%;
+  }
+
+  .ad-break-indicator {
     justify-content: center;
     text-align: center;
     font-size: 0.8rem;
@@ -1134,8 +1154,6 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
   .player-controls-actions.ad-actions {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
     overflow: visible;
   }
 

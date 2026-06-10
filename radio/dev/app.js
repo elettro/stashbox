@@ -2694,25 +2694,27 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onComp
         h('div', { className: 'player-controls-layout' },
           h('div', { className: 'player-info' },
             h('div', { className: 'player-title-row' },
-              h('h2', null, ad.title || ad.internal_title || 'Stashbox Radio Ad'),
-              h('span', { className: 'player-stat-pill ad-label-pill' }, 'Ad')
+              h('h2', null, ad.title || ad.internal_title || 'Stashbox Radio Ad')
             ),
             ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note' }, ad.description || ad.internal_description) : null
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
-            h('span', { className: 'ad-time-display', 'aria-live': 'polite' }, `${formatAdTime(adCurrentTime)} / ${formatAdTime(adDuration)}`),
-            adBreakIndicatorText ? h('span', { className: `ad-break-indicator ad-break-indicator--${breakMethod}`, 'aria-live': 'polite' }, adBreakIndicatorText) : null,
-            (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill', onClick: clickCta }, ad.cta_label) : null,
-            h('button', {
-              type: 'button',
-              className: 'player-pill skip-ad-pill',
-              onClick: event => {
-                event.preventDefault();
-                event.stopPropagation();
-                skipAd();
-              },
-              disabled: !canSkip
-            }, skipAdLabel)
+            h('div', { className: 'ad-controls-center-group' },
+              h('span', { className: 'ad-time-display', 'aria-live': 'polite' }, `${formatAdTime(adCurrentTime)} / ${formatAdTime(adDuration)}`),
+              (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill ad-cta-button', onClick: clickCta }, ad.cta_label) : null,
+              h('button', {
+                type: 'button',
+                className: 'player-pill skip-ad-pill ad-skip-button',
+                onClick: event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  skipAd();
+                },
+                disabled: !canSkip
+              }, skipAdLabel),
+              adBreakIndicatorText ? h('span', { className: `ad-break-indicator ad-break-indicator--${breakMethod}`, 'aria-live': 'polite' }, adBreakIndicatorText) : null,
+              h('span', { className: 'player-stat-pill ad-label-pill ad-badge' }, 'Ad')
+            )
           ),
           h('div', { className: 'ad-progress', role: 'progressbar', 'aria-label': 'Ad progress', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(adProgress) },
             h('div', { className: 'ad-progress-fill', style: { width: `${adProgress}%` } })
