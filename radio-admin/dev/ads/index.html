@@ -460,7 +460,7 @@
         </label>
       </div>
       <div class="form-actions controller-actions">
-        <button id="saveSettingsButton" class="button" type="button">Save Settings</button>
+        <button id="saveSettingsButton" class="button" type="button" data-action="save-ad-settings">Save Settings</button>
         <span id="settingsStatus" class="helper">Settings load from dev RDS.</span>
       </div>
     </section>
@@ -681,8 +681,8 @@
     const els = {
       message: document.getElementById('message'),
       tokenStatus: document.getElementById('tokenStatus'),
-      masterToggleButton: document.getElementById('masterToggleButton'),
-      masterToggleLabel: document.getElementById('masterToggleLabel'),
+      masterOnButton: document.getElementById('masterOnButton'),
+      masterOffButton: document.getElementById('masterOffButton'),
       breakMethod: document.getElementById('breakMethod'),
       adsPerBreak: document.getElementById('adsPerBreak'),
       adsPerBreakWrap: document.getElementById('adsPerBreakWrap'),
@@ -759,11 +759,17 @@
     function bindEvents() {
       els.masterOffButton.addEventListener('click', () => setMasterAds(false));
       els.masterOnButton.addEventListener('click', () => setMasterAds(true));
-      els.breakMethod.addEventListener('change', () => {
-        state.settings.break_method = els.breakMethod.value === 'seconds' ? 'seconds' : 'count';
-        renderSettings();
+      document.addEventListener('click', (event) => {
+        const action = event.target?.closest('[data-action]')?.dataset?.action;
+        if (action === 'save-ad-settings') {
+          event.preventDefault();
+          saveSettings();
+        }
       });
-      els.saveSettingsButton.addEventListener('click', saveSettings);
+      els.breakMethod.addEventListener('change', updateSettingsFromControls);
+      els.adsPerBreak.addEventListener('change', updateSettingsFromControls);
+      els.targetAdSeconds.addEventListener('change', updateSettingsFromControls);
+      els.breakInterval.addEventListener('change', updateSettingsFromControls);
       els.addNewButton.addEventListener('click', () => openForm());
       els.adForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -880,6 +886,7 @@
 
     function setMasterAds(enabled) {
       state.settings.ads_enabled = Boolean(enabled);
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
       renderSettings();
     }
 
@@ -893,19 +900,42 @@
       });
     }
 
-    async function saveSettings() {
+    function updateSettingsFromControls() {
       state.settings = collectSettings();
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
       renderSettings();
+    }
+
+    async function saveSettings() {
+      console.log('[Stashbox Radio Admin Dev] Save Settings clicked');
+      state.settings = collectSettings();
+      const payload = {
+        ads_enabled: Boolean(state.settings.ads_enabled),
+        break_method: state.settings.break_method,
+        ads_per_break: Number(state.settings.ads_per_break),
+        target_ad_seconds: Number(state.settings.target_ad_seconds),
+        break_interval: Number(state.settings.break_interval)
+      };
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload));
+      renderSettings();
       setBusy(els.saveSettingsButton, true);
       els.settingsStatus.textContent = 'Saving ad settings...';
+      console.log('[Stashbox Radio Admin Dev] saving ad settings', payload);
       try {
-        const data = await adminFetch(AD_SETTINGS_API_URL, {
+        const { response, body } = await adminRequest(AD_SETTINGS_API_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(state.settings)
+          body: JSON.stringify(payload)
         });
-        state.settings = normalizeSettings(data?.settings || state.settings);
+        console.log('[Stashbox Radio Admin Dev] ad settings save response', {
+          status: response.status,
+          ok: response.ok,
+          body
+        });
+        if (!response.ok) {
+          throw new Error(getApiErrorMessage(body, response));
+        }
+        state.settings = normalizeSettings(body?.settings || payload);
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
         renderSettings();
         els.settingsStatus.textContent = 'Ad settings saved';
@@ -1522,7 +1552,7 @@
       return '';
     }
 
-    async function adminFetch(url, options = {}) {
+    async function adminRequest(url, options = {}) {
       const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
       if (!token) throw new Error('Enter and save an admin token first.');
       const response = await fetch(url, {
@@ -1530,15 +1560,24 @@
         headers: { 'x-admin-token': token, ...(options.headers || {}) }
       });
       const text = await response.text();
-      let data = null;
+      let body = null;
       if (text) {
-        try { data = JSON.parse(text); } catch { data = text; }
+        try { body = JSON.parse(text); } catch { body = text; }
       }
+      return { response, body };
+    }
+
+    async function adminFetch(url, options = {}) {
+      const { response, body } = await adminRequest(url, options);
       if (!response.ok) {
-        const apiMessage = typeof data === 'string' ? data : (data?.error || data?.message || data?.body || response.statusText);
-        throw new Error(apiMessage || `API request failed with status ${response.status}.`);
+        throw new Error(getApiErrorMessage(body, response));
       }
-      return data;
+      return body;
+    }
+
+    function getApiErrorMessage(body, response) {
+      const apiMessage = typeof body === 'string' ? body : (body?.error || body?.message || body?.body || response.statusText);
+      return apiMessage || `API request failed with status ${response.status}.`;
     }
 
     function normalizePresignResponse(data) {
