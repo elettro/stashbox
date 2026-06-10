@@ -7,7 +7,7 @@ const UPLOAD_PRESIGN_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazona
 const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/referrers?limit=50';
 const DEVICE_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/devices?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
-const RADIO_BASE_URL = 'https://stashbox.com/radio/';
+const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = 'dashboard';
 const DEFAULT_LANGUAGES = ['English'];
 const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';
@@ -312,7 +312,6 @@ let songStatsSortDirection = 'desc';
 const productMetadataCache = new Map();
 let selectedSong = null;
 let selectedSongKey = '';
-let selectedSongId = '';
 let messageTimer = null;
 let activeTab = DEFAULT_TAB;
 let editorMode = 'edit';
@@ -482,7 +481,6 @@ function clearToken() {
   songsByKey = {};
   filteredSongs = [];
   selectedSong = null;
-  selectedSongId = '';
   selectedSongKey = '';
   events = [];
   statsSummary = null;
@@ -921,26 +919,31 @@ async function loadDashboardData({ silent = false, preserveSelection = Boolean(s
   }
 
   if (statsResult.status === 'rejected') {
+    statsSummary = null;
     statsSummaryError = statsResult.reason.message;
     showMessage(`Could not load stats summary: ${statsSummaryError}`, 'error');
   }
 
   if (productStatsResult.status === 'rejected') {
+    productStats = null;
     productStatsError = productStatsResult.reason.message;
     showMessage(`Could not load product stats: ${productStatsError}`, 'error');
   }
 
   if (songStatsResult.status === 'rejected') {
+    songStats = null;
     songStatsError = songStatsResult.reason.message;
     showMessage(`Could not load song analytics: ${songStatsError}`, 'error');
   }
 
   if (referrerStatsResult.status === 'rejected') {
+    referrerStats = null;
     referrerStatsError = referrerStatsResult.reason.message;
     showMessage(`Could not load referrer stats: ${referrerStatsError}`, 'error');
   }
 
   if (deviceStatsResult.status === 'rejected') {
+    deviceStats = null;
     deviceStatsError = deviceStatsResult.reason.message;
     showMessage(`Could not load device stats: ${deviceStatsError}`, 'error');
   }
@@ -1123,11 +1126,10 @@ async function loadSongs({ silent = false, preserveSelection = Boolean(selectedS
 }
 
 function preserveSelectedSong(songKey) {
-  const refreshedSong = findSongForEdit({ id: selectedSongId, songKey, slug: selectedSong?.slug });
+  const refreshedSong = songs.find((song) => getSongKey(song) === songKey);
 
   if (!refreshedSong) {
     selectedSong = null;
-    selectedSongId = '';
     selectedSongKey = '';
     clearEditor();
     return;
@@ -2070,7 +2072,7 @@ function renderSongAnalyticsTable() {
     row.appendChild(makeTextCell(formatRatePercent(song.share_rate)));
     row.appendChild(makeTextCell(formatRatePercent(song.product_click_rate)));
     row.appendChild(makeTextCell(formatDateTime(song.last_event_at), 'event-time'));
-    row.appendChild(buildQuickLinksCell(song, songKey));
+    row.appendChild(buildQuickLinksCell(songKey));
     els.songAnalyticsTableBody.appendChild(row);
   });
 }
@@ -2301,7 +2303,7 @@ function renderTopSongsTable(songList) {
     row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'video_clicks'))));
     row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'product_clicks'))));
     row.appendChild(makeTextCell(formatNumber(getMetricValue(song, 'skip_count'))));
-    row.appendChild(buildQuickLinksCell(song, songKey));
+    row.appendChild(buildQuickLinksCell(songKey));
     els.topSongsTableBody.appendChild(row);
   });
 }
@@ -2343,7 +2345,7 @@ function renderRankList(container, songList, metricLabel, valueGetter = null, fo
     item.querySelector('.rank-value').textContent = `${formatter(value)} ${metricLabel}`;
 
     const editButton = item.querySelector('button');
-    editButton.addEventListener('click', () => selectSongForEdit(song, { openEditor: true }));
+    editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
 
     const radioLink = item.querySelector('a');
     radioLink.href = getRadioSongUrl(songKey);
@@ -2521,7 +2523,7 @@ function makeTextCell(text, className = '') {
   return cell;
 }
 
-function buildQuickLinksCell(song, songKey) {
+function buildQuickLinksCell(songKey) {
   const cell = document.createElement('td');
   cell.className = 'quick-links-cell';
   const actions = document.createElement('div');
@@ -2531,7 +2533,7 @@ function buildQuickLinksCell(song, songKey) {
   editButton.className = 'song-action-button';
   editButton.type = 'button';
   editButton.textContent = 'Edit';
-  editButton.addEventListener('click', () => selectSongForEdit(song, { openEditor: true }));
+  editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
 
   const radioLink = document.createElement('a');
   radioLink.className = 'song-action-button song-action-link';
@@ -2571,7 +2573,7 @@ function renderSongList() {
         return;
       }
 
-      selectSongForEdit(song, { openEditor: true });
+      loadSongDetails(songKey, { openEditor: true });
     });
     row.addEventListener('keydown', (event) => {
       if (isCardActionEvent(event)) {
@@ -2580,7 +2582,7 @@ function renderSongList() {
 
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        selectSongForEdit(song, { openEditor: true });
+        loadSongDetails(songKey, { openEditor: true });
       }
     });
 
@@ -2621,7 +2623,7 @@ function buildSongCell(song, songKey) {
   const editButton = cell.querySelector('.song-action-button[type="button"]');
   editButton.addEventListener('click', (event) => {
     event.stopPropagation();
-    selectSongForEdit(song, { openEditor: true });
+    loadSongDetails(songKey, { openEditor: true });
   });
 
   const radioLink = cell.querySelector('.song-action-link');
@@ -2737,7 +2739,7 @@ function buildArchiveActionsCell(song, songKey) {
   editButton.className = 'song-action-button';
   editButton.type = 'button';
   editButton.textContent = 'Edit';
-  editButton.addEventListener('click', () => selectSongForEdit(song, { openEditor: true }));
+  editButton.addEventListener('click', () => loadSongDetails(songKey, { openEditor: true }));
 
   const restoreButton = document.createElement('button');
   restoreButton.className = 'song-action-button song-action-restore';
@@ -2751,165 +2753,34 @@ function buildArchiveActionsCell(song, songKey) {
 }
 
 
-function selectSongForEdit(song, { openEditor = true } = {}) {
-  console.log("[Stashbox Radio Admin] edit song selected", {
-    id: song?.id,
-    song_key: song?.song_key,
-    display_title: song?.display_title,
-    song_name: song?.song_name
-  });
-
-  loadSongDetails({
-    id: song?.id,
-    song_key: song?.song_key || getSongKey(song),
-    slug: song?.slug
-  }, { openEditor, candidateSong: song });
-}
-
-async function loadSongDetails(identifier, { openEditor = false, candidateSong = null } = {}) {
-  const request = normalizeSongDetailsRequest(identifier, candidateSong);
-
-  if (!request.id && !request.songKey && !request.slug) {
-    showMessage('Selected song is missing an id or song_key.', 'error');
+async function loadSongDetails(songKey, { openEditor = false } = {}) {
+  if (!songKey) {
+    showMessage('Selected song is missing a song_key.', 'error');
     return;
   }
 
-  selectedSongId = request.id;
-  selectedSongKey = request.songKey;
+  selectedSongKey = songKey;
   renderSongList();
 
   if (openEditor) {
     setActiveTab('edit');
   }
 
-  const localSong = findSongForEdit(request) || candidateSong;
-  let populatedFromLocal = false;
-
-  if (localSong) {
-    populateEditor(localSong);
-    populatedFromLocal = true;
-  } else {
-    showEditorLoadingState(request);
-  }
-
   setEditorLoading(true);
 
   try {
-    const data = await adminFetch(buildSongDetailsUrl(request));
-    const fetchedSong = normalizeSongResponse(data, request);
-
-    if (fetchedSong && Object.keys(fetchedSong).length) {
-      populateEditor({ ...(localSong || {}), ...fetchedSong });
-      return;
-    }
-
-    if (!populatedFromLocal) {
-      handleSongDetailsNotFound(request);
-    }
+    const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(songKey)}`);
+    selectedSong = normalizeSongResponse(data);
+    selectedSongKey = getSongKey(selectedSong) || songKey;
+    populateEditor(selectedSong);
   } catch (error) {
-    if (!populatedFromLocal) {
-      handleSongDetailsNotFound(request);
-    }
-
     showMessage(error.message, 'error');
   } finally {
     setEditorLoading(false);
   }
 }
 
-function normalizeSongDetailsRequest(identifier, candidateSong = null) {
-  if (typeof identifier === 'object' && identifier !== null) {
-    return {
-      id: stringifyIdentifier(identifier.id ?? identifier.song_id ?? identifier.songId ?? candidateSong?.id),
-      songKey: stringifyIdentifier(identifier.song_key ?? identifier.songKey ?? candidateSong?.song_key ?? getSongKey(candidateSong)),
-      slug: stringifyIdentifier(identifier.slug ?? candidateSong?.slug)
-    };
-  }
-
-  const value = stringifyIdentifier(identifier);
-  const candidateKey = stringifyIdentifier(candidateSong?.song_key ?? getSongKey(candidateSong));
-  const candidateId = stringifyIdentifier(candidateSong?.id);
-  const candidateSlug = stringifyIdentifier(candidateSong?.slug);
-
-  return {
-    id: candidateId,
-    songKey: candidateKey || value,
-    slug: candidateSlug
-  };
-}
-
-function stringifyIdentifier(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
-
-function buildSongDetailsUrl({ id, songKey, slug }) {
-  if (songKey) {
-    return `${API_BASE_URL}/${encodeURIComponent(songKey)}`;
-  }
-
-  const query = new URLSearchParams();
-
-  if (id) {
-    query.set('id', id);
-  } else if (slug) {
-    query.set('slug', slug);
-  }
-
-  return query.toString() ? `${API_BASE_URL}?${query.toString()}` : API_BASE_URL;
-}
-
-function findSongForEdit({ id, songKey, slug }) {
-  if (id) {
-    const byId = songs.find((song) => stringifyIdentifier(song.id) === id);
-
-    if (byId) {
-      return byId;
-    }
-  }
-
-  if (songKey) {
-    const byKey = songs.find((song) => stringifyIdentifier(song.song_key ?? song.key) === songKey);
-
-    if (byKey) {
-      return byKey;
-    }
-  }
-
-  if (slug) {
-    return songs.find((song) => stringifyIdentifier(song.slug) === slug) || null;
-  }
-
-  return null;
-}
-
-function showEditorLoadingState(request) {
-  editorMode = 'edit';
-  els.editHeading.textContent = 'Loading song...';
-  els.selectedSongKey.textContent = request.songKey || request.id || request.slug || '';
-  els.emptyEditor.textContent = 'Loading song...';
-  els.emptyEditor.classList.remove('hidden');
-  els.editForm.classList.add('hidden');
-  els.dangerZone.classList.add('hidden');
-  els.selectedVisibility.classList.add('hidden');
-}
-
-function handleSongDetailsNotFound(request) {
-  console.warn("[Stashbox Radio Admin] edit song not found", {
-    requestedId: request.id,
-    requestedSongKey: request.songKey,
-    songsLoaded: songs.length
-  });
-
-  selectedSong = null;
-  els.editHeading.textContent = 'Could not load song';
-  els.selectedSongKey.textContent = request.songKey || request.id || request.slug || '';
-  els.emptyEditor.textContent = 'Could not load song details. Return to Songs and try again.';
-  els.emptyEditor.classList.remove('hidden');
-  els.editForm.classList.add('hidden');
-  els.dangerZone.classList.add('hidden');
-}
-
-function normalizeSongResponse(data, request = {}) {
+function normalizeSongResponse(data) {
   if (data?.song) {
     return data.song;
   }
@@ -2918,47 +2789,15 @@ function normalizeSongResponse(data, request = {}) {
     return data.item;
   }
 
-  if (Array.isArray(data?.songs)) {
-    return findSongInCollection(data.songs, request) || {};
-  }
-
   if (typeof data?.body === 'string') {
     try {
-      return normalizeSongResponse(JSON.parse(data.body), request);
+      return normalizeSongResponse(JSON.parse(data.body));
     } catch {
-      return {};
+      return data;
     }
   }
 
   return data || {};
-}
-
-function findSongInCollection(songList, request) {
-  if (!Array.isArray(songList)) {
-    return null;
-  }
-
-  if (request.id) {
-    const byId = songList.find((song) => stringifyIdentifier(song.id) === request.id);
-
-    if (byId) {
-      return byId;
-    }
-  }
-
-  if (request.songKey) {
-    const byKey = songList.find((song) => stringifyIdentifier(song.song_key ?? song.key) === request.songKey);
-
-    if (byKey) {
-      return byKey;
-    }
-  }
-
-  if (request.slug) {
-    return songList.find((song) => stringifyIdentifier(song.slug) === request.slug) || null;
-  }
-
-  return null;
 }
 
 function createFieldControl(field, fieldId) {
@@ -3200,7 +3039,6 @@ function createUploadControls(fieldName) {
 
 function startCreateSong() {
   selectedSong = null;
-  selectedSongId = '';
   selectedSongKey = '';
   renderSongList();
   populateEditor(getCreateSongDefaults(), { mode: 'create' });
@@ -3214,7 +3052,6 @@ function getCreateSongDefaults() {
 function populateEditor(song, { mode = 'edit' } = {}) {
   editorMode = mode;
   selectedSong = mode === 'create' ? null : song;
-  selectedSongId = mode === 'create' ? '' : stringifyIdentifier(song?.id) || selectedSongId;
   selectedSongKey = mode === 'create' ? '' : getSongKey(song) || selectedSongKey;
   els.editHeading.textContent = mode === 'create' ? 'Create New Song' : song.display_title || song.song_name || 'Untitled song';
   els.selectedSongKey.textContent = mode === 'create' ? 'new song' : selectedSongKey;
@@ -3228,7 +3065,7 @@ function populateEditor(song, { mode = 'edit' } = {}) {
 
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
-    const value = getSongFieldValue(song, field.name);
+    const value = song[field.name];
 
     if (field.type === 'select') {
       setSelectValue(input, field, field.name === 'public_visibility' ? normalizePublicVisibility(value) : value);
@@ -3253,38 +3090,8 @@ function populateEditor(song, { mode = 'edit' } = {}) {
       updateMediaPreview(field.name);
     }
   });
-
-  if (mode !== 'create') {
-    console.log("[Stashbox Radio Admin] edit song loaded", {
-      id: song.id,
-      song_key: song.song_key,
-      display_title: song.display_title || song.song_name
-    });
-  }
 }
 
-function getSongFieldValue(song, fieldName) {
-  if (!song) {
-    return undefined;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(song, fieldName)) {
-    return song[fieldName];
-  }
-
-  const aliases = {
-    song_artwork_url: ['resolved_artwork_url', 'artwork_url'],
-    video_link: ['video_url', 'youtube_url'],
-    public_track_note: ['public_note', 'description'],
-    shop_url: ['shopify_url', 'product_url'],
-    official_song_page_url: ['song_page_url', 'product_url'],
-    mood_tags: ['mood'],
-    public_visibility: ['visibility']
-  };
-
-  const alias = (aliases[fieldName] || []).find((name) => Object.prototype.hasOwnProperty.call(song, name));
-  return alias ? song[alias] : undefined;
-}
 
 function updateEditorVisibilityStatus(song, mode) {
   if (mode === 'create') {
@@ -3330,13 +3137,11 @@ function clearEditor() {
   els.selectedSongKey.textContent = '';
   els.saveChangesButton.textContent = 'Save Changes';
   els.cancelChangesButton.textContent = 'Cancel/Revert';
-  els.emptyEditor.textContent = 'Choose a song from the Songs tab or dashboard links to edit its admin fields.';
   els.emptyEditor.classList.remove('hidden');
   els.editForm.classList.add('hidden');
   els.dangerZone.classList.add('hidden');
   els.selectedVisibility.classList.add('hidden');
   selectedSong = null;
-  selectedSongId = '';
   selectedSongKey = '';
   applyEditorModeToFields('edit');
   editableFields.forEach((field) => {
@@ -3404,7 +3209,7 @@ async function saveSelectedSong(event) {
 
     console.log("Admin PUT response:", result);
 
-    const returnedSong = normalizeSongResponse(result, { id: selectedSongId, songKey: selectedSongKey });
+    const returnedSong = normalizeSongResponse(result);
     const updatedSong = returnedSong && Object.keys(returnedSong).length
       ? { ...selectedSong, ...returnedSong }
       : { ...selectedSong, ...payload };
@@ -3463,7 +3268,7 @@ async function archiveSelectedSong() {
 
   try {
     const result = await updateSongByKey(selectedSongKey, payload);
-    const returnedSong = normalizeSongResponse(result, { id: selectedSongId, songKey: selectedSongKey });
+    const returnedSong = normalizeSongResponse(result);
     const archivedSong = returnedSong && Object.keys(returnedSong).length
       ? { ...selectedSong, ...returnedSong, public_visibility: 'archived' }
       : { ...selectedSong, ...payload };
@@ -3501,7 +3306,7 @@ async function restoreArchivedSong(song, button) {
 
   try {
     const result = await updateSongByKey(songKey, { public_visibility: 'hidden' });
-    const returnedSong = normalizeSongResponse(result, { id: song.id, songKey });
+    const returnedSong = normalizeSongResponse(result);
     const restoredSong = returnedSong && Object.keys(returnedSong).length
       ? { ...song, ...returnedSong, public_visibility: 'hidden' }
       : { ...song, public_visibility: 'hidden' };
@@ -3561,7 +3366,7 @@ async function createSelectedSong() {
 
     console.log("Admin POST response:", result);
 
-    const returnedSong = normalizeSongResponse(result, { songKey: payload.song_key });
+    const returnedSong = normalizeSongResponse(result);
     const createdSong = returnedSong && Object.keys(returnedSong).length
       ? { ...payload, ...returnedSong }
       : payload;
@@ -4084,11 +3889,11 @@ function areFieldValuesEqual(nextValue, currentValue) {
 }
 
 function getSongKey(song) {
-  return song?.song_key || song?.key || '';
+  return song?.song_key || song?.id || song?.key || '';
 }
 
 function getRadioSongUrl(songKey) {
-  return `${RADIO_BASE_URL}?song=${encodeURIComponent(songKey)}`;
+  return `${RADIO_DEV_BASE_URL}?song=${encodeURIComponent(songKey)}`;
 }
 
 function formatSongTitle(song) {
@@ -4103,6 +3908,9 @@ function setEditorLoading(isLoading) {
   els.saveChangesButton.disabled = isLoading;
   els.cancelChangesButton.disabled = isLoading;
   els.deleteSongButton.disabled = isLoading;
+  if (isLoading) {
+    els.editHeading.textContent = 'Loading song…';
+  }
 }
 
 function showMessage(text, type = 'success') {

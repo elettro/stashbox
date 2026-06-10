@@ -1,0 +1,1787 @@
+import crypto from 'node:crypto';
+import pg from 'pg';
+
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
+});
+
+const JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,x-admin-token',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+};
+
+const DEFAULT_AD_SETTINGS = {
+  id: 'dev',
+  ads_enabled: true,
+  break_method: 'count',
+  ads_per_break: 1,
+  target_ad_seconds: 30,
+  break_interval: 1
+};
+
+const VALID_BREAK_METHODS = new Set(['count', 'seconds']);
+const VALID_ADS_PER_BREAK = new Set([1, 2, 3, 4, 5]);
+const VALID_TARGET_AD_SECONDS = new Set([15, 30, 45, 60, 90]);
+const VALID_BREAK_INTERVALS = new Set([1, 2, 3]);
+
+const EDITABLE_FIELDS = [
+  'internal_title',
+  'description',
+  'ad_type',
+  'video_url',
+  'click_url',
+  'ad_ratio_label',
+  'video_width',
+  'video_height',
+  'duration_seconds',
+  'frequency',
+  'skip_after_seconds',
+  'no_skipping',
+  'active',
+  'hidden',
+  'genre_targeting',
+  'mood_targeting',
+  'artist_targeting',
+  'song_targeting',
+  'start_date',
+  'end_date',
+  'notes'
+];
+
+const SUPPORTED_AD_EVENTS = new Set([
+  'ad_start',
+  'ad_click',
+  'ad_skip',
+  'ad_complete',
+  'ad_error'
+]);
+
+const SONG_EVENT_TYPES = new Set([
+  'play_start',
+  'play_full',
+  'play_partial',
+  'skip',
+  'like',
+  'share',
+  'share_link_visit',
+  'video_click',
+  'product_click'
+]);
+
+const SONG_EDITABLE_FIELDS = [
+  'song_key',
+  'song_name',
+  'display_title',
+  'artist',
+  'album_name',
+  'genre',
+  'internal_version_name',
+  'languages',
+  'secondary_genre',
+  'release_format',
+  'song_origin',
+  'audio_url',
+  'song_artwork_url',
+  'video_link',
+  'public_track_note',
+  'show_public_note',
+  'public_video_note',
+  'video_setlist',
+  'public_visibility',
+  'exclusive',
+  'explicit',
+  'live_recording',
+  'featured',
+  'specific_product_urls',
+  'spotify_url',
+  'apple_music_url',
+  'youtube_music_url',
+  'official_song_page_url',
+  'shop_url',
+  'mood_tags',
+  'internal_notes'
+];
+
+const BOOLEAN_SONG_FIELDS = new Set([
+  'show_public_note',
+  'exclusive',
+  'explicit',
+  'live_recording',
+  'featured'
+]);
+
+const DEFAULT_SONG_COLUMNS = `
+  song_key,
+  song_name,
+  display_title,
+  artist,
+  album_name,
+  genre,
+  internal_version_name,
+  languages,
+  secondary_genre,
+  release_format,
+  song_origin,
+  audio_url,
+  song_artwork_url,
+  video_link,
+  public_track_note,
+  show_public_note,
+  public_video_note,
+  video_setlist,
+  public_visibility,
+  exclusive,
+  explicit,
+  live_recording,
+  featured,
+  specific_product_urls,
+  spotify_url,
+  apple_music_url,
+  youtube_music_url,
+  official_song_page_url,
+  shop_url,
+  mood_tags,
+  internal_notes,
+  created_at,
+  updated_at
+`;
+
+function response(statusCode, body) {
+  return {
+    statusCode,
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body)
+  };
+}
+
+function parseBody(event) {
+  if (!event.body) return {};
+  const bodyText = event.isBase64Encoded
+    ? Buffer.from(event.body, 'base64').toString('utf8')
+    : event.body;
+  return JSON.parse(bodyText);
+}
+
+function getMethod(event) {
+  return event.requestContext?.http?.method || event.httpMethod || '';
+}
+
+function getPath(event) {
+  return event.rawPath || event.path || '';
+}
+
+function getPublicAdsRouteMatch(event) {
+  const path = getPath(event).split('?')[0].replace(/\/+$/, '');
+  const segments = path.split('/').filter(Boolean);
+  const radioAdsIndex = segments.findIndex((segment, index) => segment === 'radio' && segments[index + 1] === 'ads');
+  const adsIndex = radioAdsIndex >= 0
+    ? radioAdsIndex + 1
+    : segments.findIndex((segment, index) => segment === 'ads' && segments[index - 1] !== 'admin');
+
+  if (adsIndex < 0) return { adId: '', isEventRoute: false };
+
+  const routeTail = segments.slice(adsIndex + 1);
+  const isEventRoute = routeTail.length === 2 && routeTail[1] === 'events';
+  const isListRoute = routeTail.length === 0;
+  const isAdRoute = routeTail.length === 1 || isEventRoute;
+
+  if (!isListRoute && !isAdRoute) return { adId: '', isEventRoute: false };
+
+  return {
+    adId: routeTail[0] || '',
+    isEventRoute
+  };
+}
+
+function getAdId(event) {
+  return event.pathParameters?.ad_id ||
+    event.pathParameters?.adId ||
+    getPublicAdsRouteMatch(event).adId ||
+    getPath(event).match(/\/(?:admin|radio)\/ads\/([^/?#]+)/)?.[1] ||
+    '';
+}
+
+function normalizePayload(input, { partial = false } = {}) {
+  const payload = {};
+
+  EDITABLE_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(input, field)) {
+      payload[field] = input[field];
+    }
+  });
+
+  if (!partial) {
+    payload.ad_type = payload.ad_type || 'Stashbox Radio Branding';
+    payload.frequency = payload.frequency || 'Medium';
+    payload.skip_after_seconds = payload.skip_after_seconds ?? 5;
+    payload.no_skipping = Boolean(payload.no_skipping);
+    payload.active = payload.active ?? true;
+    payload.hidden = payload.hidden ?? false;
+    payload.start_date = payload.start_date || new Date().toISOString().slice(0, 10);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'hidden')) {
+    payload.hidden = Boolean(payload.hidden);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'active')) {
+    payload.active = Boolean(payload.active);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'duration_seconds')) {
+    const duration = Number(payload.duration_seconds);
+    payload.duration_seconds = Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : null;
+  }
+
+  if (payload.hidden) {
+    payload.active = false;
+  }
+
+  return payload;
+}
+
+function validatePayload(payload, { partial = false } = {}) {
+  if (!partial || Object.prototype.hasOwnProperty.call(payload, 'internal_title')) {
+    if (!String(payload.internal_title || '').trim()) return 'internal_title is required.';
+  }
+
+  if (!partial || Object.prototype.hasOwnProperty.call(payload, 'video_url')) {
+    if (!String(payload.video_url || '').trim()) return 'video_url is required.';
+  }
+
+  if (!partial || Object.prototype.hasOwnProperty.call(payload, 'ad_type')) {
+    if (!String(payload.ad_type || '').trim()) return 'ad_type is required.';
+  }
+
+  if (payload.active && payload.hidden) return 'active and hidden cannot both be true.';
+  return '';
+}
+
+
+function normalizeInteger(value, fallback, allowedValues) {
+  const number = Number(value);
+  const integer = Number.isFinite(number) ? Math.floor(number) : fallback;
+  return allowedValues.has(integer) ? integer : fallback;
+}
+
+function normalizeAdSettings(input = {}) {
+  const defaults = DEFAULT_AD_SETTINGS;
+  const breakMethod = VALID_BREAK_METHODS.has(String(input.break_method || '').trim())
+    ? String(input.break_method).trim()
+    : defaults.break_method;
+
+  return {
+    id: 'dev',
+    ads_enabled: Object.prototype.hasOwnProperty.call(input, 'ads_enabled') ? Boolean(input.ads_enabled) : defaults.ads_enabled,
+    break_method: breakMethod,
+    ads_per_break: normalizeInteger(input.ads_per_break, defaults.ads_per_break, VALID_ADS_PER_BREAK),
+    target_ad_seconds: normalizeInteger(input.target_ad_seconds, defaults.target_ad_seconds, VALID_TARGET_AD_SECONDS),
+    break_interval: normalizeInteger(input.break_interval, defaults.break_interval, VALID_BREAK_INTERVALS)
+  };
+}
+
+function publicAdSettings(settings) {
+  return {
+    ads_enabled: Boolean(settings.ads_enabled),
+    break_method: settings.break_method,
+    ads_per_break: settings.ads_per_break,
+    target_ad_seconds: settings.target_ad_seconds,
+    break_interval: settings.break_interval
+  };
+}
+
+async function ensureAdSettingsTable() {
+  await pool.query(`
+    CREATE SCHEMA IF NOT EXISTS radio;
+    CREATE TABLE IF NOT EXISTS radio.ad_settings (
+      id text PRIMARY KEY DEFAULT 'dev',
+      ads_enabled boolean DEFAULT true,
+      break_method text DEFAULT 'count',
+      ads_per_break integer DEFAULT 1,
+      target_ad_seconds integer DEFAULT 30,
+      break_interval integer DEFAULT 1,
+      updated_at timestamp DEFAULT now()
+    )
+  `);
+}
+
+async function ensureAdsDurationColumn() {
+  try {
+    await pool.query('ALTER TABLE radio.ads ADD COLUMN IF NOT EXISTS duration_seconds integer');
+  } catch (error) {
+    console.warn('Could not ensure radio.ads.duration_seconds. Continuing safely.', error.message || error);
+  }
+}
+
+async function ensureSongsLikesColumn(client = pool) {
+  try {
+    await client.query(`
+      ALTER TABLE radio.songs
+      ADD COLUMN IF NOT EXISTS likes integer DEFAULT 0
+    `);
+    await client.query(`
+      UPDATE radio.songs
+      SET likes = 0
+      WHERE likes IS NULL
+    `);
+  } catch (error) {
+    console.warn('Could not ensure radio.songs.likes. Continuing safely.', error.message || error);
+  }
+}
+
+async function adsDurationColumnSelect() {
+  try {
+    const result = await pool.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'radio' AND table_name = 'ads' AND column_name = 'duration_seconds'
+       LIMIT 1`
+    );
+    return result.rowCount ? 'duration_seconds,' : 'NULL::integer AS duration_seconds,';
+  } catch (error) {
+    console.warn('Could not inspect radio.ads.duration_seconds. Returning NULL duration.', error.message || error);
+    return 'NULL::integer AS duration_seconds,';
+  }
+}
+
+async function ensureAdStorage() {
+  await ensureAdSettingsTable();
+  await ensureAdsDurationColumn();
+  await ensureSongsLikesColumn();
+}
+
+async function getAdSettings({ publicOnly = false } = {}) {
+  try {
+    await ensureAdSettingsTable();
+    const result = await pool.query(`
+      INSERT INTO radio.ad_settings (
+        id,
+        ads_enabled,
+        break_method,
+        ads_per_break,
+        target_ad_seconds,
+        break_interval,
+        updated_at
+      )
+      VALUES ('dev', $1, $2, $3, $4, $5, now())
+      ON CONFLICT (id) DO NOTHING
+      RETURNING *
+    `, [
+      DEFAULT_AD_SETTINGS.ads_enabled,
+      DEFAULT_AD_SETTINGS.break_method,
+      DEFAULT_AD_SETTINGS.ads_per_break,
+      DEFAULT_AD_SETTINGS.target_ad_seconds,
+      DEFAULT_AD_SETTINGS.break_interval
+    ]);
+
+    const settingsResult = result.rowCount
+      ? result
+      : await pool.query('SELECT * FROM radio.ad_settings WHERE id = $1', ['dev']);
+    const settings = normalizeAdSettings(settingsResult.rows[0] || DEFAULT_AD_SETTINGS);
+    const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
+    return response(200, { success: true, settings: bodySettings });
+  } catch (error) {
+    console.warn('Ad settings unavailable. Returning safe defaults.', error.message || error);
+    const settings = normalizeAdSettings(DEFAULT_AD_SETTINGS);
+    const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
+    return response(200, { success: true, settings: bodySettings, fallback: true });
+  }
+}
+
+function validateAdSettingsInput(input = {}) {
+  if (typeof input.ads_enabled !== 'boolean') return 'ads_enabled must be a boolean.';
+  if (!VALID_BREAK_METHODS.has(input.break_method)) return 'break_method must be one of: count, seconds.';
+  if (!VALID_ADS_PER_BREAK.has(Number(input.ads_per_break))) return 'ads_per_break must be one of: 1, 2, 3, 4, 5.';
+  if (!VALID_TARGET_AD_SECONDS.has(Number(input.target_ad_seconds))) return 'target_ad_seconds must be one of: 15, 30, 45, 60, 90.';
+  if (!VALID_BREAK_INTERVALS.has(Number(input.break_interval))) return 'break_interval must be one of: 1, 2, 3.';
+  return '';
+}
+
+async function updateAdSettings(event) {
+  const input = parseBody(event);
+  const validationError = validateAdSettingsInput(input);
+  if (validationError) return response(400, { success: false, error: validationError });
+  const payload = normalizeAdSettings(input);
+  try {
+    await ensureAdSettingsTable();
+    const result = await pool.query(`
+      INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
+      VALUES ('dev', $1, $2, $3, $4, $5, now())
+      ON CONFLICT (id) DO UPDATE SET
+        ads_enabled = EXCLUDED.ads_enabled,
+        break_method = EXCLUDED.break_method,
+        ads_per_break = EXCLUDED.ads_per_break,
+        target_ad_seconds = EXCLUDED.target_ad_seconds,
+        break_interval = EXCLUDED.break_interval,
+        updated_at = now()
+      RETURNING *
+    `, [payload.ads_enabled, payload.break_method, payload.ads_per_break, payload.target_ad_seconds, payload.break_interval]);
+    return response(200, { success: true, message: 'Ad settings saved', settings: normalizeAdSettings(result.rows[0]) });
+  } catch (error) {
+    console.error('Could not save ad settings:', error);
+    return response(500, { success: false, error: 'Could not save ad settings.' });
+  }
+}
+
+async function handleAdminAdSettingsRoute(event, { requireAdmin }) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+  await requireAdmin(event);
+  const method = getMethod(event);
+  if (method === 'GET') return getAdSettings();
+  if (method === 'PUT') return updateAdSettings(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicAdSettingsRoute(event) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+  if (getMethod(event) === 'GET') return getAdSettings({ publicOnly: true });
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+function buildInsert(payload) {
+  const fields = EDITABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(payload, field));
+  const columns = fields.join(', ');
+  const placeholders = fields.map((_, index) => `$${index + 1}`).join(', ');
+  const values = fields.map((field) => payload[field]);
+
+  return {
+    text: `INSERT INTO radio.ads (${columns}) VALUES (${placeholders}) RETURNING *`,
+    values
+  };
+}
+
+function buildUpdate(adId, payload) {
+  const fields = EDITABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(payload, field));
+  const assignments = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+  const values = fields.map((field) => payload[field]);
+  values.push(adId);
+
+  return {
+    text: `UPDATE radio.ads SET ${assignments}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+    values
+  };
+}
+
+async function listAds() {
+  await ensureAdStorage();
+  const result = await pool.query(`
+    SELECT
+      *,
+      COALESCE(skips, 0)::int AS skips,
+      CASE
+        WHEN COALESCE(views, 0) > 0
+        THEN ROUND((COALESCE(skips, 0)::numeric / COALESCE(views, 0)::numeric) * 100, 2)
+        ELSE 0
+      END AS skip_rate
+    FROM radio.ads
+    ORDER BY created_at DESC
+  `);
+  return response(200, { success: true, count: result.rowCount, ads: result.rows });
+}
+
+async function listPublicAds() {
+  await ensureAdStorage();
+  const durationColumn = await adsDurationColumnSelect();
+  const result = await pool.query(`
+    SELECT
+      id,
+      internal_title,
+      description,
+      ad_type,
+      video_url,
+      click_url,
+      ad_ratio_label,
+      video_width,
+      video_height,
+      ${durationColumn}
+      frequency,
+      skip_after_seconds,
+      no_skipping,
+      active,
+      hidden,
+      genre_targeting,
+      mood_targeting,
+      artist_targeting,
+      song_targeting,
+      start_date,
+      end_date,
+      COALESCE(views, 0)::int AS views,
+      COALESCE(clicks, 0)::int AS clicks,
+      COALESCE(skips, 0)::int AS skips,
+      CASE
+        WHEN COALESCE(views, 0) > 0
+        THEN ROUND((COALESCE(skips, 0)::numeric / COALESCE(views, 0)::numeric) * 100, 2)
+        ELSE 0
+      END AS skip_rate,
+      created_at,
+      updated_at
+    FROM radio.ads
+    WHERE active = true
+      AND hidden = false
+      AND (start_date IS NULL OR start_date <= CURRENT_DATE)
+      AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+    ORDER BY created_at DESC
+  `);
+
+  return response(200, { success: true, count: result.rowCount, ads: result.rows });
+}
+
+async function createAd(event) {
+  await ensureAdStorage();
+  const payload = normalizePayload(parseBody(event));
+  const validationError = validatePayload(payload);
+  if (validationError) return response(400, { success: false, error: validationError });
+
+  const result = await pool.query(buildInsert(payload));
+  return response(201, { success: true, message: 'Ad created', ad: result.rows[0] });
+}
+
+async function updateAd(event) {
+  await ensureAdStorage();
+  const adId = getAdId(event);
+  if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
+
+  const payload = normalizePayload(parseBody(event), { partial: true });
+  const fields = Object.keys(payload);
+  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+
+  const validationError = validatePayload(payload, { partial: true });
+  if (validationError) return response(400, { success: false, error: validationError });
+
+  const result = await pool.query(buildUpdate(adId, payload));
+  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
+  return response(200, { success: true, message: 'Ad updated', ad: result.rows[0] });
+}
+
+async function deleteAd(event) {
+  const adId = getAdId(event);
+  if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
+
+  const result = await pool.query('DELETE FROM radio.ads WHERE id = $1', [adId]);
+  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
+  return response(200, { success: true, message: 'Ad deleted', ad_id: adId });
+}
+
+function getAdEventType(event) {
+  if (!getPublicAdsRouteMatch(event).isEventRoute) return '';
+
+  try {
+    const body = parseBody(event);
+    return String(
+      body.event_type ||
+      body.eventType ||
+      event.queryStringParameters?.event_type ||
+      event.queryStringParameters?.eventType ||
+      ''
+    ).trim();
+  } catch (_) {
+    return String(event.queryStringParameters?.event_type || event.queryStringParameters?.eventType || '').trim();
+  }
+}
+
+function getTrackEventType(event) {
+  try {
+    const body = parseBody(event);
+    return String(body.event_type || body.eventType || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+async function handleTrackRoute(client, event, trackEvent) {
+  const eventType = getTrackEventType(event);
+  if (eventType.startsWith('ad_')) return trackAdEvent(client, event);
+  return trackEvent(client, event);
+}
+
+async function trackAdEvent(client, event, overrides = {}) {
+  const body = { ...parseBody(event), ...overrides };
+  const adId = String(body.ad_id || body.adId || '').trim();
+  const eventType = String(body.event_type || body.eventType || '').trim();
+
+  if (!adId || !SUPPORTED_AD_EVENTS.has(eventType)) {
+    return response(400, { success: false, error: 'Invalid or missing ad event' });
+  }
+
+  console.log('Tracking ad event:', eventType, adId);
+
+  if (eventType === 'ad_start') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET views = COALESCE(views, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks, skips`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad views for:', adId);
+    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  }
+
+  if (eventType === 'ad_click') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET clicks = COALESCE(clicks, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks, skips`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad clicks for:', adId);
+    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  }
+
+  if (eventType === 'ad_skip') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET skips = COALESCE(skips, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks, skips`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad skips for:', adId);
+    return response(200, {
+      success: true,
+      message: 'Ad event tracked',
+      ad_id: adId,
+      event_type: eventType,
+      ad: result.rows[0]
+    });
+  }
+
+  const result = await client.query(
+    'SELECT id, internal_title, views, clicks, skips FROM radio.ads WHERE id = $1',
+    [adId]
+  );
+
+  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+  return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+}
+
+async function recordPublicAdEvent(event) {
+  const adId = getAdId(event);
+  if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
+
+  const eventType = getAdEventType(event);
+  return trackAdEvent(pool, event, { ad_id: adId, event_type: eventType });
+}
+
+async function handlePublicAdsRoute(event) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+
+  const method = getMethod(event);
+  const publicRoute = getPublicAdsRouteMatch(event);
+  const adId = getAdId(event);
+  const isEventRoute = publicRoute.isEventRoute;
+
+  if (method === 'GET' && !adId) return listPublicAds();
+  if (method === 'POST' && adId && isEventRoute) return recordPublicAdEvent(event);
+
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handleAdminAdsRoute(event, { requireAdmin }) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+
+  await requireAdmin(event);
+
+  const method = getMethod(event);
+  const adId = getAdId(event);
+
+  if (method === 'GET' && !adId) return listAds();
+  if (method === 'POST' && !adId) return createAd(event);
+  if (method === 'PUT' && adId) return updateAd(event);
+  if (method === 'DELETE' && adId) return deleteAd(event);
+
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+
+function getRouteSegments(event) {
+  const path = getPath(event).split('?')[0].replace(/\/+$/, '');
+  const segments = path.split('/').filter(Boolean);
+  const lambdaName = process.env.AWS_LAMBDA_FUNCTION_NAME || 'stashbox-radio-api-dev';
+  const serviceIndex = segments.lastIndexOf(lambdaName);
+  if (serviceIndex >= 0) return segments.slice(serviceIndex + 1);
+  const defaultIndex = segments.lastIndexOf('default');
+  if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
+
+  const routeRootIndex = segments.findIndex((segment) =>
+    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track'].includes(segment)
+  );
+  if (routeRootIndex > 0) return segments.slice(routeRootIndex);
+
+  return segments;
+}
+
+function routeStartsWith(segments, prefix) {
+  return prefix.every((segment, index) => segments[index] === segment);
+}
+
+function normalizeRoute(route) {
+  return String(route || '').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+function matchesRoute(route, candidates) {
+  const clean = normalizeRoute(route);
+  return candidates.some((candidate) => clean === normalizeRoute(candidate));
+}
+
+function getQueryLimit(event, fallback = 100, max = 500) {
+  const rawLimit = Number(event.queryStringParameters?.limit || fallback);
+  if (!Number.isFinite(rawLimit) || rawLimit <= 0) return fallback;
+  return Math.min(Math.floor(rawLimit), max);
+}
+
+function getAdminToken(event) {
+  return event.headers?.['x-admin-token'] ||
+    event.headers?.['X-Admin-Token'] ||
+    event.headers?.['X-ADMIN-TOKEN'] ||
+    '';
+}
+
+async function requireAdmin(event) {
+  const expectedToken = process.env.ADMIN_TOKEN || process.env.RADIO_ADMIN_TOKEN || '';
+  if (expectedToken && getAdminToken(event) !== expectedToken) {
+    const error = new Error('Unauthorized. Check admin token.');
+    error.statusCode = 401;
+    throw error;
+  }
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeStoredStringArray(value) {
+  if (Array.isArray(value)) {
+    return normalizeStringArray(value);
+  }
+
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsedValue = JSON.parse(value);
+      return Array.isArray(parsedValue) ? normalizeStringArray(parsedValue) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function normalizeSongRow(song) {
+  if (!song) {
+    return song;
+  }
+
+  return {
+    ...song,
+    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls)
+  };
+}
+
+function normalizeSongPayload(input, { partial = false } = {}) {
+  const payload = {};
+  SONG_EDITABLE_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(input, field)) {
+      if (field === 'specific_product_urls') {
+        const cleanSpecificProductUrls = normalizeStringArray(input.specific_product_urls);
+        payload.specific_product_urls = JSON.stringify(cleanSpecificProductUrls);
+        return;
+      }
+
+      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(input[field]) : input[field];
+    }
+  });
+
+  if (!partial) {
+    payload.public_visibility = payload.public_visibility || 'hidden';
+  }
+
+  return payload;
+}
+
+async function getTableColumns(schemaName, tableName) {
+  const result = await pool.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = $2`,
+    [schemaName, tableName]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+async function findFirstTable(candidates) {
+  const result = await pool.query(
+    `SELECT table_schema, table_name
+     FROM information_schema.tables
+     WHERE (table_schema, table_name) IN (${candidates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')})`,
+    candidates.flat()
+  );
+
+  return candidates.find(([schemaName, tableName]) =>
+    result.rows.some((row) => row.table_schema === schemaName && row.table_name === tableName)
+  ) || candidates[0];
+}
+
+
+const STATS_EVENT_TABLE_CANDIDATES = [
+  ['radio', 'song_events'],
+  ['radio', 'events'],
+  ['radio', 'radio_events'],
+  ['public', 'song_events'],
+  ['public', 'song_play_events']
+];
+
+function hasAnyColumn(columns, names) {
+  return names.some((name) => columns.has(name));
+}
+
+function firstExistingColumn(columns, names) {
+  return names.find((name) => columns.has(name)) || '';
+}
+
+function numberLiteral(value = 0, type = 'int') {
+  return `${Number(value) || 0}::${type}`;
+}
+
+function textLiteral(value = '') {
+  return `'${String(value).replace(/'/g, "''")}'::text`;
+}
+
+function sqlStringList(values) {
+  return values.map((value) => `'${String(value).replace(/'/g, "''")}'`).join(', ');
+}
+
+function normalizeEventTypes(eventTypes) {
+  return Array.isArray(eventTypes) ? eventTypes : [eventTypes];
+}
+
+function countEventTypeExpression(columns, eventTypes, alias) {
+  const values = normalizeEventTypes(eventTypes);
+  return columns.has('event_type')
+    ? `COUNT(*) FILTER (WHERE event_type IN (${sqlStringList(values)}))::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function countEventTypeExpressionForAlias(columns, tableAlias, eventTypes, alias) {
+  const values = normalizeEventTypes(eventTypes);
+  return columns.has('event_type')
+    ? `COUNT(*) FILTER (WHERE ${tableAlias}.event_type IN (${sqlStringList(values)}))::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function numericAggregateExpression(columns, columnName, aggregate, alias, type = 'float') {
+  return columns.has(columnName)
+    ? `COALESCE(${aggregate}(${columnName}), 0)::${type} AS ${alias}`
+    : `${numberLiteral(0, type)} AS ${alias}`;
+}
+
+function createdAtCountExpression(columns, intervalSql, alias) {
+  return columns.has('created_at')
+    ? `COUNT(*) FILTER (WHERE created_at >= ${intervalSql})::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function lastSeenExpression(columns, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return columns.has('created_at') ? `MAX(${prefix}created_at) AS last_seen_at` : 'NULL::timestamptz AS last_seen_at';
+}
+
+function optionalColumnExpression(columns, columnName, alias = columnName, tableAlias = '', fallback = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return columns.has(columnName) ? `${prefix}${columnName} AS ${alias}` : `${textLiteral(fallback)} AS ${alias}`;
+}
+
+
+function getRowIdentityValues(row) {
+  return [row?.song_key, row?.song_id, row?.id, row?.key, row?.slug, row?.track_id]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean);
+}
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+async function loadSongEventCounts() {
+  const statsTable = await getStatsEventTable();
+  if (!statsTable || !hasAnyColumn(statsTable.columns, ['song_key', 'song_id'])) return new Map();
+
+  const { columns, qualifiedName } = statsTable;
+  const songKeyExpr = columns.has('song_key') ? 'song_key::text' : textLiteral('');
+  const songIdExpr = columns.has('song_id') ? 'song_id::text' : songKeyExpr;
+  const result = await pool.query(`
+    SELECT
+      ${songKeyExpr} AS song_key,
+      ${songIdExpr} AS song_id,
+      ${countEventTypeExpression(columns, ['play_start', 'play'], 'total_plays')},
+      ${countEventTypeExpression(columns, 'like', 'likes')},
+      ${countEventTypeExpression(columns, 'share', 'shares')},
+      ${countEventTypeExpression(columns, 'share_link_visit', 'share_link_visits')},
+      ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+      ${countEventTypeExpression(columns, 'product_click', 'product_clicks')}
+    FROM ${qualifiedName}
+    GROUP BY 1, 2
+  `);
+
+  const countsByIdentity = new Map();
+  result.rows.forEach((row) => {
+    getRowIdentityValues(row).forEach((identity) => {
+      countsByIdentity.set(identity, row);
+    });
+  });
+  return countsByIdentity;
+}
+
+function mergeSongEventCounts(song, countsByIdentity) {
+  const stats = getRowIdentityValues(song).map((identity) => countsByIdentity.get(identity)).find(Boolean);
+  if (!stats) return song;
+
+  return {
+    ...song,
+    total_plays: Math.max(numberValue(song.total_plays ?? song.plays ?? song.play_count), numberValue(stats.total_plays)),
+    likes: numberValue(song.likes),
+    like_count: numberValue(song.likes),
+    total_likes: numberValue(song.likes),
+    shares: Math.max(numberValue(song.shares ?? song.share_count ?? song.total_shares), numberValue(stats.shares)),
+    share_link_visits: Math.max(numberValue(song.share_link_visits ?? song.share_visits), numberValue(stats.share_link_visits)),
+    video_clicks: Math.max(numberValue(song.video_clicks ?? song.video_click_count ?? song.total_video_clicks), numberValue(stats.video_clicks)),
+    product_clicks: Math.max(numberValue(song.product_clicks ?? song.product_click_count ?? song.total_product_clicks), numberValue(stats.product_clicks))
+  };
+}
+
+function emptyStatsSummaryResponse() {
+  return response(200, {
+    success: true,
+    summary: {
+      total_events: 0,
+      events_last_24h: 0,
+      events_last_7d: 0,
+      play_starts: 0,
+      full_plays: 0,
+      partial_plays: 0,
+      skips: 0,
+      likes: 0,
+      shares: 0,
+      video_clicks: 0,
+      product_clicks: 0,
+      total_listening_seconds: 0,
+      total_seconds_played: 0,
+      average_seconds_played: 0,
+      average_completion_percent: 0
+    },
+    today: {
+      events_today: 0,
+      plays_today: 0,
+      likes_today: 0,
+      shares_today: 0,
+      product_clicks_today: 0,
+      video_clicks_today: 0
+    },
+    devices: [],
+    event_types: [],
+    generated_at: new Date().toISOString()
+  });
+}
+
+async function findExistingTable(candidates) {
+  const result = await pool.query(
+    `SELECT table_schema, table_name
+     FROM information_schema.tables
+     WHERE (table_schema, table_name) IN (${candidates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')})`,
+    candidates.flat()
+  );
+
+  return candidates.find(([schemaName, tableName]) =>
+    result.rows.some((row) => row.table_schema === schemaName && row.table_name === tableName)
+  ) || null;
+}
+
+async function getStatsEventTable() {
+  const table = await findExistingTable(STATS_EVENT_TABLE_CANDIDATES);
+  if (!table) return null;
+  const [schemaName, tableName] = table;
+  const columns = await getTableColumns(schemaName, tableName);
+  return { schemaName, tableName, columns, qualifiedName: `${schemaName}.${tableName}` };
+}
+
+async function withStatsRouteLogging(route, method, handler) {
+  try {
+    return await handler();
+  } catch (error) {
+    console.error('[Stashbox Radio Admin] stats route failed', {
+      route,
+      method,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    throw error;
+  }
+}
+
+async function listSongs({ includeArchived = false } = {}) {
+  await ensureSongsLikesColumn();
+  const columns = await getTableColumns('radio', 'songs');
+  const hasVisibility = columns.has('public_visibility');
+  const hasSortOrder = columns.has('sort_order');
+  const where = includeArchived || !hasVisibility ? '' : "WHERE COALESCE(public_visibility, 'visible') = 'visible'";
+  const orderBy = hasSortOrder
+    ? 'ORDER BY sort_order ASC, song_name ASC NULLS LAST, display_title ASC NULLS LAST'
+    : 'ORDER BY created_at DESC NULLS LAST, song_name ASC NULLS LAST, display_title ASC NULLS LAST';
+  const artworkSelect = columns.has('resolved_artwork_url')
+    ? '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
+    : '*, COALESCE(s.likes, 0)::int AS likes, song_artwork_url AS resolved_artwork_url';
+  const [result, countsByIdentity] = await Promise.all([
+    pool.query(`SELECT ${artworkSelect} FROM radio.songs s ${where} ${orderBy}`),
+    loadSongEventCounts()
+  ]);
+  const songs = result.rows
+    .map((row) => mergeSongEventCounts(row, countsByIdentity))
+    .map(normalizeSongRow);
+  return response(200, { success: true, count: result.rowCount, songs });
+}
+
+async function getSong(event) {
+  const columns = await getTableColumns('radio', 'songs');
+  const params = event.queryStringParameters || {};
+  const pathIdentifier = getRouteSegments(event)[2] || '';
+  const requestedId = String(params.id || params.song_id || params.songId || '').trim();
+  const requestedSongKey = String(params.song_key || params.songKey || '').trim();
+  const requestedSlug = String(params.slug || '').trim();
+  const fallbackIdentifier = String(pathIdentifier || '').trim();
+  const id = requestedId || fallbackIdentifier;
+  const songKey = requestedSongKey || fallbackIdentifier;
+  const slug = requestedSlug || fallbackIdentifier;
+  const conditions = [];
+  const values = [];
+  const orderClauses = [];
+
+  if (id && columns.has('id')) {
+    values.push(id);
+    conditions.push(`id::text = $${values.length}`);
+    orderClauses.push(`WHEN id::text = $${values.length} THEN 1`);
+  }
+
+  if (songKey && columns.has('song_key')) {
+    values.push(songKey);
+    conditions.push(`song_key = $${values.length}`);
+    orderClauses.push(`WHEN song_key = $${values.length} THEN 2`);
+  }
+
+  if (slug && columns.has('slug')) {
+    values.push(slug);
+    conditions.push(`slug = $${values.length}`);
+    orderClauses.push(`WHEN slug = $${values.length} THEN 3`);
+  }
+
+  if (!conditions.length) {
+    return response(400, { success: false, error: 'id or song_key is required.' });
+  }
+
+  const artworkSelect = columns.has('resolved_artwork_url')
+    ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
+    : '*, song_artwork_url AS resolved_artwork_url';
+  const orderBy = orderClauses.length ? `ORDER BY CASE ${orderClauses.join(' ')} ELSE 4 END` : '';
+  const result = await pool.query(
+    `SELECT ${artworkSelect}
+     FROM radio.songs
+     WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
+     ${orderBy}
+     LIMIT 1`,
+    values
+  );
+
+  if (!result.rowCount) {
+    return response(404, {
+      success: false,
+      error: 'Song not found.',
+      id: requestedId || undefined,
+      song_key: requestedSongKey || fallbackIdentifier || undefined,
+      slug: requestedSlug || undefined
+    });
+  }
+
+  return response(200, { success: true, song: normalizeSongRow(result.rows[0]) });
+}
+
+async function createSong(event) {
+  const payload = normalizeSongPayload(parseBody(event));
+  const columns = await getTableColumns('radio', 'songs');
+  const fields = Object.keys(payload).filter((field) => columns.has(field));
+  if (!fields.includes('song_key')) return response(400, { success: false, error: 'song_key is required.' });
+  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+
+  const values = fields.map((field) => payload[field]);
+  const result = await pool.query(
+    `INSERT INTO radio.songs (${fields.join(', ')})
+     VALUES (${fields.map((field, index) => field === 'specific_product_urls' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
+     RETURNING *`,
+    values
+  );
+  return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+}
+
+async function updateSong(event) {
+  const songKey = event.pathParameters?.song_key || event.pathParameters?.songKey || getRouteSegments(event)[2] || '';
+  if (!songKey) return response(400, { success: false, error: 'song_key is required.' });
+
+  const body = parseBody(event);
+  const id = String(body.id || body.song_id || body.songId || event.pathParameters?.id || '').trim();
+  const cleanSpecificProductUrls = Object.prototype.hasOwnProperty.call(body, 'specific_product_urls')
+    ? normalizeStringArray(body.specific_product_urls)
+    : undefined;
+  const payload = normalizeSongPayload(body, { partial: true });
+  const columns = await getTableColumns('radio', 'songs');
+  const fields = Object.keys(payload).filter((field) => columns.has(field) && field !== 'song_key');
+  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+
+  const values = fields.map((field) => payload[field]);
+  values.push(songKey);
+  const updatedAt = columns.has('updated_at') ? ', updated_at = now()' : '';
+
+  try {
+    const result = await pool.query(
+      `UPDATE radio.songs
+       SET ${fields.map((field, index) => field === 'specific_product_urls' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
+       WHERE song_key = $${values.length}
+       RETURNING *`,
+      values
+    );
+    if (!result.rowCount) return response(404, { success: false, error: 'Song not found.', song_key: songKey });
+    return response(200, { success: true, message: 'Song updated', song: normalizeSongRow(result.rows[0]) });
+  } catch (error) {
+    console.error('[Stashbox Radio Admin] song update failed', {
+      id,
+      song_key: songKey,
+      specific_product_urls: cleanSpecificProductUrls,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    throw error;
+  }
+}
+
+async function trackSongEvent(client, event) {
+  const body = parseBody(event);
+  const eventType = String(body.event_type || body.eventType || '').trim();
+  const normalizedSongKey = String(body.song_key || body.songKey || body.track_key || '').trim();
+  const normalizedSongId = String(body.song_id || body.songId || body.id || '').trim();
+  const songKey = normalizedSongKey || null;
+  const songId = normalizedSongId || null;
+  const songIdentity = songKey || songId;
+
+  if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
+    return response(400, { success: false, error: 'Invalid or missing song event' });
+  }
+
+  const [schemaName, tableName] = await findFirstTable([
+    ['radio', 'song_events'],
+    ['radio', 'events'],
+    ['public', 'song_events'],
+    ['public', 'song_play_events']
+  ]);
+  const columns = await getTableColumns(schemaName, tableName);
+  const payload = {
+    song_key: songKey || songIdentity,
+    song_id: songId || songIdentity,
+    event_type: eventType,
+    session_id: body.session_id || body.sessionId || '',
+    device_type: body.device_type || body.deviceType || '',
+    referrer: body.referrer || '',
+    seconds_played: body.seconds_played ?? body.secondsPlayed ?? null,
+    completion_percent: body.completion_percent ?? body.completionPercent ?? null,
+    product_url: body.product_url || body.productUrl || '',
+    share_url: body.share_url || body.shareUrl || '',
+    display_title: body.display_title || body.displayTitle || '',
+    song_name: body.song_name || body.songName || '',
+    artist: body.artist || '',
+    page: body.page || 'production',
+    source: body.source || 'public_player',
+    source_page: body.source_page || body.sourcePage || '/stashbox/radio/'
+  };
+  const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
+
+  if (fields.length) {
+    await client.query(
+      `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
+       VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
+      fields.map((field) => payload[field])
+    );
+  }
+
+  if (eventType === 'like') {
+    console.log('[Stashbox Radio API] like event received', {
+      songKey,
+      songId,
+      bodySongKey: body.song_key,
+      bodySongId: body.song_id,
+      event_type: body.event_type
+    });
+
+    await ensureSongsLikesColumn(client);
+    const result = await client.query(
+      `UPDATE radio.songs
+       SET likes = COALESCE(likes, 0) + 1,
+           updated_at = now()
+       WHERE song_key = $1
+          OR id::text = $2
+       RETURNING id, song_key, display_title, likes`,
+      [songKey, songId]
+    );
+
+    console.log('[Stashbox Radio API] like update result', {
+      rowCount: result.rowCount,
+      rows: result.rows
+    });
+
+    if (!result.rowCount) {
+      console.warn('[Stashbox Radio API] like did not match song', {
+        songKey,
+        songId
+      });
+      return response(404, {
+        success: false,
+        error: 'Like did not match a song',
+        song_key: songKey,
+        song_id: songId
+      });
+    }
+
+    const updated = result.rows[0];
+    return response(200, {
+      success: true,
+      event_type: 'like',
+      id: updated.id,
+      song_key: updated.song_key,
+      display_title: updated.display_title,
+      likes: Number(updated.likes || 0)
+    });
+  }
+
+  return response(200, { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey || songIdentity, song_id: songId || songIdentity });
+}
+
+async function listEvents(event) {
+  const limit = getQueryLimit(event, 100, 500);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, count: 0, limit, events: [] });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const orderBy = columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : '';
+  const result = await pool.query(`SELECT * FROM ${qualifiedName} ${orderBy} LIMIT $1`, [limit]);
+  return response(200, { success: true, count: result.rowCount, limit, events: result.rows });
+}
+
+async function statsSummary() {
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return emptyStatsSummaryResponse();
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const secondsColumn = firstExistingColumn(columns, ['seconds_played', 'duration_seconds']);
+  const completionColumn = firstExistingColumn(columns, ['completion_percent']);
+  const deviceColumn = firstExistingColumn(columns, ['device_type', 'device', 'browser', 'platform']);
+
+  const [summary, today, devices, eventTypes] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_events,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')},
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${secondsColumn ? `COALESCE(SUM(${secondsColumn}), 0)::int` : numberLiteral()} AS total_listening_seconds,
+        ${secondsColumn ? `COALESCE(SUM(${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds_played,
+        ${secondsColumn ? `COALESCE(AVG(${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds_played,
+        ${completionColumn ? `COALESCE(AVG(${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_completion_percent
+      FROM ${qualifiedName}`),
+    pool.query(`
+      SELECT
+        ${createdAtCountExpression(columns, 'CURRENT_DATE', 'events_today')},
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('play_start', 'play') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS plays_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type = 'like' AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS likes_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type = 'share' AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS shares_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('product_click') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS product_clicks_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('video_click', 'video_open') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS video_clicks_today
+      FROM ${qualifiedName}`),
+    deviceColumn
+      ? pool.query(`SELECT COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY 1 ORDER BY event_count DESC LIMIT 10`)
+      : Promise.resolve({ rows: [] }),
+    columns.has('event_type')
+      ? pool.query(`SELECT event_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY event_type ORDER BY event_count DESC`)
+      : Promise.resolve({ rows: [] })
+  ]);
+
+  return response(200, {
+    success: true,
+    summary: summary.rows[0] || {},
+    today: today.rows[0] || {},
+    devices: devices.rows,
+    event_types: eventTypes.rows,
+    generated_at: new Date().toISOString()
+  });
+}
+
+async function songStats(event) {
+  const limit = getQueryLimit(event, 100, 500);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable || !hasAnyColumn(statsTable.columns, ['song_key', 'song_id'])) {
+    return response(200, { success: true, count: 0, limit, songs: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const songsTable = await findExistingTable([['radio', 'songs']]);
+  const songColumns = songsTable ? await getTableColumns('radio', 'songs') : new Set();
+  const eventSongKeyExpr = columns.has('song_key') ? 'e.song_key::text' : columns.has('song_id') ? 'e.song_id::text' : textLiteral('');
+  const eventSongIdExpr = columns.has('song_id') ? 'e.song_id::text' : eventSongKeyExpr;
+  const canJoinSongs = songsTable && ((columns.has('song_key') && songColumns.has('song_key')) || (columns.has('song_id') && songColumns.has('id')));
+  const joinCondition = columns.has('song_key') && songColumns.has('song_key')
+    ? 's.song_key::text = e.song_key::text'
+    : 's.id::text = e.song_id::text';
+  const fromClause = canJoinSongs ? `${qualifiedName} e LEFT JOIN radio.songs s ON ${joinCondition}` : `${qualifiedName} e`;
+  const displayTitleExpr = canJoinSongs && songColumns.has('display_title') ? 's.display_title' : 'NULL::text';
+  const songNameExpr = canJoinSongs && songColumns.has('song_name') ? 's.song_name' : 'NULL::text';
+  const artistExpr = canJoinSongs && songColumns.has('artist') ? 's.artist' : 'NULL::text';
+  const secondsColumn = firstExistingColumn(columns, ['seconds_played', 'duration_seconds']);
+  const completionColumn = firstExistingColumn(columns, ['completion_percent']);
+
+  const result = await pool.query(`
+    SELECT
+      ${eventSongIdExpr} AS song_id,
+      ${eventSongKeyExpr} AS song_key,
+      COALESCE(${displayTitleExpr}, ${songNameExpr}, NULLIF(${eventSongKeyExpr}, ''), 'Unknown song') AS display_title,
+      COALESCE(${songNameExpr}, NULLIF(${eventSongKeyExpr}, ''), 'Unknown song') AS song_name,
+      COALESCE(${artistExpr}, '') AS artist,
+      COUNT(*) FILTER (WHERE ${columns.has('event_type') ? "e.event_type IN ('play_start', 'play')" : 'true'})::int AS plays,
+      ${countEventTypeExpressionForAlias(columns, 'e', ['play_start', 'play'], 'play_starts')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['play_full', 'complete'], 'full_plays')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'play_partial', 'partial_plays')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['skip', 'next_click', 'random_click'], 'skips')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'like', 'likes')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'share', 'shares')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['video_click', 'video_open'], 'video_clicks')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'product_click', 'product_clicks')},
+      ${secondsColumn ? `COALESCE(SUM(e.${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds,
+      ${secondsColumn ? `COALESCE(SUM(e.${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds_played,
+      ${secondsColumn ? `COALESCE(AVG(e.${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds,
+      ${secondsColumn ? `COALESCE(AVG(e.${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds_played,
+      ${completionColumn ? `COALESCE(AVG(e.${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS completion_percent,
+      ${completionColumn ? `COALESCE(AVG(e.${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_completion_percent,
+      ${lastSeenExpression(columns, 'e')}
+    FROM ${fromClause}
+    GROUP BY 1, 2, 3, 4, 5
+    ORDER BY plays DESC, last_seen_at DESC NULLS LAST
+    LIMIT $1`, [limit]);
+
+  return response(200, { success: true, count: result.rowCount, limit, songs: result.rows, generated_at: new Date().toISOString() });
+}
+
+async function productStats(event) {
+  const limit = getQueryLimit(event, 25, 200);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const productColumn = firstExistingColumn(columns, ['product_url', 'product_id']);
+
+  if (!productColumn && !columns.has('event_type')) {
+    return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], generated_at: new Date().toISOString() });
+  }
+
+  const productExpr = productColumn ? productColumn : textLiteral('unknown product');
+  const productFilter = columns.has('event_type')
+    ? `(event_type IN ('product_click')${productColumn ? ` OR NULLIF(${productColumn}::text, '') IS NOT NULL` : ''})`
+    : `NULLIF(${productColumn}::text, '') IS NOT NULL`;
+  const createdAtSelect = columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at';
+
+  const [summaryResult, productsResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_product_clicks,
+        COUNT(DISTINCT NULLIF(${productExpr}::text, ''))::int AS unique_products_clicked,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'product_clicks_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'product_clicks_last_7d')}
+      FROM ${qualifiedName}
+      WHERE ${productFilter}`),
+    pool.query(`
+      SELECT
+        ${productExpr} AS product_url,
+        COUNT(*)::int AS click_count,
+        COUNT(*)::int AS product_clicks,
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${columns.has('created_at') ? 'MAX(created_at)' : 'NULL::timestamptz'} AS last_clicked_at,
+        ARRAY[]::text[] AS song_titles
+      FROM ${qualifiedName}
+      WHERE ${productFilter}
+      GROUP BY 1
+      ORDER BY click_count DESC, last_clicked_at DESC NULLS LAST
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${createdAtSelect},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${productExpr} AS product_url,
+        ${optionalColumnExpression(columns, 'device_type')},
+        ${optionalColumnExpression(columns, 'event_type')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      WHERE ${productFilter}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
+  ]);
+
+  return response(200, {
+    success: true,
+    summary: summaryResult.rows[0] || { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 },
+    products: productsResult.rows,
+    recent_clicks: recentResult.rows,
+    generated_at: new Date().toISOString()
+  });
+}
+
+async function referrerStats(event) {
+  const limit = getQueryLimit(event, 50, 200);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_events: 0, events_with_referrer: 0, direct_or_unknown_events: 0, unique_referrers: 0, events_last_24h: 0, events_last_7d: 0 }, referrers: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const referrerColumn = firstExistingColumn(columns, ['referrer', 'source', 'source_page']);
+
+  if (!referrerColumn) {
+    return response(200, { success: true, summary: { total_events: 0, events_with_referrer: 0, direct_or_unknown_events: 0, unique_referrers: 0, events_last_24h: 0, events_last_7d: 0 }, referrers: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const [summaryResult, referrersResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE NULLIF(${referrerColumn}::text, '') IS NOT NULL)::int AS events_with_referrer,
+        COUNT(*) FILTER (WHERE NULLIF(${referrerColumn}::text, '') IS NULL)::int AS direct_or_unknown_events,
+        COUNT(DISTINCT NULLIF(${referrerColumn}::text, ''))::int AS unique_referrers,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
+      FROM ${qualifiedName}`),
+    pool.query(`
+      SELECT
+        COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
+        COUNT(*)::int AS event_count,
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${lastSeenExpression(columns)}
+      FROM ${qualifiedName}
+      GROUP BY 1
+      ORDER BY event_count DESC
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
+        COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
+        ${optionalColumnExpression(columns, 'event_type')},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${optionalColumnExpression(columns, 'device_type')},
+        ${optionalColumnExpression(columns, 'product_url')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
+  ]);
+
+  return response(200, { success: true, summary: summaryResult.rows[0] || {}, referrers: referrersResult.rows, recent_events: recentResult.rows, generated_at: new Date().toISOString() });
+}
+
+async function deviceStats(event) {
+  const limit = getQueryLimit(event, 50, 200);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_events: 0, desktop_events: 0, mobile_events: 0, other_or_unknown_events: 0, unique_device_types: 0, events_last_24h: 0, events_last_7d: 0 }, devices: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const deviceColumn = firstExistingColumn(columns, ['device_type', 'device', 'browser', 'platform']);
+
+  if (!deviceColumn) {
+    return response(200, { success: true, summary: { total_events: 0, desktop_events: 0, mobile_events: 0, other_or_unknown_events: 0, unique_device_types: 0, events_last_24h: 0, events_last_7d: 0 }, devices: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const [summaryResult, devicesResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE lower(${deviceColumn}::text) LIKE '%desktop%')::int AS desktop_events,
+        COUNT(*) FILTER (WHERE lower(${deviceColumn}::text) LIKE '%mobile%' OR lower(${deviceColumn}::text) LIKE '%phone%' OR lower(${deviceColumn}::text) LIKE '%android%' OR lower(${deviceColumn}::text) LIKE '%ios%')::int AS mobile_events,
+        COUNT(*) FILTER (WHERE NULLIF(${deviceColumn}::text, '') IS NULL OR (lower(${deviceColumn}::text) NOT LIKE '%desktop%' AND lower(${deviceColumn}::text) NOT LIKE '%mobile%' AND lower(${deviceColumn}::text) NOT LIKE '%phone%' AND lower(${deviceColumn}::text) NOT LIKE '%android%' AND lower(${deviceColumn}::text) NOT LIKE '%ios%'))::int AS other_or_unknown_events,
+        COUNT(DISTINCT NULLIF(${deviceColumn}::text, ''))::int AS unique_device_types,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
+      FROM ${qualifiedName}`),
+    pool.query(`
+      SELECT
+        COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
+        COUNT(*)::int AS event_count,
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${numericAggregateExpression(columns, firstExistingColumn(columns, ['seconds_played', 'duration_seconds']), 'AVG', 'average_seconds_played')},
+        ${numericAggregateExpression(columns, 'completion_percent', 'AVG', 'average_completion_percent')},
+        ${lastSeenExpression(columns)}
+      FROM ${qualifiedName}
+      GROUP BY 1
+      ORDER BY event_count DESC
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
+        COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
+        ${optionalColumnExpression(columns, 'event_type')},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${optionalColumnExpression(columns, 'referrer')},
+        ${optionalColumnExpression(columns, 'product_url')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
+  ]);
+
+  return response(200, { success: true, summary: summaryResult.rows[0] || {}, devices: devicesResult.rows, recent_events: recentResult.rows, generated_at: new Date().toISOString() });
+}
+
+function hmac(key, value, encoding) {
+  return crypto.createHmac('sha256', key).update(value).digest(encoding);
+}
+
+function sha256(value, encoding = 'hex') {
+  return crypto.createHash('sha256').update(value).digest(encoding);
+}
+
+async function createUploadPresign(event) {
+  const body = parseBody(event);
+  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
+  const sessionToken = process.env.AWS_SESSION_TOKEN || '';
+
+  if (!bucket || !accessKeyId || !secretAccessKey) {
+    return response(501, { success: false, error: 'Upload presign is not configured.' });
+  }
+
+  const filename = String(body.filename || 'upload.bin').replace(/[^A-Za-z0-9._-]/g, '-');
+  const purpose = String(body.purpose || 'upload').replace(/[^A-Za-z0-9/_-]/g, '-');
+  const songKey = String(body.song_key || body.songKey || 'unsorted').replace(/[^A-Za-z0-9._-]/g, '-');
+  const contentType = String(body.content_type || body.contentType || 'application/octet-stream');
+  const key = `radio/dev/${purpose}/${songKey}/${Date.now()}-${filename}`;
+  const host = `${bucket}.s3.${region}.amazonaws.com`;
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+  const signedHeaders = 'host';
+  const credential = `${accessKeyId}/${credentialScope}`;
+  const query = new URLSearchParams({
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': credential,
+    'X-Amz-Date': amzDate,
+    'X-Amz-Expires': '900',
+    'X-Amz-SignedHeaders': signedHeaders
+  });
+  if (sessionToken) query.set('X-Amz-Security-Token', sessionToken);
+  const canonicalQuery = Array.from(query.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([keyName, value]) => `${encodeURIComponent(keyName)}=${encodeURIComponent(value).replace(/%2F/g, '%252F')}`)
+    .join('&');
+  const canonicalUri = `/${key.split('/').map(encodeURIComponent).join('/')}`;
+  const canonicalRequest = ['PUT', canonicalUri, canonicalQuery, `host:${host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, sha256(canonicalRequest)].join('\n');
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secretAccessKey}`, dateStamp), region), 's3'), 'aws4_request');
+  const signature = hmac(signingKey, stringToSign, 'hex');
+  const uploadUrl = `https://${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+  const publicBaseUrl = process.env.UPLOAD_PUBLIC_BASE_URL || `https://${host}`;
+
+  return response(200, {
+    success: true,
+    upload_url: uploadUrl,
+    public_url: `${publicBaseUrl.replace(/\/+$/, '')}/${key}`,
+    method: 'PUT',
+    headers: { 'Content-Type': contentType }
+  });
+}
+
+async function dispatch(event) {
+  const method = getMethod(event).toUpperCase();
+  const segments = getRouteSegments(event);
+  const route = segments.join('/');
+
+  console.log('Normalized route:', route, 'method:', method);
+
+  if (method === 'OPTIONS') return response(204, {});
+
+  if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs']))) {
+    return listSongs({ includeArchived: false });
+  }
+
+  if ((method === 'POST') && (routeStartsWith(segments, ['radio', 'track']) || routeStartsWith(segments, ['track']))) {
+    return handleTrackRoute(pool, event, trackSongEvent);
+  }
+
+  if (matchesRoute(route, ['radio/ad-settings', '/radio/ad-settings', 'ad-settings', '/ad-settings'])) {
+    return handlePublicAdSettingsRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['radio', 'ads']) || routeStartsWith(segments, ['ads'])) {
+    return handlePublicAdsRoute(event);
+  }
+
+  if (matchesRoute(route, ['admin/ad-settings', '/admin/ad-settings'])) {
+    return handleAdminAdSettingsRoute(event, { requireAdmin });
+  }
+
+  if (routeStartsWith(segments, ['admin', 'ads'])) {
+    return handleAdminAdsRoute(event, { requireAdmin });
+  }
+
+  if (routeStartsWith(segments, ['admin', 'stats', 'summary']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/stats/summary', method, () => statsSummary());
+  }
+
+  if (routeStartsWith(segments, ['admin', 'stats', 'songs']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/stats/songs', method, () => songStats(event));
+  }
+
+  if (routeStartsWith(segments, ['admin', 'stats', 'devices']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/stats/devices', method, () => deviceStats(event));
+  }
+
+  if (routeStartsWith(segments, ['admin', 'stats', 'referrers']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/stats/referrers', method, () => referrerStats(event));
+  }
+
+  if (routeStartsWith(segments, ['admin', 'stats', 'products']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/stats/products', method, () => productStats(event));
+  }
+
+  if (routeStartsWith(segments, ['admin', 'events']) && method === 'GET') {
+    await requireAdmin(event);
+    return withStatsRouteLogging('admin/events', method, () => listEvents(event));
+  }
+
+  if (routeStartsWith(segments, ['admin', 'songs'])) {
+    await requireAdmin(event);
+    if (method === 'GET') {
+      const params = event.queryStringParameters || {};
+      const hasSongLookup = Boolean(getRouteSegments(event)[2] || params.id || params.song_id || params.songId || params.song_key || params.songKey || params.slug);
+      return hasSongLookup ? getSong(event) : listSongs({ includeArchived: true });
+    }
+    if (method === 'POST') return createSong(event);
+    if (method === 'PUT') return updateSong(event);
+  }
+
+  if (routeStartsWith(segments, ['admin', 'uploads', 'presign']) && method === 'POST') {
+    await requireAdmin(event);
+    return createUploadPresign(event);
+  }
+
+  return response(404, { success: false, error: 'Not found.', path: getPath(event), route: segments.join('/') });
+}
+
+// Safety route check: `handler({ httpMethod: 'OPTIONS', path: '/radio/songs' })` returns a CORS response locally.
+export const handler = async (event) => {
+  try {
+    return await dispatch(event || {});
+  } catch (error) {
+    console.error('Lambda handler error:', error);
+    return response(error.statusCode || 500, {
+      success: false,
+      error: error.statusCode ? error.message : 'Internal Server Error'
+    });
+  }
+};
+
+export {
+  handleAdminAdsRoute,
+  handleAdminAdSettingsRoute,
+  handlePublicAdsRoute,
+  handlePublicAdSettingsRoute,
+  handleTrackRoute,
+  getPublicAdsRouteMatch,
+  listAds,
+  listPublicAds,
+  recordPublicAdEvent,
+  trackAdEvent,
+  createAd,
+  updateAd,
+  deleteAd
+};
