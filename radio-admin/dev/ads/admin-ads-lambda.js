@@ -796,6 +796,69 @@ async function listSongs({ includeArchived = false } = {}) {
   return response(200, { success: true, count: result.rowCount, songs: result.rows });
 }
 
+async function getSong(event) {
+  const columns = await getTableColumns('radio', 'songs');
+  const params = event.queryStringParameters || {};
+  const pathIdentifier = getRouteSegments(event)[2] || '';
+  const requestedId = String(params.id || params.song_id || params.songId || '').trim();
+  const requestedSongKey = String(params.song_key || params.songKey || '').trim();
+  const requestedSlug = String(params.slug || '').trim();
+  const fallbackIdentifier = String(pathIdentifier || '').trim();
+  const id = requestedId || fallbackIdentifier;
+  const songKey = requestedSongKey || fallbackIdentifier;
+  const slug = requestedSlug || fallbackIdentifier;
+  const conditions = [];
+  const values = [];
+  const orderClauses = [];
+
+  if (id && columns.has('id')) {
+    values.push(id);
+    conditions.push(`id::text = $${values.length}`);
+    orderClauses.push(`WHEN id::text = $${values.length} THEN 1`);
+  }
+
+  if (songKey && columns.has('song_key')) {
+    values.push(songKey);
+    conditions.push(`song_key = $${values.length}`);
+    orderClauses.push(`WHEN song_key = $${values.length} THEN 2`);
+  }
+
+  if (slug && columns.has('slug')) {
+    values.push(slug);
+    conditions.push(`slug = $${values.length}`);
+    orderClauses.push(`WHEN slug = $${values.length} THEN 3`);
+  }
+
+  if (!conditions.length) {
+    return response(400, { success: false, error: 'id or song_key is required.' });
+  }
+
+  const artworkSelect = columns.has('resolved_artwork_url')
+    ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
+    : '*, song_artwork_url AS resolved_artwork_url';
+  const orderBy = orderClauses.length ? `ORDER BY CASE ${orderClauses.join(' ')} ELSE 4 END` : '';
+  const result = await pool.query(
+    `SELECT ${artworkSelect}
+     FROM radio.songs
+     WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
+     ${orderBy}
+     LIMIT 1`,
+    values
+  );
+
+  if (!result.rowCount) {
+    return response(404, {
+      success: false,
+      error: 'Song not found.',
+      id: requestedId || undefined,
+      song_key: requestedSongKey || fallbackIdentifier || undefined,
+      slug: requestedSlug || undefined
+    });
+  }
+
+  return response(200, { success: true, song: result.rows[0] });
+}
+
 async function createSong(event) {
   const payload = normalizeSongPayload(parseBody(event));
   const columns = await getTableColumns('radio', 'songs');
@@ -1158,7 +1221,11 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'songs'])) {
     await requireAdmin(event);
-    if (method === 'GET') return listSongs({ includeArchived: true });
+    if (method === 'GET') {
+      const params = event.queryStringParameters || {};
+      const hasSongLookup = Boolean(getRouteSegments(event)[2] || params.id || params.song_id || params.songId || params.song_key || params.songKey || params.slug);
+      return hasSongLookup ? getSong(event) : listSongs({ includeArchived: true });
+    }
     if (method === 'POST') return createSong(event);
     if (method === 'PUT') return updateSong(event);
   }
