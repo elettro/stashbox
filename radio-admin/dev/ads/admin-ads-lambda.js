@@ -781,6 +781,144 @@ async function findFirstTable(candidates) {
   ) || candidates[0];
 }
 
+
+const STATS_EVENT_TABLE_CANDIDATES = [
+  ['radio', 'song_events'],
+  ['radio', 'events'],
+  ['radio', 'radio_events'],
+  ['public', 'song_events'],
+  ['public', 'song_play_events']
+];
+
+function hasAnyColumn(columns, names) {
+  return names.some((name) => columns.has(name));
+}
+
+function firstExistingColumn(columns, names) {
+  return names.find((name) => columns.has(name)) || '';
+}
+
+function numberLiteral(value = 0, type = 'int') {
+  return `${Number(value) || 0}::${type}`;
+}
+
+function textLiteral(value = '') {
+  return `'${String(value).replace(/'/g, "''")}'::text`;
+}
+
+function sqlStringList(values) {
+  return values.map((value) => `'${String(value).replace(/'/g, "''")}'`).join(', ');
+}
+
+function normalizeEventTypes(eventTypes) {
+  return Array.isArray(eventTypes) ? eventTypes : [eventTypes];
+}
+
+function countEventTypeExpression(columns, eventTypes, alias) {
+  const values = normalizeEventTypes(eventTypes);
+  return columns.has('event_type')
+    ? `COUNT(*) FILTER (WHERE event_type IN (${sqlStringList(values)}))::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function countEventTypeExpressionForAlias(columns, tableAlias, eventTypes, alias) {
+  const values = normalizeEventTypes(eventTypes);
+  return columns.has('event_type')
+    ? `COUNT(*) FILTER (WHERE ${tableAlias}.event_type IN (${sqlStringList(values)}))::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function numericAggregateExpression(columns, columnName, aggregate, alias, type = 'float') {
+  return columns.has(columnName)
+    ? `COALESCE(${aggregate}(${columnName}), 0)::${type} AS ${alias}`
+    : `${numberLiteral(0, type)} AS ${alias}`;
+}
+
+function createdAtCountExpression(columns, intervalSql, alias) {
+  return columns.has('created_at')
+    ? `COUNT(*) FILTER (WHERE created_at >= ${intervalSql})::int AS ${alias}`
+    : `${numberLiteral()} AS ${alias}`;
+}
+
+function lastSeenExpression(columns, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return columns.has('created_at') ? `MAX(${prefix}created_at) AS last_seen_at` : 'NULL::timestamptz AS last_seen_at';
+}
+
+function optionalColumnExpression(columns, columnName, alias = columnName, tableAlias = '', fallback = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return columns.has(columnName) ? `${prefix}${columnName} AS ${alias}` : `${textLiteral(fallback)} AS ${alias}`;
+}
+
+function emptyStatsSummaryResponse() {
+  return response(200, {
+    success: true,
+    summary: {
+      total_events: 0,
+      events_last_24h: 0,
+      events_last_7d: 0,
+      play_starts: 0,
+      full_plays: 0,
+      partial_plays: 0,
+      skips: 0,
+      likes: 0,
+      shares: 0,
+      video_clicks: 0,
+      product_clicks: 0,
+      total_listening_seconds: 0,
+      total_seconds_played: 0,
+      average_seconds_played: 0,
+      average_completion_percent: 0
+    },
+    today: {
+      events_today: 0,
+      plays_today: 0,
+      likes_today: 0,
+      shares_today: 0,
+      product_clicks_today: 0,
+      video_clicks_today: 0
+    },
+    devices: [],
+    event_types: [],
+    generated_at: new Date().toISOString()
+  });
+}
+
+async function findExistingTable(candidates) {
+  const result = await pool.query(
+    `SELECT table_schema, table_name
+     FROM information_schema.tables
+     WHERE (table_schema, table_name) IN (${candidates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')})`,
+    candidates.flat()
+  );
+
+  return candidates.find(([schemaName, tableName]) =>
+    result.rows.some((row) => row.table_schema === schemaName && row.table_name === tableName)
+  ) || null;
+}
+
+async function getStatsEventTable() {
+  const table = await findExistingTable(STATS_EVENT_TABLE_CANDIDATES);
+  if (!table) return null;
+  const [schemaName, tableName] = table;
+  const columns = await getTableColumns(schemaName, tableName);
+  return { schemaName, tableName, columns, qualifiedName: `${schemaName}.${tableName}` };
+}
+
+async function withStatsRouteLogging(route, method, handler) {
+  try {
+    return await handler();
+  } catch (error) {
+    console.error('[Stashbox Radio Admin Dev] stats route failed', {
+      route,
+      method,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    throw error;
+  }
+}
+
 async function listSongs({ includeArchived = false } = {}) {
   const columns = await getTableColumns('radio', 'songs');
   const hasVisibility = columns.has('public_visibility');
@@ -943,53 +1081,64 @@ async function trackSongEvent(client, event) {
 
 async function listEvents(event) {
   const limit = getQueryLimit(event, 100, 500);
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'song_play_events']
-  ]);
-  const result = await pool.query(`SELECT * FROM ${schemaName}.${tableName} ORDER BY created_at DESC NULLS LAST LIMIT $1`, [limit]);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, count: 0, limit, events: [] });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const orderBy = columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : '';
+  const result = await pool.query(`SELECT * FROM ${qualifiedName} ${orderBy} LIMIT $1`, [limit]);
   return response(200, { success: true, count: result.rowCount, limit, events: result.rows });
 }
 
 async function statsSummary() {
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'song_play_events']
-  ]);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return emptyStatsSummaryResponse();
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const secondsColumn = firstExistingColumn(columns, ['seconds_played', 'duration_seconds']);
+  const completionColumn = firstExistingColumn(columns, ['completion_percent']);
+  const deviceColumn = firstExistingColumn(columns, ['device_type', 'device', 'browser', 'platform']);
+
   const [summary, today, devices, eventTypes] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*)::int AS total_events,
-        COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS events_last_24h,
-        COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS events_last_7d,
-        COUNT(*) FILTER (WHERE event_type = 'play_start')::int AS play_starts,
-        COUNT(*) FILTER (WHERE event_type = 'play_full')::int AS full_plays,
-        COUNT(*) FILTER (WHERE event_type = 'play_partial')::int AS partial_plays,
-        COUNT(*) FILTER (WHERE event_type = 'skip')::int AS skips,
-        COUNT(*) FILTER (WHERE event_type = 'like')::int AS likes,
-        COUNT(*) FILTER (WHERE event_type = 'share')::int AS shares,
-        COUNT(*) FILTER (WHERE event_type = 'video_click')::int AS video_clicks,
-        COUNT(*) FILTER (WHERE event_type = 'product_click')::int AS product_clicks,
-        COALESCE(SUM(seconds_played), 0)::int AS total_seconds_played,
-        COALESCE(AVG(seconds_played), 0)::float AS average_seconds_played,
-        COALESCE(AVG(completion_percent), 0)::float AS average_completion_percent
-      FROM ${schemaName}.${tableName}`),
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')},
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${secondsColumn ? `COALESCE(SUM(${secondsColumn}), 0)::int` : numberLiteral()} AS total_listening_seconds,
+        ${secondsColumn ? `COALESCE(SUM(${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds_played,
+        ${secondsColumn ? `COALESCE(AVG(${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds_played,
+        ${completionColumn ? `COALESCE(AVG(${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_completion_percent
+      FROM ${qualifiedName}`),
     pool.query(`
       SELECT
-        COUNT(*)::int AS events_today,
-        COUNT(*) FILTER (WHERE event_type = 'play_start')::int AS plays_today,
-        COUNT(*) FILTER (WHERE event_type = 'like')::int AS likes_today,
-        COUNT(*) FILTER (WHERE event_type = 'share')::int AS shares_today,
-        COUNT(*) FILTER (WHERE event_type = 'product_click')::int AS product_clicks_today,
-        COUNT(*) FILTER (WHERE event_type = 'video_click')::int AS video_clicks_today
-      FROM ${schemaName}.${tableName}
-      WHERE created_at >= CURRENT_DATE`),
-    pool.query(`SELECT COALESCE(device_type, 'unknown') AS device_type, COUNT(*)::int AS event_count FROM ${schemaName}.${tableName} GROUP BY 1 ORDER BY event_count DESC LIMIT 10`),
-    pool.query(`SELECT event_type, COUNT(*)::int AS event_count FROM ${schemaName}.${tableName} GROUP BY event_type ORDER BY event_count DESC`)
+        ${createdAtCountExpression(columns, 'CURRENT_DATE', 'events_today')},
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('play_start', 'play') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS plays_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type = 'like' AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS likes_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type = 'share' AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS shares_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('product_click') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS product_clicks_today,
+        ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('video_click', 'video_open') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS video_clicks_today
+      FROM ${qualifiedName}`),
+    deviceColumn
+      ? pool.query(`SELECT COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY 1 ORDER BY event_count DESC LIMIT 10`)
+      : Promise.resolve({ rows: [] }),
+    columns.has('event_type')
+      ? pool.query(`SELECT event_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY event_type ORDER BY event_count DESC`)
+      : Promise.resolve({ rows: [] })
   ]);
 
   return response(200, {
@@ -1004,95 +1153,252 @@ async function statsSummary() {
 
 async function songStats(event) {
   const limit = getQueryLimit(event, 100, 500);
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'song_play_events']
-  ]);
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable || !hasAnyColumn(statsTable.columns, ['song_key', 'song_id'])) {
+    return response(200, { success: true, count: 0, limit, songs: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const songsTable = await findExistingTable([['radio', 'songs']]);
+  const songColumns = songsTable ? await getTableColumns('radio', 'songs') : new Set();
+  const eventSongKeyExpr = columns.has('song_key') ? 'e.song_key::text' : columns.has('song_id') ? 'e.song_id::text' : textLiteral('');
+  const eventSongIdExpr = columns.has('song_id') ? 'e.song_id::text' : eventSongKeyExpr;
+  const canJoinSongs = songsTable && ((columns.has('song_key') && songColumns.has('song_key')) || (columns.has('song_id') && songColumns.has('id')));
+  const joinCondition = columns.has('song_key') && songColumns.has('song_key')
+    ? 's.song_key::text = e.song_key::text'
+    : 's.id::text = e.song_id::text';
+  const fromClause = canJoinSongs ? `${qualifiedName} e LEFT JOIN radio.songs s ON ${joinCondition}` : `${qualifiedName} e`;
+  const displayTitleExpr = canJoinSongs && songColumns.has('display_title') ? 's.display_title' : 'NULL::text';
+  const songNameExpr = canJoinSongs && songColumns.has('song_name') ? 's.song_name' : 'NULL::text';
+  const artistExpr = canJoinSongs && songColumns.has('artist') ? 's.artist' : 'NULL::text';
+  const secondsColumn = firstExistingColumn(columns, ['seconds_played', 'duration_seconds']);
+  const completionColumn = firstExistingColumn(columns, ['completion_percent']);
+
   const result = await pool.query(`
     SELECT
-      e.song_key,
-      COALESCE(s.display_title, s.song_name, e.song_key) AS song_title,
-      COUNT(*)::int AS total_events,
-      COUNT(*) FILTER (WHERE e.event_type = 'play_start')::int AS play_starts,
-      COUNT(*) FILTER (WHERE e.event_type = 'play_full')::int AS full_plays,
-      COUNT(*) FILTER (WHERE e.event_type = 'play_partial')::int AS partial_plays,
-      COUNT(*) FILTER (WHERE e.event_type = 'skip')::int AS skips,
-      COUNT(*) FILTER (WHERE e.event_type = 'like')::int AS likes,
-      COUNT(*) FILTER (WHERE e.event_type = 'share')::int AS shares,
-      COUNT(*) FILTER (WHERE e.event_type = 'video_click')::int AS video_clicks,
-      COUNT(*) FILTER (WHERE e.event_type = 'product_click')::int AS product_clicks,
-      COALESCE(SUM(e.seconds_played), 0)::int AS total_seconds_played,
-      COALESCE(AVG(e.seconds_played), 0)::float AS average_seconds_played,
-      COALESCE(AVG(e.completion_percent), 0)::float AS average_completion_percent
-    FROM ${schemaName}.${tableName} e
-    LEFT JOIN radio.songs s ON s.song_key = e.song_key
-    GROUP BY e.song_key, song_title
-    ORDER BY total_events DESC
+      ${eventSongIdExpr} AS song_id,
+      ${eventSongKeyExpr} AS song_key,
+      COALESCE(${displayTitleExpr}, ${songNameExpr}, NULLIF(${eventSongKeyExpr}, ''), 'Unknown song') AS display_title,
+      COALESCE(${songNameExpr}, NULLIF(${eventSongKeyExpr}, ''), 'Unknown song') AS song_name,
+      COALESCE(${artistExpr}, '') AS artist,
+      COUNT(*) FILTER (WHERE ${columns.has('event_type') ? "e.event_type IN ('play_start', 'play')" : 'true'})::int AS plays,
+      ${countEventTypeExpressionForAlias(columns, 'e', ['play_start', 'play'], 'play_starts')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['play_full', 'complete'], 'full_plays')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'play_partial', 'partial_plays')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['skip', 'next_click', 'random_click'], 'skips')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'like', 'likes')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'share', 'shares')},
+      ${countEventTypeExpressionForAlias(columns, 'e', ['video_click', 'video_open'], 'video_clicks')},
+      ${countEventTypeExpressionForAlias(columns, 'e', 'product_click', 'product_clicks')},
+      ${secondsColumn ? `COALESCE(SUM(e.${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds,
+      ${secondsColumn ? `COALESCE(SUM(e.${secondsColumn}), 0)::int` : numberLiteral()} AS total_seconds_played,
+      ${secondsColumn ? `COALESCE(AVG(e.${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds,
+      ${secondsColumn ? `COALESCE(AVG(e.${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds_played,
+      ${completionColumn ? `COALESCE(AVG(e.${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS completion_percent,
+      ${completionColumn ? `COALESCE(AVG(e.${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_completion_percent,
+      ${lastSeenExpression(columns, 'e')}
+    FROM ${fromClause}
+    GROUP BY 1, 2, 3, 4, 5
+    ORDER BY plays DESC, last_seen_at DESC NULLS LAST
     LIMIT $1`, [limit]);
-  return response(200, { success: true, limit, songs: result.rows, generated_at: new Date().toISOString() });
+
+  return response(200, { success: true, count: result.rowCount, limit, songs: result.rows, generated_at: new Date().toISOString() });
 }
 
 async function productStats(event) {
   const limit = getQueryLimit(event, 25, 200);
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'product_click_events']
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const productColumn = firstExistingColumn(columns, ['product_url', 'product_id']);
+
+  if (!productColumn && !columns.has('event_type')) {
+    return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], generated_at: new Date().toISOString() });
+  }
+
+  const productExpr = productColumn ? productColumn : textLiteral('unknown product');
+  const productFilter = columns.has('event_type')
+    ? `(event_type IN ('product_click')${productColumn ? ` OR NULLIF(${productColumn}::text, '') IS NOT NULL` : ''})`
+    : `NULLIF(${productColumn}::text, '') IS NOT NULL`;
+  const createdAtSelect = columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at';
+
+  const [summaryResult, productsResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_product_clicks,
+        COUNT(DISTINCT NULLIF(${productExpr}::text, ''))::int AS unique_products_clicked,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'product_clicks_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'product_clicks_last_7d')}
+      FROM ${qualifiedName}
+      WHERE ${productFilter}`),
+    pool.query(`
+      SELECT
+        ${productExpr} AS product_url,
+        COUNT(*)::int AS click_count,
+        COUNT(*)::int AS product_clicks,
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${columns.has('created_at') ? 'MAX(created_at)' : 'NULL::timestamptz'} AS last_clicked_at,
+        ARRAY[]::text[] AS song_titles
+      FROM ${qualifiedName}
+      WHERE ${productFilter}
+      GROUP BY 1
+      ORDER BY click_count DESC, last_clicked_at DESC NULLS LAST
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${createdAtSelect},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${productExpr} AS product_url,
+        ${optionalColumnExpression(columns, 'device_type')},
+        ${optionalColumnExpression(columns, 'event_type')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      WHERE ${productFilter}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
   ]);
-  const result = await pool.query(`
-    SELECT product_url, COUNT(*)::int AS product_clicks, MAX(created_at) AS last_clicked_at
-    FROM ${schemaName}.${tableName}
-    WHERE event_type = 'product_click' OR product_url IS NOT NULL
-    GROUP BY product_url
-    ORDER BY product_clicks DESC, last_clicked_at DESC
-    LIMIT $1`, [limit]);
+
   return response(200, {
     success: true,
-    summary: {
-      total_product_clicks: result.rows.reduce((sum, row) => sum + Number(row.product_clicks || 0), 0),
-      unique_products_clicked: result.rowCount
-    },
-    products: result.rows,
-    recent_clicks: result.rows,
+    summary: summaryResult.rows[0] || { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 },
+    products: productsResult.rows,
+    recent_clicks: recentResult.rows,
     generated_at: new Date().toISOString()
   });
 }
 
 async function referrerStats(event) {
   const limit = getQueryLimit(event, 50, 200);
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'song_play_events']
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_events: 0, events_with_referrer: 0, direct_or_unknown_events: 0, unique_referrers: 0, events_last_24h: 0, events_last_7d: 0 }, referrers: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const referrerColumn = firstExistingColumn(columns, ['referrer', 'source', 'source_page']);
+
+  if (!referrerColumn) {
+    return response(200, { success: true, summary: { total_events: 0, events_with_referrer: 0, direct_or_unknown_events: 0, unique_referrers: 0, events_last_24h: 0, events_last_7d: 0 }, referrers: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const [summaryResult, referrersResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE NULLIF(${referrerColumn}::text, '') IS NOT NULL)::int AS events_with_referrer,
+        COUNT(*) FILTER (WHERE NULLIF(${referrerColumn}::text, '') IS NULL)::int AS direct_or_unknown_events,
+        COUNT(DISTINCT NULLIF(${referrerColumn}::text, ''))::int AS unique_referrers,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
+      FROM ${qualifiedName}`),
+    pool.query(`
+      SELECT
+        COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
+        COUNT(*)::int AS event_count,
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${lastSeenExpression(columns)}
+      FROM ${qualifiedName}
+      GROUP BY 1
+      ORDER BY event_count DESC
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
+        COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
+        ${optionalColumnExpression(columns, 'event_type')},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${optionalColumnExpression(columns, 'device_type')},
+        ${optionalColumnExpression(columns, 'product_url')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
   ]);
-  const result = await pool.query(`
-    SELECT COALESCE(NULLIF(referrer, ''), 'direct / unknown') AS referrer, COUNT(*)::int AS event_count
-    FROM ${schemaName}.${tableName}
-    GROUP BY 1
-    ORDER BY event_count DESC
-    LIMIT $1`, [limit]);
-  return response(200, { success: true, summary: { unique_referrers: result.rowCount }, referrers: result.rows, recent_events: [], generated_at: new Date().toISOString() });
+
+  return response(200, { success: true, summary: summaryResult.rows[0] || {}, referrers: referrersResult.rows, recent_events: recentResult.rows, generated_at: new Date().toISOString() });
 }
 
 async function deviceStats(event) {
   const limit = getQueryLimit(event, 50, 200);
-  const [schemaName, tableName] = await findFirstTable([
-    ['radio', 'song_events'],
-    ['radio', 'events'],
-    ['public', 'song_events'],
-    ['public', 'song_play_events']
+  const statsTable = await getStatsEventTable();
+
+  if (!statsTable) {
+    return response(200, { success: true, summary: { total_events: 0, desktop_events: 0, mobile_events: 0, other_or_unknown_events: 0, unique_device_types: 0, events_last_24h: 0, events_last_7d: 0 }, devices: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const { columns, qualifiedName } = statsTable;
+  const deviceColumn = firstExistingColumn(columns, ['device_type', 'device', 'browser', 'platform']);
+
+  if (!deviceColumn) {
+    return response(200, { success: true, summary: { total_events: 0, desktop_events: 0, mobile_events: 0, other_or_unknown_events: 0, unique_device_types: 0, events_last_24h: 0, events_last_7d: 0 }, devices: [], recent_events: [], generated_at: new Date().toISOString() });
+  }
+
+  const [summaryResult, devicesResult, recentResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE lower(${deviceColumn}::text) LIKE '%desktop%')::int AS desktop_events,
+        COUNT(*) FILTER (WHERE lower(${deviceColumn}::text) LIKE '%mobile%' OR lower(${deviceColumn}::text) LIKE '%phone%' OR lower(${deviceColumn}::text) LIKE '%android%' OR lower(${deviceColumn}::text) LIKE '%ios%')::int AS mobile_events,
+        COUNT(*) FILTER (WHERE NULLIF(${deviceColumn}::text, '') IS NULL OR (lower(${deviceColumn}::text) NOT LIKE '%desktop%' AND lower(${deviceColumn}::text) NOT LIKE '%mobile%' AND lower(${deviceColumn}::text) NOT LIKE '%phone%' AND lower(${deviceColumn}::text) NOT LIKE '%android%' AND lower(${deviceColumn}::text) NOT LIKE '%ios%'))::int AS other_or_unknown_events,
+        COUNT(DISTINCT NULLIF(${deviceColumn}::text, ''))::int AS unique_device_types,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
+      FROM ${qualifiedName}`),
+    pool.query(`
+      SELECT
+        COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
+        COUNT(*)::int AS event_count,
+        ${countEventTypeExpression(columns, ['play_start', 'play'], 'play_starts')},
+        ${countEventTypeExpression(columns, ['play_full', 'complete'], 'full_plays')},
+        ${countEventTypeExpression(columns, 'play_partial', 'partial_plays')},
+        ${countEventTypeExpression(columns, ['skip', 'next_click', 'random_click'], 'skips')},
+        ${countEventTypeExpression(columns, 'like', 'likes')},
+        ${countEventTypeExpression(columns, 'share', 'shares')},
+        ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+        ${countEventTypeExpression(columns, 'product_click', 'product_clicks')},
+        ${columns.has('session_id') ? 'COUNT(DISTINCT session_id)::int' : numberLiteral()} AS unique_sessions,
+        ${numericAggregateExpression(columns, firstExistingColumn(columns, ['seconds_played', 'duration_seconds']), 'AVG', 'average_seconds_played')},
+        ${numericAggregateExpression(columns, 'completion_percent', 'AVG', 'average_completion_percent')},
+        ${lastSeenExpression(columns)}
+      FROM ${qualifiedName}
+      GROUP BY 1
+      ORDER BY event_count DESC
+      LIMIT $1`, [limit]),
+    pool.query(`
+      SELECT
+        ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
+        COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
+        ${optionalColumnExpression(columns, 'event_type')},
+        ${optionalColumnExpression(columns, 'song_key')},
+        ${optionalColumnExpression(columns, 'song_id')},
+        ${optionalColumnExpression(columns, 'referrer')},
+        ${optionalColumnExpression(columns, 'product_url')},
+        ''::text AS song_title,
+        ''::text AS artist
+      FROM ${qualifiedName}
+      ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+      LIMIT $1`, [limit])
   ]);
-  const result = await pool.query(`
-    SELECT COALESCE(NULLIF(device_type, ''), 'unknown') AS device_type, COUNT(*)::int AS event_count
-    FROM ${schemaName}.${tableName}
-    GROUP BY 1
-    ORDER BY event_count DESC
-    LIMIT $1`, [limit]);
-  return response(200, { success: true, summary: { unique_device_types: result.rowCount }, devices: result.rows, recent_events: [], generated_at: new Date().toISOString() });
+
+  return response(200, { success: true, summary: summaryResult.rows[0] || {}, devices: devicesResult.rows, recent_events: recentResult.rows, generated_at: new Date().toISOString() });
 }
 
 function hmac(key, value, encoding) {
@@ -1191,32 +1497,32 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'stats', 'summary']) && method === 'GET') {
     await requireAdmin(event);
-    return statsSummary();
+    return withStatsRouteLogging('admin/stats/summary', method, () => statsSummary());
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'songs']) && method === 'GET') {
     await requireAdmin(event);
-    return songStats(event);
+    return withStatsRouteLogging('admin/stats/songs', method, () => songStats(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'devices']) && method === 'GET') {
     await requireAdmin(event);
-    return deviceStats(event);
+    return withStatsRouteLogging('admin/stats/devices', method, () => deviceStats(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'referrers']) && method === 'GET') {
     await requireAdmin(event);
-    return referrerStats(event);
+    return withStatsRouteLogging('admin/stats/referrers', method, () => referrerStats(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'products']) && method === 'GET') {
     await requireAdmin(event);
-    return productStats(event);
+    return withStatsRouteLogging('admin/stats/products', method, () => productStats(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'events']) && method === 'GET') {
     await requireAdmin(event);
-    return listEvents(event);
+    return withStatsRouteLogging('admin/events', method, () => listEvents(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'songs'])) {
