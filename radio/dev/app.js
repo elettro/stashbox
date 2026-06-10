@@ -258,8 +258,11 @@ function normalizeSong(row, index) {
     moodTags: parseStringList(firstDefined(row, ['mood_tags', 'moods'])),
     sectionKey: sectionFor(genre),
     audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
+    resolved_artwork_url: normalizedSongArtworkUrl(row),
     song_artwork_url: fixDropbox(clean(row.song_artwork_url || row.songArtworkUrl)),
-    imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
+    artwork_url: fixDropbox(clean(row.artwork_url || row.artworkUrl)),
+    cover_art_url: fixDropbox(clean(row.cover_art_url || row.coverArtUrl)),
+    imageUrl: normalizedSongArtworkUrl(row),
     videoLink: clean(row.video_link || row.video_url || row.videoUrl),
     release_format: clean(row.release_format),
     releaseFormat: clean(row.release_format),
@@ -531,9 +534,32 @@ function youtubeThumbnail(url) {
 }
 
 
+function normalizedSongArtworkUrl(track) {
+  if (!track) return '';
+  return fixDropbox(clean(
+    track.resolved_artwork_url ||
+    track.resolvedArtworkUrl ||
+    track.song_artwork_url ||
+    track.songArtworkUrl ||
+    track.artwork_url ||
+    track.artworkUrl ||
+    track.cover_art_url ||
+    track.coverArtUrl ||
+    track.imageUrl ||
+    track.image_url ||
+    track.cover_url ||
+    track.coverUrl ||
+    track.raw?.resolved_artwork_url ||
+    track.raw?.song_artwork_url ||
+    track.raw?.artwork_url ||
+    track.raw?.cover_art_url ||
+    track.raw?.image_url ||
+    track.raw?.cover_url
+  ));
+}
+
 function firstMediaSessionArtworkUrl(track) {
-  return fixDropbox(clean(track?.song_artwork_url || track?.songArtworkUrl || track?.raw?.song_artwork_url))
-    || clean(track?.imageUrl)
+  return normalizedSongArtworkUrl(track)
     || youtubeThumbnail(track?.videoLink)
     || APP_FALLBACK_ARTWORK_URL;
 }
@@ -1276,7 +1302,7 @@ function App() {
 
   useEffect(() => {
     updateMediaSessionMetadata(selectedSong);
-  }, [selectedSong?.idx, selectedSong?.display_title, selectedSong?.song_name, selectedSong?.title, selectedSong?.artist, selectedSong?.raw?.album_name, selectedSong?.song_artwork_url, selectedSong?.imageUrl, selectedSong?.videoLink]);
+  }, [selectedSong?.idx, selectedSong?.display_title, selectedSong?.song_name, selectedSong?.title, selectedSong?.artist, selectedSong?.raw?.album_name, selectedSong?.resolved_artwork_url, selectedSong?.song_artwork_url, selectedSong?.artwork_url, selectedSong?.cover_art_url, selectedSong?.imageUrl, selectedSong?.videoLink]);
 
   useEffect(() => {
     if (!selectedSong?.songKey) {
@@ -2273,7 +2299,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const selectedIsVideoOnly = isVideoOnlyTrack(selected);
   const availableVideoEmbedUrl = selected.hasVideo ? youtubeEmbed(selected.videoLink) : '';
   const videoSrc = mediaMode === 'video' ? activeVideoEmbedUrl : '';
-  const posterImage = selected.imageUrl || (selectedIsVideoOnly ? youtubeThumbnail(selected.videoLink) : '');
+  const artworkUrl = normalizedSongArtworkUrl(selected);
+  const posterImage = artworkUrl || (selectedIsVideoOnly ? youtubeThumbnail(selected.videoLink) : '');
   const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selectedIsVideoOnly;
   const hasVideo = selected.hasVideo && has(availableVideoEmbedUrl);
   const isVideoMode = mediaMode === 'video' && has(videoSrc);
@@ -2608,7 +2635,7 @@ function displayAlbumName(track) {
 }
 
 function songArtworkUrl(track) {
-  return track?.imageUrl || youtubeThumbnail(track?.videoLink) || APP_FALLBACK_ARTWORK_URL;
+  return normalizedSongArtworkUrl(track) || youtubeThumbnail(track?.videoLink) || APP_FALLBACK_ARTWORK_URL;
 }
 
 function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list', showHeader = true }) {
