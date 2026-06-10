@@ -2123,11 +2123,13 @@ function PlayerPill({ className = '', children, ...props }) { return h('button',
 
 function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClicked, onError }) {
   const mediaRef = useRef(null);
+  const isAdClearingRef = useRef(false);
   const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
   const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || skipAfter <= 0);
   const [skipCountdown, setSkipCountdown] = useState(skipAfter);
   const [started, setStarted] = useState(false);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
+  const [isAdPaused, setIsAdPaused] = useState(false);
   const [adCurrentTime, setAdCurrentTime] = useState(0);
   const [adDuration, setAdDuration] = useState(0);
   const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
@@ -2135,10 +2137,12 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
 
   useEffect(() => {
     const initialCanSkip = !ad?.skip_enabled || skipAfter <= 0;
+    isAdClearingRef.current = false;
     setCanSkip(initialCanSkip);
     setSkipCountdown(skipAfter);
     setStarted(false);
     setNeedsManualPlay(false);
+    setIsAdPaused(false);
     setAdCurrentTime(0);
     setAdDuration(0);
     if (initialCanSkip) return undefined;
@@ -2168,6 +2172,17 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   }, [ad?.id, mediaUrl]);
 
   useEffect(() => {
+    if (!ad) return undefined;
+    const syncPausedState = () => {
+      if (document.visibilityState !== 'visible') return;
+      const media = mediaRef.current;
+      setIsAdPaused(Boolean(media && media.paused && !media.ended));
+    };
+    document.addEventListener('visibilitychange', syncPausedState);
+    return () => document.removeEventListener('visibilitychange', syncPausedState);
+  }, [ad?.id]);
+
+  useEffect(() => {
     if (!ad || isAudio || !mediaUrl) return undefined;
     let cancelled = false;
     const video = mediaRef.current;
@@ -2185,6 +2200,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
             if (cancelled) return;
             console.warn('Ad video autoplay failed:', mutedError);
             setNeedsManualPlay(true);
+            setIsAdPaused(true);
           });
         }
       });
@@ -2195,12 +2211,16 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   if (!ad) return null;
 
   const completeAd = () => {
+    isAdClearingRef.current = true;
+    setIsAdPaused(false);
     try { mediaRef.current?.pause?.(); } catch (_) {}
     onCompleted?.(ad);
   };
 
   const skipAd = () => {
     console.log("[Stashbox Radio Dev] Skip Ad clicked", ad?.id, ad?.title);
+    isAdClearingRef.current = true;
+    setIsAdPaused(false);
     try { mediaRef.current?.pause?.(); } catch (_) {}
     try { if (mediaRef.current) mediaRef.current.currentTime = 0; } catch (_) {}
     onSkipped?.(ad);
@@ -2232,9 +2252,39 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   const startAd = () => {
     if (!isAudio) console.log('Ad video playing');
     setNeedsManualPlay(false);
+    setIsAdPaused(false);
     if (started) return;
     setStarted(true);
     onStarted?.(ad);
+  };
+
+  const handleAdPause = event => {
+    if (isAdClearingRef.current) return;
+    const media = event?.currentTarget;
+    setIsAdPaused(Boolean(media && !media.ended));
+  };
+
+  const resumeCurrentAd = () => {
+    const media = mediaRef.current;
+    if (!media?.play || !ad || !media.paused || media.ended) return;
+    const attemptPlay = media.play();
+    if (attemptPlay?.then) {
+      attemptPlay.then(() => {
+        setNeedsManualPlay(false);
+        setIsAdPaused(false);
+      }).catch(error => {
+        console.warn('[Stashbox Radio Dev] ad resume blocked', error);
+        setIsAdPaused(true);
+      });
+    } else {
+      setNeedsManualPlay(false);
+      setIsAdPaused(false);
+    }
+  };
+
+  const handleAdMediaClick = () => {
+    const media = mediaRef.current;
+    if (media?.paused && !media.ended) resumeCurrentAd();
   };
 
   const playAd = () => {
@@ -2243,16 +2293,23 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
     media.muted = false;
     console.log('Ad video play attempted');
     const attemptPlay = media.play();
-    if (attemptPlay?.catch) {
-      attemptPlay.catch(error => {
+    if (attemptPlay?.then) {
+      attemptPlay.then(() => {
+        setNeedsManualPlay(false);
+        setIsAdPaused(false);
+      }).catch(error => {
         console.warn('Ad video autoplay failed:', error);
         setNeedsManualPlay(true);
+        setIsAdPaused(true);
       });
+    } else {
+      setNeedsManualPlay(false);
+      setIsAdPaused(false);
     }
   };
 
   return h('aside', { className: 'panel player ad-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Advertisement' },
-    h('div', { className: 'player-media ad-player-media' },
+    h('div', { className: 'player-media ad-player-media', onClick: handleAdMediaClick },
       isAudio
         ? h('div', { className: 'ad-audio-shell' },
           ad.poster_image_url || ad.thumbnail_url ? h('img', { src: ad.poster_image_url || ad.thumbnail_url, alt: `${ad.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, ad.title || 'Ad'),
@@ -2264,6 +2321,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
             preload: 'auto',
             autoPlay: true,
             onPlay: startAd,
+            onPause: handleAdPause,
             onLoadedMetadata: updateAdMetadata,
             onDurationChange: updateAdMetadata,
             onTimeUpdate: updateAdTime,
@@ -2280,12 +2338,24 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
           playsInline: true,
           autoPlay: true,
           onPlay: startAd,
+          onPause: handleAdPause,
           onLoadedMetadata: updateAdMetadata,
           onDurationChange: updateAdMetadata,
           onTimeUpdate: updateAdTime,
           onEnded: () => { console.log('Ad video ended'); completeAd(); },
           onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
-        })
+        }),
+      isAdPaused ? h('div', { className: 'ad-resume-overlay', 'aria-hidden': false },
+        h('button', {
+          type: 'button',
+          className: 'ad-resume-button',
+          onClick: event => {
+            event.preventDefault();
+            event.stopPropagation();
+            resumeCurrentAd();
+          }
+        }, 'Tap to resume ad')
+      ) : null
     ),
     needsManualPlay ? h('button', { type: 'button', className: 'play-ad-button', onClick: playAd }, 'Play Ad') : null,
     h('div', { className: 'player-bar ad-player-bar' },

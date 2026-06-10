@@ -937,6 +937,41 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   outline: none;
 }
 
+.ad-resume-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.ad-resume-button {
+  pointer-events: auto;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.75rem 1.15rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ad-resume-button:hover,
+.ad-resume-button:focus-visible {
+  background: rgba(0, 0, 0, 0.78);
+  border-color: rgba(255, 255, 255, 0.6);
+  outline: none;
+}
+
 .ad-audio-shell {
   display: grid;
   place-items: center;
