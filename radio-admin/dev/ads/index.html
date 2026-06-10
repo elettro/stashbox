@@ -223,6 +223,26 @@
 
     .switch-button.is-active { outline: 2px solid var(--accent); }
 
+
+    .controller-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 0.8rem;
+      align-items: end;
+    }
+
+    .controller-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+
+    .controller-actions {
+      margin-top: 1rem;
+    }
+
     .stat-card,
     .top-list,
     .empty-state {
@@ -376,15 +396,55 @@
       <div class="panel-header">
         <div>
           <p class="eyebrow">Global Settings</p>
-          <h2 id="settingsHeading">Ads Master Switch</h2>
-          <p class="copy">This controls future ad availability only. Public player integration is not connected yet.</p>
+          <h2 id="settingsHeading">Ad Controller</h2>
+          <p class="copy">Control dev public player ad breaks without changing code.</p>
           <p id="tokenStatus" class="status-line">Admin token: checking browser storage…</p>
         </div>
         <button id="addNewButton" class="button" type="button">Add New Ad</button>
       </div>
-      <div class="switch-group" role="group" aria-label="Ads Master Switch">
-        <button id="masterOffButton" class="button-ghost switch-button" type="button">Off</button>
-        <button id="masterOnButton" class="button-ghost switch-button" type="button">On</button>
+      <div class="controller-grid">
+        <div>
+          <span class="controller-label">Master Ads</span>
+          <div class="switch-group" role="group" aria-label="Master Ads">
+            <button id="masterOffButton" class="button-ghost switch-button" type="button">Off</button>
+            <button id="masterOnButton" class="button-ghost switch-button" type="button">On</button>
+          </div>
+        </div>
+        <label>Ad Break Method
+          <select id="breakMethod">
+            <option value="count">By number of ads</option>
+            <option value="seconds">By total seconds of ads</option>
+          </select>
+        </label>
+        <label id="adsPerBreakWrap">Ads Per Break
+          <select id="adsPerBreak">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </label>
+        <label id="targetAdSecondsWrap">Target Ad Break Length
+          <select id="targetAdSeconds">
+            <option value="15">15 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="45">45 seconds</option>
+            <option value="60">60 seconds</option>
+            <option value="90">90 seconds</option>
+          </select>
+        </label>
+        <label>Ad Break Timing
+          <select id="breakInterval">
+            <option value="1">After every song/video</option>
+            <option value="2">After every 2 songs/videos</option>
+            <option value="3">After every 3 songs/videos</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-actions controller-actions">
+        <button id="saveSettingsButton" class="button" type="button">Save Settings</button>
+        <span id="settingsStatus" class="helper">Settings load from dev RDS.</span>
       </div>
     </section>
 
@@ -446,8 +506,9 @@
           <label>Ad Size / Ratio
             <select id="adRatio"></select>
           </label>
-          <label>Frequency
+          <label>Frequency / Rotation Weight
             <select id="frequency"></select>
+            <span class="helper">High ads are more likely to appear. This does not control how often ad breaks happen.</span>
           </label>
           <label>Skip After Seconds
             <input id="skipAfterSeconds" type="number" min="0" step="1" value="5" />
@@ -542,7 +603,7 @@
               <th>Ad Type</th>
               <th>Ratio</th>
               <th>Status</th>
-              <th>Frequency</th>
+              <th>Frequency / Rotation Weight</th>
               <th>Views</th>
               <th>Clicks</th>
               <th>CTR %</th>
@@ -563,6 +624,7 @@
     const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
     const API_ROOT_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
     const ADS_API_URL = `${API_ROOT_URL}/admin/ads`;
+    const AD_SETTINGS_API_URL = `${API_ROOT_URL}/admin/ad-settings`;
     const UPLOAD_PRESIGN_API_URL = `${API_ROOT_URL}/admin/uploads/presign`;
 
     const AD_TYPES = [
@@ -592,7 +654,7 @@
 
     const state = {
       ads: [],
-      settings: { masterEnabled: false },
+      settings: { ads_enabled: true, break_method: 'count', ads_per_break: 1, target_ad_seconds: 30, break_interval: 1 },
       selectedId: null,
       usingFallback: false,
       adsLoaded: false,
@@ -604,6 +666,14 @@
       tokenStatus: document.getElementById('tokenStatus'),
       masterOffButton: document.getElementById('masterOffButton'),
       masterOnButton: document.getElementById('masterOnButton'),
+      breakMethod: document.getElementById('breakMethod'),
+      adsPerBreak: document.getElementById('adsPerBreak'),
+      adsPerBreakWrap: document.getElementById('adsPerBreakWrap'),
+      targetAdSeconds: document.getElementById('targetAdSeconds'),
+      targetAdSecondsWrap: document.getElementById('targetAdSecondsWrap'),
+      breakInterval: document.getElementById('breakInterval'),
+      saveSettingsButton: document.getElementById('saveSettingsButton'),
+      settingsStatus: document.getElementById('settingsStatus'),
       addNewButton: document.getElementById('addNewButton'),
       statsGrid: document.getElementById('statsGrid'),
       topViewedList: document.getElementById('topViewedList'),
@@ -670,8 +740,10 @@
     }
 
     function bindEvents() {
-      els.masterOffButton.addEventListener('click', () => saveSettings(false));
-      els.masterOnButton.addEventListener('click', () => saveSettings(true));
+      els.masterOffButton.addEventListener('click', () => setMasterAds(false));
+      els.masterOnButton.addEventListener('click', () => setMasterAds(true));
+      els.breakMethod.addEventListener('change', () => renderSettings());
+      els.saveSettingsButton.addEventListener('click', saveSettings);
       els.addNewButton.addEventListener('click', () => openForm());
       els.adForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -704,8 +776,38 @@
       });
     }
 
-    function loadSettings() {
-      state.settings = { masterEnabled: false, ...readJson(SETTINGS_STORAGE_KEY, {}) };
+    function defaultSettings() {
+      return { ads_enabled: true, break_method: 'count', ads_per_break: 1, target_ad_seconds: 30, break_interval: 1 };
+    }
+
+    function normalizeSettings(settings = {}) {
+      const defaults = defaultSettings();
+      const breakMethod = ['count', 'seconds'].includes(settings.break_method) ? settings.break_method : defaults.break_method;
+      const adsPerBreak = [1, 2, 3, 4, 5].includes(Number(settings.ads_per_break)) ? Number(settings.ads_per_break) : defaults.ads_per_break;
+      const targetAdSeconds = [15, 30, 45, 60, 90].includes(Number(settings.target_ad_seconds)) ? Number(settings.target_ad_seconds) : defaults.target_ad_seconds;
+      const breakInterval = [1, 2, 3].includes(Number(settings.break_interval)) ? Number(settings.break_interval) : defaults.break_interval;
+      return {
+        ads_enabled: Object.prototype.hasOwnProperty.call(settings, 'ads_enabled') ? Boolean(settings.ads_enabled) : defaults.ads_enabled,
+        break_method: breakMethod,
+        ads_per_break: adsPerBreak,
+        target_ad_seconds: targetAdSeconds,
+        break_interval: breakInterval
+      };
+    }
+
+    async function loadSettings() {
+      state.settings = normalizeSettings(readJson(SETTINGS_STORAGE_KEY, defaultSettings()));
+      renderSettings();
+      try {
+        const data = await adminFetch(AD_SETTINGS_API_URL);
+        state.settings = normalizeSettings(data?.settings || data);
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+        renderSettings();
+        els.settingsStatus.textContent = 'Settings loaded from dev RDS.';
+      } catch (error) {
+        renderSettings();
+        els.settingsStatus.textContent = `Using local/default settings until RDS loads. ${error.message || error}`;
+      }
     }
 
     async function fetchAds() {
@@ -753,11 +855,44 @@
       localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(state.ads));
     }
 
-    function saveSettings(masterEnabled) {
-      state.settings.masterEnabled = Boolean(masterEnabled);
+    function setMasterAds(enabled) {
+      state.settings.ads_enabled = Boolean(enabled);
+      renderSettings();
+    }
+
+    function collectSettings() {
+      return normalizeSettings({
+        ads_enabled: state.settings.ads_enabled,
+        break_method: els.breakMethod.value,
+        ads_per_break: Number(els.adsPerBreak.value),
+        target_ad_seconds: Number(els.targetAdSeconds.value),
+        break_interval: Number(els.breakInterval.value)
+      });
+    }
+
+    async function saveSettings() {
+      state.settings = collectSettings();
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
       renderSettings();
-      showMessage(`Ads Master Switch saved: ${state.settings.masterEnabled ? 'On' : 'Off'}.`, 'success');
+      setBusy(els.saveSettingsButton, true);
+      els.settingsStatus.textContent = 'Saving ad settings...';
+      try {
+        const data = await adminFetch(AD_SETTINGS_API_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state.settings)
+        });
+        state.settings = normalizeSettings(data?.settings || state.settings);
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+        renderSettings();
+        els.settingsStatus.textContent = 'Ad settings saved';
+        showMessage('Ad settings saved', 'success');
+      } catch (error) {
+        els.settingsStatus.textContent = `Could not save settings. ${error.message || error}`;
+        showMessage(`Could not save settings: ${error.message || error}`, 'error');
+      } finally {
+        setBusy(els.saveSettingsButton, false);
+      }
     }
 
     function normalizeAd(ad) {

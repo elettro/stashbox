@@ -7,6 +7,7 @@ const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
 const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
 const PUBLIC_ADS_API_URL = `${API_ROOT_URL}/radio/ads`;
 const PUBLIC_ADS_API_URLS = [PUBLIC_ADS_API_URL, `${API_ROOT_URL}/ads`];
+const PUBLIC_AD_SETTINGS_API_URLS = [`${API_ROOT_URL}/radio/ad-settings`, `${API_ROOT_URL}/ad-settings`];
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const VIEW_MODE_STORAGE_KEY = 'stashbox_radio_view_mode';
 const DEFAULT_FILTER = 'ALL';
@@ -26,6 +27,8 @@ const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') |
 
 const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
 const AD_FREQUENCY_WEIGHTS = { low: 1, medium: 3, high: 6 };
+const DEFAULT_AD_SETTINGS = { ads_enabled: true, break_method: 'count', ads_per_break: 1, target_ad_seconds: 30, break_interval: 1 };
+const FALLBACK_AD_DURATION_SECONDS = 15;
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -142,6 +145,50 @@ function adFrequencyKey(ad) {
 function weightedRandomAd(ads) {
   const pool = ads.flatMap(ad => Array(Math.max(1, AD_FREQUENCY_WEIGHTS[adFrequencyKey(ad)] || AD_FREQUENCY_WEIGHTS.medium)).fill(ad));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
+
+function normalizeAdSettings(settings = {}) {
+  const adsPerBreak = [1, 2, 3, 4, 5].includes(Number(settings.ads_per_break)) ? Number(settings.ads_per_break) : DEFAULT_AD_SETTINGS.ads_per_break;
+  const targetAdSeconds = [15, 30, 45, 60, 90].includes(Number(settings.target_ad_seconds)) ? Number(settings.target_ad_seconds) : DEFAULT_AD_SETTINGS.target_ad_seconds;
+  const breakInterval = [1, 2, 3].includes(Number(settings.break_interval)) ? Number(settings.break_interval) : DEFAULT_AD_SETTINGS.break_interval;
+  return {
+    ads_enabled: Object.prototype.hasOwnProperty.call(settings, 'ads_enabled') ? Boolean(settings.ads_enabled) : DEFAULT_AD_SETTINGS.ads_enabled,
+    break_method: settings.break_method === 'seconds' ? 'seconds' : 'count',
+    ads_per_break: adsPerBreak,
+    target_ad_seconds: targetAdSeconds,
+    break_interval: breakInterval
+  };
+}
+
+function normalizeSettingsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try { return normalizeSettingsResponse(JSON.parse(data.body)); } catch (_) { return DEFAULT_AD_SETTINGS; }
+  }
+  return normalizeAdSettings(data?.settings || data || DEFAULT_AD_SETTINGS);
+}
+
+async function loadPublicAdSettings() {
+  let lastError = null;
+  for (const endpoint of PUBLIC_AD_SETTINGS_API_URLS) {
+    try {
+      const response = await fetch(endpoint, { cache: 'no-store' });
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+      if (!response.ok) throw new Error((data && (data.error || data.message)) || `Ad settings API returned HTTP ${response.status}`);
+      return normalizeSettingsResponse(data);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  console.warn('Ad settings load failed, using safe defaults', lastError?.message || lastError);
+  return normalizeAdSettings(DEFAULT_AD_SETTINGS);
+}
+
+function estimatedAdDurationSeconds(ad) {
+  const duration = Number(ad?.durationSeconds ?? ad?.duration_seconds ?? 0);
+  return Number.isFinite(duration) && duration > 0 ? duration : FALLBACK_AD_DURATION_SECONDS;
 }
 
 function recordDevAdEvent(ad, eventType, { song = null, sessionId = '', extra = {} } = {}) {
@@ -1300,6 +1347,7 @@ function App() {
   const [autoPlayRequest, setAutoPlayRequest] = useState(null);
   const [playerMessage, setPlayerMessage] = useState('');
   const [activeAds, setActiveAds] = useState([]);
+  const [adSettings, setAdSettings] = useState(() => normalizeAdSettings(DEFAULT_AD_SETTINGS));
   const [currentAd, setCurrentAd] = useState(null);
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [lastPlayedAdId, setLastPlayedAdId] = useState(null);
@@ -1312,6 +1360,9 @@ function App() {
   const hasHandledVideoEndRef = useRef(false);
   const mediaIsPlayingRef = useRef(false);
   const adPlayCountsRef = useRef({});
+  const adBreakCompletedCountRef = useRef(0);
+  const currentAdBreakQueueRef = useRef([]);
+  const adDurationMemoryRef = useRef({});
   const pendingAdNextSongRef = useRef(null);
   const videoCleanupInProgressRef = useRef(false);
   const isAdPlayingRef = useRef(false);
@@ -1358,6 +1409,12 @@ function App() {
   useEffect(() => {
     let alive = true;
     loadActiveAds().then(nextAds => { if (alive) setActiveAds(nextAds); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    loadPublicAdSettings().then(nextSettings => { if (alive) setAdSettings(nextSettings); });
     return () => { alive = false; };
   }, []);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
@@ -1457,47 +1514,101 @@ function App() {
   const isGroupedSongView = sortKey === 'genre' || sortKey === 'artist';
 
 
-  function pickEligibleAd() {
+  function getEligibleAdsForBreak() {
     const eligible = activeAds.filter(ad => (
+      adSettings.ads_enabled &&
       ad.active &&
       has(ad.mediaUrl) &&
       isDateEligible(ad) &&
       (adPlayCountsRef.current[ad.id] || 0) < ad.max_plays_per_session
     ));
     console.log(`[Stashbox Radio Dev] Eligible ads for break: ${eligible.length}`);
-    if (!eligible.length) {
-      console.log('[Stashbox Radio Dev] No active ads available for completed item');
-      return null;
-    }
-    const avoidLast = eligible.filter(ad => ad.id !== lastPlayedAdId);
-    const selectedAd = weightedRandomAd(avoidLast.length ? avoidLast : eligible);
-    if (selectedAd) console.log(`[Stashbox Radio Dev] Selected weighted ad: ${selectedAd.title || 'Untitled ad'}`);
-    return selectedAd;
+    if (!eligible.length) console.log('[Stashbox Radio Dev] No active ads available for completed item');
+    return eligible;
   }
 
-  function maybeStartAdBeforeNextSong(nextSong, currentSong, { allowAfterCompletedVideo = false } = {}) {
-    if (isAdPlayingRef.current || currentAd || (mediaMode === 'video' && !allowAfterCompletedVideo)) return false;
-    if (!nextSong) return false;
-    if (nextSong?.idx && currentSong?.idx && nextSong.idx === currentSong.idx) return false;
-    console.log('[Stashbox Radio Dev] Ad break required after completed item');
-    const nextAd = pickEligibleAd();
-    if (!nextAd) return false;
-    const audio = audioRef.current;
-    if (audio) {
-      try { audio.pause(); } catch (_) {}
-      try { audio.currentTime = 0; } catch (_) {}
+  function pickWeightedAdForBreak(availableAds, usedIds = new Set()) {
+    if (!availableAds.length) return null;
+    const uniquePool = availableAds.filter(ad => !usedIds.has(ad.id));
+    const candidates = uniquePool.length ? uniquePool : availableAds;
+    return weightedRandomAd(candidates);
+  }
+
+  function buildAdBreakQueue() {
+    const eligible = getEligibleAdsForBreak();
+    if (!eligible.length) return [];
+    const settings = normalizeAdSettings(adSettings);
+    const queue = [];
+    const usedIds = new Set();
+
+    if (settings.break_method === 'seconds') {
+      let accumulatedSeconds = 0;
+      while (accumulatedSeconds < settings.target_ad_seconds && queue.length < 20) {
+        const nextAd = pickWeightedAdForBreak(eligible, usedIds);
+        if (!nextAd) break;
+        queue.push(nextAd);
+        usedIds.add(nextAd.id);
+        accumulatedSeconds += Number(adDurationMemoryRef.current[nextAd.id] || nextAd.durationSeconds || estimatedAdDurationSeconds(nextAd));
+        if (usedIds.size >= eligible.length) usedIds.clear();
+      }
+      console.log(`[Stashbox Radio Dev] Built seconds ad break: ${queue.length} ads, estimated ${accumulatedSeconds}s target ${settings.target_ad_seconds}s`);
+      return queue;
     }
-    pendingAdNextSongRef.current = nextSong || null;
+
+    const requestedCount = settings.ads_per_break;
+    while (queue.length < requestedCount) {
+      const nextAd = pickWeightedAdForBreak(eligible, usedIds);
+      if (!nextAd) break;
+      queue.push(nextAd);
+      usedIds.add(nextAd.id);
+      if (usedIds.size >= eligible.length) usedIds.clear();
+    }
+    console.log(`[Stashbox Radio Dev] Built count ad break: ${queue.length} ads requested ${requestedCount}`);
+    return queue;
+  }
+
+  function startAdFromQueue(nextAd, nextSong) {
+    if (!nextAd) return false;
+    pendingAdNextSongRef.current = nextSong || pendingAdNextSongRef.current || null;
     adPlayCountsRef.current[nextAd.id] = (adPlayCountsRef.current[nextAd.id] || 0) + 1;
     handledAdEndRef.current = false;
     setCurrentAd(nextAd);
     setIsAdPlaying(true);
     setLastPlayedAdId(nextAd.id);
-    setPlayerMessage('Sponsored message. Song playback will continue after this ad.');
+    setPlayerMessage('Sponsored message. Song playback will continue after this ad break.');
     setAutoPlayRequest(null);
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
     return true;
+  }
+
+  function maybeStartAdBeforeNextSong(nextSong, currentSong, { allowAfterCompletedVideo = false } = {}) {
+    if (isAdPlayingRef.current || currentAd || (mediaMode === 'video' && !allowAfterCompletedVideo)) return false;
+    if (!adSettings.ads_enabled) {
+      console.log('[Stashbox Radio Dev] Ads disabled by public ad settings.');
+      return false;
+    }
+    if (!nextSong) return false;
+    if (nextSong?.idx && currentSong?.idx && nextSong.idx === currentSong.idx) return false;
+
+    adBreakCompletedCountRef.current += 1;
+    const breakInterval = normalizeAdSettings(adSettings).break_interval;
+    if (adBreakCompletedCountRef.current < breakInterval) {
+      console.log(`[Stashbox Radio Dev] Ad break skipped by interval ${adBreakCompletedCountRef.current}/${breakInterval}`);
+      return false;
+    }
+    adBreakCompletedCountRef.current = 0;
+
+    console.log('[Stashbox Radio Dev] Ad break required after completed item');
+    const audio = audioRef.current;
+    if (audio) {
+      try { audio.pause(); } catch (_) {}
+      try { audio.currentTime = 0; } catch (_) {}
+    }
+    const queue = buildAdBreakQueue();
+    if (!queue.length) return false;
+    currentAdBreakQueueRef.current = queue.slice(1);
+    return startAdFromQueue(queue[0], nextSong);
   }
 
   async function continueAfterAd(eventType = 'ad_complete', adOverride = null) {
@@ -1508,12 +1619,28 @@ function App() {
       recordDevAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
       await sendAdTrackingEvent(completedAd, eventType);
     }
+
+    const nextQueuedAd = currentAdBreakQueueRef.current.shift();
+    if (nextQueuedAd) {
+      startAdFromQueue(nextQueuedAd, pendingAdNextSongRef.current || null);
+      return;
+    }
+
     const nextSong = pendingAdNextSongRef.current || resolveAdjacentPlayableSong(1, selectedSong);
     pendingAdNextSongRef.current = null;
+    currentAdBreakQueueRef.current = [];
     setCurrentAd(null);
     setIsAdPlaying(false);
     setPlayerMessage('');
     if (nextSong) selectTrack(nextSong, { autoStart: true, preferVideo: videoFocusedList && nextSong.hasVideo });
+  }
+
+  function handleAdDurationKnown(ad, durationSeconds) {
+    if (!ad?.id) return;
+    const duration = Number(durationSeconds);
+    if (Number.isFinite(duration) && duration > 0) {
+      adDurationMemoryRef.current[ad.id] = duration;
+    }
   }
 
   function handleAdStarted(ad) {
@@ -2139,7 +2266,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, onStarted: handleAdStarted, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, onStarted: handleAdStarted, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -2170,7 +2297,7 @@ function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onSha
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
 
-function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClicked, onError }) {
+function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClicked, onError, onDurationKnown }) {
   const mediaRef = useRef(null);
   const isAdClearingRef = useRef(false);
   const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
@@ -2286,6 +2413,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   const updateAdDuration = media => {
     const nextDuration = Number.isFinite(media?.duration) ? Math.max(0, media.duration) : 0;
     setAdDuration(nextDuration);
+    if (nextDuration > 0) onDurationKnown?.(ad, nextDuration);
   };
 
   const updateAdTime = event => {
@@ -2440,7 +2568,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   );
 }
 
-function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
