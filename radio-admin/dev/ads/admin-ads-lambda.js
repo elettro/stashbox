@@ -35,6 +35,14 @@ const EDITABLE_FIELDS = [
   'notes'
 ];
 
+const SUPPORTED_AD_EVENTS = new Set([
+  'ad_start',
+  'ad_complete',
+  'ad_skip',
+  'ad_click',
+  'ad_error'
+]);
+
 function response(statusCode, body) {
   return {
     statusCode,
@@ -259,28 +267,77 @@ function getAdEventType(event) {
   }
 }
 
+function getTrackEventType(event) {
+  try {
+    const body = parseBody(event);
+    return String(body.event_type || body.eventType || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+async function handleTrackRoute(client, event, trackEvent) {
+  const eventType = getTrackEventType(event);
+  if (eventType.startsWith('ad_')) return trackAdEvent(client, event);
+  return trackEvent(client, event);
+}
+
+async function trackAdEvent(client, event, overrides = {}) {
+  const body = { ...parseBody(event), ...overrides };
+  const adId = String(body.ad_id || body.adId || '').trim();
+  const eventType = String(body.event_type || body.eventType || '').trim();
+
+  if (!adId || !SUPPORTED_AD_EVENTS.has(eventType)) {
+    return response(400, { success: false, error: 'Invalid or missing ad event' });
+  }
+
+  console.log('Tracking ad event:', eventType, adId);
+
+  if (eventType === 'ad_start') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET views = COALESCE(views, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad views for:', adId);
+    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  }
+
+  if (eventType === 'ad_click') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET clicks = COALESCE(clicks, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad clicks for:', adId);
+    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  }
+
+  const result = await client.query(
+    'SELECT id, internal_title, views, clicks FROM radio.ads WHERE id = $1',
+    [adId]
+  );
+
+  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+  return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+}
+
 async function recordPublicAdEvent(event) {
   const adId = getAdId(event);
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
   const eventType = getAdEventType(event);
-  const incrementsView = eventType === 'ad_impression' || eventType === 'ad_start';
-  const incrementsClick = eventType === 'ad_cta_clicked' || eventType === 'ad_click';
-
-  if (!incrementsView && !incrementsClick) {
-    return response(202, { success: true, message: 'Ad event accepted without counter update.', ad_id: adId, event_type: eventType });
-  }
-
-  const result = await pool.query(
-    `UPDATE radio.ads
-     SET views = views + $2, clicks = clicks + $3, updated_at = now()
-     WHERE id = $1 AND active = true AND hidden = false
-     RETURNING id, views, clicks`,
-    [adId, incrementsView ? 1 : 0, incrementsClick ? 1 : 0]
-  );
-
-  if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
-  return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  return trackAdEvent(pool, event, { ad_id: adId, event_type: eventType });
 }
 
 async function handlePublicAdsRoute(event) {
@@ -316,10 +373,12 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 module.exports = {
   handleAdminAdsRoute,
   handlePublicAdsRoute,
+  handleTrackRoute,
   getPublicAdsRouteMatch,
   listAds,
   listPublicAds,
   recordPublicAdEvent,
+  trackAdEvent,
   createAd,
   updateAd,
   deleteAd
