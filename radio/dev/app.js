@@ -357,7 +357,11 @@ async function sendAdTrackingEvent(ad, eventType) {
     page: 'dev',
     source: 'public_player'
   };
-  console.log('[Stashbox Radio Dev] sending ad tracking event', payload);
+  if (eventType === 'ad_skip') {
+    console.log('[Stashbox Radio Dev] sending ad_skip tracking event', payload);
+  } else {
+    console.log('[Stashbox Radio Dev] sending ad tracking event', payload);
+  }
   try {
     const response = await fetch(TRACKING_API_URL, {
       method: 'POST',
@@ -371,11 +375,19 @@ async function sendAdTrackingEvent(ad, eventType) {
     } catch (error) {
       body = `[unable to read response body: ${error.message || error}]`;
     }
-    console.log('[Stashbox Radio Dev] ad tracking response', {
-      status: response.status,
-      ok: response.ok,
-      body
-    });
+    if (eventType === 'ad_skip') {
+      console.log('[Stashbox Radio Dev] ad_skip tracking response', {
+        status: response.status,
+        ok: response.ok,
+        body
+      });
+    } else {
+      console.log('[Stashbox Radio Dev] ad tracking response', {
+        status: response.status,
+        ok: response.ok,
+        body
+      });
+    }
     if (!response.ok) console.warn('[Stashbox Radio Dev] ad tracking rejected', { event_type: eventType, status: response.status });
     return response;
   } catch (error) {
@@ -1466,13 +1478,13 @@ function App() {
     return true;
   }
 
-  function continueAfterAd(eventType = 'ad_complete') {
-    const completedAd = currentAd;
+  async function continueAfterAd(eventType = 'ad_complete', adOverride = null) {
+    const completedAd = adOverride || currentAd;
     if (!completedAd || handledAdEndRef.current) return;
     handledAdEndRef.current = true;
     if (eventType) {
       recordDevAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
-      sendAdTrackingEvent(completedAd, eventType);
+      await sendAdTrackingEvent(completedAd, eventType);
     }
     const nextSong = pendingAdNextSongRef.current || resolveAdjacentPlayableSong(1, selectedSong);
     pendingAdNextSongRef.current = null;
@@ -1489,13 +1501,15 @@ function App() {
   }
 
   function handleAdSkipped(ad) {
-    console.log(`Ad skipped: ${ad?.title || 'Untitled ad'}`);
-    continueAfterAd('ad_skip');
+    const skippedAd = ad || currentAd;
+    console.log(`Ad skipped: ${skippedAd?.title || 'Untitled ad'}`);
+    continueAfterAd('ad_skip', skippedAd);
   }
 
   function handleAdCompleted(ad) {
-    console.log(`Ad completed: ${ad?.title || 'Untitled ad'}`);
-    continueAfterAd('ad_complete');
+    const completedAd = ad || currentAd;
+    console.log(`Ad completed: ${completedAd?.title || 'Untitled ad'}`);
+    continueAfterAd('ad_complete', completedAd);
   }
 
   function handleAdCtaClicked(ad) {

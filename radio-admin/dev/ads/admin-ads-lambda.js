@@ -40,9 +40,9 @@ const EDITABLE_FIELDS = [
 
 const SUPPORTED_AD_EVENTS = new Set([
   'ad_start',
-  'ad_complete',
-  'ad_skip',
   'ad_click',
+  'ad_skip',
+  'ad_complete',
   'ad_error'
 ]);
 
@@ -273,7 +273,7 @@ async function listAds() {
       COALESCE(skips, 0)::int AS skips,
       CASE
         WHEN COALESCE(views, 0) > 0
-        THEN ROUND((COALESCE(skips, 0)::numeric / views) * 100, 2)
+        THEN ROUND((COALESCE(skips, 0)::numeric / COALESCE(views, 0)::numeric) * 100, 2)
         ELSE 0
       END AS skip_rate
     FROM radio.ads
@@ -305,12 +305,12 @@ async function listPublicAds() {
       song_targeting,
       start_date,
       end_date,
-      views,
-      clicks,
+      COALESCE(views, 0)::int AS views,
+      COALESCE(clicks, 0)::int AS clicks,
       COALESCE(skips, 0)::int AS skips,
       CASE
         WHEN COALESCE(views, 0) > 0
-        THEN ROUND((COALESCE(skips, 0)::numeric / views) * 100, 2)
+        THEN ROUND((COALESCE(skips, 0)::numeric / COALESCE(views, 0)::numeric) * 100, 2)
         ELSE 0
       END AS skip_rate,
       created_at,
@@ -445,7 +445,13 @@ async function trackAdEvent(client, event, overrides = {}) {
 
     if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
     console.log('Updated ad skips for:', adId);
-    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+    return response(200, {
+      success: true,
+      message: 'Ad event tracked',
+      ad_id: adId,
+      event_type: eventType,
+      ad: result.rows[0]
+    });
   }
 
   const result = await client.query(
