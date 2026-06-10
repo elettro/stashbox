@@ -1001,19 +1001,30 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 }
 
 .ad-player-controls-layout {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px 16px;
 }
 
-.ad-player .player-info {
+.ad-player .player-info,
+.ad-info {
+  align-items: flex-start;
+  grid-column: 1;
+  justify-self: start;
   width: 100%;
+  min-width: 0;
   padding-right: 0;
+  text-align: left;
 }
 
 .ad-player .player-title-row {
   width: 100%;
-  justify-content: center;
-  text-align: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.ad-title,
+.ad-description {
+  text-align: left;
 }
 
 .ad-player .ad-label-pill {
@@ -1022,10 +1033,11 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
 .ad-actions {
   display: flex;
+  grid-column: 2;
   align-items: center;
   justify-content: center;
-  justify-self: stretch;
-  width: 100%;
+  justify-self: center;
+  width: auto;
 }
 
 .ad-controls-center-group {
@@ -1131,6 +1143,20 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
   .ad-time-display {
     font-size: 0.8rem;
+  }
+
+  .ad-player-controls-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ad-info,
+  .ad-actions {
+    grid-column: 1;
+  }
+
+  .ad-actions {
+    justify-self: stretch;
+    width: 100%;
   }
 
   .ad-controls-center-group {
