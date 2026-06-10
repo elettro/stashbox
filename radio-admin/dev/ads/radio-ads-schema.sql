@@ -70,6 +70,14 @@ CREATE TABLE IF NOT EXISTS radio.ad_settings (
   updated_at timestamp DEFAULT now()
 );
 
-INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval)
-VALUES ('dev', true, 'count', 1, 30, 1)
+INSERT INTO radio.ad_settings (
+  id,
+  ads_enabled,
+  break_method,
+  ads_per_break,
+  target_ad_seconds,
+  break_interval,
+  updated_at
+)
+VALUES ('dev', true, 'count', 1, 30, 1, now())
 ON CONFLICT (id) DO NOTHING;
