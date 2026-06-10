@@ -712,6 +712,15 @@ function routeStartsWith(segments, prefix) {
   return prefix.every((segment, index) => segments[index] === segment);
 }
 
+function normalizeRoute(route) {
+  return String(route || '').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+function matchesRoute(route, candidates) {
+  const clean = normalizeRoute(route);
+  return candidates.some((candidate) => clean === normalizeRoute(candidate));
+}
+
 function getQueryLimit(event, fallback = 100, max = 500) {
   const rawLimit = Number(event.queryStringParameters?.limit || fallback);
   if (!Number.isFinite(rawLimit) || rawLimit <= 0) return fallback;
@@ -1087,6 +1096,9 @@ async function createUploadPresign(event) {
 async function dispatch(event) {
   const method = getMethod(event).toUpperCase();
   const segments = getRouteSegments(event);
+  const route = segments.join('/');
+
+  console.log('Normalized route:', route, 'method:', method);
 
   if (method === 'OPTIONS') return response(204, {});
 
@@ -1098,7 +1110,7 @@ async function dispatch(event) {
     return handleTrackRoute(pool, event, trackSongEvent);
   }
 
-  if (routeStartsWith(segments, ['radio', 'ad-settings']) || routeStartsWith(segments, ['ad-settings'])) {
+  if (matchesRoute(route, ['radio/ad-settings', '/radio/ad-settings', 'ad-settings', '/ad-settings'])) {
     return handlePublicAdSettingsRoute(event);
   }
 
@@ -1106,7 +1118,7 @@ async function dispatch(event) {
     return handlePublicAdsRoute(event);
   }
 
-  if (routeStartsWith(segments, ['admin', 'ad-settings'])) {
+  if (matchesRoute(route, ['admin/ad-settings', '/admin/ad-settings'])) {
     return handleAdminAdSettingsRoute(event, { requireAdmin });
   }
 
