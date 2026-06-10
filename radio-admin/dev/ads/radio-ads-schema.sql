@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS radio.ads (
 
   views integer NOT NULL DEFAULT 0,
   clicks integer NOT NULL DEFAULT 0,
+  skips integer NOT NULL DEFAULT 0,
 
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -45,3 +46,13 @@ CREATE INDEX IF NOT EXISTS ads_hidden_idx ON radio.ads(hidden);
 CREATE INDEX IF NOT EXISTS ads_ad_type_idx ON radio.ads(ad_type);
 CREATE INDEX IF NOT EXISTS ads_start_date_idx ON radio.ads(start_date);
 CREATE INDEX IF NOT EXISTS ads_end_date_idx ON radio.ads(end_date);
+
+ALTER TABLE radio.ads
+ADD COLUMN IF NOT EXISTS skips integer DEFAULT 0;
+
+UPDATE radio.ads
+SET skips = 0
+WHERE skips IS NULL;
+
+ALTER TABLE radio.ads
+ALTER COLUMN skips SET DEFAULT 0;
