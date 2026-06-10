@@ -2953,8 +2953,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
         h('div', { className: 'player-controls-layout' },
           h('div', { className: 'player-info' },
             h('div', { className: 'player-title-row' },
-              h('h2', null, selected.title),
-              h('span', { className: 'player-stat-pill play-count-pill mobile-title-play-count', title: `${Number(playCount) || 0} recorded starts` }, h('span', null, formatPlayerPlayCount(playCount)))
+              h('h2', null, selected.title)
             ),
             h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
             selected.publicTrackNote ? h('p', { className: 'notes public-note compact-note' }, selected.publicTrackNote) : null
