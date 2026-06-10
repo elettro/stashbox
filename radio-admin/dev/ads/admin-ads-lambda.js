@@ -59,8 +59,35 @@ function getPath(event) {
   return event.rawPath || event.path || '';
 }
 
+function getPublicAdsRouteMatch(event) {
+  const path = getPath(event).split('?')[0].replace(/\/+$/, '');
+  const segments = path.split('/').filter(Boolean);
+  const radioAdsIndex = segments.findIndex((segment, index) => segment === 'radio' && segments[index + 1] === 'ads');
+  const adsIndex = radioAdsIndex >= 0
+    ? radioAdsIndex + 1
+    : segments.findIndex((segment, index) => segment === 'ads' && segments[index - 1] !== 'admin');
+
+  if (adsIndex < 0) return { adId: '', isEventRoute: false };
+
+  const routeTail = segments.slice(adsIndex + 1);
+  const isEventRoute = routeTail.length === 2 && routeTail[1] === 'events';
+  const isListRoute = routeTail.length === 0;
+  const isAdRoute = routeTail.length === 1 || isEventRoute;
+
+  if (!isListRoute && !isAdRoute) return { adId: '', isEventRoute: false };
+
+  return {
+    adId: routeTail[0] || '',
+    isEventRoute
+  };
+}
+
 function getAdId(event) {
-  return event.pathParameters?.ad_id || event.pathParameters?.adId || getPath(event).match(/\/(?:admin|radio)\/ads\/([^/?#]+)/)?.[1] || '';
+  return event.pathParameters?.ad_id ||
+    event.pathParameters?.adId ||
+    getPublicAdsRouteMatch(event).adId ||
+    getPath(event).match(/\/(?:admin|radio)\/ads\/([^/?#]+)/)?.[1] ||
+    '';
 }
 
 function normalizePayload(input, { partial = false } = {}) {
@@ -216,14 +243,19 @@ async function deleteAd(event) {
 }
 
 function getAdEventType(event) {
-  const pathMatch = getPath(event).match(/\/radio\/ads\/[^/?#]+\/events\/?$/);
-  if (!pathMatch) return '';
+  if (!getPublicAdsRouteMatch(event).isEventRoute) return '';
 
   try {
     const body = parseBody(event);
-    return String(body.event_type || body.eventType || '').trim();
+    return String(
+      body.event_type ||
+      body.eventType ||
+      event.queryStringParameters?.event_type ||
+      event.queryStringParameters?.eventType ||
+      ''
+    ).trim();
   } catch (_) {
-    return '';
+    return String(event.queryStringParameters?.event_type || event.queryStringParameters?.eventType || '').trim();
   }
 }
 
@@ -232,8 +264,8 @@ async function recordPublicAdEvent(event) {
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
   const eventType = getAdEventType(event);
-  const incrementsView = eventType === 'ad_impression';
-  const incrementsClick = eventType === 'ad_cta_clicked';
+  const incrementsView = eventType === 'ad_impression' || eventType === 'ad_start';
+  const incrementsClick = eventType === 'ad_cta_clicked' || eventType === 'ad_click';
 
   if (!incrementsView && !incrementsClick) {
     return response(202, { success: true, message: 'Ad event accepted without counter update.', ad_id: adId, event_type: eventType });
@@ -255,8 +287,9 @@ async function handlePublicAdsRoute(event) {
   if (getMethod(event) === 'OPTIONS') return response(204, {});
 
   const method = getMethod(event);
+  const publicRoute = getPublicAdsRouteMatch(event);
   const adId = getAdId(event);
-  const isEventRoute = /\/radio\/ads\/[^/?#]+\/events\/?$/.test(getPath(event));
+  const isEventRoute = publicRoute.isEventRoute;
 
   if (method === 'GET' && !adId) return listPublicAds();
   if (method === 'POST' && adId && isEventRoute) return recordPublicAdEvent(event);
@@ -283,6 +316,7 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 module.exports = {
   handleAdminAdsRoute,
   handlePublicAdsRoute,
+  getPublicAdsRouteMatch,
   listAds,
   listPublicAds,
   recordPublicAdEvent,
