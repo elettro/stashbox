@@ -545,9 +545,9 @@
               <th>Frequency</th>
               <th>Views</th>
               <th>Clicks</th>
+              <th>CTR %</th>
               <th>Skips</th>
               <th>Skip Rate</th>
-              <th>CTR %</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -895,9 +895,9 @@
           <td>${escapeHtml(ad.frequency)}</td>
           <td>${Number(ad.views || 0)}</td>
           <td>${Number(ad.clicks || 0)}</td>
+          <td>${Number(ad.ctr || 0).toFixed(2)}%</td>
           <td>${Number(ad.skips || 0)}</td>
           <td>${formatPercent(ad.skip_rate)}</td>
-          <td>${Number(ad.ctr || 0).toFixed(2)}%</td>
           <td><div class="ad-actions-grid">
             <button class="button-ghost button-small" data-action="preview" data-id="${escapeAttribute(ad.id)}" type="button">Preview</button>
             <button class="button-ghost button-small" data-action="edit" data-id="${escapeAttribute(ad.id)}" type="button">Edit</button>
