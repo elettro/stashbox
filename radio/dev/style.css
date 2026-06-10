@@ -891,6 +891,21 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   background: #000;
 }
 
+.ad-audio-shell {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.ad-audio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .ad-label-pill {
   background: rgba(240, 192, 76, 0.16);
   border-color: rgba(240, 192, 76, 0.35);

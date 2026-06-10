@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https:
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
 
-const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
-const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
+const API_ROOT_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
+const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
+const ADS_API_URL = `${API_ROOT_URL}/admin/ads`;
+const PUBLIC_ADS_API_URLS = [ADS_API_URL, `${API_ROOT_URL}/radio/ads`, `${API_ROOT_URL}/ads`];
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const VIEW_MODE_STORAGE_KEY = 'stashbox_radio_view_mode';
 const DEFAULT_FILTER = 'ALL';
@@ -20,29 +23,9 @@ const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
-const ADS_STORAGE_KEY = 'stashbox_radio_dev_ads';
 const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
-const AD_INSERT_AFTER_SONGS = 4;
-const AD_FREQUENCY_WEIGHTS = { Low: 1, Medium: 3, High: 6 };
-const DEFAULT_DEV_AD = {
-  id: 'dev-sample-stashbox-radio-branding-test-ad',
-  internal_title: 'Stashbox Radio Branding Test Ad',
-  internal_description: 'Primary Stashbox Radio station branding video ad for dev testing.',
-  ad_type: 'Stashbox Radio Branding',
-  media_type: 'Video',
-  media_url: '',
-  thumbnail_url: '',
-  poster_image_url: '',
-  cta_label: 'Explore Stashbox Radio',
-  cta_url: 'https://stashbox.com/radio/dev/',
-  active: false,
-  frequency: 'Medium',
-  skip_enabled: true,
-  skip_after_seconds: 5,
-  max_plays_per_session: 3,
-  notes: 'DEV fixture only.'
-};
-
+const AD_FREQUENCY_THRESHOLDS = { low: 4, medium: 2, high: 1 };
+const AD_FREQUENCY_WEIGHTS = { low: 1, medium: 3, high: 6 };
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -91,39 +74,43 @@ function writeJsonStorage(key, value) {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
 }
 
-function getStoredAds() {
-  const storedAds = readJsonStorage(ADS_STORAGE_KEY, []);
-  const storedList = (Array.isArray(storedAds) ? storedAds : []).filter(ad => ad?.id !== 'dev-sample-stashbox-radio-test-video-ad');
-  const withSample = storedList.some(ad => ad.id === DEFAULT_DEV_AD.id)
-    ? storedList
-    : [DEFAULT_DEV_AD, ...storedList];
-  writeJsonStorage(ADS_STORAGE_KEY, withSample);
-  return withSample;
-}
-
 function normalizeAd(row) {
   if (!row) return null;
-  const title = clean(row.internal_title || row.title || row.ad_title || 'Stashbox Radio Ad');
+  const title = clean(row.internal_title || row.title || row.ad_title || row.name || 'Stashbox Radio Ad');
+  const description = clean(row.internal_description || row.description || row.ad_description || row.notes);
+  const mediaUrl = fixDropbox(clean(row.mediaUrl || row.media_url || row.video_url || row.videoUrl || row.ad_url || row.adUrl || row.file_url || row.fileUrl || row.s3_url || row.s3Url));
+  const clickUrl = clean(row.clickUrl || row.click_url || row.click_video_url || row.cta_url || row.ctaUrl || row.url);
+  const frequency = clean(row.frequency || 'medium').toLowerCase() || 'medium';
+  const active = (bool(row.active) || clean(row.status).toLowerCase() === 'active' || bool(row.is_active)) && !bool(row.hidden);
+  const id = clean(row.id || row.ad_id || row.adId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+
   return {
     ...row,
     itemType: 'video_ad',
     type: 'video_ad',
-    id: clean(row.id || row.ad_id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')),
-    internal_title: title,
+    id,
     title,
-    internal_description: clean(row.internal_description || row.description),
+    description,
+    mediaUrl,
+    clickUrl,
+    frequency,
+    artist: clean(row.artist || row.artist_targeting || row.artistTargeting),
+    genre: clean(row.genre || row.genre_targeting || row.genreTargeting),
+    mood: clean(row.mood || row.mood_targeting || row.moodTargeting),
+    durationSeconds: Number(row.durationSeconds ?? row.duration_seconds ?? row.duration ?? 0) || 0,
+    internal_title: title,
+    internal_description: description,
     ad_type: clean(row.ad_type || 'Station Promo'),
-    media_type: clean(row.media_type || 'Video') || 'Video',
-    media_url: clean(row.media_url || row.mediaUrl),
+    media_type: clean(row.media_type || (isAudioAdUrl(mediaUrl) ? 'Audio' : 'Video')) || 'Video',
+    media_url: mediaUrl,
     thumbnail_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
     poster_image_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
-    cta_label: clean(row.cta_label || row.ctaLabel),
-    cta_url: clean(row.cta_url || row.ctaUrl),
-    active: bool(row.active),
-    frequency: clean(row.frequency || 'Medium') || 'Medium',
-    skip_enabled: row.skip_enabled === undefined ? true : bool(row.skip_enabled),
-    skip_after_seconds: Math.max(0, Number(row.skip_after_seconds ?? row.skipAfterSeconds ?? 5) || 0),
-    max_plays_per_session: Math.max(1, Number(row.max_plays_per_session ?? row.maxPlaysPerSession ?? 1) || 1),
+    cta_label: clean(row.cta_label || row.ctaLabel || (clickUrl ? 'Learn More' : '')),
+    cta_url: clickUrl,
+    active,
+    skip_enabled: row.no_skipping !== undefined ? !bool(row.no_skipping) : (row.skip_enabled === undefined ? true : bool(row.skip_enabled)),
+    skip_after_seconds: Math.max(0, Number(row.skip_after_seconds ?? row.skipAfterSeconds ?? 0) || 0),
+    max_plays_per_session: Math.max(1, Number(row.max_plays_per_session ?? row.maxPlaysPerSession ?? 99) || 99),
     start_date: clean(row.start_date || row.startDate),
     end_date: clean(row.end_date || row.endDate)
   };
@@ -142,8 +129,21 @@ function isDateEligible(ad, today = new Date()) {
   return true;
 }
 
+function isAudioAdUrl(url) {
+  return /\.(mp3|m4a|aac|wav|ogg)(\?|#|$)/i.test(clean(url));
+}
+
+function adFrequencyKey(ad) {
+  const value = clean(ad?.frequency).toLowerCase();
+  return AD_FREQUENCY_THRESHOLDS[value] ? value : 'medium';
+}
+
+function adFrequencyThreshold(ad) {
+  return AD_FREQUENCY_THRESHOLDS[adFrequencyKey(ad)] || AD_FREQUENCY_THRESHOLDS.medium;
+}
+
 function weightedRandomAd(ads) {
-  const pool = ads.flatMap(ad => Array(Math.max(1, AD_FREQUENCY_WEIGHTS[ad.frequency] || 3)).fill(ad));
+  const pool = ads.flatMap(ad => Array(Math.max(1, AD_FREQUENCY_WEIGHTS[adFrequencyKey(ad)] || AD_FREQUENCY_WEIGHTS.medium)).fill(ad));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 }
 
@@ -308,6 +308,69 @@ function createSongsApiError(message, { endpoint = SONGS_API_URL, responseOkFail
   error.responseOkFailed = responseOkFailed;
   error.apiError = data?.error || '';
   return error;
+}
+
+
+function normalizeAdsResponse(data) {
+  if (typeof data?.body === 'string') {
+    try { return normalizeAdsResponse(JSON.parse(data.body)); } catch (_) { return []; }
+  }
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.ads)) return data.ads;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+async function fetchAdsFromEndpoint(endpoint) {
+  const response = await fetch(endpoint, { cache: 'no-store' });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+  if (!response.ok) throw new Error((data && (data.error || data.message)) || `Ads API returned HTTP ${response.status}`);
+  return normalizeAdsResponse(data);
+}
+
+async function loadActiveAds() {
+  let lastError = null;
+  for (const endpoint of PUBLIC_ADS_API_URLS) {
+    try {
+      const activeAds = (await fetchAdsFromEndpoint(endpoint))
+        .map(normalizeAd)
+        .filter(ad => ad && ad.active && has(ad.mediaUrl) && isDateEligible(ad));
+      if (activeAds.length) console.log(`Loaded ${activeAds.length} active ads from RDS`);
+      else console.log('No active ads available');
+      return activeAds;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  console.warn('Ad load failed, continuing without ads', lastError?.message || lastError);
+  return [];
+}
+
+async function sendAdTrackingEvent(ad, eventType) {
+  if (!ad?.id || !eventType) return null;
+  const payload = {
+    ad_id: ad.id,
+    ad_title: ad.title || ad.internal_title || '',
+    event_type: eventType,
+    page: 'dev',
+    source: 'public_player'
+  };
+  try {
+    const response = await fetch(TRACKING_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) console.warn('[Stashbox Radio Dev] ad tracking rejected', { event_type: eventType, status: response.status });
+    return response;
+  } catch (error) {
+    console.warn('[Stashbox Radio Dev] ad tracking failed', error.message || error);
+    return null;
+  }
 }
 
 async function fetchRadioSongs() {
@@ -1168,8 +1231,11 @@ function App() {
   const [shuffleNotice, setShuffleNotice] = useState('');
   const [autoPlayRequest, setAutoPlayRequest] = useState(null);
   const [playerMessage, setPlayerMessage] = useState('');
-  const [activeAd, setActiveAd] = useState(null);
-  const [songsSinceLastAd, setSongsSinceLastAd] = useState(0);
+  const [activeAds, setActiveAds] = useState([]);
+  const [currentAd, setCurrentAd] = useState(null);
+  const [isAdPlaying, setIsAdPlaying] = useState(false);
+  const [completedSongsSinceLastAd, setCompletedSongsSinceLastAd] = useState(0);
+  const [lastPlayedAdId, setLastPlayedAdId] = useState(null);
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const currentPlayInstanceRef = useRef(null);
@@ -1181,7 +1247,9 @@ function App() {
   const adPlayCountsRef = useRef({});
   const pendingAdNextSongRef = useRef(null);
   const videoCleanupInProgressRef = useRef(false);
-  const products = useProducts(activeAd ? null : selected);
+  const isAdPlayingRef = useRef(false);
+  const handledAdEndRef = useRef(false);
+  const products = useProducts(currentAd ? null : selected);
 
   const selectedSong = selected || tracks[0] || null;
   useEffect(() => {
@@ -1219,6 +1287,12 @@ function App() {
   }, [selectedSong?.idx, selectedSong?.songKey]);
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
+  useEffect(() => { isAdPlayingRef.current = isAdPlaying; }, [isAdPlaying]);
+  useEffect(() => {
+    let alive = true;
+    loadActiveAds().then(nextAds => { if (alive) setActiveAds(nextAds); });
+    return () => { alive = false; };
+  }, []);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
   useEffect(() => {
     const audio = audioRef.current;
@@ -1316,27 +1390,32 @@ function App() {
   const isGroupedSongView = sortKey === 'genre' || sortKey === 'artist';
 
 
-  function pickEligibleAd() {
-    const ads = getStoredAds().map(normalizeAd).filter(Boolean);
-    const eligible = ads.filter(ad => (
+  function pickEligibleAd(songCount) {
+    if (!activeAds.length) {
+      console.log('No active ads available');
+      return null;
+    }
+    const eligible = activeAds.filter(ad => (
       ad.active &&
-      ad.media_type.toLowerCase() === 'video' &&
-      has(ad.media_url) &&
+      has(ad.mediaUrl) &&
       isDateEligible(ad) &&
-      (adPlayCountsRef.current[ad.id] || 0) < ad.max_plays_per_session
+      (adPlayCountsRef.current[ad.id] || 0) < ad.max_plays_per_session &&
+      adFrequencyThreshold(ad) <= songCount
     ));
-    return weightedRandomAd(eligible);
+    const avoidLast = eligible.filter(ad => ad.id !== lastPlayedAdId);
+    return weightedRandomAd(avoidLast.length ? avoidLast : eligible);
   }
 
   function maybeStartAdBeforeNextSong(nextSong, currentSong) {
-    const nextCount = songsSinceLastAd + 1;
-    if (nextCount < AD_INSERT_AFTER_SONGS) {
-      setSongsSinceLastAd(nextCount);
+    if (isAdPlayingRef.current || currentAd || mediaMode === 'video') return false;
+    const nextCount = completedSongsSinceLastAd + 1;
+    if (nextSong?.idx && currentSong?.idx && nextSong.idx === currentSong.idx) {
+      setCompletedSongsSinceLastAd(nextCount);
       return false;
     }
-    const nextAd = pickEligibleAd();
+    const nextAd = pickEligibleAd(nextCount);
     if (!nextAd) {
-      setSongsSinceLastAd(nextCount);
+      setCompletedSongsSinceLastAd(nextCount);
       return false;
     }
     const audio = audioRef.current;
@@ -1346,37 +1425,58 @@ function App() {
     }
     pendingAdNextSongRef.current = nextSong || null;
     adPlayCountsRef.current[nextAd.id] = (adPlayCountsRef.current[nextAd.id] || 0) + 1;
-    recordDevAdEvent(nextAd, 'ad_impression', { song: currentSong || selectedSong, sessionId });
-    finishPlayback('play_full', currentSong || selectedSong);
-    setActiveAd(nextAd);
-    setSongsSinceLastAd(0);
-    setPlayerMessage('Sponsored message. Song playback will continue after this video ad.');
+    handledAdEndRef.current = false;
+    console.log(`Ad selected: ${nextAd.title}`);
+    setCurrentAd(nextAd);
+    setIsAdPlaying(true);
+    setCompletedSongsSinceLastAd(0);
+    setLastPlayedAdId(nextAd.id);
+    setPlayerMessage('Sponsored message. Song playback will continue after this ad.');
     setAutoPlayRequest(null);
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
     return true;
   }
 
-  function continueAfterAd(eventType = 'ad_completed') {
-    const completedAd = activeAd;
-    if (!completedAd) return;
-    if (eventType) recordDevAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+  function continueAfterAd(eventType = 'ad_complete') {
+    const completedAd = currentAd;
+    if (!completedAd || handledAdEndRef.current) return;
+    handledAdEndRef.current = true;
+    if (eventType) {
+      recordDevAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+      sendAdTrackingEvent(completedAd, eventType);
+    }
     const nextSong = pendingAdNextSongRef.current || resolveAdjacentPlayableSong(1, selectedSong);
     pendingAdNextSongRef.current = null;
-    setActiveAd(null);
+    setCurrentAd(null);
+    setIsAdPlaying(false);
     setPlayerMessage('');
     if (nextSong) selectTrack(nextSong, { autoStart: true, preferVideo: videoFocusedList && nextSong.hasVideo });
   }
 
   function handleAdStarted(ad) {
-    recordDevAdEvent(ad, 'ad_started', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+    console.log(`Ad started: ${ad?.title || 'Untitled ad'}`);
+    recordDevAdEvent(ad, 'ad_start', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+    sendAdTrackingEvent(ad, 'ad_start');
+  }
+
+  function handleAdSkipped(ad) {
+    console.log(`Ad skipped: ${ad?.title || 'Untitled ad'}`);
+    continueAfterAd('ad_skip');
+  }
+
+  function handleAdCompleted(ad) {
+    console.log(`Ad completed: ${ad?.title || 'Untitled ad'}`);
+    continueAfterAd('ad_complete');
   }
 
   function handleAdCtaClicked(ad) {
-    recordDevAdEvent(ad, 'ad_cta_clicked', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+    recordDevAdEvent(ad, 'ad_click', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
+    sendAdTrackingEvent(ad, 'ad_click');
   }
 
   function handleAdError(ad, errorMessage = '') {
+    console.warn('[Stashbox Radio Dev] ad playback failed; continuing to next song.', errorMessage);
     recordDevAdEvent(ad, 'ad_error', { song: pendingAdNextSongRef.current || selectedSong, sessionId, extra: { error_message: errorMessage } });
     continueAfterAd(null);
   }
@@ -1610,7 +1710,8 @@ function App() {
     setActiveShuffleSourceKey('');
     setIsShuffleQueueActive(false);
     setShuffleNotice('');
-    setActiveAd(null);
+    setCurrentAd(null);
+    setIsAdPlaying(false);
     pendingAdNextSongRef.current = null;
     finishPlayback('play_partial');
     resetVideoPlaybackBeforeSongSwitch(track);
@@ -1944,7 +2045,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, onStarted: handleAdStarted, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -1976,10 +2077,12 @@ function PlayerPill({ className = '', children, ...props }) { return h('button',
 
 
 function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClicked, onError }) {
-  const videoRef = useRef(null);
+  const mediaRef = useRef(null);
   const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || Number(ad?.skip_after_seconds) <= 0);
   const [started, setStarted] = useState(false);
-  const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 5);
+  const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
+  const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
+  const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
 
   useEffect(() => {
     setCanSkip(!ad?.skip_enabled || skipAfter <= 0);
@@ -1996,49 +2099,70 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   if (!ad) return null;
 
   const completeAd = () => {
-    try { videoRef.current?.pause?.(); } catch (_) {}
+    try { mediaRef.current?.pause?.(); } catch (_) {}
     onCompleted?.(ad);
   };
 
   const skipAd = () => {
-    try { videoRef.current?.pause?.(); } catch (_) {}
-    try { if (videoRef.current) videoRef.current.currentTime = 0; } catch (_) {}
+    try { mediaRef.current?.pause?.(); } catch (_) {}
+    try { if (mediaRef.current) mediaRef.current.currentTime = 0; } catch (_) {}
     onSkipped?.(ad);
   };
 
   const clickCta = () => {
     onCtaClicked?.(ad);
-    window.open(ad.cta_url, '_blank', 'noopener,noreferrer');
+    window.open(ad.clickUrl || ad.cta_url, '_blank', 'noopener,noreferrer');
   };
 
-  return h('aside', { className: 'panel player ad-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Video advertisement' },
+  const startAd = () => {
+    if (started) return;
+    setStarted(true);
+    onStarted?.(ad);
+  };
+
+  return h('aside', { className: 'panel player ad-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Advertisement' },
     h('div', { className: 'player-media ad-player-media' },
-      h('video', {
-        ref: videoRef,
-        className: 'ad-video',
-        src: ad.media_url,
-        poster: ad.poster_image_url || undefined,
-        controls: false,
-        playsInline: true,
-        autoPlay: true,
-        onPlay: () => { if (!started) { setStarted(true); onStarted?.(ad); } },
-        onEnded: completeAd,
-        onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
-      })
+      isAudio
+        ? h('div', { className: 'ad-audio-shell' },
+          ad.poster_image_url || ad.thumbnail_url ? h('img', { src: ad.poster_image_url || ad.thumbnail_url, alt: `${ad.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, ad.title || 'Ad'),
+          h('audio', {
+            ref: mediaRef,
+            className: 'ad-audio',
+            src: mediaUrl,
+            controls: false,
+            preload: 'auto',
+            autoPlay: true,
+            onPlay: startAd,
+            onEnded: completeAd,
+            onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Audio ad failed to load or play.')
+          })
+        )
+        : h('video', {
+          ref: mediaRef,
+          className: 'ad-video',
+          src: mediaUrl,
+          poster: ad.poster_image_url || ad.thumbnail_url || undefined,
+          controls: false,
+          playsInline: true,
+          autoPlay: true,
+          onPlay: startAd,
+          onEnded: completeAd,
+          onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
+        })
     ),
     h('div', { className: 'player-bar ad-player-bar' },
       h('div', { className: 'player-controls ad-player-controls' },
         h('div', { className: 'player-controls-layout' },
           h('div', { className: 'player-info' },
             h('div', { className: 'player-title-row' },
-              h('h2', null, ad.internal_title || ad.title || 'Stashbox Radio Ad'),
+              h('h2', null, ad.title || ad.internal_title || 'Stashbox Radio Ad'),
               h('span', { className: 'player-stat-pill ad-label-pill' }, 'Ad')
             ),
-            ad.internal_description ? h('p', { className: 'notes public-note compact-note' }, ad.internal_description) : null
+            ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note' }, ad.description || ad.internal_description) : null
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
-            ad.cta_label && ad.cta_url ? h(PlayerPill, { className: 'cta-pill', onClick: clickCta }, ad.cta_label) : null,
-            ad.skip_enabled && canSkip ? h(PlayerPill, { className: 'skip-ad-pill', onClick: skipAd }, 'Skip Ad') : null
+            (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill', onClick: clickCta }, ad.cta_label) : null,
+            h(PlayerPill, { className: 'skip-ad-pill', onClick: skipAd, disabled: !canSkip }, 'Skip Ad')
           )
         )
       )
