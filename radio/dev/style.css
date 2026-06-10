@@ -1003,9 +1003,31 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   pointer-events: auto;
 }
 
+.ad-player-controls-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.ad-player .player-info {
+  width: 100%;
+  padding-right: 0;
+}
+
+.ad-player .player-title-row {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.ad-player .ad-label-pill {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .ad-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  justify-self: stretch;
   gap: 0.6rem;
 }
 
