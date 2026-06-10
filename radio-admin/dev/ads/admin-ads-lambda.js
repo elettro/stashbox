@@ -267,7 +267,18 @@ function buildUpdate(adId, payload) {
 }
 
 async function listAds() {
-  const result = await pool.query('SELECT * FROM radio.ads ORDER BY created_at DESC');
+  const result = await pool.query(`
+    SELECT
+      *,
+      COALESCE(skips, 0)::int AS skips,
+      CASE
+        WHEN COALESCE(views, 0) > 0
+        THEN ROUND((COALESCE(skips, 0)::numeric / views) * 100, 2)
+        ELSE 0
+      END AS skip_rate
+    FROM radio.ads
+    ORDER BY created_at DESC
+  `);
   return response(200, { success: true, count: result.rowCount, ads: result.rows });
 }
 
@@ -296,6 +307,12 @@ async function listPublicAds() {
       end_date,
       views,
       clicks,
+      COALESCE(skips, 0)::int AS skips,
+      CASE
+        WHEN COALESCE(views, 0) > 0
+        THEN ROUND((COALESCE(skips, 0)::numeric / views) * 100, 2)
+        ELSE 0
+      END AS skip_rate,
       created_at,
       updated_at
     FROM radio.ads
@@ -392,7 +409,7 @@ async function trackAdEvent(client, event, overrides = {}) {
        SET views = COALESCE(views, 0) + 1,
            updated_at = now()
        WHERE id = $1
-       RETURNING id, internal_title, views, clicks`,
+       RETURNING id, internal_title, views, clicks, skips`,
       [adId]
     );
 
@@ -407,7 +424,7 @@ async function trackAdEvent(client, event, overrides = {}) {
        SET clicks = COALESCE(clicks, 0) + 1,
            updated_at = now()
        WHERE id = $1
-       RETURNING id, internal_title, views, clicks`,
+       RETURNING id, internal_title, views, clicks, skips`,
       [adId]
     );
 
@@ -416,8 +433,23 @@ async function trackAdEvent(client, event, overrides = {}) {
     return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
   }
 
+  if (eventType === 'ad_skip') {
+    const result = await client.query(
+      `UPDATE radio.ads
+       SET skips = COALESCE(skips, 0) + 1,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, internal_title, views, clicks, skips`,
+      [adId]
+    );
+
+    if (!result.rowCount) return response(404, { success: false, error: 'Ad not found', ad_id: adId });
+    console.log('Updated ad skips for:', adId);
+    return response(200, { success: true, message: 'Ad event recorded.', ad: result.rows[0], event_type: eventType });
+  }
+
   const result = await client.query(
-    'SELECT id, internal_title, views, clicks FROM radio.ads WHERE id = $1',
+    'SELECT id, internal_title, views, clicks, skips FROM radio.ads WHERE id = $1',
     [adId]
   );
 

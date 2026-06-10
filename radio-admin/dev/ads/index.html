@@ -509,6 +509,8 @@
             <option value="views">Most Viewed</option>
             <option value="clicks">Most Clicked</option>
             <option value="ctr">Highest CTR</option>
+            <option value="skips">Most Skipped</option>
+            <option value="skip_rate">Highest Skip Rate</option>
             <option value="active">Active only</option>
             <option value="hidden">Hidden only</option>
           </select>
@@ -543,6 +545,8 @@
               <th>Frequency</th>
               <th>Views</th>
               <th>Clicks</th>
+              <th>Skips</th>
+              <th>Skip Rate</th>
               <th>CTR %</th>
               <th>Actions</th>
             </tr>
@@ -759,6 +763,7 @@
     function normalizeAd(ad) {
       const views = Number(ad.views || 0);
       const clicks = Number(ad.clicks || 0);
+      const skips = Number(ad.skips || ad.ad_skips || ad.skip_count || 0);
       return {
         id: ad.id || createId(),
         internal_title: String(ad.internal_title || ''),
@@ -785,6 +790,8 @@
         notes: String(ad.notes || ''),
         views,
         clicks,
+        skips,
+        skip_rate: Number.isFinite(Number(ad.skip_rate)) ? Number(Number(ad.skip_rate).toFixed(2)) : computeSkipRate(views, skips),
         ctr: computeCtr(views, clicks),
         created_at: ad.created_at || new Date().toISOString(),
         updated_at: ad.updated_at || new Date().toISOString()
@@ -812,6 +819,16 @@
       return Number(((Number(clicks || 0) / safeViews) * 100).toFixed(2));
     }
 
+    function computeSkipRate(views, skips) {
+      const safeViews = Number(views || 0);
+      if (!safeViews) return 0;
+      return Number(((Number(skips || 0) / safeViews) * 100).toFixed(2));
+    }
+
+    function formatPercent(value, fractionDigits = 1) {
+      return `${Number(value || 0).toFixed(fractionDigits)}%`;
+    }
+
     function renderAll() {
       renderSettings();
       renderStats();
@@ -827,13 +844,17 @@
     function renderStats() {
       const totalViews = sum(state.ads, 'views');
       const totalClicks = sum(state.ads, 'clicks');
+      const totalSkips = sum(state.ads, 'skips');
       const avgCtr = state.ads.length ? (state.ads.reduce((acc, ad) => acc + Number(ad.ctr || 0), 0) / state.ads.length) : 0;
+      const avgSkipRate = state.ads.length ? (state.ads.reduce((acc, ad) => acc + Number(ad.skip_rate || 0), 0) / state.ads.length) : 0;
       const cards = [
         ['Total Ads', state.ads.length],
         ['Active Ads', state.ads.filter((ad) => ad.active).length],
         ['Hidden Ads', state.ads.filter((ad) => ad.hidden).length],
         ['Total Views', totalViews],
         ['Total Clicks', totalClicks],
+        ['Total Skips', totalSkips],
+        ['Average Skip Rate', formatPercent(avgSkipRate)],
         ['Average CTR', `${avgCtr.toFixed(2)}%`]
       ];
       els.statsGrid.innerHTML = cards.map(([label, value]) => `<div class="stat-card"><div class="eyebrow">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div></div>`).join('');
@@ -856,7 +877,7 @@
         return;
       }
       list.innerHTML = topAds.map((ad) => {
-        const value = metric === 'ctr' ? `${Number(ad.ctr || 0).toFixed(2)}%` : Number(ad[metric] || 0);
+        const value = (metric === 'ctr' || metric === 'skip_rate') ? formatPercent(ad[metric]) : Number(ad[metric] || 0);
         return `<li>${escapeHtml(ad.internal_title || 'Untitled')} — ${escapeHtml(value)}</li>`;
       }).join('');
     }
@@ -874,6 +895,8 @@
           <td>${escapeHtml(ad.frequency)}</td>
           <td>${Number(ad.views || 0)}</td>
           <td>${Number(ad.clicks || 0)}</td>
+          <td>${Number(ad.skips || 0)}</td>
+          <td>${formatPercent(ad.skip_rate)}</td>
           <td>${Number(ad.ctr || 0).toFixed(2)}%</td>
           <td><div class="ad-actions-grid">
             <button class="button-ghost button-small" data-action="preview" data-id="${escapeAttribute(ad.id)}" type="button">Preview</button>
@@ -902,6 +925,8 @@
       if (els.filterRatio.value) ads = ads.filter((ad) => (ad.ad_ratio_label || ad.ad_ratio) === els.filterRatio.value);
       if (mode === 'views') ads.sort((a, b) => b.views - a.views);
       else if (mode === 'clicks') ads.sort((a, b) => b.clicks - a.clicks);
+      else if (mode === 'skips') ads.sort((a, b) => b.skips - a.skips);
+      else if (mode === 'skip_rate') ads.sort((a, b) => b.skip_rate - a.skip_rate);
       else if (mode === 'ctr') ads.sort((a, b) => b.ctr - a.ctr);
       else ads.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
       return ads;
@@ -980,6 +1005,8 @@
         start_date: todayString(),
         views: 0,
         clicks: 0,
+        skips: 0,
+        skip_rate: 0,
         ctr: 0
       });
     }
@@ -1018,6 +1045,7 @@
       const detected = state.lastDetected;
       const views = Number(existing?.views || 0);
       const clicks = Number(existing?.clicks || 0);
+      const skips = Number(existing?.skips || 0);
       const ratioChoice = els.adRatio.value || 'Auto Detect';
       return normalizeAd({
         ...(existing || {}),
@@ -1045,6 +1073,8 @@
         notes: els.notes.value.trim(),
         views,
         clicks,
+        skips,
+        skip_rate: computeSkipRate(views, skips),
         ctr: computeCtr(views, clicks),
         updated_at: new Date().toISOString()
       });
@@ -1151,6 +1181,8 @@
         hidden: false,
         views: 0,
         clicks: 0,
+        skips: 0,
+        skip_rate: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -1205,7 +1237,8 @@
         if (ad.id !== id) return ad;
         const views = Number(ad.views || 0) + (key === 'views' ? 1 : 0);
         const clicks = Number(ad.clicks || 0) + (key === 'clicks' ? 1 : 0);
-        return normalizeAd({ ...ad, views, clicks, ctr: computeCtr(views, clicks), updated_at: new Date().toISOString() });
+        const skips = Number(ad.skips || 0);
+        return normalizeAd({ ...ad, views, clicks, skips, skip_rate: computeSkipRate(views, skips), ctr: computeCtr(views, clicks), updated_at: new Date().toISOString() });
       });
       writeAdsFallback();
       renderAll();
