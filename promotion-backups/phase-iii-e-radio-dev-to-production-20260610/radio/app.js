@@ -2,13 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https:
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
 
-const API_ROOT_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
-const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
-const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
-const PUBLIC_ADS_API_URL = `${API_ROOT_URL}/radio/ads`;
-const PUBLIC_ADS_API_URLS = [PUBLIC_ADS_API_URL, `${API_ROOT_URL}/ads`];
-const PUBLIC_AD_SETTINGS_API_URLS = [`${API_ROOT_URL}/radio/ad-settings`, `${API_ROOT_URL}/ad-settings`];
-const SESSION_STORAGE_KEY = 'stashbox-radio-rds-session-id';
+const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
+const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
+const SESSION_STORAGE_KEY = 'stashbox-radio-session-id';
 const VIEW_MODE_STORAGE_KEY = 'stashbox_radio_view_mode';
 const DEFAULT_FILTER = 'ALL';
 const DEFAULT_SORT = 'latest';
@@ -22,14 +18,8 @@ const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
-const RADIO_SHARE_URL = 'https://stashbox.com/radio/';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
-const ADS_STATS_STORAGE_KEY = 'stashbox_radio_ad_events';
-const AD_FREQUENCY_WEIGHTS = { low: 1, medium: 3, high: 6 };
-const DEFAULT_AD_SETTINGS = { ads_enabled: true, break_method: 'count', ads_per_break: 1, target_ad_seconds: 30, break_interval: 1 };
-const FALLBACK_AD_DURATION_SECONDS = 15;
-const DEFAULT_TARGET_AD_SECONDS = DEFAULT_AD_SETTINGS.target_ad_seconds;
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -58,160 +48,10 @@ const specificProductCache = new Map();
 let storeProductsPromise = null;
 let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
-const formatSkipCountdown = seconds => `:${String(Math.max(0, Number(seconds) || 0)).padStart(2, '0')}`;
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
 
-
-function readJsonStorage(key, fallback) {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed ?? fallback;
-  } catch (_) {
-    return fallback;
-  }
-}
-
-function writeJsonStorage(key, value) {
-  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
-}
-
-function normalizeAd(row) {
-  if (!row) return null;
-  const title = clean(row.internal_title || row.title || row.ad_title || row.name || 'Stashbox Radio Ad');
-  const description = clean(row.internal_description || row.description || row.ad_description || row.notes);
-  const mediaUrl = fixDropbox(clean(row.mediaUrl || row.media_url || row.video_url || row.videoUrl || row.ad_url || row.adUrl || row.file_url || row.fileUrl || row.s3_url || row.s3Url));
-  const clickUrl = clean(row.clickUrl || row.click_url || row.click_video_url || row.cta_url || row.ctaUrl || row.url);
-  const frequency = clean(row.frequency || 'medium').toLowerCase() || 'medium';
-  const active = (bool(row.active) || clean(row.status).toLowerCase() === 'active' || bool(row.is_active)) && !bool(row.hidden);
-  const id = clean(row.id || row.ad_id || row.adId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-
-  return {
-    ...row,
-    itemType: 'video_ad',
-    type: 'video_ad',
-    id,
-    title,
-    description,
-    mediaUrl,
-    clickUrl,
-    frequency,
-    artist: clean(row.artist || row.artist_targeting || row.artistTargeting),
-    genre: clean(row.genre || row.genre_targeting || row.genreTargeting),
-    mood: clean(row.mood || row.mood_targeting || row.moodTargeting),
-    durationSeconds: Number(row.durationSeconds ?? row.duration_seconds ?? row.duration ?? 0) || 0,
-    internal_title: title,
-    internal_description: description,
-    ad_type: clean(row.ad_type || 'Station Promo'),
-    media_type: clean(row.media_type || (isAudioAdUrl(mediaUrl) ? 'Audio' : 'Video')) || 'Video',
-    media_url: mediaUrl,
-    thumbnail_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
-    poster_image_url: clean(row.thumbnail_url || row.thumbnailUrl || row.poster_image_url || row.posterImageUrl),
-    cta_label: clean(row.cta_label || row.ctaLabel || (clickUrl ? 'Learn More' : '')),
-    cta_url: clickUrl,
-    active,
-    skip_enabled: row.no_skipping !== undefined ? !bool(row.no_skipping) : (row.skip_enabled === undefined ? true : bool(row.skip_enabled)),
-    skip_after_seconds: Math.max(0, Number(row.skip_after_seconds ?? row.skipAfterSeconds ?? 0) || 0),
-    max_plays_per_session: Math.max(1, Number(row.max_plays_per_session ?? row.maxPlaysPerSession ?? 99) || 99),
-    start_date: clean(row.start_date || row.startDate),
-    end_date: clean(row.end_date || row.endDate)
-  };
-}
-
-function isDateEligible(ad, today = new Date()) {
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  if (ad.start_date) {
-    const start = new Date(`${ad.start_date}T00:00:00`).getTime();
-    if (Number.isFinite(start) && todayOnly < start) return false;
-  }
-  if (ad.end_date) {
-    const end = new Date(`${ad.end_date}T23:59:59`).getTime();
-    if (Number.isFinite(end) && today.getTime() > end) return false;
-  }
-  return true;
-}
-
-function isAudioAdUrl(url) {
-  return /\.(mp3|m4a|aac|wav|ogg)(\?|#|$)/i.test(clean(url));
-}
-
-function adFrequencyKey(ad) {
-  const value = clean(ad?.frequency).toLowerCase();
-  return AD_FREQUENCY_WEIGHTS[value] ? value : 'medium';
-}
-
-function weightedRandomAd(ads) {
-  const pool = ads.flatMap(ad => Array(Math.max(1, AD_FREQUENCY_WEIGHTS[adFrequencyKey(ad)] || AD_FREQUENCY_WEIGHTS.medium)).fill(ad));
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-}
-
-
-function normalizeAdSettings(settings = {}) {
-  const adsPerBreak = [1, 2, 3, 4, 5].includes(Number(settings.ads_per_break)) ? Number(settings.ads_per_break) : DEFAULT_AD_SETTINGS.ads_per_break;
-  const targetAdSeconds = [15, 30, 45, 60, 90].includes(Number(settings.target_ad_seconds)) ? Number(settings.target_ad_seconds) : DEFAULT_AD_SETTINGS.target_ad_seconds;
-  const breakInterval = [1, 2, 3].includes(Number(settings.break_interval)) ? Number(settings.break_interval) : DEFAULT_AD_SETTINGS.break_interval;
-  return {
-    ads_enabled: Object.prototype.hasOwnProperty.call(settings, 'ads_enabled') ? Boolean(settings.ads_enabled) : DEFAULT_AD_SETTINGS.ads_enabled,
-    break_method: settings.break_method === 'seconds' ? 'seconds' : 'count',
-    ads_per_break: adsPerBreak,
-    target_ad_seconds: targetAdSeconds,
-    break_interval: breakInterval
-  };
-}
-
-function normalizeSettingsResponse(data) {
-  if (typeof data?.body === 'string') {
-    try { return normalizeSettingsResponse(JSON.parse(data.body)); } catch (_) { return DEFAULT_AD_SETTINGS; }
-  }
-  return normalizeAdSettings(data?.settings || data || DEFAULT_AD_SETTINGS);
-}
-
-async function loadPublicAdSettings() {
-  let lastError = null;
-  for (const endpoint of PUBLIC_AD_SETTINGS_API_URLS) {
-    try {
-      const response = await fetch(endpoint, { cache: 'no-store' });
-      const text = await response.text();
-      let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
-      if (!response.ok) throw new Error((data && (data.error || data.message)) || `Ad settings API returned HTTP ${response.status}`);
-      return normalizeSettingsResponse(data);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  console.warn('Ad settings load failed, using safe defaults', lastError?.message || lastError);
-  return normalizeAdSettings(DEFAULT_AD_SETTINGS);
-}
-
-function estimatedAdDurationSeconds(ad) {
-  const duration = Number(ad?.durationSeconds ?? ad?.duration_seconds ?? 0);
-  return Number.isFinite(duration) && duration > 0 ? duration : FALLBACK_AD_DURATION_SECONDS;
-}
-
-function recordAdEvent(ad, eventType, { song = null, sessionId = '', extra = {} } = {}) {
-  if (!ad?.id) return;
-  const event = {
-    ad_id: ad.id,
-    ad_title: ad.internal_title || ad.title || '',
-    event_type: eventType,
-    timestamp: new Date().toISOString(),
-    song_context: song ? {
-      song_key: song.songKey || song.song_key || '',
-      title: song.title || song.display_title || song.song_name || '',
-      artist: song.artist || ''
-    } : null,
-    session_id: sessionId,
-    user_agent: navigator.userAgent || '',
-    ...extra
-  };
-  const events = readJsonStorage(ADS_STATS_STORAGE_KEY, []);
-  events.push(event);
-  writeJsonStorage(ADS_STATS_STORAGE_KEY, events.slice(-1000));
-}
 
 function isVideoOnlyTrack(song) {
   const releaseFormat = String(song?.release_format || song?.raw?.release_format || '').toLowerCase().replace(/\s+/g, '_');
@@ -234,11 +74,11 @@ function getBrowserSessionId() {
   try {
     const existing = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (existing) return existing;
-    const generated = window.crypto?.randomUUID ? window.crypto.randomUUID() : `rds-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const generated = window.crypto?.randomUUID ? window.crypto.randomUUID() : `radio-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     window.localStorage.setItem(SESSION_STORAGE_KEY, generated);
     return generated;
   } catch (_) {
-    return `rds-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `radio-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 }
 
@@ -307,11 +147,8 @@ function normalizeSong(row, index) {
     moodTags: parseStringList(firstDefined(row, ['mood_tags', 'moods'])),
     sectionKey: sectionFor(genre),
     audioUrl: hasAudio ? fixDropbox(clean(row.audio_url)) : '',
-    resolved_artwork_url: normalizedSongArtworkUrl(row),
     song_artwork_url: fixDropbox(clean(row.song_artwork_url || row.songArtworkUrl)),
-    artwork_url: fixDropbox(clean(row.artwork_url || row.artworkUrl)),
-    cover_art_url: fixDropbox(clean(row.cover_art_url || row.coverArtUrl)),
-    imageUrl: normalizedSongArtworkUrl(row),
+    imageUrl: fixDropbox(clean(row.resolved_artwork_url || row.artwork_url || row.image_url || row.cover_url)),
     videoLink: clean(row.video_link || row.video_url || row.videoUrl),
     release_format: clean(row.release_format),
     releaseFormat: clean(row.release_format),
@@ -358,93 +195,6 @@ function createSongsApiError(message, { endpoint = SONGS_API_URL, responseOkFail
   return error;
 }
 
-
-function normalizeAdsResponse(data) {
-  if (typeof data?.body === 'string') {
-    try { return normalizeAdsResponse(JSON.parse(data.body)); } catch (_) { return []; }
-  }
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.ads)) return data.ads;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.data)) return data.data;
-  return [];
-}
-
-async function fetchAdsFromEndpoint(endpoint) {
-  const response = await fetch(endpoint, { cache: 'no-store' });
-  const text = await response.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
-  if (!response.ok) throw new Error((data && (data.error || data.message)) || `Ads API returned HTTP ${response.status}`);
-  return normalizeAdsResponse(data);
-}
-
-async function loadActiveAds() {
-  let lastError = null;
-  for (const endpoint of PUBLIC_ADS_API_URLS) {
-    try {
-      const activeAds = (await fetchAdsFromEndpoint(endpoint))
-        .map(normalizeAd)
-        .filter(ad => ad && ad.active && has(ad.mediaUrl) && isDateEligible(ad));
-      if (activeAds.length) console.log(`Loaded ${activeAds.length} active ads from RDS`);
-      else console.log('No active ads available');
-      return activeAds;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  console.warn('Ad load failed, continuing without ads', lastError?.message || lastError);
-  return [];
-}
-
-async function sendAdTrackingEvent(ad, eventType) {
-  if (!ad?.id || !eventType) return null;
-  const payload = {
-    ad_id: ad.id,
-    ad_title: ad.title || ad.internal_title || '',
-    event_type: eventType,
-    page: 'production',
-    source: 'public_player'
-  };
-  if (eventType === 'ad_skip') {
-    console.log('[Stashbox Radio] sending ad_skip tracking event', payload);
-  } else {
-    console.log('[Stashbox Radio] sending ad tracking event', payload);
-  }
-  try {
-    const response = await fetch(TRACKING_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      keepalive: true,
-      body: JSON.stringify(payload)
-    });
-    let body = '';
-    try {
-      body = await response.text();
-    } catch (error) {
-      body = `[unable to read response body: ${error.message || error}]`;
-    }
-    if (eventType === 'ad_skip') {
-      console.log('[Stashbox Radio] ad_skip tracking response', {
-        status: response.status,
-        ok: response.ok,
-        body
-      });
-    } else {
-      console.log('[Stashbox Radio] ad tracking response', {
-        status: response.status,
-        ok: response.ok,
-        body
-      });
-    }
-    if (!response.ok) console.warn('[Stashbox Radio] ad tracking rejected', { event_type: eventType, status: response.status });
-    return response;
-  } catch (error) {
-    console.warn('[Stashbox Radio] ad tracking failed', error.message || error);
-    return null;
-  }
-}
-
 async function fetchRadioSongs() {
   console.log("Fetching songs from:", SONGS_API_URL);
   let response;
@@ -480,37 +230,25 @@ async function fetchRadioSongs() {
 }
 
 async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
-  const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
-  if (!songKey || !eventType) return null;
-  const dedupeKey = `${songKey}:${eventType}`;
+  if (!song?.songKey || !eventType) return null;
+  const dedupeKey = `${song.songKey}:${eventType}`;
   const now = Date.now();
   const lastSentAt = recentTrackingEvents.get(dedupeKey) || 0;
   if (now - lastSentAt < TRACKING_DEDUPE_MS) {
-    console.log('[Stashbox Radio] duplicate tracking event suppressed', { song_key: songKey, event_type: eventType });
+    console.log('[Stashbox Radio] duplicate tracking event suppressed', { song_key: song.songKey, event_type: eventType });
     return null;
   }
   recentTrackingEvents.set(dedupeKey, now);
   const payload = {
-    song_key: songKey,
-    song_id: clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id || songKey),
-    id: clean(song?.id || song?.raw?.id || songKey),
-    display_title: getSongTitle(song),
-    song_name: clean(song?.song_name || song?.raw?.song_name || getSongTitle(song)),
-    artist: getSongArtist(song),
+    song_key: song.songKey,
     event_type: eventType,
     session_id: sessionId,
     device_type: getDeviceType(),
     referrer: document.referrer || '',
-    page: 'production',
-    source: 'public_player',
     ...extra
   };
   Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null || payload[key] === '') && delete payload[key]);
-  if (eventType === 'like') {
-    console.log('[Stashbox Radio] sending like event', payload);
-  } else {
-    console.log('[Stashbox Radio] tracking payload', payload);
-  }
+  console.log('[Stashbox Radio] tracking payload', payload);
   try {
     const response = await fetch(TRACKING_API_URL, {
       method: 'POST',
@@ -521,15 +259,10 @@ async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
     const text = await response.text();
     let body = text;
     try { body = text ? JSON.parse(text) : null; } catch (_) {}
-    if (eventType === 'like') {
-      console.log('[Stashbox Radio] like event response', { status: response.status, ok: response.ok, body });
-    } else {
-      console.log('[Stashbox Radio] tracking API response', { status: response.status, ok: response.ok, body });
-    }
+    console.log('[Stashbox Radio] tracking API response', { status: response.status, ok: response.ok, body });
     return { response, body };
   } catch (error) {
-    if (eventType === 'like') console.warn('[Stashbox Radio] like event error', error.message || error);
-    else console.warn('[Stashbox Radio] tracking API error', error.message || error);
+    console.warn('[Stashbox Radio] tracking API error', error.message || error);
     return null;
   }
 }
@@ -612,32 +345,9 @@ function youtubeThumbnail(url) {
 }
 
 
-function normalizedSongArtworkUrl(track) {
-  if (!track) return '';
-  return fixDropbox(clean(
-    track.resolved_artwork_url ||
-    track.resolvedArtworkUrl ||
-    track.song_artwork_url ||
-    track.songArtworkUrl ||
-    track.artwork_url ||
-    track.artworkUrl ||
-    track.cover_art_url ||
-    track.coverArtUrl ||
-    track.imageUrl ||
-    track.image_url ||
-    track.cover_url ||
-    track.coverUrl ||
-    track.raw?.resolved_artwork_url ||
-    track.raw?.song_artwork_url ||
-    track.raw?.artwork_url ||
-    track.raw?.cover_art_url ||
-    track.raw?.image_url ||
-    track.raw?.cover_url
-  ));
-}
-
 function firstMediaSessionArtworkUrl(track) {
-  return normalizedSongArtworkUrl(track)
+  return fixDropbox(clean(track?.song_artwork_url || track?.songArtworkUrl || track?.raw?.song_artwork_url))
+    || clean(track?.imageUrl)
     || youtubeThumbnail(track?.videoLink)
     || APP_FALLBACK_ARTWORK_URL;
 }
@@ -911,8 +621,6 @@ function formatShareCount(count) { const value = Math.max(0, Number(count) || 0)
 function formatPlayerPlayCount(count) { const value = Math.max(0, Number(count) || 0); return `${value} ${value === 1 ? 'Play' : 'Plays'}`; }
 function formatPlayerShareText(count) { const value = Math.max(0, Number(count) || 0); return value ? `Share ${value}` : 'Share'; }
 function formatTime(seconds) { const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0; const minutes = Math.floor(safe / 60); const secs = Math.floor(safe % 60).toString().padStart(2, '0'); return `${minutes}:${secs}`; }
-function formatAdTime(seconds) { const value = Number(seconds); const safe = Number.isFinite(value) ? Math.max(0, value) : 0; const minutes = Math.floor(safe / 60); const secs = Math.floor(safe % 60).toString().padStart(2, '0'); return `${minutes}:${secs}`; }
-function formatRemainingAdTime(seconds) { const value = Number(seconds); const safe = Number.isFinite(value) ? Math.max(0, Math.ceil(value)) : 0; return formatAdTime(safe); }
 function formatTrackCount(trackCount, isLoading) { if (isLoading) return 'LOADING TRACKS'; return `${trackCount} ${trackCount === 1 ? 'TRACK' : 'TRACKS'}`; }
 function filterLabel(value) { return value === 'ALL' ? 'All' : value; }
 function albumMatches(trackAlbum, selectedAlbum) { if (selectedAlbum === DEFAULT_FILTER) return true; const a = clean(trackAlbum).toLowerCase(); const b = clean(selectedAlbum).toLowerCase(); return a === b || a.includes(b); }
@@ -1218,27 +926,7 @@ function VisualViewIcon() {
   );
 }
 
-function isSyntheticSongKey(value) {
-  return /^rds-song-\d+$/.test(clean(value));
-}
-function getSongShareKey(song) {
-  const rawSongKey = clean(song?.raw?.song_key || song?.raw?.key || song?.raw?.slug || song?.raw?.id || song?.raw?.track_id);
-  if (rawSongKey) return rawSongKey;
-  const normalizedSongKey = clean(song?.song_key || song?.songKey || song?.id);
-  return isSyntheticSongKey(normalizedSongKey) ? '' : normalizedSongKey;
-}
-function getShareUrl(song) {
-  const shareUrl = new URL(RADIO_SHARE_URL);
-  const songKey = getSongShareKey(song);
-  if (songKey) shareUrl.searchParams.set('song', songKey);
-  return shareUrl.toString();
-}
-function matchesSongDeepLink(track, songKey) {
-  const target = clean(songKey);
-  if (!target) return false;
-  return [track?.song_key, track?.songKey, track?.id, track?.raw?.song_key, track?.raw?.id, track?.raw?.key, track?.raw?.slug, track?.raw?.track_id]
-    .some(value => clean(value) === target);
-}
+function getShareUrl(song) { const shareUrl = new URL(window.location.href); shareUrl.searchParams.set('song', song?.songKey || song?.idx || ''); shareUrl.hash = ''; return shareUrl.toString(); }
 async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text); const input = document.createElement('textarea'); input.value = text; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
 
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, genreFilters = [DEFAULT_FILTER], album, onAlbumChange, albumFilters = [DEFAULT_FILTER], artist, onArtistChange, artistFilters = [DEFAULT_FILTER], mood, onMoodChange, moodFilters = MOOD_FILTERS, videoOnly = false, onToggleVideos, onShuffle, onReset, disableVideoFilter = false, disableShuffle = false }) {
@@ -1335,28 +1023,6 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
   );
 }
 
-
-function isSpacebarEvent(event) {
-  return event?.code === 'Space' || event?.key === ' ';
-}
-
-function shouldIgnoreGlobalSpacebar(event) {
-  const activeElement = event?.target instanceof Element ? event.target : document.activeElement;
-  if (!activeElement) return false;
-  if (activeElement.closest?.('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="searchbox"]')) return true;
-  return false;
-}
-
-function toggleNativeMediaElement(media) {
-  if (!media) return false;
-  if (media.paused || media.ended) {
-    media.play?.().catch?.(error => console.warn('[radio] playback error: unable to play media from keyboard.', error.message || error));
-    return true;
-  }
-  media.pause?.();
-  return true;
-}
-
 function App() {
   const sessionId = useMemo(getBrowserSessionId, []);
   const [tracks, setTracks] = useState([]);
@@ -1379,7 +1045,6 @@ function App() {
   const [playCounts, setPlayCounts] = useState({});
   const [shareCounts, setShareCounts] = useState({});
   const [likedSongIds, setLikedSongIds] = useState(() => new Set());
-  const likeSaveInFlightIdsRef = useRef(new Set());
   const [copiedSongId, setCopiedSongId] = useState(null);
   const [activeShuffleQueue, setActiveShuffleQueue] = useState([]);
   const [activeShuffleIndex, setActiveShuffleIndex] = useState(0);
@@ -1388,11 +1053,6 @@ function App() {
   const [shuffleNotice, setShuffleNotice] = useState('');
   const [autoPlayRequest, setAutoPlayRequest] = useState(null);
   const [playerMessage, setPlayerMessage] = useState('');
-  const [activeAds, setActiveAds] = useState([]);
-  const [adSettings, setAdSettings] = useState(() => normalizeAdSettings(DEFAULT_AD_SETTINGS));
-  const [currentAd, setCurrentAd] = useState(null);
-  const [isAdPlaying, setIsAdPlaying] = useState(false);
-  const [lastPlayedAdId, setLastPlayedAdId] = useState(null);
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const currentPlayInstanceRef = useRef(null);
@@ -1401,25 +1061,8 @@ function App() {
   const youtubePlayerRef = useRef(null);
   const hasHandledVideoEndRef = useRef(false);
   const mediaIsPlayingRef = useRef(false);
-  const adPlayCountsRef = useRef({});
-  const adBreakCompletedCountRef = useRef(0);
-  const currentAdBreakQueueRef = useRef([]);
-  const currentAdBreakActiveQueueRef = useRef([]);
-  const currentAdBreakTotalRef = useRef(0);
-  const currentAdBreakCurrentIndexRef = useRef(0);
-  const currentAdBreakMethodRef = useRef('count');
-  const currentAdBreakTargetSecondsRef = useRef(DEFAULT_TARGET_AD_SECONDS);
-  const currentAdBreakCompletedSecondsRef = useRef(0);
-  const currentAdBreakCurrentTimeRef = useRef(0);
-  const currentAdBreakStartedAtRef = useRef(0);
-  const currentAdBreakHideLogKeyRef = useRef('');
-  const [adBreakDisplay, setAdBreakDisplay] = useState(null);
-  const adDurationMemoryRef = useRef({});
-  const pendingAdNextSongRef = useRef(null);
   const videoCleanupInProgressRef = useRef(false);
-  const isAdPlayingRef = useRef(false);
-  const handledAdEndRef = useRef(false);
-  const products = useProducts(currentAd ? null : selected);
+  const products = useProducts(selected);
 
   const selectedSong = selected || tracks[0] || null;
   useEffect(() => {
@@ -1439,7 +1082,7 @@ function App() {
 
   useEffect(() => {
     updateMediaSessionMetadata(selectedSong);
-  }, [selectedSong?.idx, selectedSong?.display_title, selectedSong?.song_name, selectedSong?.title, selectedSong?.artist, selectedSong?.raw?.album_name, selectedSong?.resolved_artwork_url, selectedSong?.song_artwork_url, selectedSong?.artwork_url, selectedSong?.cover_art_url, selectedSong?.imageUrl, selectedSong?.videoLink]);
+  }, [selectedSong?.idx, selectedSong?.display_title, selectedSong?.song_name, selectedSong?.title, selectedSong?.artist, selectedSong?.raw?.album_name, selectedSong?.song_artwork_url, selectedSong?.imageUrl, selectedSong?.videoLink]);
 
   useEffect(() => {
     if (!selectedSong?.songKey) {
@@ -1457,18 +1100,6 @@ function App() {
   }, [selectedSong?.idx, selectedSong?.songKey]);
   useEffect(() => { console.log('[Stashbox Radio] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
-  useEffect(() => { isAdPlayingRef.current = isAdPlaying; }, [isAdPlaying]);
-  useEffect(() => {
-    let alive = true;
-    loadActiveAds().then(nextAds => { if (alive) setActiveAds(nextAds); });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    loadPublicAdSettings().then(nextSettings => { if (alive) setAdSettings(nextSettings); });
-    return () => { alive = false; };
-  }, []);
   useEffect(() => { hasHandledVideoEndRef.current = false; }, [selectedSong?.idx, activeVideoEmbedUrl]);
   useEffect(() => {
     const audio = audioRef.current;
@@ -1490,7 +1121,7 @@ function App() {
       setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
       console.log('[Stashbox Radio] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
       const urlSelectedSong = songKeyFromUrl
-        ? nextTracks.find(track => matchesSongDeepLink(track, songKeyFromUrl))
+        ? nextTracks.find(track => track.song_key === songKeyFromUrl)
         : null;
       if (songKeyFromUrl) {
         console.log("Opening song from URL:", songKeyFromUrl);
@@ -1565,279 +1196,6 @@ function App() {
   const groupedSongSections = useMemo(() => buildGroupedSongSections(sortedFiltered, sortKey), [sortedFiltered, sortKey]);
   const isGroupedSongView = sortKey === 'genre' || sortKey === 'artist';
 
-
-  function getEligibleAdsForBreak() {
-    const eligible = activeAds.filter(ad => (
-      adSettings.ads_enabled &&
-      ad.active &&
-      has(ad.mediaUrl) &&
-      isDateEligible(ad) &&
-      (adPlayCountsRef.current[ad.id] || 0) < ad.max_plays_per_session
-    ));
-    console.log(`[Stashbox Radio] Eligible ads for break: ${eligible.length}`);
-    if (!eligible.length) console.log('[Stashbox Radio] No active ads available for completed item');
-    return eligible;
-  }
-
-  function pickWeightedAdForBreak(availableAds, usedIds = new Set()) {
-    if (!availableAds.length) return null;
-    const uniquePool = availableAds.filter(ad => !usedIds.has(ad.id));
-    const candidates = uniquePool.length ? uniquePool : availableAds;
-    return weightedRandomAd(candidates);
-  }
-
-  function buildAdBreakQueue() {
-    const eligible = getEligibleAdsForBreak();
-    if (!eligible.length) return [];
-    const settings = normalizeAdSettings(adSettings);
-    const queue = [];
-    const usedIds = new Set();
-
-    if (settings.break_method === 'seconds') {
-      let accumulatedSeconds = 0;
-      while (accumulatedSeconds < settings.target_ad_seconds && queue.length < 20) {
-        const nextAd = pickWeightedAdForBreak(eligible, usedIds);
-        if (!nextAd) break;
-        queue.push(nextAd);
-        usedIds.add(nextAd.id);
-        accumulatedSeconds += Number(adDurationMemoryRef.current[nextAd.id] || nextAd.durationSeconds || estimatedAdDurationSeconds(nextAd));
-        if (usedIds.size >= eligible.length) usedIds.clear();
-      }
-      console.log(`[Stashbox Radio] Built seconds ad break: ${queue.length} ads, estimated ${accumulatedSeconds}s target ${settings.target_ad_seconds}s`);
-      return queue;
-    }
-
-    const requestedCount = settings.ads_per_break;
-    while (queue.length < requestedCount) {
-      const nextAd = pickWeightedAdForBreak(eligible, usedIds);
-      if (!nextAd) break;
-      queue.push(nextAd);
-      usedIds.add(nextAd.id);
-      if (usedIds.size >= eligible.length) usedIds.clear();
-    }
-    console.log(`[Stashbox Radio] Built count ad break: ${queue.length} ads requested ${requestedCount}`);
-    return queue;
-  }
-
-  function getCurrentAdBreakHideReason(ad = currentAd) {
-    const breakMethod = currentAdBreakMethodRef.current;
-    if (!ad) return 'no active ad';
-    if (!currentAdBreakActiveQueueRef.current.length && !currentAdBreakQueueRef.current.length) return 'missing queue';
-    if (!Number(currentAdBreakCurrentIndexRef.current)) return 'missing current index';
-    if (breakMethod !== 'count' && breakMethod !== 'seconds') return 'unknown break method';
-    return '';
-  }
-
-  function logAdBreakDisplayHidden(reason, ad = currentAd) {
-    if (!reason) return;
-    const key = `${ad?.id || 'no-ad'}:${currentAdBreakCurrentIndexRef.current || 0}:${reason}`;
-    if (currentAdBreakHideLogKeyRef.current === key) return;
-    currentAdBreakHideLogKeyRef.current = key;
-    console.log('[Stashbox Radio] ad break display hidden', { reason });
-  }
-
-  function getCurrentAdBreakDisplay(ad = currentAd) {
-    const hideReason = getCurrentAdBreakHideReason(ad);
-    if (hideReason) {
-      logAdBreakDisplayHidden(hideReason, ad);
-      return null;
-    }
-
-    const method = currentAdBreakMethodRef.current === 'seconds' ? 'seconds' : 'count';
-    const currentAdNumber = Math.max(0, Number(currentAdBreakCurrentIndexRef.current) || 0);
-    const queuedTotal = Number(currentAdBreakActiveQueueRef.current.length) || Number(currentAdBreakTotalRef.current) || 0;
-    const totalAds = Math.max(0, queuedTotal);
-    const targetSeconds = Number.isFinite(Number(currentAdBreakTargetSecondsRef.current)) && Number(currentAdBreakTargetSecondsRef.current) > 0
-      ? Number(currentAdBreakTargetSecondsRef.current)
-      : DEFAULT_TARGET_AD_SECONDS;
-    const completedAdBreakSeconds = Math.max(0, Number(currentAdBreakCompletedSecondsRef.current) || 0);
-    const currentAdCurrentTime = Math.max(0, Number(currentAdBreakCurrentTimeRef.current) || 0);
-    const elapsedSeconds = Math.max(0, completedAdBreakSeconds + currentAdCurrentTime);
-    const remainingSeconds = Math.max(0, targetSeconds - elapsedSeconds);
-
-    if (!currentAdNumber || !totalAds) {
-      logAdBreakDisplayHidden(!totalAds ? 'missing queue' : 'missing current index', ad);
-      return null;
-    }
-
-    return {
-      method,
-      breakMethod: method,
-      currentAdNumber,
-      totalAds,
-      totalAdsInBreak: totalAds,
-      targetSeconds,
-      targetAdSeconds: targetSeconds,
-      completedAdBreakSeconds,
-      currentAdCurrentTime,
-      elapsedSeconds,
-      elapsedAdBreakSeconds: elapsedSeconds,
-      remainingSeconds
-    };
-  }
-
-  function resetCurrentAdBreakDisplay() {
-    currentAdBreakQueueRef.current = [];
-    currentAdBreakActiveQueueRef.current = [];
-    currentAdBreakTotalRef.current = 0;
-    currentAdBreakCurrentIndexRef.current = 0;
-    currentAdBreakMethodRef.current = 'count';
-    currentAdBreakTargetSecondsRef.current = DEFAULT_TARGET_AD_SECONDS;
-    currentAdBreakCompletedSecondsRef.current = 0;
-    currentAdBreakCurrentTimeRef.current = 0;
-    currentAdBreakStartedAtRef.current = 0;
-    currentAdBreakHideLogKeyRef.current = '';
-    setAdBreakDisplay(null);
-  }
-
-  function startAdFromQueue(nextAd, nextSong) {
-    if (!nextAd) return false;
-    pendingAdNextSongRef.current = nextSong || pendingAdNextSongRef.current || null;
-    currentAdBreakCurrentIndexRef.current = Math.min(
-      Math.max(1, Number(currentAdBreakCurrentIndexRef.current || 0) + 1),
-      Math.max(1, Number(currentAdBreakTotalRef.current) || 1)
-    );
-    currentAdBreakCurrentTimeRef.current = 0;
-    currentAdBreakStartedAtRef.current = Date.now();
-    currentAdBreakHideLogKeyRef.current = '';
-    const nextDisplay = getCurrentAdBreakDisplay(nextAd);
-    setAdBreakDisplay(nextDisplay);
-    adPlayCountsRef.current[nextAd.id] = (adPlayCountsRef.current[nextAd.id] || 0) + 1;
-    handledAdEndRef.current = false;
-    setCurrentAd(nextAd);
-    setIsAdPlaying(true);
-    setLastPlayedAdId(nextAd.id);
-    setPlayerMessage('Sponsored message. Song playback will continue after this ad break.');
-    setAutoPlayRequest(null);
-    setMediaMode('idle');
-    setActiveVideoEmbedUrl('');
-    return true;
-  }
-
-  function maybeStartAdBeforeNextSong(nextSong, currentSong, { allowAfterCompletedVideo = false } = {}) {
-    if (isAdPlayingRef.current || currentAd || (mediaMode === 'video' && !allowAfterCompletedVideo)) return false;
-    if (!adSettings.ads_enabled) {
-      console.log('[Stashbox Radio] Ads disabled by public ad settings.');
-      return false;
-    }
-    if (!nextSong) return false;
-    if (nextSong?.idx && currentSong?.idx && nextSong.idx === currentSong.idx) return false;
-
-    adBreakCompletedCountRef.current += 1;
-    const breakInterval = normalizeAdSettings(adSettings).break_interval;
-    if (adBreakCompletedCountRef.current < breakInterval) {
-      console.log(`[Stashbox Radio] Ad break skipped by interval ${adBreakCompletedCountRef.current}/${breakInterval}`);
-      return false;
-    }
-    adBreakCompletedCountRef.current = 0;
-
-    console.log('[Stashbox Radio] Ad break required after completed item');
-    const audio = audioRef.current;
-    if (audio) {
-      try { audio.pause(); } catch (_) {}
-      try { audio.currentTime = 0; } catch (_) {}
-    }
-    const queue = buildAdBreakQueue();
-    if (!queue.length) return false;
-    const settings = normalizeAdSettings(adSettings);
-    currentAdBreakQueueRef.current = queue.slice(1);
-    currentAdBreakActiveQueueRef.current = queue.slice();
-    currentAdBreakTotalRef.current = queue.length;
-    currentAdBreakCurrentIndexRef.current = 0;
-    currentAdBreakMethodRef.current = settings.break_method === 'seconds' ? 'seconds' : 'count';
-    currentAdBreakTargetSecondsRef.current = Number.isFinite(Number(settings.target_ad_seconds)) && Number(settings.target_ad_seconds) > 0
-      ? Number(settings.target_ad_seconds)
-      : DEFAULT_TARGET_AD_SECONDS;
-    currentAdBreakCompletedSecondsRef.current = 0;
-    currentAdBreakCurrentTimeRef.current = 0;
-    currentAdBreakStartedAtRef.current = Date.now();
-    return startAdFromQueue(queue[0], nextSong);
-  }
-
-  async function continueAfterAd(eventType = 'ad_complete', adOverride = null, watchedSeconds = 0) {
-    const completedAd = adOverride || currentAd;
-    if (!completedAd || handledAdEndRef.current) return;
-    handledAdEndRef.current = true;
-    if (currentAdBreakMethodRef.current === 'seconds') {
-      const watched = Math.max(0, Number(watchedSeconds) || Number(currentAdBreakCurrentTimeRef.current) || 0);
-      currentAdBreakCompletedSecondsRef.current = Math.max(0, currentAdBreakCompletedSecondsRef.current + watched);
-      currentAdBreakCurrentTimeRef.current = 0;
-    }
-    if (eventType) {
-      recordAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
-      await sendAdTrackingEvent(completedAd, eventType);
-    }
-
-    const nextQueuedAd = currentAdBreakQueueRef.current.shift();
-    if (nextQueuedAd) {
-      startAdFromQueue(nextQueuedAd, pendingAdNextSongRef.current || null);
-      return;
-    }
-
-    const nextSong = pendingAdNextSongRef.current || resolveAdjacentPlayableSong(1, selectedSong);
-    pendingAdNextSongRef.current = null;
-    resetCurrentAdBreakDisplay();
-    setCurrentAd(null);
-    setIsAdPlaying(false);
-    setPlayerMessage('');
-    if (nextSong) selectTrack(nextSong, { autoStart: true, preferVideo: videoFocusedList && nextSong.hasVideo });
-  }
-
-  function handleAdDurationKnown(ad, durationSeconds) {
-    if (!ad?.id) return;
-    const duration = Number(durationSeconds);
-    if (Number.isFinite(duration) && duration > 0) {
-      adDurationMemoryRef.current[ad.id] = duration;
-    }
-  }
-
-  function handleAdStarted(ad) {
-    console.log(`Ad started: ${ad?.title || 'Untitled ad'}`);
-    const nextDisplay = getCurrentAdBreakDisplay(ad);
-    setAdBreakDisplay(nextDisplay);
-    if (nextDisplay) {
-      console.log('[Stashbox Radio] ad break display', {
-        breakMethod: nextDisplay.method,
-        currentAdNumber: nextDisplay.currentAdNumber,
-        totalAdsInBreak: nextDisplay.totalAds,
-        targetAdSeconds: nextDisplay.targetSeconds,
-        completedAdBreakSeconds: nextDisplay.completedAdBreakSeconds
-      });
-    }
-    recordAdEvent(ad, 'ad_start', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
-    sendAdTrackingEvent(ad, 'ad_start');
-  }
-
-  function handleAdProgress(ad, currentTimeSeconds = 0) {
-    if (!ad || ad.id !== currentAd?.id) return;
-    const nextCurrentTime = Math.max(0, Number(currentTimeSeconds) || 0);
-    if (Math.floor(nextCurrentTime) === Math.floor(currentAdBreakCurrentTimeRef.current)) return;
-    currentAdBreakCurrentTimeRef.current = nextCurrentTime;
-    if (currentAdBreakMethodRef.current === 'seconds') setAdBreakDisplay(getCurrentAdBreakDisplay(ad));
-  }
-
-  function handleAdSkipped(ad, watchedSeconds = 0) {
-    const skippedAd = ad || currentAd;
-    console.log(`Ad skipped: ${skippedAd?.title || 'Untitled ad'}`);
-    continueAfterAd('ad_skip', skippedAd, watchedSeconds);
-  }
-
-  function handleAdCompleted(ad, watchedSeconds = 0) {
-    const completedAd = ad || currentAd;
-    console.log(`Ad completed: ${completedAd?.title || 'Untitled ad'}`);
-    continueAfterAd('ad_complete', completedAd, watchedSeconds);
-  }
-
-  function handleAdCtaClicked(ad) {
-    recordAdEvent(ad, 'ad_click', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
-    sendAdTrackingEvent(ad, 'ad_click');
-  }
-
-  function handleAdError(ad, errorMessage = '') {
-    console.warn('[Stashbox Radio] ad playback failed; continuing to next song.', errorMessage);
-    recordAdEvent(ad, 'ad_error', { song: pendingAdNextSongRef.current || selectedSong, sessionId, extra: { error_message: errorMessage } });
-    continueAfterAd(null, ad, 0);
-  }
 
   function resetRadioFilters() {
     setQuery('');
@@ -2068,9 +1426,6 @@ function App() {
     setActiveShuffleSourceKey('');
     setIsShuffleQueueActive(false);
     setShuffleNotice('');
-    setCurrentAd(null);
-    setIsAdPlaying(false);
-    pendingAdNextSongRef.current = null;
     finishPlayback('play_partial');
     resetVideoPlaybackBeforeSongSwitch(track);
 
@@ -2192,7 +1547,6 @@ function App() {
     console.log("Next song after video end:", nextSong?.song_key);
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
-    if (maybeStartAdBeforeNextSong(nextSong, endedSong, { allowAfterCompletedVideo: true })) return;
     if (nextSong) {
       setSelected(nextSong);
       setAutoPlayRequest({ idx: nextSong.idx, requestedAt: Date.now(), preferVideo: preferVideo || (videoFocusedList && nextSong.hasVideo) });
@@ -2217,7 +1571,6 @@ function App() {
     if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
-    if (maybeStartAdBeforeNextSong(nextSong, endedSong, { allowAfterCompletedVideo: true })) return;
     if (nextSong) setSelected(nextSong);
     setAutoPlayRequest(nextSong ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
@@ -2233,7 +1586,6 @@ function App() {
     if (!next) return;
     if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     console.log("Next autoplay item:", next.song_key);
-    if (maybeStartAdBeforeNextSong(next, song)) return;
     selectTrack(next, { autoStart: true, preferVideo: preferVideo || (videoFocusedList && next.hasVideo) });
   }
 
@@ -2317,76 +1669,6 @@ function App() {
   }
 
 
-  function toggleActiveAdPlaybackFromKeyboard() {
-    if (!currentAd) return false;
-    const media = playerRef.current?.querySelector?.('.ad-player audio, .ad-player video, audio.ad-audio, video.ad-video');
-    return toggleNativeMediaElement(media);
-  }
-
-  function toggleActiveVideoPlaybackFromKeyboard() {
-    const directVideo = playerRef.current?.querySelector?.('.player-media video');
-    if (directVideo) return toggleNativeMediaElement(directVideo);
-
-    const youtubePlayer = youtubePlayerRef.current;
-    if (mediaIsPlayingRef.current && typeof youtubePlayer?.pauseVideo === 'function') {
-      try {
-        youtubePlayer.pauseVideo();
-        setMediaSessionPlaybackState('paused');
-        return true;
-      } catch (error) {
-        console.warn('[radio] Spacebar video pause failed.', error.message || error);
-        return false;
-      }
-    }
-
-    if (typeof youtubePlayer?.playVideo === 'function') {
-      try {
-        youtubePlayer.playVideo();
-        setMediaSessionPlaybackState('playing');
-        return true;
-      } catch (error) {
-        console.warn('[radio] Spacebar video play failed.', error.message || error);
-        return false;
-      }
-    }
-
-    return false;
-  }
-
-  function togglePlayPauseFromKeyboard() {
-    if (currentAd) {
-      toggleActiveAdPlaybackFromKeyboard();
-      return;
-    }
-
-    const primaryPlayPauseButton = playerRef.current?.querySelector?.('.play-toggle:not([disabled])');
-    if (primaryPlayPauseButton) {
-      primaryPlayPauseButton.click();
-      return;
-    }
-
-    if (mediaMode === 'video') {
-      if (toggleActiveVideoPlaybackFromKeyboard()) return;
-      if (selectedSong?.hasVideo && !activeVideoEmbedUrl) openVideo({ startPlayback: true });
-      return;
-    }
-
-    const audio = audioRef.current;
-    if (!audio || !selectedSong?.hasAudio || !has(selectedSong?.audioUrl)) return;
-    toggleNativeMediaElement(audio);
-  }
-
-  useEffect(() => {
-    const handleGlobalKeyDown = event => {
-      if (event.defaultPrevented || !isSpacebarEvent(event) || event.repeat || shouldIgnoreGlobalSpacebar(event)) return;
-      event.preventDefault();
-      togglePlayPauseFromKeyboard();
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  });
-
   useEffect(() => {
     if (!('mediaSession' in navigator)) return undefined;
 
@@ -2439,121 +1721,26 @@ function App() {
     };
   }, [handleManualNext, mediaMode, shiftTrack, videoFocusedList, selectedSong]);
 
-  function updateSongCount(songKey, counts = {}) {
-    if (!songKey) return;
-    const normalizedCounts = {};
-    if (counts.likes !== undefined) normalizedCounts.likes = Number(counts.likes || 0);
-    if (counts.total_plays !== undefined) normalizedCounts.total_plays = Number(counts.total_plays || 0);
-    if (counts.shares !== undefined) normalizedCounts.shares = Number(counts.shares || 0);
-
-    setTracks(prevTracks => prevTracks.map(track => {
-      if (!matchesSongDeepLink(track, songKey)) return track;
-      return {
-        ...track,
-        ...normalizedCounts,
-        raw: {
-          ...track.raw,
-          ...normalizedCounts
-        }
-      };
-    }));
-
-    setSelected(current => {
-      if (!current || !matchesSongDeepLink(current, songKey)) return current;
-      return {
-        ...current,
-        ...normalizedCounts,
-        raw: {
-          ...current.raw,
-          ...normalizedCounts
-        }
-      };
-    });
-
-    if (normalizedCounts.likes !== undefined) {
-      setLikeCounts(prev => ({ ...prev, [songKey]: normalizedCounts.likes }));
-    }
-    if (normalizedCounts.total_plays !== undefined) {
-      setPlayCounts(prev => ({ ...prev, [songKey]: normalizedCounts.total_plays }));
-    }
-    if (normalizedCounts.shares !== undefined) {
-      setShareCounts(prev => ({ ...prev, [songKey]: normalizedCounts.shares }));
-    }
-  }
-
   function likeSong(song) {
-    const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
-    const songId = clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id);
-    if (!song || !songKey || likedSongIds.has(songKey) || likeSaveInFlightIdsRef.current.has(songKey)) return;
-    likeSaveInFlightIdsRef.current.add(songKey);
-    sendTrackingEvent(song, 'like', sessionId, {
-      song_key: songKey,
-      song_id: songId || songKey,
-      id: songId || songKey,
-      display_title: getSongTitle(song),
-      song_name: clean(song.song_name || song.raw?.song_name || getSongTitle(song)),
-      artist: getSongArtist(song),
-      page: 'production',
-      source: 'public_player'
-    }).then(result => {
-      if (!result?.response?.ok) {
-        console.warn('[Stashbox Radio] like event was not saved; leaving persisted like count unchanged', { song_key: songKey, result });
-        return;
-      }
-      setLikedSongIds(prev => new Set(prev).add(songKey));
-      const responseLikes = result?.body?.likes;
-      if (responseLikes !== undefined) {
-        updateSongCount(songKey, { likes: Number(responseLikes) });
-      } else {
-        const nextLikes = (likeCounts[songKey] ?? song.likes ?? 0) + 1;
-        updateSongCount(songKey, { likes: nextLikes });
-      }
-    }).catch(error => {
-      console.warn('[Stashbox Radio] like event save failed', { song_key: songKey, error: error?.message || error });
-    }).finally(() => {
-      likeSaveInFlightIdsRef.current.delete(songKey);
+    if (!song || likedSongIds.has(song.songKey)) return;
+    sendTrackingEvent(song, 'like', sessionId).then(result => {
+      if (!result?.response?.ok) return;
+      setLikedSongIds(prev => new Set(prev).add(song.songKey));
+      setLikeCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.likes ?? 0) + 1 }));
     });
   }
 
   async function shareSong(song) {
     if (!song) return;
     const shareUrl = getShareUrl(song);
-    const songTitle = getSongTitle(song);
-    const artist = getSongArtist(song);
-    const shareData = { title: `${songTitle} by ${artist}`, text: 'Listen on Stashbox Radio', url: shareUrl };
-    console.log('[Stashbox Radio] share song url', shareUrl);
-    const showCopiedFeedback = () => {
-      setCopiedSongId(song.idx);
-      setPlayerMessage('Song link copied');
-      window.setTimeout(() => {
-        setCopiedSongId(current => current === song.idx ? null : current);
-        setPlayerMessage(current => current === 'Song link copied' ? '' : current);
-      }, 1800);
-    };
-    const copyShareUrl = async () => {
-      await copyTextToClipboard(shareUrl);
-      console.log('[Stashbox Radio] copied song url', shareUrl);
-      showCopiedFeedback();
-    };
+    const shareData = { title: `${song.title} · Stashbox Radio`, text: song.publicTrackNote || `Listen to ${song.title} on Stashbox Radio.`, url: shareUrl };
     sendTrackingEvent(song, 'share', sessionId).then(result => {
       if (result?.response?.ok) setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.shares ?? 0) + 1 }));
     });
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        console.log('[Stashbox Radio] shared song url', shareUrl);
-      } else {
-        await copyShareUrl();
-      }
-    } catch (shareError) {
-      if (shareError?.name === 'AbortError') return;
-      console.warn('Unable to share song. Copying song URL instead.', shareError.message || shareError);
-      try {
-        await copyShareUrl();
-      } catch (copyError) {
-        console.warn('Unable to copy song URL.', copyError.message || copyError);
-      }
-    }
+      if (navigator.share) await navigator.share(shareData);
+      else { await copyTextToClipboard(shareUrl); setCopiedSongId(song.idx); window.setTimeout(() => setCopiedSongId(current => current === song.idx ? null : current), 1800); }
+    } catch (shareError) { if (shareError?.name !== 'AbortError') console.warn('Unable to share song.', shareError.message || shareError); }
   }
 
   function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
@@ -2564,13 +1751,13 @@ function App() {
     h('p', null, `Endpoint: ${error.endpoint || SONGS_API_URL}`),
     h('p', null, `Error: ${error.message || 'Unable to load songs from the RDS API.'}`),
     h('p', null, `response.ok failed: ${error.responseOkFailed ? 'yes' : 'no'}`),
-    h('p', null, 'The production /radio/ page has not been changed.')
+    h('p', null, 'Please try refreshing the Stashbox Radio player.')
   );
 
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -2587,7 +1774,7 @@ function PlayIcon({ className = 'play-icon' }) { return h('span', { className, '
 function PauseIcon() { return h('span', { className: 'pause-icon', 'aria-hidden': true }, h('span', null), h('span', null)); }
 function PlayCount({ count }) { return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayCount(count))); }
 function ShareCount({ count }) { return h('span', { className: 'share-count', title: `${Number(count) || 0} recorded shares` }, h('span', { 'aria-hidden': true }, '↗'), h('span', null, formatShareCount(count))); }
-function ShareButton({ onShare, copied = false, compact = false }) { return h('button', { className: `share-button ${compact ? 'compact' : ''}`, type: 'button', onClick: event => { event.stopPropagation(); onShare?.(); }, 'aria-live': copied ? 'polite' : undefined }, copied ? 'Song link copied' : 'Share'); }
+function ShareButton({ onShare, copied = false, compact = false }) { return h('button', { className: `share-button ${compact ? 'compact' : ''}`, type: 'button', onClick: event => { event.stopPropagation(); onShare?.(); }, 'aria-live': copied ? 'polite' : undefined }, copied ? 'Link copied' : 'Share'); }
 function ThumbsUpIcon() {
   return h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: 'false' },
     h('path', { d: 'M7 10v11' }),
@@ -2601,308 +1788,7 @@ function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onSha
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
 
-function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onCompleted, onSkipped, onCtaClicked, onError, onDurationKnown }) {
-  const mediaRef = useRef(null);
-  const isAdClearingRef = useRef(false);
-  const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
-  const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || skipAfter <= 0);
-  const [skipCountdown, setSkipCountdown] = useState(skipAfter);
-  const [started, setStarted] = useState(false);
-  const [needsManualPlay, setNeedsManualPlay] = useState(false);
-  const [isAdPaused, setIsAdPaused] = useState(false);
-  const [adCurrentTime, setAdCurrentTime] = useState(0);
-  const [adDuration, setAdDuration] = useState(0);
-  const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
-  const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
-
-  useEffect(() => {
-    const initialCanSkip = !ad?.skip_enabled || skipAfter <= 0;
-    isAdClearingRef.current = false;
-    setCanSkip(initialCanSkip);
-    setSkipCountdown(skipAfter);
-    setStarted(false);
-    setNeedsManualPlay(false);
-    setIsAdPaused(false);
-    setAdCurrentTime(0);
-    setAdDuration(0);
-    if (initialCanSkip) return undefined;
-
-    let remainingSeconds = skipAfter;
-    const timer = window.setInterval(() => {
-      remainingSeconds = Math.max(0, remainingSeconds - 1);
-      setSkipCountdown(remainingSeconds);
-      if (remainingSeconds <= 0) {
-        setCanSkip(true);
-        window.clearInterval(timer);
-      }
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [ad?.id, ad?.skip_enabled, skipAfter]);
-
-  useEffect(() => {
-    playerRef.current?.focus?.();
-  }, [ad?.id, playerRef]);
-
-  useEffect(() => {
-    if (!ad) return undefined;
-    console.log(`Ad player mounted: ${ad.title || ad.internal_title || 'Untitled ad'}`);
-    console.log(`Ad media URL: ${mediaUrl}`);
-    return undefined;
-  }, [ad?.id, mediaUrl]);
-
-  useEffect(() => {
-    if (!ad) return undefined;
-    const syncPausedState = () => {
-      if (document.visibilityState !== 'visible') return;
-      const media = mediaRef.current;
-      setIsAdPaused(Boolean(media && media.paused && !media.ended));
-    };
-    document.addEventListener('visibilitychange', syncPausedState);
-    return () => document.removeEventListener('visibilitychange', syncPausedState);
-  }, [ad?.id]);
-
-  useEffect(() => {
-    if (!ad || isAudio || !mediaUrl) return undefined;
-    let cancelled = false;
-    const video = mediaRef.current;
-    if (!video?.play) return undefined;
-    console.log('Ad video play attempted');
-    const attemptPlay = video.play();
-    if (attemptPlay?.catch) {
-      attemptPlay.catch(error => {
-        if (cancelled) return;
-        console.warn('Ad video autoplay failed:', error);
-        video.muted = true;
-        const mutedAttempt = video.play();
-        if (mutedAttempt?.catch) {
-          mutedAttempt.catch(mutedError => {
-            if (cancelled) return;
-            console.warn('Ad video autoplay failed:', mutedError);
-            setNeedsManualPlay(true);
-            setIsAdPaused(true);
-          });
-        }
-      });
-    }
-    return () => { cancelled = true; };
-  }, [ad?.id, isAudio, mediaUrl]);
-
-  if (!ad) return null;
-
-  const getWatchedSeconds = () => {
-    const media = mediaRef.current;
-    const current = Number.isFinite(media?.currentTime) ? media.currentTime : adCurrentTime;
-    const duration = Number.isFinite(media?.duration) ? media.duration : adDuration;
-    if (Number.isFinite(duration) && duration > 0 && media?.ended) return Math.max(0, duration);
-    return Math.max(0, Number(current) || 0);
-  };
-
-  const completeAd = () => {
-    const watchedSeconds = getWatchedSeconds();
-    isAdClearingRef.current = true;
-    setIsAdPaused(false);
-    try { mediaRef.current?.pause?.(); } catch (_) {}
-    onCompleted?.(ad, watchedSeconds);
-  };
-
-  const skipAd = () => {
-    console.log("[Stashbox Radio] Skip Ad clicked", ad?.id, ad?.title);
-    isAdClearingRef.current = true;
-    setIsAdPaused(false);
-    try { mediaRef.current?.pause?.(); } catch (_) {}
-    const watchedSeconds = getWatchedSeconds();
-    try { if (mediaRef.current) mediaRef.current.currentTime = 0; } catch (_) {}
-    onSkipped?.(ad, watchedSeconds);
-  };
-
-  const clickCta = () => {
-    onCtaClicked?.(ad);
-    window.open(ad.clickUrl || ad.cta_url, '_blank', 'noopener,noreferrer');
-  };
-
-  const skipAdLabel = canSkip ? 'Skip Ad' : `Skip in ${formatSkipCountdown(skipCountdown)}`;
-  const adTitle = clean(ad.public_title || ad.title || ad.internal_title || ad.ad_title) || 'Sponsored Message';
-  const adDescription = clean(ad.description || ad.public_description);
-  const adProgress = Number.isFinite(adDuration) && adDuration > 0 ? Math.min(100, Math.max(0, (adCurrentTime / adDuration) * 100)) : 0;
-  const breakMethod = adBreakDisplay?.method === 'seconds' || adBreakDisplay?.breakMethod === 'seconds' ? 'seconds' : 'count';
-  const currentAdNumber = Math.max(0, Number(adBreakDisplay?.currentAdNumber) || 0);
-  const totalAdsInBreak = Math.max(0, Number(adBreakDisplay?.totalAds ?? adBreakDisplay?.totalAdsInBreak) || 0);
-  const targetAdSeconds = Number.isFinite(Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds)) && Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds) > 0
-    ? Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds)
-    : DEFAULT_TARGET_AD_SECONDS;
-  const completedAdBreakSeconds = Math.max(0, Number(adBreakDisplay?.completedAdBreakSeconds) || 0);
-  const fallbackRemainingAdBreakSeconds = Math.max(0, targetAdSeconds - completedAdBreakSeconds - adCurrentTime);
-  const displayRemainingAdBreakSeconds = Number.isFinite(Number(adBreakDisplay?.remainingSeconds))
-    ? Math.max(0, Number(adBreakDisplay.remainingSeconds))
-    : fallbackRemainingAdBreakSeconds;
-  const remainingAdBreakSeconds = Math.min(displayRemainingAdBreakSeconds, fallbackRemainingAdBreakSeconds);
-  const adBreakIndicatorText = currentAdNumber && totalAdsInBreak
-    ? (breakMethod === 'seconds' ? `Ads: ${formatRemainingAdTime(remainingAdBreakSeconds)} left` : `Ad ${currentAdNumber} of ${totalAdsInBreak}`)
-    : '';
-
-  const updateAdDuration = media => {
-    const nextDuration = Number.isFinite(media?.duration) ? Math.max(0, media.duration) : 0;
-    setAdDuration(nextDuration);
-    if (nextDuration > 0) onDurationKnown?.(ad, nextDuration);
-  };
-
-  const updateAdTime = event => {
-    const media = event?.currentTarget;
-    const currentTime = Number.isFinite(media?.currentTime) ? Math.max(0, media.currentTime) : 0;
-    setAdCurrentTime(currentTime);
-    onProgress?.(ad, currentTime);
-    updateAdDuration(media);
-  };
-
-  const updateAdMetadata = event => {
-    updateAdDuration(event?.currentTarget);
-  };
-
-  const startAd = () => {
-    if (!isAudio) console.log('Ad video playing');
-    setNeedsManualPlay(false);
-    setIsAdPaused(false);
-    if (started) return;
-    setStarted(true);
-    onStarted?.(ad);
-  };
-
-  const handleAdPause = event => {
-    if (isAdClearingRef.current) return;
-    const media = event?.currentTarget;
-    setIsAdPaused(Boolean(media && !media.ended));
-  };
-
-  const resumeCurrentAd = () => {
-    const media = mediaRef.current;
-    if (!media?.play || !ad || !media.paused || media.ended) return;
-    const attemptPlay = media.play();
-    if (attemptPlay?.then) {
-      attemptPlay.then(() => {
-        setNeedsManualPlay(false);
-        setIsAdPaused(false);
-      }).catch(error => {
-        console.warn('[Stashbox Radio] ad resume blocked', error);
-        setIsAdPaused(true);
-      });
-    } else {
-      setNeedsManualPlay(false);
-      setIsAdPaused(false);
-    }
-  };
-
-  const handleAdMediaClick = () => {
-    const media = mediaRef.current;
-    if (media?.paused && !media.ended) resumeCurrentAd();
-  };
-
-  const playAd = () => {
-    const media = mediaRef.current;
-    if (!media?.play) return;
-    media.muted = false;
-    console.log('Ad video play attempted');
-    const attemptPlay = media.play();
-    if (attemptPlay?.then) {
-      attemptPlay.then(() => {
-        setNeedsManualPlay(false);
-        setIsAdPaused(false);
-      }).catch(error => {
-        console.warn('Ad video autoplay failed:', error);
-        setNeedsManualPlay(true);
-        setIsAdPaused(true);
-      });
-    } else {
-      setNeedsManualPlay(false);
-      setIsAdPaused(false);
-    }
-  };
-
-  return h('aside', { className: 'panel player ad-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Advertisement' },
-    h('div', { className: 'player-media ad-player-media', onClick: handleAdMediaClick },
-      isAudio
-        ? h('div', { className: 'ad-audio-shell' },
-          ad.poster_image_url || ad.thumbnail_url ? h('img', { src: ad.poster_image_url || ad.thumbnail_url, alt: `${ad.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, ad.title || 'Ad'),
-          h('audio', {
-            ref: mediaRef,
-            className: 'ad-audio',
-            src: mediaUrl,
-            controls: false,
-            preload: 'auto',
-            autoPlay: true,
-            onPlay: startAd,
-            onPause: handleAdPause,
-            onLoadedMetadata: updateAdMetadata,
-            onDurationChange: updateAdMetadata,
-            onTimeUpdate: updateAdTime,
-            onEnded: completeAd,
-            onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Audio ad failed to load or play.')
-          })
-        )
-        : h('video', {
-          ref: mediaRef,
-          className: 'ad-video',
-          src: mediaUrl,
-          poster: ad.poster_image_url || ad.thumbnail_url || undefined,
-          controls: false,
-          playsInline: true,
-          autoPlay: true,
-          onPlay: startAd,
-          onPause: handleAdPause,
-          onLoadedMetadata: updateAdMetadata,
-          onDurationChange: updateAdMetadata,
-          onTimeUpdate: updateAdTime,
-          onEnded: () => { console.log('Ad video ended'); completeAd(); },
-          onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
-        }),
-      isAdPaused ? h('div', { className: 'ad-resume-overlay', 'aria-hidden': false },
-        h('button', {
-          type: 'button',
-          className: 'ad-resume-button',
-          onClick: event => {
-            event.preventDefault();
-            event.stopPropagation();
-            resumeCurrentAd();
-          }
-        }, 'Tap to resume ad')
-      ) : null
-    ),
-    needsManualPlay ? h('button', { type: 'button', className: 'play-ad-button', onClick: playAd }, 'Play Ad') : null,
-    h('div', { className: 'player-bar ad-player-bar' },
-      h('div', { className: 'player-controls ad-player-controls' },
-        h('div', { className: 'player-controls-layout ad-player-controls-layout' },
-          h('div', { className: 'player-info ad-info ad-info-block' },
-            h('div', { className: 'ad-title-text' }, adTitle),
-            adDescription ? h('div', { className: 'ad-description-text' }, adDescription) : null
-          ),
-          h('div', { className: 'player-controls-actions ad-actions' },
-            h('div', { className: 'ad-controls-center-group' },
-              h('span', { className: 'ad-time-display', 'aria-live': 'polite' }, `${formatAdTime(adCurrentTime)} / ${formatAdTime(adDuration)}`),
-              (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill ad-cta-button', onClick: clickCta }, ad.cta_label) : null,
-              h('button', {
-                type: 'button',
-                className: 'player-pill skip-ad-pill ad-skip-button',
-                onClick: event => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  skipAd();
-                },
-                disabled: !canSkip
-              }, skipAdLabel),
-              adBreakIndicatorText ? h('span', { className: `ad-break-indicator ad-break-indicator--${breakMethod}`, 'aria-live': 'polite' }, adBreakIndicatorText) : null,
-              h('span', { className: 'player-stat-pill ad-label-pill ad-badge' }, 'Ad')
-            )
-          ),
-          h('div', { className: 'ad-progress', role: 'progressbar', 'aria-label': 'Ad progress', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(adProgress) },
-            h('div', { className: 'ad-progress-fill', style: { width: `${adProgress}%` } })
-          )
-        )
-      )
-    )
-  );
-}
-
-function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -2925,8 +1811,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const selectedIsVideoOnly = isVideoOnlyTrack(selected);
   const availableVideoEmbedUrl = selected.hasVideo ? youtubeEmbed(selected.videoLink) : '';
   const videoSrc = mediaMode === 'video' ? activeVideoEmbedUrl : '';
-  const artworkUrl = normalizedSongArtworkUrl(selected);
-  const posterImage = artworkUrl || (selectedIsVideoOnly ? youtubeThumbnail(selected.videoLink) : '');
+  const posterImage = selected.imageUrl || (selectedIsVideoOnly ? youtubeThumbnail(selected.videoLink) : '');
   const hasAudio = selected.hasAudio && has(selected.audioUrl) && !selectedIsVideoOnly;
   const hasVideo = selected.hasVideo && has(availableVideoEmbedUrl);
   const isVideoMode = mediaMode === 'video' && has(videoSrc);
@@ -3130,7 +2015,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
         h('div', { className: 'player-controls-layout' },
           h('div', { className: 'player-info' },
             h('div', { className: 'player-title-row' },
-              h('h2', null, selected.title)
+              h('h2', null, selected.title),
+              h('span', { className: 'player-stat-pill play-count-pill mobile-title-play-count', title: `${Number(playCount) || 0} recorded starts` }, h('span', null, formatPlayerPlayCount(playCount)))
             ),
             h('div', { className: 'meta' }, h('strong', null, selected.artist || 'Stashbox'), selected.album ? h('span', null, `· ${selected.album}`) : null, selected.videoOnly ? h('span', null, '· Video only') : null, h('span', { className: 'genre-tag', style: { color: section.color, backgroundColor: `${section.color}22` } }, selected.genre || selected.sectionKey)),
             selected.publicTrackNote ? h('p', { className: 'notes public-note compact-note' }, selected.publicTrackNote) : null
@@ -3143,7 +2029,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
           h('div', { className: 'player-controls-actions' },
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
-            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Song link copied' : formatPlayerShareText(shareCount)),
+            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
             canCloseVideo || canWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
             h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
           ),
@@ -3152,7 +2038,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
             h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !canUsePrimaryPlay, 'aria-pressed': isVideoMode ? isVideoPlaying : isPlaying, 'aria-label': (isVideoMode ? isVideoPlaying : isPlaying) ? 'Pause song' : 'Play song' }, (isVideoMode ? isVideoPlaying : isPlaying) ? h(PauseIcon) : h(PlayIcon)),
             h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'),
-            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Song link copied' : formatPlayerShareText(shareCount))
+            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount))
           ),
           !selectedIsVideoOnly && (canCloseVideo || canWatchVideo) ? h('div', { className: 'player-mobile-video-actions' },
             h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video'))
@@ -3260,7 +2146,7 @@ function displayAlbumName(track) {
 }
 
 function songArtworkUrl(track) {
-  return normalizedSongArtworkUrl(track) || youtubeThumbnail(track?.videoLink) || APP_FALLBACK_ARTWORK_URL;
+  return track?.imageUrl || youtubeThumbnail(track?.videoLink) || APP_FALLBACK_ARTWORK_URL;
 }
 
 function SongSection({ section, tracks, selected, chooseSong, onShuffle, likeCounts, playCounts, shareCounts, likedSongIds, onLike, onShare, copiedSongId, viewMode = 'list', showHeader = true }) {

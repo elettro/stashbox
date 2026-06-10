@@ -8,18 +8,13 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="topbar-title-link" href="https://stashbox.com/radio/" aria-label="Open Stashbox Radio">
-      <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
-      <div class="radio-title-row">
-        <h1>STASHBOX RADIO</h1>
-        <span class="dev-admin-badge">ADMIN</span>
-      </div>
-      <p class="radio-admin-meta">Private song, stats, and station controls</p>
+    <a class="topbar-title-link" href="/stashbox/" aria-label="Open Stashbox site">
+      <p class="eyebrow">ADMIN</p>
+      <h1>Stashbox Radio</h1>
     </a>
     <div class="token-actions">
       <span id="tokenStatus" class="token-status">No token saved</span>
       <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
-      <a class="dev-admin-link" href="./ads/">Ads</a>
     </div>
   </header>
 
@@ -49,7 +44,7 @@
             <div>
               <p class="eyebrow">Dashboard</p>
               <h2 id="dashboardHeading">Operational stats</h2>
-              <p class="panel-copy">Top KPI totals come from radio event stats; song rankings still use the admin songs API and exclude archived songs.</p>
+              <p class="panel-copy">Top KPI totals come from radio event stats; song rankings use the admin songs API and exclude archived songs.</p>
               <p id="statsGeneratedAt" class="stats-generated">Stats generated: —</p>
             </div>
             <button id="refreshDashboardButton" class="button button-small" type="button">Refresh Dashboard</button>
