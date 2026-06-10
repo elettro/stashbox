@@ -547,7 +547,10 @@ async function listSongs({ includeArchived = false } = {}) {
   const orderBy = hasSortOrder
     ? 'ORDER BY sort_order ASC, song_name ASC NULLS LAST, display_title ASC NULLS LAST'
     : 'ORDER BY created_at DESC NULLS LAST, song_name ASC NULLS LAST, display_title ASC NULLS LAST';
-  const result = await pool.query(`SELECT * FROM radio.songs ${where} ${orderBy}`);
+  const artworkSelect = columns.has('resolved_artwork_url')
+    ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
+    : '*, song_artwork_url AS resolved_artwork_url';
+  const result = await pool.query(`SELECT ${artworkSelect} FROM radio.songs ${where} ${orderBy}`);
   return response(200, { success: true, count: result.rowCount, songs: result.rows });
 }
 
