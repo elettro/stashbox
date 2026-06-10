@@ -1016,6 +1016,34 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   text-align: left;
 }
 
+.ad-info-block {
+  text-align: left;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ad-title-text {
+  font-size: 1rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #fff;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-description-text {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  opacity: 0.72;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ad-player .player-title-row {
   width: 100%;
   justify-content: flex-start;
@@ -1152,6 +1180,19 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   .ad-info,
   .ad-actions {
     grid-column: 1;
+  }
+
+  .ad-info-block {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .ad-title-text {
+    font-size: 0.95rem;
+  }
+
+  .ad-description-text {
+    font-size: 0.72rem;
   }
 
   .ad-actions {

@@ -2545,6 +2545,8 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onComp
   };
 
   const skipAdLabel = canSkip ? 'Skip Ad' : `Skip in ${formatSkipCountdown(skipCountdown)}`;
+  const adTitle = clean(ad.public_title || ad.title || ad.internal_title || ad.ad_title) || 'Sponsored Message';
+  const adDescription = clean(ad.description || ad.public_description);
   const adProgress = Number.isFinite(adDuration) && adDuration > 0 ? Math.min(100, Math.max(0, (adCurrentTime / adDuration) * 100)) : 0;
   const breakMethod = adBreakDisplay?.method === 'seconds' || adBreakDisplay?.breakMethod === 'seconds' ? 'seconds' : 'count';
   const currentAdNumber = Math.max(0, Number(adBreakDisplay?.currentAdNumber) || 0);
@@ -2692,11 +2694,9 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onComp
     h('div', { className: 'player-bar ad-player-bar' },
       h('div', { className: 'player-controls ad-player-controls' },
         h('div', { className: 'player-controls-layout ad-player-controls-layout' },
-          h('div', { className: 'player-info ad-info' },
-            h('div', { className: 'player-title-row' },
-              h('h2', { className: 'ad-title' }, ad.title || ad.internal_title || 'Stashbox Radio Ad')
-            ),
-            ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note ad-description' }, ad.description || ad.internal_description) : null
+          h('div', { className: 'player-info ad-info ad-info-block' },
+            h('div', { className: 'ad-title-text' }, adTitle),
+            adDescription ? h('div', { className: 'ad-description-text' }, adDescription) : null
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
             h('div', { className: 'ad-controls-center-group' },
