@@ -480,25 +480,37 @@ async function fetchRadioSongs() {
 }
 
 async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
-  if (!song?.songKey || !eventType) return null;
-  const dedupeKey = `${song.songKey}:${eventType}`;
+  const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
+  if (!songKey || !eventType) return null;
+  const dedupeKey = `${songKey}:${eventType}`;
   const now = Date.now();
   const lastSentAt = recentTrackingEvents.get(dedupeKey) || 0;
   if (now - lastSentAt < TRACKING_DEDUPE_MS) {
-    console.log('[Stashbox Radio Dev] duplicate tracking event suppressed', { song_key: song.songKey, event_type: eventType });
+    console.log('[Stashbox Radio Dev] duplicate tracking event suppressed', { song_key: songKey, event_type: eventType });
     return null;
   }
   recentTrackingEvents.set(dedupeKey, now);
   const payload = {
-    song_key: song.songKey,
+    song_key: songKey,
+    song_id: clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id || songKey),
+    id: clean(song?.id || song?.raw?.id || songKey),
+    display_title: getSongTitle(song),
+    song_name: clean(song?.song_name || song?.raw?.song_name || getSongTitle(song)),
+    artist: getSongArtist(song),
     event_type: eventType,
     session_id: sessionId,
     device_type: getDeviceType(),
     referrer: document.referrer || '',
+    page: 'dev',
+    source: 'public_player',
     ...extra
   };
   Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null || payload[key] === '') && delete payload[key]);
-  console.log('[Stashbox Radio Dev] tracking payload', payload);
+  if (eventType === 'like') {
+    console.log('[Stashbox Radio Dev] sending like event', payload);
+  } else {
+    console.log('[Stashbox Radio Dev] tracking payload', payload);
+  }
   try {
     const response = await fetch(TRACKING_API_URL, {
       method: 'POST',
@@ -509,10 +521,15 @@ async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
     const text = await response.text();
     let body = text;
     try { body = text ? JSON.parse(text) : null; } catch (_) {}
-    console.log('[Stashbox Radio Dev] tracking API response', { status: response.status, ok: response.ok, body });
+    if (eventType === 'like') {
+      console.log('[Stashbox Radio Dev] like event response', { status: response.status, ok: response.ok, body });
+    } else {
+      console.log('[Stashbox Radio Dev] tracking API response', { status: response.status, ok: response.ok, body });
+    }
     return { response, body };
   } catch (error) {
-    console.warn('[Stashbox Radio Dev] tracking API error', error.message || error);
+    if (eventType === 'like') console.warn('[Stashbox Radio Dev] like event error', error.message || error);
+    else console.warn('[Stashbox Radio Dev] tracking API error', error.message || error);
     return null;
   }
 }
@@ -1362,6 +1379,7 @@ function App() {
   const [playCounts, setPlayCounts] = useState({});
   const [shareCounts, setShareCounts] = useState({});
   const [likedSongIds, setLikedSongIds] = useState(() => new Set());
+  const likeSaveInFlightIdsRef = useRef(new Set());
   const [copiedSongId, setCopiedSongId] = useState(null);
   const [activeShuffleQueue, setActiveShuffleQueue] = useState([]);
   const [activeShuffleIndex, setActiveShuffleIndex] = useState(0);
@@ -2422,11 +2440,30 @@ function App() {
   }, [handleManualNext, mediaMode, shiftTrack, videoFocusedList, selectedSong]);
 
   function likeSong(song) {
-    if (!song || likedSongIds.has(song.songKey)) return;
-    sendTrackingEvent(song, 'like', sessionId).then(result => {
-      if (!result?.response?.ok) return;
-      setLikedSongIds(prev => new Set(prev).add(song.songKey));
-      setLikeCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.likes ?? 0) + 1 }));
+    const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
+    const songId = clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id);
+    if (!song || !songKey || likedSongIds.has(songKey) || likeSaveInFlightIdsRef.current.has(songKey)) return;
+    likeSaveInFlightIdsRef.current.add(songKey);
+    sendTrackingEvent(song, 'like', sessionId, {
+      song_key: songKey,
+      song_id: songId || songKey,
+      id: songId || songKey,
+      display_title: getSongTitle(song),
+      song_name: clean(song.song_name || song.raw?.song_name || getSongTitle(song)),
+      artist: getSongArtist(song),
+      page: 'dev',
+      source: 'public_player'
+    }).then(result => {
+      if (!result?.response?.ok) {
+        console.warn('[Stashbox Radio Dev] like event was not saved; leaving persisted like count unchanged', { song_key: songKey, result });
+        return;
+      }
+      setLikedSongIds(prev => new Set(prev).add(songKey));
+      setLikeCounts(prev => ({ ...prev, [songKey]: (prev[songKey] ?? song.likes ?? 0) + 1 }));
+    }).catch(error => {
+      console.warn('[Stashbox Radio Dev] like event save failed', { song_key: songKey, error: error?.message || error });
+    }).finally(() => {
+      likeSaveInFlightIdsRef.current.delete(songKey);
     });
   }
 
