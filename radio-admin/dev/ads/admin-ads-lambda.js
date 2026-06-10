@@ -905,6 +905,65 @@ function optionalColumnExpression(columns, columnName, alias = columnName, table
   return columns.has(columnName) ? `${prefix}${columnName} AS ${alias}` : `${textLiteral(fallback)} AS ${alias}`;
 }
 
+
+function getRowIdentityValues(row) {
+  return [row?.song_key, row?.song_id, row?.id, row?.key, row?.slug, row?.track_id]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean);
+}
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+async function loadSongEventCounts() {
+  const statsTable = await getStatsEventTable();
+  if (!statsTable || !hasAnyColumn(statsTable.columns, ['song_key', 'song_id'])) return new Map();
+
+  const { columns, qualifiedName } = statsTable;
+  const songKeyExpr = columns.has('song_key') ? 'song_key::text' : textLiteral('');
+  const songIdExpr = columns.has('song_id') ? 'song_id::text' : songKeyExpr;
+  const result = await pool.query(`
+    SELECT
+      ${songKeyExpr} AS song_key,
+      ${songIdExpr} AS song_id,
+      ${countEventTypeExpression(columns, ['play_start', 'play'], 'total_plays')},
+      ${countEventTypeExpression(columns, 'like', 'likes')},
+      ${countEventTypeExpression(columns, 'share', 'shares')},
+      ${countEventTypeExpression(columns, 'share_link_visit', 'share_link_visits')},
+      ${countEventTypeExpression(columns, ['video_click', 'video_open'], 'video_clicks')},
+      ${countEventTypeExpression(columns, 'product_click', 'product_clicks')}
+    FROM ${qualifiedName}
+    GROUP BY 1, 2
+  `);
+
+  const countsByIdentity = new Map();
+  result.rows.forEach((row) => {
+    getRowIdentityValues(row).forEach((identity) => {
+      countsByIdentity.set(identity, row);
+    });
+  });
+  return countsByIdentity;
+}
+
+function mergeSongEventCounts(song, countsByIdentity) {
+  const stats = getRowIdentityValues(song).map((identity) => countsByIdentity.get(identity)).find(Boolean);
+  if (!stats) return song;
+
+  return {
+    ...song,
+    total_plays: Math.max(numberValue(song.total_plays ?? song.plays ?? song.play_count), numberValue(stats.total_plays)),
+    likes: Math.max(numberValue(song.likes ?? song.like_count ?? song.total_likes), numberValue(stats.likes)),
+    like_count: Math.max(numberValue(song.like_count ?? song.likes ?? song.total_likes), numberValue(stats.likes)),
+    total_likes: Math.max(numberValue(song.total_likes ?? song.likes ?? song.like_count), numberValue(stats.likes)),
+    shares: Math.max(numberValue(song.shares ?? song.share_count ?? song.total_shares), numberValue(stats.shares)),
+    share_link_visits: Math.max(numberValue(song.share_link_visits ?? song.share_visits), numberValue(stats.share_link_visits)),
+    video_clicks: Math.max(numberValue(song.video_clicks ?? song.video_click_count ?? song.total_video_clicks), numberValue(stats.video_clicks)),
+    product_clicks: Math.max(numberValue(song.product_clicks ?? song.product_click_count ?? song.total_product_clicks), numberValue(stats.product_clicks))
+  };
+}
+
 function emptyStatsSummaryResponse() {
   return response(200, {
     success: true,
@@ -985,8 +1044,14 @@ async function listSongs({ includeArchived = false } = {}) {
   const artworkSelect = columns.has('resolved_artwork_url')
     ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
     : '*, song_artwork_url AS resolved_artwork_url';
-  const result = await pool.query(`SELECT ${artworkSelect} FROM radio.songs ${where} ${orderBy}`);
-  return response(200, { success: true, count: result.rowCount, songs: result.rows.map(normalizeSongRow) });
+  const [result, countsByIdentity] = await Promise.all([
+    pool.query(`SELECT ${artworkSelect} FROM radio.songs ${where} ${orderBy}`),
+    loadSongEventCounts()
+  ]);
+  const songs = result.rows
+    .map((row) => mergeSongEventCounts(row, countsByIdentity))
+    .map(normalizeSongRow);
+  return response(200, { success: true, count: result.rowCount, songs });
 }
 
 async function getSong(event) {
@@ -1112,9 +1177,11 @@ async function updateSong(event) {
 async function trackSongEvent(client, event) {
   const body = parseBody(event);
   const eventType = String(body.event_type || body.eventType || '').trim();
-  const songKey = String(body.song_key || body.songKey || body.song_id || body.songId || '').trim();
+  const songKey = String(body.song_key || body.songKey || '').trim();
+  const songId = String(body.song_id || body.songId || body.id || '').trim();
+  const songIdentity = songKey || songId;
 
-  if (!songKey || !SONG_EVENT_TYPES.has(eventType)) {
+  if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
     return response(400, { success: false, error: 'Invalid or missing song event' });
   }
 
@@ -1126,8 +1193,8 @@ async function trackSongEvent(client, event) {
   ]);
   const columns = await getTableColumns(schemaName, tableName);
   const payload = {
-    song_key: songKey,
-    song_id: songKey,
+    song_key: songKey || songIdentity,
+    song_id: songId || songIdentity,
     event_type: eventType,
     session_id: body.session_id || body.sessionId || '',
     device_type: body.device_type || body.deviceType || '',
@@ -1136,6 +1203,11 @@ async function trackSongEvent(client, event) {
     completion_percent: body.completion_percent ?? body.completionPercent ?? null,
     product_url: body.product_url || body.productUrl || '',
     share_url: body.share_url || body.shareUrl || '',
+    display_title: body.display_title || body.displayTitle || '',
+    song_name: body.song_name || body.songName || '',
+    artist: body.artist || '',
+    page: body.page || 'dev',
+    source: body.source || 'public_player',
     source_page: body.source_page || body.sourcePage || '/stashbox/radio/dev/'
   };
   const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
@@ -1148,7 +1220,35 @@ async function trackSongEvent(client, event) {
     );
   }
 
-  return response(200, { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey });
+  if (eventType === 'like') {
+    const songColumns = await getTableColumns('radio', 'songs');
+    const identityConditions = [];
+    const identityValues = [];
+    if (songKey && songColumns.has('song_key')) {
+      identityValues.push(songKey);
+      identityConditions.push(`song_key = $${identityValues.length}`);
+    }
+    if (songId && songColumns.has('id')) {
+      identityValues.push(songId);
+      identityConditions.push(`id::text = $${identityValues.length}`);
+    }
+    if (!identityConditions.length && songIdentity && songColumns.has('song_key')) {
+      identityValues.push(songIdentity);
+      identityConditions.push(`song_key = $${identityValues.length}`);
+    }
+
+    if (songColumns.has('likes') && identityConditions.length) {
+      const updatedAt = songColumns.has('updated_at') ? ', updated_at = now()' : '';
+      await client.query(
+        `UPDATE radio.songs
+         SET likes = COALESCE(likes, 0) + 1${updatedAt}
+         WHERE ${identityConditions.map((condition) => `(${condition})`).join(' OR ')}`,
+        identityValues
+      );
+    }
+  }
+
+  return response(200, { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey || songIdentity, song_id: songId || songIdentity });
 }
 
 async function listEvents(event) {
