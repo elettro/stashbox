@@ -1318,6 +1318,28 @@ function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, 
   );
 }
 
+
+function isSpacebarEvent(event) {
+  return event?.code === 'Space' || event?.key === ' ';
+}
+
+function shouldIgnoreGlobalSpacebar(event) {
+  const activeElement = event?.target instanceof Element ? event.target : document.activeElement;
+  if (!activeElement) return false;
+  if (activeElement.closest?.('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="searchbox"]')) return true;
+  return false;
+}
+
+function toggleNativeMediaElement(media) {
+  if (!media) return false;
+  if (media.paused || media.ended) {
+    media.play?.().catch?.(error => console.warn('[radio-dev] playback error: unable to play media from keyboard.', error.message || error));
+    return true;
+  }
+  media.pause?.();
+  return true;
+}
+
 function App() {
   const sessionId = useMemo(getBrowserSessionId, []);
   const [tracks, setTracks] = useState([]);
@@ -2276,6 +2298,76 @@ function App() {
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
 
+
+  function toggleActiveAdPlaybackFromKeyboard() {
+    if (!currentAd) return false;
+    const media = playerRef.current?.querySelector?.('.ad-player audio, .ad-player video, audio.ad-audio, video.ad-video');
+    return toggleNativeMediaElement(media);
+  }
+
+  function toggleActiveVideoPlaybackFromKeyboard() {
+    const directVideo = playerRef.current?.querySelector?.('.player-media video');
+    if (directVideo) return toggleNativeMediaElement(directVideo);
+
+    const youtubePlayer = youtubePlayerRef.current;
+    if (mediaIsPlayingRef.current && typeof youtubePlayer?.pauseVideo === 'function') {
+      try {
+        youtubePlayer.pauseVideo();
+        setMediaSessionPlaybackState('paused');
+        return true;
+      } catch (error) {
+        console.warn('[radio-dev] Spacebar video pause failed.', error.message || error);
+        return false;
+      }
+    }
+
+    if (typeof youtubePlayer?.playVideo === 'function') {
+      try {
+        youtubePlayer.playVideo();
+        setMediaSessionPlaybackState('playing');
+        return true;
+      } catch (error) {
+        console.warn('[radio-dev] Spacebar video play failed.', error.message || error);
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  function togglePlayPauseFromKeyboard() {
+    if (currentAd) {
+      toggleActiveAdPlaybackFromKeyboard();
+      return;
+    }
+
+    const primaryPlayPauseButton = playerRef.current?.querySelector?.('.play-toggle:not([disabled])');
+    if (primaryPlayPauseButton) {
+      primaryPlayPauseButton.click();
+      return;
+    }
+
+    if (mediaMode === 'video') {
+      if (toggleActiveVideoPlaybackFromKeyboard()) return;
+      if (selectedSong?.hasVideo && !activeVideoEmbedUrl) openVideo({ startPlayback: true });
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio || !selectedSong?.hasAudio || !has(selectedSong?.audioUrl)) return;
+    toggleNativeMediaElement(audio);
+  }
+
+  useEffect(() => {
+    const handleGlobalKeyDown = event => {
+      if (event.defaultPrevented || !isSpacebarEvent(event) || event.repeat || shouldIgnoreGlobalSpacebar(event)) return;
+      event.preventDefault();
+      togglePlayPauseFromKeyboard();
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  });
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return undefined;
