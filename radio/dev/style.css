@@ -1005,6 +1005,7 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
 .ad-actions {
   display: flex;
+  align-items: center;
   gap: 0.6rem;
 }
 
@@ -1014,6 +1015,22 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   white-space: nowrap;
   color: #f5f5f5;
   font-variant-numeric: tabular-nums;
+}
+
+.ad-break-indicator {
+  margin-left: auto;
+  color: #f5f5f5;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  opacity: 0.9;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ad-break-indicator--seconds {
+  color: #f0c04c;
 }
 
 .ad-progress {
@@ -1073,6 +1090,13 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 
   .ad-time-display {
     font-size: 0.8rem;
+  }
+
+  .ad-break-indicator {
+    margin-left: 0;
+    width: 100%;
+    font-size: 0.8rem;
+    text-align: center;
   }
 
   .ad-progress {
