@@ -354,12 +354,24 @@ async function sendAdTrackingEvent(ad, eventType) {
     page: 'dev',
     source: 'public_player'
   };
+  console.log('[Stashbox Radio Dev] sending ad tracking event', payload);
   try {
     const response = await fetch(TRACKING_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
       body: JSON.stringify(payload)
+    });
+    let body = '';
+    try {
+      body = await response.text();
+    } catch (error) {
+      body = `[unable to read response body: ${error.message || error}]`;
+    }
+    console.log('[Stashbox Radio Dev] ad tracking response', {
+      status: response.status,
+      ok: response.ok,
+      body
     });
     if (!response.ok) console.warn('[Stashbox Radio Dev] ad tracking rejected', { event_type: eventType, status: response.status });
     return response;
