@@ -2439,6 +2439,48 @@ function App() {
     };
   }, [handleManualNext, mediaMode, shiftTrack, videoFocusedList, selectedSong]);
 
+  function updateSongCount(songKey, counts = {}) {
+    if (!songKey) return;
+    const normalizedCounts = {};
+    if (counts.likes !== undefined) normalizedCounts.likes = Number(counts.likes || 0);
+    if (counts.total_plays !== undefined) normalizedCounts.total_plays = Number(counts.total_plays || 0);
+    if (counts.shares !== undefined) normalizedCounts.shares = Number(counts.shares || 0);
+
+    setTracks(prevTracks => prevTracks.map(track => {
+      if (!matchesSongDeepLink(track, songKey)) return track;
+      return {
+        ...track,
+        ...normalizedCounts,
+        raw: {
+          ...track.raw,
+          ...normalizedCounts
+        }
+      };
+    }));
+
+    setSelected(current => {
+      if (!current || !matchesSongDeepLink(current, songKey)) return current;
+      return {
+        ...current,
+        ...normalizedCounts,
+        raw: {
+          ...current.raw,
+          ...normalizedCounts
+        }
+      };
+    });
+
+    if (normalizedCounts.likes !== undefined) {
+      setLikeCounts(prev => ({ ...prev, [songKey]: normalizedCounts.likes }));
+    }
+    if (normalizedCounts.total_plays !== undefined) {
+      setPlayCounts(prev => ({ ...prev, [songKey]: normalizedCounts.total_plays }));
+    }
+    if (normalizedCounts.shares !== undefined) {
+      setShareCounts(prev => ({ ...prev, [songKey]: normalizedCounts.shares }));
+    }
+  }
+
   function likeSong(song) {
     const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
     const songId = clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id);
@@ -2459,7 +2501,13 @@ function App() {
         return;
       }
       setLikedSongIds(prev => new Set(prev).add(songKey));
-      setLikeCounts(prev => ({ ...prev, [songKey]: (prev[songKey] ?? song.likes ?? 0) + 1 }));
+      const responseLikes = result?.body?.likes;
+      if (responseLikes !== undefined) {
+        updateSongCount(songKey, { likes: Number(responseLikes) });
+      } else {
+        const nextLikes = (likeCounts[songKey] ?? song.likes ?? 0) + 1;
+        updateSongCount(songKey, { likes: nextLikes });
+      }
     }).catch(error => {
       console.warn('[Stashbox Radio Dev] like event save failed', { song_key: songKey, error: error?.message || error });
     }).finally(() => {
