@@ -743,10 +743,65 @@ async function requireAdmin(event) {
   }
 }
 
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeStoredStringArray(value) {
+  if (Array.isArray(value)) {
+    return normalizeStringArray(value);
+  }
+
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsedValue = JSON.parse(value);
+      return Array.isArray(parsedValue) ? normalizeStringArray(parsedValue) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function normalizeSongRow(song) {
+  if (!song) {
+    return song;
+  }
+
+  return {
+    ...song,
+    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls)
+  };
+}
+
 function normalizeSongPayload(input, { partial = false } = {}) {
   const payload = {};
   SONG_EDITABLE_FIELDS.forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(input, field)) {
+      if (field === 'specific_product_urls') {
+        const cleanSpecificProductUrls = normalizeStringArray(input.specific_product_urls);
+        payload.specific_product_urls = JSON.stringify(cleanSpecificProductUrls);
+        return;
+      }
+
       payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(input[field]) : input[field];
     }
   });
@@ -931,7 +986,7 @@ async function listSongs({ includeArchived = false } = {}) {
     ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
     : '*, song_artwork_url AS resolved_artwork_url';
   const result = await pool.query(`SELECT ${artworkSelect} FROM radio.songs ${where} ${orderBy}`);
-  return response(200, { success: true, count: result.rowCount, songs: result.rows });
+  return response(200, { success: true, count: result.rowCount, songs: result.rows.map(normalizeSongRow) });
 }
 
 async function getSong(event) {
@@ -994,7 +1049,7 @@ async function getSong(event) {
     });
   }
 
-  return response(200, { success: true, song: result.rows[0] });
+  return response(200, { success: true, song: normalizeSongRow(result.rows[0]) });
 }
 
 async function createSong(event) {
@@ -1007,18 +1062,23 @@ async function createSong(event) {
   const values = fields.map((field) => payload[field]);
   const result = await pool.query(
     `INSERT INTO radio.songs (${fields.join(', ')})
-     VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})
+     VALUES (${fields.map((field, index) => field === 'specific_product_urls' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
      RETURNING *`,
     values
   );
-  return response(201, { success: true, message: 'Song created', song: result.rows[0] });
+  return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
 }
 
 async function updateSong(event) {
   const songKey = event.pathParameters?.song_key || event.pathParameters?.songKey || getRouteSegments(event)[2] || '';
   if (!songKey) return response(400, { success: false, error: 'song_key is required.' });
 
-  const payload = normalizeSongPayload(parseBody(event), { partial: true });
+  const body = parseBody(event);
+  const id = String(body.id || body.song_id || body.songId || event.pathParameters?.id || '').trim();
+  const cleanSpecificProductUrls = Object.prototype.hasOwnProperty.call(body, 'specific_product_urls')
+    ? normalizeStringArray(body.specific_product_urls)
+    : undefined;
+  const payload = normalizeSongPayload(body, { partial: true });
   const columns = await getTableColumns('radio', 'songs');
   const fields = Object.keys(payload).filter((field) => columns.has(field) && field !== 'song_key');
   if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
@@ -1026,15 +1086,27 @@ async function updateSong(event) {
   const values = fields.map((field) => payload[field]);
   values.push(songKey);
   const updatedAt = columns.has('updated_at') ? ', updated_at = now()' : '';
-  const result = await pool.query(
-    `UPDATE radio.songs
-     SET ${fields.map((field, index) => `${field} = $${index + 1}`).join(', ')}${updatedAt}
-     WHERE song_key = $${values.length}
-     RETURNING *`,
-    values
-  );
-  if (!result.rowCount) return response(404, { success: false, error: 'Song not found.', song_key: songKey });
-  return response(200, { success: true, message: 'Song updated', song: result.rows[0] });
+
+  try {
+    const result = await pool.query(
+      `UPDATE radio.songs
+       SET ${fields.map((field, index) => field === 'specific_product_urls' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
+       WHERE song_key = $${values.length}
+       RETURNING *`,
+      values
+    );
+    if (!result.rowCount) return response(404, { success: false, error: 'Song not found.', song_key: songKey });
+    return response(200, { success: true, message: 'Song updated', song: normalizeSongRow(result.rows[0]) });
+  } catch (error) {
+    console.error('[Stashbox Radio Admin Dev] song update failed', {
+      id,
+      song_key: songKey,
+      specific_product_urls: cleanSpecificProductUrls,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    throw error;
+  }
 }
 
 async function trackSongEvent(client, event) {
