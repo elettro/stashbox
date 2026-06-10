@@ -404,7 +404,7 @@
 
       <form id="adForm" novalidate>
         <div class="form-grid">
-          <label>Internal Title *
+          <label>Public Title *
             <input id="internalTitle" type="text" required />
           </label>
           <label>Ad Type *
@@ -517,7 +517,7 @@
           <thead>
             <tr>
               <th>Video preview / first frame</th>
-              <th>Internal Title</th>
+              <th>Public Title</th>
               <th>Ad Type</th>
               <th>Ratio</th>
               <th>Status</th>
@@ -1032,7 +1032,7 @@
     }
 
     function validateAd(ad) {
-      if (!ad.internal_title) return 'Internal Title is required.';
+      if (!ad.internal_title) return 'Public Title is required.';
       if (!ad.ad_type) return 'Ad Type is required.';
       if (!ad.video_url) return 'Video URL is required.';
       if (ad.hidden && ad.active) return 'Hidden and Active cannot both be true. Turn one off before saving.';
@@ -1241,7 +1241,7 @@
       const title = els.internalTitle.value.trim();
       const adType = els.adType.value;
       if (!file) return setUploadStatus('Select an MP4 file first.', 'error');
-      if (!title) return setUploadStatus('Internal Title is required before upload.', 'error');
+      if (!title) return setUploadStatus('Public Title is required before upload.', 'error');
       if (!adType) return setUploadStatus('Ad Type is required before upload.', 'error');
       const fileError = validateVideoFile(file);
       if (fileError) return setUploadStatus(fileError, 'error');
