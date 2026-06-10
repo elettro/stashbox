@@ -1364,11 +1364,15 @@ function App() {
   const adPlayCountsRef = useRef({});
   const adBreakCompletedCountRef = useRef(0);
   const currentAdBreakQueueRef = useRef([]);
+  const currentAdBreakActiveQueueRef = useRef([]);
   const currentAdBreakTotalRef = useRef(0);
   const currentAdBreakCurrentIndexRef = useRef(0);
   const currentAdBreakMethodRef = useRef('count');
   const currentAdBreakTargetSecondsRef = useRef(DEFAULT_TARGET_AD_SECONDS);
-  const currentAdBreakElapsedSecondsRef = useRef(0);
+  const currentAdBreakCompletedSecondsRef = useRef(0);
+  const currentAdBreakCurrentTimeRef = useRef(0);
+  const currentAdBreakStartedAtRef = useRef(0);
+  const currentAdBreakHideLogKeyRef = useRef('');
   const [adBreakDisplay, setAdBreakDisplay] = useState(null);
   const adDurationMemoryRef = useRef({});
   const pendingAdNextSongRef = useRef(null);
@@ -1575,26 +1579,74 @@ function App() {
     return queue;
   }
 
-  function getCurrentAdBreakDisplay() {
-    const breakMethod = currentAdBreakMethodRef.current === 'seconds' ? 'seconds' : 'count';
+  function getCurrentAdBreakHideReason(ad = currentAd) {
+    const breakMethod = currentAdBreakMethodRef.current;
+    if (!ad) return 'no active ad';
+    if (!currentAdBreakActiveQueueRef.current.length && !currentAdBreakQueueRef.current.length) return 'missing queue';
+    if (!Number(currentAdBreakCurrentIndexRef.current)) return 'missing current index';
+    if (breakMethod !== 'count' && breakMethod !== 'seconds') return 'unknown break method';
+    return '';
+  }
+
+  function logAdBreakDisplayHidden(reason, ad = currentAd) {
+    if (!reason) return;
+    const key = `${ad?.id || 'no-ad'}:${currentAdBreakCurrentIndexRef.current || 0}:${reason}`;
+    if (currentAdBreakHideLogKeyRef.current === key) return;
+    currentAdBreakHideLogKeyRef.current = key;
+    console.log('[Stashbox Radio Dev] ad break display hidden', { reason });
+  }
+
+  function getCurrentAdBreakDisplay(ad = currentAd) {
+    const hideReason = getCurrentAdBreakHideReason(ad);
+    if (hideReason) {
+      logAdBreakDisplayHidden(hideReason, ad);
+      return null;
+    }
+
+    const method = currentAdBreakMethodRef.current === 'seconds' ? 'seconds' : 'count';
     const currentAdNumber = Math.max(0, Number(currentAdBreakCurrentIndexRef.current) || 0);
-    const totalAdsInBreak = Math.max(0, Number(currentAdBreakTotalRef.current) || 0);
-    const targetAdSeconds = Number.isFinite(Number(currentAdBreakTargetSecondsRef.current)) && Number(currentAdBreakTargetSecondsRef.current) > 0
+    const queuedTotal = Number(currentAdBreakActiveQueueRef.current.length) || Number(currentAdBreakTotalRef.current) || 0;
+    const totalAds = Math.max(0, queuedTotal);
+    const targetSeconds = Number.isFinite(Number(currentAdBreakTargetSecondsRef.current)) && Number(currentAdBreakTargetSecondsRef.current) > 0
       ? Number(currentAdBreakTargetSecondsRef.current)
       : DEFAULT_TARGET_AD_SECONDS;
-    const elapsedAdBreakSeconds = Math.max(0, Number(currentAdBreakElapsedSecondsRef.current) || 0);
+    const completedAdBreakSeconds = Math.max(0, Number(currentAdBreakCompletedSecondsRef.current) || 0);
+    const currentAdCurrentTime = Math.max(0, Number(currentAdBreakCurrentTimeRef.current) || 0);
+    const elapsedSeconds = Math.max(0, completedAdBreakSeconds + currentAdCurrentTime);
+    const remainingSeconds = Math.max(0, targetSeconds - elapsedSeconds);
 
-    if (!currentAdNumber || !totalAdsInBreak) return null;
-    return { breakMethod, currentAdNumber, totalAdsInBreak, targetAdSeconds, elapsedAdBreakSeconds };
+    if (!currentAdNumber || !totalAds) {
+      logAdBreakDisplayHidden(!totalAds ? 'missing queue' : 'missing current index', ad);
+      return null;
+    }
+
+    return {
+      method,
+      breakMethod: method,
+      currentAdNumber,
+      totalAds,
+      totalAdsInBreak: totalAds,
+      targetSeconds,
+      targetAdSeconds: targetSeconds,
+      completedAdBreakSeconds,
+      currentAdCurrentTime,
+      elapsedSeconds,
+      elapsedAdBreakSeconds: elapsedSeconds,
+      remainingSeconds
+    };
   }
 
   function resetCurrentAdBreakDisplay() {
     currentAdBreakQueueRef.current = [];
+    currentAdBreakActiveQueueRef.current = [];
     currentAdBreakTotalRef.current = 0;
     currentAdBreakCurrentIndexRef.current = 0;
     currentAdBreakMethodRef.current = 'count';
     currentAdBreakTargetSecondsRef.current = DEFAULT_TARGET_AD_SECONDS;
-    currentAdBreakElapsedSecondsRef.current = 0;
+    currentAdBreakCompletedSecondsRef.current = 0;
+    currentAdBreakCurrentTimeRef.current = 0;
+    currentAdBreakStartedAtRef.current = 0;
+    currentAdBreakHideLogKeyRef.current = '';
     setAdBreakDisplay(null);
   }
 
@@ -1605,7 +1657,11 @@ function App() {
       Math.max(1, Number(currentAdBreakCurrentIndexRef.current || 0) + 1),
       Math.max(1, Number(currentAdBreakTotalRef.current) || 1)
     );
-    setAdBreakDisplay(getCurrentAdBreakDisplay());
+    currentAdBreakCurrentTimeRef.current = 0;
+    currentAdBreakStartedAtRef.current = Date.now();
+    currentAdBreakHideLogKeyRef.current = '';
+    const nextDisplay = getCurrentAdBreakDisplay(nextAd);
+    setAdBreakDisplay(nextDisplay);
     adPlayCountsRef.current[nextAd.id] = (adPlayCountsRef.current[nextAd.id] || 0) + 1;
     handledAdEndRef.current = false;
     setCurrentAd(nextAd);
@@ -1645,13 +1701,16 @@ function App() {
     if (!queue.length) return false;
     const settings = normalizeAdSettings(adSettings);
     currentAdBreakQueueRef.current = queue.slice(1);
+    currentAdBreakActiveQueueRef.current = queue.slice();
     currentAdBreakTotalRef.current = queue.length;
     currentAdBreakCurrentIndexRef.current = 0;
-    currentAdBreakMethodRef.current = settings.break_method || 'count';
+    currentAdBreakMethodRef.current = settings.break_method === 'seconds' ? 'seconds' : 'count';
     currentAdBreakTargetSecondsRef.current = Number.isFinite(Number(settings.target_ad_seconds)) && Number(settings.target_ad_seconds) > 0
       ? Number(settings.target_ad_seconds)
       : DEFAULT_TARGET_AD_SECONDS;
-    currentAdBreakElapsedSecondsRef.current = 0;
+    currentAdBreakCompletedSecondsRef.current = 0;
+    currentAdBreakCurrentTimeRef.current = 0;
+    currentAdBreakStartedAtRef.current = Date.now();
     return startAdFromQueue(queue[0], nextSong);
   }
 
@@ -1660,8 +1719,9 @@ function App() {
     if (!completedAd || handledAdEndRef.current) return;
     handledAdEndRef.current = true;
     if (currentAdBreakMethodRef.current === 'seconds') {
-      const watched = Math.max(0, Number(watchedSeconds) || 0);
-      currentAdBreakElapsedSecondsRef.current = Math.max(0, currentAdBreakElapsedSecondsRef.current + watched);
+      const watched = Math.max(0, Number(watchedSeconds) || Number(currentAdBreakCurrentTimeRef.current) || 0);
+      currentAdBreakCompletedSecondsRef.current = Math.max(0, currentAdBreakCompletedSecondsRef.current + watched);
+      currentAdBreakCurrentTimeRef.current = 0;
     }
     if (eventType) {
       recordDevAdEvent(completedAd, eventType, { song: pendingAdNextSongRef.current || selectedSong, sessionId });
@@ -1693,8 +1753,27 @@ function App() {
 
   function handleAdStarted(ad) {
     console.log(`Ad started: ${ad?.title || 'Untitled ad'}`);
+    const nextDisplay = getCurrentAdBreakDisplay(ad);
+    setAdBreakDisplay(nextDisplay);
+    if (nextDisplay) {
+      console.log('[Stashbox Radio Dev] ad break display', {
+        breakMethod: nextDisplay.method,
+        currentAdNumber: nextDisplay.currentAdNumber,
+        totalAdsInBreak: nextDisplay.totalAds,
+        targetAdSeconds: nextDisplay.targetSeconds,
+        completedAdBreakSeconds: nextDisplay.completedAdBreakSeconds
+      });
+    }
     recordDevAdEvent(ad, 'ad_start', { song: pendingAdNextSongRef.current || selectedSong, sessionId });
     sendAdTrackingEvent(ad, 'ad_start');
+  }
+
+  function handleAdProgress(ad, currentTimeSeconds = 0) {
+    if (!ad || ad.id !== currentAd?.id) return;
+    const nextCurrentTime = Math.max(0, Number(currentTimeSeconds) || 0);
+    if (Math.floor(nextCurrentTime) === Math.floor(currentAdBreakCurrentTimeRef.current)) return;
+    currentAdBreakCurrentTimeRef.current = nextCurrentTime;
+    if (currentAdBreakMethodRef.current === 'seconds') setAdBreakDisplay(getCurrentAdBreakDisplay(ad));
   }
 
   function handleAdSkipped(ad, watchedSeconds = 0) {
@@ -2314,7 +2393,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, onStarted: handleAdStarted, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -2345,7 +2424,7 @@ function SongActions({ likeCount, playCount, shareCount, hasLiked, onLike, onSha
 function PlayerPill({ className = '', children, ...props }) { return h('button', { type: 'button', className: `player-pill ${className}`.trim(), ...props }, children); }
 
 
-function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onCompleted, onSkipped, onCtaClicked, onError, onDurationKnown }) {
+function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onCompleted, onSkipped, onCtaClicked, onError, onDurationKnown }) {
   const mediaRef = useRef(null);
   const isAdClearingRef = useRef(false);
   const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
@@ -2467,14 +2546,18 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onCompleted, onSki
 
   const skipAdLabel = canSkip ? 'Skip Ad' : `Skip in ${formatSkipCountdown(skipCountdown)}`;
   const adProgress = Number.isFinite(adDuration) && adDuration > 0 ? Math.min(100, Math.max(0, (adCurrentTime / adDuration) * 100)) : 0;
-  const breakMethod = adBreakDisplay?.breakMethod === 'seconds' ? 'seconds' : 'count';
+  const breakMethod = adBreakDisplay?.method === 'seconds' || adBreakDisplay?.breakMethod === 'seconds' ? 'seconds' : 'count';
   const currentAdNumber = Math.max(0, Number(adBreakDisplay?.currentAdNumber) || 0);
-  const totalAdsInBreak = Math.max(0, Number(adBreakDisplay?.totalAdsInBreak) || 0);
-  const targetAdSeconds = Number.isFinite(Number(adBreakDisplay?.targetAdSeconds)) && Number(adBreakDisplay?.targetAdSeconds) > 0
-    ? Number(adBreakDisplay.targetAdSeconds)
+  const totalAdsInBreak = Math.max(0, Number(adBreakDisplay?.totalAds ?? adBreakDisplay?.totalAdsInBreak) || 0);
+  const targetAdSeconds = Number.isFinite(Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds)) && Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds) > 0
+    ? Number(adBreakDisplay?.targetSeconds ?? adBreakDisplay?.targetAdSeconds)
     : DEFAULT_TARGET_AD_SECONDS;
-  const elapsedAdBreakSeconds = Math.max(0, Number(adBreakDisplay?.elapsedAdBreakSeconds) || 0);
-  const remainingAdBreakSeconds = Math.max(0, targetAdSeconds - elapsedAdBreakSeconds - adCurrentTime);
+  const completedAdBreakSeconds = Math.max(0, Number(adBreakDisplay?.completedAdBreakSeconds) || 0);
+  const fallbackRemainingAdBreakSeconds = Math.max(0, targetAdSeconds - completedAdBreakSeconds - adCurrentTime);
+  const displayRemainingAdBreakSeconds = Number.isFinite(Number(adBreakDisplay?.remainingSeconds))
+    ? Math.max(0, Number(adBreakDisplay.remainingSeconds))
+    : fallbackRemainingAdBreakSeconds;
+  const remainingAdBreakSeconds = Math.min(displayRemainingAdBreakSeconds, fallbackRemainingAdBreakSeconds);
   const adBreakIndicatorText = currentAdNumber && totalAdsInBreak
     ? (breakMethod === 'seconds' ? `Ads: ${formatRemainingAdTime(remainingAdBreakSeconds)} left` : `Ad ${currentAdNumber} of ${totalAdsInBreak}`)
     : '';
@@ -2487,7 +2570,9 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onCompleted, onSki
 
   const updateAdTime = event => {
     const media = event?.currentTarget;
-    setAdCurrentTime(Number.isFinite(media?.currentTime) ? Math.max(0, media.currentTime) : 0);
+    const currentTime = Number.isFinite(media?.currentTime) ? Math.max(0, media.currentTime) : 0;
+    setAdCurrentTime(currentTime);
+    onProgress?.(ad, currentTime);
     updateAdDuration(media);
   };
 
