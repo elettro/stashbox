@@ -255,7 +255,6 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .player-controls-layout{display:grid;grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr);align-items:center;gap:16px;width:100%;min-width:0}
 .player-controls-center,.player-controls-actions{display:flex;align-items:center;min-width:0}
 .player-mobile-main-controls,.player-mobile-video-actions{display:none}
-.mobile-title-play-count{display:none}
 .player-controls-center{justify-self:center;justify-content:center}
 .player-controls-actions{justify-self:end;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .transport-controls{gap:16px;flex:0 0 auto}
@@ -401,7 +400,6 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .player-controls-layout{gap:6px}
 .player-title-row{align-items:center;gap:10px;width:100%}
 .player-title-row h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mobile-title-play-count{display:inline-flex;flex:0 0 auto;max-width:40%;min-height:26px;padding:0 8px;font-size:10px;letter-spacing:.02em}
 .player-controls-center,.player-controls-actions{display:none}
 .player-mobile-main-controls{display:grid;grid-template-columns:minmax(52px,1fr) auto auto auto minmax(58px,1fr);align-items:center;justify-items:center;gap:8px;width:100%;min-width:0;margin-top:2px}
 .player-mobile-main-controls .like-button{justify-self:start;max-width:100%;min-width:52px}
@@ -415,7 +413,6 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 @media(max-width:380px){
 .player-mobile-main-controls{grid-template-columns:minmax(48px,1fr) auto auto auto minmax(54px,1fr);gap:6px}
 .player-mobile-main-controls .like-button,.player-mobile-main-controls .share-pill{padding-left:7px;padding-right:7px;font-size:9px}
-.mobile-title-play-count{max-width:42%;padding:0 7px;font-size:9px}
 }
 .public-note,
 .video-note,
