@@ -1,4 +1,6 @@
-const { Pool } = require('pg');
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -370,7 +372,7 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
   return response(404, { success: false, error: 'Not found.' });
 }
 
-module.exports = {
+export {
   handleAdminAdsRoute,
   handlePublicAdsRoute,
   handleTrackRoute,
