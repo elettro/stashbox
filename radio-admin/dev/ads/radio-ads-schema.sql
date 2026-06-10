@@ -56,3 +56,20 @@ WHERE skips IS NULL;
 
 ALTER TABLE radio.ads
 ALTER COLUMN skips SET DEFAULT 0;
+
+ALTER TABLE radio.ads
+ADD COLUMN IF NOT EXISTS duration_seconds integer;
+
+CREATE TABLE IF NOT EXISTS radio.ad_settings (
+  id text PRIMARY KEY DEFAULT 'dev',
+  ads_enabled boolean DEFAULT true,
+  break_method text DEFAULT 'count',
+  ads_per_break integer DEFAULT 1,
+  target_ad_seconds integer DEFAULT 30,
+  break_interval integer DEFAULT 1,
+  updated_at timestamp DEFAULT now()
+);
+
+INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval)
+VALUES ('dev', true, 'count', 1, 30, 1)
+ON CONFLICT (id) DO NOTHING;

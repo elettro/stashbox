@@ -15,6 +15,20 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 
+const DEFAULT_AD_SETTINGS = {
+  id: 'dev',
+  ads_enabled: true,
+  break_method: 'count',
+  ads_per_break: 1,
+  target_ad_seconds: 30,
+  break_interval: 1
+};
+
+const VALID_BREAK_METHODS = new Set(['count', 'seconds']);
+const VALID_ADS_PER_BREAK = new Set([1, 2, 3, 4, 5]);
+const VALID_TARGET_AD_SECONDS = new Set([15, 30, 45, 60, 90]);
+const VALID_BREAK_INTERVALS = new Set([1, 2, 3]);
+
 const EDITABLE_FIELDS = [
   'internal_title',
   'description',
@@ -24,6 +38,7 @@ const EDITABLE_FIELDS = [
   'ad_ratio_label',
   'video_width',
   'video_height',
+  'duration_seconds',
   'frequency',
   'skip_after_seconds',
   'no_skipping',
@@ -218,6 +233,11 @@ function normalizePayload(input, { partial = false } = {}) {
     payload.active = Boolean(payload.active);
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'duration_seconds')) {
+    const duration = Number(payload.duration_seconds);
+    payload.duration_seconds = Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : null;
+  }
+
   if (payload.hidden) {
     payload.active = false;
   }
@@ -240,6 +260,149 @@ function validatePayload(payload, { partial = false } = {}) {
 
   if (payload.active && payload.hidden) return 'active and hidden cannot both be true.';
   return '';
+}
+
+
+function normalizeInteger(value, fallback, allowedValues) {
+  const number = Number(value);
+  const integer = Number.isFinite(number) ? Math.floor(number) : fallback;
+  return allowedValues.has(integer) ? integer : fallback;
+}
+
+function normalizeAdSettings(input = {}) {
+  const defaults = DEFAULT_AD_SETTINGS;
+  const breakMethod = VALID_BREAK_METHODS.has(String(input.break_method || '').trim())
+    ? String(input.break_method).trim()
+    : defaults.break_method;
+
+  return {
+    id: 'dev',
+    ads_enabled: Object.prototype.hasOwnProperty.call(input, 'ads_enabled') ? Boolean(input.ads_enabled) : defaults.ads_enabled,
+    break_method: breakMethod,
+    ads_per_break: normalizeInteger(input.ads_per_break, defaults.ads_per_break, VALID_ADS_PER_BREAK),
+    target_ad_seconds: normalizeInteger(input.target_ad_seconds, defaults.target_ad_seconds, VALID_TARGET_AD_SECONDS),
+    break_interval: normalizeInteger(input.break_interval, defaults.break_interval, VALID_BREAK_INTERVALS)
+  };
+}
+
+function publicAdSettings(settings) {
+  return {
+    ads_enabled: Boolean(settings.ads_enabled),
+    break_method: settings.break_method,
+    ads_per_break: settings.ads_per_break,
+    target_ad_seconds: settings.target_ad_seconds,
+    break_interval: settings.break_interval
+  };
+}
+
+async function ensureAdSettingsTable() {
+  await pool.query(`
+    CREATE SCHEMA IF NOT EXISTS radio;
+    CREATE TABLE IF NOT EXISTS radio.ad_settings (
+      id text PRIMARY KEY DEFAULT 'dev',
+      ads_enabled boolean DEFAULT true,
+      break_method text DEFAULT 'count',
+      ads_per_break integer DEFAULT 1,
+      target_ad_seconds integer DEFAULT 30,
+      break_interval integer DEFAULT 1,
+      updated_at timestamp DEFAULT now()
+    )
+  `);
+}
+
+async function ensureAdsDurationColumn() {
+  try {
+    await pool.query('ALTER TABLE radio.ads ADD COLUMN IF NOT EXISTS duration_seconds integer');
+  } catch (error) {
+    console.warn('Could not ensure radio.ads.duration_seconds. Continuing safely.', error.message || error);
+  }
+}
+
+async function adsDurationColumnSelect() {
+  try {
+    const result = await pool.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'radio' AND table_name = 'ads' AND column_name = 'duration_seconds'
+       LIMIT 1`
+    );
+    return result.rowCount ? 'duration_seconds,' : 'NULL::integer AS duration_seconds,';
+  } catch (error) {
+    console.warn('Could not inspect radio.ads.duration_seconds. Returning NULL duration.', error.message || error);
+    return 'NULL::integer AS duration_seconds,';
+  }
+}
+
+async function ensureAdStorage() {
+  await ensureAdSettingsTable();
+  await ensureAdsDurationColumn();
+}
+
+async function getAdSettings({ publicOnly = false } = {}) {
+  try {
+    await ensureAdSettingsTable();
+    const result = await pool.query(`
+      INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval)
+      VALUES ('dev', $1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO NOTHING
+      RETURNING *
+    `, [
+      DEFAULT_AD_SETTINGS.ads_enabled,
+      DEFAULT_AD_SETTINGS.break_method,
+      DEFAULT_AD_SETTINGS.ads_per_break,
+      DEFAULT_AD_SETTINGS.target_ad_seconds,
+      DEFAULT_AD_SETTINGS.break_interval
+    ]);
+
+    const settingsResult = result.rowCount
+      ? result
+      : await pool.query('SELECT * FROM radio.ad_settings WHERE id = $1', ['dev']);
+    const settings = normalizeAdSettings(settingsResult.rows[0] || DEFAULT_AD_SETTINGS);
+    const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
+    return response(200, { success: true, settings: bodySettings });
+  } catch (error) {
+    console.warn('Ad settings unavailable. Returning safe defaults.', error.message || error);
+    const settings = normalizeAdSettings(DEFAULT_AD_SETTINGS);
+    const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
+    return response(200, { success: true, settings: bodySettings, fallback: true });
+  }
+}
+
+async function updateAdSettings(event) {
+  const payload = normalizeAdSettings(parseBody(event));
+  try {
+    await ensureAdSettingsTable();
+    const result = await pool.query(`
+      INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
+      VALUES ('dev', $1, $2, $3, $4, $5, now())
+      ON CONFLICT (id) DO UPDATE SET
+        ads_enabled = EXCLUDED.ads_enabled,
+        break_method = EXCLUDED.break_method,
+        ads_per_break = EXCLUDED.ads_per_break,
+        target_ad_seconds = EXCLUDED.target_ad_seconds,
+        break_interval = EXCLUDED.break_interval,
+        updated_at = now()
+      RETURNING *
+    `, [payload.ads_enabled, payload.break_method, payload.ads_per_break, payload.target_ad_seconds, payload.break_interval]);
+    return response(200, { success: true, message: 'Ad settings saved', settings: normalizeAdSettings(result.rows[0]) });
+  } catch (error) {
+    console.error('Could not save ad settings:', error);
+    return response(500, { success: false, error: 'Could not save ad settings.' });
+  }
+}
+
+async function handleAdminAdSettingsRoute(event, { requireAdmin }) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+  await requireAdmin(event);
+  const method = getMethod(event);
+  if (method === 'GET') return getAdSettings();
+  if (method === 'PUT') return updateAdSettings(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicAdSettingsRoute(event) {
+  if (getMethod(event) === 'OPTIONS') return response(204, {});
+  if (getMethod(event) === 'GET') return getAdSettings({ publicOnly: true });
+  return response(404, { success: false, error: 'Not found.' });
 }
 
 function buildInsert(payload) {
@@ -267,6 +430,7 @@ function buildUpdate(adId, payload) {
 }
 
 async function listAds() {
+  await ensureAdStorage();
   const result = await pool.query(`
     SELECT
       *,
@@ -283,6 +447,8 @@ async function listAds() {
 }
 
 async function listPublicAds() {
+  await ensureAdStorage();
+  const durationColumn = await adsDurationColumnSelect();
   const result = await pool.query(`
     SELECT
       id,
@@ -294,6 +460,7 @@ async function listPublicAds() {
       ad_ratio_label,
       video_width,
       video_height,
+      ${durationColumn}
       frequency,
       skip_after_seconds,
       no_skipping,
@@ -327,6 +494,7 @@ async function listPublicAds() {
 }
 
 async function createAd(event) {
+  await ensureAdStorage();
   const payload = normalizePayload(parseBody(event));
   const validationError = validatePayload(payload);
   if (validationError) return response(400, { success: false, error: validationError });
@@ -336,6 +504,7 @@ async function createAd(event) {
 }
 
 async function updateAd(event) {
+  await ensureAdStorage();
   const adId = getAdId(event);
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
@@ -903,8 +1072,16 @@ async function dispatch(event) {
     return handleTrackRoute(pool, event, trackSongEvent);
   }
 
+  if (routeStartsWith(segments, ['radio', 'ad-settings']) || routeStartsWith(segments, ['ad-settings'])) {
+    return handlePublicAdSettingsRoute(event);
+  }
+
   if (routeStartsWith(segments, ['radio', 'ads']) || routeStartsWith(segments, ['ads'])) {
     return handlePublicAdsRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['admin', 'ad-settings'])) {
+    return handleAdminAdSettingsRoute(event, { requireAdmin });
   }
 
   if (routeStartsWith(segments, ['admin', 'ads'])) {
@@ -971,7 +1148,9 @@ export const handler = async (event) => {
 
 export {
   handleAdminAdsRoute,
+  handleAdminAdSettingsRoute,
   handlePublicAdsRoute,
+  handlePublicAdSettingsRoute,
   handleTrackRoute,
   getPublicAdsRouteMatch,
   listAds,
