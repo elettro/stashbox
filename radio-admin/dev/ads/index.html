@@ -278,12 +278,25 @@
     }
 
     .badge-row,
-    .actions-row,
     .form-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       align-items: center;
+    }
+
+    .ad-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, max-content);
+      gap: 6px;
+      align-items: center;
+      justify-content: start;
+    }
+
+    .ad-actions-grid button,
+    .ad-actions-grid .button,
+    .ad-actions-grid .pill-button {
+      white-space: nowrap;
     }
 
     .badge {
@@ -338,6 +351,12 @@
       .panel-header { align-items: stretch; flex-direction: column; }
       .form-grid { grid-template-columns: 1fr; }
       .back-link { text-align: center; }
+    }
+
+    @media (max-width: 700px) {
+      .ad-actions-grid {
+        grid-template-columns: repeat(2, max-content);
+      }
     }
   </style>
 </head>
@@ -856,7 +875,7 @@
           <td>${Number(ad.views || 0)}</td>
           <td>${Number(ad.clicks || 0)}</td>
           <td>${Number(ad.ctr || 0).toFixed(2)}%</td>
-          <td><div class="actions-row">
+          <td><div class="ad-actions-grid">
             <button class="button-ghost button-small" data-action="preview" data-id="${escapeAttribute(ad.id)}" type="button">Preview</button>
             <button class="button-ghost button-small" data-action="edit" data-id="${escapeAttribute(ad.id)}" type="button">Edit</button>
             <button class="button-ghost button-small" data-action="duplicate" data-id="${escapeAttribute(ad.id)}" type="button">Duplicate</button>
