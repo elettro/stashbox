@@ -2080,6 +2080,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   const mediaRef = useRef(null);
   const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || Number(ad?.skip_after_seconds) <= 0);
   const [started, setStarted] = useState(false);
+  const [needsManualPlay, setNeedsManualPlay] = useState(false);
   const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
   const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
   const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
@@ -2087,6 +2088,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   useEffect(() => {
     setCanSkip(!ad?.skip_enabled || skipAfter <= 0);
     setStarted(false);
+    setNeedsManualPlay(false);
     if (!ad?.skip_enabled || skipAfter <= 0) return undefined;
     const timer = window.setTimeout(() => setCanSkip(true), skipAfter * 1000);
     return () => window.clearTimeout(timer);
@@ -2096,6 +2098,38 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
     playerRef.current?.focus?.();
   }, [ad?.id, playerRef]);
 
+  useEffect(() => {
+    if (!ad) return undefined;
+    console.log(`Ad player mounted: ${ad.title || ad.internal_title || 'Untitled ad'}`);
+    console.log(`Ad media URL: ${mediaUrl}`);
+    return undefined;
+  }, [ad?.id, mediaUrl]);
+
+  useEffect(() => {
+    if (!ad || isAudio || !mediaUrl) return undefined;
+    let cancelled = false;
+    const video = mediaRef.current;
+    if (!video?.play) return undefined;
+    console.log('Ad video play attempted');
+    const attemptPlay = video.play();
+    if (attemptPlay?.catch) {
+      attemptPlay.catch(error => {
+        if (cancelled) return;
+        console.warn('Ad video autoplay failed:', error);
+        video.muted = true;
+        const mutedAttempt = video.play();
+        if (mutedAttempt?.catch) {
+          mutedAttempt.catch(mutedError => {
+            if (cancelled) return;
+            console.warn('Ad video autoplay failed:', mutedError);
+            setNeedsManualPlay(true);
+          });
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, [ad?.id, isAudio, mediaUrl]);
+
   if (!ad) return null;
 
   const completeAd = () => {
@@ -2104,6 +2138,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   };
 
   const skipAd = () => {
+    console.log('Ad skipped');
     try { mediaRef.current?.pause?.(); } catch (_) {}
     try { if (mediaRef.current) mediaRef.current.currentTime = 0; } catch (_) {}
     onSkipped?.(ad);
@@ -2115,9 +2150,25 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   };
 
   const startAd = () => {
+    if (!isAudio) console.log('Ad video playing');
+    setNeedsManualPlay(false);
     if (started) return;
     setStarted(true);
     onStarted?.(ad);
+  };
+
+  const playAd = () => {
+    const media = mediaRef.current;
+    if (!media?.play) return;
+    media.muted = false;
+    console.log('Ad video play attempted');
+    const attemptPlay = media.play();
+    if (attemptPlay?.catch) {
+      attemptPlay.catch(error => {
+        console.warn('Ad video autoplay failed:', error);
+        setNeedsManualPlay(true);
+      });
+    }
   };
 
   return h('aside', { className: 'panel player ad-player', ref: playerRef, tabIndex: -1, 'aria-label': 'Advertisement' },
@@ -2146,10 +2197,11 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
           playsInline: true,
           autoPlay: true,
           onPlay: startAd,
-          onEnded: completeAd,
+          onEnded: () => { console.log('Ad video ended'); completeAd(); },
           onError: event => onError?.(ad, event?.currentTarget?.error?.message || 'Video ad failed to load or play.')
         })
     ),
+    needsManualPlay ? h('button', { type: 'button', className: 'play-ad-button', onClick: playAd }, 'Play Ad') : null,
     h('div', { className: 'player-bar ad-player-bar' },
       h('div', { className: 'player-controls ad-player-controls' },
         h('div', { className: 'player-controls-layout' },
