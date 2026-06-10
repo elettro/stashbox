@@ -214,14 +214,62 @@
 
     .checkbox-row input { width: auto; }
 
-    .switch-group {
+    .master-toggle {
       display: inline-flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
       margin-top: 0.75rem;
+      border: 1px solid rgba(69, 196, 111, 0.65);
+      border-radius: 999px;
+      background: rgba(69, 196, 111, 0.16);
+      color: #f6fff8;
+      cursor: pointer;
+      font-weight: 900;
+      min-height: 3rem;
+      min-width: 11.5rem;
+      padding: 0.35rem 1rem 0.35rem 0.35rem;
+      transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
     }
 
-    .switch-button.is-active { outline: 2px solid var(--accent); }
+    .master-toggle:hover { transform: translateY(-1px); }
+
+    .master-toggle:focus-visible {
+      outline: 3px solid rgba(244, 211, 94, 0.72);
+      outline-offset: 3px;
+    }
+
+    .master-toggle-track {
+      align-items: center;
+      background: #45c46f;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+      display: inline-flex;
+      height: 2.25rem;
+      padding: 0.2rem;
+      width: 4.25rem;
+      transition: background 160ms ease;
+    }
+
+    .master-toggle-knob {
+      background: #f8fff9;
+      border-radius: 50%;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      height: 1.85rem;
+      transform: translateX(2rem);
+      transition: transform 160ms ease;
+      width: 1.85rem;
+    }
+
+    .master-toggle-label { letter-spacing: 0.02em; }
+
+    .master-toggle.is-off {
+      border-color: rgba(255, 118, 118, 0.72);
+      background: rgba(255, 118, 118, 0.16);
+      color: #ffecec;
+    }
+
+    .master-toggle.is-off .master-toggle-track { background: #d94343; }
+    .master-toggle.is-off .master-toggle-knob { transform: translateX(0); }
 
 
     .controller-grid {
@@ -405,10 +453,10 @@
       <div class="controller-grid">
         <div>
           <span class="controller-label">Master Ads</span>
-          <div class="switch-group" role="group" aria-label="Master Ads">
-            <button id="masterOffButton" class="button-ghost switch-button" type="button">Off</button>
-            <button id="masterOnButton" class="button-ghost switch-button" type="button">On</button>
-          </div>
+          <button id="masterToggleButton" class="master-toggle" type="button" role="switch" aria-checked="true">
+            <span class="master-toggle-track" aria-hidden="true"><span class="master-toggle-knob"></span></span>
+            <span id="masterToggleLabel" class="master-toggle-label">Ads ON</span>
+          </button>
         </div>
         <label>Ad Break Method
           <select id="breakMethod">
@@ -664,8 +712,8 @@
     const els = {
       message: document.getElementById('message'),
       tokenStatus: document.getElementById('tokenStatus'),
-      masterOffButton: document.getElementById('masterOffButton'),
-      masterOnButton: document.getElementById('masterOnButton'),
+      masterToggleButton: document.getElementById('masterToggleButton'),
+      masterToggleLabel: document.getElementById('masterToggleLabel'),
       breakMethod: document.getElementById('breakMethod'),
       adsPerBreak: document.getElementById('adsPerBreak'),
       adsPerBreakWrap: document.getElementById('adsPerBreakWrap'),
@@ -740,9 +788,11 @@
     }
 
     function bindEvents() {
-      els.masterOffButton.addEventListener('click', () => setMasterAds(false));
-      els.masterOnButton.addEventListener('click', () => setMasterAds(true));
-      els.breakMethod.addEventListener('change', () => renderSettings());
+      els.masterToggleButton.addEventListener('click', () => setMasterAds(!state.settings.ads_enabled));
+      els.breakMethod.addEventListener('change', () => {
+        state.settings.break_method = els.breakMethod.value === 'seconds' ? 'seconds' : 'count';
+        renderSettings();
+      });
       els.saveSettingsButton.addEventListener('click', saveSettings);
       els.addNewButton.addEventListener('click', () => openForm());
       els.adForm.addEventListener('submit', (event) => {
@@ -803,10 +853,13 @@
         state.settings = normalizeSettings(data?.settings || data);
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
         renderSettings();
-        els.settingsStatus.textContent = 'Settings loaded from dev RDS.';
+        els.settingsStatus.textContent = 'Ad settings loaded';
       } catch (error) {
+        state.settings = normalizeSettings(defaultSettings());
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+        console.error('Ad settings load failed; using default ON settings.', error);
         renderSettings();
-        els.settingsStatus.textContent = `Using local/default settings until RDS loads. ${error.message || error}`;
+        els.settingsStatus.textContent = 'Using default ad settings until RDS loads.';
       }
     }
 
@@ -972,8 +1025,19 @@
     }
 
     function renderSettings() {
-      els.masterOffButton.classList.toggle('is-active', !state.settings.masterEnabled);
-      els.masterOnButton.classList.toggle('is-active', state.settings.masterEnabled);
+      state.settings = normalizeSettings(state.settings);
+      const adsEnabled = state.settings.ads_enabled === true;
+      els.masterToggleButton.classList.toggle('is-off', !adsEnabled);
+      els.masterToggleButton.setAttribute('aria-checked', String(adsEnabled));
+      els.masterToggleButton.setAttribute('aria-label', `Master Ads ${adsEnabled ? 'ON' : 'OFF'}`);
+      els.masterToggleLabel.textContent = adsEnabled ? 'Ads ON' : 'Ads OFF';
+      els.breakMethod.value = state.settings.break_method;
+      els.adsPerBreak.value = String(state.settings.ads_per_break);
+      els.targetAdSeconds.value = String(state.settings.target_ad_seconds);
+      els.breakInterval.value = String(state.settings.break_interval);
+      const useSeconds = state.settings.break_method === 'seconds';
+      els.adsPerBreakWrap.classList.toggle('hidden', useSeconds);
+      els.targetAdSecondsWrap.classList.toggle('hidden', !useSeconds);
     }
 
     function renderStats() {

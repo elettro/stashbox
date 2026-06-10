@@ -341,8 +341,16 @@ async function getAdSettings({ publicOnly = false } = {}) {
   try {
     await ensureAdSettingsTable();
     const result = await pool.query(`
-      INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval)
-      VALUES ('dev', $1, $2, $3, $4, $5)
+      INSERT INTO radio.ad_settings (
+        id,
+        ads_enabled,
+        break_method,
+        ads_per_break,
+        target_ad_seconds,
+        break_interval,
+        updated_at
+      )
+      VALUES ('dev', $1, $2, $3, $4, $5, now())
       ON CONFLICT (id) DO NOTHING
       RETURNING *
     `, [
@@ -367,8 +375,20 @@ async function getAdSettings({ publicOnly = false } = {}) {
   }
 }
 
+function validateAdSettingsInput(input = {}) {
+  if (typeof input.ads_enabled !== 'boolean') return 'ads_enabled must be a boolean.';
+  if (!VALID_BREAK_METHODS.has(input.break_method)) return 'break_method must be one of: count, seconds.';
+  if (!VALID_ADS_PER_BREAK.has(Number(input.ads_per_break))) return 'ads_per_break must be one of: 1, 2, 3, 4, 5.';
+  if (!VALID_TARGET_AD_SECONDS.has(Number(input.target_ad_seconds))) return 'target_ad_seconds must be one of: 15, 30, 45, 60, 90.';
+  if (!VALID_BREAK_INTERVALS.has(Number(input.break_interval))) return 'break_interval must be one of: 1, 2, 3.';
+  return '';
+}
+
 async function updateAdSettings(event) {
-  const payload = normalizeAdSettings(parseBody(event));
+  const input = parseBody(event);
+  const validationError = validateAdSettingsInput(input);
+  if (validationError) return response(400, { success: false, error: validationError });
+  const payload = normalizeAdSettings(input);
   try {
     await ensureAdSettingsTable();
     const result = await pool.query(`
@@ -679,6 +699,12 @@ function getRouteSegments(event) {
   if (serviceIndex >= 0) return segments.slice(serviceIndex + 1);
   const defaultIndex = segments.lastIndexOf('default');
   if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
+
+  const routeRootIndex = segments.findIndex((segment) =>
+    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track'].includes(segment)
+  );
+  if (routeRootIndex > 0) return segments.slice(routeRootIndex);
+
   return segments;
 }
 
