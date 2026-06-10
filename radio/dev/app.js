@@ -2691,12 +2691,12 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, onStarted, onProgress, onComp
     needsManualPlay ? h('button', { type: 'button', className: 'play-ad-button', onClick: playAd }, 'Play Ad') : null,
     h('div', { className: 'player-bar ad-player-bar' },
       h('div', { className: 'player-controls ad-player-controls' },
-        h('div', { className: 'player-controls-layout' },
-          h('div', { className: 'player-info' },
+        h('div', { className: 'player-controls-layout ad-player-controls-layout' },
+          h('div', { className: 'player-info ad-info' },
             h('div', { className: 'player-title-row' },
-              h('h2', null, ad.title || ad.internal_title || 'Stashbox Radio Ad')
+              h('h2', { className: 'ad-title' }, ad.title || ad.internal_title || 'Stashbox Radio Ad')
             ),
-            ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note' }, ad.description || ad.internal_description) : null
+            ad.description || ad.internal_description ? h('p', { className: 'notes public-note compact-note ad-description' }, ad.description || ad.internal_description) : null
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
             h('div', { className: 'ad-controls-center-group' },
