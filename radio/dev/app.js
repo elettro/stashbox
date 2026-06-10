@@ -21,6 +21,7 @@ const QUALIFIED_PLAY_SECONDS = 10;
 const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
+const DEV_RADIO_SHARE_URL = 'https://stashbox.com/radio/dev/';
 const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
 
 const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
@@ -1151,7 +1152,27 @@ function VisualViewIcon() {
   );
 }
 
-function getShareUrl(song) { const shareUrl = new URL(window.location.href); shareUrl.searchParams.set('song', song?.songKey || song?.idx || ''); shareUrl.hash = ''; return shareUrl.toString(); }
+function isSyntheticSongKey(value) {
+  return /^rds-song-\d+$/.test(clean(value));
+}
+function getSongShareKey(song) {
+  const rawSongKey = clean(song?.raw?.song_key || song?.raw?.key || song?.raw?.slug || song?.raw?.id || song?.raw?.track_id);
+  if (rawSongKey) return rawSongKey;
+  const normalizedSongKey = clean(song?.song_key || song?.songKey || song?.id);
+  return isSyntheticSongKey(normalizedSongKey) ? '' : normalizedSongKey;
+}
+function getShareUrl(song) {
+  const shareUrl = new URL(DEV_RADIO_SHARE_URL);
+  const songKey = getSongShareKey(song);
+  if (songKey) shareUrl.searchParams.set('song', songKey);
+  return shareUrl.toString();
+}
+function matchesSongDeepLink(track, songKey) {
+  const target = clean(songKey);
+  if (!target) return false;
+  return [track?.song_key, track?.songKey, track?.id, track?.raw?.song_key, track?.raw?.id, track?.raw?.key, track?.raw?.slug, track?.raw?.track_id]
+    .some(value => clean(value) === target);
+}
 async function copyTextToClipboard(text) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text); const input = document.createElement('textarea'); input.value = text; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
 
 function RadioControlBar({ trackCount, isLoading = false, query, onQueryChange, genre, onGenreChange, genreFilters = [DEFAULT_FILTER], album, onAlbumChange, albumFilters = [DEFAULT_FILTER], artist, onArtistChange, artistFilters = [DEFAULT_FILTER], mood, onMoodChange, moodFilters = MOOD_FILTERS, videoOnly = false, onToggleVideos, onShuffle, onReset, disableVideoFilter = false, disableShuffle = false }) {
@@ -1360,7 +1381,7 @@ function App() {
       setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
       console.log('[Stashbox Radio Dev] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
       const urlSelectedSong = songKeyFromUrl
-        ? nextTracks.find(track => track.song_key === songKeyFromUrl)
+        ? nextTracks.find(track => matchesSongDeepLink(track, songKeyFromUrl))
         : null;
       if (songKeyFromUrl) {
         console.log("Opening song from URL:", songKeyFromUrl);
@@ -2066,14 +2087,42 @@ function App() {
   async function shareSong(song) {
     if (!song) return;
     const shareUrl = getShareUrl(song);
-    const shareData = { title: `${song.title} · Stashbox Radio`, text: song.publicTrackNote || `Listen to ${song.title} on Stashbox Radio.`, url: shareUrl };
+    const songTitle = getSongTitle(song);
+    const artist = getSongArtist(song);
+    const shareData = { title: `${songTitle} by ${artist}`, text: 'Listen on Stashbox Radio', url: shareUrl };
+    console.log('[Stashbox Radio Dev] share song url', shareUrl);
+    const showCopiedFeedback = () => {
+      setCopiedSongId(song.idx);
+      setPlayerMessage('Song link copied');
+      window.setTimeout(() => {
+        setCopiedSongId(current => current === song.idx ? null : current);
+        setPlayerMessage(current => current === 'Song link copied' ? '' : current);
+      }, 1800);
+    };
+    const copyShareUrl = async () => {
+      await copyTextToClipboard(shareUrl);
+      console.log('[Stashbox Radio Dev] copied song url', shareUrl);
+      showCopiedFeedback();
+    };
     sendTrackingEvent(song, 'share', sessionId).then(result => {
       if (result?.response?.ok) setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.shares ?? 0) + 1 }));
     });
     try {
-      if (navigator.share) await navigator.share(shareData);
-      else { await copyTextToClipboard(shareUrl); setCopiedSongId(song.idx); window.setTimeout(() => setCopiedSongId(current => current === song.idx ? null : current), 1800); }
-    } catch (shareError) { if (shareError?.name !== 'AbortError') console.warn('Unable to share song.', shareError.message || shareError); }
+      if (navigator.share) {
+        await navigator.share(shareData);
+        console.log('[Stashbox Radio Dev] shared song url', shareUrl);
+      } else {
+        await copyShareUrl();
+      }
+    } catch (shareError) {
+      if (shareError?.name === 'AbortError') return;
+      console.warn('Unable to share song. Copying song URL instead.', shareError.message || shareError);
+      try {
+        await copyShareUrl();
+      } catch (copyError) {
+        console.warn('Unable to copy song URL.', copyError.message || copyError);
+      }
+    }
   }
 
   function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
@@ -2107,7 +2156,7 @@ function PlayIcon({ className = 'play-icon' }) { return h('span', { className, '
 function PauseIcon() { return h('span', { className: 'pause-icon', 'aria-hidden': true }, h('span', null), h('span', null)); }
 function PlayCount({ count }) { return h('span', { className: 'play-count', title: `${Number(count) || 0} recorded plays` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayCount(count))); }
 function ShareCount({ count }) { return h('span', { className: 'share-count', title: `${Number(count) || 0} recorded shares` }, h('span', { 'aria-hidden': true }, '↗'), h('span', null, formatShareCount(count))); }
-function ShareButton({ onShare, copied = false, compact = false }) { return h('button', { className: `share-button ${compact ? 'compact' : ''}`, type: 'button', onClick: event => { event.stopPropagation(); onShare?.(); }, 'aria-live': copied ? 'polite' : undefined }, copied ? 'Link copied' : 'Share'); }
+function ShareButton({ onShare, copied = false, compact = false }) { return h('button', { className: `share-button ${compact ? 'compact' : ''}`, type: 'button', onClick: event => { event.stopPropagation(); onShare?.(); }, 'aria-live': copied ? 'polite' : undefined }, copied ? 'Song link copied' : 'Share'); }
 function ThumbsUpIcon() {
   return h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: 'false' },
     h('path', { d: 'M7 10v11' }),
@@ -2633,7 +2682,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
           h('div', { className: 'player-controls-actions' },
             h(LikeButton, { count: likeCount, active: hasLiked, onLike }),
             h('span', { className: 'player-stat-pill play-count-pill', title: `${Number(playCount) || 0} recorded starts` }, h(PlayIcon, { className: 'play-count-icon' }), h('span', null, formatPlayerPlayCount(playCount))),
-            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount)),
+            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Song link copied' : formatPlayerShareText(shareCount)),
             canCloseVideo || canWatchVideo ? h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video')) : null,
             h(PlayerPill, { className: 'transport-pill shuffle-pill', onClick: onShuffle, 'aria-label': 'Shuffle songs' }, '⇄')
           ),
@@ -2642,7 +2691,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
             h(PlayerPill, { className: 'transport-pill', onClick: onPrevious, 'aria-label': 'Previous song' }, '‹'),
             h(PlayerPill, { className: 'transport-pill play-toggle', onClick: togglePlayback, disabled: !canUsePrimaryPlay, 'aria-pressed': isVideoMode ? isVideoPlaying : isPlaying, 'aria-label': (isVideoMode ? isVideoPlaying : isPlaying) ? 'Pause song' : 'Play song' }, (isVideoMode ? isVideoPlaying : isPlaying) ? h(PauseIcon) : h(PlayIcon)),
             h(PlayerPill, { className: 'transport-pill', onClick: onNext, 'aria-label': 'Next song' }, '›'),
-            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Copied' : formatPlayerShareText(shareCount))
+            h(PlayerPill, { className: 'share-pill', onClick: onShare, 'aria-live': shareCopied ? 'polite' : undefined }, shareCopied ? 'Song link copied' : formatPlayerShareText(shareCount))
           ),
           !selectedIsVideoOnly && (canCloseVideo || canWatchVideo) ? h('div', { className: 'player-mobile-video-actions' },
             h(PlayerPill, { className: 'video-pill', onClick: isVideoMode ? handleCloseVideo : openVideo }, isVideoMode ? 'Close Video' : h(React.Fragment, null, h(PlayIcon, { className: 'video-play-icon' }), 'Watch Video'))
