@@ -54,6 +54,7 @@ const specificProductCache = new Map();
 let storeProductsPromise = null;
 let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
+const formatSkipCountdown = seconds => `:${String(Math.max(0, Number(seconds) || 0)).padStart(2, '0')}`;
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
 const bool = value => value === true || value === 1 || String(value ?? '').toLowerCase() === 'true' || String(value ?? '').toLowerCase() === '1';
@@ -2078,20 +2079,33 @@ function PlayerPill({ className = '', children, ...props }) { return h('button',
 
 function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClicked, onError }) {
   const mediaRef = useRef(null);
-  const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || Number(ad?.skip_after_seconds) <= 0);
+  const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
+  const [canSkip, setCanSkip] = useState(!ad?.skip_enabled || skipAfter <= 0);
+  const [skipCountdown, setSkipCountdown] = useState(skipAfter);
   const [started, setStarted] = useState(false);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
-  const skipAfter = Math.max(0, Number(ad?.skip_after_seconds) || 0);
   const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
   const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
 
   useEffect(() => {
-    setCanSkip(!ad?.skip_enabled || skipAfter <= 0);
+    const initialCanSkip = !ad?.skip_enabled || skipAfter <= 0;
+    setCanSkip(initialCanSkip);
+    setSkipCountdown(skipAfter);
     setStarted(false);
     setNeedsManualPlay(false);
-    if (!ad?.skip_enabled || skipAfter <= 0) return undefined;
-    const timer = window.setTimeout(() => setCanSkip(true), skipAfter * 1000);
-    return () => window.clearTimeout(timer);
+    if (initialCanSkip) return undefined;
+
+    let remainingSeconds = skipAfter;
+    const timer = window.setInterval(() => {
+      remainingSeconds = Math.max(0, remainingSeconds - 1);
+      setSkipCountdown(remainingSeconds);
+      if (remainingSeconds <= 0) {
+        setCanSkip(true);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
   }, [ad?.id, ad?.skip_enabled, skipAfter]);
 
   useEffect(() => {
@@ -2138,7 +2152,7 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
   };
 
   const skipAd = () => {
-    console.log('Ad skipped');
+    console.log("[Stashbox Radio Dev] Skip Ad clicked", ad?.id, ad?.title);
     try { mediaRef.current?.pause?.(); } catch (_) {}
     try { if (mediaRef.current) mediaRef.current.currentTime = 0; } catch (_) {}
     onSkipped?.(ad);
@@ -2148,6 +2162,8 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
     onCtaClicked?.(ad);
     window.open(ad.clickUrl || ad.cta_url, '_blank', 'noopener,noreferrer');
   };
+
+  const skipAdLabel = canSkip ? 'Skip Ad' : `Skip in ${formatSkipCountdown(skipCountdown)}`;
 
   const startAd = () => {
     if (!isAudio) console.log('Ad video playing');
@@ -2214,7 +2230,16 @@ function AdPlayer({ ad, playerRef, onStarted, onCompleted, onSkipped, onCtaClick
           ),
           h('div', { className: 'player-controls-actions ad-actions' },
             (ad.cta_label && (ad.clickUrl || ad.cta_url)) ? h(PlayerPill, { className: 'cta-pill', onClick: clickCta }, ad.cta_label) : null,
-            h(PlayerPill, { className: 'skip-ad-pill', onClick: skipAd, disabled: !canSkip }, 'Skip Ad')
+            h('button', {
+              type: 'button',
+              className: 'player-pill skip-ad-pill',
+              onClick: event => {
+                event.preventDefault();
+                event.stopPropagation();
+                skipAd();
+              },
+              disabled: !canSkip
+            }, skipAdLabel)
           )
         )
       )
