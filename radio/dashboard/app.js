@@ -443,7 +443,7 @@ function statusMessage() {
   }
   const missing = [...state.missingPublicEndpoints];
   if (!missing.length) return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'}.`;
-  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'} from the public radio songs API. Missing public-safe dashboard endpoints: ${missing.join(', ')}. Backend read-only endpoints are required for full dashboard summary data.`;
+  return `Loaded ${state.songs.length} public song row${state.songs.length === 1 ? '' : 's'}.`;
 }
 
 function setStatus(message, tone = '') {
