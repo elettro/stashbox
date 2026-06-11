@@ -142,7 +142,7 @@ function getSitePrefix() {
 
 function getRadioBasePath() {
   const prefix = getSitePrefix();
-  return `${prefix}/radio/`;
+  return window.location.pathname.includes('/dev/') ? `${prefix}/radio/dev/` : `${prefix}/radio/`;
 }
 
 function radioUrlForSong(song) {
