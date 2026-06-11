@@ -1525,3 +1525,21 @@ textarea {
 .dev-admin-link:hover {
   border-color: rgba(255, 255, 255, 0.28);
 }
+
+.form-section-heading {
+  margin: 1.25rem 0 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f0c04c;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compact-media-preview video {
+  display: block;
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+}
