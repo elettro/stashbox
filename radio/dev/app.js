@@ -1860,7 +1860,7 @@ function App() {
     // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
     if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) return;
     instance.playStartSent = true;
-    sendTrackingEvent(song, 'play_start', sessionId).then(result => {
+   sendTrackingEvent(song, 'play_start', sessionId, { seconds_played: Math.max(QUALIFIED_PLAY_SECONDS, Math.round(instance.listenedSeconds || QUALIFIED_PLAY_SECONDS)) }).then(result => {
       if (result?.response?.ok) setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.total_plays ?? 0) + 1 }));
     });
   }, [sessionId]);
