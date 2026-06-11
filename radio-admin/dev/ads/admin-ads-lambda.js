@@ -88,6 +88,10 @@ const SONG_EDITABLE_FIELDS = [
   'audio_url',
   'song_artwork_url',
   'video_link',
+  'enhanced_visuals_enabled',
+  'visual_assets',
+  'shuffle_visuals',
+  'still_image_duration_seconds',
   'public_track_note',
   'show_public_note',
   'public_video_note',
@@ -112,7 +116,9 @@ const BOOLEAN_SONG_FIELDS = new Set([
   'exclusive',
   'explicit',
   'live_recording',
-  'featured'
+  'featured',
+  'enhanced_visuals_enabled',
+  'shuffle_visuals'
 ]);
 
 const DEFAULT_SONG_COLUMNS = `
@@ -130,6 +136,10 @@ const DEFAULT_SONG_COLUMNS = `
   audio_url,
   song_artwork_url,
   video_link,
+  enhanced_visuals_enabled,
+  visual_assets,
+  shuffle_visuals,
+  still_image_duration_seconds,
   public_track_note,
   show_public_note,
   public_video_note,
@@ -318,6 +328,20 @@ async function ensureAdsDurationColumn() {
   }
 }
 
+async function ensureSongExperienceColumns(client = pool) {
+  try {
+    await client.query(`
+      ALTER TABLE radio.songs
+      ADD COLUMN IF NOT EXISTS enhanced_visuals_enabled boolean DEFAULT false,
+      ADD COLUMN IF NOT EXISTS visual_assets jsonb DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS shuffle_visuals boolean DEFAULT true,
+      ADD COLUMN IF NOT EXISTS still_image_duration_seconds integer DEFAULT 8
+    `);
+  } catch (error) {
+    console.warn('Could not ensure radio.songs song experience columns. Continuing safely.', error.message || error);
+  }
+}
+
 async function ensureSongsLikesColumn(client = pool) {
   try {
     await client.query(`
@@ -352,6 +376,7 @@ async function ensureAdStorage() {
   await ensureAdSettingsTable();
   await ensureAdsDurationColumn();
   await ensureSongsLikesColumn();
+  await ensureSongExperienceColumns();
 }
 
 async function getAdSettings({ publicOnly = false } = {}) {
@@ -777,6 +802,31 @@ function normalizeStringArray(value) {
   return [];
 }
 
+function normalizeVisualDuration(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
+}
+
+function normalizeVisualAssets(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((asset) => ({
+      type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
+      url: String(asset?.url || asset?.src || '').trim(),
+      source: 'song'
+    }))
+    .filter((asset) => asset.url);
+}
+
+function normalizeStoredVisualAssets(value) {
+  if (Array.isArray(value)) return normalizeVisualAssets(value);
+  if (value === null || value === undefined || value === '') return [];
+  if (typeof value === 'string') {
+    try { return normalizeVisualAssets(JSON.parse(value)); } catch (_) { return []; }
+  }
+  if (typeof value === 'object') return normalizeVisualAssets(value);
+  return [];
+}
+
 function normalizeStoredStringArray(value) {
   if (Array.isArray(value)) {
     return normalizeStringArray(value);
@@ -805,7 +855,11 @@ function normalizeSongRow(song) {
 
   return {
     ...song,
-    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls)
+    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls),
+    visual_assets: normalizeStoredVisualAssets(song.visual_assets),
+    enhanced_visuals_enabled: Boolean(song.enhanced_visuals_enabled),
+    shuffle_visuals: song.shuffle_visuals === null || song.shuffle_visuals === undefined ? true : Boolean(song.shuffle_visuals),
+    still_image_duration_seconds: normalizeVisualDuration(song.still_image_duration_seconds)
   };
 }
 
@@ -816,6 +870,16 @@ function normalizeSongPayload(input, { partial = false } = {}) {
       if (field === 'specific_product_urls') {
         const cleanSpecificProductUrls = normalizeStringArray(input.specific_product_urls);
         payload.specific_product_urls = JSON.stringify(cleanSpecificProductUrls);
+        return;
+      }
+
+      if (field === 'visual_assets') {
+        payload.visual_assets = JSON.stringify(normalizeVisualAssets(input.visual_assets));
+        return;
+      }
+
+      if (field === 'still_image_duration_seconds') {
+        payload.still_image_duration_seconds = normalizeVisualDuration(input.still_image_duration_seconds);
         return;
       }
 
@@ -1052,6 +1116,7 @@ async function withStatsRouteLogging(route, method, handler) {
 
 async function listSongs({ includeArchived = false } = {}) {
   await ensureSongsLikesColumn();
+  await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
   const hasVisibility = columns.has('public_visibility');
   const hasSortOrder = columns.has('sort_order');
@@ -1073,6 +1138,7 @@ async function listSongs({ includeArchived = false } = {}) {
 }
 
 async function getSong(event) {
+  await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
   const params = event.queryStringParameters || {};
   const pathIdentifier = getRouteSegments(event)[2] || '';
@@ -1136,6 +1202,7 @@ async function getSong(event) {
 }
 
 async function createSong(event) {
+  await ensureSongExperienceColumns();
   const payload = normalizeSongPayload(parseBody(event));
   const columns = await getTableColumns('radio', 'songs');
   const fields = Object.keys(payload).filter((field) => columns.has(field));
@@ -1145,7 +1212,7 @@ async function createSong(event) {
   const values = fields.map((field) => payload[field]);
   const result = await pool.query(
     `INSERT INTO radio.songs (${fields.join(', ')})
-     VALUES (${fields.map((field, index) => field === 'specific_product_urls' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
+     VALUES (${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
      RETURNING *`,
     values
   );
@@ -1162,6 +1229,7 @@ async function updateSong(event) {
     ? normalizeStringArray(body.specific_product_urls)
     : undefined;
   const payload = normalizeSongPayload(body, { partial: true });
+  await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
   const fields = Object.keys(payload).filter((field) => columns.has(field) && field !== 'song_key');
   if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
@@ -1173,7 +1241,7 @@ async function updateSong(event) {
   try {
     const result = await pool.query(
       `UPDATE radio.songs
-       SET ${fields.map((field, index) => field === 'specific_product_urls' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
+       SET ${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
        WHERE song_key = $${values.length}
        RETURNING *`,
       values
@@ -1622,6 +1690,33 @@ function sha256(value, encoding = 'hex') {
   return crypto.createHash('sha256').update(value).digest(encoding);
 }
 
+function slugifyPathSegment(value, fallback = 'stashbox') {
+  const slug = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, ' and ')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || fallback;
+}
+
+function uploadFolderForPurpose(purpose, artist, songKey) {
+  const artistSlug = slugifyPathSegment(artist || 'stashbox');
+  const cleanSongKey = slugifyPathSegment(songKey || 'unsorted', 'unsorted');
+  const folderByPurpose = {
+    audio: 'audio',
+    artwork: 'artwork',
+    visual_image: 'visuals/images',
+    visual_clip: 'visuals/clips'
+  };
+  const folder = folderByPurpose[purpose] || purpose || 'upload';
+  return `songs/${artistSlug}/tracks/${cleanSongKey}/${folder}`;
+}
+
 async function createUploadPresign(event) {
   const body = parseBody(event);
   const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
@@ -1636,9 +1731,10 @@ async function createUploadPresign(event) {
 
   const filename = String(body.filename || 'upload.bin').replace(/[^A-Za-z0-9._-]/g, '-');
   const purpose = String(body.purpose || 'upload').replace(/[^A-Za-z0-9/_-]/g, '-');
-  const songKey = String(body.song_key || body.songKey || 'unsorted').replace(/[^A-Za-z0-9._-]/g, '-');
+  const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
+  const artist = String(body.artist || body.artist_slug || body.artistSlug || 'stashbox').trim();
   const contentType = String(body.content_type || body.contentType || 'application/octet-stream');
-  const key = `radio/dev/${purpose}/${songKey}/${Date.now()}-${filename}`;
+  const key = `${uploadFolderForPurpose(purpose, artist, songKey)}/${Date.now()}-${filename}`;
   const host = `${bucket}.s3.${region}.amazonaws.com`;
   const now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');

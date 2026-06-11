@@ -84,6 +84,10 @@ const editableFields = [
   { name: 'audio_url', label: 'Audio URL', type: 'url', full: true, help: 'At least one is required: Audio URL or Video Link.' },
   { name: 'song_artwork_url', label: 'Song artwork URL', type: 'url', full: true },
   { name: 'video_link', label: 'Video Link', type: 'url', full: true, help: 'At least one is required: Audio URL or Video Link.' },
+  { name: 'enhanced_visuals_enabled', label: 'Enhanced visuals enabled', type: 'checkbox', section: 'Song Experience', help: 'For audio-only songs, rotate this song’s own uploaded images/clips instead of showing only main artwork.' },
+  { name: 'shuffle_visuals', label: 'Shuffle visuals', type: 'checkbox', section: 'Song Experience', help: 'Randomize the song-specific visual sequence when the song starts. Default: yes.' },
+  { name: 'still_image_duration_seconds', label: 'Still image duration', type: 'number', section: 'Song Experience', help: 'Seconds each extra visual image stays on screen. Default: 8.' },
+  { name: 'visual_assets', label: 'Visual assets', type: 'textarea', full: true, section: 'Song Experience', help: 'JSON list maintained by uploads. Each item includes type, url, and source: song.' },
   { name: 'public_track_note', label: 'Public track note', type: 'textarea', full: true },
   { name: 'show_public_note', label: 'Show Public Note', type: 'checkbox' },
   { name: 'public_video_note', label: 'Public video note', type: 'textarea', full: true },
@@ -139,6 +143,7 @@ const plainTextFields = new Set([
   'audio_url',
   'song_artwork_url',
   'video_link',
+  'visual_assets',
   'spotify_url',
   'apple_music_url',
   'youtube_music_url',
@@ -149,6 +154,8 @@ const plainTextFields = new Set([
 
 const booleanFields = new Set([
   'show_public_note',
+  'enhanced_visuals_enabled',
+  'shuffle_visuals',
   'exclusive',
   'explicit',
   'live_recording',
@@ -267,6 +274,35 @@ const uploadConfigs = {
     allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
     previewType: 'image'
+  },
+  visual_assets: {
+    purpose: 'visual_image',
+    buttonText: 'Upload Visual Images',
+    idleLabel: 'visual images',
+    uploadingMessage: 'Uploading visual images...',
+    successMessage: 'Visual image uploads added.',
+    failurePrefix: 'Visual image upload failed',
+    accept: 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif',
+    allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    previewType: 'visual_assets',
+    multiple: true,
+    assetType: 'image'
+  },
+  visual_clip_assets: {
+    purpose: 'visual_clip',
+    buttonText: 'Upload Visual Clips',
+    idleLabel: 'visual clips',
+    uploadingMessage: 'Uploading visual clips...',
+    successMessage: 'Visual clip uploads added.',
+    failurePrefix: 'Visual clip upload failed',
+    accept: 'video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov',
+    allowedExtensions: ['mp4', 'webm', 'mov'],
+    allowedMimeTypes: ['video/mp4', 'video/webm', 'video/quicktime'],
+    previewType: 'visual_assets',
+    multiple: true,
+    assetType: 'clip',
+    targetField: 'visual_assets'
   }
 };
 
@@ -282,6 +318,10 @@ const createDefaults = {
   live_recording: false,
   featured: false,
   show_public_note: false,
+  enhanced_visuals_enabled: false,
+  shuffle_visuals: true,
+  still_image_duration_seconds: 8,
+  visual_assets: [],
   song_origin: 'original',
   languages: [...DEFAULT_LANGUAGES],
   mood_tags: [],
@@ -3053,8 +3093,16 @@ function createRequiredStar() {
 function buildEditForm() {
   const checkboxWrap = document.createElement('div');
   checkboxWrap.className = 'checkbox-grid';
+  const sectionHeadings = new Set();
 
   editableFields.forEach((field) => {
+    if (field.section && !sectionHeadings.has(field.section)) {
+      sectionHeadings.add(field.section);
+      const heading = document.createElement('div');
+      heading.className = 'form-section-heading field-full';
+      heading.textContent = field.section;
+      els.formFields.appendChild(heading);
+    }
     const fieldId = `field_${field.name}`;
 
     if (field.type === 'checkbox') {
@@ -3088,7 +3136,13 @@ function buildEditForm() {
       }
 
       label.append(input, textWrap);
-      checkboxWrap.appendChild(label);
+      if (field.section) {
+        wrap.classList.add('field', 'field-full');
+        wrap.appendChild(label);
+        els.formFields.appendChild(wrap);
+      } else {
+        checkboxWrap.appendChild(label);
+      }
       return;
     }
 
@@ -3126,6 +3180,9 @@ function buildEditForm() {
 
     if (uploadConfigs[field.name]) {
       wrap.appendChild(createUploadControls(field.name));
+      if (field.name === 'visual_assets') {
+        wrap.appendChild(createUploadControls('visual_clip_assets'));
+      }
       input.addEventListener('input', () => updateMediaPreview(field.name));
     }
 
@@ -3161,6 +3218,7 @@ function createUploadControls(fieldName) {
   fileInput.type = 'file';
   fileInput.accept = config.accept;
   fileInput.className = 'hidden';
+  fileInput.multiple = Boolean(config.multiple);
 
   const status = document.createElement('div');
   status.className = 'upload-status';
@@ -3183,10 +3241,16 @@ function createUploadControls(fieldName) {
   });
 
   fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
+    const files = Array.from(fileInput.files || []);
+    const file = files[0];
 
     if (!file) {
       setUploadStatus(fieldName, 'No file selected.', 'error');
+      return;
+    }
+
+    if (config.multiple) {
+      uploadSongMediaFiles(fieldName, files);
       return;
     }
 
@@ -3240,6 +3304,8 @@ function populateEditor(song, { mode = 'edit' } = {}) {
       input.value = normalizeArrayValue(value, ',').join(', ');
     } else if (field.name === 'languages') {
       input.value = formatLanguages(value);
+    } else if (field.name === 'visual_assets') {
+      input.value = JSON.stringify(normalizeVisualAssets(value), null, 2);
     } else if (Array.isArray(value)) {
       input.value = value.join('\n');
     } else if (value === null || value === undefined) {
@@ -3641,11 +3707,15 @@ function normalizeCreatePayload(payload) {
     mood_tags: normalizeArrayValue(payload.mood_tags, ','),
     languages: normalizeLanguagesForCreate(payload.languages),
     specific_product_urls: normalizeArrayValue(payload.specific_product_urls, '\n'),
+    visual_assets: normalizeVisualAssets(payload.visual_assets),
     show_public_note: toBoolean(payload.show_public_note),
     exclusive: toBoolean(payload.exclusive),
     explicit: toBoolean(payload.explicit),
     live_recording: toBoolean(payload.live_recording),
     featured: toBoolean(payload.featured),
+    enhanced_visuals_enabled: toBoolean(payload.enhanced_visuals_enabled),
+    shuffle_visuals: Object.prototype.hasOwnProperty.call(payload, 'shuffle_visuals') ? toBoolean(payload.shuffle_visuals) : true,
+    still_image_duration_seconds: normalizeVisualDuration(payload.still_image_duration_seconds),
     public_visibility: normalizePublicVisibility(payload.public_visibility)
   };
 }
@@ -3771,7 +3841,31 @@ function validateUploadFile(fieldName, file) {
   return '';
 }
 
-async function uploadSongMedia(fieldName, file) {
+async function uploadSongMediaFiles(fieldName, files) {
+  const config = uploadConfigs[fieldName];
+  const targetField = config.targetField || fieldName;
+  const uploadedAssets = [];
+
+  for (const file of files) {
+    const publicUrl = await uploadSongMedia(fieldName, file, { updateField: false, silentSuccess: true });
+    if (publicUrl) {
+      uploadedAssets.push({ type: config.assetType || config.purpose, url: publicUrl, source: 'song' });
+    }
+  }
+
+  if (!uploadedAssets.length) {
+    return;
+  }
+
+  const input = fieldElements.get(targetField);
+  const existingAssets = parseVisualAssetsInput(input?.value);
+  input.value = JSON.stringify([...existingAssets, ...uploadedAssets], null, 2);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  setUploadStatus(fieldName, config.successMessage, 'success');
+  showMessage(config.successMessage, 'success');
+}
+
+async function uploadSongMedia(fieldName, file, { updateField = true, silentSuccess = false } = {}) {
   const config = uploadConfigs[fieldName];
   const metadataError = getUploadMetadataValidationError();
 
@@ -3837,11 +3931,54 @@ async function uploadSongMedia(fieldName, file) {
     showMessage(config.successMessage, 'success');
   } catch (error) {
     setUploadStatus(fieldName, `${config.failurePrefix}: ${error.message}`, 'error');
+    return '';
   } finally {
     setUploadControlDisabled(fieldName, false);
   }
 }
 
+
+function parseVisualAssetsInput(value) {
+  if (Array.isArray(value)) {
+    return normalizeVisualAssets(value);
+  }
+
+  const text = String(value || '').trim();
+  if (!text) return [];
+
+  try {
+    return normalizeVisualAssets(JSON.parse(text));
+  } catch (_) {
+    return text
+      .split(/\r?\n/)
+      .map((url) => ({ type: isVideoVisualAssetUrl(url) ? 'clip' : 'image', url: url.trim(), source: 'song' }))
+      .filter((asset) => asset.url);
+  }
+}
+
+function normalizeVisualAssets(value) {
+  let assets = value;
+  if (typeof value === 'string') {
+    try { assets = JSON.parse(value); } catch (_) { assets = []; }
+  }
+
+  return (Array.isArray(assets) ? assets : [])
+    .map((asset) => ({
+      type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
+      url: String(asset?.url || asset?.src || '').trim(),
+      source: 'song'
+    }))
+    .filter((asset) => asset.url);
+}
+
+function isVideoVisualAssetUrl(url) {
+  return /\.(mp4|webm|mov)(\?|#|$)/i.test(String(url || ''));
+}
+
+function normalizeVisualDuration(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
+}
 
 function normalizeUploadPresignResponse(data) {
   if (typeof data?.body === 'string') {
@@ -3903,6 +4040,26 @@ function updateMediaPreview(fieldName) {
     image.alt = 'Song artwork preview';
     image.loading = 'lazy';
     controls.preview.appendChild(image);
+    return;
+  }
+
+  if (config.previewType === 'visual_assets') {
+    const assets = parseVisualAssetsInput(url);
+    controls.preview.classList.toggle('hidden', assets.length === 0);
+    assets.slice(-6).forEach((asset) => {
+      const item = document.createElement(asset.type === 'clip' ? 'video' : 'img');
+      item.src = asset.url;
+      item.title = asset.type === 'clip' ? 'Song visual clip' : 'Song visual image';
+      if (asset.type === 'clip') {
+        item.muted = true;
+        item.playsInline = true;
+        item.preload = 'metadata';
+      } else {
+        item.alt = 'Song visual image';
+        item.loading = 'lazy';
+      }
+      controls.preview.appendChild(item);
+    });
   }
 }
 
@@ -3939,6 +4096,14 @@ function getFieldPayloadValue(field) {
     return parseLineSeparatedArray(input.value);
   }
 
+  if (field.name === 'visual_assets') {
+    return parseVisualAssetsInput(input.value);
+  }
+
+  if (field.name === 'still_image_duration_seconds') {
+    return normalizeVisualDuration(input.value);
+  }
+
   if (field.name === 'mood_tags') {
     return parseCommaSeparatedArray(input.value);
   }
@@ -3965,6 +4130,14 @@ function getComparableFieldValue(field, value) {
 
   if (field.name === 'specific_product_urls') {
     return normalizeArrayValue(value, '\n');
+  }
+
+  if (field.name === 'visual_assets') {
+    return normalizeVisualAssets(value);
+  }
+
+  if (field.name === 'still_image_duration_seconds') {
+    return normalizeVisualDuration(value);
   }
 
   if (field.name === 'mood_tags') {
