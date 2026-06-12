@@ -61,6 +61,9 @@ const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares', 'share_events'];
 const LIKE_COUNT_FIELDS = ['likes', 'like_count', 'total_likes', 'likeCount', 'totalLikes'];
 const PLAY_COUNT_FIELDS = ['total_plays', 'plays', 'play_count', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
+function countPatchHasAny(patch = {}, fields = []) {
+  return fields.some(field => Object.prototype.hasOwnProperty.call(patch, field));
+}
 const formatSkipCountdown = seconds => `:${String(Math.max(0, Number(seconds) || 0)).padStart(2, '0')}`;
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
@@ -1439,9 +1442,12 @@ function App() {
       likes: selectedSong.likes,
       shares: selectedSong.shares
     });
-    setLikeCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.likes || 0 }));
-    setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.total_plays || 0 }));
-    setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.shares || 0 }));
+    const nextLikes = getSongLikes(selectedSong);
+    const nextPlays = getSongPlays(selectedSong);
+    const nextShares = getSongShares(selectedSong);
+    setLikeCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextLikes) }));
+    setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextPlays) }));
+    setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextShares) }));
   }, [selectedSong]);
 
   useEffect(() => {
@@ -1492,9 +1498,9 @@ function App() {
     fetchRadioSongs().then(nextTracks => {
       if (!alive) return;
       setTracks(nextTracks);
-      setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.likes || 0])));
-      setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.total_plays || 0])));
-      setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, track.shares || 0])));
+      setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongLikes(track)])));
+      setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongPlays(track)])));
+      setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongShares(track)])));
       console.log('[Stashbox Radio] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
       const urlSelectedSong = songKeyFromUrl
         ? nextTracks.find(track => matchesSongDeepLink(track, songKeyFromUrl))
@@ -2448,54 +2454,70 @@ function App() {
 
   function updateSongCount(songKey, counts = {}) {
     if (!songKey) return;
-    const normalizedCounts = {};
-    const nextLikes = firstDefined(counts, LIKE_COUNT_FIELDS);
-    const nextPlays = firstDefined(counts, PLAY_COUNT_FIELDS);
-    const nextShares = firstDefined(counts, SHARE_COUNT_FIELDS);
-    if (nextLikes !== undefined && nextLikes !== '') normalizedCounts.likes = countValue(nextLikes);
-    if (nextPlays !== undefined && nextPlays !== '') normalizedCounts.total_plays = countValue(nextPlays);
-    if (nextShares !== undefined && nextShares !== '') {
-      const shares = countValue(nextShares);
-      normalizedCounts.shares = shares;
-      normalizedCounts.share_count = shares;
-      normalizedCounts.shareCount = shares;
-      normalizedCounts.total_shares = shares;
-      normalizedCounts.totalShares = shares;
-      normalizedCounts.share_events = shares;
-    }
+    const hasLikePatch = countPatchHasAny(counts, LIKE_COUNT_FIELDS);
+    const hasPlayPatch = countPatchHasAny(counts, PLAY_COUNT_FIELDS);
+    const hasSharePatch = countPatchHasAny(counts, SHARE_COUNT_FIELDS);
+    const patchedLikes = hasLikePatch ? countValue(firstDefined(counts, LIKE_COUNT_FIELDS)) : undefined;
+    const patchedPlays = hasPlayPatch ? countValue(firstDefined(counts, PLAY_COUNT_FIELDS)) : undefined;
+    const patchedShares = hasSharePatch ? countValue(firstDefined(counts, SHARE_COUNT_FIELDS)) : undefined;
+
+    const mergeCountsForSong = existingSong => {
+      const currentLikes = getSongLikes(existingSong, likeCounts);
+      const currentPlays = getSongPlays(existingSong, playCounts);
+      const currentShares = getSongShares(existingSong, shareCounts);
+      const likes = hasLikePatch ? patchedLikes : currentLikes;
+      const plays = hasPlayPatch ? patchedPlays : currentPlays;
+      const shares = hasSharePatch ? patchedShares : currentShares;
+      return {
+        likes,
+        like_count: likes,
+        total_likes: likes,
+        total_plays: plays,
+        plays,
+        play_count: plays,
+        shares,
+        share_count: shares,
+        shareCount: shares,
+        total_shares: shares,
+        totalShares: shares,
+        share_events: shares
+      };
+    };
 
     setTracks(prevTracks => prevTracks.map(track => {
       if (!matchesSongDeepLink(track, songKey)) return track;
+      const nextCounts = mergeCountsForSong(track);
       return {
         ...track,
-        ...normalizedCounts,
+        ...nextCounts,
         raw: {
           ...track.raw,
-          ...normalizedCounts
+          ...nextCounts
         }
       };
     }));
 
     setSelected(current => {
       if (!current || !matchesSongDeepLink(current, songKey)) return current;
+      const nextCounts = mergeCountsForSong(current);
       return {
         ...current,
-        ...normalizedCounts,
+        ...nextCounts,
         raw: {
           ...current.raw,
-          ...normalizedCounts
+          ...nextCounts
         }
       };
     });
 
-    if (normalizedCounts.likes !== undefined) {
-      setLikeCounts(prev => ({ ...prev, [songKey]: normalizedCounts.likes }));
+    if (hasLikePatch) {
+      setLikeCounts(prev => ({ ...prev, [songKey]: patchedLikes }));
     }
-    if (normalizedCounts.total_plays !== undefined) {
-      setPlayCounts(prev => ({ ...prev, [songKey]: normalizedCounts.total_plays }));
+    if (hasPlayPatch) {
+      setPlayCounts(prev => ({ ...prev, [songKey]: patchedPlays }));
     }
-    if (normalizedCounts.shares !== undefined) {
-      setShareCounts(prev => ({ ...prev, [songKey]: normalizedCounts.shares }));
+    if (hasSharePatch) {
+      setShareCounts(prev => ({ ...prev, [songKey]: patchedShares }));
     }
   }
 
@@ -2520,11 +2542,11 @@ function App() {
       }
       setLikedSongIds(prev => new Set(prev).add(songKey));
       const responseLikes = firstDefined(result?.body, LIKE_COUNT_FIELDS);
+      const currentLikes = getSongLikes(song, likeCounts);
       if (responseLikes !== undefined && responseLikes !== '') {
-        updateSongCount(songKey, { likes: Number(responseLikes) });
+        updateSongCount(songKey, { likes: Math.max(currentLikes + 1, countValue(responseLikes)) });
       } else {
-        const nextLikes = (likeCounts[songKey] ?? song.likes ?? 0) + 1;
-        updateSongCount(songKey, { likes: nextLikes });
+        updateSongCount(songKey, { likes: currentLikes + 1 });
       }
     }).catch(error => {
       console.warn('[Stashbox Radio] like event save failed', { song_key: songKey, error: error?.message || error });
@@ -2570,10 +2592,11 @@ function App() {
         return;
       }
       const responseShares = firstDefined(result?.body, SHARE_COUNT_FIELDS);
+      const currentShares = getSongShares(song, shareCounts);
       if (responseShares !== undefined && responseShares !== '') {
-        updateSongCount(songKey, { shares: Number(responseShares) });
+        updateSongCount(songKey, { shares: Math.max(currentShares + 1, countValue(responseShares)) });
       } else {
-        updateSongCount(songKey, { shares: getSongShares(song, shareCounts) + 1 });
+        updateSongCount(songKey, { shares: currentShares + 1 });
       }
     }).catch(error => {
       console.warn('[Stashbox Radio] share event save failed', { song_key: songKey, error: error?.message || error });
@@ -2610,7 +2633,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: likeCounts[selectedSong?.songKey] || 0, playCount: playCounts[selectedSong?.songKey] || 0, shareCount: shareCounts[selectedSong?.songKey] || 0, hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
