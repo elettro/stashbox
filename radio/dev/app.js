@@ -61,7 +61,7 @@ let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares', 'share_events'];
 const LIKE_COUNT_FIELDS = ['likes', 'like_count', 'total_likes', 'likeCount', 'totalLikes'];
-const PLAY_COUNT_FIELDS = ['total_plays', 'plays', 'play_count', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
+const PLAY_COUNT_FIELDS = ['play_count', 'total_plays', 'plays', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
 function countPatchHasAny(patch = {}, fields = []) {
   return fields.some(field => Object.prototype.hasOwnProperty.call(patch, field));
 }
@@ -381,7 +381,13 @@ function normalizeSong(row, index) {
     release_format: clean(row.release_format),
     releaseFormat: clean(row.release_format),
     likes,
+    like_count: likes,
+    likeCount: likes,
+    total_likes: likes,
+    totalLikes: likes,
     total_plays: totalPlays,
+    plays: totalPlays,
+    play_count: totalPlays,
     totalPlays,
     full_play_count: fullPlayCount,
     fullPlayCount,
@@ -389,6 +395,8 @@ function normalizeSong(row, index) {
     partialPlayCount,
     skip_count: skipCount,
     skipCount,
+    avg_seconds: countValue(firstDefined(row, ['avg_seconds', 'average_seconds', 'avg_listen_seconds'])),
+    avgSeconds: countValue(firstDefined(row, ['avg_seconds', 'average_seconds', 'avg_listen_seconds'])),
     shares,
     share_count: shares,
     shareCount: shares,
@@ -575,7 +583,9 @@ async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
     ...extra
   };
   Object.keys(payload).forEach(key => (payload[key] === undefined || payload[key] === null || payload[key] === '') && delete payload[key]);
-  if (eventType === 'like') {
+  if (eventType === 'play') {
+    console.log("tracking play", payload);
+  } else if (eventType === 'like') {
     console.log('[Stashbox Radio Dev] sending like event', payload);
   } else {
     console.log('[Stashbox Radio Dev] tracking payload', payload);
@@ -590,7 +600,9 @@ async function sendTrackingEvent(song, eventType, sessionId, extra = {}) {
     const text = await response.text();
     let body = text;
     try { body = text ? JSON.parse(text) : null; } catch (_) {}
-    if (eventType === 'like') {
+    if (eventType === 'play') {
+      console.log("track response", body);
+    } else if (eventType === 'like') {
       console.log('[Stashbox Radio Dev] like event response', { status: response.status, ok: response.ok, body });
     } else {
       console.log('[Stashbox Radio Dev] tracking API response', { status: response.status, ok: response.ok, body });
@@ -1560,7 +1572,13 @@ function App() {
       setLikeCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongLikes(track)])));
       setPlayCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongPlays(track)])));
       setShareCounts(Object.fromEntries(nextTracks.map(track => [track.songKey, getSongShares(track)])));
-      console.log('[Stashbox Radio Dev] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, likes: track.likes, shares: track.shares, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
+      console.log("hydrated song stats", nextTracks.map(s => ({
+        song_key: s.song_key,
+        play_count: s.play_count,
+        like_count: s.like_count,
+        share_count: s.share_count
+      })));
+      console.log('[Stashbox Radio Dev] count values loaded from API', nextTracks.map(track => ({ song_key: track.songKey, title: track.title, total_plays: track.total_plays, play_count: track.play_count, full_play_count: track.full_play_count, partial_play_count: track.partial_play_count, skip_count: track.skip_count, avg_seconds: track.avg_seconds, likes: track.likes, like_count: track.like_count, shares: track.shares, share_count: track.share_count, share_link_visits: track.share_link_visits, video_clicks: track.video_clicks, product_clicks: track.product_clicks })));
       const urlSelectedSong = songKeyFromUrl
         ? nextTracks.find(track => matchesSongDeepLink(track, songKeyFromUrl))
         : null;
@@ -1929,11 +1947,17 @@ function App() {
   }
 
   const sendQualifiedPlayStart = useCallback((song, instance) => {
-    // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
     if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) return;
     instance.playStartSent = true;
-   sendTrackingEvent(song, 'play_start', sessionId, { seconds_played: Math.max(QUALIFIED_PLAY_SECONDS, Math.round(instance.listenedSeconds || QUALIFIED_PLAY_SECONDS)) }).then(result => {
-      if (result?.response?.ok) setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.total_plays ?? 0) + 1 }));
+    sendTrackingEvent(song, 'play', sessionId, { seconds_played: Math.max(0, Math.round(instance.listenedSeconds || 0)) }).then(result => {
+      if (!result?.response?.ok) {
+        console.warn('[Stashbox Radio Dev] play event was not saved; leaving persisted play count unchanged', { song_key: song.songKey, result });
+        return;
+      }
+      const responsePlays = firstDefined(result?.body, PLAY_COUNT_FIELDS);
+      if (responsePlays !== undefined && responsePlays !== '') {
+        updateSongCount(song.songKey, result.body);
+      }
     });
   }, [sessionId]);
 
@@ -1971,8 +1995,9 @@ function App() {
     if (instance?.songKey === song.songKey) {
       instance.isPlaying = true;
       instance.lastTickAt = null;
+      sendQualifiedPlayStart(song, instance);
     }
-  }, []);
+  }, [sendQualifiedPlayStart]);
 
   const updatePlaybackPosition = useCallback((secondsPlayed, duration) => {
     const state = playbackRef.current;
@@ -2601,11 +2626,8 @@ function App() {
       }
       setLikedSongIds(prev => new Set(prev).add(songKey));
       const responseLikes = firstDefined(result?.body, LIKE_COUNT_FIELDS);
-      const currentLikes = getSongLikes(song, likeCounts);
       if (responseLikes !== undefined && responseLikes !== '') {
-        updateSongCount(songKey, { likes: Math.max(currentLikes + 1, countValue(responseLikes)) });
-      } else {
-        updateSongCount(songKey, { likes: currentLikes + 1 });
+        updateSongCount(songKey, result.body);
       }
     }).catch(error => {
       console.warn('[Stashbox Radio Dev] like event save failed', { song_key: songKey, error: error?.message || error });
@@ -2651,11 +2673,8 @@ function App() {
         return;
       }
       const responseShares = firstDefined(result?.body, SHARE_COUNT_FIELDS);
-      const currentShares = getSongShares(song, shareCounts);
       if (responseShares !== undefined && responseShares !== '') {
-        updateSongCount(songKey, { shares: Math.max(currentShares + 1, countValue(responseShares)) });
-      } else {
-        updateSongCount(songKey, { shares: currentShares + 1 });
+        updateSongCount(songKey, result.body);
       }
     }).catch(error => {
       console.warn('[Stashbox Radio Dev] share event save failed', { song_key: songKey, error: error?.message || error });
