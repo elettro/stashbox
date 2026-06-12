@@ -530,9 +530,9 @@
             <input id="videoUrl" type="url" placeholder="Filled automatically after upload, or paste an S3 URL" />
           </label>
           <div class="full upload-inline">
-            <input id="videoFile" type="file" accept="video/mp4,.mp4" />
+            <input id="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
             <button id="uploadButton" class="button-secondary" type="button">Upload Video</button>
-            <span id="uploadStatus" class="helper">Select an MP4. Upload uses the existing dev presign endpoint with purpose ad_video.</span>
+            <span id="uploadStatus" class="helper">Select a video file (.mp4, .webm, or .mov). Upload uses the existing dev presign endpoint with purpose ad_video.</span>
           </div>
           <label class="full">Click Video URL
             <input id="clickVideoUrl" type="url" placeholder="Future CTA destination URL" />
@@ -1519,9 +1519,9 @@
       }
 
       els.uploadButton.disabled = true;
-      setUploadStatus('Requesting S3 upload URL for ad_video...', 'busy');
+      setUploadStatus('Uploading video...', 'busy');
       try {
-        const contentType = file.type || 'video/mp4';
+        const contentType = getVideoContentType(file);
         const presignPayload = {
           purpose: 'ad_video',
           ad_type: adType,
@@ -1540,7 +1540,7 @@
         if (!uploadUrl || !publicUrl) {
           throw new Error('Presign response was missing upload_url or public_url. Upload needs backend presign support for ad_video. Paste S3 URL for now.');
         }
-        setUploadStatus('Uploading MP4 to S3...', 'busy');
+        setUploadStatus('Uploading video...', 'busy');
         const s3Response = await fetch(uploadUrl, {
           method: 'PUT',
           headers: { 'Content-Type': contentType },
@@ -1551,21 +1551,34 @@
         }
         els.videoUrl.value = publicUrl;
         updatePreviewFromUrl();
-        setUploadStatus('Video uploaded. URL added.', 'success');
-        showMessage('Video uploaded. URL added.', 'success');
+        setUploadStatus('Video uploaded successfully', 'success');
+        showMessage('Video uploaded successfully', 'success');
       } catch (error) {
-        setUploadStatus(`${error.message || error} Upload needs backend presign support for ad_video. Paste S3 URL for now.`, 'error');
+        setUploadStatus(`Upload failed with backend error details: ${error.message || error}`, 'error');
       } finally {
         els.uploadButton.disabled = false;
         updateTokenStatus();
       }
     }
 
+    function getVideoFileExtension(file) {
+      return String(file?.name || '').split('.').pop().toLowerCase();
+    }
+
+    function getVideoContentType(file) {
+      const contentType = String(file?.type || '').toLowerCase();
+      if (contentType) return contentType;
+      const fallbackByExtension = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
+      return fallbackByExtension[getVideoFileExtension(file)] || 'application/octet-stream';
+    }
+
     function validateVideoFile(file) {
-      const extension = String(file.name || '').split('.').pop().toLowerCase();
+      const extension = getVideoFileExtension(file);
       const contentType = String(file.type || '').toLowerCase();
-      if (extension !== 'mp4') return 'Video file type is not allowed. Use .mp4.';
-      if (contentType && contentType !== 'video/mp4') return 'Video MIME type is not allowed. Use video/mp4.';
+      const allowedExtensions = new Set(['mp4', 'webm', 'mov']);
+      const allowedMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+      if (!allowedExtensions.has(extension)) return 'Video file type is not allowed. Use .mp4, .webm, or .mov.';
+      if (contentType && !allowedMimeTypes.has(contentType)) return 'Video MIME type is not allowed. Use video/mp4, video/webm, or video/quicktime.';
       return '';
     }
 
@@ -1605,7 +1618,7 @@
     }
 
     function setUploadStatus(message, status = '') {
-      els.uploadStatus.textContent = message || 'Select an MP4. Upload uses the existing dev presign endpoint with purpose ad_video.';
+      els.uploadStatus.textContent = message || 'Select a video file (.mp4, .webm, or .mov). Upload uses the existing dev presign endpoint with purpose ad_video.';
       els.uploadStatus.style.color = status === 'error' ? 'var(--danger)' : status === 'success' ? 'var(--accent-2)' : status === 'busy' ? 'var(--warning)' : 'var(--muted)';
     }
 
