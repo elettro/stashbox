@@ -189,6 +189,14 @@ h2 {
 .hero__content {
   max-width: 980px;
 }
+.hero__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
 .intro {
   max-width: 920px;
   margin-bottom: 0;
@@ -272,6 +280,11 @@ h2 {
 }
 .radio-link {
   white-space: nowrap;
+}
+.radio-link--brief {
+  border-color: rgba(240, 192, 76, 0.72);
+  background: linear-gradient(135deg, #f6d66a, #f0b43b 52%, #df8d21);
+  color: #150d02;
 }
 
 .status-banner {
@@ -895,6 +908,10 @@ tr:last-child td {
     flex-direction: column;
     gap: 0.78rem;
     padding: 1rem 0.85rem;
+  }
+
+  .hero__actions {
+    justify-content: flex-start;
   }
 
   .intro {
