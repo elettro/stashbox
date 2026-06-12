@@ -81,3 +81,13 @@ INSERT INTO radio.ad_settings (
 )
 VALUES ('dev', true, 'count', 1, 30, 1, now())
 ON CONFLICT (id) DO NOTHING;
+
+-- Song Experience visual assets (Phase 1)
+-- The admin/lambda code uses the existing song-experience column names
+-- shuffle_visuals and still_image_duration_seconds as equivalents for
+-- visual_shuffle and visual_still_duration_seconds.
+ALTER TABLE radio.songs
+ADD COLUMN IF NOT EXISTS enhanced_visuals_enabled boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS visual_assets jsonb DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS shuffle_visuals boolean DEFAULT true,
+ADD COLUMN IF NOT EXISTS still_image_duration_seconds integer DEFAULT 8;
