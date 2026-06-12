@@ -88,6 +88,10 @@ const SONG_EDITABLE_FIELDS = [
   'audio_url',
   'song_artwork_url',
   'video_link',
+  'enhanced_visuals_enabled',
+  'shuffle_visuals',
+  'visual_assets',
+  'visual_still_duration_seconds',
   'public_track_note',
   'show_public_note',
   'public_video_note',
@@ -112,7 +116,9 @@ const BOOLEAN_SONG_FIELDS = new Set([
   'exclusive',
   'explicit',
   'live_recording',
-  'featured'
+  'featured',
+  'enhanced_visuals_enabled',
+  'shuffle_visuals'
 ]);
 
 const DEFAULT_SONG_COLUMNS = `
@@ -130,6 +136,10 @@ const DEFAULT_SONG_COLUMNS = `
   audio_url,
   song_artwork_url,
   video_link,
+  enhanced_visuals_enabled,
+  shuffle_visuals,
+  visual_assets,
+  visual_still_duration_seconds,
   public_track_note,
   show_public_note,
   public_video_note,
@@ -777,6 +787,41 @@ function normalizeStringArray(value) {
   return [];
 }
 
+function normalizeVisualDuration(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
+}
+
+function getS3KeyFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeVisualAssets(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((asset) => ({
+      type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
+      url: String(asset?.url || asset?.src || '').trim(),
+      source: String(asset?.source || 'song').trim() || 'song',
+      key: String(asset?.key || asset?.object_key || getS3KeyFromUrl(asset?.url || asset?.src || '')).trim()
+    }))
+    .filter((asset) => asset.url);
+}
+
+function normalizeStoredVisualAssets(value) {
+  if (Array.isArray(value)) return normalizeVisualAssets(value);
+  if (value === null || value === undefined || value === '') return [];
+  if (typeof value === 'string') {
+    try { return normalizeVisualAssets(JSON.parse(value)); } catch (error) { return []; }
+  }
+  if (typeof value === 'object') return normalizeVisualAssets(value);
+  return [];
+}
+
 function normalizeStoredStringArray(value) {
   if (Array.isArray(value)) {
     return normalizeStringArray(value);
@@ -805,21 +850,45 @@ function normalizeSongRow(song) {
 
   return {
     ...song,
-    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls)
+    specific_product_urls: normalizeStoredStringArray(song.specific_product_urls),
+    visual_assets: normalizeStoredVisualAssets(song.visual_assets),
+    enhanced_visuals_enabled: song.enhanced_visuals_enabled === null || song.enhanced_visuals_enabled === undefined ? true : Boolean(song.enhanced_visuals_enabled),
+    shuffle_visuals: song.shuffle_visuals === null || song.shuffle_visuals === undefined ? true : Boolean(song.shuffle_visuals),
+    visual_still_duration_seconds: normalizeVisualDuration(song.visual_still_duration_seconds)
   };
 }
 
 function normalizeSongPayload(input, { partial = false } = {}) {
+  const normalizedInput = { ...input };
+
+  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_shuffle') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'shuffle_visuals')) {
+    normalizedInput.shuffle_visuals = normalizedInput.visual_shuffle;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'still_image_duration_seconds') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_still_duration_seconds')) {
+    normalizedInput.visual_still_duration_seconds = normalizedInput.still_image_duration_seconds;
+  }
+
   const payload = {};
   SONG_EDITABLE_FIELDS.forEach((field) => {
-    if (Object.prototype.hasOwnProperty.call(input, field)) {
+    if (Object.prototype.hasOwnProperty.call(normalizedInput, field)) {
       if (field === 'specific_product_urls') {
-        const cleanSpecificProductUrls = normalizeStringArray(input.specific_product_urls);
+        const cleanSpecificProductUrls = normalizeStringArray(normalizedInput.specific_product_urls);
         payload.specific_product_urls = JSON.stringify(cleanSpecificProductUrls);
         return;
       }
 
-      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(input[field]) : input[field];
+      if (field === 'visual_assets') {
+        payload.visual_assets = JSON.stringify(normalizeVisualAssets(normalizedInput.visual_assets));
+        return;
+      }
+
+      if (field === 'visual_still_duration_seconds') {
+        payload.visual_still_duration_seconds = normalizeVisualDuration(normalizedInput.visual_still_duration_seconds);
+        return;
+      }
+
+      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(normalizedInput[field]) : normalizedInput[field];
     }
   });
 
@@ -1145,7 +1214,7 @@ async function createSong(event) {
   const values = fields.map((field) => payload[field]);
   const result = await pool.query(
     `INSERT INTO radio.songs (${fields.join(', ')})
-     VALUES (${fields.map((field, index) => field === 'specific_product_urls' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
+     VALUES (${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
      RETURNING *`,
     values
   );
@@ -1173,7 +1242,7 @@ async function updateSong(event) {
   try {
     const result = await pool.query(
       `UPDATE radio.songs
-       SET ${fields.map((field, index) => field === 'specific_product_urls' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
+       SET ${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
        WHERE song_key = $${values.length}
        RETURNING *`,
       values
