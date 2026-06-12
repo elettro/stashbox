@@ -59,7 +59,7 @@ const specificProductCache = new Map();
 let storeProductsPromise = null;
 let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
-const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares'];
+const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares', 'share_events'];
 const LIKE_COUNT_FIELDS = ['likes', 'like_count', 'total_likes', 'likeCount', 'totalLikes'];
 const PLAY_COUNT_FIELDS = ['total_plays', 'plays', 'play_count', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
 const formatSkipCountdown = seconds => `:${String(Math.max(0, Number(seconds) || 0)).padStart(2, '0')}`;
@@ -2523,6 +2523,7 @@ function App() {
       normalizedCounts.shareCount = shares;
       normalizedCounts.total_shares = shares;
       normalizedCounts.totalShares = shares;
+      normalizedCounts.share_events = shares;
     }
 
     setTracks(prevTracks => prevTracks.map(track => {
@@ -2631,7 +2632,7 @@ function App() {
         return;
       }
       const responseShares = firstDefined(result?.body, SHARE_COUNT_FIELDS);
-      if (responseShares !== undefined) {
+      if (responseShares !== undefined && responseShares !== '') {
         updateSongCount(songKey, { shares: Number(responseShares) });
       } else {
         updateSongCount(songKey, { shares: getSongShares(song, shareCounts) + 1 });
