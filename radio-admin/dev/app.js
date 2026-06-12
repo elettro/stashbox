@@ -3976,7 +3976,14 @@ function appendVisualAssets(newAssets, targetField = 'visual_assets') {
 
   const input = fieldElements.get(targetField);
   const existingAssets = input ? parseVisualAssetsInput(input.value) : getEditorVisualAssets();
-  const mergedAssets = [...existingAssets, ...normalizedNewAssets];
+  const mergedAssets = dedupeVisualAssets([...existingAssets, ...normalizedNewAssets]);
+  setEditorVisualAssets(mergedAssets, targetField);
+  return mergedAssets;
+}
+
+function setEditorVisualAssets(assets, targetField = 'visual_assets') {
+  const mergedAssets = dedupeVisualAssets(assets);
+  const input = fieldElements.get(targetField);
   editorVisualAssets = mergedAssets;
 
   if (input) {
@@ -3990,13 +3997,48 @@ function appendVisualAssets(newAssets, targetField = 'visual_assets') {
   updateMediaPreview('visual_clip_assets');
 
   updateVisualAssetsUploadStatuses(mergedAssets);
-  return mergedAssets;
+}
+
+function removeVisualAsset(assetToRemove) {
+  const removeIdentity = getVisualAssetIdentity(assetToRemove);
+  const nextAssets = getEditorVisualAssets().filter((asset) => getVisualAssetIdentity(asset) !== removeIdentity);
+  setEditorVisualAssets(nextAssets);
+}
+
+function dedupeVisualAssets(assets) {
+  const seen = new Set();
+  return normalizeVisualAssets(assets).filter((asset) => {
+    const identity = getVisualAssetIdentity(asset);
+    if (seen.has(identity)) {
+      return false;
+    }
+    seen.add(identity);
+    return true;
+  });
+}
+
+function getUniqueVisualAssetEntries(assets) {
+  const seen = new Set();
+  return normalizeVisualAssets(assets)
+    .map((asset) => ({ asset }))
+    .filter(({ asset }) => {
+      const identity = getVisualAssetIdentity(asset);
+      if (seen.has(identity)) {
+        return false;
+      }
+      seen.add(identity);
+      return true;
+    });
+}
+
+function getVisualAssetIdentity(asset) {
+  return `${asset.type}:${asset.key || asset.url}`;
 }
 
 function getEditorVisualAssets() {
   const input = fieldElements.get('visual_assets');
   if (input) {
-    editorVisualAssets = parseVisualAssetsInput(input.value);
+    editorVisualAssets = dedupeVisualAssets(parseVisualAssetsInput(input.value));
   }
   return editorVisualAssets;
 }
@@ -4133,17 +4175,28 @@ function updateMediaPreview(fieldName) {
   }
 
   if (config.previewType === 'visual_assets') {
-    const assets = parseVisualAssetsInput(url);
-    controls.preview.classList.toggle('hidden', assets.length === 0);
-    if (assets.length) {
-      const images = assets.filter((asset) => asset.type !== 'clip').length;
-      const clips = assets.filter((asset) => asset.type === 'clip').length;
-      const summary = document.createElement('div');
-      summary.className = 'visual-assets-summary';
-      summary.textContent = `${assets.length} visual asset${assets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
-      controls.preview.appendChild(summary);
+    const visibleAssets = getUniqueVisualAssetEntries(parseVisualAssetsInput(url))
+      .filter(({ asset }) => config.assetType === 'clip' ? asset.type === 'clip' : asset.type !== 'clip');
+
+    controls.preview.classList.toggle('hidden', visibleAssets.length === 0);
+    if (!visibleAssets.length) {
+      return;
     }
-    assets.slice(-6).forEach((asset) => {
+
+    const images = visibleAssets.filter(({ asset }) => asset.type !== 'clip').length;
+    const clips = visibleAssets.filter(({ asset }) => asset.type === 'clip').length;
+    const summary = document.createElement('div');
+    summary.className = 'visual-assets-summary';
+    summary.textContent = `${visibleAssets.length} visual ${config.assetType === 'clip' ? 'clip' : 'image'}${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
+    controls.preview.appendChild(summary);
+
+    const grid = document.createElement('div');
+    grid.className = 'visual-assets-preview-grid';
+
+    visibleAssets.slice(-6).forEach(({ asset }) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'visual-asset-preview-item';
+
       const item = document.createElement(asset.type === 'clip' ? 'video' : 'img');
       item.src = asset.url;
       item.title = asset.type === 'clip' ? 'Song visual clip' : 'Song visual image';
@@ -4155,8 +4208,19 @@ function updateMediaPreview(fieldName) {
         item.alt = 'Song visual image';
         item.loading = 'lazy';
       }
-      controls.preview.appendChild(item);
+
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'visual-asset-remove-button';
+      removeButton.setAttribute('aria-label', `Remove ${asset.type === 'clip' ? 'visual clip' : 'visual image'}`);
+      removeButton.textContent = '×';
+      removeButton.addEventListener('click', () => removeVisualAsset(asset));
+
+      wrapper.append(item, removeButton);
+      grid.appendChild(wrapper);
     });
+
+    controls.preview.appendChild(grid);
   }
 }
 
