@@ -1,12 +1,27 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
 
-const { Pool } = pg;
+const { Client } = pg;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
-});
+function getClient() {
+  return new Client({
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT || 5432),
+    database: process.env.PGDATABASE,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000
+  });
+}
+
+let activeClient = null;
+const client = {
+  query(...args) {
+    if (!activeClient) throw new Error('PostgreSQL client is not connected.');
+    return activeClient.query(...args);
+  }
+};
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
@@ -73,7 +88,8 @@ const SONG_EVENT_TYPES = new Set([
   'product_click'
 ]);
 
-const SONG_EDITABLE_FIELDS = [
+function getSongAllowedFields() {
+  return [
   'song_key',
   'song_name',
   'display_title',
@@ -110,7 +126,8 @@ const SONG_EDITABLE_FIELDS = [
   'shop_url',
   'mood_tags',
   'internal_notes'
-];
+  ];
+}
 
 const BOOLEAN_SONG_FIELDS = new Set([
   'show_public_note',
@@ -308,7 +325,7 @@ function publicAdSettings(settings) {
 }
 
 async function ensureAdSettingsTable() {
-  await pool.query(`
+  await client.query(`
     CREATE SCHEMA IF NOT EXISTS radio;
     CREATE TABLE IF NOT EXISTS radio.ad_settings (
       id text PRIMARY KEY DEFAULT 'dev',
@@ -324,15 +341,15 @@ async function ensureAdSettingsTable() {
 
 async function ensureAdsDurationColumn() {
   try {
-    await pool.query('ALTER TABLE radio.ads ADD COLUMN IF NOT EXISTS duration_seconds integer');
+    await client.query('ALTER TABLE radio.ads ADD COLUMN IF NOT EXISTS duration_seconds integer');
   } catch (error) {
     console.warn('Could not ensure radio.ads.duration_seconds. Continuing safely.', error.message || error);
   }
 }
 
-async function ensureSongExperienceColumns(client = pool) {
+async function ensureSongExperienceColumns(dbClient = client) {
   try {
-    await client.query(`
+    await dbClient.query(`
       ALTER TABLE radio.songs
       ADD COLUMN IF NOT EXISTS enhanced_visuals_enabled boolean DEFAULT true,
       ADD COLUMN IF NOT EXISTS shuffle_visuals boolean DEFAULT true,
@@ -340,7 +357,7 @@ async function ensureSongExperienceColumns(client = pool) {
       ADD COLUMN IF NOT EXISTS visual_assets jsonb DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS still_image_duration_seconds integer DEFAULT 8
     `);
-    await client.query(`
+    await dbClient.query(`
       ALTER TABLE radio.songs
       ALTER COLUMN enhanced_visuals_enabled SET DEFAULT true,
       ALTER COLUMN shuffle_visuals SET DEFAULT true,
@@ -353,13 +370,13 @@ async function ensureSongExperienceColumns(client = pool) {
   }
 }
 
-async function ensureSongsLikesColumn(client = pool) {
+async function ensureSongsLikesColumn(dbClient = client) {
   try {
-    await client.query(`
+    await dbClient.query(`
       ALTER TABLE radio.songs
       ADD COLUMN IF NOT EXISTS likes integer DEFAULT 0
     `);
-    await client.query(`
+    await dbClient.query(`
       UPDATE radio.songs
       SET likes = 0
       WHERE likes IS NULL
@@ -371,7 +388,7 @@ async function ensureSongsLikesColumn(client = pool) {
 
 async function adsDurationColumnSelect() {
   try {
-    const result = await pool.query(
+    const result = await client.query(
       `SELECT 1 FROM information_schema.columns
        WHERE table_schema = 'radio' AND table_name = 'ads' AND column_name = 'duration_seconds'
        LIMIT 1`
@@ -393,7 +410,7 @@ async function ensureAdStorage() {
 async function getAdSettings({ publicOnly = false } = {}) {
   try {
     await ensureAdSettingsTable();
-    const result = await pool.query(`
+    const result = await client.query(`
       INSERT INTO radio.ad_settings (
         id,
         ads_enabled,
@@ -416,7 +433,7 @@ async function getAdSettings({ publicOnly = false } = {}) {
 
     const settingsResult = result.rowCount
       ? result
-      : await pool.query('SELECT * FROM radio.ad_settings WHERE id = $1', ['dev']);
+      : await client.query('SELECT * FROM radio.ad_settings WHERE id = $1', ['dev']);
     const settings = normalizeAdSettings(settingsResult.rows[0] || DEFAULT_AD_SETTINGS);
     const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
     return response(200, { success: true, settings: bodySettings });
@@ -444,7 +461,7 @@ async function updateAdSettings(event) {
   const payload = normalizeAdSettings(input);
   try {
     await ensureAdSettingsTable();
-    const result = await pool.query(`
+    const result = await client.query(`
       INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
       VALUES ('dev', $1, $2, $3, $4, $5, now())
       ON CONFLICT (id) DO UPDATE SET
@@ -504,7 +521,7 @@ function buildUpdate(adId, payload) {
 
 async function listAds() {
   await ensureAdStorage();
-  const result = await pool.query(`
+  const result = await client.query(`
     SELECT
       *,
       COALESCE(skips, 0)::int AS skips,
@@ -522,7 +539,7 @@ async function listAds() {
 async function listPublicAds() {
   await ensureAdStorage();
   const durationColumn = await adsDurationColumnSelect();
-  const result = await pool.query(`
+  const result = await client.query(`
     SELECT
       id,
       internal_title,
@@ -572,7 +589,7 @@ async function createAd(event) {
   const validationError = validatePayload(payload);
   if (validationError) return response(400, { success: false, error: validationError });
 
-  const result = await pool.query(buildInsert(payload));
+  const result = await client.query(buildInsert(payload));
   return response(201, { success: true, message: 'Ad created', ad: result.rows[0] });
 }
 
@@ -588,7 +605,7 @@ async function updateAd(event) {
   const validationError = validatePayload(payload, { partial: true });
   if (validationError) return response(400, { success: false, error: validationError });
 
-  const result = await pool.query(buildUpdate(adId, payload));
+  const result = await client.query(buildUpdate(adId, payload));
   if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
   return response(200, { success: true, message: 'Ad updated', ad: result.rows[0] });
 }
@@ -597,7 +614,7 @@ async function deleteAd(event) {
   const adId = getAdId(event);
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
-  const result = await pool.query('DELETE FROM radio.ads WHERE id = $1', [adId]);
+  const result = await client.query('DELETE FROM radio.ads WHERE id = $1', [adId]);
   if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
   return response(200, { success: true, message: 'Ad deleted', ad_id: adId });
 }
@@ -710,7 +727,7 @@ async function recordPublicAdEvent(event) {
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
   const eventType = getAdEventType(event);
-  return trackAdEvent(pool, event, { ad_id: adId, event_type: eventType });
+  return trackAdEvent(client, event, { ad_id: adId, event_type: eventType });
 }
 
 async function handlePublicAdsRoute(event) {
@@ -897,7 +914,7 @@ function normalizeSongRow(song) {
   };
 }
 
-function normalizeSongPayload(input, { partial = false } = {}) {
+function buildSongPayload(input, { partial = false } = {}) {
   const normalizedInput = { ...input };
 
   if (Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_shuffle') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'shuffle_visuals')) {
@@ -909,7 +926,7 @@ function normalizeSongPayload(input, { partial = false } = {}) {
   }
 
   const payload = {};
-  SONG_EDITABLE_FIELDS.forEach((field) => {
+  getSongAllowedFields().forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(normalizedInput, field)) {
       if (field === 'specific_product_urls') {
         const cleanSpecificProductUrls = normalizeStringArray(normalizedInput.specific_product_urls);
@@ -949,7 +966,7 @@ function normalizeSongPayload(input, { partial = false } = {}) {
 }
 
 async function getTableColumns(schemaName, tableName) {
-  const result = await pool.query(
+  const result = await client.query(
     `SELECT column_name
      FROM information_schema.columns
      WHERE table_schema = $1 AND table_name = $2`,
@@ -959,7 +976,7 @@ async function getTableColumns(schemaName, tableName) {
 }
 
 async function findFirstTable(candidates) {
-  const result = await pool.query(
+  const result = await client.query(
     `SELECT table_schema, table_name
      FROM information_schema.tables
      WHERE (table_schema, table_name) IN (${candidates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')})`,
@@ -1059,7 +1076,7 @@ async function loadSongEventCounts() {
   const { columns, qualifiedName } = statsTable;
   const songKeyExpr = columns.has('song_key') ? 'song_key::text' : textLiteral('');
   const songIdExpr = columns.has('song_id') ? 'song_id::text' : songKeyExpr;
-  const result = await pool.query(`
+  const result = await client.query(`
     SELECT
       ${songKeyExpr} AS song_key,
       ${songIdExpr} AS song_id,
@@ -1134,7 +1151,7 @@ function emptyStatsSummaryResponse() {
 }
 
 async function findExistingTable(candidates) {
-  const result = await pool.query(
+  const result = await client.query(
     `SELECT table_schema, table_name
      FROM information_schema.tables
      WHERE (table_schema, table_name) IN (${candidates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')})`,
@@ -1168,7 +1185,7 @@ async function withStatsRouteLogging(route, method, handler) {
   }
 }
 
-async function listSongs({ includeArchived = false } = {}) {
+async function getSongs({ includeArchived = false } = {}) {
   await ensureSongsLikesColumn();
   await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
@@ -1182,7 +1199,7 @@ async function listSongs({ includeArchived = false } = {}) {
     ? '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
     : '*, COALESCE(s.likes, 0)::int AS likes, song_artwork_url AS resolved_artwork_url';
   const [result, countsByIdentity] = await Promise.all([
-    pool.query(`SELECT ${artworkSelect} FROM radio.songs s ${where} ${orderBy}`),
+    client.query(`SELECT ${artworkSelect} FROM radio.songs s ${where} ${orderBy}`),
     loadSongEventCounts()
   ]);
   const songs = result.rows
@@ -1191,7 +1208,12 @@ async function listSongs({ includeArchived = false } = {}) {
   return response(200, { success: true, count: result.rowCount, songs });
 }
 
-async function getSong(event) {
+
+async function getAdminSongs() {
+  return getSongs({ includeArchived: true });
+}
+
+async function getAdminSong(event) {
   await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
   const params = event.queryStringParameters || {};
@@ -1233,7 +1255,7 @@ async function getSong(event) {
     ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
     : '*, song_artwork_url AS resolved_artwork_url';
   const orderBy = orderClauses.length ? `ORDER BY CASE ${orderClauses.join(' ')} ELSE 4 END` : '';
-  const result = await pool.query(
+  const result = await client.query(
     `SELECT ${artworkSelect}
      FROM radio.songs
      WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
@@ -1255,16 +1277,16 @@ async function getSong(event) {
   return response(200, { success: true, song: normalizeSongRow(result.rows[0]) });
 }
 
-async function createSong(event) {
+async function createAdminSong(event) {
   await ensureSongExperienceColumns();
-  const payload = normalizeSongPayload(parseBody(event));
+  const payload = buildSongPayload(parseBody(event));
   const columns = await getTableColumns('radio', 'songs');
   const fields = Object.keys(payload).filter((field) => columns.has(field));
   if (!fields.includes('song_key')) return response(400, { success: false, error: 'song_key is required.' });
   if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
 
   const values = fields.map((field) => payload[field]);
-  const result = await pool.query(
+  const result = await client.query(
     `INSERT INTO radio.songs (${fields.join(', ')})
      VALUES (${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
      RETURNING *`,
@@ -1273,7 +1295,7 @@ async function createSong(event) {
   return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
 }
 
-async function updateSong(event) {
+async function updateAdminSong(event) {
   const songKey = event.pathParameters?.song_key || event.pathParameters?.songKey || getRouteSegments(event)[2] || '';
   if (!songKey) return response(400, { success: false, error: 'song_key is required.' });
 
@@ -1282,7 +1304,7 @@ async function updateSong(event) {
   const cleanSpecificProductUrls = Object.prototype.hasOwnProperty.call(body, 'specific_product_urls')
     ? normalizeStringArray(body.specific_product_urls)
     : undefined;
-  const payload = normalizeSongPayload(body, { partial: true });
+  const payload = buildSongPayload(body, { partial: true });
   await ensureSongExperienceColumns();
   const columns = await getTableColumns('radio', 'songs');
   const fields = Object.keys(payload).filter((field) => columns.has(field) && field !== 'song_key');
@@ -1293,7 +1315,7 @@ async function updateSong(event) {
   const updatedAt = columns.has('updated_at') ? ', updated_at = now()' : '';
 
   try {
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE radio.songs
        SET ${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
        WHERE song_key = $${values.length}
@@ -1424,7 +1446,7 @@ async function listEvents(event) {
 
   const { columns, qualifiedName } = statsTable;
   const orderBy = columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : '';
-  const result = await pool.query(`SELECT * FROM ${qualifiedName} ${orderBy} LIMIT $1`, [limit]);
+  const result = await client.query(`SELECT * FROM ${qualifiedName} ${orderBy} LIMIT $1`, [limit]);
   return response(200, { success: true, count: result.rowCount, limit, events: result.rows });
 }
 
@@ -1441,7 +1463,7 @@ async function statsSummary() {
   const deviceColumn = firstExistingColumn(columns, ['device_type', 'device', 'browser', 'platform']);
 
   const [summary, today, devices, eventTypes] = await Promise.all([
-    pool.query(`
+    client.query(`
       SELECT
         COUNT(*)::int AS total_events,
         ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
@@ -1459,7 +1481,7 @@ async function statsSummary() {
         ${secondsColumn ? `COALESCE(AVG(${secondsColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_seconds_played,
         ${completionColumn ? `COALESCE(AVG(${completionColumn}), 0)::float` : numberLiteral(0, 'float')} AS average_completion_percent
       FROM ${qualifiedName}`),
-    pool.query(`
+    client.query(`
       SELECT
         ${createdAtCountExpression(columns, 'CURRENT_DATE', 'events_today')},
         ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('play_start', 'play') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS plays_today,
@@ -1469,10 +1491,10 @@ async function statsSummary() {
         ${columns.has('event_type') && columns.has('created_at') ? "COUNT(*) FILTER (WHERE event_type IN ('video_click', 'video_open') AND created_at >= CURRENT_DATE)::int" : numberLiteral()} AS video_clicks_today
       FROM ${qualifiedName}`),
     deviceColumn
-      ? pool.query(`SELECT COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY 1 ORDER BY event_count DESC LIMIT 10`)
+      ? client.query(`SELECT COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY 1 ORDER BY event_count DESC LIMIT 10`)
       : Promise.resolve({ rows: [] }),
     columns.has('event_type')
-      ? pool.query(`SELECT event_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY event_type ORDER BY event_count DESC`)
+      ? client.query(`SELECT event_type, COUNT(*)::int AS event_count FROM ${qualifiedName} GROUP BY event_type ORDER BY event_count DESC`)
       : Promise.resolve({ rows: [] })
   ]);
 
@@ -1510,7 +1532,7 @@ async function songStats(event) {
   const secondsColumn = firstExistingColumn(columns, ['seconds_played', 'duration_seconds']);
   const completionColumn = firstExistingColumn(columns, ['completion_percent']);
 
-  const result = await pool.query(`
+  const result = await client.query(`
     SELECT
       ${eventSongIdExpr} AS song_id,
       ${eventSongKeyExpr} AS song_key,
@@ -1563,7 +1585,7 @@ async function productStats(event) {
   const createdAtSelect = columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at';
 
   const [summaryResult, productsResult, recentResult] = await Promise.all([
-    pool.query(`
+    client.query(`
       SELECT
         COUNT(*)::int AS total_product_clicks,
         COUNT(DISTINCT NULLIF(${productExpr}::text, ''))::int AS unique_products_clicked,
@@ -1571,7 +1593,7 @@ async function productStats(event) {
         ${createdAtCountExpression(columns, "now() - interval '7 days'", 'product_clicks_last_7d')}
       FROM ${qualifiedName}
       WHERE ${productFilter}`),
-    pool.query(`
+    client.query(`
       SELECT
         ${productExpr} AS product_url,
         COUNT(*)::int AS click_count,
@@ -1584,7 +1606,7 @@ async function productStats(event) {
       GROUP BY 1
       ORDER BY click_count DESC, last_clicked_at DESC NULLS LAST
       LIMIT $1`, [limit]),
-    pool.query(`
+    client.query(`
       SELECT
         ${createdAtSelect},
         ${optionalColumnExpression(columns, 'song_key')},
@@ -1625,7 +1647,7 @@ async function referrerStats(event) {
   }
 
   const [summaryResult, referrersResult, recentResult] = await Promise.all([
-    pool.query(`
+    client.query(`
       SELECT
         COUNT(*)::int AS total_events,
         COUNT(*) FILTER (WHERE NULLIF(${referrerColumn}::text, '') IS NOT NULL)::int AS events_with_referrer,
@@ -1634,7 +1656,7 @@ async function referrerStats(event) {
         ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
         ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
       FROM ${qualifiedName}`),
-    pool.query(`
+    client.query(`
       SELECT
         COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
         COUNT(*)::int AS event_count,
@@ -1652,7 +1674,7 @@ async function referrerStats(event) {
       GROUP BY 1
       ORDER BY event_count DESC
       LIMIT $1`, [limit]),
-    pool.query(`
+    client.query(`
       SELECT
         ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
         COALESCE(NULLIF(${referrerColumn}::text, ''), 'direct / unknown') AS referrer,
@@ -1687,7 +1709,7 @@ async function deviceStats(event) {
   }
 
   const [summaryResult, devicesResult, recentResult] = await Promise.all([
-    pool.query(`
+    client.query(`
       SELECT
         COUNT(*)::int AS total_events,
         COUNT(*) FILTER (WHERE lower(${deviceColumn}::text) LIKE '%desktop%')::int AS desktop_events,
@@ -1697,7 +1719,7 @@ async function deviceStats(event) {
         ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'events_last_24h')},
         ${createdAtCountExpression(columns, "now() - interval '7 days'", 'events_last_7d')}
       FROM ${qualifiedName}`),
-    pool.query(`
+    client.query(`
       SELECT
         COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
         COUNT(*)::int AS event_count,
@@ -1717,7 +1739,7 @@ async function deviceStats(event) {
       GROUP BY 1
       ORDER BY event_count DESC
       LIMIT $1`, [limit]),
-    pool.query(`
+    client.query(`
       SELECT
         ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
         COALESCE(NULLIF(${deviceColumn}::text, ''), 'unknown') AS device_type,
@@ -1821,7 +1843,7 @@ function validateUploadRequest(body) {
   };
 }
 
-async function createUploadPresign(event) {
+async function createAdminUploadPresign(event) {
   const body = parseBody(event);
   const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
   const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
@@ -1891,11 +1913,11 @@ async function dispatch(event) {
   if (method === 'OPTIONS') return response(204, {});
 
   if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs']))) {
-    return listSongs({ includeArchived: false });
+    return getSongs({ includeArchived: false });
   }
 
   if ((method === 'POST') && (routeStartsWith(segments, ['radio', 'track']) || routeStartsWith(segments, ['track']))) {
-    return handleTrackRoute(pool, event, trackSongEvent);
+    return handleTrackRoute(client, event, trackSongEvent);
   }
 
   if (matchesRoute(route, ['radio/ad-settings', '/radio/ad-settings', 'ad-settings', '/ad-settings'])) {
@@ -1949,15 +1971,15 @@ async function dispatch(event) {
     if (method === 'GET') {
       const params = event.queryStringParameters || {};
       const hasSongLookup = Boolean(getRouteSegments(event)[2] || params.id || params.song_id || params.songId || params.song_key || params.songKey || params.slug);
-      return hasSongLookup ? getSong(event) : listSongs({ includeArchived: true });
+      return hasSongLookup ? getAdminSong(event) : getAdminSongs();
     }
-    if (method === 'POST') return createSong(event);
-    if (method === 'PUT') return updateSong(event);
+    if (method === 'POST') return createAdminSong(event);
+    if (method === 'PUT') return updateAdminSong(event);
   }
 
   if (routeStartsWith(segments, ['admin', 'uploads', 'presign']) && method === 'POST') {
     await requireAdmin(event);
-    return createUploadPresign(event);
+    return createAdminUploadPresign(event);
   }
 
   return response(404, { success: false, error: 'Not found.', path: getPath(event), route: segments.join('/') });
@@ -1965,13 +1987,22 @@ async function dispatch(event) {
 
 // Safety route check: `handler({ httpMethod: 'OPTIONS', path: '/radio/songs' })` returns a CORS response locally.
 export const handler = async (event) => {
+  const pgClient = getClient();
+
   try {
+    await pgClient.connect();
+    activeClient = pgClient;
     return await dispatch(event || {});
   } catch (error) {
     console.error('Lambda handler error:', error);
     return response(error.statusCode || 500, {
       success: false,
       error: error.statusCode ? error.message : 'Internal Server Error'
+    });
+  } finally {
+    activeClient = null;
+    await pgClient.end().catch((error) => {
+      console.error('PostgreSQL client close error:', error);
     });
   }
 };
