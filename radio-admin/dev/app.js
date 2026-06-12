@@ -3180,9 +3180,10 @@ function buildEditForm() {
     wrap.append(labelRow, input);
 
     if (uploadConfigs[field.name]) {
-      wrap.appendChild(createUploadControls(field.name));
       if (field.name === 'visual_assets') {
-        wrap.appendChild(createUploadControls('visual_clip_assets'));
+        wrap.appendChild(createVisualAssetUploadControls());
+      } else {
+        wrap.appendChild(createUploadControls(field.name));
       }
       input.addEventListener('input', () => updateMediaPreview(field.name));
     }
@@ -3260,6 +3261,73 @@ function createUploadControls(fieldName) {
 
   controls.append(button, fileInput, status, preview);
   mediaUploadElements.set(fieldName, { button, fileInput, status, preview });
+  return controls;
+}
+
+
+function createVisualAssetUploadControls() {
+  const controls = document.createElement('div');
+  controls.className = 'upload-controls visual-assets-controls';
+
+  const buttonRow = document.createElement('div');
+  buttonRow.className = 'visual-assets-upload-actions';
+
+  const preview = document.createElement('div');
+  preview.className = 'media-preview compact-media-preview visual-assets-preview';
+  preview.dataset.visualAssetsCombined = 'true';
+
+  const status = document.createElement('div');
+  status.className = 'upload-status visual-assets-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+
+  ['visual_assets', 'visual_clip_assets'].forEach((fieldName) => {
+    const config = uploadConfigs[fieldName];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-ghost button-small upload-button';
+    button.textContent = config.buttonText;
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = config.accept;
+    fileInput.className = 'hidden';
+    fileInput.multiple = Boolean(config.multiple);
+
+    button.addEventListener('click', () => {
+      const validationError = getUploadMetadataValidationError();
+
+      if (validationError) {
+        setUploadStatus(fieldName, validationError, 'error');
+        return;
+      }
+
+      fileInput.value = '';
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files || []);
+      const file = files[0];
+
+      if (!file) {
+        setUploadStatus(fieldName, 'No file selected.', 'error');
+        return;
+      }
+
+      if (config.multiple) {
+        uploadSongMediaFiles(fieldName, files);
+        return;
+      }
+
+      uploadSongMedia(fieldName, file);
+    });
+
+    buttonRow.append(button, fileInput);
+    mediaUploadElements.set(fieldName, { button, fileInput, status, preview });
+  });
+
+  controls.append(buttonRow, preview, status);
   return controls;
 }
 
@@ -4175,8 +4243,10 @@ function updateMediaPreview(fieldName) {
   }
 
   if (config.previewType === 'visual_assets') {
-    const visibleAssets = getUniqueVisualAssetEntries(parseVisualAssetsInput(url))
-      .filter(({ asset }) => config.assetType === 'clip' ? asset.type === 'clip' : asset.type !== 'clip');
+    const assetEntries = getUniqueVisualAssetEntries(parseVisualAssetsInput(url));
+    const visibleAssets = controls.preview.dataset.visualAssetsCombined === 'true'
+      ? assetEntries
+      : assetEntries.filter(({ asset }) => config.assetType === 'clip' ? asset.type === 'clip' : asset.type !== 'clip');
 
     controls.preview.classList.toggle('hidden', visibleAssets.length === 0);
     if (!visibleAssets.length) {
@@ -4187,20 +4257,26 @@ function updateMediaPreview(fieldName) {
     const clips = visibleAssets.filter(({ asset }) => asset.type === 'clip').length;
     const summary = document.createElement('div');
     summary.className = 'visual-assets-summary';
-    summary.textContent = `${visibleAssets.length} visual ${config.assetType === 'clip' ? 'clip' : 'image'}${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
+    summary.textContent = controls.preview.dataset.visualAssetsCombined === 'true'
+      ? `${visibleAssets.length} visual asset${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`
+      : `${visibleAssets.length} visual ${config.assetType === 'clip' ? 'clip' : 'image'}${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
     controls.preview.appendChild(summary);
+
+    const scrollRegion = document.createElement('div');
+    scrollRegion.className = 'visual-assets-scroll-region';
 
     const grid = document.createElement('div');
     grid.className = 'visual-assets-preview-grid';
 
-    visibleAssets.slice(-6).forEach(({ asset }) => {
+    visibleAssets.forEach(({ asset }) => {
+      const isClip = asset.type === 'clip';
       const wrapper = document.createElement('div');
-      wrapper.className = 'visual-asset-preview-item';
+      wrapper.className = `visual-asset-preview-item${isClip ? ' is-clip' : ''}`;
 
-      const item = document.createElement(asset.type === 'clip' ? 'video' : 'img');
+      const item = document.createElement(isClip ? 'video' : 'img');
       item.src = asset.url;
-      item.title = asset.type === 'clip' ? 'Song visual clip' : 'Song visual image';
-      if (asset.type === 'clip') {
+      item.title = isClip ? 'Song visual clip' : 'Song visual image';
+      if (isClip) {
         item.muted = true;
         item.playsInline = true;
         item.preload = 'metadata';
@@ -4212,15 +4288,23 @@ function updateMediaPreview(fieldName) {
       const removeButton = document.createElement('button');
       removeButton.type = 'button';
       removeButton.className = 'visual-asset-remove-button';
-      removeButton.setAttribute('aria-label', `Remove ${asset.type === 'clip' ? 'visual clip' : 'visual image'}`);
+      removeButton.setAttribute('aria-label', `Remove ${isClip ? 'visual clip' : 'visual image'}`);
       removeButton.textContent = '×';
       removeButton.addEventListener('click', () => removeVisualAsset(asset));
 
-      wrapper.append(item, removeButton);
+      wrapper.append(item);
+      if (isClip) {
+        const badge = document.createElement('span');
+        badge.className = 'visual-asset-type-badge';
+        badge.textContent = 'Clip';
+        wrapper.appendChild(badge);
+      }
+      wrapper.appendChild(removeButton);
       grid.appendChild(wrapper);
     });
 
-    controls.preview.appendChild(grid);
+    scrollRegion.appendChild(grid);
+    controls.preview.appendChild(scrollRegion);
   }
 }
 
