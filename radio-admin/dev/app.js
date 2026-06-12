@@ -86,7 +86,7 @@ const editableFields = [
   { name: 'video_link', label: 'Video Link', type: 'url', full: true, help: 'At least one is required: Audio URL or Video Link.' },
   { name: 'enhanced_visuals_enabled', label: 'Enhanced visuals enabled', type: 'checkbox', section: 'Song Experience', help: 'For audio-only songs, rotate this song’s own uploaded images/clips instead of showing only main artwork.' },
   { name: 'shuffle_visuals', label: 'Shuffle visuals', type: 'checkbox', section: 'Song Experience', help: 'Randomize the song-specific visual sequence when the song starts. Default: yes.' },
-  { name: 'still_image_duration_seconds', label: 'Still image duration', type: 'number', section: 'Song Experience', help: 'Seconds each extra visual image stays on screen. Default: 8.' },
+  { name: 'visual_still_duration_seconds', label: 'Still image duration', type: 'number', section: 'Song Experience', help: 'Seconds each extra visual image stays on screen. Default: 8.' },
   { name: 'visual_assets', label: 'Visual assets', type: 'textarea', full: true, section: 'Song Experience', help: 'JSON list maintained by uploads. Each item includes type, url, and source: song.' },
   { name: 'public_track_note', label: 'Public track note', type: 'textarea', full: true },
   { name: 'show_public_note', label: 'Show Public Note', type: 'checkbox' },
@@ -319,9 +319,9 @@ const createDefaults = {
   live_recording: false,
   featured: false,
   show_public_note: false,
-  enhanced_visuals_enabled: false,
+  enhanced_visuals_enabled: true,
   shuffle_visuals: true,
-  still_image_duration_seconds: 8,
+  visual_still_duration_seconds: 8,
   visual_assets: [],
   song_origin: 'original',
   languages: [...DEFAULT_LANGUAGES],
@@ -3348,7 +3348,8 @@ function getSongFieldValue(song, fieldName) {
     shop_url: ['shopify_url', 'product_url'],
     official_song_page_url: ['song_page_url', 'product_url'],
     mood_tags: ['mood'],
-    public_visibility: ['visibility']
+    public_visibility: ['visibility'],
+    visual_still_duration_seconds: ['still_image_duration_seconds', 'stillImageDurationSeconds']
   };
 
   const alias = (aliases[fieldName] || []).find((name) => Object.prototype.hasOwnProperty.call(song, name));
@@ -3718,7 +3719,7 @@ function normalizeCreatePayload(payload) {
     featured: toBoolean(payload.featured),
     enhanced_visuals_enabled: toBoolean(payload.enhanced_visuals_enabled),
     shuffle_visuals: Object.prototype.hasOwnProperty.call(payload, 'shuffle_visuals') ? toBoolean(payload.shuffle_visuals) : true,
-    still_image_duration_seconds: normalizeVisualDuration(payload.still_image_duration_seconds),
+    visual_still_duration_seconds: normalizeVisualDuration(payload.visual_still_duration_seconds),
     public_visibility: normalizePublicVisibility(payload.public_visibility)
   };
 }
@@ -3981,11 +3982,12 @@ function appendVisualAssets(newAssets, targetField = 'visual_assets') {
   if (input) {
     input.value = JSON.stringify(mergedAssets, null, 2);
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    updateMediaPreview('visual_clip_assets');
   } else {
     console.warn(`[Stashbox Radio Admin Dev] Visual assets field missing: ${targetField}. Keeping uploaded assets in editor state.`, { targetField, assets: mergedAssets });
-    updateMediaPreview(targetField);
   }
+
+  updateMediaPreview('visual_assets');
+  updateMediaPreview('visual_clip_assets');
 
   updateVisualAssetsUploadStatuses(mergedAssets);
   return mergedAssets;
@@ -4096,7 +4098,10 @@ function updateMediaPreview(fieldName) {
   const controls = mediaUploadElements.get(fieldName);
   const config = uploadConfigs[fieldName];
   const targetField = config?.targetField || fieldName;
-  const url = String(fieldElements.get(targetField)?.value || '').trim();
+  const targetInput = fieldElements.get(targetField);
+  const url = config?.previewType === 'visual_assets' && !targetInput
+    ? JSON.stringify(getEditorVisualAssets())
+    : String(targetInput?.value || '').trim();
 
   if (!controls?.preview) {
     return;
@@ -4176,6 +4181,10 @@ function buildUpdatePayload() {
 function getFieldPayloadValue(field) {
   const input = fieldElements.get(field.name);
 
+  if (!input && field.name !== 'visual_assets') {
+    return field.type === 'checkbox' ? false : '';
+  }
+
   if (field.name === 'public_visibility') {
     return normalizePublicVisibility(input.value);
   }
@@ -4192,7 +4201,7 @@ function getFieldPayloadValue(field) {
     return getEditorVisualAssets();
   }
 
-  if (field.name === 'still_image_duration_seconds') {
+  if (field.name === 'visual_still_duration_seconds') {
     return normalizeVisualDuration(input.value);
   }
 
@@ -4228,7 +4237,7 @@ function getComparableFieldValue(field, value) {
     return normalizeVisualAssets(value);
   }
 
-  if (field.name === 'still_image_duration_seconds') {
+  if (field.name === 'visual_still_duration_seconds') {
     return normalizeVisualDuration(value);
   }
 
