@@ -1227,6 +1227,12 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 }
 
 .player-media.enhanced-visual-media {
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 34vw, 420px);
+  min-height: 0;
+  max-height: 420px;
+  overflow: hidden;
   background: #000;
 }
 
@@ -1236,24 +1242,36 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  min-width: 0;
+  min-height: 0;
   object-fit: contain;
-  object-position: center;
+  object-position: center center;
+  margin: 0 auto;
   background: #000;
   border-radius: inherit;
 }
 
 .player-media.enhanced-visual-media video.song-visual-clip {
+  display: block;
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  min-width: 0;
   min-height: 0;
   object-fit: contain;
-  object-position: center;
+  object-position: center center;
+  margin: 0 auto;
   background: #000;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
+  .player-media.enhanced-visual-media {
+    height: auto;
+    max-height: none;
+    aspect-ratio: 1 / 1;
+  }
+
   .player-media.enhanced-visual-media .song-visual-asset,
   .player-media.enhanced-visual-media video.song-visual-clip {
     max-height: 100%;
