@@ -59,6 +59,9 @@ const specificProductCache = new Map();
 let storeProductsPromise = null;
 let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
+const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares'];
+const LIKE_COUNT_FIELDS = ['likes', 'like_count', 'total_likes', 'likeCount', 'totalLikes'];
+const PLAY_COUNT_FIELDS = ['total_plays', 'plays', 'play_count', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
 const formatSkipCountdown = seconds => `:${String(Math.max(0, Number(seconds) || 0)).padStart(2, '0')}`;
 const fixDropbox = url => url ? url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '') : '';
 const has = value => clean(value).length > 0;
@@ -229,6 +232,10 @@ function isVideoOnlyTrack(song) {
 }
 const sectionFor = genre => SECTIONS.find(s => s.key.toLowerCase() === clean(genre).toLowerCase())?.key || 'Other';
 const countValue = value => Math.max(0, Number(value) || 0);
+const normalizeCount = (row, fields) => Math.max(0, ...fields.map(field => countValue(row?.[field])));
+const normalizeShareCount = row => normalizeCount(row, SHARE_COUNT_FIELDS);
+const normalizeLikeCount = row => normalizeCount(row, LIKE_COUNT_FIELDS);
+const normalizePlayCount = row => normalizeCount(row, PLAY_COUNT_FIELDS);
 const YOUTUBE_ORIGIN = 'https://elettro.github.io';
 
 function getBrowserSessionId() {
@@ -332,12 +339,12 @@ function normalizeSong(row, index) {
   const hasVideo = has(row.video_link || row.video_url || row.videoUrl);
   const videoOnly = bool(row.video_only) || isVideoOnlyTrack(row);
   const rawKey = firstDefined(row, ['song_key', 'key', 'slug', 'id', 'track_id']);
-  const likes = countValue(firstDefined(row, ['likes', 'like_count', 'total_likes']));
-  const totalPlays = countValue(firstDefined(row, ['total_plays', 'plays', 'play_count', 'play_starts']));
+  const likes = normalizeLikeCount(row);
+  const totalPlays = normalizePlayCount(row);
   const fullPlayCount = countValue(firstDefined(row, ['full_play_count', 'full_plays']));
   const partialPlayCount = countValue(firstDefined(row, ['partial_play_count', 'partial_plays']));
   const skipCount = countValue(firstDefined(row, ['skip_count', 'skips']));
-  const shares = countValue(firstDefined(row, ['shares', 'share_count', 'total_shares']));
+  const shares = normalizeShareCount(row);
   const shareLinkVisits = countValue(firstDefined(row, ['share_link_visits', 'share_visits']));
   const videoClicks = countValue(firstDefined(row, ['video_clicks', 'video_click_count', 'total_video_clicks']));
   const productClicks = countValue(firstDefined(row, ['product_clicks', 'product_click_count', 'total_product_clicks']));
@@ -380,6 +387,10 @@ function normalizeSong(row, index) {
     skip_count: skipCount,
     skipCount,
     shares,
+    share_count: shares,
+    shareCount: shares,
+    total_shares: shares,
+    totalShares: shares,
     share_link_visits: shareLinkVisits,
     shareLinkVisits,
     video_clicks: videoClicks,
@@ -1083,17 +1094,17 @@ function getSongArtist(song) { return clean(song?.artist || song?.raw?.artist ||
 function getSongPlays(song, playCounts = {}) {
   const counted = playCounts?.[song?.songKey];
   if (counted !== undefined && counted !== null) return Number(counted || 0);
-  return Number((firstDefined(song, ['total_plays', 'play_starts', 'full_play_count', 'totalPlays', 'fullPlayCount']) || firstDefined(song?.raw, ['total_plays', 'play_starts', 'full_play_count', 'plays', 'play_count', 'full_plays'])) || 0);
+  return normalizePlayCount(song) || normalizePlayCount(song?.raw);
 }
 function getSongLikes(song, likeCounts = {}) {
   const counted = likeCounts?.[song?.songKey];
   if (counted !== undefined && counted !== null) return Number(counted || 0);
-  return Number((firstDefined(song, ['likes', 'like_count', 'total_likes']) || firstDefined(song?.raw, ['likes', 'like_count', 'total_likes'])) || 0);
+  return normalizeLikeCount(song) || normalizeLikeCount(song?.raw);
 }
 function getSongShares(song, shareCounts = {}) {
   const counted = shareCounts?.[song?.songKey];
   if (counted !== undefined && counted !== null) return Number(counted || 0);
-  return Number((firstDefined(song, ['shares', 'share_count', 'total_shares']) || firstDefined(song?.raw, ['shares', 'share_count', 'total_shares'])) || 0);
+  return normalizeShareCount(song) || normalizeShareCount(song?.raw);
 }
 function getSongEngagement(song, counts = {}) {
   return Number(getSongLikes(song, counts.likeCounts) || 0)
@@ -1487,9 +1498,12 @@ function App() {
       likes: selectedSong.likes,
       shares: selectedSong.shares
     });
-    setLikeCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.likes || 0 }));
-    setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.total_plays || 0 }));
-    setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: selectedSong.shares || 0 }));
+    const nextLikes = getSongLikes(selectedSong);
+    const nextPlays = getSongPlays(selectedSong);
+    const nextShares = getSongShares(selectedSong);
+    setLikeCounts(prev => ({ ...prev, [selectedSong.songKey]: nextLikes }));
+    setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: nextPlays }));
+    setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextShares) }));
   }, [selectedSong]);
 
   useEffect(() => {
@@ -2497,9 +2511,19 @@ function App() {
   function updateSongCount(songKey, counts = {}) {
     if (!songKey) return;
     const normalizedCounts = {};
-    if (counts.likes !== undefined) normalizedCounts.likes = Number(counts.likes || 0);
-    if (counts.total_plays !== undefined) normalizedCounts.total_plays = Number(counts.total_plays || 0);
-    if (counts.shares !== undefined) normalizedCounts.shares = Number(counts.shares || 0);
+    const nextLikes = firstDefined(counts, LIKE_COUNT_FIELDS);
+    const nextPlays = firstDefined(counts, PLAY_COUNT_FIELDS);
+    const nextShares = firstDefined(counts, SHARE_COUNT_FIELDS);
+    if (nextLikes !== undefined) normalizedCounts.likes = countValue(nextLikes);
+    if (nextPlays !== undefined) normalizedCounts.total_plays = countValue(nextPlays);
+    if (nextShares !== undefined) {
+      const shares = countValue(nextShares);
+      normalizedCounts.shares = shares;
+      normalizedCounts.share_count = shares;
+      normalizedCounts.shareCount = shares;
+      normalizedCounts.total_shares = shares;
+      normalizedCounts.totalShares = shares;
+    }
 
     setTracks(prevTracks => prevTracks.map(track => {
       if (!matchesSongDeepLink(track, songKey)) return track;
@@ -2590,8 +2614,30 @@ function App() {
       console.log('[Stashbox Radio Dev] copied song url', shareUrl);
       showCopiedFeedback();
     };
-    sendTrackingEvent(song, 'share', sessionId).then(result => {
-      if (result?.response?.ok) setShareCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.shares ?? 0) + 1 }));
+    const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
+    sendTrackingEvent(song, 'share', sessionId, {
+      song_key: songKey,
+      song_id: clean(song?.song_id || song?.songId || song?.raw?.song_id || song?.raw?.songId || song?.id || song?.raw?.id || songKey),
+      id: clean(song?.id || song?.raw?.id || songKey),
+      display_title: songTitle,
+      song_name: clean(song.song_name || song.raw?.song_name || songTitle),
+      artist,
+      share_url: shareUrl,
+      page: 'dev',
+      source: 'public_player'
+    }).then(result => {
+      if (!result?.response?.ok) {
+        console.warn('[Stashbox Radio Dev] share event was not saved; leaving persisted share count unchanged', { song_key: songKey, result });
+        return;
+      }
+      const responseShares = firstDefined(result?.body, SHARE_COUNT_FIELDS);
+      if (responseShares !== undefined) {
+        updateSongCount(songKey, { shares: Number(responseShares) });
+      } else {
+        updateSongCount(songKey, { shares: getSongShares(song, shareCounts) + 1 });
+      }
+    }).catch(error => {
+      console.warn('[Stashbox Radio Dev] share event save failed', { song_key: songKey, error: error?.message || error });
     });
     try {
       if (navigator.share) {
