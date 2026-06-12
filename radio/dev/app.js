@@ -30,6 +30,7 @@ const AD_FREQUENCY_WEIGHTS = { low: 1, medium: 3, high: 6 };
 const DEFAULT_AD_SETTINGS = { ads_enabled: true, break_method: 'count', ads_per_break: 1, target_ad_seconds: 30, break_interval: 1 };
 const FALLBACK_AD_DURATION_SECONDS = 15;
 const DEFAULT_TARGET_AD_SECONDS = DEFAULT_AD_SETTINGS.target_ad_seconds;
+const DEFAULT_VISUAL_STILL_DURATION_SECONDS = 8;
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -270,7 +271,7 @@ function firstDefined(row, names) {
 
 function normalizeVisualDuration(value) {
   const duration = Number(value);
-  return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
+  return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : DEFAULT_VISUAL_STILL_DURATION_SECONDS;
 }
 
 function normalizeVisualAssets(value) {
@@ -280,23 +281,28 @@ function normalizeVisualAssets(value) {
   }
 
   return (Array.isArray(assets) ? assets : [])
-    .map((asset) => ({
-      type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
-      url: fixDropbox(clean(asset?.url || asset?.src)),
-      source: 'song'
-    }))
-    .filter((asset) => asset.url);
+    .map((asset) => {
+      const assetType = clean(asset?.type).toLowerCase();
+      return {
+        type: assetType === 'image' ? 'image' : (assetType === 'clip' || assetType === 'video' ? 'clip' : ''),
+        url: fixDropbox(clean(asset?.url || asset?.src)),
+        source: 'song'
+      };
+    })
+    .filter((asset) => asset.type && asset.url);
 }
 
-function seededShuffleVisualAssets(assets, seedValue) {
+function shuffleVisualAssets(assets) {
   const shuffled = [...assets];
-  let seed = Array.from(String(seedValue || 'stashbox')).reduce((sum, char) => sum + char.charCodeAt(0), 0) || 1;
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    seed = (seed * 9301 + 49297) % 233280;
-    const swapIndex = Math.floor((seed / 233280) * (index + 1));
+    const swapIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
   }
   return shuffled;
+}
+
+function imageVisualAssetsOnly(assets) {
+  return (Array.isArray(assets) ? assets : []).filter(asset => asset?.type === 'image' && has(asset.url));
 }
 
 function normalizedAlbumName(row) {
@@ -349,7 +355,7 @@ function normalizeSong(row, index) {
     visual_assets: visualAssets,
     visualAssets,
     shuffleVisuals: row.shuffle_visuals === undefined && row.shuffleVisuals === undefined ? true : bool(row.shuffle_visuals ?? row.shuffleVisuals),
-    stillImageDurationSeconds: normalizeVisualDuration(row.still_image_duration_seconds ?? row.stillImageDurationSeconds),
+    stillImageDurationSeconds: normalizeVisualDuration(row.visual_still_duration_seconds ?? row.visualStillDurationSeconds ?? row.still_image_duration_seconds ?? row.stillImageDurationSeconds),
     release_format: clean(row.release_format),
     releaseFormat: clean(row.release_format),
     likes,
@@ -2945,7 +2951,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [visualIndex, setVisualIndex] = useState(0);
-  const visualClipRef = useRef(null);
+  const [visualImageSequenceState, setVisualImageSequenceState] = useState({ songKey: '', assets: [] });
   const videoFrameRef = useRef(null);
   const youtubeMountRef = useRef(null);
   const localYoutubePlayerRef = useRef(null);
@@ -2975,38 +2981,32 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const canCloseVideo = isVideoMode && hasVideo && !selectedIsVideoOnly;
   const canWatchVideo = !isVideoMode && hasVideo && (selected.showWatchVideo || selectedIsVideoOnly);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-  const visualAssets = selected.enhancedVisualsEnabled && hasAudio && mediaMode !== 'video' ? (selected.visualAssets || selected.visual_assets || []) : [];
-  const visualSequence = selected.shuffleVisuals ? seededShuffleVisualAssets(visualAssets, selected.songKey || selected.idx) : visualAssets;
-  const hasEnhancedVisuals = visualSequence.length > 0;
-  const activeVisualAsset = hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null;
+  const audioOnlySong = hasAudio && !selected.hasVideo && !selectedIsVideoOnly;
+  const canUseEnhancedVisuals = selected.enhancedVisualsEnabled && audioOnlySong && mediaMode !== 'video';
+  const visualSequenceSongKey = selected.songKey || selected.idx;
+  const visualImageSequence = visualImageSequenceState.songKey === visualSequenceSongKey ? visualImageSequenceState.assets : [];
+  const hasEnhancedVisuals = visualImageSequence.length > 0;
+  const activeVisualAsset = hasEnhancedVisuals ? visualImageSequence[visualIndex % visualImageSequence.length] : null;
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
 
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
 
-  useEffect(() => { setVisualIndex(0); }, [selected?.idx, mediaMode]);
+  useEffect(() => {
+    setVisualIndex(0);
+    if (!canUseEnhancedVisuals) {
+      setVisualImageSequenceState({ songKey: '', assets: [] });
+      return;
+    }
+    const imageAssets = imageVisualAssetsOnly(selected.visualAssets || selected.visual_assets || []);
+    setVisualImageSequenceState({ songKey: visualSequenceSongKey, assets: selected.shuffleVisuals ? shuffleVisualAssets(imageAssets) : imageAssets });
+  }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey]);
 
   useEffect(() => {
     if (!hasEnhancedVisuals || !activeVisualAsset || mediaMode === 'video' || !isPlaying) return undefined;
-    if (activeVisualAsset.type === 'clip') {
-      const clip = visualClipRef.current;
-      if (clip) {
-        try { clip.currentTime = 0; } catch (_) {}
-        if (isPlaying) clip.play?.().catch?.(() => {});
-        else clip.pause?.();
-      }
-      return undefined;
-    }
     const durationMs = normalizeVisualDuration(selected.stillImageDurationSeconds) * 1000;
     const timer = window.setTimeout(() => setVisualIndex((index) => index + 1), durationMs);
     return () => window.clearTimeout(timer);
-  }, [hasEnhancedVisuals, activeVisualAsset?.url, activeVisualAsset?.type, selected?.stillImageDurationSeconds, isPlaying, mediaMode]);
-
-  useEffect(() => {
-    const clip = visualClipRef.current;
-    if (!clip || activeVisualAsset?.type !== 'clip') return;
-    if (isPlaying && mediaMode !== 'video') clip.play?.().catch?.(() => {});
-    else clip.pause?.();
-  }, [isPlaying, activeVisualAsset?.url, activeVisualAsset?.type, mediaMode]);
+  }, [hasEnhancedVisuals, activeVisualAsset?.url, selected?.stillImageDurationSeconds, isPlaying, mediaMode]);
 
   useEffect(() => {
     if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
@@ -3192,7 +3192,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   };
   const seekAudio = event => { const audio = audioRef.current; if (!audio || !hasAudio) return; const nextTime = Number(event.target.value); audio.currentTime = nextTime; setCurrentTime(nextTime); onAudioProgress?.(nextTime, duration); };
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { className: `player-media clickable-media${hasEnhancedVisuals && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : activeVisualAsset ? (activeVisualAsset.type === 'clip' ? h('video', { key: activeVisualAsset.url, ref: visualClipRef, className: 'song-visual-asset song-visual-clip', src: activeVisualAsset.url, muted: true, playsInline: true, autoPlay: isPlaying, loop: false, preload: 'auto', onEnded: () => setVisualIndex((index) => index + 1), onError: () => setVisualIndex((index) => index + 1), onClick: event => event.preventDefault() }) : h('img', { key: activeVisualAsset.url, className: 'song-visual-asset', src: activeVisualAsset.url, alt: `${selected.title} visual`, onError: () => setVisualIndex((index) => index + 1) })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
+    h('div', { className: `player-media clickable-media${hasEnhancedVisuals && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : activeVisualAsset ? h('img', { key: activeVisualAsset.url, className: 'song-visual-asset', src: activeVisualAsset.url, alt: `${selected.title} visual`, onError: () => {
+      setVisualImageSequenceState(sequence => ({ ...sequence, assets: sequence.assets.filter(asset => asset.url !== activeVisualAsset.url) }));
+      setVisualIndex(0);
+    } }) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
