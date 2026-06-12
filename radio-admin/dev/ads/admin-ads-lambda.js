@@ -857,7 +857,17 @@ function getS3KeyFromUrl(url) {
 }
 
 function normalizeVisualAssets(value) {
-  return (Array.isArray(value) ? value : [])
+  let assets = value;
+
+  if (typeof assets === 'string') {
+    try {
+      assets = JSON.parse(assets);
+    } catch (error) {
+      assets = [];
+    }
+  }
+
+  return (Array.isArray(assets) ? assets : [])
     .map((asset) => ({
       type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
       url: String(asset?.url || asset?.src || '').trim(),
@@ -1210,7 +1220,30 @@ async function getSongs({ includeArchived = false } = {}) {
 
 
 async function getAdminSongs() {
-  return getSongs({ includeArchived: true });
+  await ensureSongsLikesColumn();
+  await ensureSongExperienceColumns();
+  const columns = await getTableColumns('radio', 'songs');
+  const hasSortOrder = columns.has('sort_order');
+  const orderBy = hasSortOrder
+    ? 'ORDER BY sort_order ASC, song_name ASC NULLS LAST, display_title ASC NULLS LAST'
+    : 'ORDER BY created_at DESC NULLS LAST, song_name ASC NULLS LAST, display_title ASC NULLS LAST';
+  const adminSongSelect = `
+    s.*,
+    s.enhanced_visuals_enabled,
+    s.shuffle_visuals,
+    s.visual_still_duration_seconds,
+    s.visual_assets,
+    COALESCE(s.likes, 0)::int AS likes,
+    ${columns.has('resolved_artwork_url') ? 'COALESCE(s.resolved_artwork_url, s.song_artwork_url)' : 's.song_artwork_url'} AS resolved_artwork_url
+  `;
+  const [result, countsByIdentity] = await Promise.all([
+    client.query(`SELECT ${adminSongSelect} FROM radio.songs s ${orderBy}`),
+    loadSongEventCounts()
+  ]);
+  const songs = result.rows
+    .map((row) => mergeSongEventCounts(row, countsByIdentity))
+    .map(normalizeSongRow);
+  return response(200, { success: true, count: result.rowCount, songs });
 }
 
 async function getAdminSong(event) {
@@ -1252,12 +1285,22 @@ async function getAdminSong(event) {
   }
 
   const artworkSelect = columns.has('resolved_artwork_url')
-    ? '*, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
-    : '*, song_artwork_url AS resolved_artwork_url';
+    ? `s.*,
+       s.enhanced_visuals_enabled,
+       s.shuffle_visuals,
+       s.visual_still_duration_seconds,
+       s.visual_assets,
+       COALESCE(s.resolved_artwork_url, s.song_artwork_url) AS resolved_artwork_url`
+    : `s.*,
+       s.enhanced_visuals_enabled,
+       s.shuffle_visuals,
+       s.visual_still_duration_seconds,
+       s.visual_assets,
+       s.song_artwork_url AS resolved_artwork_url`;
   const orderBy = orderClauses.length ? `ORDER BY CASE ${orderClauses.join(' ')} ELSE 4 END` : '';
   const result = await client.query(
     `SELECT ${artworkSelect}
-     FROM radio.songs
+     FROM radio.songs s
      WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
      ${orderBy}
      LIMIT 1`,
