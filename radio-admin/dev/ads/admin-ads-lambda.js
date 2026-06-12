@@ -1937,25 +1937,9 @@ function uploadFolderForPurpose(purpose, artist, songKey) {
   return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
 }
 
-function getAdVideoFolder(body) {
-  const requestedFolder = String(body.requested_folder || body.requestedFolder || '').trim().toLowerCase();
-  const folderByAdType = {
-    'stashbox radio branding': 'branding',
-    'song promo': 'songs',
-    'merch promo': 'merch',
-    'elettro promo': 'elettro',
-    'sponsor ad': 'sponsors',
-    'event promo': 'events',
-    'donation campaign': 'campaigns',
-    'global promo': 'global'
-  };
-  const folder = folderByAdType[String(body.ad_type || body.adType || '').trim().toLowerCase()] || requestedFolder || 'branding';
-  return slugifyPathSegment(folder, 'branding');
-}
-
 function uploadFolderForRequest(purpose, body) {
   if (purpose === 'ad_video') {
-    return `radio-assets/ads/video/${getAdVideoFolder(body)}`;
+    return 'radio-assets/ads/video/branding';
   }
 
   const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
