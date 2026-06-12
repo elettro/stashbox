@@ -4243,7 +4243,10 @@ function updateMediaPreview(fieldName) {
   }
 
   if (config.previewType === 'visual_assets') {
-    const visibleAssets = getUniqueVisualAssetEntries(parseVisualAssetsInput(url));
+    const assetEntries = getUniqueVisualAssetEntries(parseVisualAssetsInput(url));
+    const visibleAssets = controls.preview.dataset.visualAssetsCombined === 'true'
+      ? assetEntries
+      : assetEntries.filter(({ asset }) => config.assetType === 'clip' ? asset.type === 'clip' : asset.type !== 'clip');
 
     controls.preview.classList.toggle('hidden', visibleAssets.length === 0);
     if (!visibleAssets.length) {
@@ -4254,12 +4257,13 @@ function updateMediaPreview(fieldName) {
     const clips = visibleAssets.filter(({ asset }) => asset.type === 'clip').length;
     const summary = document.createElement('div');
     summary.className = 'visual-assets-summary';
-    summary.textContent = `${visibleAssets.length} visual asset${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
+    summary.textContent = controls.preview.dataset.visualAssetsCombined === 'true'
+      ? `${visibleAssets.length} visual asset${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`
+      : `${visibleAssets.length} visual ${config.assetType === 'clip' ? 'clip' : 'image'}${visibleAssets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
     controls.preview.appendChild(summary);
 
     const scrollRegion = document.createElement('div');
     scrollRegion.className = 'visual-assets-scroll-region';
-    scrollRegion.setAttribute('aria-label', 'All Song Experience visual assets');
 
     const grid = document.createElement('div');
     grid.className = 'visual-assets-preview-grid';
