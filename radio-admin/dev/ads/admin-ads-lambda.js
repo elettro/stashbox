@@ -91,6 +91,7 @@ const SONG_EDITABLE_FIELDS = [
   'enhanced_visuals_enabled',
   'visual_assets',
   'shuffle_visuals',
+  'visual_still_duration_seconds',
   'still_image_duration_seconds',
   'public_track_note',
   'show_public_note',
@@ -139,6 +140,7 @@ const DEFAULT_SONG_COLUMNS = `
   enhanced_visuals_enabled,
   visual_assets,
   shuffle_visuals,
+  visual_still_duration_seconds,
   still_image_duration_seconds,
   public_track_note,
   show_public_note,
@@ -332,10 +334,19 @@ async function ensureSongExperienceColumns(client = pool) {
   try {
     await client.query(`
       ALTER TABLE radio.songs
-      ADD COLUMN IF NOT EXISTS enhanced_visuals_enabled boolean DEFAULT false,
-      ADD COLUMN IF NOT EXISTS visual_assets jsonb DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS enhanced_visuals_enabled boolean DEFAULT true,
       ADD COLUMN IF NOT EXISTS shuffle_visuals boolean DEFAULT true,
+      ADD COLUMN IF NOT EXISTS visual_still_duration_seconds integer DEFAULT 8,
+      ADD COLUMN IF NOT EXISTS visual_assets jsonb DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS still_image_duration_seconds integer DEFAULT 8
+    `);
+    await client.query(`
+      ALTER TABLE radio.songs
+      ALTER COLUMN enhanced_visuals_enabled SET DEFAULT true,
+      ALTER COLUMN shuffle_visuals SET DEFAULT true,
+      ALTER COLUMN visual_still_duration_seconds SET DEFAULT 8,
+      ALTER COLUMN visual_assets SET DEFAULT '[]'::jsonb,
+      ALTER COLUMN still_image_duration_seconds SET DEFAULT 8
     `);
   } catch (error) {
     console.warn('Could not ensure radio.songs song experience columns. Continuing safely.', error.message || error);
@@ -867,9 +878,10 @@ function normalizeSongRow(song) {
     ...song,
     specific_product_urls: normalizeStoredStringArray(song.specific_product_urls),
     visual_assets: normalizeStoredVisualAssets(song.visual_assets),
-    enhanced_visuals_enabled: Boolean(song.enhanced_visuals_enabled),
+    enhanced_visuals_enabled: song.enhanced_visuals_enabled === null || song.enhanced_visuals_enabled === undefined ? true : Boolean(song.enhanced_visuals_enabled),
     shuffle_visuals: song.shuffle_visuals === null || song.shuffle_visuals === undefined ? true : Boolean(song.shuffle_visuals),
-    still_image_duration_seconds: normalizeVisualDuration(song.still_image_duration_seconds)
+    visual_still_duration_seconds: normalizeVisualDuration(song.visual_still_duration_seconds ?? song.still_image_duration_seconds),
+    still_image_duration_seconds: normalizeVisualDuration(song.still_image_duration_seconds ?? song.visual_still_duration_seconds)
   };
 }
 
@@ -880,8 +892,8 @@ function normalizeSongPayload(input, { partial = false } = {}) {
     normalizedInput.shuffle_visuals = normalizedInput.visual_shuffle;
   }
 
-  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_still_duration_seconds') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'still_image_duration_seconds')) {
-    normalizedInput.still_image_duration_seconds = normalizedInput.visual_still_duration_seconds;
+  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'still_image_duration_seconds') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_still_duration_seconds')) {
+    normalizedInput.visual_still_duration_seconds = normalizedInput.still_image_duration_seconds;
   }
 
   const payload = {};
@@ -898,8 +910,8 @@ function normalizeSongPayload(input, { partial = false } = {}) {
         return;
       }
 
-      if (field === 'still_image_duration_seconds') {
-        payload.still_image_duration_seconds = normalizeVisualDuration(normalizedInput.still_image_duration_seconds);
+      if (field === 'visual_still_duration_seconds' || field === 'still_image_duration_seconds') {
+        payload[field] = normalizeVisualDuration(normalizedInput[field]);
         return;
       }
 
