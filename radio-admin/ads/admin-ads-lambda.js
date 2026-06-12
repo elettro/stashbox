@@ -361,6 +361,22 @@ async function ensureSongsLikesColumn(dbClient = client) {
   }
 }
 
+async function ensureSongsShareColumn(dbClient = client) {
+  try {
+    await dbClient.query(`
+      ALTER TABLE radio.songs
+      ADD COLUMN IF NOT EXISTS shares integer DEFAULT 0
+    `);
+    await dbClient.query(`
+      UPDATE radio.songs
+      SET shares = 0
+      WHERE shares IS NULL
+    `);
+  } catch (error) {
+    console.warn('Could not ensure radio.songs.shares. Continuing safely.', error.message || error);
+  }
+}
+
 async function adsDurationColumnSelect() {
   try {
     const result = await client.query(
@@ -379,6 +395,7 @@ async function ensureAdStorage() {
   await ensureAdSettingsTable();
   await ensureAdsDurationColumn();
   await ensureSongsLikesColumn();
+  await ensureSongsShareColumn();
 }
 
 async function getAdSettings({ publicOnly = false } = {}) {
@@ -865,8 +882,13 @@ function normalizeSongRow(song) {
     return song;
   }
 
+  const shares = Math.max(numberValue(song.shares), numberValue(song.share_count), numberValue(song.total_shares));
+
   return {
     ...song,
+    shares,
+    share_count: shares,
+    total_shares: shares,
     specific_product_urls: normalizeStoredStringArray(song.specific_product_urls),
     visual_assets: normalizeStoredVisualAssets(song.visual_assets),
     enhanced_visuals_enabled: song.enhanced_visuals_enabled === null || song.enhanced_visuals_enabled === undefined ? true : Boolean(song.enhanced_visuals_enabled),
@@ -1138,6 +1160,7 @@ async function withStatsRouteLogging(route, method, handler) {
 
 async function getSongs({ includeArchived = false } = {}) {
   await ensureSongsLikesColumn();
+  await ensureSongsShareColumn();
   const columns = await getTableColumns('radio', 'songs');
   const hasVisibility = columns.has('public_visibility');
   const hasSortOrder = columns.has('sort_order');
@@ -1376,6 +1399,59 @@ async function trackSongEvent(client, event) {
       song_key: updated.song_key,
       display_title: updated.display_title,
       likes: Number(updated.likes || 0)
+    });
+  }
+
+
+  if (eventType === 'share') {
+    console.log('[Stashbox Radio API] share event received', {
+      songKey,
+      songId,
+      bodySongKey: body.song_key,
+      bodySongId: body.song_id,
+      event_type: body.event_type
+    });
+
+    await ensureSongsShareColumn(client);
+    const result = await client.query(
+      `UPDATE radio.songs
+       SET shares = COALESCE(shares, 0) + 1,
+           updated_at = now()
+       WHERE song_key = $1
+          OR id::text = $2
+       RETURNING id, song_key, display_title, shares`,
+      [songKey, songId]
+    );
+
+    console.log('[Stashbox Radio API] share update result', {
+      rowCount: result.rowCount,
+      rows: result.rows
+    });
+
+    if (!result.rowCount) {
+      console.warn('[Stashbox Radio API] share did not match song', {
+        songKey,
+        songId
+      });
+      return response(404, {
+        success: false,
+        error: 'Share did not match a song',
+        song_key: songKey,
+        song_id: songId
+      });
+    }
+
+    const updated = result.rows[0];
+    const shares = Number(updated.shares || 0);
+    return response(200, {
+      success: true,
+      event_type: 'share',
+      id: updated.id,
+      song_key: updated.song_key,
+      display_title: updated.display_title,
+      shares,
+      share_count: shares,
+      total_shares: shares
     });
   }
 
