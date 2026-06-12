@@ -217,6 +217,7 @@ const deviceKpiDefinitions = [
 const fieldElements = new Map();
 const fieldWrappers = new Map();
 const mediaUploadElements = new Map();
+let editorVisualAssets = [];
 
 const requiredSongFields = new Set([
   'song_name',
@@ -3290,9 +3291,11 @@ function populateEditor(song, { mode = 'edit' } = {}) {
   els.dangerZone.classList.toggle('hidden', mode === 'create');
   applyEditorModeToFields(mode);
 
+  editorVisualAssets = normalizeVisualAssets(getSongFieldValue(song, 'visual_assets'));
+
   editableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
-    const value = getSongFieldValue(song, field.name);
+    const value = field.name === 'visual_assets' ? editorVisualAssets : getSongFieldValue(song, field.name);
 
     if (field.type === 'select') {
       setSelectValue(input, field, field.name === 'public_visibility' ? normalizePublicVisibility(value) : value);
@@ -3847,9 +3850,14 @@ async function uploadSongMediaFiles(fieldName, files) {
   const uploadedAssets = [];
 
   for (const file of files) {
-    const publicUrl = await uploadSongMedia(fieldName, file, { updateField: false, silentSuccess: true });
-    if (publicUrl) {
-      uploadedAssets.push({ type: config.assetType || config.purpose, url: publicUrl, source: 'song' });
+    const uploadResult = await uploadSongMedia(fieldName, file, { updateField: false, silentSuccess: true });
+    if (uploadResult?.url) {
+      uploadedAssets.push({
+        type: config.assetType || config.purpose,
+        url: uploadResult.url,
+        source: 'song',
+        key: uploadResult.key || getS3KeyFromUrl(uploadResult.url)
+      });
     }
   }
 
@@ -3857,10 +3865,10 @@ async function uploadSongMediaFiles(fieldName, files) {
     return;
   }
 
-  const input = fieldElements.get(targetField);
-  const existingAssets = parseVisualAssetsInput(input?.value);
-  input.value = JSON.stringify([...existingAssets, ...uploadedAssets], null, 2);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
+  const assets = appendVisualAssets(uploadedAssets, targetField);
+  if (!assets.length) {
+    return;
+  }
   setUploadStatus(fieldName, config.successMessage, 'success');
   showMessage(config.successMessage, 'success');
 }
@@ -3907,6 +3915,7 @@ async function uploadSongMedia(fieldName, file, { updateField = true, silentSucc
 
     const uploadUrl = presignResult?.upload_url;
     const publicUrl = presignResult?.public_url;
+    const objectKey = presignResult?.key || presignResult?.object_key || getS3KeyFromUrl(publicUrl);
 
     if (!uploadUrl || !publicUrl) {
       throw new Error('Presign response was missing upload_url or public_url.');
@@ -3924,19 +3933,92 @@ async function uploadSongMedia(fieldName, file, { updateField = true, silentSucc
       throw new Error(`S3 upload failed with status ${s3Response.status}.`);
     }
 
-    const urlInput = fieldElements.get(fieldName);
-    urlInput.value = publicUrl;
-    urlInput.dispatchEvent(new Event('input', { bubbles: true }));
-    setUploadStatus(fieldName, config.successMessage, 'success');
-    showMessage(config.successMessage, 'success');
+    if (updateField) {
+      const targetField = config.targetField || fieldName;
+      const urlInput = fieldElements.get(targetField);
+
+      if (config.previewType === 'visual_assets') {
+        appendVisualAssets([{
+          type: config.assetType || (isVideoVisualAssetUrl(publicUrl) ? 'clip' : 'image'),
+          url: publicUrl,
+          source: 'song',
+          key: objectKey
+        }], targetField);
+      } else if (urlInput) {
+        urlInput.value = publicUrl;
+        urlInput.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        console.warn(`[Stashbox Radio Admin Dev] Upload target field missing: ${targetField}. Uploaded URL was not written to a form control.`, { fieldName, targetField, publicUrl });
+      }
+    }
+
+    if (!silentSuccess) {
+      setUploadStatus(fieldName, config.successMessage, 'success');
+      showMessage(config.successMessage, 'success');
+    }
+
+    return { url: publicUrl, key: objectKey };
   } catch (error) {
     setUploadStatus(fieldName, `${config.failurePrefix}: ${error.message}`, 'error');
-    return '';
+    return null;
   } finally {
     setUploadControlDisabled(fieldName, false);
   }
 }
 
+
+function appendVisualAssets(newAssets, targetField = 'visual_assets') {
+  const normalizedNewAssets = normalizeVisualAssets(newAssets);
+  if (!normalizedNewAssets.length) {
+    return getEditorVisualAssets();
+  }
+
+  const input = fieldElements.get(targetField);
+  const existingAssets = input ? parseVisualAssetsInput(input.value) : getEditorVisualAssets();
+  const mergedAssets = [...existingAssets, ...normalizedNewAssets];
+  editorVisualAssets = mergedAssets;
+
+  if (input) {
+    input.value = JSON.stringify(mergedAssets, null, 2);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    updateMediaPreview('visual_clip_assets');
+  } else {
+    console.warn(`[Stashbox Radio Admin Dev] Visual assets field missing: ${targetField}. Keeping uploaded assets in editor state.`, { targetField, assets: mergedAssets });
+    updateMediaPreview(targetField);
+  }
+
+  updateVisualAssetsUploadStatuses(mergedAssets);
+  return mergedAssets;
+}
+
+function getEditorVisualAssets() {
+  const input = fieldElements.get('visual_assets');
+  if (input) {
+    editorVisualAssets = parseVisualAssetsInput(input.value);
+  }
+  return editorVisualAssets;
+}
+
+function updateVisualAssetsUploadStatuses(assets = getEditorVisualAssets()) {
+  const images = assets.filter((asset) => asset.type !== 'clip').length;
+  const clips = assets.filter((asset) => asset.type === 'clip').length;
+  const summary = assets.length ? `${assets.length} visual asset${assets.length === 1 ? '' : 's'} saved in editor (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'}).` : '';
+  ['visual_assets', 'visual_clip_assets'].forEach((fieldName) => {
+    const currentStatus = mediaUploadElements.get(fieldName)?.status?.textContent || '';
+    if (!currentStatus || /visual asset|saved in editor|uploaded|uploads added/i.test(currentStatus)) {
+      setUploadStatus(fieldName, summary, assets.length ? 'success' : 'idle');
+    }
+  });
+}
+
+function getS3KeyFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+  } catch (_) {
+    return '';
+  }
+}
 
 function parseVisualAssetsInput(value) {
   if (Array.isArray(value)) {
@@ -3951,7 +4033,7 @@ function parseVisualAssetsInput(value) {
   } catch (_) {
     return text
       .split(/\r?\n/)
-      .map((url) => ({ type: isVideoVisualAssetUrl(url) ? 'clip' : 'image', url: url.trim(), source: 'song' }))
+      .map((url) => ({ type: isVideoVisualAssetUrl(url) ? 'clip' : 'image', url: url.trim(), source: 'song', key: getS3KeyFromUrl(url.trim()) }))
       .filter((asset) => asset.url);
   }
 }
@@ -3966,7 +4048,8 @@ function normalizeVisualAssets(value) {
     .map((asset) => ({
       type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
       url: String(asset?.url || asset?.src || '').trim(),
-      source: 'song'
+      source: String(asset?.source || 'song').trim() || 'song',
+      key: String(asset?.key || asset?.object_key || getS3KeyFromUrl(asset?.url || asset?.src || '')).trim()
     }))
     .filter((asset) => asset.url);
 }
@@ -4012,7 +4095,8 @@ function setUploadStatus(fieldName, message, status = 'idle') {
 function updateMediaPreview(fieldName) {
   const controls = mediaUploadElements.get(fieldName);
   const config = uploadConfigs[fieldName];
-  const url = String(fieldElements.get(fieldName)?.value || '').trim();
+  const targetField = config?.targetField || fieldName;
+  const url = String(fieldElements.get(targetField)?.value || '').trim();
 
   if (!controls?.preview) {
     return;
@@ -4046,6 +4130,14 @@ function updateMediaPreview(fieldName) {
   if (config.previewType === 'visual_assets') {
     const assets = parseVisualAssetsInput(url);
     controls.preview.classList.toggle('hidden', assets.length === 0);
+    if (assets.length) {
+      const images = assets.filter((asset) => asset.type !== 'clip').length;
+      const clips = assets.filter((asset) => asset.type === 'clip').length;
+      const summary = document.createElement('div');
+      summary.className = 'visual-assets-summary';
+      summary.textContent = `${assets.length} visual asset${assets.length === 1 ? '' : 's'} (${images} image${images === 1 ? '' : 's'}, ${clips} clip${clips === 1 ? '' : 's'})`;
+      controls.preview.appendChild(summary);
+    }
     assets.slice(-6).forEach((asset) => {
       const item = document.createElement(asset.type === 'clip' ? 'video' : 'img');
       item.src = asset.url;
@@ -4097,7 +4189,7 @@ function getFieldPayloadValue(field) {
   }
 
   if (field.name === 'visual_assets') {
-    return parseVisualAssetsInput(input.value);
+    return getEditorVisualAssets();
   }
 
   if (field.name === 'still_image_duration_seconds') {

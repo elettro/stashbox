@@ -1500,6 +1500,14 @@ textarea {
   height: 38px;
 }
 
+
+.visual-assets-summary {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
 .compact-media-preview img {
   display: block;
   width: 96px;

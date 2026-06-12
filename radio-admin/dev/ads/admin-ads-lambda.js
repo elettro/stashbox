@@ -807,12 +807,22 @@ function normalizeVisualDuration(value) {
   return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
 }
 
+function getS3KeyFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+  } catch (error) {
+    return '';
+  }
+}
+
 function normalizeVisualAssets(value) {
   return (Array.isArray(value) ? value : [])
     .map((asset) => ({
       type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
       url: String(asset?.url || asset?.src || '').trim(),
-      source: 'song'
+      source: String(asset?.source || 'song').trim() || 'song',
+      key: String(asset?.key || asset?.object_key || getS3KeyFromUrl(asset?.url || asset?.src || '')).trim()
     }))
     .filter((asset) => asset.url);
 }
@@ -864,26 +874,36 @@ function normalizeSongRow(song) {
 }
 
 function normalizeSongPayload(input, { partial = false } = {}) {
+  const normalizedInput = { ...input };
+
+  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_shuffle') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'shuffle_visuals')) {
+    normalizedInput.shuffle_visuals = normalizedInput.visual_shuffle;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_still_duration_seconds') && !Object.prototype.hasOwnProperty.call(normalizedInput, 'still_image_duration_seconds')) {
+    normalizedInput.still_image_duration_seconds = normalizedInput.visual_still_duration_seconds;
+  }
+
   const payload = {};
   SONG_EDITABLE_FIELDS.forEach((field) => {
-    if (Object.prototype.hasOwnProperty.call(input, field)) {
+    if (Object.prototype.hasOwnProperty.call(normalizedInput, field)) {
       if (field === 'specific_product_urls') {
-        const cleanSpecificProductUrls = normalizeStringArray(input.specific_product_urls);
+        const cleanSpecificProductUrls = normalizeStringArray(normalizedInput.specific_product_urls);
         payload.specific_product_urls = JSON.stringify(cleanSpecificProductUrls);
         return;
       }
 
       if (field === 'visual_assets') {
-        payload.visual_assets = JSON.stringify(normalizeVisualAssets(input.visual_assets));
+        payload.visual_assets = JSON.stringify(normalizeVisualAssets(normalizedInput.visual_assets));
         return;
       }
 
       if (field === 'still_image_duration_seconds') {
-        payload.still_image_duration_seconds = normalizeVisualDuration(input.still_image_duration_seconds);
+        payload.still_image_duration_seconds = normalizeVisualDuration(normalizedInput.still_image_duration_seconds);
         return;
       }
 
-      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(input[field]) : input[field];
+      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(normalizedInput[field]) : normalizedInput[field];
     }
   });
 
@@ -1766,6 +1786,7 @@ async function createUploadPresign(event) {
     success: true,
     upload_url: uploadUrl,
     public_url: `${publicBaseUrl.replace(/\/+$/, '')}/${key}`,
+    key,
     method: 'PUT',
     headers: { 'Content-Type': contentType }
   });
