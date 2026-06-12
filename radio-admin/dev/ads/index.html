@@ -1524,11 +1524,8 @@
         const contentType = getVideoContentType(file);
         const presignPayload = {
           purpose: 'ad_video',
-          ad_type: adType,
-          internal_title: title,
           filename: file.name,
-          contentType,
-          requested_folder: FOLDER_BY_AD_TYPE[adType]
+          contentType
         };
         console.log('ad video presign payload', presignPayload);
         const presign = normalizePresignResponse(await adminFetch(UPLOAD_PRESIGN_API_URL, {
