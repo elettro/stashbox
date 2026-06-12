@@ -1937,6 +1937,20 @@ function uploadFolderForPurpose(purpose, artist, songKey) {
   return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
 }
 
+function uploadFolderForRequest(purpose, body) {
+  if (purpose === 'ad_video') {
+    const adSlug = slugifyPathSegment(
+      body.ad_type || body.adType || body.ad_slug || body.adSlug || body.internal_title || body.internalTitle || 'unsorted',
+      'unsorted'
+    );
+    return `radio-assets/ads/video/${adSlug}`;
+  }
+
+  const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
+  const artist = String(body.artist || body.artist_slug || body.artistSlug || 'stashbox').trim();
+  return uploadFolderForPurpose(purpose, artist, songKey);
+}
+
 function getFileExtension(filename) {
   const extension = String(filename || '').split('.').pop() || '';
   return extension.trim().toLowerCase();
@@ -1955,6 +1969,7 @@ function validateUploadRequest(body) {
   const artworkPurposes = new Set(['artwork']);
   const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image']);
   const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip']);
+  const adVideoPurposes = new Set(['ad_video']);
   const audioExtensions = new Set(['wav', 'mp3', 'm4a', 'flac', 'aiff', 'aif']);
   const audioMimeTypes = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/aiff', 'audio/x-aiff']);
   const artworkExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
@@ -1962,21 +1977,23 @@ function validateUploadRequest(body) {
   const visualImageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
   const visualClipExtensions = new Set(['mp4', 'webm', 'mov']);
   const visualClipMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/mov']);
+  const adVideoMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 
   const isOctetStream = contentType === 'application/octet-stream';
   const validAudio = isUploadPurpose(purpose, audioPurposes) && (audioMimeTypes.has(contentType) || (isOctetStream && audioExtensions.has(extension)));
   const validArtwork = isUploadPurpose(purpose, artworkPurposes) && (artworkMimeTypes.has(contentType) || (isOctetStream && artworkExtensions.has(extension)));
   const validVisualImage = isUploadPurpose(purpose, visualImagePurposes) && ((contentType.startsWith('image/') && visualImageExtensions.has(extension)) || (isOctetStream && visualImageExtensions.has(extension)));
   const validVisualClip = isUploadPurpose(purpose, visualClipPurposes) && ((contentType.startsWith('video/') && visualClipExtensions.has(extension)) || (isOctetStream && visualClipExtensions.has(extension)));
+  const validAdVideo = isUploadPurpose(purpose, adVideoPurposes) && (adVideoMimeTypes.has(contentType) || (isOctetStream && visualClipExtensions.has(extension)));
 
-  if (validAudio || validArtwork || validVisualImage || validVisualClip) {
+  if (validAudio || validArtwork || validVisualImage || validVisualClip || validAdVideo) {
     return { ok: true, filename, purpose, contentType };
   }
 
   return {
     ok: false,
     statusCode: 400,
-    error: 'Unsupported upload purpose or file type. Supported purposes are audio, artwork, visual_image, and visual_clip.'
+    error: 'Unsupported upload purpose or file type. Supported purposes are audio, artwork, visual_image, visual_clip, and ad_video.'
   };
 }
 
@@ -1997,12 +2014,10 @@ async function createAdminUploadPresign(event) {
     return response(validation.statusCode, { success: false, error: validation.error });
   }
 
-  const filename = validation.filename.replace(/[^A-Za-z0-9._-]/g, '-');
+  const filename = validation.filename.replace(/[^A-Za-z0-9._-]/g, '-') || 'upload.bin';
   const purpose = validation.purpose;
-  const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
-  const artist = String(body.artist || body.artist_slug || body.artistSlug || 'stashbox').trim();
   const contentType = validation.contentType;
-  const key = `${uploadFolderForPurpose(purpose, artist, songKey)}/${Date.now()}-${filename}`;
+  const key = `${uploadFolderForRequest(purpose, body)}/${Date.now()}-${filename}`;
   const host = `${bucket}.s3.${region}.amazonaws.com`;
   const now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
