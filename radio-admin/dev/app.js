@@ -4209,7 +4209,7 @@ function updateMediaPreview(fieldName) {
   const config = uploadConfigs[fieldName];
   const targetField = config?.targetField || fieldName;
   const targetInput = fieldElements.get(targetField);
-  const url = config?.previewType === 'visual_assets' && !targetInput
+  const url = config?.previewType === 'visual_assets'
     ? JSON.stringify(getEditorVisualAssets())
     : String(targetInput?.value || '').trim();
 
