@@ -530,9 +530,9 @@
             <input id="videoUrl" type="url" placeholder="Filled automatically after upload, or paste an S3 URL" />
           </label>
           <div class="full upload-inline">
-            <input id="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+            <input id="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" />
             <button id="uploadButton" class="button-secondary" type="button">Upload Video</button>
-            <span id="uploadStatus" class="helper">Select a video file (.mp4, .webm, or .mov). Upload uses the existing dev presign endpoint with purpose ad_video.</span>
+            <span id="uploadStatus" class="helper">Select a video file (.mp4, .webm, .mov, or .m4v). Upload uses the existing dev presign endpoint with purpose ad_video.</span>
           </div>
           <label class="full">Click Video URL
             <input id="clickVideoUrl" type="url" placeholder="Future CTA destination URL" />
@@ -676,14 +676,14 @@
     const FREQUENCY_OPTIONS = ['Low', 'Medium', 'High'];
 
     const FOLDER_BY_AD_TYPE = {
-      'Stashbox Radio Branding': 'radio-assets/ads/video/branding/',
-      'Song Promo': 'radio-assets/ads/video/campaigns/',
-      'Merch Promo': 'radio-assets/ads/video/merch/',
-      'Elettro Promo': 'radio-assets/ads/video/campaigns/',
-      'Sponsor Ad': 'radio-assets/ads/video/sponsors/',
-      'Event Promo': 'radio-assets/ads/video/events/',
-      'Donation Campaign': 'radio-assets/ads/video/campaigns/',
-      'Global Promo': 'radio-assets/ads/video/global/'
+      'Stashbox Radio Branding': 'branding',
+      'Song Promo': 'songs',
+      'Merch Promo': 'merch',
+      'Elettro Promo': 'elettro',
+      'Sponsor Ad': 'sponsors',
+      'Event Promo': 'events',
+      'Donation Campaign': 'campaigns',
+      'Global Promo': 'global'
     };
 
     const state = {
@@ -1527,16 +1527,18 @@
           ad_type: adType,
           internal_title: title,
           filename: file.name,
-          content_type: contentType,
-          requested_prefix: FOLDER_BY_AD_TYPE[adType]
+          contentType,
+          requested_folder: FOLDER_BY_AD_TYPE[adType]
         };
+        console.log('ad video presign payload', presignPayload);
         const presign = normalizePresignResponse(await adminFetch(UPLOAD_PRESIGN_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(presignPayload)
         }));
-        const uploadUrl = presign.upload_url;
-        const publicUrl = presign.public_url;
+        console.log('ad video presign response', presign);
+        const uploadUrl = presign.uploadUrl || presign.upload_url;
+        const publicUrl = presign.publicUrl || presign.public_url;
         if (!uploadUrl || !publicUrl) {
           throw new Error('Presign response was missing upload_url or public_url. Upload needs backend presign support for ad_video. Paste S3 URL for now.');
         }
@@ -1566,19 +1568,20 @@
     }
 
     function getVideoContentType(file) {
+      const extension = getVideoFileExtension(file);
       const contentType = String(file?.type || '').toLowerCase();
-      if (contentType) return contentType;
-      const fallbackByExtension = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
-      return fallbackByExtension[getVideoFileExtension(file)] || 'application/octet-stream';
+      if (contentType && !(extension === 'm4v' && contentType === 'video/x-m4v')) return contentType;
+      const fallbackByExtension = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'application/octet-stream' };
+      return fallbackByExtension[extension] || 'application/octet-stream';
     }
 
     function validateVideoFile(file) {
       const extension = getVideoFileExtension(file);
-      const contentType = String(file.type || '').toLowerCase();
-      const allowedExtensions = new Set(['mp4', 'webm', 'mov']);
-      const allowedMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
-      if (!allowedExtensions.has(extension)) return 'Video file type is not allowed. Use .mp4, .webm, or .mov.';
-      if (contentType && !allowedMimeTypes.has(contentType)) return 'Video MIME type is not allowed. Use video/mp4, video/webm, or video/quicktime.';
+      const contentType = getVideoContentType(file);
+      const allowedExtensions = new Set(['mp4', 'webm', 'mov', 'm4v']);
+      const allowedMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'application/octet-stream']);
+      if (!allowedExtensions.has(extension)) return 'Video file type is not allowed. Use .mp4, .webm, .mov, or .m4v.';
+      if (contentType && !allowedMimeTypes.has(contentType)) return 'Video MIME type is not allowed. Use video/mp4, video/webm, video/quicktime, or application/octet-stream for .mp4, .webm, .mov, and .m4v files.';
       return '';
     }
 
@@ -1618,7 +1621,7 @@
     }
 
     function setUploadStatus(message, status = '') {
-      els.uploadStatus.textContent = message || 'Select a video file (.mp4, .webm, or .mov). Upload uses the existing dev presign endpoint with purpose ad_video.';
+      els.uploadStatus.textContent = message || 'Select a video file (.mp4, .webm, .mov, or .m4v). Upload uses the existing dev presign endpoint with purpose ad_video.';
       els.uploadStatus.style.color = status === 'error' ? 'var(--danger)' : status === 'success' ? 'var(--accent-2)' : status === 'busy' ? 'var(--warning)' : 'var(--muted)';
     }
 
