@@ -653,12 +653,29 @@ function getAdEventType(event) {
   }
 }
 
+function getPayloadEventType(body = {}, fallback = '') {
+  return String(body.event_type || body.eventType || body.type || body.action || fallback || '').trim();
+}
+
 function getTrackEventType(event) {
   try {
     const body = parseBody(event);
-    return String(body.event_type || body.eventType || '').trim();
+    return getPayloadEventType(
+      body,
+      event.queryStringParameters?.event_type ||
+        event.queryStringParameters?.eventType ||
+        event.queryStringParameters?.type ||
+        event.queryStringParameters?.action ||
+        ''
+    );
   } catch (_) {
-    return '';
+    return String(
+      event.queryStringParameters?.event_type ||
+      event.queryStringParameters?.eventType ||
+      event.queryStringParameters?.type ||
+      event.queryStringParameters?.action ||
+      ''
+    ).trim();
   }
 }
 
@@ -671,7 +688,7 @@ async function handleTrackRoute(client, event, trackEvent) {
 async function trackAdEvent(client, event, overrides = {}) {
   const body = { ...parseBody(event), ...overrides };
   const adId = String(body.ad_id || body.adId || '').trim();
-  const eventType = String(body.event_type || body.eventType || '').trim();
+  const eventType = getPayloadEventType(body);
 
   if (!adId || !SUPPORTED_AD_EVENTS.has(eventType)) {
     return response(400, { success: false, error: 'Invalid or missing ad event' });
@@ -1229,8 +1246,8 @@ async function getSongs({ includeArchived = false } = {}) {
     ? 'ORDER BY sort_order ASC, song_name ASC NULLS LAST, display_title ASC NULLS LAST'
     : 'ORDER BY created_at DESC NULLS LAST, song_name ASC NULLS LAST, display_title ASC NULLS LAST';
   const artworkSelect = columns.has('resolved_artwork_url')
-    ? '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
-    : '*, COALESCE(s.likes, 0)::int AS likes, song_artwork_url AS resolved_artwork_url';
+    ? '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(s.shares, 0)::int AS shares, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
+    : '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(s.shares, 0)::int AS shares, song_artwork_url AS resolved_artwork_url';
   const [result, countsByIdentity] = await Promise.all([
     client.query(`SELECT ${artworkSelect} FROM radio.songs s ${where} ${orderBy}`),
     loadSongEventCounts()
@@ -1257,6 +1274,7 @@ async function getAdminSongs() {
     s.visual_still_duration_seconds,
     s.visual_assets,
     COALESCE(s.likes, 0)::int AS likes,
+    COALESCE(s.shares, 0)::int AS shares,
     ${columns.has('resolved_artwork_url') ? 'COALESCE(s.resolved_artwork_url, s.song_artwork_url)' : 's.song_artwork_url'} AS resolved_artwork_url
   `;
   const [result, countsByIdentity] = await Promise.all([
@@ -1404,7 +1422,7 @@ async function updateAdminSong(event) {
 
 async function trackSongEvent(client, event) {
   const body = parseBody(event);
-  const eventType = String(body.event_type || body.eventType || '').trim();
+  const eventType = getPayloadEventType(body);
   const normalizedSongKey = String(body.song_key || body.songKey || body.track_key || '').trim();
   const normalizedSongId = String(body.song_id || body.songId || body.id || '').trim();
   const songKey = normalizedSongKey || null;
