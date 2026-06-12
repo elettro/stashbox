@@ -1937,13 +1937,25 @@ function uploadFolderForPurpose(purpose, artist, songKey) {
   return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
 }
 
+function getAdVideoFolder(body) {
+  const requestedFolder = String(body.requested_folder || body.requestedFolder || '').trim().toLowerCase();
+  const folderByAdType = {
+    'stashbox radio branding': 'branding',
+    'song promo': 'songs',
+    'merch promo': 'merch',
+    'elettro promo': 'elettro',
+    'sponsor ad': 'sponsors',
+    'event promo': 'events',
+    'donation campaign': 'campaigns',
+    'global promo': 'global'
+  };
+  const folder = folderByAdType[String(body.ad_type || body.adType || '').trim().toLowerCase()] || requestedFolder || 'branding';
+  return slugifyPathSegment(folder, 'branding');
+}
+
 function uploadFolderForRequest(purpose, body) {
   if (purpose === 'ad_video') {
-    const adSlug = slugifyPathSegment(
-      body.ad_type || body.adType || body.ad_slug || body.adSlug || body.internal_title || body.internalTitle || 'unsorted',
-      'unsorted'
-    );
-    return `radio-assets/ads/video/${adSlug}`;
+    return `radio-assets/ads/video/${getAdVideoFolder(body)}`;
   }
 
   const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
@@ -1961,7 +1973,7 @@ function isUploadPurpose(purpose, aliases) {
 }
 
 function validateUploadRequest(body) {
-  const filename = String(body.filename || 'upload.bin');
+  const filename = String(body.filename || body.fileName || 'upload.bin');
   const purpose = String(body.purpose || 'upload').replace(/[^A-Za-z0-9/_-]/g, '-').toLowerCase();
   const contentType = String(body.content_type || body.contentType || 'application/octet-stream').toLowerCase();
   const extension = getFileExtension(filename);
@@ -1976,6 +1988,7 @@ function validateUploadRequest(body) {
   const artworkMimeTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
   const visualImageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
   const visualClipExtensions = new Set(['mp4', 'webm', 'mov']);
+  const adVideoExtensions = new Set(['mp4', 'webm', 'mov', 'm4v']);
   const visualClipMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/mov']);
   const adVideoMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 
@@ -1984,7 +1997,7 @@ function validateUploadRequest(body) {
   const validArtwork = isUploadPurpose(purpose, artworkPurposes) && (artworkMimeTypes.has(contentType) || (isOctetStream && artworkExtensions.has(extension)));
   const validVisualImage = isUploadPurpose(purpose, visualImagePurposes) && ((contentType.startsWith('image/') && visualImageExtensions.has(extension)) || (isOctetStream && visualImageExtensions.has(extension)));
   const validVisualClip = isUploadPurpose(purpose, visualClipPurposes) && ((contentType.startsWith('video/') && visualClipExtensions.has(extension)) || (isOctetStream && visualClipExtensions.has(extension)));
-  const validAdVideo = isUploadPurpose(purpose, adVideoPurposes) && (adVideoMimeTypes.has(contentType) || (isOctetStream && visualClipExtensions.has(extension)));
+  const validAdVideo = isUploadPurpose(purpose, adVideoPurposes) && (adVideoMimeTypes.has(contentType) || (isOctetStream && adVideoExtensions.has(extension)));
 
   if (validAudio || validArtwork || validVisualImage || validVisualClip || validAdVideo) {
     return { ok: true, filename, purpose, contentType };
@@ -2017,7 +2030,9 @@ async function createAdminUploadPresign(event) {
   const filename = validation.filename.replace(/[^A-Za-z0-9._-]/g, '-') || 'upload.bin';
   const purpose = validation.purpose;
   const contentType = validation.contentType;
-  const key = `${uploadFolderForRequest(purpose, body)}/${Date.now()}-${filename}`;
+  const key = purpose === 'ad_video'
+    ? `${uploadFolderForRequest(purpose, body)}/${filename}`
+    : `${uploadFolderForRequest(purpose, body)}/${Date.now()}-${filename}`;
   const host = `${bucket}.s3.${region}.amazonaws.com`;
   const now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
@@ -2045,11 +2060,17 @@ async function createAdminUploadPresign(event) {
   const uploadUrl = `https://${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
   const publicBaseUrl = process.env.UPLOAD_PUBLIC_BASE_URL || `https://${host}`;
 
+  const publicUrl = `${publicBaseUrl.replace(/\/+$/, '')}/${key}`;
+
   return response(200, {
     success: true,
+    uploadUrl,
+    publicUrl,
     upload_url: uploadUrl,
-    public_url: `${publicBaseUrl.replace(/\/+$/, '')}/${key}`,
+    public_url: publicUrl,
     key,
+    contentType,
+    purpose,
     method: 'PUT',
     headers: { 'Content-Type': contentType }
   });
