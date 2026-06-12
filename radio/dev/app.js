@@ -305,6 +305,17 @@ function imageVisualAssetsOnly(assets) {
   return (Array.isArray(assets) ? assets : []).filter(asset => asset?.type === 'image' && has(asset.url));
 }
 
+function isEnhancedVisualSlideshowEligible(track, mediaMode) {
+  if (!track || mediaMode === 'video' || isVideoOnlyTrack(track)) return false;
+  const audioCapable = track.hasAudio && has(track.audioUrl);
+  return Boolean(audioCapable && track.enhancedVisualsEnabled && imageVisualAssetsOnly(track.visualAssets || track.visual_assets || []).length);
+}
+
+function buildVisualImageSequence(track) {
+  const imageAssets = imageVisualAssetsOnly(track?.visualAssets || track?.visual_assets || []);
+  return track?.shuffleVisuals ? shuffleVisualAssets(imageAssets) : imageAssets;
+}
+
 function normalizedAlbumName(row) {
   if (!row) return '';
   if (Object.prototype.hasOwnProperty.call(row, 'album_name')) return clean(row.album_name);
@@ -2981,8 +2992,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const canCloseVideo = isVideoMode && hasVideo && !selectedIsVideoOnly;
   const canWatchVideo = !isVideoMode && hasVideo && (selected.showWatchVideo || selectedIsVideoOnly);
   const progress = duration ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-  const audioOnlySong = hasAudio && !selected.hasVideo && !selectedIsVideoOnly;
-  const canUseEnhancedVisuals = selected.enhancedVisualsEnabled && audioOnlySong && mediaMode !== 'video';
+  const canUseEnhancedVisuals = isEnhancedVisualSlideshowEligible(selected, mediaMode);
   const visualSequenceSongKey = selected.songKey || selected.idx;
   const visualImageSequence = visualImageSequenceState.songKey === visualSequenceSongKey ? visualImageSequenceState.assets : [];
   const hasEnhancedVisuals = visualImageSequence.length > 0;
@@ -2997,8 +3007,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       setVisualImageSequenceState({ songKey: '', assets: [] });
       return;
     }
-    const imageAssets = imageVisualAssetsOnly(selected.visualAssets || selected.visual_assets || []);
-    setVisualImageSequenceState({ songKey: visualSequenceSongKey, assets: selected.shuffleVisuals ? shuffleVisualAssets(imageAssets) : imageAssets });
+    setVisualImageSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualImageSequence(selected) });
   }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey]);
 
   useEffect(() => {
