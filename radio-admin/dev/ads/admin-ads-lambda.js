@@ -11,7 +11,7 @@ const pool = new Pool({
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,x-admin-token',
+  'Access-Control-Allow-Headers': 'Content-Type,x-admin-token,Authorization',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 
@@ -813,6 +813,18 @@ function normalizeStringArray(value) {
   return [];
 }
 
+function normalizeBoolean(value, defaultValue = false) {
+  if (value === null || value === undefined || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalizedValue)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalizedValue)) return false;
+  }
+  return Boolean(value);
+}
+
 function normalizeVisualDuration(value) {
   const duration = Number(value);
   return Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration)) : 8;
@@ -915,12 +927,22 @@ function normalizeSongPayload(input, { partial = false } = {}) {
         return;
       }
 
-      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? Boolean(normalizedInput[field]) : normalizedInput[field];
+      payload[field] = BOOLEAN_SONG_FIELDS.has(field) ? normalizeBoolean(normalizedInput[field]) : normalizedInput[field];
     }
   });
 
   if (!partial) {
     payload.public_visibility = payload.public_visibility || 'hidden';
+    payload.enhanced_visuals_enabled = Object.prototype.hasOwnProperty.call(normalizedInput, 'enhanced_visuals_enabled')
+      ? normalizeBoolean(normalizedInput.enhanced_visuals_enabled, true)
+      : true;
+    payload.shuffle_visuals = Object.prototype.hasOwnProperty.call(normalizedInput, 'shuffle_visuals')
+      ? normalizeBoolean(normalizedInput.shuffle_visuals, true)
+      : true;
+    payload.visual_still_duration_seconds = normalizeVisualDuration(normalizedInput.visual_still_duration_seconds);
+    payload.visual_assets = Object.prototype.hasOwnProperty.call(normalizedInput, 'visual_assets')
+      ? JSON.stringify(normalizeVisualAssets(normalizedInput.visual_assets))
+      : JSON.stringify([]);
   }
 
   return payload;
@@ -1736,17 +1758,67 @@ function slugifyPathSegment(value, fallback = 'stashbox') {
   return slug || fallback;
 }
 
-function uploadFolderForPurpose(purpose, artist, songKey) {
-  const artistSlug = slugifyPathSegment(artist || 'stashbox');
-  const cleanSongKey = slugifyPathSegment(songKey || 'unsorted', 'unsorted');
+function getUploadPurposeFolder(purpose) {
   const folderByPurpose = {
     audio: 'audio',
     artwork: 'artwork',
     visual_image: 'visuals/images',
-    visual_clip: 'visuals/clips'
+    visual_images: 'visuals/images',
+    song_visual_image: 'visuals/images',
+    visual_clip: 'visuals/clips',
+    visual_clips: 'visuals/clips',
+    song_visual_clip: 'visuals/clips'
   };
-  const folder = folderByPurpose[purpose] || purpose || 'upload';
-  return `songs/${artistSlug}/tracks/${cleanSongKey}/${folder}`;
+  return folderByPurpose[purpose] || purpose || 'upload';
+}
+
+function uploadFolderForPurpose(purpose, artist, songKey) {
+  const artistSlug = slugifyPathSegment(artist || 'stashbox');
+  const cleanSongKey = slugifyPathSegment(songKey || 'unsorted', 'unsorted');
+  return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
+}
+
+function getFileExtension(filename) {
+  const extension = String(filename || '').split('.').pop() || '';
+  return extension.trim().toLowerCase();
+}
+
+function isUploadPurpose(purpose, aliases) {
+  return aliases.has(String(purpose || '').trim().toLowerCase());
+}
+
+function validateUploadRequest(body) {
+  const filename = String(body.filename || 'upload.bin');
+  const purpose = String(body.purpose || 'upload').replace(/[^A-Za-z0-9/_-]/g, '-').toLowerCase();
+  const contentType = String(body.content_type || body.contentType || 'application/octet-stream').toLowerCase();
+  const extension = getFileExtension(filename);
+  const audioPurposes = new Set(['audio']);
+  const artworkPurposes = new Set(['artwork']);
+  const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image']);
+  const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip']);
+  const audioExtensions = new Set(['wav', 'mp3', 'm4a', 'flac', 'aiff', 'aif']);
+  const audioMimeTypes = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/aiff', 'audio/x-aiff']);
+  const artworkExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
+  const artworkMimeTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+  const visualImageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
+  const visualClipExtensions = new Set(['mp4', 'webm', 'mov']);
+  const visualClipMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/mov']);
+
+  const isOctetStream = contentType === 'application/octet-stream';
+  const validAudio = isUploadPurpose(purpose, audioPurposes) && (audioMimeTypes.has(contentType) || (isOctetStream && audioExtensions.has(extension)));
+  const validArtwork = isUploadPurpose(purpose, artworkPurposes) && (artworkMimeTypes.has(contentType) || (isOctetStream && artworkExtensions.has(extension)));
+  const validVisualImage = isUploadPurpose(purpose, visualImagePurposes) && ((contentType.startsWith('image/') && visualImageExtensions.has(extension)) || (isOctetStream && visualImageExtensions.has(extension)));
+  const validVisualClip = isUploadPurpose(purpose, visualClipPurposes) && ((contentType.startsWith('video/') && visualClipExtensions.has(extension)) || (isOctetStream && visualClipExtensions.has(extension)));
+
+  if (validAudio || validArtwork || validVisualImage || validVisualClip) {
+    return { ok: true, filename, purpose, contentType };
+  }
+
+  return {
+    ok: false,
+    statusCode: 400,
+    error: 'Unsupported upload purpose or file type. Supported purposes are audio, artwork, visual_image, and visual_clip.'
+  };
 }
 
 async function createUploadPresign(event) {
@@ -1761,11 +1833,16 @@ async function createUploadPresign(event) {
     return response(501, { success: false, error: 'Upload presign is not configured.' });
   }
 
-  const filename = String(body.filename || 'upload.bin').replace(/[^A-Za-z0-9._-]/g, '-');
-  const purpose = String(body.purpose || 'upload').replace(/[^A-Za-z0-9/_-]/g, '-');
+  const validation = validateUploadRequest(body);
+  if (!validation.ok) {
+    return response(validation.statusCode, { success: false, error: validation.error });
+  }
+
+  const filename = validation.filename.replace(/[^A-Za-z0-9._-]/g, '-');
+  const purpose = validation.purpose;
   const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
   const artist = String(body.artist || body.artist_slug || body.artistSlug || 'stashbox').trim();
-  const contentType = String(body.content_type || body.contentType || 'application/octet-stream');
+  const contentType = validation.contentType;
   const key = `${uploadFolderForPurpose(purpose, artist, songKey)}/${Date.now()}-${filename}`;
   const host = `${bucket}.s3.${region}.amazonaws.com`;
   const now = new Date();
