@@ -779,7 +779,7 @@ function getRouteSegments(event) {
   if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
 
   const routeRootIndex = segments.findIndex((segment) =>
-    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track'].includes(segment)
+    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals'].includes(segment)
   );
   if (routeRootIndex > 0) return segments.slice(routeRootIndex);
 
@@ -1839,6 +1839,228 @@ function uploadFolderForPurpose(purpose, artist, songKey) {
   return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
 }
 
+const VISUALS_FOLDER_TYPES = new Set(['general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand']);
+const VISUALS_FOLDER_STATUSES = new Set(['active', 'hidden']);
+const VISUALS_FOLDER_PRIORITIES = new Set(['high', 'medium', 'low']);
+
+function slugify(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'visuals-folder';
+}
+
+function normalizeVisualsStringArray(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value)) return null;
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function normalizeVisualsSongs(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value)) return null;
+  const seen = new Set();
+  return value
+    .map((song) => ({
+      song_key: String(song?.song_key || song?.songKey || '').trim(),
+      song_title: String(song?.song_title || song?.songTitle || '').trim(),
+      artist: String(song?.artist || '').trim()
+    }))
+    .filter((song) => {
+      if (!song.song_key || seen.has(song.song_key)) return false;
+      seen.add(song.song_key);
+      return true;
+    });
+}
+
+function validateVisualsFolderPayload(body = {}) {
+  const folderName = String(body.folder_name || body.folderName || '').trim();
+  const folderType = String(body.folder_type || body.folderType || 'general').trim().toLowerCase();
+  const status = String(body.status || 'active').trim().toLowerCase();
+  const priority = String(body.priority || 'medium').trim().toLowerCase();
+  const relevantArtists = normalizeVisualsStringArray(body.relevant_artists ?? body.relevantArtists);
+  const relevantGenres = normalizeVisualsStringArray(body.relevant_genres ?? body.relevantGenres);
+  const relevantMoods = normalizeVisualsStringArray(body.relevant_moods ?? body.relevantMoods);
+  const relevantSongs = normalizeVisualsSongs(body.relevant_songs ?? body.relevantSongs);
+
+  if (!folderName) return { error: 'folder_name is required.' };
+  if (!VISUALS_FOLDER_TYPES.has(folderType)) return { error: 'folder_type must be one of: general, artist, song, genre, mood, global, campaign, brand.' };
+  if (!VISUALS_FOLDER_STATUSES.has(status)) return { error: 'status must be one of: active, hidden.' };
+  if (!VISUALS_FOLDER_PRIORITIES.has(priority)) return { error: 'priority must be one of: high, medium, low.' };
+  if (relevantArtists === null) return { error: 'relevant_artists must be an array.' };
+  if (relevantGenres === null) return { error: 'relevant_genres must be an array.' };
+  if (relevantMoods === null) return { error: 'relevant_moods must be an array.' };
+  if (relevantSongs === null) return { error: 'relevant_songs must be an array.' };
+
+  return {
+    payload: {
+      folder_name: folderName,
+      folder_type: folderType,
+      description: body.description == null ? null : String(body.description),
+      status,
+      priority,
+      notes: body.notes == null ? null : String(body.notes),
+      relevant_artists: relevantArtists,
+      relevant_genres: relevantGenres,
+      relevant_moods: relevantMoods,
+      relevant_songs: relevantSongs
+    }
+  };
+}
+
+function buildVisualsFolderResponse(folder, matches = {}) {
+  return {
+    id: folder.id,
+    folder_name: folder.folder_name,
+    folder_slug: folder.folder_slug,
+    folder_type: folder.folder_type,
+    description: folder.description || '',
+    status: folder.status,
+    priority: folder.priority,
+    notes: folder.notes || '',
+    relevant_artists: matches.artists || [],
+    relevant_genres: matches.genres || [],
+    relevant_moods: matches.moods || [],
+    relevant_songs: matches.songs || [],
+    created_at: folder.created_at || '',
+    updated_at: folder.updated_at || ''
+  };
+}
+
+async function createUniqueVisualsFolderSlug(baseName, existingId = '') {
+  const baseSlug = slugify(baseName);
+  for (let suffix = 0; suffix < 1000; suffix += 1) {
+    const candidate = suffix === 0 ? baseSlug : `${baseSlug}-${suffix + 1}`;
+    const values = [candidate];
+    let idClause = '';
+    if (existingId) {
+      values.push(existingId);
+      idClause = ` AND id <> $${values.length}`;
+    }
+    const result = await client.query(`SELECT 1 FROM radio.visuals_folders WHERE folder_slug = $1${idClause} LIMIT 1`, values);
+    if (!result.rowCount) return candidate;
+  }
+  return `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function saveFolderMatches(folderId, payload) {
+  await client.query('DELETE FROM radio.visuals_folder_artist_matches WHERE folder_id = $1', [folderId]);
+  await client.query('DELETE FROM radio.visuals_folder_genre_matches WHERE folder_id = $1', [folderId]);
+  await client.query('DELETE FROM radio.visuals_folder_mood_matches WHERE folder_id = $1', [folderId]);
+  await client.query('DELETE FROM radio.visuals_folder_song_matches WHERE folder_id = $1', [folderId]);
+
+  for (const artist of payload.relevant_artists) {
+    await client.query('INSERT INTO radio.visuals_folder_artist_matches (folder_id, artist) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, artist]);
+  }
+  for (const genre of payload.relevant_genres) {
+    await client.query('INSERT INTO radio.visuals_folder_genre_matches (folder_id, genre) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, genre]);
+  }
+  for (const mood of payload.relevant_moods) {
+    await client.query('INSERT INTO radio.visuals_folder_mood_matches (folder_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, mood]);
+  }
+  for (const song of payload.relevant_songs) {
+    await client.query(
+      'INSERT INTO radio.visuals_folder_song_matches (folder_id, song_key, song_title, artist) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+      [folderId, song.song_key, song.song_title || null, song.artist || null]
+    );
+  }
+}
+
+async function getVisualsFolderMatches(folderIds) {
+  const matches = Object.fromEntries(folderIds.map((id) => [id, { artists: [], genres: [], moods: [], songs: [] }]));
+  if (!folderIds.length) return matches;
+  const artistRows = await client.query('SELECT folder_id, artist FROM radio.visuals_folder_artist_matches WHERE folder_id = ANY($1::text[]) ORDER BY artist', [folderIds]);
+  const genreRows = await client.query('SELECT folder_id, genre FROM radio.visuals_folder_genre_matches WHERE folder_id = ANY($1::text[]) ORDER BY genre', [folderIds]);
+  const moodRows = await client.query('SELECT folder_id, mood FROM radio.visuals_folder_mood_matches WHERE folder_id = ANY($1::text[]) ORDER BY mood', [folderIds]);
+  const songRows = await client.query('SELECT folder_id, song_key, song_title, artist FROM radio.visuals_folder_song_matches WHERE folder_id = ANY($1::text[]) ORDER BY song_title NULLS LAST, song_key', [folderIds]);
+  artistRows.rows.forEach((row) => matches[row.folder_id]?.artists.push(row.artist));
+  genreRows.rows.forEach((row) => matches[row.folder_id]?.genres.push(row.genre));
+  moodRows.rows.forEach((row) => matches[row.folder_id]?.moods.push(row.mood));
+  songRows.rows.forEach((row) => matches[row.folder_id]?.songs.push({ song_key: row.song_key, song_title: row.song_title || '', artist: row.artist || '' }));
+  return matches;
+}
+
+async function getVisualsFolders() {
+  const result = await client.query('SELECT * FROM radio.visuals_folders ORDER BY created_at DESC, folder_name ASC');
+  const matches = await getVisualsFolderMatches(result.rows.map((row) => row.id));
+  return result.rows.map((row) => buildVisualsFolderResponse(row, matches[row.id]));
+}
+
+async function getVisualsFolderById(id) {
+  const result = await client.query('SELECT * FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [id]);
+  if (!result.rowCount) return null;
+  const matches = await getVisualsFolderMatches([id]);
+  return buildVisualsFolderResponse(result.rows[0], matches[id]);
+}
+
+async function handleAdminVisualsFoldersRoute(event) {
+  await requireAdmin(event);
+  const method = getMethod(event).toUpperCase();
+  const segments = getRouteSegments(event);
+  const foldersIndex = segments.lastIndexOf('folders');
+  const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
+
+  if (method === 'GET' && !id) return response(200, { success: true, folders: await getVisualsFolders() });
+
+  if (method === 'POST' && !id) {
+    const validation = validateVisualsFolderPayload(parseBody(event));
+    if (validation.error) return response(400, { success: false, error: validation.error });
+    const folderId = crypto.randomUUID();
+    const slug = await createUniqueVisualsFolderSlug(validation.payload.folder_name);
+    await client.query('BEGIN');
+    try {
+      await client.query(
+        `INSERT INTO radio.visuals_folders (id, folder_name, folder_slug, folder_type, description, status, priority, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [folderId, validation.payload.folder_name, slug, validation.payload.folder_type, validation.payload.description, validation.payload.status, validation.payload.priority, validation.payload.notes]
+      );
+      await saveFolderMatches(folderId, validation.payload);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Visuals folder create failed:', error);
+      return response(500, { success: false, error: 'Unable to save visuals folder.' });
+    }
+    return response(201, { success: true, folder: await getVisualsFolderById(folderId) });
+  }
+
+  if (method === 'PUT' && id) {
+    const validation = validateVisualsFolderPayload(parseBody(event));
+    if (validation.error) return response(400, { success: false, error: validation.error });
+    const slug = await createUniqueVisualsFolderSlug(validation.payload.folder_name, id);
+    await client.query('BEGIN');
+    try {
+      const result = await client.query(
+        `UPDATE radio.visuals_folders
+         SET folder_name = $1, folder_slug = $2, folder_type = $3, description = $4, status = $5, priority = $6, notes = $7, updated_at = now()
+         WHERE id = $8`,
+        [validation.payload.folder_name, slug, validation.payload.folder_type, validation.payload.description, validation.payload.status, validation.payload.priority, validation.payload.notes, id]
+      );
+      if (!result.rowCount) {
+        await client.query('ROLLBACK');
+        return response(404, { success: false, error: 'Visuals folder not found.' });
+      }
+      await saveFolderMatches(id, validation.payload);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Visuals folder update failed:', error);
+      return response(500, { success: false, error: 'Unable to save visuals folder.' });
+    }
+    return response(200, { success: true, folder: await getVisualsFolderById(id) });
+  }
+
+  if (method === 'DELETE' && id) {
+    const result = await client.query('DELETE FROM radio.visuals_folders WHERE id = $1', [id]);
+    if (!result.rowCount) return response(404, { success: false, error: 'Visuals folder not found.' });
+    return response(200, { success: true });
+  }
+
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+
 function uploadFolderForRequest(purpose, body) {
   if (purpose === 'ad_video') {
     const adSlug = slugifyPathSegment(
@@ -1988,6 +2210,15 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'ads'])) {
     return handleAdminAdsRoute(event, { requireAdmin });
+  }
+
+
+  if (routeStartsWith(segments, ['radio', 'admin', 'visuals', 'folders'])) {
+    return handleAdminVisualsFoldersRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['admin', 'visuals', 'folders'])) {
+    return handleAdminVisualsFoldersRoute(event);
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'summary']) && method === 'GET') {
