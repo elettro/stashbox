@@ -5,6 +5,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stashbox Radio One-Sheet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
     :root {
       --bg: #070707;
@@ -24,6 +28,7 @@
 
     body {
       margin: 0;
+      padding-top: var(--nav-height);
       background: #202020;
       font-family: Arial, Helvetica, sans-serif;
       color: var(--text);
@@ -335,6 +340,11 @@
     @media print {
       body {
         background: white;
+        padding-top: 0;
+      }
+
+      .nav {
+        display: none;
       }
 
       .sheet {
@@ -383,7 +393,37 @@
 </head>
 
 <body>
-  <div class="sheet">
+  <nav class="nav" id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav__inner">
+    <a href="/" class="nav__logo" aria-label="Stashbox — Home">
+      <img src="/images/branding/stashbox-logo-transparent-rasta-colors.png"
+           alt="Stashbox"
+           class="nav__logo-img"
+           onerror="this.onerror=null;this.style.display='none';document.getElementById('nav-wordmark').style.display='block'">
+      <span id="nav-wordmark" class="nav__logo-text" style="display:none" aria-hidden="true">STASHBOX</span>
+    </a>
+    <button class="nav__hamburger" id="navToggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+      <span class="nav__bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__links" id="navLinks" role="list">
+      <li><a href="/">Home</a></li>
+      <li><a href="/radio/" aria-current="page">Radio</a></li>
+      <li><a href="/videos/">Videos</a></li>
+      <li><a href="/sessions/">Sessions</a></li>
+      <li><a href="/shop/">Shop</a></li>
+      <li><a href="/setlists/">Setlists</a></li>
+      <li><a href="/booking/">Book Band</a></li>
+      <li><a href="/custom/">Custom Music</a></li>
+      <li><a href="/about/">About</a></li>
+      <li><a href="https://stashbox.com/radio/dashboard/">Dashboard</a></li>
+    </ul>
+    <a href="https://www.youtube.com/@stashboxband?sub_confirmation=1" class="btn btn--accent nav__cta" target="_blank" rel="noopener noreferrer">SUBSCRIBE ON YOUTUBE</a>
+  </div>
+</nav>
+
+<div class="sheet">
     <div class="topbar">
       <div class="brand">STASHBOX RADIO</div>
       <div class="tag">Owned music media player ecosystem<br>for brands, artists, sponsors, and audience-driven businesses</div>
