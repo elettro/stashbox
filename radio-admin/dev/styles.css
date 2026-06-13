@@ -1636,3 +1636,48 @@ textarea {
   max-width: none;
   max-height: none;
 }
+
+/* Shared Stashbox Radio admin macro navigation for dev admin pages. */
+.topbar-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: end;
+  gap: 0.75rem;
+  min-width: min(100%, 34rem);
+}
+
+.radio-admin-macro-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  max-width: 44rem;
+}
+
+.radio-admin-macro-nav a {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.radio-admin-macro-nav a:hover,
+.radio-admin-macro-nav a:focus-visible,
+.radio-admin-macro-nav a[aria-current="page"] {
+  border-color: rgba(240, 192, 76, 0.7);
+  background: rgba(240, 192, 76, 0.15);
+  color: #ffd36f;
+}
+
+@media (max-width: 860px) {
+  .topbar { align-items: stretch; flex-direction: column; }
+  .topbar-actions, .radio-admin-macro-nav { justify-items: stretch; justify-content: flex-start; width: 100%; }
+  .radio-admin-macro-nav a { flex: 1 1 10rem; text-align: center; }
+}

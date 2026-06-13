@@ -1258,3 +1258,59 @@ tr:last-child td {
     height: 48px;
   }
 }
+
+/* Shared Stashbox Radio admin macro navigation for dev admin pages. */
+.radio-admin-macro-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 11, 0.88);
+  backdrop-filter: blur(16px);
+}
+.radio-admin-macro-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 0.85rem clamp(1rem, 4vw, 3rem);
+}
+.radio-admin-macro-header__label {
+  margin: 0;
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.radio-admin-macro-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+.radio-admin-macro-nav a {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0.5rem 0.68rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.radio-admin-macro-nav a:hover,
+.radio-admin-macro-nav a:focus-visible,
+.radio-admin-macro-nav a[aria-current="page"] {
+  border-color: rgba(240, 192, 76, 0.7);
+  background: rgba(240, 192, 76, 0.15);
+  color: var(--gold);
+}
+@media (max-width: 820px) {
+  .radio-admin-macro-header__inner { align-items: stretch; flex-direction: column; }
+  .radio-admin-macro-header__label { white-space: normal; }
+  .radio-admin-macro-nav { justify-content: flex-start; }
+  .radio-admin-macro-nav a { flex: 1 1 10rem; text-align: center; }
+}
