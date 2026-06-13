@@ -5,154 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Visuals Experience CMS · Stashbox Radio Dev</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #090d0b;
-      --panel: #111a15;
-      --panel-2: #17231d;
-      --border: rgba(255, 255, 255, 0.12);
-      --text: #f5fff8;
-      --muted: #a8b8ad;
-      --accent: #e6c65f;
-      --accent-2: #45c46f;
-      --shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top left, rgba(69, 196, 111, 0.16), transparent 28rem),
-        radial-gradient(circle at top right, rgba(230, 198, 95, 0.12), transparent 24rem),
-        var(--bg);
-      color: var(--text);
-    }
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 1.25rem clamp(1rem, 3vw, 2.5rem);
-      border-bottom: 1px solid var(--border);
-      background: rgba(9, 13, 11, 0.84);
-      backdrop-filter: blur(16px);
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-    .eyebrow {
-      margin: 0 0 0.25rem;
-      color: var(--accent);
-      font-size: 0.76rem;
-      font-weight: 800;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-    h1, h2, h3, p { margin-top: 0; }
-    h1 { margin-bottom: 0; font-size: clamp(1.9rem, 4.6vw, 4rem); line-height: 0.95; }
-    h2 { margin-bottom: 0.25rem; font-size: clamp(1.25rem, 2.4vw, 1.85rem); }
-    .intro { max-width: 55rem; color: var(--muted); font-size: 1.05rem; line-height: 1.6; }
-    /* Shared Stashbox Radio admin macro navigation for dev admin pages. */
-    .radio-admin-macro-nav {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 0.45rem;
-      max-width: 52rem;
-    }
-    .radio-admin-macro-nav a {
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--text);
-      padding: 0.55rem 0.72rem;
-      font-size: 0.74rem;
-      font-weight: 900;
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .radio-admin-macro-nav a:hover,
-    .radio-admin-macro-nav a:focus-visible,
-    .radio-admin-macro-nav a[aria-current="page"] {
-      border-color: rgba(230, 198, 95, 0.72);
-      background: rgba(230, 198, 95, 0.14);
-      color: var(--accent);
-    }
-    .shell { width: min(1180px, calc(100% - 2rem)); margin: 1.5rem auto 4rem; display: grid; gap: 1rem; }
-    .hero, .card {
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      background: linear-gradient(180deg, rgba(23, 35, 29, 0.96), rgba(17, 26, 21, 0.96));
-      box-shadow: var(--shadow);
-      padding: clamp(1rem, 2vw, 1.5rem);
-    }
-    .section-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-    .placeholder-copy { color: var(--muted); line-height: 1.5; }
-    .button {
-      border: 0;
-      border-radius: 999px;
-      background: var(--accent);
-      color: #12110a;
-      cursor: not-allowed;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      padding: 0.8rem 1.05rem;
-      opacity: 0.82;
-    }
-    @media (max-width: 820px) {
-      .topbar { align-items: stretch; flex-direction: column; }
-      .radio-admin-macro-nav { justify-content: flex-start; }
-      .radio-admin-macro-nav a { flex: 1 1 10rem; text-align: center; }
-      .section-grid { grid-template-columns: 1fr; }
-    }
+    :root { color-scheme: dark; --bg:#090d0b; --panel:#111a15; --panel-2:#17231d; --panel-3:#203228; --border:rgba(255,255,255,.12); --text:#f5fff8; --muted:#a8b8ad; --accent:#e6c65f; --accent-2:#45c46f; --danger:#ff7b7b; --shadow:0 20px 70px rgba(0,0,0,.35); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(69,196,111,.16),transparent 28rem),radial-gradient(circle at top right,rgba(230,198,95,.12),transparent 24rem),var(--bg);color:var(--text)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.25rem clamp(1rem,3vw,2.5rem);border-bottom:1px solid var(--border);background:rgba(9,13,11,.84);backdrop-filter:blur(16px);position:sticky;top:0;z-index:20}.eyebrow{margin:0 0 .25rem;color:var(--accent);font-size:.76rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase}h1,h2,h3,p{margin-top:0}h1{margin-bottom:0;font-size:clamp(1.9rem,4.6vw,4rem);line-height:.95}h2{margin-bottom:.25rem;font-size:clamp(1.25rem,2.4vw,1.85rem)}h3{margin-bottom:.4rem}.intro{max-width:55rem;color:var(--muted);font-size:1.05rem;line-height:1.6}.radio-admin-macro-nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.45rem;max-width:52rem}.radio-admin-macro-nav a{border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.06);color:var(--text);padding:.55rem .72rem;font-size:.74rem;font-weight:900;letter-spacing:.04em;text-decoration:none;white-space:nowrap}.radio-admin-macro-nav a:hover,.radio-admin-macro-nav a:focus-visible,.radio-admin-macro-nav a[aria-current=page]{border-color:rgba(230,198,95,.72);background:rgba(230,198,95,.14);color:var(--accent)}
+    .shell{width:min(1180px,calc(100% - 2rem));margin:1.5rem auto 4rem;display:grid;gap:1rem}.hero,.card,.manager-panel,.folder-form-panel{border:1px solid var(--border);border-radius:22px;background:linear-gradient(180deg,rgba(23,35,29,.96),rgba(17,26,21,.96));box-shadow:var(--shadow);padding:clamp(1rem,2vw,1.5rem)}.hero-actions,.panel-head,.filter-row,.form-actions,.card-actions{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}.panel-head{justify-content:space-between}.button{border:0;border-radius:999px;background:var(--accent);color:#12110a;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-weight:900;padding:.8rem 1.05rem}.button.secondary{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text)}.button.danger{background:rgba(255,123,123,.14);border:1px solid rgba(255,123,123,.35);color:#ffd7d7}.button:hover,.button:focus-visible{filter:brightness(1.08);transform:translateY(-1px)}.hidden{display:none!important}.dev-note,.status-note,.empty-state,.placeholder-copy{color:var(--muted);line-height:1.5}.dev-note{border:1px dashed rgba(230,198,95,.4);border-radius:16px;padding:.8rem;background:rgba(230,198,95,.08)}
+    input,select,textarea{width:100%;border:1px solid var(--border);border-radius:14px;background:rgba(5,8,6,.72);color:var(--text);padding:.8rem .9rem;font:inherit}textarea{min-height:6rem;resize:vertical}label{display:grid;gap:.4rem;font-weight:800}.field-help{color:var(--muted);font-size:.85rem;font-weight:500}.filter-row{display:grid;grid-template-columns:minmax(16rem,1fr) repeat(2,minmax(10rem,12rem));margin-top:1rem}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.form-grid .full{grid-column:1/-1}.multi-select{border:1px solid var(--border);border-radius:16px;background:rgba(5,8,6,.45);padding:.75rem;display:grid;gap:.65rem;max-height:15rem;overflow:auto}.multi-option{display:flex;align-items:flex-start;gap:.6rem;padding:.55rem;border-radius:12px;background:rgba(255,255,255,.04);font-weight:700}.multi-option input{width:auto;margin-top:.2rem}.multi-empty{color:var(--muted);font-weight:700;padding:.7rem;border:1px dashed var(--border);border-radius:12px}.folder-list{display:grid;gap:.85rem;margin-top:1rem}.folder-card{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.045);padding:1rem;display:grid;gap:.85rem}.folder-card-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}.badges,.counts{display:flex;gap:.45rem;flex-wrap:wrap}.badge,.count-pill{border:1px solid var(--border);border-radius:999px;padding:.28rem .55rem;font-size:.78rem;font-weight:900}.badge.active{border-color:rgba(69,196,111,.5);color:#9df0b8}.badge.hidden-status{color:#d1d8d2}.badge.high{color:#ffd978}.badge.medium{color:#9be0ff}.badge.low{color:#c7f5d1}.folder-description{color:var(--muted);margin:0}.updated{color:var(--muted);font-size:.85rem;margin:0}.section-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}.manager-panel{grid-column:1/-1}.card.functional{grid-column:1/-1}.message{border-radius:14px;padding:.75rem .9rem;background:rgba(69,196,111,.1);border:1px solid rgba(69,196,111,.25);color:#c6ffd7}.message.error{background:rgba(255,123,123,.1);border-color:rgba(255,123,123,.3);color:#ffd7d7}
+    @media (max-width:820px){.topbar{align-items:stretch;flex-direction:column}.radio-admin-macro-nav{justify-content:flex-start}.radio-admin-macro-nav a{flex:1 1 10rem;text-align:center}.section-grid,.form-grid,.filter-row{grid-template-columns:1fr}.folder-card-head{flex-direction:column}.card-actions .button,.hero-actions .button{width:100%}}
   </style>
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <p class="eyebrow">Stashbox Radio Dev Admin</p>
-      <h1>Visuals Experience CMS</h1>
-    </div>
-    <!-- Shared Stashbox Radio admin header. Reuse this macro nav on future dev admin tools. -->
+    <div><p class="eyebrow">Stashbox Radio Dev Admin</p><h1>Visuals Experience CMS</h1></div>
     <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
-      <a href="/radio-admin/dev/">Song CMS Dev</a>
-      <a href="/radio-admin/ads/dev/">Ads CMS Dev</a>
-      <a href="/radio/visual-experience/dev/" aria-current="page">Visuals Experience CMS</a>
-      <a href="/radio/dashboard/dev/">Public Dashboard</a>
-      <a href="/radio/">Radio Production</a>
-      <a href="/radio/dev/">Radio Dev</a>
+      <a href="/radio-admin/dev/">Song CMS Dev</a><a href="/radio-admin/ads/dev/">Ads CMS Dev</a><a href="/radio/visual-experience/dev/" aria-current="page">Visuals Experience CMS</a><a href="/radio/dashboard/dev/">Public Dashboard</a><a href="/radio/">Radio Production</a><a href="/radio/dev/">Radio Dev</a>
     </nav>
   </header>
-
   <main class="shell">
-    <section class="hero" aria-labelledby="visualsExperienceHeading">
-      <p class="eyebrow">Phase I scaffold</p>
-      <h2 id="visualsExperienceHeading">Visuals Experience CMS</h2>
-      <p class="intro">Manage reusable visuals folders for Stashbox Radio images and video clips.</p>
-      <button class="button" type="button" disabled>Create Visuals Folder</button>
-    </section>
-
-    <section class="section-grid" aria-label="Visuals Experience CMS placeholders">
-      <article class="card">
-        <p class="eyebrow">Visuals Folders</p>
-        <h3>Visuals Folders</h3>
-        <p class="placeholder-copy">Future controls for creating and organizing reusable visuals folders will live here.</p>
-      </article>
-      <article class="card">
-        <p class="eyebrow">Media</p>
-        <h3>Folder Media Library</h3>
-        <p class="placeholder-copy">Future image and video clip library management for each Visuals Folder will live here.</p>
-      </article>
-      <article class="card">
-        <p class="eyebrow">Mapping</p>
-        <h3>Song Relevance Mapping</h3>
-        <p class="placeholder-copy">Future tools for mapping songs to the most relevant Visuals Folders will live here.</p>
-      </article>
-    </section>
+    <section class="hero" aria-labelledby="visualsExperienceHeading"><p class="eyebrow">Dev manager</p><h2 id="visualsExperienceHeading">Visuals Experience CMS</h2><p class="intro">Manage reusable Visuals Folders for Stashbox Radio images and video clips. This dev page stores test folders locally until backend persistence is added.</p><div class="hero-actions"><button id="createFolderButton" class="button" type="button">Create Visuals Folder</button><span id="songSourceStatus" class="status-note">Checking Song CMS data source…</span></div></section>
+    <section id="folderFormPanel" class="folder-form-panel hidden" aria-labelledby="folderFormHeading"><div class="panel-head"><div><p class="eyebrow">Visuals Folder</p><h2 id="folderFormHeading">Create Visuals Folder</h2></div><button id="hideFormButton" class="button secondary" type="button">Hide form</button></div><p class="dev-note">Dev note: Visuals Folders are stored locally until backend persistence is added.</p><form id="folderForm" class="form-grid"><input id="folderId" type="hidden" /><label>Folder Name<input id="folderName" required maxlength="120" /></label><label>Status<select id="folderStatus"><option>Active</option><option>Hidden</option></select></label><label>Priority<select id="folderPriority"><option>High</option><option selected>Medium</option><option>Low</option></select></label><label class="full">Description<textarea id="folderDescription"></textarea></label><label>Relevant Artists<span class="field-help">Multi-select options from current Song CMS song data.</span><div id="artistOptions" class="multi-select"></div></label><label>Relevant Genres<span class="field-help">Multi-select options from current Song CMS song data.</span><div id="genreOptions" class="multi-select"></div></label><label>Relevant Moods<span class="field-help">Multi-select options from current Song CMS song data.</span><div id="moodOptions" class="multi-select"></div></label><label>Relevant Songs<span class="field-help">Multi-select options from current Song CMS song data.</span><div id="songOptions" class="multi-select"></div></label><label class="full">Notes<textarea id="folderNotes"></textarea></label><div class="form-actions full"><button class="button" type="submit">Save Visuals Folder</button><button id="cancelEditButton" class="button secondary" type="button">Cancel edit</button></div></form></section>
+    <section class="section-grid" aria-label="Visuals Experience CMS sections"><article class="card functional"><div class="panel-head"><div><p class="eyebrow">Visuals Folder Manager</p><h2>Visuals Folders</h2></div><button id="createFolderButtonSecondary" class="button" type="button">Create Visuals Folder</button></div><div id="message" class="message hidden"></div><div class="filter-row"><input id="folderSearch" type="search" placeholder="Search folders" aria-label="Search folders" /><select id="statusFilter" aria-label="Filter by status"><option>All</option><option>Active</option><option>Hidden</option></select><select id="priorityFilter" aria-label="Filter by priority"><option>All</option><option>High</option><option>Medium</option><option>Low</option></select></div><div id="folderList" class="folder-list"></div><p id="emptyState" class="empty-state hidden">No Visuals Folders exist yet. Create a Visuals Folder to start testing the manager.</p></article><article class="card"><p class="eyebrow">Media</p><h3>Folder Media Library</h3><p class="placeholder-copy">Placeholder: image and video clip library management for each Visuals Folder will be added after storage and upload work is scheduled.</p></article><article class="card"><p class="eyebrow">Mapping</p><h3>Song Relevance Mapping</h3><p class="placeholder-copy">Represented in this dev pass through the Relevant Artists, Genres, Moods, and Songs fields in the Visuals Folder form.</p></article></section>
   </main>
+  <script>
+    const SONGS_API_URL='https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
+    const STORAGE_KEY='stashbox_radio_visuals_folders_dev';
+    const els={create:[document.getElementById('createFolderButton'),document.getElementById('createFolderButtonSecondary')],formPanel:document.getElementById('folderFormPanel'),form:document.getElementById('folderForm'),formHeading:document.getElementById('folderFormHeading'),folderId:document.getElementById('folderId'),name:document.getElementById('folderName'),description:document.getElementById('folderDescription'),status:document.getElementById('folderStatus'),priority:document.getElementById('folderPriority'),notes:document.getElementById('folderNotes'),hide:document.getElementById('hideFormButton'),cancel:document.getElementById('cancelEditButton'),search:document.getElementById('folderSearch'),statusFilter:document.getElementById('statusFilter'),priorityFilter:document.getElementById('priorityFilter'),list:document.getElementById('folderList'),empty:document.getElementById('emptyState'),message:document.getElementById('message'),songSourceStatus:document.getElementById('songSourceStatus'),artistOptions:document.getElementById('artistOptions'),genreOptions:document.getElementById('genreOptions'),moodOptions:document.getElementById('moodOptions'),songOptions:document.getElementById('songOptions')};
+    let folders=loadFolders(); let optionSets={artists:[],genres:[],moods:[],songs:[]};
+    function loadFolders(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]}}
+    function saveFolders(){localStorage.setItem(STORAGE_KEY,JSON.stringify(folders))}
+    function showForm(folder){els.formPanel.classList.remove('hidden');els.formHeading.textContent=folder?'Edit Visuals Folder':'Create Visuals Folder';els.folderId.value=folder?.id||'';els.name.value=folder?.name||'';els.description.value=folder?.description||'';els.status.value=folder?.status||'Active';els.priority.value=folder?.priority||'Medium';els.notes.value=folder?.notes||'';renderMultiSelects(folder||{});els.name.focus()}
+    function hideForm(){els.form.reset();els.folderId.value='';els.formPanel.classList.add('hidden');renderMultiSelects({})}
+    function getChecked(group){return [...document.querySelectorAll(`input[name="${group}"]:checked`)].map(i=>i.value)}
+    function folderFromForm(){const now=new Date().toISOString();return{id:els.folderId.value||`visuals-folder-${Date.now()}`,name:els.name.value.trim(),description:els.description.value.trim(),status:els.status.value,priority:els.priority.value,artists:getChecked('artists'),genres:getChecked('genres'),moods:getChecked('moods'),songs:getChecked('songs'),notes:els.notes.value.trim(),updatedAt:now}}
+    function message(text,type='success'){els.message.textContent=text;els.message.className=`message ${type==='error'?'error':''}`;setTimeout(()=>els.message.classList.add('hidden'),3600)}
+    function renderFolders(){const q=els.search.value.trim().toLowerCase(),sf=els.statusFilter.value,pf=els.priorityFilter.value;const visible=folders.filter(f=>(sf==='All'||f.status===sf)&&(pf==='All'||f.priority===pf)&&[f.name,f.description,f.notes,...(f.artists||[]),...(f.genres||[]),...(f.moods||[]),...(f.songs||[])].join(' ').toLowerCase().includes(q));els.list.innerHTML='';els.empty.classList.toggle('hidden',visible.length>0);visible.forEach(f=>{const card=document.createElement('article');card.className='folder-card';card.innerHTML=`<div class="folder-card-head"><div><h3>${escapeHtml(f.name)}</h3><div class="badges"><span class="badge ${f.status==='Active'?'active':'hidden-status'}">${f.status}</span><span class="badge ${f.priority.toLowerCase()}">${f.priority} priority</span></div></div><div class="card-actions"><button class="button secondary" data-edit="${f.id}">Edit</button><button class="button danger" data-delete="${f.id}">Delete placeholder</button></div></div><p class="folder-description">${escapeHtml(f.description||'No description yet.')}</p><div class="counts"><span class="count-pill">${(f.artists||[]).length} Artists</span><span class="count-pill">${(f.genres||[]).length} Genres</span><span class="count-pill">${(f.moods||[]).length} Moods</span><span class="count-pill">${(f.songs||[]).length} Songs</span></div><p class="updated">Updated ${new Date(f.updatedAt).toLocaleString()} · Delete is temporary until backend delete exists.</p>`;els.list.appendChild(card)});}
+    function renderMultiSelects(selected={}){renderOptions(els.artistOptions,'artists',optionSets.artists,selected.artists);renderOptions(els.genreOptions,'genres',optionSets.genres,selected.genres);renderOptions(els.moodOptions,'moods',optionSets.moods,selected.moods);renderOptions(els.songOptions,'songs',optionSets.songs,selected.songs)}
+    function renderOptions(container,name,options,selected=[]){container.innerHTML='';if(!options.length){container.innerHTML='<div class="multi-empty">Song CMS data source not connected yet.</div>';return}options.forEach(opt=>{const label=document.createElement('label');label.className='multi-option';label.innerHTML=`<input type="checkbox" name="${name}" value="${escapeHtml(opt)}" ${selected.includes(opt)?'checked':''}/><span>${escapeHtml(opt)}</span>`;container.appendChild(label)})}
+    function addValues(set,value){if(Array.isArray(value))value.forEach(v=>addValues(set,v));else if(value&&String(value).trim())set.add(String(value).trim())}
+    function normalizeSongTitle(song){return song.title||song.song_title||song.name||song.track_title||song.song_key||song.key||song.id||''}
+    async function loadSongOptions(){try{const res=await fetch(SONGS_API_URL,{cache:'no-store'});if(!res.ok)throw new Error(`Song CMS request failed with ${res.status}`);const data=await res.json();const songs=Array.isArray(data)?data:Array.isArray(data?.songs)?data.songs:[];const artists=new Set(),genres=new Set(),moods=new Set(),songTitles=new Set();songs.forEach(song=>{addValues(artists,song.artist||song.artists||song.artist_name);addValues(genres,song.genre||song.genres);addValues(moods,song.mood||song.moods||song.vibe||song.vibes);addValues(songTitles,normalizeSongTitle(song))});optionSets={artists:[...artists].sort(),genres:[...genres].sort(),moods:[...moods].sort(),songs:[...songTitles].sort()};els.songSourceStatus.textContent=songs.length?`Song CMS data source connected: ${songs.length} songs loaded.`:'Song CMS data source not connected yet.'}catch(error){console.warn(error);optionSets={artists:[],genres:[],moods:[],songs:[]};els.songSourceStatus.textContent='Song CMS data source not connected yet.'}renderMultiSelects({})}
+    function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+    els.create.forEach(btn=>btn.addEventListener('click',()=>showForm()));els.hide.addEventListener('click',hideForm);els.cancel.addEventListener('click',hideForm);[els.search,els.statusFilter,els.priorityFilter].forEach(el=>el.addEventListener('input',renderFolders));els.form.addEventListener('submit',event=>{event.preventDefault();const folder=folderFromForm();if(!folder.name){message('Folder Name is required.','error');return}const index=folders.findIndex(f=>f.id===folder.id);folders=index>=0?folders.map(f=>f.id===folder.id?folder:f):[folder,...folders];saveFolders();renderFolders();hideForm();message('Visuals Folder saved locally for dev testing.')});els.list.addEventListener('click',event=>{const edit=event.target.closest('[data-edit]'),del=event.target.closest('[data-delete]');if(edit){showForm(folders.find(f=>f.id===edit.dataset.edit));return}if(del&&confirm('Temporary delete: remove this Visuals Folder from local dev state until backend delete exists?')){folders=folders.filter(f=>f.id!==del.dataset.delete);saveFolders();renderFolders();message('Visuals Folder removed from local dev state.')}});
+    renderFolders();loadSongOptions();
+  </script>
 </body>
 </html>
