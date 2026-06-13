@@ -61,7 +61,7 @@ let cachedStoreProducts = null;
 const clean = value => String(value ?? '').trim().replace(/^"|"$/g, '');
 const SHARE_COUNT_FIELDS = ['shares', 'share_count', 'total_shares', 'shareCount', 'totalShares', 'share_events'];
 const LIKE_COUNT_FIELDS = ['likes', 'like_count', 'total_likes', 'likeCount', 'totalLikes'];
-const PLAY_COUNT_FIELDS = ['play_count', 'total_plays', 'plays', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
+const PLAY_COUNT_FIELDS = ['total_plays', 'plays', 'play_count', 'play_starts', 'totalPlays', 'full_play_count', 'fullPlayCount'];
 function countPatchHasAny(patch = {}, fields = []) {
   return fields.some(field => Object.prototype.hasOwnProperty.call(patch, field));
 }
@@ -1947,17 +1947,20 @@ function App() {
   }
 
   const sendQualifiedPlayStart = useCallback((song, instance) => {
+    // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
     if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) return;
     instance.playStartSent = true;
-    sendTrackingEvent(song, 'play', sessionId, { seconds_played: Math.max(0, Math.round(instance.listenedSeconds || 0)) }).then(result => {
+    sendTrackingEvent(song, 'play_start', sessionId, { seconds_played: QUALIFIED_PLAY_SECONDS }).then(result => {
       if (!result?.response?.ok) {
-        console.warn('[Stashbox Radio Dev] play event was not saved; leaving persisted play count unchanged', { song_key: song.songKey, result });
+        console.warn('[Stashbox Radio Dev] play_start event was not saved; leaving persisted play count unchanged', { song_key: song.songKey, result });
         return;
       }
       const responsePlays = firstDefined(result?.body, PLAY_COUNT_FIELDS);
       if (responsePlays !== undefined && responsePlays !== '') {
         updateSongCount(song.songKey, result.body);
+        return;
       }
+      setPlayCounts(prev => ({ ...prev, [song.songKey]: (prev[song.songKey] ?? song.total_plays ?? 0) + 1 }));
     });
   }, [sessionId]);
 
@@ -1995,9 +1998,8 @@ function App() {
     if (instance?.songKey === song.songKey) {
       instance.isPlaying = true;
       instance.lastTickAt = null;
-      sendQualifiedPlayStart(song, instance);
     }
-  }, [sendQualifiedPlayStart]);
+  }, []);
 
   const updatePlaybackPosition = useCallback((secondsPlayed, duration) => {
     const state = playbackRef.current;
