@@ -16,10 +16,20 @@
       </div>
       <p class="radio-admin-meta">Private song, stats, and station controls</p>
     </a>
-    <div class="token-actions">
-      <span id="tokenStatus" class="token-status">No token saved</span>
-      <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
-      <a class="dev-admin-link" href="./ads/">Ads</a>
+    <div class="topbar-actions">
+      <!-- Shared Stashbox Radio admin header. Reuse this macro nav on future dev admin tools. -->
+      <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
+        <a href="/radio-admin/dev/" aria-current="page">Song CMS Dev</a>
+        <a href="/radio-admin/ads/dev/" >Ads CMS Dev</a>
+        <a href="/radio/visual-experience/dev/" >Visuals Experience CMS</a>
+        <a href="/radio/dashboard/dev/" >Public Dashboard</a>
+        <a href="/radio/">Radio Production</a>
+        <a href="/radio/dev/">Radio Dev</a>
+      </nav>
+      <div class="token-actions">
+        <span id="tokenStatus" class="token-status">No token saved</span>
+        <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
+      </div>
     </div>
   </header>
 
