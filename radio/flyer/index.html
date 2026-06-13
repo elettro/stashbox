@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stashbox Radio One-Sheet</title>
+  <style>
+    :root {
+      --bg: #070707;
+      --panel: #111111;
+      --panel2: #191919;
+      --gold: #d9b45f;
+      --gold2: #f4d47a;
+      --text: #f5f1e8;
+      --muted: #b8b2a6;
+      --line: rgba(217,180,95,.35);
+      --white: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #202020;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+    }
+
+    .sheet {
+      width: 8.5in;
+      min-height: 11in;
+      margin: 0 auto;
+      background:
+        radial-gradient(circle at 88% 8%, rgba(217,180,95,.22), transparent 26%),
+        radial-gradient(circle at 12% 88%, rgba(217,180,95,.14), transparent 28%),
+        linear-gradient(145deg, #050505 0%, #0d0d0d 48%, #151515 100%);
+      padding: .45in;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sheet:before {
+      content: "";
+      position: absolute;
+      inset: .18in;
+      border: 1px solid rgba(217,180,95,.22);
+      pointer-events: none;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      position: relative;
+      z-index: 2;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      letter-spacing: 3px;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--gold2);
+    }
+
+    .tag {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.45;
+      max-width: 260px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.07fr .93fr;
+      gap: 28px;
+      position: relative;
+      z-index: 2;
+      align-items: stretch;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 52px;
+      line-height: .94;
+      letter-spacing: -2.6px;
+      color: var(--white);
+    }
+
+    .headline-accent {
+      color: var(--gold2);
+      display: block;
+    }
+
+    .subhead {
+      margin: 20px 0 0;
+      font-size: 17px;
+      line-height: 1.45;
+      color: #e6dfd2;
+      max-width: 440px;
+    }
+
+    .demo-card {
+      background: linear-gradient(160deg, rgba(217,180,95,.2), rgba(255,255,255,.045));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 24px 55px rgba(0,0,0,.38);
+    }
+
+    .demo-label {
+      color: var(--gold2);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .demo-url {
+      font-size: 15px;
+      line-height: 1.35;
+      color: #fff;
+      word-break: break-word;
+      margin-bottom: 17px;
+    }
+
+    .device-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+      margin-top: 17px;
+    }
+
+    .device {
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 13px;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(0,0,0,.25);
+    }
+
+    .device strong {
+      display: block;
+      color: var(--white);
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .section-title {
+      margin: 34px 0 14px;
+      font-size: 14px;
+      letter-spacing: 2px;
+      color: var(--gold2);
+      text-transform: uppercase;
+      font-weight: 900;
+      position: relative;
+      z-index: 2;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 13px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .pillar {
+      background: rgba(255,255,255,.055);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 18px;
+      padding: 17px;
+      min-height: 152px;
+    }
+
+    .pillar-num {
+      font-size: 12px;
+      color: var(--gold2);
+      letter-spacing: 1.2px;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+
+    .pillar h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.1;
+      color: var(--white);
+    }
+
+    .pillar p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.42;
+      color: var(--muted);
+    }
+
+    .wide-band {
+      margin-top: 22px;
+      background: linear-gradient(90deg, rgba(217,180,95,.92), rgba(244,212,122,.78));
+      color: #111;
+      border-radius: 20px;
+      padding: 21px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .wide-band h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      line-height: 1.05;
+      letter-spacing: -1px;
+      color: #101010;
+    }
+
+    .wide-band p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.4;
+      color: #151515;
+      font-weight: 700;
+    }
+
+    .feature-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 18px;
+      margin-top: 22px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .feature {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #eae3d7;
+      background: rgba(255,255,255,.045);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--gold2);
+      margin-top: 5px;
+      flex: 0 0 auto;
+    }
+
+    .bottom {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      gap: 22px;
+      margin-top: 26px;
+      position: relative;
+      z-index: 2;
+      align-items: stretch;
+    }
+
+    .audiences,
+    .contact {
+      background: rgba(0,0,0,.26);
+      border: 1px solid rgba(217,180,95,.24);
+      border-radius: 20px;
+      padding: 19px;
+    }
+
+    .audiences h2,
+    .contact h2 {
+      margin: 0 0 12px;
+      color: var(--white);
+      font-size: 22px;
+      letter-spacing: -.4px;
+    }
+
+    .audience-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .audience-tags span {
+      padding: 7px 9px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      color: #e9e1d4;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .contact p {
+      margin: 0 0 7px;
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .contact strong {
+      color: var(--white);
+      font-size: 15px;
+    }
+
+    .footer-line {
+      margin-top: 22px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.12);
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 11px;
+      color: #8e897e;
+      position: relative;
+      z-index: 2;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .sheet {
+        margin: 0;
+        width: 8.5in;
+        min-height: 11in;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .sheet {
+        width: 100%;
+        min-height: auto;
+        padding: 28px 18px;
+      }
+
+      .hero,
+      .wide-band,
+      .bottom {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-list {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 44px;
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+
+      .tag {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="sheet">
+    <div class="topbar">
+      <div class="brand">STASHBOX RADIO</div>
+      <div class="tag">Owned music media player ecosystem<br>for brands, artists, sponsors, and audience-driven businesses</div>
+    </div>
+
+    <section class="hero">
+      <div>
+        <h1>Turn Songs Into <span class="headline-accent">Owned Media Worlds.</span></h1>
+        <p class="subhead">
+          Stashbox Radio is a working proof of concept for a custom music media player that combines songs, visuals, video clips, ecommerce, ad inventory, audience engagement, and backend analytics inside one controlled branded experience.
+        </p>
+      </div>
+
+      <aside class="demo-card">
+        <div class="demo-label">Live Working Example</div>
+        <div class="demo-url">https://stashbox.com/radio/dev/?song=funky-trenchtown-002b-stashbox</div>
+        <p style="font-size:13px; line-height:1.42; color:#d8d0c3; margin:0;">
+          View on desktop and phone. The player also supports car display behavior when used in a vehicle.
+        </p>
+        <div class="device-row">
+          <div class="device"><strong>Desktop</strong>Full visual layout</div>
+          <div class="device"><strong>Mobile</strong>Responsive player</div>
+          <div class="device"><strong>Car</strong>Display support</div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="section-title">What It Is</div>
+
+    <section class="grid-3">
+      <div class="pillar">
+        <div class="pillar-num">01</div>
+        <h3>Custom Music Player</h3>
+        <p>A branded player for audio, video, song metadata, likes, shares, play counts, and direct fan interaction.</p>
+      </div>
+
+      <div class="pillar">
+        <div class="pillar-num">02</div>
+        <h3>Visual Song Experience</h3>
+        <p>Each song can pull from its own image and video clip folders, turning playback into a moving media experience.</p>
+      </div>
+
+      <div class="pillar">
+        <div class="pillar-num">03</div>
+        <h3>Full CMS Control</h3>
+        <p>A backend system manages songs, artwork, videos, visibility, product placements, ad spots, and performance stats.</p>
+      </div>
+    </section>
+
+    <section class="wide-band">
+      <div>
+        <h2>Why send every fan back to someone else’s platform?</h2>
+        <p>Large platforms create reach. Owned media creates control, data, commerce, and direct audience value.</p>
+      </div>
+      <div>
+        <h2>Built for direct monetization.</h2>
+        <p>Use media attention to promote products, sponsors, events, merch, campaigns, artist drops, and partner offers.</p>
+      </div>
+    </section>
+
+    <div class="section-title">Core Platform Capabilities</div>
+
+    <section class="feature-list">
+      <div class="feature"><span class="dot"></span><span>Song-level image and video clip folders for richer playback experiences.</span></div>
+      <div class="feature"><span class="dot"></span><span>Shopify product spots directly under the media player.</span></div>
+      <div class="feature"><span class="dot"></span><span>Internal ad system for brand messages, sponsors, and campaigns.</span></div>
+      <div class="feature"><span class="dot"></span><span>Backend tracking for plays, likes, shares, ad activity, and product engagement.</span></div>
+      <div class="feature"><span class="dot"></span><span>Artist, genre, mood, album, and release metadata built into the experience.</span></div>
+      <div class="feature"><span class="dot"></span><span>Designed as an owned destination, not another generic embedded playlist.</span></div>
+    </section>
+
+    <section class="bottom">
+      <div class="audiences">
+        <h2>Potential Use Cases</h2>
+        <div class="audience-tags">
+          <span>Major Artists</span>
+          <span>Influencers</span>
+          <span>Record Labels</span>
+          <span>Festivals</span>
+          <span>Venues</span>
+          <span>Tourism Brands</span>
+          <span>Sports Personalities</span>
+          <span>Nonprofits</span>
+          <span>Universities</span>
+          <span>Hospitality Groups</span>
+          <span>Media Companies</span>
+          <span>Product Brands</span>
+        </div>
+      </div>
+
+      <div class="contact">
+        <h2>Contact</h2>
+        <p><strong>Dean Palermo</strong></p>
+        <p>Marketing Producer</p>
+        <p>Elettro Incorporated</p>
+        <p>310.408.6687 EST</p>
+        <p>dpalermo@elettro.com</p>
+        <p>Elettro.com</p>
+        <p>Stashbox.com</p>
+        <p>Stashbox.ai</p>
+      </div>
+    </section>
+
+    <div class="footer-line">
+      <span>Stashbox Radio Proof of Concept</span>
+      <span>Owned Media • Music • Commerce • Ads • Analytics</span>
+    </div>
+  </div>
+</body>
+</html>
