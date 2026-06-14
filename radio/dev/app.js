@@ -24,7 +24,19 @@ const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
 const DEV_RADIO_SHARE_URL = 'https://stashbox.com/radio/dev/';
-const songKeyFromUrl = new URLSearchParams(window.location.search).get('song') || '';
+const devUrlParams = new URLSearchParams(window.location.search);
+const songKeyFromUrl = devUrlParams.get('song') || '';
+const ALLOWED_VISUAL_MODES = new Set([
+  'direct_plus_relevant',
+  'direct_only',
+  'direct_first',
+  'relevant_only',
+  'fallback_only'
+]);
+const DEFAULT_VISUAL_MODE = 'direct_plus_relevant';
+const requestedVisualMode = String(devUrlParams.get('visual_mode') || devUrlParams.get('mode') || '').trim();
+const selectedVisualMode = ALLOWED_VISUAL_MODES.has(requestedVisualMode) ? requestedVisualMode : DEFAULT_VISUAL_MODE;
+console.log(`Visual mode: ${selectedVisualMode}`);
 
 const ADS_STATS_STORAGE_KEY = 'stashbox_radio_dev_ad_events';
 const AD_FREQUENCY_WEIGHTS = { low: 1, medium: 3, high: 6 };
@@ -3120,7 +3132,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const songKey = clean(song?.song_key || song?.songKey || song?.raw?.song_key || song?.id || song?.raw?.id);
     if (!songKey) return [];
     try {
-      const response = await fetch(`${SONG_VISUALS_API_URL}/${encodeURIComponent(songKey)}`, { cache: 'no-store', signal });
+      const visualsUrl = `${SONG_VISUALS_API_URL}/${encodeURIComponent(songKey)}?visual_mode=${encodeURIComponent(selectedVisualMode)}`;
+      const response = await fetch(visualsUrl, { cache: 'no-store', signal });
       const text = await response.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
