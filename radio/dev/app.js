@@ -389,6 +389,7 @@ function normalizeSong(row, index) {
   const videoClicks = countValue(firstDefined(row, ['video_clicks', 'video_click_count', 'total_video_clicks']));
   const productClicks = countValue(firstDefined(row, ['product_clicks', 'product_click_count', 'total_product_clicks']));
   const visualAssets = normalizeVisualAssets(row.visual_assets || row.visualAssets);
+  const rawVisualMixMode = clean(row.visual_mix_mode || row.visualMixMode);
   return {
     raw: row,
     id: clean(rawKey) || `rds-song-${index}`,
@@ -413,6 +414,8 @@ function normalizeSong(row, index) {
     enhancedVisualsEnabled: bool(row.enhanced_visuals_enabled || row.enhancedVisualsEnabled),
     visual_assets: visualAssets,
     visualAssets,
+    visual_mix_mode: ALLOWED_VISUAL_MODES.has(rawVisualMixMode) ? rawVisualMixMode : '',
+    visualMixMode: ALLOWED_VISUAL_MODES.has(rawVisualMixMode) ? rawVisualMixMode : '',
     shuffleVisuals: row.shuffle_visuals === undefined && row.shuffleVisuals === undefined ? true : bool(row.shuffle_visuals ?? row.shuffleVisuals),
     stillImageDurationSeconds: normalizeVisualDuration(row.visual_still_duration_seconds ?? row.visualStillDurationSeconds ?? row.still_image_duration_seconds ?? row.stillImageDurationSeconds),
     release_format: clean(row.release_format),
@@ -3132,7 +3135,9 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const songKey = clean(song?.song_key || song?.songKey || song?.raw?.song_key || song?.id || song?.raw?.id);
     if (!songKey) return [];
     try {
-      const visualsUrl = `${SONG_VISUALS_API_URL}/${encodeURIComponent(songKey)}?visual_mode=${encodeURIComponent(selectedVisualMode)}`;
+      const songVisualMode = clean(song?.visual_mix_mode || song?.visualMixMode || song?.raw?.visual_mix_mode || song?.raw?.visualMixMode);
+      const effectiveVisualMode = ALLOWED_VISUAL_MODES.has(songVisualMode) ? songVisualMode : selectedVisualMode;
+      const visualsUrl = `${SONG_VISUALS_API_URL}/${encodeURIComponent(songKey)}?visual_mode=${encodeURIComponent(effectiveVisualMode)}`;
       const response = await fetch(visualsUrl, { cache: 'no-store', signal });
       const text = await response.text();
       let data = null;
