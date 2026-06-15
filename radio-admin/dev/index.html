@@ -54,12 +54,28 @@
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
 
+
+      <nav class="dashboard-section-nav" aria-label="Dashboard analytics sections">
+        <a href="/radio-admin/dev/?view=overview" data-dashboard-view-link="overview">Overview</a>
+        <a href="/radio-admin/dev/?view=operational" data-dashboard-view-link="operational">Operational Stats</a>
+        <a href="/radio-admin/dev/?view=today" data-dashboard-view-link="today">Today</a>
+        <a href="/radio-admin/dev/?view=top-songs" data-dashboard-view-link="top-songs">Top Songs</a>
+        <a href="/radio-admin/dev/?view=most-liked" data-dashboard-view-link="most-liked">Most Liked</a>
+        <a href="/radio-admin/dev/?view=most-shared" data-dashboard-view-link="most-shared">Most Shared</a>
+        <a href="/radio-admin/dev/?view=most-watched-videos" data-dashboard-view-link="most-watched-videos">Most Watched Videos</a>
+        <a href="/radio-admin/dev/?view=product-analytics" data-dashboard-view-link="product-analytics">Product Analytics</a>
+        <a href="/radio-admin/dev/?view=top-clicked-products" data-dashboard-view-link="top-clicked-products">Top Clicked Products</a>
+        <a href="/radio-admin/dev/?view=recent-product-clicks" data-dashboard-view-link="recent-product-clicks">Recent Product Clicks</a>
+        <a href="/radio-admin/dev/?view=events" data-dashboard-view-link="events">Events</a>
+        <a href="/radio-admin/dev/?view=archive" data-dashboard-view-link="archive">Archive</a>
+      </nav>
+
       <section id="dashboardView" class="admin-view" aria-labelledby="dashboardHeading">
-        <div class="card dashboard-card">
+        <div class="card dashboard-card" data-dashboard-section="operational">
           <div class="panel-header dashboard-header">
             <div>
               <p class="eyebrow">Dashboard</p>
-              <h2 id="dashboardHeading">Operational stats</h2>
+              <h2 id="dashboardHeading">Dashboard HQ</h2>
               <p class="panel-copy">Top KPI totals come from radio event stats; song rankings still use the dev admin songs API and exclude archived songs.</p>
               <p id="statsGeneratedAt" class="stats-generated">Stats generated: —</p>
             </div>
@@ -70,7 +86,7 @@
           <div id="kpiGrid" class="kpi-grid"></div>
         </div>
 
-        <section class="card dashboard-section products-analytics-section" aria-labelledby="productsAnalyticsHeading">
+        <section class="card dashboard-section products-analytics-section" data-dashboard-section="product-analytics" aria-labelledby="productsAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
               <p class="eyebrow">Products Analytics</p>
@@ -87,7 +103,7 @@
             <section aria-labelledby="topClickedProductsHeading">
               <div class="panel-header compact-header">
                 <div>
-                  <p class="eyebrow">Top 25</p>
+                  <p class="eyebrow">Ranked by product clicks</p>
                   <h3 id="topClickedProductsHeading">Top clicked products</h3>
                 </div>
               </div>
@@ -106,6 +122,8 @@
                   <tbody id="topProductsTableBody"></tbody>
                 </table>
               </div>
+              <p id="topProductsShowing" class="showing-count"></p>
+              <button id="loadMoreTopProducts" class="button button-small button-ghost load-more-button" type="button">Load more</button>
             </section>
 
             <section aria-labelledby="recentProductClicksHeading">
@@ -130,6 +148,8 @@
                   <tbody id="recentProductClicksTableBody"></tbody>
                 </table>
               </div>
+              <p id="recentProductClicksShowing" class="showing-count"></p>
+              <button id="loadMoreRecentProductClicks" class="button button-small button-ghost load-more-button" type="button">Load more</button>
             </section>
           </div>
         </section>
@@ -278,7 +298,7 @@
           </div>
         </section>
 
-        <section class="card dashboard-section song-analytics-section" aria-labelledby="songAnalyticsHeading">
+        <section class="card dashboard-section song-analytics-section" data-dashboard-section="song-analytics" aria-labelledby="songAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
               <p class="eyebrow">Song Analytics</p>
@@ -319,7 +339,7 @@
         </section>
 
         <div class="dashboard-grid">
-          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="todayStatsHeading">
+          <section class="card dashboard-section dashboard-section-wide" data-dashboard-section="today" aria-labelledby="todayStatsHeading">
             <p class="eyebrow">Today</p>
             <h2 id="todayStatsHeading">Today's event stats</h2>
             <div id="todayStatsGrid" class="mini-stat-grid"></div>
@@ -336,7 +356,7 @@
             <h2 id="eventTypesStatsHeading">Event type totals</h2>
             <div id="eventTypesStatsList" class="summary-list"></div>
           </section>
-          <section class="card dashboard-section dashboard-section-wide" aria-labelledby="topSongsHeading">
+          <section class="card dashboard-section dashboard-section-wide" data-dashboard-section="top-songs" aria-labelledby="topSongsHeading">
             <div class="panel-header compact-header">
               <div>
                 <p class="eyebrow">Ranked by plays</p>
@@ -362,30 +382,40 @@
                 <tbody id="topSongsTableBody"></tbody>
               </table>
             </div>
+            <p id="topSongsShowing" class="showing-count"></p>
+            <button id="loadMoreTopSongs" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="likedSongsHeading">
-            <p class="eyebrow">Top 5</p>
+          <section class="card dashboard-section" data-dashboard-section="most-liked" aria-labelledby="likedSongsHeading">
+            <p class="eyebrow">Ranked by likes</p>
             <h2 id="likedSongsHeading">Most liked songs</h2>
             <div id="likedSongsList" class="rank-list"></div>
+            <p id="likedSongsShowing" class="showing-count"></p>
+            <button id="loadMoreLikedSongs" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="sharedSongsHeading">
-            <p class="eyebrow">Top 5</p>
+          <section class="card dashboard-section" data-dashboard-section="most-shared" aria-labelledby="sharedSongsHeading">
+            <p class="eyebrow">Ranked by shares</p>
             <h2 id="sharedSongsHeading">Most shared songs</h2>
             <div id="sharedSongsList" class="rank-list"></div>
+            <p id="sharedSongsShowing" class="showing-count"></p>
+            <button id="loadMoreSharedSongs" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="watchedVideosHeading">
+          <section class="card dashboard-section" data-dashboard-section="most-watched-videos" aria-labelledby="watchedVideosHeading">
             <p class="eyebrow">Ranked by video clicks</p>
             <h2 id="watchedVideosHeading">Most watched videos</h2>
             <div id="watchedVideosList" class="rank-list"></div>
+            <p id="watchedVideosShowing" class="showing-count"></p>
+            <button id="loadMoreWatchedVideos" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="productClicksHeading">
+          <section class="card dashboard-section" data-dashboard-section="highest-product-click-songs" aria-labelledby="productClicksHeading">
             <p class="eyebrow">Ranked by product clicks</p>
             <h2 id="productClicksHeading">Highest product click songs</h2>
             <div id="productClicksList" class="rank-list"></div>
+            <p id="productClicksShowing" class="showing-count"></p>
+            <button id="loadMoreProductClicks" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
           <section class="card dashboard-section" aria-labelledby="engagementHeading">

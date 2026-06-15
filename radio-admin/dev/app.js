@@ -189,6 +189,23 @@ const todayStatDefinitions = [
   { key: 'video_clicks_today', label: 'Video Clicks Today' }
 ];
 
+const DASHBOARD_PAGE_SIZE = 50;
+const DASHBOARD_OVERVIEW_LIMIT = 10;
+const DASHBOARD_VIEWS = new Set([
+  'overview',
+  'operational',
+  'today',
+  'top-songs',
+  'most-liked',
+  'most-shared',
+  'most-watched-videos',
+  'product-analytics',
+  'top-clicked-products',
+  'recent-product-clicks',
+  'events',
+  'archive'
+]);
+
 const productKpiDefinitions = [
   { key: 'total_product_clicks', label: 'Total Product Clicks' },
   { key: 'unique_products_clicked', label: 'Unique Products Clicked' },
@@ -357,6 +374,15 @@ let selectedSongKey = '';
 let selectedSongId = '';
 let messageTimer = null;
 let activeTab = DEFAULT_TAB;
+let activeDashboardView = getDashboardViewFromUrl();
+const dashboardVisibleCounts = {
+  'top-songs': DASHBOARD_PAGE_SIZE,
+  'most-liked': DASHBOARD_PAGE_SIZE,
+  'most-shared': DASHBOARD_PAGE_SIZE,
+  'most-watched-videos': DASHBOARD_PAGE_SIZE,
+  'top-clicked-products': DASHBOARD_PAGE_SIZE,
+  'recent-product-clicks': DASHBOARD_PAGE_SIZE
+};
 let editorMode = 'edit';
 
 const els = {
@@ -367,6 +393,8 @@ const els = {
   clearTokenButton: document.getElementById('clearTokenButton'),
   tokenStatus: document.getElementById('tokenStatus'),
   tabButtons: Array.from(document.querySelectorAll('.tab-button')),
+  dashboardViewLinks: Array.from(document.querySelectorAll('[data-dashboard-view-link]')),
+  dashboardSections: Array.from(document.querySelectorAll('[data-dashboard-section]')),
   dashboardView: document.getElementById('dashboardView'),
   songsView: document.getElementById('songsView'),
   editView: document.getElementById('editView'),
@@ -393,13 +421,27 @@ const els = {
   songInsightGrid: document.getElementById('songInsightGrid'),
   songAnalyticsTableBody: document.getElementById('songAnalyticsTableBody'),
   songStatsSortButtons: Array.from(document.querySelectorAll('[data-song-stats-sort]')),
+  topProductsShowing: document.getElementById('topProductsShowing'),
   productKpiGrid: document.getElementById('productKpiGrid'),
   topProductsTableBody: document.getElementById('topProductsTableBody'),
   recentProductClicksTableBody: document.getElementById('recentProductClicksTableBody'),
+  loadMoreTopProducts: document.getElementById('loadMoreTopProducts'),
+  recentProductClicksShowing: document.getElementById('recentProductClicksShowing'),
+  loadMoreRecentProductClicks: document.getElementById('loadMoreRecentProductClicks'),
   todayStatsGrid: document.getElementById('todayStatsGrid'),
   devicesStatsList: document.getElementById('devicesStatsList'),
   eventTypesStatsList: document.getElementById('eventTypesStatsList'),
   topSongsTableBody: document.getElementById('topSongsTableBody'),
+  topSongsShowing: document.getElementById('topSongsShowing'),
+  loadMoreTopSongs: document.getElementById('loadMoreTopSongs'),
+  likedSongsShowing: document.getElementById('likedSongsShowing'),
+  loadMoreLikedSongs: document.getElementById('loadMoreLikedSongs'),
+  sharedSongsShowing: document.getElementById('sharedSongsShowing'),
+  loadMoreSharedSongs: document.getElementById('loadMoreSharedSongs'),
+  watchedVideosShowing: document.getElementById('watchedVideosShowing'),
+  loadMoreWatchedVideos: document.getElementById('loadMoreWatchedVideos'),
+  productClicksShowing: document.getElementById('productClicksShowing'),
+  loadMoreProductClicks: document.getElementById('loadMoreProductClicks'),
   likedSongsList: document.getElementById('likedSongsList'),
   sharedSongsList: document.getElementById('sharedSongsList'),
   watchedVideosList: document.getElementById('watchedVideosList'),
@@ -438,6 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildEditForm();
   bindEvents();
   renderDashboard();
+  setDashboardView(activeDashboardView, { pushState: false });
   initializeAdmin();
 });
 
@@ -456,6 +499,20 @@ function bindEvents() {
   els.refreshArchiveButton.addEventListener('click', () => loadSongs({ preserveSelection: true }));
   els.refreshEventsButton.addEventListener('click', () => loadEvents());
   els.eventLimit.addEventListener('change', () => loadEvents());
+  els.dashboardViewLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      setDashboardView(link.dataset.dashboardViewLink, { pushState: true });
+    });
+  });
+  window.addEventListener('popstate', () => setDashboardView(getDashboardViewFromUrl(), { pushState: false }));
+  bindDashboardLoadMore(els.loadMoreTopSongs, 'top-songs');
+  bindDashboardLoadMore(els.loadMoreLikedSongs, 'most-liked');
+  bindDashboardLoadMore(els.loadMoreSharedSongs, 'most-shared');
+  bindDashboardLoadMore(els.loadMoreWatchedVideos, 'most-watched-videos');
+  bindDashboardLoadMore(els.loadMoreProductClicks, 'highest-product-click-songs');
+  bindDashboardLoadMore(els.loadMoreTopProducts, 'top-clicked-products');
+  bindDashboardLoadMore(els.loadMoreRecentProductClicks, 'recent-product-clicks');
   els.songSearch.addEventListener('input', renderSongList);
   els.saveChangesButton.addEventListener('click', () => {
     console.log("Save clicked");
@@ -560,6 +617,74 @@ function updateTokenUi(hasToken) {
   els.tokenPanel.classList.toggle('hidden', hasToken);
   els.adminPanel.classList.toggle('hidden', !hasToken);
   els.clearTokenButton.classList.toggle('hidden', !hasToken);
+}
+
+function getDashboardViewFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get('view') || 'overview';
+  return DASHBOARD_VIEWS.has(view) ? view : 'overview';
+}
+
+function bindDashboardLoadMore(button, viewName) {
+  if (!button) return;
+  button.addEventListener('click', () => {
+    dashboardVisibleCounts[viewName] = (dashboardVisibleCounts[viewName] || DASHBOARD_PAGE_SIZE) + DASHBOARD_PAGE_SIZE;
+    renderDashboard();
+  });
+}
+
+function setDashboardView(viewName, { pushState = false } = {}) {
+  activeDashboardView = DASHBOARD_VIEWS.has(viewName) ? viewName : 'overview';
+  if (activeDashboardView === 'events') setActiveTab('events');
+  else if (activeDashboardView === 'archive') setActiveTab('archive');
+  else if (activeTab !== 'dashboard') setActiveTab('dashboard');
+
+  els.dashboardViewLinks.forEach((link) => {
+    const isActive = link.dataset.dashboardViewLink === activeDashboardView;
+    link.classList.toggle('is-active', isActive);
+    link.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
+
+  if (pushState) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', activeDashboardView);
+    window.history.pushState({}, '', url);
+  }
+
+  updateDashboardSectionVisibility();
+}
+
+function updateDashboardSectionVisibility() {
+  const overviewSections = new Set(['operational', 'today', 'top-songs', 'most-liked', 'most-shared', 'most-watched-videos', 'highest-product-click-songs']);
+  const sectionForView = activeDashboardView === 'top-clicked-products' || activeDashboardView === 'recent-product-clicks'
+    ? 'product-analytics'
+    : activeDashboardView;
+  els.dashboardSections.forEach((section) => {
+    const key = section.dataset.dashboardSection;
+    const show = activeDashboardView === 'overview' ? overviewSections.has(key) : key === sectionForView;
+    section.classList.toggle('hidden', !show);
+  });
+
+  const productSection = document.querySelector('[data-dashboard-section="product-analytics"]');
+  if (productSection) {
+    const productTables = productSection.querySelectorAll('.product-tables-grid > section');
+    productTables.forEach((tableSection, index) => {
+      const showTable = activeDashboardView === 'product-analytics'
+        || (activeDashboardView === 'top-clicked-products' && index === 0)
+        || (activeDashboardView === 'recent-product-clicks' && index === 1);
+      tableSection.classList.toggle('hidden', !showTable);
+    });
+  }
+}
+
+
+function getDashboardLimit(viewName) {
+  return activeDashboardView === 'overview' ? DASHBOARD_OVERVIEW_LIMIT : (dashboardVisibleCounts[viewName] || DASHBOARD_PAGE_SIZE);
+}
+
+function updateShowing(metaEl, buttonEl, visible, total) {
+  if (metaEl) metaEl.textContent = total ? `Showing ${Math.min(visible, total)} of ${total}` : '';
+  if (buttonEl) buttonEl.classList.toggle('hidden', visible >= total);
 }
 
 function setActiveTab(tabName) {
@@ -1259,14 +1384,25 @@ function renderDashboard() {
   renderTodayStats();
   renderDevicesStats();
   renderEventTypesStats();
-  renderTopSongsTable(sortSongsByMetric('total_plays', activeSongs));
-  renderRankList(els.likedSongsList, sortSongsByMetric('likes', activeSongs).slice(0, 5), 'likes');
-  renderRankList(els.sharedSongsList, sortSongsByMetric('shares', activeSongs).slice(0, 5), 'shares');
-  renderRankList(els.watchedVideosList, sortSongsByMetric('video_clicks', activeSongs), 'video clicks');
-  renderRankList(els.productClicksList, sortSongsByMetric('product_clicks', activeSongs), 'product clicks');
+  const topSongs = sortSongsByMetric('total_plays', activeSongs);
+  const likedSongs = sortSongsByMetric('likes', activeSongs);
+  const sharedSongs = sortSongsByMetric('shares', activeSongs);
+  const watchedVideos = sortSongsByMetric('video_clicks', activeSongs);
+  const productClickSongs = sortSongsByMetric('product_clicks', activeSongs);
+  renderTopSongsTable(topSongs.slice(0, getDashboardLimit('top-songs')), topSongs.length);
+  renderRankList(els.likedSongsList, likedSongs.slice(0, getDashboardLimit('most-liked')), 'likes');
+  updateShowing(els.likedSongsShowing, els.loadMoreLikedSongs, getDashboardLimit('most-liked'), likedSongs.length);
+  renderRankList(els.sharedSongsList, sharedSongs.slice(0, getDashboardLimit('most-shared')), 'shares');
+  updateShowing(els.sharedSongsShowing, els.loadMoreSharedSongs, getDashboardLimit('most-shared'), sharedSongs.length);
+  renderRankList(els.watchedVideosList, watchedVideos.slice(0, getDashboardLimit('most-watched-videos')), 'video clicks');
+  updateShowing(els.watchedVideosShowing, els.loadMoreWatchedVideos, getDashboardLimit('most-watched-videos'), watchedVideos.length);
+  renderRankList(els.productClicksList, productClickSongs.slice(0, getDashboardLimit('highest-product-click-songs')), 'product clicks');
+  updateShowing(els.productClicksShowing, els.loadMoreProductClicks, getDashboardLimit('highest-product-click-songs'), productClickSongs.length);
   renderRankList(els.engagementList, sortSongsByEngagement(activeSongs).slice(0, 5), 'engagement', getSongEngagement);
   renderRankList(els.skipRateList, sortSongsBySkipRate(activeSongs), 'skip rate', getSongSkipRate, formatPercent);
+  updateDashboardSectionVisibility();
 }
+
 
 function calculateDashboardTotals(songList) {
   const summary = statsSummary?.summary;
@@ -1352,14 +1488,18 @@ function renderTopProductsTable() {
   }
 
   els.topProductsTableBody.innerHTML = '';
-  const products = productStats?.products || [];
+  const allProducts = productStats?.products || [];
+  const products = allProducts.slice(0, getDashboardLimit('top-clicked-products'));
 
   if (!products.length) {
     const row = document.createElement('tr');
     row.innerHTML = '<td colspan="6" class="song-meta">No product clicks returned.</td>';
     els.topProductsTableBody.appendChild(row);
+    updateShowing(els.topProductsShowing, els.loadMoreTopProducts, 0, 0);
     return;
   }
+
+  updateShowing(els.topProductsShowing, els.loadMoreTopProducts, getDashboardLimit('top-clicked-products'), allProducts.length);
 
   products.forEach((product) => {
     const productUrl = product.product_url || '';
@@ -1381,14 +1521,18 @@ function renderRecentProductClicksTable() {
   }
 
   els.recentProductClicksTableBody.innerHTML = '';
-  const recentClicks = productStats?.recent_clicks || [];
+  const allRecentClicks = productStats?.recent_clicks || [];
+  const recentClicks = allRecentClicks.slice(0, getDashboardLimit('recent-product-clicks'));
 
   if (!recentClicks.length) {
     const row = document.createElement('tr');
     row.innerHTML = '<td colspan="6" class="song-meta">No recent product clicks returned.</td>';
     els.recentProductClicksTableBody.appendChild(row);
+    updateShowing(els.recentProductClicksShowing, els.loadMoreRecentProductClicks, 0, 0);
     return;
   }
+
+  updateShowing(els.recentProductClicksShowing, els.loadMoreRecentProductClicks, getDashboardLimit('recent-product-clicks'), allRecentClicks.length);
 
   recentClicks.forEach((click) => {
     const productUrl = click.product_url || '';
@@ -2330,15 +2474,18 @@ function roundMetric(value) {
   return Math.round(value * 10) / 10;
 }
 
-function renderTopSongsTable(songList) {
+function renderTopSongsTable(songList, totalCount = songList.length) {
   els.topSongsTableBody.innerHTML = '';
 
   if (!songList.length) {
     const row = document.createElement('tr');
     row.innerHTML = '<td colspan="10" class="song-meta">No songs loaded.</td>';
     els.topSongsTableBody.appendChild(row);
+    updateShowing(els.topSongsShowing, els.loadMoreTopSongs, 0, 0);
     return;
   }
+
+  updateShowing(els.topSongsShowing, els.loadMoreTopSongs, getDashboardLimit('top-songs'), totalCount);
 
   songList.forEach((song) => {
     const row = document.createElement('tr');

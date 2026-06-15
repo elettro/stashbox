@@ -1686,3 +1686,42 @@ textarea {
   .radio-admin-nav-row a { flex: 1 1 10rem; text-align: center; }
   .radio-admin-output-nav a { flex-basis: 8rem; }
 }
+
+/* Dev dashboard HQ subviews for /radio-admin/dev/ only. */
+.dashboard-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1.25rem;
+}
+
+.dashboard-section-nav a {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: #e9edf7;
+  padding: 0.55rem 0.85rem;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.dashboard-section-nav a:hover,
+.dashboard-section-nav a:focus-visible,
+.dashboard-section-nav a.is-active,
+.dashboard-section-nav a[aria-current="page"] {
+  background: rgba(119, 209, 255, 0.18);
+  border-color: rgba(119, 209, 255, 0.72);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.showing-count {
+  color: #aeb8ca;
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+}
+
+.load-more-button {
+  margin-top: 0.7rem;
+}
