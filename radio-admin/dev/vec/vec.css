@@ -413,3 +413,87 @@
     font-size: 0.84rem;
   }
 }
+
+.vec-summary-wide {
+  grid-column: span 2;
+}
+
+.vec-error-state {
+  color: #ffb8c0;
+}
+
+.vec-folder-grid .vec-empty-state {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.vec-folder-card {
+  align-items: stretch;
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(240, 192, 76, 0.08), transparent 14rem),
+    rgba(255, 255, 255, 0.045);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.vec-folder-card.is-selected {
+  border-color: rgba(80, 210, 120, 0.5);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(80, 210, 120, 0.08) inset;
+}
+
+.vec-folder-card.is-unselected {
+  border-color: rgba(255, 104, 120, 0.18);
+}
+
+.vec-folder-card-main {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.vec-folder-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.vec-folder-card-head h3 {
+  margin: 0;
+  color: #f7fff5;
+  line-height: 1.15;
+}
+
+.vec-folder-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.vec-folder-badges span,
+.vec-folder-status {
+  border: 1px solid rgba(240, 192, 76, 0.28);
+  border-radius: 999px;
+  background: rgba(240, 192, 76, 0.1);
+  color: #ffe09a;
+  padding: 0.34rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.vec-folder-status.is-active {
+  border-color: rgba(80, 210, 120, 0.38);
+  background: rgba(80, 210, 120, 0.12);
+  color: #bfffd1;
+}
+
+.vec-folder-status.is-hidden {
+  border-color: rgba(255, 104, 120, 0.32);
+  background: rgba(255, 104, 120, 0.1);
+  color: #ffb8c0;
+}
+
+.vec-folder-card small {
+  color: var(--muted);
+  font-weight: 800;
+}

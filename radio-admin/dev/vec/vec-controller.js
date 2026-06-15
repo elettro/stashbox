@@ -1,5 +1,7 @@
 (function () {
-  const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
+  const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+  const SONGS_API_URL = `${API_ROOT}/admin/songs`;
+  const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 
   const DEFAULT_ARTWORK_RULES = {
@@ -65,6 +67,61 @@
       .join('');
   }
 
+  const FOLDER_TYPE_LABELS = { general: 'General', artist: 'Artist', song: 'Song', genre: 'Genre', mood: 'Mood', promo: 'Promo', seasonal: 'Seasonal' };
+  const FOLDER_STATUS_LABELS = { active: 'Active', hidden: 'Hidden' };
+
+  function normalizeValue(value, labels, fallback) {
+    const key = clean(value).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(labels, key) ? key : fallback;
+  }
+
+  function normalizeCount(...values) {
+    for (const value of values) {
+      const number = Number(value);
+      if (Number.isFinite(number) && number >= 0) return number;
+    }
+    return 0;
+  }
+
+  function slugify(value) {
+    return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  function formatDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function normalizeVisualFolder(folder) {
+    if (!folder || typeof folder !== 'object') return null;
+    const folderName = getFirstString(folder, ['folder_name', 'name', 'title']);
+    const id = getFirstString(folder, ['id', 'folder_id', 'folder_slug', 'slug']) || slugify(folderName);
+    if (!id || !folderName) return null;
+    return {
+      id,
+      folder_name: folderName,
+      folder_slug: getFirstString(folder, ['folder_slug', 'slug']) || slugify(folderName),
+      folder_type: normalizeValue(folder.folder_type || folder.type, FOLDER_TYPE_LABELS, 'general'),
+      description: clean(folder.description),
+      status: normalizeValue(folder.status, FOLDER_STATUS_LABELS, 'active'),
+      images_count: normalizeCount(folder.images_count, folder.image_count),
+      clips_count: normalizeCount(folder.clips_count, folder.clip_count, folder.video_clip_count, folder.video_count),
+      asset_count: normalizeCount(folder.asset_count, folder.assets_count, folder.total_count),
+      created_at: folder.created_at || folder.createdAt || '',
+      updated_at: folder.updated_at || folder.updatedAt || '',
+      thumbnail_url: getFirstString(folder, ['thumbnail_url', 'thumbnailUrl', 'image_url', 'preview_url', 'cover_url']),
+    };
+  }
+
+  function normalizeFoldersResponse(data) {
+    if (typeof data?.body === 'string') {
+      try { return normalizeFoldersResponse(JSON.parse(data.body)); } catch { return []; }
+    }
+    const list = Array.isArray(data) ? data : (Array.isArray(data?.folders) ? data.folders : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.body) ? data.body : [])));
+    return list.map(normalizeVisualFolder).filter(Boolean);
+  }
+
   function normalizeSongsResponse(data) {
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.songs)) return data.songs;
@@ -80,20 +137,25 @@
     return [];
   }
 
-  async function fetchSongs() {
+  async function adminFetchJson(url) {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
     if (!token) throw new Error('Save an admin token in the dev admin first.');
-
-    const response = await fetch(SONGS_API_URL, { headers: { 'x-admin-token': token } });
+    const response = await fetch(url, { headers: { 'x-admin-token': token } });
     const text = await response.text();
     let data = null;
     if (text) {
       try { data = JSON.parse(text); } catch { data = text; }
     }
-    if (!response.ok) {
-      throw new Error(data?.error || data?.message || response.statusText || 'Could not load songs.');
-    }
-    return normalizeSongsResponse(data);
+    if (!response.ok) throw new Error(data?.error || data?.message || response.statusText || 'Request failed.');
+    return data;
+  }
+
+  async function fetchVisualFolders() {
+    return normalizeFoldersResponse(await adminFetchJson(VISUALS_FOLDERS_API_URL));
+  }
+
+  async function fetchSongs() {
+    return normalizeSongsResponse(await adminFetchJson(SONGS_API_URL));
   }
 
   function getSongKey(song) {
@@ -162,6 +224,11 @@
     `;
   }
 
+  function getSelectedFolders(state) {
+    const selectedIds = state.selectedFolderIds || new Set();
+    return (state.visualFolders || []).filter((folder) => selectedIds.has(folder.id));
+  }
+
   function buildPreviewSequence(state) {
     if (!state.songContext) return [];
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
@@ -183,6 +250,14 @@
         durationSeconds: visual.durationSeconds || 4,
       });
     });
+
+    const selectedFolders = getSelectedFolders(state);
+    const firstThumbnailFolder = selectedFolders.find((folder) => folder.thumbnail_url);
+    if (firstThumbnailFolder?.thumbnail_url) {
+      sequence.push({ type: 'visual-folder', label: `${firstThumbnailFolder.folder_name} folder selected`, url: firstThumbnailFolder.thumbnail_url, alt: `${firstThumbnailFolder.folder_name} preview thumbnail`, durationSeconds: 4 });
+    } else if (selectedFolders.length) {
+      sequence.push({ type: 'visual-folder', label: `${selectedFolders.length} Visual Library folder${selectedFolders.length === 1 ? '' : 's'} selected`, durationSeconds: 4 });
+    }
 
     if (!sequence.length && artworkUrl) {
       sequence.push({ type: 'artwork', label: 'Official artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 4 });
@@ -231,11 +306,14 @@
     `;
   }
 
-  function renderSummary(songContext, artworkRules) {
+  function renderSummary(songContext, artworkRules, selectedFolders = []) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
     const artworkStatus = songContext && getArtworkUrl(songContext) ? 'Artwork available' : 'No artwork available';
+    const selectedImages = selectedFolders.reduce((total, folder) => total + (folder.images_count || 0), 0);
+    const selectedClips = selectedFolders.reduce((total, folder) => total + (folder.clips_count || 0), 0);
+    const selectedNames = selectedFolders.map((folder) => folder.folder_name).join(', ') || 'None selected';
     return `
       <p class="vec-empty-state">${songContext ? `Selected song context loaded for ${escapeHtml(title)}.` : 'No song selected yet.'}</p>
       <div class="vec-summary-grid">
@@ -243,18 +321,41 @@
         <div class="vec-summary-card"><strong>Artist</strong><span>${escapeHtml(artist)}</span></div>
         <div class="vec-summary-card"><strong>Song key</strong><span>${escapeHtml(songKey)}</span></div>
         <div class="vec-summary-card"><strong>Official artwork</strong><span>${artworkStatus}</span></div>
-        <div class="vec-summary-card"><strong>Selected folders</strong><span>0 folders</span></div>
-        <div class="vec-summary-card"><strong>Selected images</strong><span>0 images</span></div>
-        <div class="vec-summary-card"><strong>Selected clips</strong><span>0 clips</span></div>
+        <div class="vec-summary-card"><strong>Selected folders</strong><span>${selectedFolders.length} folder${selectedFolders.length === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
+        <div class="vec-summary-card"><strong>Selected images</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Selected clips</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card"><strong>Artwork rules</strong><span>Start ${onOffLabel(artworkRules.startWithArtwork)} · ${secondsLabel(artworkRules.startDurationSeconds)} · End ${onOffLabel(artworkRules.endWithArtwork)} · ${secondsLabel(artworkRules.endDurationSeconds)} · Re-present ${onOffLabel(artworkRules.rePresentArtwork)} every ${secondsLabel(artworkRules.repeatEverySeconds)}</span></div>
         <div class="vec-summary-card"><strong>Shuffle mode</strong><span>Randomize · avoid repeats</span></div>
       </div>`;
   }
 
+  function renderFolderCards(state) {
+    if (!state.songContext) return '<p class="vec-empty-state">Select a song before choosing Visual Library folders.</p>';
+    if (state.visualFoldersLoading) return '<p class="vec-empty-state">Loading real Visual Library folders...</p>';
+    if (state.visualFoldersError) return `<p class="vec-empty-state vec-error-state">${escapeHtml(state.visualFoldersError)}</p>`;
+    if (!state.visualFolders.length) return '<p class="vec-empty-state">No Visual Library folders are available yet.</p>';
+    return state.visualFolders.map((folder) => {
+      const selected = state.selectedFolderIds.has(folder.id);
+      const typeLabel = FOLDER_TYPE_LABELS[folder.folder_type] || folder.folder_type || 'General';
+      const statusLabel = FOLDER_STATUS_LABELS[folder.status] || folder.status || 'Active';
+      const dateLabel = formatDate(folder.updated_at || folder.created_at);
+      return `<article class="vec-folder-card ${selected ? 'is-selected' : 'is-unselected'}">
+        <div class="vec-folder-card-main">
+          <div class="vec-folder-card-head"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div>
+          <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span><span>${folder.images_count} images</span><span>${folder.clips_count} clips</span>${folder.asset_count ? `<span>${folder.asset_count} assets</span>` : ''}</div>
+          ${folder.description ? `<p>${escapeHtml(folder.description)}</p>` : '<p>No description available.</p>'}
+          ${dateLabel ? `<small>${folder.updated_at ? 'Updated' : 'Created'} ${escapeHtml(dateLabel)}</small>` : ''}
+        </div>
+        <button type="button" class="vec-toggle ${selected ? 'is-on' : 'is-off'}" data-vec-folder-toggle="${escapeHtml(folder.id)}" aria-pressed="${selected}">${selected ? 'ON' : 'OFF'}</button>
+      </article>`;
+    }).join('');
+  }
+
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [] };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []) };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null };
 
     container.innerHTML = `
@@ -267,7 +368,7 @@
       <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Song Artwork Controller</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Visual Assets</h2><p class="vec-copy">Assets uploaded here will apply only to the selected song.</p></div></div><div class="vec-two-column"><article class="vec-placeholder-panel"><h3>Image upload placeholder</h3><p>Song-specific still image upload wiring will come later.</p></article><article class="vec-placeholder-panel"><h3>Video clip upload placeholder</h3><p>Song-specific clip upload wiring will come later.</p></article></div><div class="vec-thumbnail-grid" aria-label="Empty thumbnail grid placeholder"><p>No song-only visual assets yet.</p></div></section>
-      <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s VEC recipe.</p></div></div><div class="vec-folder-grid">${['Folder name placeholder', 'Folder name placeholder', 'Folder name placeholder'].map((name) => `<article class="vec-folder-card"><div><h3>${name}</h3><p>Image count placeholder · Video count placeholder</p></div><button type="button" class="vec-toggle is-off" disabled aria-pressed="false">OFF</button></article>`).join('')}</div></section>
+      <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s local VEC recipe draft.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle Settings</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" disabled><option>Manual Order</option><option selected>Randomize</option><option>Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><input type="text" value="1" readonly disabled /></label><label class="vec-field"><span>Max assets per folder per play</span><input type="text" value="All" readonly disabled /></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" disabled aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section" aria-labelledby="recipeSummaryHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Recipe</p><h2 id="recipeSummaryHeading">Recipe Summary</h2></div></div><div data-vec-summary></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Recipe saving will be wired in a later PR.</p></div><div class="vec-button-row"><button type="button" disabled>Save VEC Recipe</button><button type="button" disabled>Reset Unsaved Changes</button></div></section>`;
@@ -278,6 +379,7 @@
       preview: container.querySelector('[data-vec-preview]'),
       artworkStatus: container.querySelector('[data-vec-artwork-status]'),
       summary: container.querySelector('[data-vec-summary]'),
+      folderGrid: container.querySelector('[data-vec-folder-grid]'),
       playButton: container.querySelector('[data-vec-preview-play]'),
       pauseButton: container.querySelector('[data-vec-preview-pause]'),
       restartButton: container.querySelector('[data-vec-preview-restart]'),
@@ -360,7 +462,8 @@
       const hasSong = Boolean(state.songContext);
       elements.preview.innerHTML = renderPreview(state.songContext, previewState);
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules);
+      elements.folderGrid.innerHTML = renderFolderCards(state);
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, getSelectedFolders(state));
       [elements.playButton, elements.pauseButton, elements.restartButton, elements.nextButton].forEach((button) => { if (button) button.disabled = !hasSong; });
       if (elements.playButton) elements.playButton.disabled = !hasSong || previewState.isPlaying;
       if (elements.pauseButton) elements.pauseButton.disabled = !hasSong || !previewState.isPlaying;
@@ -407,12 +510,22 @@
       pausePreview();
       state.songContext = createSongContext(songOrContext);
       state.songKey = state.songContext?.song_key || '';
+      state.selectedFolderIds = new Set();
       previewState.index = 0;
       loadPreviewAudio();
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
       renderDynamic();
       return state.songContext;
     }
+
+    elements.folderGrid.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-vec-folder-toggle]');
+      if (!button || !state.songContext) return;
+      const folderId = button.dataset.vecFolderToggle;
+      if (state.selectedFolderIds.has(folderId)) state.selectedFolderIds.delete(folderId);
+      else state.selectedFolderIds.add(folderId);
+      renderDynamic();
+    });
 
     elements.select.addEventListener('change', () => {
       const selected = state.songs.find((song) => getSongKey(song) === elements.select.value);
@@ -444,6 +557,19 @@
     container.dataset.vecMode = state.mode;
 
     if (state.mode === 'lab') {
+      state.visualFoldersLoading = true;
+      renderDynamic();
+      fetchVisualFolders().then((folders) => {
+        state.visualFolders = folders;
+        state.visualFoldersError = '';
+      }).catch((error) => {
+        state.visualFolders = [];
+        state.visualFoldersError = error.message || 'Could not load Visual Library folders.';
+      }).finally(() => {
+        state.visualFoldersLoading = false;
+        renderDynamic();
+      });
+
       fetchSongs().then((songList) => {
         state.songs = sortSongs(songList).filter((song) => getSongKey(song));
         elements.select.innerHTML = `<option value="">Select a song...</option>${state.songs.map((song) => {
