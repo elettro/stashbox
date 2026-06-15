@@ -48,24 +48,26 @@
     </section>
 
     <section id="adminPanel" class="admin-panel hidden" aria-live="polite">
-      <nav class="admin-tabs" aria-label="Admin sections">
+      <nav class="admin-tabs hidden" aria-label="Admin sections">
         <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
         <button class="tab-button" type="button" data-tab="events">Events</button>
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
 
-
       <nav class="dashboard-section-nav" aria-label="Dashboard analytics sections">
-        <a href="/radio-admin/dev/?view=overview" data-dashboard-view-link="overview">Overview</a>
+        <a href="/radio-admin/dev/?view=dashboard" data-dashboard-view-link="dashboard">Dashboard</a>
         <a href="/radio-admin/dev/?view=operational" data-dashboard-view-link="operational">Operational Stats</a>
         <a href="/radio-admin/dev/?view=today" data-dashboard-view-link="today">Today</a>
         <a href="/radio-admin/dev/?view=top-songs" data-dashboard-view-link="top-songs">Top Songs</a>
         <a href="/radio-admin/dev/?view=most-liked" data-dashboard-view-link="most-liked">Most Liked</a>
         <a href="/radio-admin/dev/?view=most-shared" data-dashboard-view-link="most-shared">Most Shared</a>
+        <a href="/radio-admin/dev/?view=top-engagement-rate" data-dashboard-view-link="top-engagement-rate">Top Engagement Rate</a>
         <a href="/radio-admin/dev/?view=most-watched-videos" data-dashboard-view-link="most-watched-videos">Most Watched Videos</a>
-        <a href="/radio-admin/dev/?view=product-analytics" data-dashboard-view-link="product-analytics">Product Analytics</a>
         <a href="/radio-admin/dev/?view=top-clicked-products" data-dashboard-view-link="top-clicked-products">Top Clicked Products</a>
         <a href="/radio-admin/dev/?view=recent-product-clicks" data-dashboard-view-link="recent-product-clicks">Recent Product Clicks</a>
+        <a href="/radio-admin/dev/?view=skip-count-plays" data-dashboard-view-link="skip-count-plays">Skip Count / Plays</a>
+        <a href="/radio-admin/dev/?view=referrers" data-dashboard-view-link="referrers">Referrers / Traffic Sources</a>
+        <a href="/radio-admin/dev/?view=devices" data-dashboard-view-link="devices">Devices / Listener Devices</a>
         <a href="/radio-admin/dev/?view=events" data-dashboard-view-link="events">Events</a>
         <a href="/radio-admin/dev/?view=archive" data-dashboard-view-link="archive">Archive</a>
       </nav>
@@ -154,7 +156,7 @@
           </div>
         </section>
 
-        <section class="card dashboard-section referrers-analytics-section" aria-labelledby="referrersAnalyticsHeading">
+        <section class="card dashboard-section referrers-analytics-section" data-dashboard-section="referrers" aria-labelledby="referrersAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
               <p class="eyebrow">Referrers / Traffic Sources</p>
@@ -225,7 +227,7 @@
           </div>
         </section>
 
-        <section class="card dashboard-section devices-analytics-section" aria-labelledby="devicesAnalyticsHeading">
+        <section class="card dashboard-section devices-analytics-section" data-dashboard-section="devices" aria-labelledby="devicesAnalyticsHeading">
           <div class="panel-header dashboard-header">
             <div>
               <p class="eyebrow">Devices / Listener Devices</p>
@@ -345,13 +347,13 @@
             <div id="todayStatsGrid" class="mini-stat-grid"></div>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="devicesStatsHeading">
+          <section class="card dashboard-section" data-dashboard-section="operational" aria-labelledby="devicesStatsHeading">
             <p class="eyebrow">Devices</p>
             <h2 id="devicesStatsHeading">Device event counts</h2>
             <div id="devicesStatsList" class="summary-list"></div>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="eventTypesStatsHeading">
+          <section class="card dashboard-section" data-dashboard-section="operational" aria-labelledby="eventTypesStatsHeading">
             <p class="eyebrow">Events</p>
             <h2 id="eventTypesStatsHeading">Event type totals</h2>
             <div id="eventTypesStatsList" class="summary-list"></div>
@@ -418,17 +420,22 @@
             <button id="loadMoreProductClicks" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="engagementHeading">
-            <p class="eyebrow">Top 5</p>
-            <h2 id="engagementHeading">Engagement rate</h2>
-            <p class="section-note">Engagement = likes + shares + video clicks + product clicks.</p>
+          <section class="card dashboard-section" data-dashboard-section="top-engagement-rate" aria-labelledby="engagementHeading">
+            <p class="eyebrow">Ranked by engagement</p>
+            <h2 id="engagementHeading">Top Engagement Rate</h2>
+            <p class="section-note">Uses the existing frontend engagement metric: likes + shares + video clicks + product clicks. TODO: If a true backend engagement-rate field is added later, use (likes + shares + video clicks + product clicks) / plays.</p>
             <div id="engagementList" class="rank-list"></div>
+            <p id="engagementShowing" class="showing-count"></p>
+            <button id="loadMoreEngagement" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
 
-          <section class="card dashboard-section" aria-labelledby="skipRateHeading">
+          <section class="card dashboard-section" data-dashboard-section="skip-count-plays" aria-labelledby="skipRateHeading">
             <p class="eyebrow">Skip count / plays</p>
-            <h2 id="skipRateHeading">Skip rate</h2>
+            <h2 id="skipRateHeading">Skip Count / Plays</h2>
+            <p class="section-note">Uses existing skip and play counts from the current dashboard data. TODO: Add deeper skip/play ratio reporting when backend/API data supports it.</p>
             <div id="skipRateList" class="rank-list"></div>
+            <p id="skipRateShowing" class="showing-count"></p>
+            <button id="loadMoreSkipRate" class="button button-small button-ghost load-more-button" type="button">Load more</button>
           </section>
         </div>
       </section>
