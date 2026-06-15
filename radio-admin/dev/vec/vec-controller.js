@@ -150,21 +150,59 @@
     `;
   }
 
-  function renderPreview(songContext) {
+  function buildPreviewSequence(state) {
+    if (!state.songContext) return [];
+    const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
+    const artworkUrl = getArtworkUrl(state.songContext);
+    const localVisuals = Array.isArray(state.localPreviewVisuals) ? state.localPreviewVisuals : [];
+    const sequence = [];
+
+    if (state.artworkRules.startWithArtwork && artworkUrl) {
+      sequence.push({ type: 'artwork', label: 'Official artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
+    }
+
+    localVisuals.forEach((visual, index) => {
+      if (!visual) return;
+      sequence.push({
+        type: visual.type || 'placeholder',
+        label: visual.label || `Local preview visual ${index + 1}`,
+        url: clean(visual.url),
+        alt: visual.alt || visual.label || `Local preview visual ${index + 1}`,
+        durationSeconds: visual.durationSeconds || 4,
+      });
+    });
+
+    if (!sequence.length && artworkUrl) {
+      sequence.push({ type: 'artwork', label: 'Official artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 4 });
+    }
+
+    if (!sequence.length) {
+      sequence.push({ type: 'fallback', label: 'Fallback visual', durationSeconds: 4 });
+    }
+
+    return sequence;
+  }
+
+  function renderPreview(songContext, previewState) {
     if (!songContext) {
       return '<span class="vec-preview-badge">Preview Mode</span><p>Select a song to preview its visual experience.</p>';
     }
     const title = songContext.display_title || songContext.song_name || 'Untitled song';
-    const artworkUrl = getArtworkUrl(songContext);
     const genre = clean(songContext.genre);
+    const visual = previewState.sequence[previewState.index] || { type: 'fallback', label: 'Fallback visual' };
+    const isPlaying = previewState.isPlaying;
+    const visualMarkup = visual.url
+      ? `<img src="${escapeHtml(visual.url)}" alt="${escapeHtml(visual.alt || visual.label || title)}" />`
+      : '<div class="vec-artwork-fallback" aria-label="No artwork available">No artwork</div>';
     return `
       <span class="vec-preview-badge">Preview Mode</span>
-      <div class="vec-preview-song">
-        ${artworkUrl ? `<img src="${escapeHtml(artworkUrl)}" alt="${escapeHtml(title)} official artwork" />` : '<div class="vec-artwork-fallback" aria-label="No artwork available">No artwork</div>'}
+      <div class="vec-preview-song ${isPlaying ? 'is-playing' : 'is-paused'}">
+        ${visualMarkup}
         <div class="vec-preview-meta">
           <strong>${escapeHtml(title)}</strong>
           <span>${escapeHtml(songContext.artist || 'Artist unavailable')}</span>
           ${genre ? `<em>${escapeHtml(genre)}</em>` : ''}
+          <small>${escapeHtml(visual.label || 'Preview visual')} · ${isPlaying ? 'Playing local preview' : 'Paused local preview'}</small>
         </div>
       </div>
     `;
@@ -204,7 +242,8 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) } };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [] };
+    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null };
 
     container.innerHTML = `
       <section class="card vec-section" aria-labelledby="songSelectorHeading">
@@ -213,7 +252,7 @@
         <select id="songSelect" class="vec-select" data-vec-song-select><option value="">Loading songs...</option></select>
         <p class="vec-microcopy" data-vec-song-status>Loading real Songs CMS data from the existing dev admin songs API.</p>
       </section>
-      <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview placeholder" data-vec-preview></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" disabled>Play Preview</button><button type="button" disabled>Pause</button><button type="button" disabled>Restart</button><button type="button" disabled>Next Visual</button></div></section>
+      <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Song Artwork Controller</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Visual Assets</h2><p class="vec-copy">Assets uploaded here will apply only to the selected song.</p></div></div><div class="vec-two-column"><article class="vec-placeholder-panel"><h3>Image upload placeholder</h3><p>Song-specific still image upload wiring will come later.</p></article><article class="vec-placeholder-panel"><h3>Video clip upload placeholder</h3><p>Song-specific clip upload wiring will come later.</p></article></div><div class="vec-thumbnail-grid" aria-label="Empty thumbnail grid placeholder"><p>No song-only visual assets yet.</p></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s VEC recipe.</p></div></div><div class="vec-folder-grid">${['Folder name placeholder', 'Folder name placeholder', 'Folder name placeholder'].map((name) => `<article class="vec-folder-card"><div><h3>${name}</h3><p>Image count placeholder · Video count placeholder</p></div><button type="button" class="vec-toggle is-off" disabled aria-pressed="false">OFF</button></article>`).join('')}</div></section>
@@ -227,17 +266,72 @@
       preview: container.querySelector('[data-vec-preview]'),
       artworkStatus: container.querySelector('[data-vec-artwork-status]'),
       summary: container.querySelector('[data-vec-summary]'),
+      playButton: container.querySelector('[data-vec-preview-play]'),
+      pauseButton: container.querySelector('[data-vec-preview-pause]'),
+      restartButton: container.querySelector('[data-vec-preview-restart]'),
+      nextButton: container.querySelector('[data-vec-preview-next]'),
     };
 
+    function stopPreviewTimer() {
+      if (previewState.timerId) window.clearTimeout(previewState.timerId);
+      previewState.timerId = null;
+    }
+
+    function schedulePreviewTick() {
+      stopPreviewTimer();
+      if (!previewState.isPlaying || !previewState.sequence.length) return;
+      const visual = previewState.sequence[previewState.index] || {};
+      const durationMs = Math.max(1, Number(visual.durationSeconds) || 4) * 1000;
+      previewState.timerId = window.setTimeout(() => {
+        nextPreviewVisual({ keepPlaying: true });
+      }, durationMs);
+    }
+
     function renderDynamic() {
-      elements.preview.innerHTML = renderPreview(state.songContext);
+      previewState.sequence = buildPreviewSequence(state);
+      if (previewState.index >= previewState.sequence.length) previewState.index = 0;
+      const hasSong = Boolean(state.songContext);
+      elements.preview.innerHTML = renderPreview(state.songContext, previewState);
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules);
+      [elements.playButton, elements.pauseButton, elements.restartButton, elements.nextButton].forEach((button) => { if (button) button.disabled = !hasSong; });
+      if (elements.playButton) elements.playButton.disabled = !hasSong || previewState.isPlaying;
+      if (elements.pauseButton) elements.pauseButton.disabled = !hasSong || !previewState.isPlaying;
+      container.dataset.vecPreviewState = hasSong ? (previewState.isPlaying ? 'playing' : 'paused') : 'empty';
+    }
+
+    function startPreview() {
+      if (!state.songContext) return;
+      previewState.isPlaying = true;
+      renderDynamic();
+      schedulePreviewTick();
+    }
+
+    function pausePreview() {
+      previewState.isPlaying = false;
+      stopPreviewTimer();
+      renderDynamic();
+    }
+
+    function restartPreview() {
+      previewState.index = 0;
+      renderDynamic();
+      schedulePreviewTick();
+    }
+
+    function nextPreviewVisual({ keepPlaying = previewState.isPlaying } = {}) {
+      if (!state.songContext || !previewState.sequence.length) return;
+      previewState.index = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : 0;
+      previewState.isPlaying = keepPlaying;
+      renderDynamic();
+      schedulePreviewTick();
     }
 
     function setSongContext(songOrContext) {
+      pausePreview();
       state.songContext = createSongContext(songOrContext);
       state.songKey = state.songContext?.song_key || '';
+      previewState.index = 0;
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
       renderDynamic();
       return state.songContext;
@@ -247,6 +341,10 @@
       const selected = state.songs.find((song) => getSongKey(song) === elements.select.value);
       setSongContext(selected || null);
     });
+    elements.playButton.addEventListener('click', startPreview);
+    elements.pauseButton.addEventListener('click', pausePreview);
+    elements.restartButton.addEventListener('click', restartPreview);
+    elements.nextButton.addEventListener('click', () => nextPreviewVisual({ keepPlaying: previewState.isPlaying }));
 
     renderDynamic();
     container.dataset.vecMode = state.mode;
@@ -276,8 +374,8 @@
       elements.status.textContent = 'Embedded mode receives song context from its parent page.';
     }
 
-    return { state, setSongContext, getSongContext: () => state.songContext };
+    return { state, setSongContext, getSongContext: () => state.songContext, buildPreviewSequence: () => buildPreviewSequence(state), startPreview, pausePreview, restartPreview, nextPreviewVisual };
   }
 
-  window.StashboxVecController = { initVecController, DEFAULT_ARTWORK_RULES };
+  window.StashboxVecController = { initVecController, DEFAULT_ARTWORK_RULES, buildPreviewSequence };
 })();
