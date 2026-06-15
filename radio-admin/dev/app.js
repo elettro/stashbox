@@ -128,6 +128,100 @@ const editableFields = [
   { name: 'internal_notes', label: 'Internal notes', type: 'textarea', full: true }
 ];
 
+
+const songsCmsFieldOrder = [
+  'song_key',
+  'song_name',
+  'display_title',
+  'artist',
+  'album_name',
+  'genre',
+  'internal_version_name',
+  'mood_tags',
+  'secondary_genre',
+  'languages',
+  'song_origin',
+  'release_format',
+  'audio_url',
+  'song_artwork_url',
+  'video_link',
+  'specific_product_urls',
+  'shop_url',
+  'show_public_note',
+  'exclusive',
+  'explicit',
+  'live_recording',
+  'featured',
+  'public_visibility',
+  'spotify_url',
+  'apple_music_url',
+  'youtube_music_url',
+  'official_song_page_url',
+  'public_track_note',
+  'public_video_note',
+  'video_setlist',
+  'internal_notes',
+  'enhanced_visuals_enabled',
+  'shuffle_visuals',
+  'visual_still_duration_seconds',
+  'visual_assets'
+];
+
+const songsCmsLabelOverrides = {
+  display_title: 'Display Title',
+  internal_version_name: 'Internal Version Name',
+  mood_tags: 'Moods',
+  secondary_genre: '2nd Genre',
+  song_origin: 'Song Origin',
+  song_artwork_url: 'Upload Artwork',
+  specific_product_urls: 'Specific Product URLs',
+  show_public_note: 'Show Public Notes',
+  live_recording: 'Live Recording',
+  official_song_page_url: 'Official Song Page URL',
+  public_track_note: 'Public Track Notes',
+  public_video_note: 'Public Video Notes',
+  video_setlist: 'Video Setlist',
+  internal_notes: 'Internal Notes'
+};
+
+const songsCmsFullWidthFields = new Set([
+  'song_key',
+  'mood_tags',
+  'audio_url',
+  'song_artwork_url',
+  'video_link',
+  'specific_product_urls',
+  'shop_url',
+  'public_visibility',
+  'spotify_url',
+  'apple_music_url',
+  'youtube_music_url',
+  'official_song_page_url',
+  'public_track_note',
+  'public_video_note',
+  'video_setlist',
+  'internal_notes'
+]);
+
+const songsCmsDeferredVecFields = new Set([
+  'enhanced_visuals_enabled',
+  'shuffle_visuals',
+  'visual_still_duration_seconds',
+  'visual_assets'
+]);
+
+const editableFieldsByName = new Map(editableFields.map((field) => [field.name, field]));
+const formEditableFields = IS_SONGS_CMS_PAGE
+  ? songsCmsFieldOrder.map((fieldName) => {
+    const field = editableFieldsByName.get(fieldName);
+    return {
+      ...field,
+      label: songsCmsLabelOverrides[fieldName] || field.label,
+      full: songsCmsFullWidthFields.has(fieldName)
+    };
+  })
+  : editableFields;
+
 const plainTextFields = new Set([
   'public_track_note',
   'public_video_note',
@@ -3276,12 +3370,58 @@ function createRequiredStar() {
   return star;
 }
 
+function createFormDivider(label, className = '') {
+  const divider = document.createElement('div');
+  divider.className = `form-section-divider field-full ${className}`.trim();
+  divider.textContent = label;
+  return divider;
+}
+
+function createVecPlaceholder() {
+  const placeholder = document.createElement('section');
+  placeholder.className = 'vec-placeholder field-full';
+  placeholder.setAttribute('aria-labelledby', 'vecPlaceholderTitle');
+
+  const title = document.createElement('h3');
+  title.id = 'vecPlaceholderTitle';
+  title.textContent = 'VEC Controller';
+
+  const copy = document.createElement('p');
+  copy.textContent = 'Song-level visual experience controls will be added here.';
+
+  const list = document.createElement('ul');
+  [
+    'Official artwork behavior',
+    'Song-only visual assets',
+    'Folder ON/OFF controls',
+    'Controlled shuffle settings'
+  ].forEach((itemText) => {
+    const item = document.createElement('li');
+    item.textContent = itemText;
+    list.appendChild(item);
+  });
+
+  placeholder.append(title, copy, list);
+  return placeholder;
+}
+
 function buildEditForm() {
   const checkboxWrap = document.createElement('div');
   checkboxWrap.className = 'checkbox-grid';
+  let songsCmsCheckboxWrap = null;
   const sectionHeadings = new Set();
 
-  editableFields.forEach((field) => {
+  formEditableFields.forEach((field) => {
+    const fieldId = `field_${field.name}`;
+
+    if (IS_SONGS_CMS_PAGE && songsCmsDeferredVecFields.has(field.name)) {
+      const input = createFieldControl(field, fieldId);
+      input.className = 'hidden';
+      fieldElements.set(field.name, input);
+      els.formFields.appendChild(input);
+      return;
+    }
+
     if (field.section && !sectionHeadings.has(field.section)) {
       sectionHeadings.add(field.section);
       const heading = document.createElement('div');
@@ -3289,7 +3429,6 @@ function buildEditForm() {
       heading.textContent = field.section;
       els.formFields.appendChild(heading);
     }
-    const fieldId = `field_${field.name}`;
 
     if (field.type === 'checkbox') {
       const wrap = document.createElement('div');
@@ -3326,6 +3465,13 @@ function buildEditForm() {
         wrap.classList.add('field', 'field-full');
         wrap.appendChild(label);
         els.formFields.appendChild(wrap);
+      } else if (IS_SONGS_CMS_PAGE) {
+        if (!songsCmsCheckboxWrap) {
+          songsCmsCheckboxWrap = document.createElement('div');
+          songsCmsCheckboxWrap.className = 'checkbox-grid field-full';
+          els.formFields.appendChild(songsCmsCheckboxWrap);
+        }
+        songsCmsCheckboxWrap.appendChild(label);
       } else {
         checkboxWrap.appendChild(label);
       }
@@ -3385,9 +3531,17 @@ function buildEditForm() {
     }
 
     els.formFields.appendChild(wrap);
+
+    if (IS_SONGS_CMS_PAGE && field.name === 'public_visibility') {
+      els.formFields.appendChild(createFormDivider('Visual Experience'));
+      els.formFields.appendChild(createVecPlaceholder());
+      els.formFields.appendChild(createFormDivider('Distribution, Public Notes & Internal Notes'));
+    }
   });
 
-  els.formFields.appendChild(checkboxWrap);
+  if (!IS_SONGS_CMS_PAGE) {
+    els.formFields.appendChild(checkboxWrap);
+  }
 }
 
 
@@ -3546,7 +3700,7 @@ function populateEditor(song, { mode = 'edit' } = {}) {
 
   editorVisualAssets = normalizeVisualAssets(getSongFieldValue(song, 'visual_assets'));
 
-  editableFields.forEach((field) => {
+  formEditableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     const value = field.name === 'visual_assets' ? editorVisualAssets : getSongFieldValue(song, field.name);
 
@@ -3624,7 +3778,7 @@ function updateEditorVisibilityStatus(song, mode) {
 }
 
 function applyEditorModeToFields(mode) {
-  editableFields.forEach((field) => {
+  formEditableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     const wrap = fieldWrappers.get(field.name);
     const isCreateOnlyHidden = Boolean(field.createOnly && mode !== 'create');
@@ -3662,7 +3816,7 @@ function clearEditor() {
   selectedSongId = '';
   selectedSongKey = '';
   applyEditorModeToFields('edit');
-  editableFields.forEach((field) => {
+  formEditableFields.forEach((field) => {
     const input = fieldElements.get(field.name);
     if (field.type === 'checkbox') {
       input.checked = false;
@@ -3948,7 +4102,7 @@ function buildCreatePayload() {
 }
 
 function buildCurrentEditorPayload({ includeCreateOnly = true } = {}) {
-  return editableFields.reduce((payload, field) => {
+  return formEditableFields.reduce((payload, field) => {
     if (!includeCreateOnly && field.createOnly) {
       return payload;
     }
@@ -4494,7 +4648,7 @@ function updateMediaPreview(fieldName) {
 }
 
 function buildUpdatePayload() {
-  return editableFields.reduce((payload, field) => {
+  return formEditableFields.reduce((payload, field) => {
     if (field.createOnly) {
       return payload;
     }

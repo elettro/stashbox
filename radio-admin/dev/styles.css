@@ -754,6 +754,63 @@ textarea:focus {
   font-size: 0.78rem;
 }
 
+.form-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.45rem 0 0.15rem;
+  color: #f0c04c;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.form-section-divider::before,
+.form-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(66, 217, 130, 0.08), rgba(240, 192, 76, 0.42), rgba(66, 217, 130, 0.08));
+}
+
+.vec-placeholder {
+  min-height: 220px;
+  padding: 1.15rem;
+  border: 1px solid rgba(66, 217, 130, 0.22);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(66, 217, 130, 0.13), transparent 34%),
+    linear-gradient(135deg, rgba(12, 20, 17, 0.96), rgba(18, 26, 22, 0.86));
+  box-shadow: inset 0 0 0 1px rgba(240, 192, 76, 0.06);
+}
+
+.vec-placeholder h3 {
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+.vec-placeholder p {
+  color: var(--muted);
+}
+
+.vec-placeholder ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vec-placeholder li {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.7rem 0.8rem;
+  color: var(--text);
+}
+
 .checkbox-grid {
   display: grid;
   grid-column: 1 / -1;
@@ -885,6 +942,10 @@ textarea {
   .mini-stat-grid,
   .form-grid,
   .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vec-placeholder ul {
     grid-template-columns: 1fr;
   }
 
