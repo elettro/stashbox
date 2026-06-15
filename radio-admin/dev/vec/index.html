@@ -19,14 +19,14 @@
     </a>
     <div class="topbar-actions">
       <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
-          <a href="/radio-admin/songs/dev/">Songs</a>
-          <a href="/radio/visual-experience/dev/">Visual Library</a>
-          <a href="/radio-admin/dev/vec/" aria-current="page">VEC Lab</a>
-          <a href="/radio-admin/ads/dev/">Ads</a>
-          <a href="/radio/dashboard/dev/">Dashboard</a>
-          <a href="/radio/dev/">Radio Dev</a>
-          <a href="/radio/">Radio Live</a>
-        </nav>
+        <a href="/radio-admin/songs/dev/">Songs</a>
+        <a href="/radio/visual-experience/dev/">Visual Library</a>
+        <a href="/radio-admin/dev/vec/" aria-current="page">VEC Lab</a>
+        <a href="/radio-admin/ads/dev/">Ads</a>
+        <a href="/radio/dashboard/dev/">Dashboard</a>
+        <a href="/radio/dev/">Radio Dev</a>
+        <a href="/radio/">Radio Live</a>
+      </nav>
     </div>
   </header>
 
@@ -40,103 +40,17 @@
       <p class="vec-notice" role="note">Prototype only — does not affect production radio.</p>
     </section>
 
-    <section class="card vec-section" aria-labelledby="songSelectorHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Song</p>
-          <h2 id="songSelectorHeading">Select Song</h2>
-        </div>
-      </div>
-      <!-- TODO: Load songs from dev radio API in PR 2. -->
-      <label class="vec-label" for="songSelect">Song</label>
-      <select id="songSelect" class="vec-select" disabled>
-        <option selected>Select a song...</option>
-      </select>
-    </section>
+    <div id="vecControllerMount" data-vec-controller></div>
 
-    <section class="card vec-section" aria-labelledby="recipeSummaryHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Recipe</p>
-          <h2 id="recipeSummaryHeading">Visual Recipe Summary</h2>
-          <p class="vec-copy">This area will summarize how the selected song’s visual experience will be built.</p>
-        </div>
-      </div>
-      <div class="vec-summary-grid">
-        <div class="vec-summary-card"><strong>Song-only assets:</strong> Not loaded yet</div>
-        <div class="vec-summary-card"><strong>Selected folders:</strong> Not loaded yet</div>
-        <div class="vec-summary-card"><strong>Artwork controller:</strong> Not configured yet</div>
-        <div class="vec-summary-card"><strong>Media flavor:</strong> Not configured yet</div>
-        <div class="vec-summary-card"><strong>Playback mode:</strong> Controlled Shuffle</div>
-      </div>
-    </section>
-
-    <section class="card vec-section" aria-labelledby="artworkControllerHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Artwork</p>
-          <h2 id="artworkControllerHeading">Official Song Artwork Controller</h2>
-          <p class="vec-copy">Coming soon controls are visible for planning only and do not save anywhere yet.</p>
-        </div>
-      </div>
-      <fieldset class="vec-control-grid" disabled>
-        <legend class="sr-only">Official artwork placeholder controls</legend>
-        <label><span>Start with artwork</span><input type="text" value="ON" readonly /></label>
-        <label><span>Start duration</span><input type="text" value="4 seconds" readonly /></label>
-        <label><span>End with artwork</span><input type="text" value="ON" readonly /></label>
-        <label><span>End duration</span><input type="text" value="4 seconds" readonly /></label>
-        <label><span>Re-present artwork</span><input type="text" value="ON" readonly /></label>
-        <label><span>Repeat every</span><input type="text" value="60 seconds" readonly /></label>
-      </fieldset>
-    </section>
-
-    <section class="card vec-section" aria-labelledby="songAssetsHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Song Assets</p>
-          <h2 id="songAssetsHeading">Song-Only Visual Assets</h2>
-          <p class="vec-copy">Images and clips uploaded here will apply only to the selected song.</p>
-        </div>
-      </div>
-      <div class="vec-two-column">
-        <article class="vec-placeholder-panel"><h3>Images</h3><p>Coming in PR 2/PR 3.</p></article>
-        <article class="vec-placeholder-panel"><h3>Video Clips</h3><p>Coming in PR 2/PR 3.</p></article>
-      </div>
-    </section>
-
-    <section class="card vec-section" aria-labelledby="folderCardsHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Folders</p>
-          <h2 id="folderCardsHeading">Visual Folders for This Song</h2>
-          <p class="vec-copy">Turn folders on or off for this song, then later choose which assets inside each folder can participate in the controlled shuffle.</p>
-        </div>
-      </div>
-      <div class="vec-folder-grid">
-        <article class="vec-folder-card is-off"><h3>🔴 Stashbox Branded</h3><p>Folder assets not loaded yet</p></article>
-        <article class="vec-folder-card is-off"><h3>🔴 Reggae Visuals Updated</h3><p>Folder assets not loaded yet</p></article>
-        <article class="vec-folder-card is-off"><h3>🔴 Cali-Beach-Socializing</h3><p>Folder assets not loaded yet</p></article>
-      </div>
-    </section>
-
-    <section class="card vec-section" aria-labelledby="shuffleSettingsHeading">
-      <div class="panel-header vec-section-header">
-        <div>
-          <p class="eyebrow">Shuffle</p>
-          <h2 id="shuffleSettingsHeading">Controlled Shuffle Settings</h2>
-          <p class="vec-copy">Coming soon controls only. No actual behavior is connected in this shell.</p>
-        </div>
-      </div>
-      <fieldset class="vec-control-grid" disabled>
-        <legend class="sr-only">Controlled shuffle placeholder controls</legend>
-        <label><span>Order mode</span><input type="text" value="Randomize" readonly /></label>
-        <label><span>Max assets from same folder in a row</span><input type="text" value="1" readonly /></label>
-        <label><span>Max assets per folder per play</span><input type="text" value="All" readonly /></label>
-        <label><span>Media preference</span><input type="text" value="Stills Only" readonly /></label>
-      </fieldset>
-    </section>
-
-    <footer class="vec-footer-note">VEC Lab PR 1: shell only. No backend recipe saving. No player changes.</footer>
+    <footer class="vec-footer-note">VEC Lab PR 1: frontend-only foundation. No backend recipe saving. No player, tracking, or stats changes.</footer>
   </main>
+
+  <script src="./vec-controller.js"></script>
+  <script>
+    window.StashboxVecController.initVecController(document.getElementById('vecControllerMount'), {
+      mode: 'lab',
+      songKey: '',
+    });
+  </script>
 </body>
 </html>
