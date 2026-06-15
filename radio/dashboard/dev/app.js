@@ -61,8 +61,59 @@ const els = {
   songAnalyticsStats: document.getElementById('songAnalyticsStats'),
   todayStats: document.getElementById('todayStats'),
   productAnalytics: document.getElementById('productAnalytics'),
-  skipRateSongs: document.getElementById('skipRateSongs')
+  skipRateSongs: document.getElementById('skipRateSongs'),
+  dashboardSections: [...document.querySelectorAll('[data-dashboard-section]')],
+  dashboardViewLinks: [...document.querySelectorAll('[data-dashboard-view-link]')]
 };
+
+const DASHBOARD_VIEWS = new Set([
+  'overview',
+  'operational',
+  'today',
+  'top-songs',
+  'most-liked',
+  'most-shared',
+  'product-analytics',
+  'top-clicked-products',
+  'recent-product-clicks',
+  'events',
+  'archive'
+]);
+
+function currentDashboardView() {
+  const view = new URLSearchParams(window.location.search).get('view') || 'overview';
+  return DASHBOARD_VIEWS.has(view) ? view : 'overview';
+}
+
+function applyDashboardView() {
+  const activeView = currentDashboardView();
+  els.dashboardSections.forEach((section) => {
+    const isVisible = activeView === 'overview' || section.dataset.dashboardSection === activeView;
+    section.classList.toggle('is-dashboard-section-hidden', !isVisible);
+    section.toggleAttribute('hidden', !isVisible);
+  });
+  els.dashboardViewLinks.forEach((link) => {
+    const isActive = link.dataset.dashboardViewLink === activeView;
+    if (isActive) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
+  });
+}
+
+function setDashboardView(view) {
+  const nextView = DASHBOARD_VIEWS.has(view) ? view : 'overview';
+  const url = new URL(window.location.href);
+  if (nextView === 'overview') {
+    url.searchParams.delete('view');
+  } else {
+    url.searchParams.set('view', nextView);
+  }
+  window.history.pushState({ dashboardView: nextView }, '', url);
+  applyDashboardView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -638,7 +689,15 @@ function renderEmptyRow(body, colspan, message) {
 
 function bindDashboardControls() {
   els.refreshButton.addEventListener('click', loadDashboardData);
+  els.dashboardViewLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      setDashboardView(link.dataset.dashboardViewLink);
+    });
+  });
+  window.addEventListener('popstate', applyDashboardView);
 }
 
 bindDashboardControls();
+applyDashboardView();
 loadDashboardData();

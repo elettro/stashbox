@@ -1314,3 +1314,35 @@ tr:last-child td {
   .radio-admin-macro-nav { justify-content: flex-start; }
   .radio-admin-macro-nav a { flex: 1 1 10rem; text-align: center; }
 }
+
+.dashboard-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+}
+
+.dashboard-section-nav a {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0.62rem 0.84rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-section-nav a:hover,
+.dashboard-section-nav a:focus-visible,
+.dashboard-section-nav a[aria-current="page"] {
+  border-color: rgba(230, 198, 95, 0.72);
+  background: rgba(230, 198, 95, 0.14);
+  color: var(--accent);
+}
+
+.is-dashboard-section-hidden {
+  display: none !important;
+}
