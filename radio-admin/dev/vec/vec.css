@@ -1,0 +1,164 @@
+/* Scoped styles for /radio-admin/dev/vec/ only. */
+.vec-lab-page .vec-topbar h1 {
+  max-width: 54rem;
+  font-size: clamp(2rem, 4.2vw, 3.8rem);
+  letter-spacing: 0.025em;
+  text-transform: none;
+}
+
+.vec-lab {
+  display: grid;
+  gap: 1rem;
+}
+
+.vec-hero,
+.vec-section {
+  padding: clamp(1rem, 2.4vw, 1.5rem);
+}
+
+.vec-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-color: rgba(240, 192, 76, 0.36);
+  background:
+    radial-gradient(circle at top left, rgba(240, 192, 76, 0.13), transparent 26rem),
+    linear-gradient(180deg, rgba(17, 24, 22, 0.98), rgba(12, 17, 15, 0.98));
+}
+
+.vec-copy {
+  max-width: 62rem;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.vec-notice {
+  border: 1px solid rgba(240, 192, 76, 0.48);
+  border-radius: 999px;
+  background: rgba(240, 192, 76, 0.12);
+  color: #ffd979;
+  margin: 0;
+  padding: 0.65rem 0.9rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.vec-section-header {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.vec-label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.vec-select,
+.vec-control-grid input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  padding: 0.8rem 0.9rem;
+}
+
+.vec-select:disabled,
+.vec-control-grid:disabled input {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.vec-summary-grid,
+.vec-folder-grid,
+.vec-control-grid,
+.vec-two-column {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.vec-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.vec-summary-card,
+.vec-placeholder-panel,
+.vec-folder-card {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 1rem;
+}
+
+.vec-summary-card strong {
+  color: #d9f6df;
+}
+
+.vec-control-grid {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.vec-control-grid label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.vec-two-column,
+.vec-folder-grid {
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.vec-placeholder-panel h3,
+.vec-folder-card h3 {
+  margin: 0 0 0.45rem;
+}
+
+.vec-placeholder-panel p,
+.vec-folder-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.vec-folder-card.is-off {
+  border-color: rgba(255, 104, 120, 0.34);
+  background: linear-gradient(180deg, rgba(255, 104, 120, 0.1), rgba(255, 255, 255, 0.035));
+}
+
+.vec-footer-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0.25rem 0.35rem 1rem;
+  text-align: center;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .vec-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vec-notice {
+    border-radius: 16px;
+  }
+}
