@@ -1227,26 +1227,25 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   }
 }
 
-.media-mute-button {
+.ad-mute-button {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  top: 12px;
   z-index: 4;
-  width: 38px;
-  min-height: 38px;
-  padding: 0;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid rgba(255,255,255,.28);
   border-radius: 999px;
   background: rgba(0,0,0,.62);
   color: #fff;
-  font: 800 17px/1 var(--fb, inherit);
+  font: 800 12px/1 var(--fb, inherit);
   letter-spacing: .02em;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(0,0,0,.28);
 }
 
-.media-mute-button:hover,
-.media-mute-button:focus-visible {
+.ad-mute-button:hover,
+.ad-mute-button:focus-visible {
   background: rgba(0,0,0,.78);
   border-color: rgba(240,192,76,.72);
   outline: none;
