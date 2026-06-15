@@ -17,16 +17,19 @@
       <p class="radio-admin-meta">Private song, stats, and station controls</p>
     </a>
     <div class="topbar-actions">
-      <!-- Shared Stashbox Radio admin header. Reuse this macro nav on future dev admin tools. -->
-      <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
-          <a href="/radio-admin/dev/" aria-current="page">Songs</a>
-          <a href="/radio/visual-experience/dev/">Visual Library</a>
-          <a href="/radio-admin/dev/vec/">VEC Lab</a>
-          <a href="/radio-admin/ads/dev/">Ads</a>
-          <a href="/radio/dashboard/dev/">Dashboard</a>
-          <a href="/radio/dev/">Radio Dev</a>
-          <a href="/radio/">Radio Live</a>
-        </nav>
+      <!-- Private Stashbox Radio dev admin header for /radio-admin/dev/ only. -->
+      <nav class="radio-admin-nav-row radio-admin-private-nav" aria-label="Private Stashbox Radio admin tools">
+        <a href="/radio-admin/dev/" aria-current="page">Songs</a>
+        <a href="/radio/visual-experience/dev/">Visual Library</a>
+        <a href="/radio-admin/dev/vec/">VEC Lab</a>
+        <a href="/radio-admin/ads/dev/">Ads</a>
+        <!-- Dashboard intentionally duplicates Songs pending review; no separate dashboard route is being introduced here. -->
+        <a href="/radio-admin/dev/">Dashboard</a>
+      </nav>
+      <nav class="radio-admin-nav-row radio-admin-output-nav" aria-label="Stashbox Radio output links">
+        <a href="/radio/dev/">Radio Dev</a>
+        <a href="/radio/">Radio Live</a>
+      </nav>
       <div class="token-actions">
         <span id="tokenStatus" class="token-status">No token saved</span>
         <button id="clearTokenButton" class="button button-ghost hidden" type="button">Clear Token</button>
