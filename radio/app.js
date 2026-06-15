@@ -1424,7 +1424,6 @@ function App() {
   const currentAdBreakStartedAtRef = useRef(0);
   const currentAdBreakHideLogKeyRef = useRef('');
   const [adBreakDisplay, setAdBreakDisplay] = useState(null);
-  const [mediaMuted, setMediaMuted] = useState(false);
   const [adBreakMuted, setAdBreakMuted] = useState(false);
   const adDurationMemoryRef = useRef({});
   const pendingAdNextSongRef = useRef(null);
@@ -2688,13 +2687,6 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, adBreakMuted = false, onToggl
   const [adDuration, setAdDuration] = useState(0);
   const mediaUrl = ad?.mediaUrl || ad?.media_url || '';
   const isAudio = isAudioAdUrl(mediaUrl) || clean(ad?.media_type).toLowerCase() === 'audio';
-  const mediaMuteLabel = mediaMuted ? 'Unmute audio' : 'Mute audio';
-
-  const applyMediaMutedState = media => {
-    const target = media || mediaRef.current;
-    if (!target) return;
-    target.muted = mediaMuted;
-    target.volume = mediaMuted ? 0 : 1;
   const adMuteLabel = adBreakMuted ? 'Unmute ad audio' : 'Mute ad audio';
 
   const applyAdMutedState = media => {
@@ -2767,7 +2759,6 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, adBreakMuted = false, onToggl
       let startedPlayback = false;
       const markStarted = () => { startedPlayback = true; };
       video.addEventListener('playing', markStarted, { once: true });
-      applyMediaMutedState(video);
       applyAdMutedState(video);
       console.log('Ad video play attempted');
       try {
@@ -3032,7 +3023,7 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, adBreakMuted = false, onToggl
   );
 }
 
-function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', mediaMuted = false, onToggleMediaMute, onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -3062,14 +3053,6 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const isVideoMode = mediaMode === 'video' && has(videoSrc);
   const directVideo = isVideoMode && isDirectVideoUrl(selected.videoLink);
   const youtubeVideo = isVideoMode && /youtube\.com\/embed/i.test(videoSrc);
-  const showMediaMuteButton = directVideo || (!isVideoMode && hasAudio);
-  const mediaMuteLabel = mediaMuted ? 'Unmute audio' : 'Mute audio';
-  const applyPlayerMutedState = media => {
-    const target = media || (directVideo ? videoFrameRef.current : audioRef.current);
-    if (!target) return;
-    target.muted = mediaMuted;
-    target.volume = mediaMuted ? 0 : 1;
-  };
   const canUsePrimaryPlay = isVideoMode ? hasVideo : hasAudio || (selectedIsVideoOnly && hasVideo);
   const canCloseVideo = isVideoMode && hasVideo && !selectedIsVideoOnly;
   const canWatchVideo = !isVideoMode && hasVideo && (selected.showWatchVideo || selectedIsVideoOnly);
@@ -3077,10 +3060,6 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
 
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
-
-  useEffect(() => {
-    applyPlayerMutedState();
-  }, [mediaMuted, selected?.idx, mediaMode, activeVideoEmbedUrl]);
 
   useEffect(() => {
     if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
@@ -3266,18 +3245,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   };
   const seekAudio = event => { const audio = audioRef.current; if (!audio || !hasAudio) return; const nextTime = Number(event.target.value); audio.currentTime = nextTime; setCurrentTime(nextTime); onAudioProgress?.(nextTime, duration); };
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { className: 'player-media clickable-media', role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, showMediaMuteButton ? h('button', {
-      type: 'button',
-      className: 'media-mute-button',
-      'aria-label': mediaMuteLabel,
-      title: mediaMuteLabel,
-      'aria-pressed': mediaMuted,
-      onClick: event => {
-        event.preventDefault();
-        event.stopPropagation();
-        onToggleMediaMute?.();
-      }
-    }, mediaMuted ? '🔇' : '🔊') : null, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, muted: mediaMuted, onLoadedData: event => applyPlayerMutedState(event.currentTarget), onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
+    h('div', { className: 'player-media clickable-media', role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title)),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
@@ -3316,7 +3284,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     playerMessage ? h('p', { className: 'notes player-message', 'aria-live': 'polite' }, playerMessage) : null,
     isVideoMode && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
     isVideoMode && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
-    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'auto', autoPlay: Boolean(autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video'), muted: mediaMuted, onLoadedData: event => applyPlayerMutedState(event.currentTarget), onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onCanPlay: () => { syncAudioState(); if (autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video') audioRef.current?.play?.().catch?.(error => console.warn('[radio] playback error: unable to continue playback on canplay.', error.message || error)); }, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selectedIsVideoOnly ? 'This is a video-only record. Use the main play button to start the YouTube player.' : 'No audio URL is available for this track.'),
+    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'auto', autoPlay: Boolean(autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video'), onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onCanPlay: () => { syncAudioState(); if (autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video') audioRef.current?.play?.().catch?.(error => console.warn('[radio] playback error: unable to continue playback on canplay.', error.message || error)); }, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selectedIsVideoOnly ? 'This is a video-only record. Use the main play button to start the YouTube player.' : 'No audio URL is available for this track.'),
     h(ProductRecommendations, { products, onProductClick })
   );
 }
