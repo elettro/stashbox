@@ -363,3 +363,53 @@
   padding: 0.35rem 0.6rem;
   text-transform: uppercase;
 }
+
+.vec-audio-preview {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  min-width: 0;
+  border: 1px solid rgba(80, 210, 120, 0.22);
+  border-radius: 18px;
+  background: rgba(3, 5, 4, 0.44);
+  padding: 0.85rem;
+}
+
+.vec-audio-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.vec-scrubber-row {
+  display: grid;
+  grid-template-columns: minmax(3rem, auto) minmax(0, 1fr) minmax(3rem, auto);
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  color: #d9f6df;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.vec-scrubber-row input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  accent-color: #50d278;
+  cursor: pointer;
+}
+
+.vec-scrubber-row input[type="range"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+@media (max-width: 520px) {
+  .vec-scrubber-row {
+    gap: 0.55rem;
+    grid-template-columns: minmax(2.7rem, auto) minmax(0, 1fr) minmax(2.7rem, auto);
+    font-size: 0.84rem;
+  }
+}
