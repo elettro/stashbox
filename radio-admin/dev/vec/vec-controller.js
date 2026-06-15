@@ -279,42 +279,59 @@
     return (state.visualFolders || []).filter((folder) => selectedIds.has(folder.id));
   }
 
+  function getActiveFolderAssets(state, selectedFolders = getSelectedFolders(state)) {
+    const visuals = [];
+    selectedFolders.forEach((folder) => {
+      const assets = getFolderAssetState(state, folder.id).assets || [];
+      assets.forEach((asset) => {
+        const url = clean(asset.public_url);
+        if (!url || clean(asset.status).toLowerCase() === 'hidden' || !isAssetIncluded(state, folder.id, asset)) return;
+        const type = normalizeAssetType(asset);
+        const title = asset.caption || asset.file_name || `${folder.folder_name} visual`;
+        visuals.push({
+          type,
+          folderId: folder.id,
+          assetId: asset.id,
+          folderName: folder.folder_name,
+          label: title,
+          url,
+          alt: asset.alt_text || title,
+          durationSeconds: type === 'clip' ? 6 : 4,
+        });
+      });
+    });
+    return visuals;
+  }
+
+  function getPreviewSequenceCounts(sequence = []) {
+    return sequence.reduce((counts, visual) => {
+      if (visual.type === 'artwork') counts.artwork += 1;
+      else if (visual.type === 'clip') counts.clips += 1;
+      else if (visual.type === 'image') counts.images += 1;
+      return counts;
+    }, { artwork: 0, images: 0, clips: 0 });
+  }
+
   function buildPreviewSequence(state) {
     if (!state.songContext) return [];
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
     const artworkUrl = getArtworkUrl(state.songContext);
-    const localVisuals = Array.isArray(state.localPreviewVisuals) ? state.localPreviewVisuals : [];
+    const selectedFolders = getSelectedFolders(state);
+    const activeAssets = getActiveFolderAssets(state, selectedFolders);
     const sequence = [];
 
     if (state.artworkRules.startWithArtwork && artworkUrl) {
-      sequence.push({ type: 'artwork', label: 'Official artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
+      sequence.push({ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
     }
 
-    localVisuals.forEach((visual, index) => {
-      if (!visual) return;
-      sequence.push({
-        type: visual.type || 'placeholder',
-        label: visual.label || `Local preview visual ${index + 1}`,
-        url: clean(visual.url),
-        alt: visual.alt || visual.label || `Local preview visual ${index + 1}`,
-        durationSeconds: visual.durationSeconds || 4,
-      });
-    });
+    activeAssets.forEach((visual) => sequence.push(visual));
 
-    const selectedFolders = getSelectedFolders(state);
-    const firstThumbnailFolder = selectedFolders.find((folder) => folder.thumbnail_url);
-    if (firstThumbnailFolder?.thumbnail_url) {
-      sequence.push({ type: 'visual-folder', label: `${firstThumbnailFolder.folder_name} folder selected`, url: firstThumbnailFolder.thumbnail_url, alt: `${firstThumbnailFolder.folder_name} preview thumbnail`, durationSeconds: 4 });
-    } else if (selectedFolders.length) {
-      sequence.push({ type: 'visual-folder', label: `${selectedFolders.length} Visual Library folder${selectedFolders.length === 1 ? '' : 's'} selected`, durationSeconds: 4 });
+    if (state.artworkRules.rePresentArtwork && artworkUrl && activeAssets.length && !sequence.some((visual) => visual.type === 'artwork')) {
+      sequence.unshift({ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
     }
 
     if (!sequence.length && artworkUrl) {
-      sequence.push({ type: 'artwork', label: 'Official artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 4 });
-    }
-
-    if (!sequence.length) {
-      sequence.push({ type: 'fallback', label: 'Fallback visual', durationSeconds: 4 });
+      sequence.push({ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 4 });
     }
 
     return sequence;
@@ -326,14 +343,30 @@
     }
     const title = songContext.display_title || songContext.song_name || 'Untitled song';
     const genre = clean(songContext.genre);
-    const visual = previewState.sequence[previewState.index] || { type: 'fallback', label: 'Fallback visual' };
+    const visual = previewState.sequence[previewState.index] || null;
     const isPlaying = previewState.isPlaying;
+    if (!visual) {
+      return `
+        <span class="vec-preview-badge">Preview Mode</span>
+        <div class="vec-preview-song is-empty ${isPlaying ? 'is-playing' : 'is-paused'}">
+          <div class="vec-artwork-fallback" aria-label="No active visuals selected">No active visuals selected for this song.</div>
+          <div class="vec-preview-meta">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(songContext.artist || 'Artist unavailable')}</span>
+            <small>No active visuals selected</small>
+          </div>
+        </div>`;
+    }
+    const visualTypeLabel = visual.type === 'clip' ? 'Video clip' : (visual.type === 'image' ? 'Image' : 'Artwork');
     const visualMarkup = visual.url
-      ? `<img src="${escapeHtml(visual.url)}" alt="${escapeHtml(visual.alt || visual.label || title)}" />`
+      ? (visual.type === 'clip'
+        ? `<video src="${escapeHtml(visual.url)}" muted playsinline preload="metadata" ${isPlaying ? 'autoplay' : ''} data-vec-preview-video></video>`
+        : `<img src="${escapeHtml(visual.url)}" alt="${escapeHtml(visual.alt || visual.label || title)}" />`)
       : '<div class="vec-artwork-fallback" aria-label="No artwork available">No artwork</div>';
     return `
       <span class="vec-preview-badge">Preview Mode</span>
-      <div class="vec-preview-song ${isPlaying ? 'is-playing' : 'is-paused'}">
+      <span class="vec-visual-type-badge">${escapeHtml(visualTypeLabel)}</span>
+      <div class="vec-preview-song ${isPlaying ? 'is-playing' : 'is-paused'} is-${escapeHtml(visual.type || 'visual')}">
         ${visualMarkup}
         <div class="vec-preview-meta">
           <strong>${escapeHtml(title)}</strong>
@@ -380,7 +413,7 @@
     const assets = assetState.assets || [];
     if (!assets.length) return { images: folder.images_count || 0, clips: folder.clips_count || 0 };
     return assets.reduce((counts, asset) => {
-      if (!isAssetIncluded(state, folder.id, asset)) return counts;
+      if (clean(asset.status).toLowerCase() === 'hidden' || !isAssetIncluded(state, folder.id, asset)) return counts;
       if (normalizeAssetType(asset) === 'clip') counts.clips += 1;
       else counts.images += 1;
       return counts;
@@ -396,7 +429,7 @@
     }, { images: 0, clips: 0 });
   }
 
-  function renderSummary(songContext, artworkRules, selectedFolders = [], activeCounts = { images: 0, clips: 0 }) {
+  function renderSummary(songContext, artworkRules, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
@@ -404,6 +437,10 @@
     const selectedImages = activeCounts.images || 0;
     const selectedClips = activeCounts.clips || 0;
     const selectedNames = selectedFolders.map((folder) => folder.folder_name).join(', ') || 'None selected';
+    const sequenceCounts = getPreviewSequenceCounts(previewSequence);
+    const sequenceTotal = previewSequence.length;
+    const sequenceLabel = `${sequenceCounts.artwork} artwork + ${sequenceCounts.images} images + ${sequenceCounts.clips} clips`;
+    const currentLabel = currentVisual ? `${currentVisual.type === 'clip' ? 'Video clip' : (currentVisual.type === 'image' ? 'Image' : 'Artwork')}: ${currentVisual.label || 'Preview visual'}` : 'None';
     return `
       <p class="vec-empty-state">${songContext ? `Selected song context loaded for ${escapeHtml(title)}.` : 'No song selected yet.'}</p>
       <div class="vec-summary-grid">
@@ -415,6 +452,8 @@
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
         <div class="vec-summary-card"><strong>Active images</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card"><strong>Active clips</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Preview sequence</strong><span>${sequenceTotal} visual${sequenceTotal === 1 ? '' : 's'}: ${escapeHtml(sequenceLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Current visual</strong><span>${escapeHtml(currentLabel)}</span></div>
         <div class="vec-summary-card"><strong>Artwork rules</strong><span>Start ${onOffLabel(artworkRules.startWithArtwork)} · ${secondsLabel(artworkRules.startDurationSeconds)} · End ${onOffLabel(artworkRules.endWithArtwork)} · ${secondsLabel(artworkRules.endDurationSeconds)} · Re-present ${onOffLabel(artworkRules.rePresentArtwork)} every ${secondsLabel(artworkRules.repeatEverySeconds)}</span></div>
         <div class="vec-summary-card"><strong>Shuffle mode</strong><span>Randomize · avoid repeats</span></div>
       </div>`;
@@ -636,6 +675,20 @@
       </div>`;
     }
 
+    function syncPreviewVideoPlayback() {
+      const video = elements.preview?.querySelector('[data-vec-preview-video]');
+      if (!video) return;
+      video.muted = true;
+      video.playsInline = true;
+      video.onended = () => nextPreviewVisual({ keepPlaying: previewState.isPlaying });
+      if (previewState.isPlaying) {
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
+      } else {
+        video.pause();
+      }
+    }
+
     function renderDynamic() {
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
@@ -644,12 +697,13 @@
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders));
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
       [elements.playButton, elements.pauseButton, elements.restartButton, elements.nextButton].forEach((button) => { if (button) button.disabled = !hasSong; });
       if (elements.playButton) elements.playButton.disabled = !hasSong || previewState.isPlaying;
       if (elements.pauseButton) elements.pauseButton.disabled = !hasSong || !previewState.isPlaying;
       container.dataset.vecPreviewState = hasSong ? (previewState.isPlaying ? 'playing' : 'paused') : 'empty';
       renderMediaModal();
+      syncPreviewVideoPlayback();
     }
 
     function startPreview() {
@@ -769,6 +823,15 @@
       else {
         state.selectedFolderIds.add(folderId);
         initializeFolderAssetInclusion(state, folderId, getFolderAssetState(state, folderId).assets || []);
+        if (!state.folderAssets.has(folderId)) {
+          state.folderAssets.set(folderId, { loading: true, error: '', assets: [] });
+          fetchFolderAssets(folderId).then((assets) => {
+            state.folderAssets.set(folderId, { loading: false, error: '', assets });
+            initializeFolderAssetInclusion(state, folderId, assets);
+          }).catch((error) => {
+            state.folderAssets.set(folderId, { loading: false, error: error.message || 'Could not load folder visuals.', assets: [] });
+          }).finally(renderDynamic);
+        }
       }
       renderDynamic();
     });

@@ -115,13 +115,22 @@
   font-weight: 850;
 }
 
-.vec-preview-badge {
+.vec-preview-badge,
+.vec-visual-type-badge {
   position: absolute;
   top: 1rem;
   left: 1rem;
   padding: 0.45rem 0.7rem;
   font-size: 0.78rem;
   text-transform: uppercase;
+}
+
+.vec-visual-type-badge {
+  left: auto;
+  right: 1rem;
+  border-color: rgba(80, 210, 120, 0.32);
+  background: rgba(80, 210, 120, 0.12);
+  color: #bfffd1;
 }
 
 .vec-button-row {
@@ -279,6 +288,7 @@
 }
 
 .vec-preview-song img,
+.vec-preview-song video,
 .vec-artwork-fallback {
   width: min(68vw, 18rem);
   aspect-ratio: 1;
@@ -286,6 +296,15 @@
   border-radius: 22px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
   object-fit: cover;
+}
+
+.vec-preview-song.is-image img,
+.vec-preview-song.is-clip video {
+  width: min(86vw, 30rem);
+  max-height: min(55vh, 23rem);
+  aspect-ratio: auto;
+  object-fit: contain;
+  background: #020302;
 }
 
 .vec-artwork-fallback {
@@ -346,6 +365,7 @@
 }
 
 .vec-preview-song.is-playing img,
+.vec-preview-song.is-playing video,
 .vec-preview-song.is-playing .vec-artwork-fallback {
   border-color: rgba(80, 210, 120, 0.62);
   box-shadow:
