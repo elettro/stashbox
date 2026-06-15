@@ -1,6 +1,7 @@
 const API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/songs';
 const EVENTS_API_BASE_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/events';
 const STATS_SUMMARY_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/summary';
+// TODO: If product focused views need true top-50+ pagination beyond the current client-side payload, add backend pagination/limit support without changing dashboard calculations.
 const PRODUCT_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/products?limit=25';
 const SONG_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/songs?limit=100';
 const UPLOAD_PRESIGN_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/uploads/presign';
@@ -669,12 +670,21 @@ function setDashboardView(viewName, { pushState = false } = {}) {
 
 function updateDashboardSectionVisibility() {
   const overviewSections = new Set(['operational', 'today', 'top-songs', 'most-liked', 'most-shared', 'top-engagement-rate', 'product-analytics']);
+  const focusedPageScrollViews = new Set(['top-songs', 'top-clicked-products', 'recent-product-clicks']);
   const sectionForView = activeDashboardView === 'top-clicked-products' || activeDashboardView === 'recent-product-clicks'
     ? 'product-analytics'
     : activeDashboardView;
+
+  if (els.dashboardView) {
+    els.dashboardView.classList.toggle('dashboard-focused-page-scroll', focusedPageScrollViews.has(activeDashboardView));
+  }
+
   els.dashboardSections.forEach((section) => {
     const key = section.dataset.dashboardSection;
-    const show = activeDashboardView === 'dashboard' ? overviewSections.has(key) : key === sectionForView;
+    const hiddenOnLanding = activeDashboardView === 'dashboard' && section.dataset.dashboardLandingHidden === 'true';
+    const show = activeDashboardView === 'dashboard'
+      ? overviewSections.has(key) && !hiddenOnLanding
+      : key === sectionForView;
     section.classList.toggle('hidden', !show);
   });
 
