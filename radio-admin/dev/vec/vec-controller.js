@@ -355,13 +355,53 @@
     `;
   }
 
-  function renderSummary(songContext, artworkRules, selectedFolders = []) {
+  function getAssetInclusionMap(state, folderId) {
+    if (!state.assetInclusionByFolder.has(folderId)) state.assetInclusionByFolder.set(folderId, new Map());
+    return state.assetInclusionByFolder.get(folderId);
+  }
+
+  function initializeFolderAssetInclusion(state, folderId, assets = []) {
+    const inclusion = getAssetInclusionMap(state, folderId);
+    assets.forEach((asset) => {
+      if (!inclusion.has(asset.id)) inclusion.set(asset.id, true);
+    });
+  }
+
+  function isAssetIncluded(state, folderId, asset) {
+    if (!state.selectedFolderIds.has(folderId)) return false;
+    const inclusion = getAssetInclusionMap(state, folderId);
+    return inclusion.get(asset.id) !== false;
+  }
+
+  function getActiveAssetCounts(state, folder) {
+    if (!state.selectedFolderIds.has(folder.id)) return { images: 0, clips: 0 };
+    const assetState = getFolderAssetState(state, folder.id);
+    const assets = assetState.assets || [];
+    if (!assets.length) return { images: folder.images_count || 0, clips: folder.clips_count || 0 };
+    return assets.reduce((counts, asset) => {
+      if (!isAssetIncluded(state, folder.id, asset)) return counts;
+      if (normalizeAssetType(asset) === 'clip') counts.clips += 1;
+      else counts.images += 1;
+      return counts;
+    }, { images: 0, clips: 0 });
+  }
+
+  function getSelectedActiveAssetCounts(state, selectedFolders = getSelectedFolders(state)) {
+    return selectedFolders.reduce((totals, folder) => {
+      const counts = getActiveAssetCounts(state, folder);
+      totals.images += counts.images;
+      totals.clips += counts.clips;
+      return totals;
+    }, { images: 0, clips: 0 });
+  }
+
+  function renderSummary(songContext, artworkRules, selectedFolders = [], activeCounts = { images: 0, clips: 0 }) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
     const artworkStatus = songContext && getArtworkUrl(songContext) ? 'Artwork available' : 'No artwork available';
-    const selectedImages = selectedFolders.reduce((total, folder) => total + (folder.images_count || 0), 0);
-    const selectedClips = selectedFolders.reduce((total, folder) => total + (folder.clips_count || 0), 0);
+    const selectedImages = activeCounts.images || 0;
+    const selectedClips = activeCounts.clips || 0;
     const selectedNames = selectedFolders.map((folder) => folder.folder_name).join(', ') || 'None selected';
     return `
       <p class="vec-empty-state">${songContext ? `Selected song context loaded for ${escapeHtml(title)}.` : 'No song selected yet.'}</p>
@@ -372,8 +412,8 @@
         <div class="vec-summary-card"><strong>Official artwork</strong><span>${artworkStatus}</span></div>
         <div class="vec-summary-card"><strong>Selected folders</strong><span>${selectedFolders.length} folder${selectedFolders.length === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
-        <div class="vec-summary-card"><strong>Selected images</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
-        <div class="vec-summary-card"><strong>Selected clips</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Active images</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Active clips</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card"><strong>Artwork rules</strong><span>Start ${onOffLabel(artworkRules.startWithArtwork)} · ${secondsLabel(artworkRules.startDurationSeconds)} · End ${onOffLabel(artworkRules.endWithArtwork)} · ${secondsLabel(artworkRules.endDurationSeconds)} · Re-present ${onOffLabel(artworkRules.rePresentArtwork)} every ${secondsLabel(artworkRules.repeatEverySeconds)}</span></div>
         <div class="vec-summary-card"><strong>Shuffle mode</strong><span>Randomize · avoid repeats</span></div>
       </div>`;
@@ -388,19 +428,22 @@
     return state.folderAssets.get(folderId) || { loading: false, error: '', assets: [] };
   }
 
-  function renderAssetPreview(asset, folderId) {
+  function renderAssetPreview(state, asset, folderId) {
     const type = normalizeAssetType(asset);
     const title = asset.caption || asset.file_name || 'Visual asset';
     const url = clean(asset.public_url);
+    const included = isAssetIncluded(state, folderId, asset);
+    const toggleLabel = included ? 'Exclude this visual' : 'Include this visual';
     const media = !url
       ? `<span>${type === 'clip' ? 'MP4' : 'IMG'}</span>`
       : (type === 'clip'
         ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
         : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
-    return `<button type="button" class="vec-folder-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'}" data-vec-preview-asset="${escapeHtml(folderId)}:${escapeHtml(asset.id)}" ${url ? '' : 'disabled'} aria-label="Preview ${escapeHtml(title)}">
+    return `<div class="vec-folder-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-preview-asset="${escapeHtml(folderId)}:${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
       <span class="vec-folder-asset-thumb">${media}</span>
+      <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-asset-toggle="${escapeHtml(folderId)}:${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${toggleLabel}" title="${toggleLabel}"><span class="sr-only">${toggleLabel}</span></button>
       <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
-    </button>`;
+    </div>`;
   }
 
   function renderFolderAssets(state, folder) {
@@ -409,11 +452,14 @@
     if (assetState.error) return `<div class="vec-folder-assets"><p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p></div>`;
     const assets = [...(assetState.assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
     if (!assets.length) return '<div class="vec-folder-assets"><p class="vec-empty-state">No images or video clips found for this folder yet.</p></div>';
+    initializeFolderAssetInclusion(state, folder.id, assets);
     const clips = assets.filter((asset) => normalizeAssetType(asset) === 'clip');
     const images = assets.filter((asset) => normalizeAssetType(asset) === 'image');
+    const activeCounts = getActiveAssetCounts(state, folder);
     return `<div class="vec-folder-assets">
       <div class="vec-folder-assets-head"><strong>Folder visuals</strong><span>${images.length} image${images.length === 1 ? '' : 's'} · ${clips.length} clip${clips.length === 1 ? '' : 's'}</span></div>
-      <div class="vec-folder-asset-grid">${assets.map((asset) => renderAssetPreview(asset, folder.id)).join('')}</div>
+      <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
+      <div class="vec-folder-asset-grid">${assets.map((asset) => renderAssetPreview(state, asset, folder.id)).join('')}</div>
     </div>`;
   }
 
@@ -429,11 +475,13 @@
       const dateLabel = formatDate(folder.updated_at || folder.created_at);
       const expanded = state.expandedFolderIds.has(folder.id);
       const selectionLabel = selected ? 'Folder included. Click to exclude this folder.' : 'Folder excluded. Click to include this folder.';
+      const activeCounts = getActiveAssetCounts(state, folder);
       return `<article class="vec-folder-card ${selected ? 'is-selected' : 'is-unselected'} ${expanded ? 'is-expanded' : ''}">
         <div class="vec-folder-card-top">
           <div class="vec-folder-card-main">
             <div class="vec-folder-card-head"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div>
             <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span><span>${folder.images_count} images</span><span>${folder.clips_count} clips</span>${folder.asset_count ? `<span>${folder.asset_count} assets</span>` : ''}</div>
+            <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
             ${folder.description ? `<p>${escapeHtml(folder.description)}</p>` : '<p>No description available.</p>'}
             ${dateLabel ? `<small>${folder.updated_at ? 'Updated' : 'Created'} ${escapeHtml(dateLabel)}</small>` : ''}
           </div>
@@ -450,7 +498,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), previewModalAsset: null };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null };
 
     container.innerHTML = `
@@ -590,7 +638,8 @@
       elements.preview.innerHTML = renderPreview(state.songContext, previewState);
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.folderGrid.innerHTML = renderFolderCards(state);
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, getSelectedFolders(state));
+      const selectedFolders = getSelectedFolders(state);
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders));
       [elements.playButton, elements.pauseButton, elements.restartButton, elements.nextButton].forEach((button) => { if (button) button.disabled = !hasSong; });
       if (elements.playButton) elements.playButton.disabled = !hasSong || previewState.isPlaying;
       if (elements.pauseButton) elements.pauseButton.disabled = !hasSong || !previewState.isPlaying;
@@ -641,6 +690,7 @@
       state.selectedFolderIds = new Set();
       state.expandedFolderIds = new Set();
       state.previewModalAsset = null;
+      state.assetInclusionByFolder = new Map();
       previewState.index = 0;
       loadPreviewAudio();
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
@@ -648,9 +698,40 @@
       return state.songContext;
     }
 
-    elements.folderGrid.addEventListener('click', (event) => {
+    function toggleAssetInclusion(toggle) {
+      const [folderId, ...assetParts] = String(toggle.dataset.vecAssetToggle || '').split(':');
+      const assetId = assetParts.join(':');
+      const asset = getFolderAssetState(state, folderId).assets.find((item) => String(item.id) === assetId);
+      if (!asset || !state.selectedFolderIds.has(folderId)) return;
+      const inclusion = getAssetInclusionMap(state, folderId);
+      inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      renderDynamic();
+    }
+
+    elements.folderGrid.addEventListener('keydown', (event) => {
       const previewButton = event.target.closest('[data-vec-preview-asset]');
-      if (previewButton) {
+      if (previewButton && !event.target.closest('[data-vec-asset-toggle]') && (event.key === 'Enter' || event.key === ' ') && previewButton.getAttribute('aria-disabled') !== 'true') {
+        event.preventDefault();
+        state.previewModalAsset = previewButton.dataset.vecPreviewAsset;
+        renderDynamic();
+        return;
+      }
+      const assetToggle = event.target.closest('[data-vec-asset-toggle]');
+      if (!assetToggle || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      toggleAssetInclusion(assetToggle);
+    });
+
+    elements.folderGrid.addEventListener('click', (event) => {
+      const assetToggle = event.target.closest('[data-vec-asset-toggle]');
+      if (assetToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleAssetInclusion(assetToggle);
+        return;
+      }
+      const previewButton = event.target.closest('[data-vec-preview-asset]');
+      if (previewButton && previewButton.getAttribute('aria-disabled') !== 'true') {
         state.previewModalAsset = previewButton.dataset.vecPreviewAsset;
         renderDynamic();
         return;
@@ -669,6 +750,7 @@
           renderDynamic();
           fetchFolderAssets(folderId).then((assets) => {
             state.folderAssets.set(folderId, { loading: false, error: '', assets });
+            if (state.selectedFolderIds.has(folderId)) initializeFolderAssetInclusion(state, folderId, assets);
           }).catch((error) => {
             state.folderAssets.set(folderId, { loading: false, error: error.message || 'Could not load folder visuals.', assets: [] });
           }).finally(renderDynamic);
@@ -679,7 +761,10 @@
       if (!button || !state.songContext) return;
       const folderId = button.dataset.vecFolderToggle;
       if (state.selectedFolderIds.has(folderId)) state.selectedFolderIds.delete(folderId);
-      else state.selectedFolderIds.add(folderId);
+      else {
+        state.selectedFolderIds.add(folderId);
+        initializeFolderAssetInclusion(state, folderId, getFolderAssetState(state, folderId).assets || []);
+      }
       renderDynamic();
     });
 
