@@ -108,6 +108,18 @@
     return getFirstString(songContext, ['song_artwork_url', 'artwork_url', 'cover_art_url', 'imageUrl']);
   }
 
+  function getAudioUrl(songContext) {
+    return getFirstString(songContext, ['audio_url', 'audioUrl']);
+  }
+
+  function formatPreviewTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
+    const wholeSeconds = Math.floor(seconds);
+    const minutes = Math.floor(wholeSeconds / 60);
+    const remainingSeconds = wholeSeconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+  }
+
   function createSongContext(song) {
     if (!song) return null;
     const context = {};
@@ -252,7 +264,7 @@
         <select id="songSelect" class="vec-select" data-vec-song-select><option value="">Loading songs...</option></select>
         <p class="vec-microcopy" data-vec-song-status>Loading real Songs CMS data from the existing dev admin songs API.</p>
       </section>
-      <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
+      <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Song Artwork Controller</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Visual Assets</h2><p class="vec-copy">Assets uploaded here will apply only to the selected song.</p></div></div><div class="vec-two-column"><article class="vec-placeholder-panel"><h3>Image upload placeholder</h3><p>Song-specific still image upload wiring will come later.</p></article><article class="vec-placeholder-panel"><h3>Video clip upload placeholder</h3><p>Song-specific clip upload wiring will come later.</p></article></div><div class="vec-thumbnail-grid" aria-label="Empty thumbnail grid placeholder"><p>No song-only visual assets yet.</p></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s VEC recipe.</p></div></div><div class="vec-folder-grid">${['Folder name placeholder', 'Folder name placeholder', 'Folder name placeholder'].map((name) => `<article class="vec-folder-card"><div><h3>${name}</h3><p>Image count placeholder · Video count placeholder</p></div><button type="button" class="vec-toggle is-off" disabled aria-pressed="false">OFF</button></article>`).join('')}</div></section>
@@ -270,7 +282,14 @@
       pauseButton: container.querySelector('[data-vec-preview-pause]'),
       restartButton: container.querySelector('[data-vec-preview-restart]'),
       nextButton: container.querySelector('[data-vec-preview-next]'),
+      audioMessage: container.querySelector('[data-vec-audio-message]'),
+      scrubber: container.querySelector('[data-vec-scrubber]'),
+      currentTime: container.querySelector('[data-vec-current-time]'),
+      duration: container.querySelector('[data-vec-duration]'),
     };
+
+    const previewAudio = new Audio();
+    previewAudio.preload = 'metadata';
 
     function stopPreviewTimer() {
       if (previewState.timerId) window.clearTimeout(previewState.timerId);
@@ -285,6 +304,54 @@
       previewState.timerId = window.setTimeout(() => {
         nextPreviewVisual({ keepPlaying: true });
       }, durationMs);
+    }
+
+    function getVisualIndexForTime(seconds) {
+      const sequence = previewState.sequence || [];
+      if (!sequence.length || !Number.isFinite(seconds) || seconds <= 0) return 0;
+      const cycleSeconds = sequence.reduce((total, visual) => total + Math.max(1, Number(visual.durationSeconds) || 4), 0);
+      let position = cycleSeconds > 0 ? seconds % cycleSeconds : 0;
+      for (let index = 0; index < sequence.length; index += 1) {
+        position -= Math.max(1, Number(sequence[index].durationSeconds) || 4);
+        if (position < 0) return index;
+      }
+      return 0;
+    }
+
+    function syncVisualToAudioTime() {
+      if (!getAudioUrl(state.songContext)) return;
+      previewState.index = getVisualIndexForTime(previewAudio.currentTime || 0);
+    }
+
+    function updateScrubber() {
+      const hasAudio = Boolean(getAudioUrl(state.songContext));
+      const duration = Number.isFinite(previewAudio.duration) ? previewAudio.duration : 0;
+      const currentTime = Number.isFinite(previewAudio.currentTime) ? previewAudio.currentTime : 0;
+      if (elements.currentTime) elements.currentTime.textContent = formatPreviewTime(currentTime);
+      if (elements.duration) elements.duration.textContent = duration ? formatPreviewTime(duration) : '--:--';
+      if (elements.scrubber) {
+        elements.scrubber.disabled = !hasAudio || !duration;
+        elements.scrubber.max = duration ? String(duration) : '0';
+        elements.scrubber.value = String(Math.min(currentTime, duration || 0));
+      }
+      if (elements.audioMessage) {
+        elements.audioMessage.textContent = hasAudio
+          ? 'Local preview audio loaded. Playback starts only when you click Play Preview.'
+          : 'No audio URL available for this song. Visual preview only.';
+      }
+    }
+
+    function loadPreviewAudio() {
+      const audioUrl = getAudioUrl(state.songContext);
+      previewAudio.pause();
+      previewAudio.removeAttribute('src');
+      previewAudio.load();
+      if (audioUrl) {
+        previewAudio.src = audioUrl;
+        previewAudio.currentTime = 0;
+        previewAudio.load();
+      }
+      updateScrubber();
     }
 
     function renderDynamic() {
@@ -303,18 +370,27 @@
     function startPreview() {
       if (!state.songContext) return;
       previewState.isPlaying = true;
+      syncVisualToAudioTime();
+      const playPromise = getAudioUrl(state.songContext) ? previewAudio.play() : null;
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => { previewState.isPlaying = false; renderDynamic(); updateScrubber(); });
+      }
       renderDynamic();
       schedulePreviewTick();
     }
 
     function pausePreview() {
       previewState.isPlaying = false;
+      previewAudio.pause();
       stopPreviewTimer();
+      updateScrubber();
       renderDynamic();
     }
 
     function restartPreview() {
       previewState.index = 0;
+      if (getAudioUrl(state.songContext)) previewAudio.currentTime = 0;
+      updateScrubber();
       renderDynamic();
       schedulePreviewTick();
     }
@@ -332,6 +408,7 @@
       state.songContext = createSongContext(songOrContext);
       state.songKey = state.songContext?.song_key || '';
       previewState.index = 0;
+      loadPreviewAudio();
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
       renderDynamic();
       return state.songContext;
@@ -345,7 +422,24 @@
     elements.pauseButton.addEventListener('click', pausePreview);
     elements.restartButton.addEventListener('click', restartPreview);
     elements.nextButton.addEventListener('click', () => nextPreviewVisual({ keepPlaying: previewState.isPlaying }));
+    previewAudio.addEventListener('loadedmetadata', updateScrubber);
+    previewAudio.addEventListener('durationchange', updateScrubber);
+    previewAudio.addEventListener('timeupdate', updateScrubber);
+    previewAudio.addEventListener('ended', () => {
+      previewState.isPlaying = false;
+      stopPreviewTimer();
+      updateScrubber();
+      renderDynamic();
+    });
+    elements.scrubber.addEventListener('input', () => {
+      if (!getAudioUrl(state.songContext)) return;
+      previewAudio.currentTime = Number(elements.scrubber.value) || 0;
+      syncVisualToAudioTime();
+      updateScrubber();
+      renderDynamic();
+    });
 
+    if (state.songContext) loadPreviewAudio();
     renderDynamic();
     container.dataset.vecMode = state.mode;
 
