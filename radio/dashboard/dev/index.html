@@ -46,12 +46,13 @@
         <p class="radio-admin-macro-header__label">Stashbox Radio Dev Admin</p>
         <!-- Shared Stashbox Radio admin header. Reuse this macro nav on future dev admin tools. -->
         <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
-          <a href="/radio-admin/dev/" >Song CMS Dev</a>
-          <a href="/radio-admin/ads/dev/" >Ads CMS Dev</a>
-          <a href="/radio/visual-experience/dev/" >Visuals Experience CMS</a>
-          <a href="/radio/dashboard/dev/" aria-current="page">Public Dashboard</a>
-          <a href="/radio/">Radio Production</a>
+          <a href="/radio-admin/dev/">Songs</a>
+          <a href="/radio/visual-experience/dev/">Visual Library</a>
+          <a href="/radio-admin/dev/vec/">VEC Lab</a>
+          <a href="/radio-admin/ads/dev/">Ads</a>
+          <a href="/radio/dashboard/dev/" aria-current="page">Dashboard</a>
           <a href="/radio/dev/">Radio Dev</a>
+          <a href="/radio/">Radio Live</a>
         </nav>
       </div>
     </header>
@@ -83,6 +84,22 @@
         </p>
       </section>
 
+
+
+      <nav class="dashboard-section-nav" aria-label="Dashboard analytics sections">
+        <a href="/radio/dashboard/dev/?view=overview" data-dashboard-view-link="overview" aria-current="page">Overview</a>
+        <a href="/radio/dashboard/dev/?view=operational" data-dashboard-view-link="operational">Operational Stats</a>
+        <a href="/radio/dashboard/dev/?view=today" data-dashboard-view-link="today">Today</a>
+        <a href="/radio/dashboard/dev/?view=top-songs" data-dashboard-view-link="top-songs">Top Songs</a>
+        <a href="/radio/dashboard/dev/?view=most-liked" data-dashboard-view-link="most-liked">Most Liked</a>
+        <a href="/radio/dashboard/dev/?view=most-shared" data-dashboard-view-link="most-shared">Most Shared</a>
+        <a href="/radio/dashboard/dev/?view=product-analytics" data-dashboard-view-link="product-analytics">Product Analytics</a>
+        <a href="/radio/dashboard/dev/?view=top-clicked-products" data-dashboard-view-link="top-clicked-products">Top Clicked Products</a>
+        <a href="/radio/dashboard/dev/?view=recent-product-clicks" data-dashboard-view-link="recent-product-clicks">Recent Product Clicks</a>
+        <a href="/radio/dashboard/dev/?view=events" data-dashboard-view-link="events">Events</a>
+        <a href="/radio/dashboard/dev/?view=archive" data-dashboard-view-link="archive">Archive</a>
+      </nav>
+
       <div
         id="statusBanner"
         class="status-banner"
@@ -97,7 +114,7 @@
         class="view"
         aria-labelledby="dashboardHeading"
       >
-        <section class="card" aria-labelledby="operationalStatsHeading">
+        <section class="card" data-dashboard-section="operational" aria-labelledby="operationalStatsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">1. Operational Stats</p>
@@ -114,7 +131,7 @@
           <div id="operationalStats" class="stat-grid"></div>
         </section>
 
-        <section class="card" aria-labelledby="rankedByPlaysHeading">
+        <section class="card" data-dashboard-section="top-songs" aria-labelledby="rankedByPlaysHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">2. Ranked by Plays - Top Songs</p>
@@ -148,7 +165,7 @@
           </div>
         </section>
 
-        <section class="card" aria-labelledby="likedSongsHeading">
+        <section class="card" data-dashboard-section="most-liked" aria-labelledby="likedSongsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">3. Top 10 - Most Liked Songs</p>
@@ -157,7 +174,7 @@
           </div>
           <div id="likedSongs" class="rank-grid"></div>
         </section>
-        <section class="card" aria-labelledby="engagementHeading">
+        <section class="card" data-dashboard-section="engagement" aria-labelledby="engagementHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">4. Top 10 - Engagement Rate</p>
@@ -166,7 +183,7 @@
           </div>
           <div id="engagementSongs" class="rank-grid"></div>
         </section>
-        <section class="card" aria-labelledby="sharedSongsHeading">
+        <section class="card" data-dashboard-section="most-shared" aria-labelledby="sharedSongsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">5. Top 10 - Most Shared Songs</p>
@@ -175,7 +192,7 @@
           </div>
           <div id="sharedSongs" class="rank-grid"></div>
         </section>
-        <section class="card" aria-labelledby="videoClicksHeading">
+        <section class="card" data-dashboard-section="video-clicks" aria-labelledby="videoClicksHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">6. Top 10 - Ranked by Video Clicks</p>
@@ -184,7 +201,7 @@
           </div>
           <div id="videoClicks" class="rank-grid"></div>
         </section>
-        <section class="card" aria-labelledby="productClicksHeading">
+        <section class="card" data-dashboard-section="top-clicked-products" aria-labelledby="productClicksHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">7. Top 10 - Ranked by Product Clicks</p>
@@ -196,7 +213,7 @@
           <div id="productClicks" class="rank-grid"></div>
         </section>
 
-        <section class="card" aria-labelledby="songAnalyticsHeading">
+        <section class="card" data-dashboard-section="operational" aria-labelledby="songAnalyticsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">8. Song Analytics Stats</p>
@@ -206,7 +223,7 @@
           <div id="songAnalyticsStats" class="stat-grid stat-grid--small"></div>
         </section>
 
-        <section class="card" aria-labelledby="todayStatsHeading">
+        <section class="card" data-dashboard-section="today" aria-labelledby="todayStatsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">9. Today Stats</p>
@@ -216,7 +233,7 @@
           <div id="todayStats" class="stat-grid stat-grid--small"></div>
         </section>
 
-        <section class="card" aria-labelledby="productAnalyticsHeading">
+        <section class="card" data-dashboard-section="product-analytics" aria-labelledby="productAnalyticsHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">10. Product Analytics</p>
@@ -226,7 +243,7 @@
           <div id="productAnalytics" class="stat-grid stat-grid--small"></div>
         </section>
 
-        <section class="card" aria-labelledby="skipRateHeading">
+        <section class="card" data-dashboard-section="operational" aria-labelledby="skipRateHeading">
           <div class="section-heading">
             <div>
               <p class="eyebrow">11. Skip Count / Plays</p>
@@ -234,6 +251,36 @@
             </div>
           </div>
           <div id="skipRateSongs" class="rank-grid"></div>
+        </section>
+
+        <section class="card" data-dashboard-section="recent-product-clicks" aria-labelledby="recentProductClicksHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recent Product Clicks</p>
+              <h2 id="recentProductClicksHeading">Recent Product Clicks</h2>
+            </div>
+          </div>
+          <p class="section-copy">Recent product-click detail is not exposed in the current public-safe dashboard payload, so this view keeps the existing data flow unchanged.</p>
+        </section>
+
+        <section class="card" data-dashboard-section="events" aria-labelledby="eventsHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Events</p>
+              <h2 id="eventsHeading">Events</h2>
+            </div>
+          </div>
+          <p class="section-copy">Event totals remain represented in the operational and today stats already loaded by the dashboard.</p>
+        </section>
+
+        <section class="card" data-dashboard-section="archive" aria-labelledby="archiveHeading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Archive</p>
+              <h2 id="archiveHeading">Archive</h2>
+            </div>
+          </div>
+          <p class="section-copy">Archive access is preserved without adding new backend routes or changing dashboard API calls.</p>
         </section>
       </section>
     </main>
