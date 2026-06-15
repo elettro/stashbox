@@ -8,7 +8,8 @@ const REFERRER_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazona
 const DEVICE_STATS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/admin/stats/devices?limit=50';
 const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
-const DEFAULT_TAB = 'dashboard';
+const IS_SONGS_CMS_PAGE = window.location.pathname.includes('/radio-admin/songs/dev');
+const DEFAULT_TAB = IS_SONGS_CMS_PAGE ? 'songs' : 'dashboard';
 const DEFAULT_LANGUAGES = ['English'];
 const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';
 const STASHBOX_PLACEHOLDER_ARTWORK = `data:image/svg+xml,${encodeURIComponent(`
@@ -492,10 +493,19 @@ function initializeAdmin() {
 
   if (token) {
     setActiveTab(DEFAULT_TAB);
-    loadDashboardData();
+    loadInitialData();
   } else {
     els.adminToken.focus();
   }
+}
+
+function loadInitialData() {
+  if (IS_SONGS_CMS_PAGE) {
+    loadSongs();
+    return;
+  }
+
+  loadDashboardData();
 }
 
 function getToken() {
@@ -514,7 +524,7 @@ function saveToken() {
   els.adminToken.value = '';
   updateTokenUi(true);
   setActiveTab(DEFAULT_TAB);
-  loadDashboardData();
+  loadInitialData();
 }
 
 function clearToken() {
