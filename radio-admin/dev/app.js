@@ -192,16 +192,20 @@ const todayStatDefinitions = [
 const DASHBOARD_PAGE_SIZE = 50;
 const DASHBOARD_OVERVIEW_LIMIT = 10;
 const DASHBOARD_VIEWS = new Set([
+  'dashboard',
   'overview',
   'operational',
   'today',
   'top-songs',
   'most-liked',
   'most-shared',
+  'top-engagement-rate',
   'most-watched-videos',
-  'product-analytics',
   'top-clicked-products',
   'recent-product-clicks',
+  'skip-count-plays',
+  'referrers',
+  'devices',
   'events',
   'archive'
 ]);
@@ -380,8 +384,10 @@ const dashboardVisibleCounts = {
   'most-liked': DASHBOARD_PAGE_SIZE,
   'most-shared': DASHBOARD_PAGE_SIZE,
   'most-watched-videos': DASHBOARD_PAGE_SIZE,
+  'top-engagement-rate': DASHBOARD_PAGE_SIZE,
   'top-clicked-products': DASHBOARD_PAGE_SIZE,
-  'recent-product-clicks': DASHBOARD_PAGE_SIZE
+  'recent-product-clicks': DASHBOARD_PAGE_SIZE,
+  'skip-count-plays': DASHBOARD_PAGE_SIZE
 };
 let editorMode = 'edit';
 
@@ -442,6 +448,10 @@ const els = {
   loadMoreWatchedVideos: document.getElementById('loadMoreWatchedVideos'),
   productClicksShowing: document.getElementById('productClicksShowing'),
   loadMoreProductClicks: document.getElementById('loadMoreProductClicks'),
+  engagementShowing: document.getElementById('engagementShowing'),
+  loadMoreEngagement: document.getElementById('loadMoreEngagement'),
+  skipRateShowing: document.getElementById('skipRateShowing'),
+  loadMoreSkipRate: document.getElementById('loadMoreSkipRate'),
   likedSongsList: document.getElementById('likedSongsList'),
   sharedSongsList: document.getElementById('sharedSongsList'),
   watchedVideosList: document.getElementById('watchedVideosList'),
@@ -511,6 +521,8 @@ function bindEvents() {
   bindDashboardLoadMore(els.loadMoreSharedSongs, 'most-shared');
   bindDashboardLoadMore(els.loadMoreWatchedVideos, 'most-watched-videos');
   bindDashboardLoadMore(els.loadMoreProductClicks, 'highest-product-click-songs');
+  bindDashboardLoadMore(els.loadMoreEngagement, 'top-engagement-rate');
+  bindDashboardLoadMore(els.loadMoreSkipRate, 'skip-count-plays');
   bindDashboardLoadMore(els.loadMoreTopProducts, 'top-clicked-products');
   bindDashboardLoadMore(els.loadMoreRecentProductClicks, 'recent-product-clicks');
   els.songSearch.addEventListener('input', renderSongList);
@@ -621,8 +633,9 @@ function updateTokenUi(hasToken) {
 
 function getDashboardViewFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const view = params.get('view') || 'overview';
-  return DASHBOARD_VIEWS.has(view) ? view : 'overview';
+  const rawView = params.get('view') || 'dashboard';
+  const view = rawView === 'overview' ? 'dashboard' : rawView;
+  return DASHBOARD_VIEWS.has(view) ? view : 'dashboard';
 }
 
 function bindDashboardLoadMore(button, viewName) {
@@ -634,7 +647,7 @@ function bindDashboardLoadMore(button, viewName) {
 }
 
 function setDashboardView(viewName, { pushState = false } = {}) {
-  activeDashboardView = DASHBOARD_VIEWS.has(viewName) ? viewName : 'overview';
+  activeDashboardView = viewName === 'overview' ? 'dashboard' : (DASHBOARD_VIEWS.has(viewName) ? viewName : 'dashboard');
   if (activeDashboardView === 'events') setActiveTab('events');
   else if (activeDashboardView === 'archive') setActiveTab('archive');
   else if (activeTab !== 'dashboard') setActiveTab('dashboard');
@@ -655,13 +668,13 @@ function setDashboardView(viewName, { pushState = false } = {}) {
 }
 
 function updateDashboardSectionVisibility() {
-  const overviewSections = new Set(['operational', 'today', 'top-songs', 'most-liked', 'most-shared', 'most-watched-videos', 'highest-product-click-songs']);
+  const overviewSections = new Set(['operational', 'today', 'top-songs', 'most-liked', 'most-shared', 'top-engagement-rate', 'product-analytics']);
   const sectionForView = activeDashboardView === 'top-clicked-products' || activeDashboardView === 'recent-product-clicks'
     ? 'product-analytics'
     : activeDashboardView;
   els.dashboardSections.forEach((section) => {
     const key = section.dataset.dashboardSection;
-    const show = activeDashboardView === 'overview' ? overviewSections.has(key) : key === sectionForView;
+    const show = activeDashboardView === 'dashboard' ? overviewSections.has(key) : key === sectionForView;
     section.classList.toggle('hidden', !show);
   });
 
@@ -670,6 +683,7 @@ function updateDashboardSectionVisibility() {
     const productTables = productSection.querySelectorAll('.product-tables-grid > section');
     productTables.forEach((tableSection, index) => {
       const showTable = activeDashboardView === 'product-analytics'
+        || (activeDashboardView === 'dashboard' && index === 1)
         || (activeDashboardView === 'top-clicked-products' && index === 0)
         || (activeDashboardView === 'recent-product-clicks' && index === 1);
       tableSection.classList.toggle('hidden', !showTable);
@@ -679,7 +693,7 @@ function updateDashboardSectionVisibility() {
 
 
 function getDashboardLimit(viewName) {
-  return activeDashboardView === 'overview' ? DASHBOARD_OVERVIEW_LIMIT : (dashboardVisibleCounts[viewName] || DASHBOARD_PAGE_SIZE);
+  return activeDashboardView === 'dashboard' ? DASHBOARD_OVERVIEW_LIMIT : (dashboardVisibleCounts[viewName] || DASHBOARD_PAGE_SIZE);
 }
 
 function updateShowing(metaEl, buttonEl, visible, total) {
@@ -1398,8 +1412,12 @@ function renderDashboard() {
   updateShowing(els.watchedVideosShowing, els.loadMoreWatchedVideos, getDashboardLimit('most-watched-videos'), watchedVideos.length);
   renderRankList(els.productClicksList, productClickSongs.slice(0, getDashboardLimit('highest-product-click-songs')), 'product clicks');
   updateShowing(els.productClicksShowing, els.loadMoreProductClicks, getDashboardLimit('highest-product-click-songs'), productClickSongs.length);
-  renderRankList(els.engagementList, sortSongsByEngagement(activeSongs).slice(0, 5), 'engagement', getSongEngagement);
-  renderRankList(els.skipRateList, sortSongsBySkipRate(activeSongs), 'skip rate', getSongSkipRate, formatPercent);
+  const engagementSongs = sortSongsByEngagement(activeSongs);
+  renderRankList(els.engagementList, engagementSongs.slice(0, getDashboardLimit('top-engagement-rate')), 'engagement', getSongEngagement);
+  updateShowing(els.engagementShowing, els.loadMoreEngagement, getDashboardLimit('top-engagement-rate'), engagementSongs.length);
+  const skipRateSongs = sortSongsBySkipRate(activeSongs);
+  renderRankList(els.skipRateList, skipRateSongs.slice(0, getDashboardLimit('skip-count-plays')), 'skip rate', getSongSkipRate, formatPercent);
+  updateShowing(els.skipRateShowing, els.loadMoreSkipRate, getDashboardLimit('skip-count-plays'), skipRateSongs.length);
   updateDashboardSectionVisibility();
 }
 
