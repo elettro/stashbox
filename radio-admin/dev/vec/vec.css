@@ -93,7 +93,9 @@
 .vec-preview-window {
   position: relative;
   display: grid;
+  aspect-ratio: 16 / 9;
   min-height: clamp(16rem, 42vw, 30rem);
+  max-height: min(72vh, 34rem);
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(240, 192, 76, 0.22);
@@ -281,30 +283,57 @@
 
 .vec-preview-song {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 1rem;
   justify-items: center;
   padding: 4rem 1.25rem 1.5rem;
-  width: min(100%, 34rem);
+  width: min(100%, 44rem);
+  height: 100%;
+  min-height: 0;
 }
 
-.vec-preview-song img,
-.vec-preview-song video,
-.vec-artwork-fallback {
-  width: min(68vw, 18rem);
-  aspect-ratio: 1;
+.vec-preview-stage {
+  position: relative;
+  width: min(86vw, 34rem);
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid rgba(240, 192, 76, 0.36);
   border-radius: 22px;
+  background: #020302;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
-  object-fit: cover;
+  contain: layout paint size;
 }
 
-.vec-preview-song.is-image img,
-.vec-preview-song.is-clip video {
-  width: min(86vw, 30rem);
-  max-height: min(55vh, 23rem);
-  aspect-ratio: auto;
+.vec-preview-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 1;
+  transition: opacity 260ms ease;
+}
+
+.vec-preview-layer.is-next,
+.vec-preview-layer.is-fading-out {
+  opacity: 0;
+}
+
+.vec-preview-layer img,
+.vec-preview-layer video,
+.vec-preview-layer .vec-artwork-fallback {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   object-fit: contain;
   background: #020302;
+}
+
+.vec-preview-layer.is-artwork img,
+.vec-preview-layer .vec-artwork-fallback {
+  object-fit: cover;
 }
 
 .vec-artwork-fallback {
@@ -364,9 +393,7 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.vec-preview-song.is-playing img,
-.vec-preview-song.is-playing video,
-.vec-preview-song.is-playing .vec-artwork-fallback {
+.vec-preview-song.is-playing .vec-preview-stage {
   border-color: rgba(80, 210, 120, 0.62);
   box-shadow:
     0 26px 70px rgba(0, 0, 0, 0.48),

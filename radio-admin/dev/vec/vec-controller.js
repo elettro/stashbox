@@ -675,25 +675,157 @@
       </div>`;
     }
 
-    function syncPreviewVideoPlayback() {
-      const video = elements.preview?.querySelector('[data-vec-preview-video]');
-      if (!video) return;
-      video.muted = true;
-      video.playsInline = true;
-      video.onended = () => nextPreviewVisual({ keepPlaying: previewState.isPlaying });
-      if (previewState.isPlaying) {
-        const playPromise = video.play();
-        if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
-      } else {
-        video.pause();
+    function getVisualKey(visual) {
+      if (!visual) return 'empty';
+      return [visual.type || 'visual', visual.url || '', visual.label || '', visual.alt || ''].join('::');
+    }
+
+    function ensurePreviewShell() {
+      if (elements.preview.querySelector('[data-vec-preview-stage]')) return;
+      elements.preview.innerHTML = `
+        <span class="vec-preview-badge">Preview Mode</span>
+        <span class="vec-visual-type-badge hidden" data-vec-visual-type></span>
+        <div class="vec-preview-song is-empty is-paused" data-vec-preview-card>
+          <div class="vec-preview-stage" data-vec-preview-stage aria-live="polite"></div>
+          <div class="vec-preview-meta">
+            <strong data-vec-preview-title>VEC Preview</strong>
+            <span data-vec-preview-artist>Artist unavailable</span>
+            <em class="hidden" data-vec-preview-genre></em>
+            <small data-vec-preview-status>Select a song to preview its visual experience.</small>
+          </div>
+        </div>`;
+    }
+
+    function createPreviewLayer(visual, title) {
+      const layer = document.createElement('div');
+      layer.className = `vec-preview-layer is-${escapeHtml(visual?.type || 'empty')}`;
+      layer.dataset.vecVisualKey = getVisualKey(visual);
+      if (!visual) {
+        const message = document.createElement('p');
+        message.textContent = 'Select a song to preview its visual experience.';
+        layer.appendChild(message);
+        return layer;
       }
+      if (!visual.url) {
+        const fallback = document.createElement('div');
+        fallback.className = 'vec-artwork-fallback';
+        fallback.setAttribute('aria-label', 'No artwork available');
+        fallback.textContent = 'No artwork';
+        layer.appendChild(fallback);
+        return layer;
+      }
+      if (visual.type === 'clip') {
+        const video = document.createElement('video');
+        video.src = visual.url;
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.controls = false;
+        video.dataset.vecPreviewVideo = '';
+        video.onended = () => nextPreviewVisual({ keepPlaying: previewState.isPlaying });
+        layer.appendChild(video);
+        return layer;
+      }
+      const image = document.createElement('img');
+      image.src = visual.url;
+      image.alt = visual.alt || visual.label || title || 'Preview visual';
+      layer.appendChild(image);
+      return layer;
+    }
+
+    function waitForPreviewLayer(layer) {
+      const media = layer.querySelector('img, video');
+      if (!media) return Promise.resolve();
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        window.setTimeout(finish, 900);
+        if (media.tagName === 'IMG') {
+          if (media.complete) finish();
+          else { media.addEventListener('load', finish, { once: true }); media.addEventListener('error', finish, { once: true }); }
+          return;
+        }
+        if (media.readyState >= 2) finish();
+        else { media.addEventListener('canplay', finish, { once: true }); media.addEventListener('loadedmetadata', finish, { once: true }); media.addEventListener('error', finish, { once: true }); media.load(); }
+      });
+    }
+
+    function syncPreviewVideoPlayback() {
+      elements.preview?.querySelectorAll('[data-vec-preview-video]').forEach((video) => {
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.controls = false;
+        const active = video.closest('.vec-preview-layer')?.classList.contains('is-active');
+        if (previewState.isPlaying && active) {
+          const playPromise = video.play();
+          if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
+        } else {
+          video.pause();
+          if (!active) video.currentTime = 0;
+        }
+      });
+    }
+
+    async function updatePreviewMedia() {
+      ensurePreviewShell();
+      const title = state.songContext ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
+      const visual = state.songContext ? (previewState.sequence[previewState.index] || null) : null;
+      const nextKey = getVisualKey(visual);
+      const stage = elements.preview.querySelector('[data-vec-preview-stage]');
+      const activeLayer = stage.querySelector('.vec-preview-layer.is-active');
+      if (activeLayer?.dataset.vecVisualKey === nextKey) { syncPreviewVideoPlayback(); return; }
+      const transitionId = (previewState.transitionId || 0) + 1;
+      previewState.transitionId = transitionId;
+      const nextLayer = createPreviewLayer(visual, title);
+      nextLayer.classList.add('is-next');
+      stage.appendChild(nextLayer);
+      await waitForPreviewLayer(nextLayer);
+      if (previewState.transitionId !== transitionId) { nextLayer.remove(); return; }
+      window.requestAnimationFrame(() => {
+        nextLayer.classList.remove('is-next');
+        nextLayer.classList.add('is-active');
+        if (activeLayer) activeLayer.classList.add('is-fading-out');
+        syncPreviewVideoPlayback();
+        window.setTimeout(() => {
+          stage.querySelectorAll('.vec-preview-layer.is-fading-out').forEach((layer) => {
+            layer.querySelectorAll('video').forEach((video) => { video.pause(); video.currentTime = 0; });
+            layer.remove();
+          });
+        }, 360);
+      });
+    }
+
+    function updatePreviewChrome() {
+      ensurePreviewShell();
+      const hasSong = Boolean(state.songContext);
+      const title = hasSong ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
+      const artist = hasSong ? (state.songContext.artist || 'Artist unavailable') : 'Artist unavailable';
+      const genre = hasSong ? clean(state.songContext.genre) : '';
+      const visual = hasSong ? (previewState.sequence[previewState.index] || null) : null;
+      const visualTypeLabel = visual ? (visual.type === 'clip' ? 'Video clip' : (visual.type === 'image' ? 'Image' : 'Artwork')) : '';
+      const card = elements.preview.querySelector('[data-vec-preview-card]');
+      card.className = `vec-preview-song ${previewState.isPlaying ? 'is-playing' : 'is-paused'} is-${escapeHtml(visual?.type || 'empty')}`;
+      elements.preview.querySelector('[data-vec-preview-title]').textContent = title;
+      elements.preview.querySelector('[data-vec-preview-artist]').textContent = artist;
+      const genreEl = elements.preview.querySelector('[data-vec-preview-genre]');
+      genreEl.textContent = genre;
+      genreEl.classList.toggle('hidden', !genre);
+      const typeBadge = elements.preview.querySelector('[data-vec-visual-type]');
+      typeBadge.textContent = visualTypeLabel;
+      typeBadge.classList.toggle('hidden', !visualTypeLabel);
+      elements.preview.querySelector('[data-vec-preview-status]').textContent = !hasSong
+        ? 'Select a song to preview its visual experience.'
+        : (visual ? `${visual.label || 'Preview visual'} · ${previewState.isPlaying ? 'Playing local preview' : 'Paused local preview'}` : 'No active visuals selected');
     }
 
     function renderDynamic() {
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
       const hasSong = Boolean(state.songContext);
-      elements.preview.innerHTML = renderPreview(state.songContext, previewState);
+      updatePreviewChrome();
+      updatePreviewMedia();
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
