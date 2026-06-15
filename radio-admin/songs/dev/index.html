@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio Admin · Dev</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>Stashbox Radio Songs CMS · Dev</title>
+  <link rel="stylesheet" href="../../dev/styles.css" />
 </head>
 <body>
   <header class="topbar">
@@ -14,16 +14,16 @@
         <h1>STASHBOX RADIO</h1>
         <span class="dev-admin-badge">DEV ADMIN</span>
       </div>
-      <p class="radio-admin-meta">Private song, stats, and station controls</p>
+      <p class="radio-admin-meta">Private Songs CMS catalog and editor</p>
     </a>
     <div class="topbar-actions">
       <!-- Private Stashbox Radio dev admin header for /radio-admin/dev/ only. -->
       <nav class="radio-admin-nav-row radio-admin-private-nav" aria-label="Private Stashbox Radio admin tools">
-        <a href="/radio-admin/songs/dev/">Songs</a>
+        <a href="/radio-admin/songs/dev/" aria-current="page">Songs</a>
         <a href="/radio/visual-experience/dev/">Visual Library</a>
         <a href="/radio-admin/dev/vec/">VEC Lab</a>
         <a href="/radio-admin/ads/dev/">Ads</a>
-        <a href="/radio-admin/dev/" aria-current="page">Dashboard</a>
+        <a href="/radio-admin/dev/">Dashboard</a>
       </nav>
       <nav class="radio-admin-nav-row radio-admin-output-nav" aria-label="Stashbox Radio output links">
         <a href="/radio/dev/">Radio Dev</a>
@@ -48,8 +48,10 @@
     </section>
 
     <section id="adminPanel" class="admin-panel hidden" aria-live="polite">
-      <nav class="admin-tabs" aria-label="Admin sections">
-        <button class="tab-button is-active" type="button" data-tab="dashboard">Dashboard</button>
+      <nav class="admin-tabs hidden" aria-label="Songs CMS sections">
+        <button class="tab-button" type="button" data-tab="dashboard">Dashboard</button>
+        <button class="tab-button is-active" type="button" data-tab="songs">Songs</button>
+        <button class="tab-button" type="button" data-tab="edit">Edit Song</button>
         <button class="tab-button" type="button" data-tab="events">Events</button>
         <button class="tab-button" type="button" data-tab="archive">Archive</button>
       </nav>
@@ -559,6 +561,6 @@
     </div>
   </main>
 
-  <script src="./app.js"></script>
+  <script src="../../dev/app.js"></script>
 </body>
 </html>
