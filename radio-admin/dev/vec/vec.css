@@ -713,6 +713,17 @@
   font-weight: 850;
 }
 
+.vec-media-notes {
+  margin: 0;
+  border: 1px solid rgba(80, 210, 120, 0.2);
+  border-radius: 16px;
+  background: rgba(80, 210, 120, 0.08);
+  color: #d9f6df;
+  padding: 0.8rem 0.9rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
 @media (max-width: 760px) {
   .vec-folder-card-top,
   .vec-media-dialog-head,
