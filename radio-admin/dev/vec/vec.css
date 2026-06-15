@@ -344,3 +344,22 @@
   display: inline-block;
   background: rgba(255, 255, 255, 0.06);
 }
+
+.vec-preview-song.is-playing img,
+.vec-preview-song.is-playing .vec-artwork-fallback {
+  border-color: rgba(80, 210, 120, 0.62);
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.48),
+    0 0 38px rgba(80, 210, 120, 0.18);
+}
+
+.vec-preview-meta small {
+  border: 1px solid rgba(80, 210, 120, 0.24);
+  border-radius: 999px;
+  background: rgba(80, 210, 120, 0.09);
+  color: #bfffd1;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0.35rem 0.6rem;
+  text-transform: uppercase;
+}
