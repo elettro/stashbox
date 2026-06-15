@@ -820,22 +820,30 @@
         : (visual ? `${visual.label || 'Preview visual'} · ${previewState.isPlaying ? 'Playing local preview' : 'Paused local preview'}` : 'No active visuals selected');
     }
 
-    function renderDynamic() {
-      previewState.sequence = buildPreviewSequence(state);
-      if (previewState.index >= previewState.sequence.length) previewState.index = 0;
+    function updatePreviewControls() {
       const hasSong = Boolean(state.songContext);
-      updatePreviewChrome();
-      updatePreviewMedia();
-      elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
-      elements.folderGrid.innerHTML = renderFolderCards(state);
-      const selectedFolders = getSelectedFolders(state);
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
       [elements.playButton, elements.pauseButton, elements.restartButton, elements.nextButton].forEach((button) => { if (button) button.disabled = !hasSong; });
       if (elements.playButton) elements.playButton.disabled = !hasSong || previewState.isPlaying;
       if (elements.pauseButton) elements.pauseButton.disabled = !hasSong || !previewState.isPlaying;
       container.dataset.vecPreviewState = hasSong ? (previewState.isPlaying ? 'playing' : 'paused') : 'empty';
-      renderMediaModal();
+    }
+
+    function updatePreviewOnly() {
+      updatePreviewChrome();
+      updatePreviewMedia();
+      updatePreviewControls();
       syncPreviewVideoPlayback();
+    }
+
+    function renderDynamic() {
+      previewState.sequence = buildPreviewSequence(state);
+      if (previewState.index >= previewState.sequence.length) previewState.index = 0;
+      updatePreviewOnly();
+      elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
+      elements.folderGrid.innerHTML = renderFolderCards(state);
+      const selectedFolders = getSelectedFolders(state);
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
+      renderMediaModal();
     }
 
     function startPreview() {
@@ -844,9 +852,9 @@
       syncVisualToAudioTime();
       const playPromise = getAudioUrl(state.songContext) ? previewAudio.play() : null;
       if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => { previewState.isPlaying = false; renderDynamic(); updateScrubber(); });
+        playPromise.catch(() => { previewState.isPlaying = false; updatePreviewOnly(); updateScrubber(); });
       }
-      renderDynamic();
+      updatePreviewOnly();
       schedulePreviewTick();
     }
 
@@ -855,14 +863,14 @@
       previewAudio.pause();
       stopPreviewTimer();
       updateScrubber();
-      renderDynamic();
+      updatePreviewOnly();
     }
 
     function restartPreview() {
       previewState.index = 0;
       if (getAudioUrl(state.songContext)) previewAudio.currentTime = 0;
       updateScrubber();
-      renderDynamic();
+      updatePreviewOnly();
       schedulePreviewTick();
     }
 
@@ -870,7 +878,7 @@
       if (!state.songContext || !previewState.sequence.length) return;
       previewState.index = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : 0;
       previewState.isPlaying = keepPlaying;
-      renderDynamic();
+      updatePreviewOnly();
       schedulePreviewTick();
     }
 
@@ -990,14 +998,14 @@
       previewState.isPlaying = false;
       stopPreviewTimer();
       updateScrubber();
-      renderDynamic();
+      updatePreviewOnly();
     });
     elements.scrubber.addEventListener('input', () => {
       if (!getAudioUrl(state.songContext)) return;
       previewAudio.currentTime = Number(elements.scrubber.value) || 0;
       syncVisualToAudioTime();
       updateScrubber();
-      renderDynamic();
+      updatePreviewOnly();
     });
 
     if (state.songContext) loadPreviewAudio();
