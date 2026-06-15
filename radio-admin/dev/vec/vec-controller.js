@@ -180,6 +180,7 @@
       content_type: getFirstString(asset, ['content_type', 'mime_type']),
       caption: clean(asset.caption),
       alt_text: clean(asset.alt_text),
+      notes: getFirstString(asset, ['notes', 'note', 'description', 'asset_notes', 'video_notes']),
       status: clean(asset.status) || 'active',
       created_at: asset.created_at || asset.createdAt || '',
       updated_at: asset.updated_at || asset.updatedAt || '',
@@ -534,6 +535,8 @@
       mediaModal: container.querySelector('[data-vec-media-modal]'),
     };
 
+    // Song-specific VEC recipe draft state stays in this controller only.
+    // It is reset when the selected song changes and is not persisted to any backend.
     const previewAudio = new Audio();
     previewAudio.preload = 'metadata';
 
@@ -620,6 +623,7 @@
       const type = normalizeAssetType(asset);
       const title = asset.caption || asset.file_name || 'Visual asset preview';
       const url = clean(asset.public_url);
+      const notes = clean(asset.notes);
       const media = type === 'clip'
         ? `<video src="${escapeHtml(url)}" controls autoplay playsinline></video>`
         : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`;
@@ -627,6 +631,7 @@
       elements.mediaModal.innerHTML = `<div class="vec-media-dialog">
         <div class="vec-media-dialog-head"><div><p class="eyebrow">${escapeHtml(folder?.folder_name || 'Folder visual')}</p><h2 id="vecMediaModalTitle">${escapeHtml(title)}</h2></div><button type="button" class="vec-media-close" data-vec-close-modal>Close</button></div>
         <div class="vec-media-stage">${media}</div>
+        ${type === 'clip' && notes ? `<p class="vec-media-notes">${escapeHtml(notes)}</p>` : ''}
         <p class="vec-media-caption">${escapeHtml(asset.alt_text || asset.file_name || '')}</p>
       </div>`;
     }
