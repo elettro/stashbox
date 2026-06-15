@@ -480,6 +480,14 @@ textarea:focus {
   max-height: 560px;
 }
 
+.dashboard-focused-page-scroll .compact-table-wrap {
+  max-height: none;
+}
+
+.dashboard-focused-page-scroll .table-wrap {
+  overflow-y: visible;
+}
+
 .song-table {
   width: 100%;
   min-width: 760px;
