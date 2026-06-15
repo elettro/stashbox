@@ -1637,7 +1637,7 @@ textarea {
   max-height: none;
 }
 
-/* Shared Stashbox Radio admin macro navigation for dev admin pages. */
+/* Private stacked header navigation for /radio-admin/dev/ only. */
 .topbar-actions {
   position: relative;
   z-index: 1;
@@ -1647,7 +1647,7 @@ textarea {
   min-width: min(100%, 34rem);
 }
 
-.radio-admin-macro-nav {
+.radio-admin-nav-row {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1655,7 +1655,11 @@ textarea {
   max-width: 44rem;
 }
 
-.radio-admin-macro-nav a {
+.radio-admin-output-nav {
+  max-width: 24rem;
+}
+
+.radio-admin-nav-row a {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
@@ -1668,9 +1672,9 @@ textarea {
   white-space: nowrap;
 }
 
-.radio-admin-macro-nav a:hover,
-.radio-admin-macro-nav a:focus-visible,
-.radio-admin-macro-nav a[aria-current="page"] {
+.radio-admin-nav-row a:hover,
+.radio-admin-nav-row a:focus-visible,
+.radio-admin-nav-row a[aria-current="page"] {
   border-color: rgba(240, 192, 76, 0.7);
   background: rgba(240, 192, 76, 0.15);
   color: #ffd36f;
@@ -1678,6 +1682,7 @@ textarea {
 
 @media (max-width: 860px) {
   .topbar { align-items: stretch; flex-direction: column; }
-  .topbar-actions, .radio-admin-macro-nav { justify-items: stretch; justify-content: flex-start; width: 100%; }
-  .radio-admin-macro-nav a { flex: 1 1 10rem; text-align: center; }
+  .topbar-actions, .radio-admin-nav-row { justify-items: stretch; justify-content: flex-start; width: 100%; }
+  .radio-admin-nav-row a { flex: 1 1 10rem; text-align: center; }
+  .radio-admin-output-nav a { flex-basis: 8rem; }
 }
