@@ -2079,6 +2079,70 @@ async function getVisualsFolderMatches(folderIds) {
   return matches;
 }
 
+
+function validateVecSongKey(value) {
+  const songKey = String(value || '').trim();
+  if (!songKey) return { error: 'song_key is required.' };
+  if (songKey.length > 200) return { error: 'song_key is too long.' };
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(songKey)) return { error: 'song_key contains unsupported characters.' };
+  return { songKey };
+}
+
+function validateVecRecipe(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'recipe must be a JSON object.' };
+  return { recipe: value };
+}
+
+async function ensureSongVisualRecipesTable() {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS radio.song_visual_recipes (
+      song_key TEXT PRIMARY KEY,
+      recipe JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
+async function loadSongVisualRecipe(event) {
+  const validation = validateVecSongKey(event.queryStringParameters?.song_key || event.queryStringParameters?.songKey);
+  if (validation.error) return response(400, { success: false, error: validation.error });
+  await ensureSongVisualRecipesTable();
+  const result = await client.query(
+    'SELECT song_key, recipe, created_at, updated_at FROM radio.song_visual_recipes WHERE song_key = $1 LIMIT 1',
+    [validation.songKey]
+  );
+  if (!result.rowCount) return response(200, { success: true, song_key: validation.songKey, recipe: null, found: false });
+  return response(200, { success: true, found: true, ...result.rows[0] });
+}
+
+async function saveSongVisualRecipe(event) {
+  const body = parseBody(event);
+  const keyValidation = validateVecSongKey(body.song_key || body.songKey);
+  if (keyValidation.error) return response(400, { success: false, error: keyValidation.error });
+  const recipeValidation = validateVecRecipe(body.recipe);
+  if (recipeValidation.error) return response(400, { success: false, error: recipeValidation.error });
+  await ensureSongVisualRecipesTable();
+  const recipe = { ...recipeValidation.recipe, song_key: keyValidation.songKey, updated_at: new Date().toISOString() };
+  if (!recipe.version) recipe.version = 1;
+  const result = await client.query(
+    `INSERT INTO radio.song_visual_recipes (song_key, recipe)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (song_key) DO UPDATE SET recipe = EXCLUDED.recipe, updated_at = now()
+     RETURNING song_key, recipe, created_at, updated_at`,
+    [keyValidation.songKey, JSON.stringify(recipe)]
+  );
+  return response(200, { success: true, ...result.rows[0] });
+}
+
+async function handleAdminVecRecipeRoute(event) {
+  await requireAdmin(event);
+  const method = getMethod(event).toUpperCase();
+  if (method === 'GET') return loadSongVisualRecipe(event);
+  if (method === 'PUT') return saveSongVisualRecipe(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
 async function getVisualsFolders() {
   const result = await client.query('SELECT * FROM radio.visuals_folders ORDER BY created_at DESC, folder_name ASC');
   const matches = await getVisualsFolderMatches(result.rows.map((row) => row.id));
@@ -2313,6 +2377,10 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'ads'])) {
     return handleAdminAdsRoute(event, { requireAdmin });
+  }
+
+  if (routeStartsWith(segments, ['admin', 'vec', 'recipe'])) {
+    return handleAdminVecRecipeRoute(event);
   }
 
 

@@ -101,3 +101,11 @@ ADD COLUMN IF NOT EXISTS still_image_duration_seconds integer DEFAULT 8;
 
 ALTER TABLE radio.songs
 ALTER COLUMN still_image_duration_seconds SET DEFAULT 8;
+
+-- Dev-only VEC Lab song-level recipe persistence.
+CREATE TABLE IF NOT EXISTS radio.song_visual_recipes (
+  song_key TEXT PRIMARY KEY,
+  recipe JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
