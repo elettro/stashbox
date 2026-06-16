@@ -2039,7 +2039,10 @@ function buildVisualsFolderResponse(folder, matches = {}) {
     relevant_moods: matches.moods || [],
     relevant_songs: matches.songs || [],
     created_at: folder.created_at || '',
-    updated_at: folder.updated_at || ''
+    updated_at: folder.updated_at || '',
+    asset_count: Number(folder.asset_count || 0),
+    images_count: Number(folder.images_count || 0),
+    clips_count: Number(folder.clips_count || 0)
   };
 }
 
@@ -2160,14 +2163,109 @@ async function handleAdminVecRecipeRoute(event) {
   return response(404, { success: false, error: 'Not found.' });
 }
 
+
+async function ensureVisualsFolderAssetsTable() {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS radio.visuals_folder_assets (
+      id TEXT PRIMARY KEY,
+      folder_id TEXT NOT NULL REFERENCES radio.visuals_folders(id) ON DELETE CASCADE,
+      asset_type TEXT NOT NULL DEFAULT 'image',
+      file_name TEXT,
+      s3_key TEXT,
+      public_url TEXT NOT NULL,
+      thumbnail_url TEXT,
+      content_type TEXT,
+      size_bytes BIGINT,
+      width INTEGER,
+      height INTEGER,
+      ratio_label TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      caption TEXT,
+      alt_text TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT visuals_folder_assets_type_check CHECK (asset_type IN ('image', 'clip')),
+      CONSTRAINT visuals_folder_assets_status_check CHECK (status IN ('active', 'hidden'))
+    )
+  `);
+  await client.query('CREATE INDEX IF NOT EXISTS visuals_folder_assets_folder_idx ON radio.visuals_folder_assets(folder_id)');
+  await client.query('CREATE INDEX IF NOT EXISTS visuals_folder_assets_type_idx ON radio.visuals_folder_assets(asset_type)');
+}
+
+function normalizeVisualsFolderAsset(row) {
+  const mediaType = row.asset_type === 'clip' ? 'clip' : 'image';
+  return {
+    id: row.id,
+    folder_id: row.folder_id,
+    type: mediaType,
+    media_type: mediaType,
+    asset_type: mediaType,
+    url: row.public_url || '',
+    public_url: row.public_url || '',
+    thumbnail_url: row.thumbnail_url || row.public_url || '',
+    filename: row.file_name || row.caption || '',
+    file_name: row.file_name || '',
+    title: row.caption || row.file_name || '',
+    width: row.width,
+    height: row.height,
+    ratio_label: row.ratio_label || '',
+    content_type: row.content_type || '',
+    size_bytes: row.size_bytes,
+    status: row.status || 'active',
+    caption: row.caption || '',
+    alt_text: row.alt_text || '',
+    notes: row.notes || '',
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || ''
+  };
+}
+
+async function getVisualsFolderAssets(folderId) {
+  await ensureVisualsFolderAssetsTable();
+  const folder = await client.query('SELECT id FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [folderId]);
+  if (!folder.rowCount) return null;
+  const result = await client.query(
+    `SELECT * FROM radio.visuals_folder_assets
+     WHERE folder_id = $1
+     ORDER BY created_at ASC, file_name ASC NULLS LAST`,
+    [folderId]
+  );
+  const assets = result.rows.map(normalizeVisualsFolderAsset);
+  const images = assets.filter((asset) => asset.asset_type === 'image');
+  const clips = assets.filter((asset) => asset.asset_type === 'clip');
+  return { success: true, folder_id: folderId, images, clips, assets };
+}
+
 async function getVisualsFolders() {
-  const result = await client.query('SELECT * FROM radio.visuals_folders ORDER BY created_at DESC, folder_name ASC');
+  await ensureVisualsFolderAssetsTable();
+  const result = await client.query(`
+    SELECT f.*,
+      COALESCE(COUNT(a.id), 0)::int AS asset_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image'), 0)::int AS images_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip'), 0)::int AS clips_count
+    FROM radio.visuals_folders f
+    LEFT JOIN radio.visuals_folder_assets a ON a.folder_id = f.id
+    GROUP BY f.id
+    ORDER BY f.created_at DESC, f.folder_name ASC
+  `);
   const matches = await getVisualsFolderMatches(result.rows.map((row) => row.id));
   return result.rows.map((row) => buildVisualsFolderResponse(row, matches[row.id]));
 }
 
 async function getVisualsFolderById(id) {
-  const result = await client.query('SELECT * FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [id]);
+  await ensureVisualsFolderAssetsTable();
+  const result = await client.query(`
+    SELECT f.*,
+      COALESCE(COUNT(a.id), 0)::int AS asset_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image'), 0)::int AS images_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip'), 0)::int AS clips_count
+    FROM radio.visuals_folders f
+    LEFT JOIN radio.visuals_folder_assets a ON a.folder_id = f.id
+    WHERE f.id = $1
+    GROUP BY f.id
+    LIMIT 1
+  `, [id]);
   if (!result.rowCount) return null;
   const matches = await getVisualsFolderMatches([id]);
   return buildVisualsFolderResponse(result.rows[0], matches[id]);
@@ -2179,6 +2277,12 @@ async function handleAdminVisualsFoldersRoute(event) {
   const segments = getRouteSegments(event);
   const foldersIndex = segments.lastIndexOf('folders');
   const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
+
+  if (method === 'GET' && id && segments[foldersIndex + 2] === 'assets') {
+    const payload = await getVisualsFolderAssets(id);
+    if (!payload) return response(404, { success: false, error: 'Visuals folder not found.' });
+    return response(200, payload);
+  }
 
   if (method === 'GET' && !id) return response(200, { success: true, folders: await getVisualsFolders() });
 
