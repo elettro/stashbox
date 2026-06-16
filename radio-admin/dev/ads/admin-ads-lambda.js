@@ -827,6 +827,21 @@ function matchesRoute(route, candidates) {
   return candidates.some((candidate) => clean === normalizeRoute(candidate));
 }
 
+function routeEndsWith(path, suffix) {
+  const cleanPath = normalizeRoute(String(path || '').split('?')[0]);
+  const cleanSuffix = normalizeRoute(suffix);
+  return cleanPath === cleanSuffix || cleanPath.endsWith(`/${cleanSuffix}`);
+}
+
+function matchesAdminVecRecipeRoute(event, route) {
+  return matchesRoute(route, ['admin/vec/recipe', '/admin/vec/recipe']) ||
+    routeEndsWith(route, '/admin/vec/recipe') ||
+    routeEndsWith(event.rawPath, '/admin/vec/recipe') ||
+    routeEndsWith(event.path, '/admin/vec/recipe') ||
+    routeEndsWith(event.routeKey, '/admin/vec/recipe') ||
+    routeEndsWith(event.resource, '/admin/vec/recipe');
+}
+
 function getQueryLimit(event, fallback = 100, max = 500) {
   const rawLimit = Number(event.queryStringParameters?.limit || fallback);
   if (!Number.isFinite(rawLimit) || rawLimit <= 0) return fallback;
@@ -2381,7 +2396,7 @@ async function dispatch(event) {
     return handleAdminAdsRoute(event, { requireAdmin });
   }
 
-  if (matchesRoute(route, ['admin/vec/recipe', '/admin/vec/recipe'])) {
+  if (matchesAdminVecRecipeRoute(event, route)) {
     return handleAdminVecRecipeRoute(event);
   }
 
