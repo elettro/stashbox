@@ -539,7 +539,7 @@
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
     const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null };
-    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null };
+    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
       <section class="card vec-section" aria-labelledby="songSelectorHeading">
@@ -680,6 +680,33 @@
       return [visual.type || 'visual', visual.url || '', visual.label || '', visual.alt || ''].join('::');
     }
 
+    function getNextVisual() {
+      if (!previewState.sequence.length) return null;
+      const nextIndex = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : previewState.index;
+      return previewState.sequence[nextIndex] || null;
+    }
+
+    function preloadPreviewVisual(visual) {
+      if (!visual?.url) return;
+      const key = getVisualKey(visual);
+      if (previewState.preloadCache.has(key)) return;
+      if (previewState.preloadCache.size > 8) previewState.preloadCache.delete(previewState.preloadCache.keys().next().value);
+      if (visual.type === 'clip') {
+        const video = document.createElement('video');
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.src = visual.url;
+        video.load();
+        previewState.preloadCache.set(key, video);
+        return;
+      }
+      const image = new Image();
+      image.src = visual.url;
+      previewState.preloadCache.set(key, image);
+    }
+
     function ensurePreviewShell() {
       if (elements.preview.querySelector('[data-vec-preview-stage]')) return;
       elements.preview.innerHTML = `
@@ -747,7 +774,7 @@
           return;
         }
         if (media.readyState >= 2) finish();
-        else { media.addEventListener('canplay', finish, { once: true }); media.addEventListener('loadedmetadata', finish, { once: true }); media.addEventListener('error', finish, { once: true }); media.load(); }
+        else { media.addEventListener('canplay', finish, { once: true }); media.addEventListener('loadeddata', finish, { once: true }); media.addEventListener('error', finish, { once: true }); media.load(); }
       });
     }
 
@@ -793,6 +820,7 @@
             layer.querySelectorAll('video').forEach((video) => { video.pause(); video.currentTime = 0; });
             layer.remove();
           });
+          preloadPreviewVisual(getNextVisual());
         }, 360);
       });
     }
@@ -833,6 +861,7 @@
       updatePreviewMedia();
       updatePreviewControls();
       syncPreviewVideoPlayback();
+      preloadPreviewVisual(getNextVisual());
     }
 
     function renderDynamic() {
@@ -890,6 +919,7 @@
       state.expandedFolderIds = new Set();
       state.previewModalAsset = null;
       state.assetInclusionByFolder = new Map();
+      previewState.preloadCache = new Map();
       previewState.index = 0;
       loadPreviewAudio();
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
