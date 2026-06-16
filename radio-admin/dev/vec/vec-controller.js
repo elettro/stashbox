@@ -1385,7 +1385,10 @@
         const purpose = assetType === 'clip' ? 'song_visual_clip' : 'song_visual_image';
         const presign = await presignUpload({ filename: file.name, content_type: file.type || 'application/octet-stream', purpose, song_key: state.songKey, artist: state.songContext.artist || 'stashbox' });
         const uploadResponse = await fetch(presign.uploadUrl || presign.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || presign.contentType || 'application/octet-stream' }, body: file });
-        if (!uploadResponse.ok) throw new Error(`S3 upload failed (${uploadResponse.status}).`);
+        if (!uploadResponse.ok) {
+          const statusText = uploadResponse.status ? `HTTP ${uploadResponse.status}` : 'unknown status';
+          throw new Error(`S3 upload failed (${statusText}).`);
+        }
         const saved = await createSongAsset({ song_key: state.songKey, asset_type: assetType, file_name: file.name, s3_key: presign.key, public_url: presign.publicUrl || presign.public_url, thumbnail_url: presign.publicUrl || presign.public_url, content_type: file.type || presign.contentType, size_bytes: file.size });
         const asset = normalizeAsset(saved.asset || saved);
         if (asset) {
@@ -1395,6 +1398,7 @@
         state.songAssetUploadMessage = `Uploaded ${file.name}.`;
         markDirty();
       } catch (error) {
+        state.songAssetUploadMessage = '';
         state.songAssetsError = error.message || 'Upload failed.';
       } finally {
         state.songAssetUploading = false;

@@ -2515,7 +2515,7 @@ function validateUploadRequest(body) {
 async function createAdminUploadPresign(event) {
   const body = parseBody(event);
   const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
-  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const region = process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || 'us-east-2';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
   const sessionToken = process.env.AWS_SESSION_TOKEN || '';
