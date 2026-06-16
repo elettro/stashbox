@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stashbox Radio — Listen. Watch. Shop. Share.</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Syne:wght@800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #f0f0f0;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* Rasta stripe */
+  .rasta-bar {
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #e53935 33.33%, #ffca28 33.33% 66.66%, #43a047 66.66%);
+  }
+
+  header {
+    padding: 2.5rem 2rem 2rem;
+    text-align: center;
+    border-bottom: 1px solid #1e1e1e;
+  }
+
+  .logo {
+    height: 48px;
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  h1 .r { color: #e53935; }
+  h1 .g { color: #ffca28; }
+  h1 .gr { color: #43a047; }
+
+  .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #666;
+    margin-top: 0.6rem;
+  }
+
+  /* ── AUDIO SECTION ── */
+  .audio-section {
+    max-width: 760px;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .audio-card {
+    background: #141417;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 1.5rem 1.8rem;
+  }
+
+  .audio-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 1rem;
+  }
+
+  .flag { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+
+  .audio-info h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 3px;
+  }
+
+  .audio-info span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+  }
+
+  audio {
+    width: 100%;
+    height: 42px;
+    accent-color: #ffca28;
+    border-radius: 4px;
+  }
+
+  /* ── INFOGRAPHICS ── */
+  .infographics-section {
+    max-width: 1100px;
+    margin: 1rem auto 4rem;
+    padding: 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .infographic-block {
+    border: 1px solid #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #111;
+  }
+
+  .infographic-block img {
+    width: 100%;
+    display: block;
+  }
+
+  .infographic-label {
+    padding: 0.7rem 1.2rem;
+    background: #0d0d0d;
+    border-top: 1px solid #1e1e1e;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    border-top: 1px solid #1a1a1a;
+  }
+
+  .footer-logos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .footer-logos img { height: 28px; opacity: 0.6; }
+  .footer-logos .divider { width: 1px; height: 28px; background: #222; }
+
+  footer p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  footer a { color: #ffca28; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="rasta-bar"></div>
+
+<header>
+  <img class="logo"
+       src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png"
+       alt="Stashbox Radio"
+       onerror="this.style.display='none'">
+  <h1><span class="r">Listen.</span> <span class="g">Watch.</span> <span class="gr">Shop.</span> Share.</h1>
+  <p class="sub">Stashbox Radio &nbsp;·&nbsp; Visual Music Commerce Platform</p>
+</header>
+
+<!-- AUDIO PLAYERS -->
+<div class="audio-section">
+
+  <div class="audio-card">
+    <div class="audio-meta">
+      <div class="flag">🇺🇸</div>
+      <div class="audio-info">
+        <h3>Replacing Streaming with Independent Music Islands</h3>
+        <span>English &nbsp;·&nbsp; Episode 01 &nbsp;·&nbsp; Stashbox Radio Podcast</span>
+      </div>
+    </div>
+    <audio controls preload="none">
+      <source src="https://www.dropbox.com/scl/fi/3ihy5z59pxc7c0j27ta3n/Stashbox-Radio-pod1-Replacing_Streaming_with_Independent_Music_Islands.m4a?rlkey=bhuegy75lle7cjawnpqf09ao5&st=uptilq2m&dl=1" type="audio/mp4">
+      Your browser does not support audio playback.
+    </audio>
+  </div>
+
+  <div class="audio-card">
+    <div class="audio-meta">
+      <div class="flag">🇩🇪</div>
+      <div class="audio-info">
+        <h3>Musik-Inseln statt Streaming-Ozean mit Stashbox Radio</h3>
+        <span>Deutsch &nbsp;·&nbsp; Episode 01 &nbsp;·&nbsp; Stashbox Radio Podcast</span>
+      </div>
+    </div>
+    <audio controls preload="none">
+      <source src="https://www.dropbox.com/scl/fi/lt2eyh9g4i8qthdy8c37d/Stashbox-radio-pod1-de-Musik-Inseln_statt_Streaming-Ozean_mit_Stashbox_Radio.m4a?rlkey=kcaf8xlyua8nybsdkty9yq7os&st=vhyegf5p&dl=1" type="audio/mp4">
+      Your browser does not support audio playback.
+    </audio>
+  </div>
+
+</div>
+
+<!-- INFOGRAPHICS -->
+<div class="infographics-section">
+
+  <div class="infographic-block">
+    <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/stashbox-radio-infographic-overview.png"
+         alt="Stashbox Radio — Visual Commerce Ecosystem Overview"
+         loading="lazy">
+    <div class="infographic-label">01 &nbsp;·&nbsp; Visual Commerce Ecosystem Overview</div>
+  </div>
+
+  <div class="infographic-block">
+    <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/Stashbox-Radio-infographic2-Brand_Music_Commerce_Ecosystem_Platform%20(1).png"
+         alt="Brand Music Commerce Ecosystem Platform"
+         loading="lazy">
+    <div class="infographic-label">02 &nbsp;·&nbsp; Brand Music Commerce Ecosystem Platform</div>
+  </div>
+
+  <div class="infographic-block">
+    <img src="https://stashbox.com/radio/infographics/Building_Profitable_Music_Islands.png"
+         alt="Building Profitable Music Islands"
+         loading="lazy">
+    <div class="infographic-label">03 &nbsp;·&nbsp; Building Profitable Music Islands</div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="footer-logos">
+    <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" onerror="this.style.display='none'">
+    <div class="divider"></div>
+    <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="Elettro" onerror="this.style.display='none'">
+  </div>
+  <p><a href="https://stashbox.com/radio-admin/dev/" target="_blank">stashbox.com</a> &nbsp;·&nbsp; Produced by Elettro</p>
+</footer>
+
+</body>
+</html>
