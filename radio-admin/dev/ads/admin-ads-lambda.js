@@ -795,21 +795,23 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 }
 
 
+const ROUTE_ROOT_SEGMENTS = new Set(['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals']);
+
+function trimToRouteRoot(segments) {
+  const routeRootIndex = segments.findIndex((segment) => ROUTE_ROOT_SEGMENTS.has(segment));
+  return routeRootIndex > 0 ? segments.slice(routeRootIndex) : segments;
+}
+
 function getRouteSegments(event) {
   const path = getPath(event).split('?')[0].replace(/\/+$/, '');
   const segments = path.split('/').filter(Boolean);
   const lambdaName = process.env.AWS_LAMBDA_FUNCTION_NAME || 'stashbox-radio-api-dev';
   const serviceIndex = segments.lastIndexOf(lambdaName);
-  if (serviceIndex >= 0) return segments.slice(serviceIndex + 1);
+  if (serviceIndex >= 0) return trimToRouteRoot(segments.slice(serviceIndex + 1));
   const defaultIndex = segments.lastIndexOf('default');
-  if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
+  if (defaultIndex >= 0) return trimToRouteRoot(segments.slice(defaultIndex + 1));
 
-  const routeRootIndex = segments.findIndex((segment) =>
-    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals'].includes(segment)
-  );
-  if (routeRootIndex > 0) return segments.slice(routeRootIndex);
-
-  return segments;
+  return trimToRouteRoot(segments);
 }
 
 function routeStartsWith(segments, prefix) {
@@ -2379,7 +2381,7 @@ async function dispatch(event) {
     return handleAdminAdsRoute(event, { requireAdmin });
   }
 
-  if (routeStartsWith(segments, ['admin', 'vec', 'recipe'])) {
+  if (matchesRoute(route, ['admin/vec/recipe', '/admin/vec/recipe'])) {
     return handleAdminVecRecipeRoute(event);
   }
 
