@@ -162,6 +162,225 @@
   }
 
   footer a { color: #ffca28; text-decoration: none; }
+
+  /* ── CTA SECTION ── */
+  .cta-section {
+    max-width: 1100px;
+    margin: 0 auto 5rem;
+    padding: 0 1.5rem;
+  }
+
+  .cta-block {
+    background: #0d0d0d;
+    border: 1px solid #222;
+    border-radius: 14px;
+    padding: 4rem 2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-block::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e53935 33.33%, #ffca28 33.33% 66.66%, #43a047 66.66%);
+  }
+
+  .cta-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 1.2rem;
+  }
+
+  .cta-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.8rem, 8vw, 6rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 1.2rem;
+  }
+
+  .cta-title .word-stashbox { color: #f0f0f0; }
+  .cta-title .word-radio    { color: #ffca28; }
+
+  .cta-desc {
+    font-size: 1.05rem;
+    color: #666;
+    max-width: 520px;
+    margin: 0 auto 2.5rem;
+    line-height: 1.7;
+  }
+
+  .cta-btn {
+    display: inline-block;
+    background: #ffca28;
+    color: #0a0a0a;
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.1rem, 3vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    padding: 1rem 3rem;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+  }
+
+  .cta-btn:hover {
+    background: #ffe566;
+    transform: translateY(-2px);
+  }
+
+  .cta-url {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: #444;
+    margin-top: 1.2rem;
+    text-transform: lowercase;
+  }
+
+  /* ── CONTENT SECTION ── */
+  .content-section {
+    max-width: 860px;
+    margin: 0 auto 5rem;
+    padding: 0 1.5rem;
+  }
+
+  .content-section h2.section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 0.6rem;
+    color: #f0f0f0;
+  }
+
+  .content-section h2.section-title span { color: #ffca28; }
+
+  .content-intro {
+    font-size: 1.05rem;
+    color: #888;
+    line-height: 1.75;
+    margin-bottom: 3rem;
+    border-left: 3px solid #ffca28;
+    padding-left: 1.2rem;
+  }
+
+  .content-divider {
+    width: 100%;
+    height: 1px;
+    background: #1a1a1a;
+    margin: 3rem 0;
+  }
+
+  .content-divider-rasta {
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, #e53935 33.33%, #ffca28 33.33% 66.66%, #43a047 66.66%);
+    margin: 3.5rem 0;
+    opacity: 0.35;
+  }
+
+  .use-case-block {
+    margin-bottom: 2.5rem;
+  }
+
+  .use-case-block h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #ffca28;
+    margin-bottom: 0.5rem;
+  }
+
+  .use-case-block p {
+    font-size: 0.95rem;
+    color: #777;
+    line-height: 1.8;
+    margin-bottom: 0.6rem;
+  }
+
+  .use-case-block ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.4rem 0 0;
+  }
+
+  .use-case-block ul li {
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.7;
+    padding: 3px 0;
+    display: flex;
+    gap: 10px;
+  }
+
+  .use-case-block ul li::before {
+    content: '→';
+    color: #43a047;
+    flex-shrink: 0;
+  }
+
+  .use-cases-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    margin-top: 1rem;
+  }
+
+  .bottom-line {
+    background: #0d0d0d;
+    border: 1px solid #1e1e1e;
+    border-left: 3px solid #43a047;
+    border-radius: 8px;
+    padding: 1.8rem 2rem;
+    margin-top: 3rem;
+  }
+
+  .bottom-line h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #43a047;
+    margin-bottom: 0.6rem;
+  }
+
+  .bottom-line p {
+    font-size: 0.95rem;
+    color: #777;
+    line-height: 1.8;
+  }
+
+  .best-fit-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 1.2rem;
+  }
+
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #aaa;
+    background: #141417;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    padding: 5px 12px;
+  }
+
+  @media (max-width: 640px) {
+    .use-cases-grid { grid-template-columns: 1fr; }
+  }
+
 </style>
 </head>
 <body>
@@ -232,6 +451,148 @@
          alt="Building Profitable Music Islands"
          loading="lazy">
     <div class="infographic-label">03 &nbsp;·&nbsp; Building Profitable Music Islands</div>
+  </div>
+
+</div>
+
+<!-- CTA -->
+<div class="cta-section">
+  <div class="cta-block">
+    <p class="cta-eyebrow">Now Streaming &nbsp;·&nbsp; 110+ Tracks &nbsp;·&nbsp; Free</p>
+    <h2 class="cta-title">
+      <span class="word-stashbox">Stashbox</span><br>
+      <span class="word-radio">Radio</span>
+    </h2>
+    <p class="cta-desc">Listen, watch, shop, and share — all in one place. The only streaming radio built for music, commerce, and brand experience.</p>
+    <a class="cta-btn" href="https://stashbox.com/radio" target="_blank" rel="noopener">
+      Launch Stashbox Radio ↗
+    </a>
+    <span class="cta-url">stashbox.com/radio</span>
+  </div>
+</div>
+
+
+<!-- CONTENT SECTION -->
+<div class="content-section">
+
+  <h2 class="section-title">What <span>Stashbox Radio</span> Is</h2>
+  <p class="content-intro">
+    This is not just a band website. Stashbox is a music-driven business platform combining live entertainment, custom music production, streaming radio, video, booking, and merch — all connected around one brand. The official AI reference describes Stashbox as a "live band, recording artist, tribute show producer, custom music creator, and branded music content producer."
+  </p>
+
+  <div class="content-divider-rasta"></div>
+
+  <h2 class="section-title">The Main <span>Business Idea</span></h2>
+  <p class="content-intro">
+    The strongest value is helping organizations create a recognizable sound and memorable content experience — instead of relying on generic ads, stock music, or one-off entertainment. Stashbox creates original music for companies that need more than one song: branded songs, campaign tracks, event music, product songs, venue music, social media hooks, artist releases, and custom audio content designed around a company's message.
+  </p>
+
+  <div class="content-divider"></div>
+
+  <h2 class="section-title">Who It <span>Serves</span></h2>
+
+  <div class="use-cases-grid">
+
+    <div class="use-case-block">
+      <h3>🏨 Resorts, Hotels &amp; Cruise Lines</h3>
+      <p>A full branded atmosphere, not just background entertainment. Create a unique destination sound used across lobbies, pools, restaurants, guest experiences, and events — reusable across video, social, and advertising.</p>
+      <ul>
+        <li>Unique destination sound for all property touchpoints</li>
+        <li>Reusable music for videos and social media</li>
+        <li>Live performance plus custom content in one identity</li>
+        <li>Stronger guest memory with original place-based songs</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>🍺 Restaurants, Bars &amp; Venues</h3>
+      <p>Live music programming and branded audio content working together. Custom songs for menu items, happy hours, events, or seasonal promotions alongside live entertainment that matches the venue's vibe.</p>
+      <ul>
+        <li>Custom songs for promos, specials, and events</li>
+        <li>Live reggae, rock, blues, funk, soul, or acoustic sets</li>
+        <li>Short-form social hooks for memorable content</li>
+        <li>Brand recall through recurring original themes</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>📦 Corporate Brands &amp; Product Companies</h3>
+      <p>Music becomes part of the brand's communication system — not decoration. A custom audio-content engine for launches, campaigns, ads, and internal culture built around the company's message and audience.</p>
+      <ul>
+        <li>Campaign music for product launches and seasonal promos</li>
+        <li>Product song series with consistent voice and CTA</li>
+        <li>Brand consistency across all audio content</li>
+        <li>Internal culture: awards, walk-ons, celebrations</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>🎪 Event Producers &amp; Festivals</h3>
+      <p>Music integrated before, during, and after the event. Live show flexibility from 2-piece to 8-piece productions, tribute shows, and a full mix format — plus post-event assets reused in recap reels and sponsor videos.</p>
+      <ul>
+        <li>Walk-on songs, opening themes, sponsor tracks</li>
+        <li>Bob Dylan tribute, Sublime tribute, Classic Reggae, Mix Show</li>
+        <li>Scalable band size for any stage</li>
+        <li>Post-event content for recaps and future promos</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>🌊 Cities &amp; Tourism Campaigns</h3>
+      <p>Place-based marketing through original music. Custom songs can include city names, destination details, event names, seasonal messages, slogans, sponsor mentions, and calls to action — promoting a location emotionally.</p>
+      <ul>
+        <li>Destination storytelling through original music</li>
+        <li>Campaign songs for festivals, beach towns, districts</li>
+        <li>Localized content with exact places and slogans</li>
+        <li>Shareable audio/video assets for tourism boards</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>🎬 Artists, Creators &amp; Influencers</h3>
+      <p>Original music for video content instead of overused stock tracks. Release-ready production support covering lyrics, melody, vocals, arrangement, production, mixing, and mastering — plus multi-song creative direction.</p>
+      <ul>
+        <li>Original music for content, not stock library tracks</li>
+        <li>Full release-ready production support</li>
+        <li>Branded music for creator partnerships and sponsorships</li>
+        <li>Multi-song libraries for a distinctive content identity</li>
+      </ul>
+    </div>
+
+    <div class="use-case-block">
+      <h3>🛒 Merch &amp; Ecommerce Brands</h3>
+      <p>Stashbox Radio demonstrates how songs, video, and product recommendations can live in one interface. Contextual ecommerce where products attach to specific songs or moods, giving listeners a reason to stay — and shop.</p>
+      <ul>
+        <li>Song-specific product recommendations in the player</li>
+        <li>In-player merch shop with Shopify integration</li>
+        <li>Longer engagement through music-driven discovery</li>
+        <li>Cross-promotion across songs, videos, and merch</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="content-divider-rasta"></div>
+
+  <h2 class="section-title">Why It Works <span>Commercially</span></h2>
+  <p class="content-intro">
+    Most businesses buy these pieces separately — a band for an event, stock music for videos, an agency for campaign assets, a videographer for social, a merch store, and a streaming player. Stashbox connects all of them around one music brand and production workflow, handling lyrics, melody, vocals, arrangement, production, mixing, mastering, genre direction, brand integration, release-ready delivery, fast iteration, and multi-song creative direction.
+  </p>
+
+  <div class="bottom-line">
+    <h3>Bottom Line</h3>
+    <p>
+      Stashbox is best understood as a branded music and entertainment platform. It sells live performances, produces custom songs, creates multi-song libraries, documents performances through video, streams music through Stashbox Radio, and connects listeners to merchandise or booking opportunities. For the right business, the benefit is not merely "having music" — it's owning a repeatable, memorable, branded sound used across events, ads, videos, social content, venues, campaigns, and customer experiences.
+    </p>
+    <div class="best-fit-tags">
+      <span class="tag">Resorts &amp; Hotels</span>
+      <span class="tag">Restaurants &amp; Bars</span>
+      <span class="tag">Corporate Brands</span>
+      <span class="tag">Events &amp; Festivals</span>
+      <span class="tag">Tourism &amp; Cities</span>
+      <span class="tag">Artists &amp; Creators</span>
+      <span class="tag">Merch &amp; Ecommerce</span>
+    </div>
   </div>
 
 </div>
