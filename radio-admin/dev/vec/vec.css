@@ -834,6 +834,74 @@
   margin: 0;
 }
 
+.vec-folder-assets-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.vec-folder-assets-controls .vec-folder-active-count {
+  margin: 0;
+}
+
+.vec-folder-toggle-all {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.vec-folder-toggle-all-button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--muted);
+  padding: 0.28rem 0.52rem;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.vec-folder-toggle-all-button.is-on {
+  border-color: rgba(80, 210, 120, 0.3);
+  color: #bfffd1;
+}
+
+.vec-folder-toggle-all-button.is-off {
+  border-color: rgba(255, 104, 120, 0.28);
+  color: #ffb8c0;
+}
+
+.vec-folder-toggle-all-button.is-on.is-active {
+  background: rgba(80, 210, 120, 0.18);
+  box-shadow: 0 0 14px rgba(80, 210, 120, 0.16);
+}
+
+.vec-folder-toggle-all-button.is-off.is-active {
+  background: rgba(255, 104, 120, 0.14);
+  box-shadow: 0 0 14px rgba(255, 104, 120, 0.12);
+}
+
+.vec-folder-toggle-all-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.vec-folder-toggle-all em {
+  border: 1px solid rgba(240, 192, 76, 0.24);
+  border-radius: 999px;
+  background: rgba(240, 192, 76, 0.08);
+  color: #ffe09a;
+  font-style: normal;
+  padding: 0.22rem 0.48rem;
+}
+
 .vec-folder-asset-card {
   position: relative;
 }
