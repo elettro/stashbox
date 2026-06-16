@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stashbox Radio - The Explainer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&amp;family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed": "#1c1b1b",
+                      "surface-container-high": "#2b2a2a",
+                      "on-tertiary-fixed": "#1f1c00",
+                      "on-secondary-container": "#00622e",
+                      "on-tertiary": "#363100",
+                      "on-background": "#e5e2e1",
+                      "background": "#141313",
+                      "inverse-primary": "#5f5e5e",
+                      "outline": "#8e9192",
+                      "surface-dim": "#141313",
+                      "tertiary-container": "#bdad00",
+                      "surface-container": "#201f1f",
+                      "secondary-fixed-dim": "#00e475",
+                      "inverse-surface": "#e5e2e1",
+                      "outline-variant": "#444748",
+                      "surface-variant": "#353434",
+                      "on-secondary-fixed": "#00210b",
+                      "on-error": "#690005",
+                      "on-tertiary-container": "#474000",
+                      "primary-fixed-dim": "#c8c6c5",
+                      "surface-bright": "#3a3939",
+                      "on-primary-container": "#7e7d7d",
+                      "on-primary-fixed-variant": "#474646",
+                      "error": "#ffb4ab",
+                      "secondary-container": "#05e777",
+                      "on-secondary": "#003918",
+                      "surface-container-low": "#1c1b1b",
+                      "secondary": "#7dffa2",
+                      "error-container": "#93000a",
+                      "on-tertiary-fixed-variant": "#4f4800",
+                      "on-surface": "#e5e2e1",
+                      "on-primary": "#313030",
+                      "primary-container": "#121212",
+                      "primary": "#c8c6c5",
+                      "surface-container-highest": "#353434",
+                      "primary-fixed": "#e5e2e1",
+                      "inverse-on-surface": "#313030",
+                      "surface": "#141313",
+                      "tertiary": "#dbc900",
+                      "secondary-fixed": "#62ff96",
+                      "tertiary-fixed": "#fae500",
+                      "on-error-container": "#ffdad6",
+                      "surface-container-lowest": "#0e0e0e",
+                      "surface-tint": "#c8c6c5",
+                      "on-surface-variant": "#c4c7c7",
+                      "on-secondary-fixed-variant": "#005226",
+                      "tertiary-fixed-dim": "#dbc900"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "unit": "4px",
+                      "container-max": "1440px",
+                      "margin-mobile": "16px",
+                      "margin-desktop": "40px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "body-md": ["Hanken Grotesk"],
+                      "headline-lg": ["Sora"],
+                      "display-lg": ["Sora"],
+                      "label-tech": ["Geist Mono"],
+                      "body-lg": ["Hanken Grotesk"],
+                      "headline-md": ["Sora"],
+                      "headline-lg-mobile": ["Sora"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                      "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                      "label-tech": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "headline-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        /* Custom scrollbar for a technical feel */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #141313; }
+        ::-webkit-scrollbar-thumb { background: #353434; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444748; }
+        
+        .technical-grid {
+            background-image: 
+                linear-gradient(to right, #4447481a 1px, transparent 1px),
+                linear-gradient(to bottom, #4447481a 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        .vec-handle {
+            position: relative;
+        }
+        .vec-handle::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 24px;
+            background-color: #00e475;
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 228, 117, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md overflow-x-hidden technical-grid selection:bg-secondary selection:text-on-secondary">
+<!-- TopAppBar -->
+<nav class="flex justify-between items-center w-full px-margin-desktop py-4 sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-outline-variant">
+<div class="flex items-center gap-gutter">
+<span class="font-headline-md text-headline-md font-bold text-on-background tracking-tight">Stashbox Radio</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-secondary font-bold border-b-2 border-secondary pb-1 text-body-md font-body-md hover:text-secondary-fixed-dim transition-colors active:scale-95 duration-150" href="#ecosystem">Ecosystem</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-secondary-fixed-dim transition-colors active:scale-95 duration-150" href="#foundation">Commerce</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-secondary-fixed-dim transition-colors active:scale-95 duration-150" href="#podcast">Podcast</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-secondary-fixed-dim transition-colors active:scale-95 duration-150" href="#deck">Compare</a>
+</div>
+</div>
+<div class="font-label-tech text-label-tech text-outline">
+            by Elettro
+        </div>
+</nav>
+<main class="max-w-container-max mx-auto w-full">
+<!-- Option 1: The Visual Ecosystem (Hero Focus) -->
+<section class="min-h-[90vh] flex flex-col justify-center px-margin-mobile md:px-margin-desktop py-24 relative border-b border-outline-variant" id="ecosystem">
+<div class="absolute inset-0 bg-gradient-to-b from-primary-container/50 to-transparent pointer-events-none"></div>
+<div class="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-gutter items-center">
+<div class="lg:col-span-5 flex flex-col gap-8">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-full w-max">
+<span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#00e475]"></span>
+<span class="font-label-tech text-label-tech text-on-surface-variant uppercase">Ecosystem Overview</span>
+</div>
+<h1 class="font-display-lg text-display-lg md:text-[64px] text-on-surface">
+                        Visual Commerce <br/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-tertiary to-secondary">Ecosystem</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">
+                        A sovereign platform merging high-fidelity audio, immersive visual experiences, and integrated commerce for independent artists and forward-thinking brands.
+                    </p>
+<div class="flex gap-4">
+<button class="bg-tertiary-fixed text-on-tertiary font-label-tech text-label-tech px-6 py-3 rounded-DEFAULT hover:bg-tertiary-fixed-dim transition-colors flex items-center gap-2">
+                            Explore Platform <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+<button class="border border-outline-variant bg-transparent text-on-surface font-label-tech text-label-tech px-6 py-3 rounded-DEFAULT hover:bg-surface-variant transition-colors">
+                            Technical Docs
+                        </button>
+</div>
+</div>
+<div class="lg:col-span-7 relative group">
+<div class="absolute -inset-1 bg-gradient-to-r from-secondary to-tertiary rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+<div class="relative bg-surface-container border border-outline-variant rounded-xl overflow-hidden shadow-2xl">
+<div class="px-4 py-2 bg-surface-container-high border-b border-outline-variant flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-outline-variant"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-outline-variant"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-outline-variant"></div>
+<span class="ml-4 font-label-tech text-[10px] text-outline">SYS.OVERVIEW.V1</span>
+</div>
+<img alt="Stashbox Radio Overview Infographic" class="w-full h-auto object-cover" src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Option 2: The Integrated Foundation -->
+<section class="py-24 px-margin-mobile md:px-margin-desktop border-b border-outline-variant" id="foundation">
+<div class="mb-16 flex flex-col items-center text-center">
+<h2 class="font-headline-lg text-headline-lg md:text-[40px] text-on-surface mb-4">The Integrated Foundation</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Architecture designed for total control. From CMS to Commerce Engine.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-16">
+<!-- VEC Card -->
+<div class="bg-primary-container border border-outline-variant rounded-lg p-6 flex flex-col hover:border-secondary transition-colors group">
+<div class="flex items-center justify-between mb-6">
+<span class="material-symbols-outlined text-secondary text-3xl group-hover:drop-shadow-[0_0_8px_rgba(125,255,162,0.5)]">tune</span>
+<span class="font-label-tech text-[10px] text-outline border border-outline px-2 py-0.5 rounded">MOD.01</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Visual Experience Controller</h3>
+<p class="text-on-surface-variant mb-6 flex-grow">A specialized component that mimics a video editing timeline or DJ deck to mix visual recipes with audio playback.</p>
+<!-- Faux VEC Timeline -->
+<div class="h-12 bg-surface-container border border-outline-variant rounded relative overflow-hidden flex items-center px-2 gap-1 mt-auto">
+<div class="h-8 bg-surface-variant flex-grow rounded opacity-50 relative">
+<!-- Waveform lines -->
+<div class="absolute inset-0 flex items-center justify-around opacity-30">
+<div class="w-0.5 h-3 bg-outline"></div><div class="w-0.5 h-5 bg-outline"></div><div class="w-0.5 h-2 bg-outline"></div><div class="w-0.5 h-6 bg-outline"></div><div class="w-0.5 h-4 bg-outline"></div>
+</div>
+</div>
+<div class="h-8 bg-secondary-container flex-grow rounded opacity-80 relative vec-handle"></div>
+<div class="h-8 bg-surface-variant flex-grow rounded opacity-50"></div>
+</div>
+</div>
+<!-- Song CMS -->
+<div class="bg-primary-container border border-outline-variant rounded-lg p-6 flex flex-col hover:border-tertiary transition-colors group">
+<div class="flex items-center justify-between mb-6">
+<span class="material-symbols-outlined text-tertiary text-3xl group-hover:drop-shadow-[0_0_8px_rgba(219,201,0,0.5)]">database</span>
+<span class="font-label-tech text-[10px] text-outline border border-outline px-2 py-0.5 rounded">MOD.02</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Song Content Management</h3>
+<p class="text-on-surface-variant mb-6 flex-grow">Deep metadata management, allowing artists to link specific visual assets, merchandise, and contextual data directly to individual tracks.</p>
+<div class="mt-auto space-y-2">
+<div class="h-1 bg-tertiary/20 rounded w-full overflow-hidden"><div class="h-full bg-tertiary w-3/4"></div></div>
+<div class="h-1 bg-tertiary/20 rounded w-full overflow-hidden"><div class="h-full bg-tertiary w-1/2"></div></div>
+<div class="h-1 bg-tertiary/20 rounded w-full overflow-hidden"><div class="h-full bg-tertiary w-5/6"></div></div>
+</div>
+</div>
+<!-- Commerce Engine -->
+<div class="bg-primary-container border border-outline-variant rounded-lg p-6 flex flex-col hover:border-[#ff5252] transition-colors group">
+<div class="flex items-center justify-between mb-6">
+<span class="material-symbols-outlined text-[#ff5252] text-3xl group-hover:drop-shadow-[0_0_8px_rgba(255,82,82,0.5)]">shopping_cart</span>
+<span class="font-label-tech text-[10px] text-outline border border-outline px-2 py-0.5 rounded">MOD.03</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Integrated Commerce</h3>
+<p class="text-on-surface-variant flex-grow">Seamless point-of-sale functionality embedded directly within the listening experience. No disruptive redirects.</p>
+<button class="mt-6 w-full py-2 border border-[#ff5252]/50 text-[#ff5252] font-label-tech rounded hover:bg-[#ff5252]/10 transition-colors">
+                        INIT_TRANSACTION
+                    </button>
+</div>
+</div>
+<div class="w-full bg-surface-container border border-outline-variant rounded-xl p-2">
+<img alt="Integrated Architecture Infographic" class="w-full h-auto rounded-lg border border-outline-variant opacity-90 hover:opacity-100 transition-opacity" src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest border-t border-outline-variant w-full py-margin-desktop px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-gutter">
+<div class="flex items-center gap-4">
+<img alt="Stashbox Logo" class="h-8 w-auto opacity-80 mix-blend-screen" src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+<span class="font-headline-md text-headline-md text-on-surface">Stashbox Radio</span>
+</div>
+<div class="font-label-tech text-label-tech text-tertiary tracking-wider">
+            LISTEN. WATCH. SHOP. SHARE.
+        </div>
+<div class="flex gap-6 font-body-md text-body-md">
+<a class="text-on-surface-variant hover:text-secondary transition-colors" href="#">Twitter</a>
+<a class="text-on-surface-variant hover:text-secondary transition-colors" href="#">Instagram</a>
+<a class="text-on-surface-variant hover:text-secondary transition-colors" href="#">LinkedIn</a>
+<a class="text-on-surface-variant hover:text-secondary transition-colors" href="#">Contact Us</a>
+</div>
+<div class="font-label-tech text-label-tech text-outline">
+            © 2024 Stashbox Radio.
+        </div>
+</footer>
+</body></html>
