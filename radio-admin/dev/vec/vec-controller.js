@@ -2,6 +2,7 @@
   const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
   const SONGS_API_URL = `${API_ROOT}/admin/songs`;
   const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
+  const VEC_RECIPE_API_URL = `${API_ROOT}/admin/vec/recipe`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 
   const DEFAULT_SHUFFLE_RULES = {
@@ -148,10 +149,11 @@
     return [];
   }
 
-  async function adminFetchJson(url) {
+  async function adminFetchJson(url, options = {}) {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
     if (!token) throw new Error('Save an admin token in the dev admin first.');
-    const response = await fetch(url, { headers: { 'x-admin-token': token } });
+    const headers = { 'x-admin-token': token, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
+    const response = await fetch(url, { ...options, headers });
     const text = await response.text();
     let data = null;
     if (text) {
@@ -220,6 +222,18 @@
     return normalizeSongsResponse(await adminFetchJson(SONGS_API_URL));
   }
 
+  function recipeApiUrl(songKey) {
+    return `${VEC_RECIPE_API_URL}?song_key=${encodeURIComponent(songKey)}`;
+  }
+
+  async function fetchRecipe(songKey) {
+    return adminFetchJson(recipeApiUrl(songKey));
+  }
+
+  async function putRecipe(songKey, recipe) {
+    return adminFetchJson(VEC_RECIPE_API_URL, { method: 'PUT', body: JSON.stringify({ song_key: songKey, recipe }) });
+  }
+
   function getSongKey(song) {
     return getFirstString(song, ['song_key', 'key', 'slug', 'id', 'track_id', 'track_key']);
   }
@@ -270,7 +284,7 @@
     return `
       <label class="vec-field vec-toggle-field">
         <span>${label}</span>
-        <button class="vec-toggle is-on" type="button" disabled aria-pressed="${value}" name="${name}">${onOffLabel(value)}</button>
+        <button class="vec-toggle ${value ? 'is-on' : 'is-off'}" type="button" aria-pressed="${value}" name="${name}" data-vec-artwork-toggle="${name}">${onOffLabel(value)}</button>
       </label>
     `;
   }
@@ -279,7 +293,7 @@
     return `
       <label class="vec-field">
         <span>${label}</span>
-        <select name="${name}" class="vec-select" disabled>
+        <select name="${name}" class="vec-select" data-vec-artwork-select="${name}">
           ${optionMarkup(options, value)}
         </select>
       </label>
@@ -509,11 +523,13 @@
     }, { images: 0, clips: 0 });
   }
 
-  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null) {
+  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
     const artworkStatus = songContext && getArtworkUrl(songContext) ? 'Artwork available' : 'No artwork available';
+    const recipeStatus = songContext ? (recipeMeta.dirty ? 'Unsaved changes' : (recipeMeta.status || 'Saved')) : 'No song selected';
+    const lastSaved = recipeMeta.updatedAt ? new Date(recipeMeta.updatedAt).toLocaleString() : 'Never';
     const selectedImages = activeCounts.images || 0;
     const selectedClips = activeCounts.clips || 0;
     const selectedNames = selectedFolders.map((folder) => folder.folder_name).join(', ') || 'None selected';
@@ -531,6 +547,8 @@
         <div class="vec-summary-card"><strong>Artist</strong><span>${escapeHtml(artist)}</span></div>
         <div class="vec-summary-card"><strong>Song key</strong><span>${escapeHtml(songKey)}</span></div>
         <div class="vec-summary-card"><strong>Official artwork</strong><span>${artworkStatus}</span></div>
+        <div class="vec-summary-card"><strong>Saved status</strong><span>${escapeHtml(recipeStatus)}</span></div>
+        <div class="vec-summary-card"><strong>Last saved</strong><span>${escapeHtml(lastSaved)}</span></div>
         <div class="vec-summary-card"><strong>Selected folders</strong><span>${selectedFolders.length} folder${selectedFolders.length === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
         <div class="vec-summary-card"><strong>Active image count</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
@@ -624,7 +642,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -640,7 +658,7 @@
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s local VEC recipe draft.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle Settings</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section" aria-labelledby="recipeSummaryHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Recipe</p><h2 id="recipeSummaryHeading">Recipe Summary</h2></div></div><div data-vec-summary></div></section>
-      <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Recipe saving will be wired in a later PR.</p></div><div class="vec-button-row"><button type="button" disabled>Save VEC Recipe</button><button type="button" disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
+      <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
     const elements = {
       select: container.querySelector('[data-vec-song-select]'),
@@ -662,10 +680,12 @@
       maxSameFolder: container.querySelector('[data-vec-max-same-folder]'),
       maxFolderAssets: container.querySelector('[data-vec-max-folder-assets]'),
       avoidRepeats: container.querySelector('[data-vec-avoid-repeats]'),
+      saveRecipe: container.querySelector('[data-vec-save-recipe]'),
+      resetRecipe: container.querySelector('[data-vec-reset-recipe]'),
+      recipeStatus: container.querySelector('[data-vec-recipe-status]'),
     };
 
-    // Song-specific VEC recipe draft state stays in this controller only.
-    // It is reset when the selected song changes and is not persisted to any backend.
+    // Song-specific VEC recipe draft state stays in this dev-only controller; /radio/dev/ does not consume it yet.
     const previewAudio = new Audio();
     previewAudio.preload = 'metadata';
 
@@ -954,6 +974,25 @@
       preloadPreviewVisual(getNextVisual());
     }
 
+
+    function syncArtworkControls() {
+      container.querySelectorAll('[data-vec-artwork-toggle]').forEach((button) => {
+        const name = button.dataset.vecArtworkToggle;
+        const value = name === 'start_with_artwork' ? state.artworkRules.startWithArtwork
+          : (name === 'end_with_artwork' ? state.artworkRules.endWithArtwork : state.artworkRules.rePresentArtwork);
+        button.classList.toggle('is-on', Boolean(value));
+        button.classList.toggle('is-off', !value);
+        button.setAttribute('aria-pressed', String(Boolean(value)));
+        button.textContent = onOffLabel(Boolean(value));
+      });
+      container.querySelectorAll('[data-vec-artwork-select]').forEach((select) => {
+        const name = select.dataset.vecArtworkSelect;
+        if (name === 'start_artwork_duration_seconds') select.value = String(state.artworkRules.startDurationSeconds);
+        if (name === 'end_artwork_duration_seconds') select.value = String(state.artworkRules.endDurationSeconds);
+        if (name === 'repeat_artwork_every_seconds') select.value = String(state.artworkRules.repeatEverySeconds);
+      });
+    }
+
     function syncShuffleControls() {
       if (elements.orderMode) elements.orderMode.value = state.shuffleRules.orderMode;
       if (elements.maxSameFolder) elements.maxSameFolder.value = state.shuffleRules.maxSameFolderInRow;
@@ -966,6 +1005,140 @@
       }
     }
 
+
+    function markDirty() {
+      if (!state.songContext || state.recipeLoading) return;
+      state.dirty = true;
+      state.recipeStatus = 'Unsaved changes';
+    }
+
+    function buildCurrentRecipe() {
+      const selectedFolders = getSelectedFolders(state);
+      const folders = selectedFolders.map((folder) => {
+        const assets = getFolderAssetState(state, folder.id).assets || [];
+        const active_image_ids = [];
+        const active_clip_ids = [];
+        const excluded_image_ids = [];
+        const excluded_clip_ids = [];
+        assets.forEach((asset) => {
+          const id = asset.id || clean(asset.public_url);
+          if (!id) return;
+          const included = isAssetIncluded(state, folder.id, asset);
+          const target = normalizeAssetType(asset) === 'clip'
+            ? (included ? active_clip_ids : excluded_clip_ids)
+            : (included ? active_image_ids : excluded_image_ids);
+          target.push(id);
+        });
+        return { folder_id: folder.id, enabled: true, active_image_ids, active_clip_ids, excluded_image_ids, excluded_clip_ids };
+      });
+      return {
+        version: 1,
+        song_key: state.songKey,
+        artwork: {
+          start_with_artwork: Boolean(state.artworkRules.startWithArtwork),
+          start_duration_seconds: Number(state.artworkRules.startDurationSeconds) || 4,
+          end_with_artwork: Boolean(state.artworkRules.endWithArtwork),
+          end_duration_seconds: Number(state.artworkRules.endDurationSeconds) || 4,
+          re_present_artwork: Boolean(state.artworkRules.rePresentArtwork),
+          repeat_every_seconds: Number(state.artworkRules.repeatEverySeconds) || 60,
+        },
+        folders,
+        shuffle: {
+          order_mode: state.shuffleRules.orderMode,
+          max_same_folder_in_row: state.shuffleRules.maxSameFolderInRow,
+          max_assets_per_folder_per_play: state.shuffleRules.maxAssetsPerFolder,
+          avoid_repeating_same_asset: Boolean(state.shuffleRules.avoidRepeats),
+        },
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    function resetLocalRecipeState() {
+      state.artworkRules = { ...DEFAULT_ARTWORK_RULES };
+      state.shuffleRules = { ...DEFAULT_SHUFFLE_RULES };
+      state.selectedFolderIds = new Set();
+      state.expandedFolderIds = new Set();
+      state.assetInclusionByFolder = new Map();
+      previewState.index = 0;
+    }
+
+    function applyRecipe(recipe) {
+      state.recipeLoading = true;
+      resetLocalRecipeState();
+      if (recipe && typeof recipe === 'object') {
+        const artwork = recipe.artwork || {};
+        state.artworkRules = {
+          startWithArtwork: artwork.start_with_artwork !== false,
+          startDurationSeconds: Number(artwork.start_duration_seconds) || DEFAULT_ARTWORK_RULES.startDurationSeconds,
+          endWithArtwork: artwork.end_with_artwork !== false,
+          endDurationSeconds: Number(artwork.end_duration_seconds) || DEFAULT_ARTWORK_RULES.endDurationSeconds,
+          rePresentArtwork: artwork.re_present_artwork !== false,
+          repeatEverySeconds: Number(artwork.repeat_every_seconds) || DEFAULT_ARTWORK_RULES.repeatEverySeconds,
+        };
+        const shuffle = recipe.shuffle || {};
+        state.shuffleRules = {
+          orderMode: shuffle.order_mode || DEFAULT_SHUFFLE_RULES.orderMode,
+          maxSameFolderInRow: String(shuffle.max_same_folder_in_row || DEFAULT_SHUFFLE_RULES.maxSameFolderInRow),
+          maxAssetsPerFolder: String(shuffle.max_assets_per_folder_per_play || DEFAULT_SHUFFLE_RULES.maxAssetsPerFolder),
+          avoidRepeats: shuffle.avoid_repeating_same_asset !== false,
+        };
+        (Array.isArray(recipe.folders) ? recipe.folders : []).forEach((folderRecipe) => {
+          const folderId = clean(folderRecipe.folder_id);
+          if (!folderId || folderRecipe.enabled === false) return;
+          state.selectedFolderIds.add(folderId);
+          state.expandedFolderIds.add(folderId);
+          const inclusion = getAssetInclusionMap(state, folderId);
+          [...(folderRecipe.active_image_ids || []), ...(folderRecipe.active_clip_ids || [])].forEach((id) => inclusion.set(String(id), true));
+          [...(folderRecipe.excluded_image_ids || []), ...(folderRecipe.excluded_clip_ids || [])].forEach((id) => inclusion.set(String(id), false));
+          if (!state.folderAssets.has(folderId)) {
+            state.folderAssets.set(folderId, { loading: true, error: '', assets: [] });
+            fetchFolderAssets(folderId).then((assets) => {
+              state.folderAssets.set(folderId, { loading: false, error: '', assets });
+              initializeFolderAssetInclusion(state, folderId, assets);
+            }).catch((error) => {
+              state.folderAssets.set(folderId, { loading: false, error: error.message || 'Could not load folder visuals.', assets: [] });
+            }).finally(renderDynamic);
+          }
+        });
+      }
+      state.recipeLoading = false;
+      state.dirty = false;
+      state.recipeStatus = recipe ? 'Saved' : 'No saved recipe; using defaults.';
+    }
+
+    async function loadRecipeForCurrentSong() {
+      if (!state.songKey) { resetLocalRecipeState(); renderDynamic(); return; }
+      state.recipeLoading = true;
+      state.recipeStatus = 'Loading saved recipe...';
+      renderDynamic();
+      try {
+        const data = await fetchRecipe(state.songKey);
+        state.savedRecipe = data?.recipe || null;
+        state.savedRecipeUpdatedAt = data?.updated_at || data?.recipe?.updated_at || '';
+        applyRecipe(state.savedRecipe);
+      } catch (error) {
+        state.recipeStatus = error.message || 'Could not load recipe.';
+      } finally {
+        state.recipeLoading = false;
+        renderDynamic();
+      }
+    }
+
+    async function saveCurrentRecipe() {
+      if (!state.songKey) return;
+      state.recipeStatus = 'Saving recipe...';
+      renderDynamic();
+      try {
+        const data = await putRecipe(state.songKey, buildCurrentRecipe());
+        state.savedRecipe = data?.recipe || null;
+        state.savedRecipeUpdatedAt = data?.updated_at || data?.recipe?.updated_at || '';
+        state.dirty = false;
+        state.recipeStatus = 'Saved';
+      } catch (error) {
+        state.recipeStatus = error.message || 'Could not save recipe.';
+      } finally { renderDynamic(); }
+    }
+
     function renderDynamic() {
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
@@ -973,8 +1146,12 @@
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
+      syncArtworkControls();
       syncShuffleControls();
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt });
+      if (elements.saveRecipe) elements.saveRecipe.disabled = !state.songContext || state.recipeLoading;
+      if (elements.resetRecipe) elements.resetRecipe.disabled = !state.songContext || state.recipeLoading;
+      if (elements.recipeStatus) elements.recipeStatus.textContent = state.songContext ? (state.dirty ? 'Unsaved changes' : (state.recipeStatus || 'Saved')) : 'No song selected.';
       renderMediaModal();
     }
 
@@ -1026,6 +1203,8 @@
       previewState.index = 0;
       loadPreviewAudio();
       if (elements.select && elements.select.value !== state.songKey) elements.select.value = state.songKey;
+      state.dirty = false;
+      state.recipeStatus = state.songContext ? 'Loading saved recipe...' : 'No song selected.';
       renderDynamic();
       return state.songContext;
     }
@@ -1037,6 +1216,7 @@
       if (!asset || !state.selectedFolderIds.has(folderId)) return;
       const inclusion = getAssetInclusionMap(state, folderId);
       inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      markDirty();
       renderDynamic();
     }
 
@@ -1092,9 +1272,12 @@
       const button = event.target.closest('[data-vec-folder-toggle]');
       if (!button || !state.songContext) return;
       const folderId = button.dataset.vecFolderToggle;
-      if (state.selectedFolderIds.has(folderId)) state.selectedFolderIds.delete(folderId);
-      else {
+      if (state.selectedFolderIds.has(folderId)) {
+        state.selectedFolderIds.delete(folderId);
+        markDirty();
+      } else {
         state.selectedFolderIds.add(folderId);
+        markDirty();
         initializeFolderAssetInclusion(state, folderId, getFolderAssetState(state, folderId).assets || []);
         if (!state.folderAssets.has(folderId)) {
           state.folderAssets.set(folderId, { loading: true, error: '', assets: [] });
@@ -1119,24 +1302,54 @@
 
     elements.orderMode.addEventListener('change', () => {
       state.shuffleRules.orderMode = elements.orderMode.value;
+      markDirty();
       renderDynamic();
     });
     elements.maxSameFolder.addEventListener('change', () => {
       state.shuffleRules.maxSameFolderInRow = elements.maxSameFolder.value;
+      markDirty();
       renderDynamic();
     });
     elements.maxFolderAssets.addEventListener('change', () => {
       state.shuffleRules.maxAssetsPerFolder = elements.maxFolderAssets.value;
+      markDirty();
       renderDynamic();
     });
     elements.avoidRepeats.addEventListener('click', () => {
       state.shuffleRules.avoidRepeats = !state.shuffleRules.avoidRepeats;
+      markDirty();
       renderDynamic();
     });
 
+    container.querySelectorAll('[data-vec-artwork-toggle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const name = button.dataset.vecArtworkToggle;
+        if (name === 'start_with_artwork') state.artworkRules.startWithArtwork = !state.artworkRules.startWithArtwork;
+        if (name === 'end_with_artwork') state.artworkRules.endWithArtwork = !state.artworkRules.endWithArtwork;
+        if (name === 're_present_artwork') state.artworkRules.rePresentArtwork = !state.artworkRules.rePresentArtwork;
+        markDirty();
+        renderDynamic();
+      });
+    });
+    container.querySelectorAll('[data-vec-artwork-select]').forEach((select) => {
+      select.addEventListener('change', () => {
+        const name = select.dataset.vecArtworkSelect;
+        const value = Number(select.value);
+        if (name === 'start_artwork_duration_seconds') state.artworkRules.startDurationSeconds = value;
+        if (name === 'end_artwork_duration_seconds') state.artworkRules.endDurationSeconds = value;
+        if (name === 'repeat_artwork_every_seconds') state.artworkRules.repeatEverySeconds = value;
+        markDirty();
+        renderDynamic();
+      });
+    });
+    elements.saveRecipe.addEventListener('click', saveCurrentRecipe);
+    elements.resetRecipe.addEventListener('click', () => { applyRecipe(state.savedRecipe); renderDynamic(); });
+
     elements.select.addEventListener('change', () => {
       const selected = state.songs.find((song) => getSongKey(song) === elements.select.value);
+      if (state.dirty && !window.confirm('Discard unsaved VEC recipe changes for this song?')) { elements.select.value = state.songKey; return; }
       setSongContext(selected || null);
+      loadRecipeForCurrentSong();
     });
     elements.playButton.addEventListener('click', startPreview);
     elements.pauseButton.addEventListener('click', pausePreview);
@@ -1189,7 +1402,7 @@
         elements.status.textContent = `Loaded ${state.songs.length} song${state.songs.length === 1 ? '' : 's'} from the existing dev Songs CMS API.`;
         if (state.songKey) {
           const initialSong = state.songs.find((song) => getSongKey(song) === state.songKey);
-          if (initialSong) setSongContext(initialSong);
+          if (initialSong) { setSongContext(initialSong); loadRecipeForCurrentSong(); }
         }
       }).catch((error) => {
         elements.select.innerHTML = '<option value="">Songs unavailable</option>';
