@@ -82,6 +82,27 @@
   padding: 0.8rem 0.9rem;
 }
 
+.vec-lab select,
+#vecControllerMount select {
+  color-scheme: dark;
+  background-color: #07100c;
+  color: var(--text);
+}
+
+.vec-lab select option,
+#vecControllerMount select option {
+  background-color: #07100c;
+  color: #f3f7ef;
+}
+
+.vec-lab select option:checked,
+.vec-lab select option:hover,
+#vecControllerMount select option:checked,
+#vecControllerMount select option:hover {
+  background-color: #1f3a2c;
+  color: #ffffff;
+}
+
 .vec-select:disabled,
 .vec-field input:disabled,
 .vec-button-row button:disabled,
