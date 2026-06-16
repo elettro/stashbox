@@ -514,6 +514,14 @@
     }, { images: 0, clips: 0 });
   }
 
+  function getFolderAssetToggleState(state, folderId, assets = []) {
+    if (!assets.length || !state.selectedFolderIds.has(folderId)) return 'off';
+    const includedCount = assets.filter((asset) => isAssetIncluded(state, folderId, asset)).length;
+    if (includedCount === assets.length) return 'on';
+    if (includedCount === 0) return 'off';
+    return 'mixed';
+  }
+
   function getSelectedActiveAssetCounts(state, selectedFolders = getSelectedFolders(state)) {
     return selectedFolders.reduce((totals, folder) => {
       const counts = getActiveAssetCounts(state, folder);
@@ -600,9 +608,18 @@
     const clips = assets.filter((asset) => normalizeAssetType(asset) === 'clip');
     const images = assets.filter((asset) => normalizeAssetType(asset) === 'image');
     const activeCounts = getActiveAssetCounts(state, folder);
+    const toggleState = getFolderAssetToggleState(state, folder.id, assets);
     return `<div class="vec-folder-assets">
       <div class="vec-folder-assets-head"><strong>Folder visuals</strong><span>${images.length} image${images.length === 1 ? '' : 's'} · ${clips.length} clip${clips.length === 1 ? '' : 's'}</span></div>
-      <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
+      <div class="vec-folder-assets-controls" aria-label="Folder visual inclusion controls">
+        <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
+        <div class="vec-folder-toggle-all" aria-label="Toggle all visuals in this folder">
+          <span>Toggle All:</span>
+          <button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-folder-assets-toggle="${escapeHtml(folder.id)}" data-vec-folder-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button>
+          <button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-folder-assets-toggle="${escapeHtml(folder.id)}" data-vec-folder-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>
+          ${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}
+        </div>
+      </div>
       <div class="vec-folder-asset-grid">${assets.map((asset) => renderAssetPreview(state, asset, folder.id)).join('')}</div>
     </div>`;
   }
@@ -1232,6 +1249,17 @@
       renderDynamic();
     }
 
+    function setFolderAssetInclusion(toggle) {
+      const folderId = toggle.dataset.vecFolderAssetsToggle;
+      const includeAssets = toggle.dataset.vecFolderAssetsToggleValue === 'on';
+      const assets = getFolderAssetState(state, folderId).assets || [];
+      if (!assets.length || !state.selectedFolderIds.has(folderId)) return;
+      const inclusion = getAssetInclusionMap(state, folderId);
+      assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
+      markDirty();
+      renderDynamic();
+    }
+
     elements.folderGrid.addEventListener('keydown', (event) => {
       const previewButton = event.target.closest('[data-vec-preview-asset]');
       if (previewButton && !event.target.closest('[data-vec-asset-toggle]') && (event.key === 'Enter' || event.key === ' ') && previewButton.getAttribute('aria-disabled') !== 'true') {
@@ -1247,6 +1275,13 @@
     });
 
     elements.folderGrid.addEventListener('click', (event) => {
+      const folderAssetsToggle = event.target.closest('[data-vec-folder-assets-toggle]');
+      if (folderAssetsToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        setFolderAssetInclusion(folderAssetsToggle);
+        return;
+      }
       const assetToggle = event.target.closest('[data-vec-asset-toggle]');
       if (assetToggle) {
         event.preventDefault();
