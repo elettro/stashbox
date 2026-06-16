@@ -3,6 +3,8 @@
   const SONGS_API_URL = `${API_ROOT}/admin/songs`;
   const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
   const VEC_RECIPE_API_URL = `${API_ROOT}/admin/vec/recipe`;
+  const VEC_SONG_ASSETS_API_URL = `${API_ROOT}/admin/vec/song-assets`;
+  const UPLOAD_PRESIGN_API_URL = `${API_ROOT}/admin/uploads/presign`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 
   const DEFAULT_SHUFFLE_RULES = {
@@ -234,6 +236,26 @@
     return adminFetchJson(VEC_RECIPE_API_URL, { method: 'PUT', body: JSON.stringify({ song_key: songKey, recipe }) });
   }
 
+  function songAssetsApiUrl(songKey) {
+    return `${VEC_SONG_ASSETS_API_URL}?song_key=${encodeURIComponent(songKey)}`;
+  }
+
+  async function fetchSongAssets(songKey) {
+    return normalizeAssetsResponse(await adminFetchJson(songAssetsApiUrl(songKey)));
+  }
+
+  async function createSongAsset(payload) {
+    return adminFetchJson(VEC_SONG_ASSETS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  async function deleteSongAsset(assetId) {
+    return adminFetchJson(`${VEC_SONG_ASSETS_API_URL}/${encodeURIComponent(assetId)}`, { method: 'DELETE' });
+  }
+
+  async function presignUpload(payload) {
+    return adminFetchJson(UPLOAD_PRESIGN_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
   function getSongKey(song) {
     return getFirstString(song, ['song_key', 'key', 'slug', 'id', 'track_id', 'track_key']);
   }
@@ -303,6 +325,23 @@
   function getSelectedFolders(state) {
     const selectedIds = state.selectedFolderIds || new Set();
     return (state.visualFolders || []).filter((folder) => selectedIds.has(folder.id));
+  }
+
+  function getActiveSongAssets(state) {
+    return (state.songAssets || [])
+      .filter((asset) => clean(asset.status).toLowerCase() !== 'hidden' && isSongAssetIncluded(state, asset))
+      .map((asset) => ({
+        type: normalizeAssetType(asset),
+        folderId: `song:${state.songKey || 'selected'}`,
+        assetId: asset.id,
+        folderName: 'Song-only assets',
+        label: asset.caption || asset.file_name || 'Song-only visual',
+        url: clean(asset.public_url),
+        alt: asset.alt_text || asset.caption || asset.file_name || 'Song-only visual',
+        durationSeconds: normalizeAssetType(asset) === 'clip' ? 6 : 4,
+        created_at: asset.created_at || '', updated_at: asset.updated_at || '', uploaded_at: asset.uploaded_at || '',
+      }))
+      .filter((visual) => visual.url);
   }
 
   function getActiveFolderAssets(state, selectedFolders = getSelectedFolders(state)) {
@@ -409,7 +448,7 @@
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
     const artworkUrl = getArtworkUrl(state.songContext);
     const selectedFolders = getSelectedFolders(state);
-    const activeAssets = getActiveFolderAssets(state, selectedFolders);
+    const activeAssets = [...getActiveSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];
     const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };
     const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);
     const sequence = [];
@@ -495,6 +534,29 @@
     });
   }
 
+  function getSongAssetInclusionMap(state) {
+    if (!state.songAssetInclusion) state.songAssetInclusion = new Map();
+    return state.songAssetInclusion;
+  }
+
+  function initializeSongAssetInclusion(state, assets = []) {
+    const inclusion = getSongAssetInclusionMap(state);
+    assets.forEach((asset) => { if (!inclusion.has(asset.id)) inclusion.set(asset.id, true); });
+  }
+
+  function isSongAssetIncluded(state, asset) {
+    const inclusion = getSongAssetInclusionMap(state);
+    return inclusion.get(asset.id) !== false;
+  }
+
+  function getActiveSongAssetCounts(state) {
+    return (state.songAssets || []).reduce((counts, asset) => {
+      if (clean(asset.status).toLowerCase() === 'hidden' || !isSongAssetIncluded(state, asset)) return counts;
+      if (normalizeAssetType(asset) === 'clip') counts.clips += 1; else counts.images += 1;
+      return counts;
+    }, { images: 0, clips: 0 });
+  }
+
   function isAssetIncluded(state, folderId, asset) {
     if (!state.selectedFolderIds.has(folderId)) return false;
     const inclusion = getAssetInclusionMap(state, folderId);
@@ -523,12 +585,13 @@
   }
 
   function getSelectedActiveAssetCounts(state, selectedFolders = getSelectedFolders(state)) {
+    const songCounts = getActiveSongAssetCounts(state);
     return selectedFolders.reduce((totals, folder) => {
       const counts = getActiveAssetCounts(state, folder);
       totals.images += counts.images;
       totals.clips += counts.clips;
       return totals;
-    }, { images: 0, clips: 0 });
+    }, { images: songCounts.images, clips: songCounts.clips });
   }
 
   function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}) {
@@ -624,6 +687,40 @@
     </div>`;
   }
 
+
+
+  function renderSongAssetCard(state, asset) {
+    const type = normalizeAssetType(asset);
+    const title = asset.caption || asset.file_name || 'Song-only visual asset';
+    const url = clean(asset.public_url);
+    const included = isSongAssetIncluded(state, asset);
+    const media = !url ? `<span>${type === 'clip' ? 'CLIP' : 'IMG'}</span>` : (type === 'clip' ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>` : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
+    return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'}">
+      <span class="vec-folder-asset-thumb">${media}</span>
+      <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-song-asset-toggle="${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${included ? 'Exclude this song-only visual' : 'Include this song-only visual'}"><span class="sr-only">${included ? 'Included' : 'Excluded'}</span></button>
+      <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
+      <button type="button" class="vec-song-asset-delete" data-vec-song-asset-delete="${escapeHtml(asset.id)}">Delete</button>
+    </div>`;
+  }
+
+  function renderSongAssets(state) {
+    if (!state.songContext) return '<p class="vec-empty-state">Select a song to manage song-only visual assets.</p>';
+    const counts = getActiveSongAssetCounts(state);
+    const assets = [...(state.songAssets || [])].sort((a, b) => latestTime(b) - latestTime(a));
+    const message = state.songAssetUploadMessage || (state.songAssetsLoading ? 'Loading song-only assets...' : (state.songAssetsError || ''));
+    return `<div class="vec-song-assets-manager">
+      <div class="vec-upload-row">
+        <label class="vec-placeholder-button">Upload image<input class="sr-only" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" data-vec-song-upload="image" /></label>
+        <label class="vec-placeholder-button">Upload video clip<input class="sr-only" type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" data-vec-song-upload="clip" /></label>
+      </div>
+      <div class="vec-song-dropzone" data-vec-song-dropzone>Drag and drop song-only images or clips here.</div>
+      <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+      ${state.songAssetUploading ? '<p class="vec-empty-state">Uploading song-only asset...</p>' : ''}
+      ${message ? `<p class="vec-empty-state ${state.songAssetsError ? 'vec-error-state' : ''}">${escapeHtml(message)}</p>` : ''}
+      ${assets.length ? `<div class="vec-folder-asset-grid">${assets.map((asset) => renderSongAssetCard(state, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips uploaded yet.</p>'}
+    </div>`;
+  }
+
   function renderFolderCards(state) {
     if (!state.songContext) return '<p class="vec-empty-state">Select a song before choosing Visual Library folders.</p>';
     if (state.visualFoldersLoading) return '<p class="vec-empty-state">Loading real Visual Library folders...</p>';
@@ -659,7 +756,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -671,7 +768,7 @@
       </section>
       <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
-      <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Images and clips uploaded directly for this selected song only.</p></div></div><article class="vec-placeholder-panel vec-next-phase-panel"><div><h3>Next phase placeholder</h3><p>Song-only asset upload and management will be added in the next phase.</p><p class="vec-microcopy" data-vec-song-assets-note aria-live="polite"></p></div><button type="button" class="vec-placeholder-button" data-vec-song-assets-placeholder>Add Song Asset</button></article></section>
+      <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Images and clips uploaded directly for this selected song only.</p></div></div><div data-vec-song-assets></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s local VEC recipe draft.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><article class="vec-placeholder-panel vec-next-phase-panel"><div><h3>Next phase placeholder</h3><p>Borrowed song visuals will be added in the next phase.</p><p class="vec-microcopy" data-vec-borrow-note aria-live="polite"></p></div><button type="button" class="vec-placeholder-button" data-vec-borrow-placeholder>Choose Source Song</button></article></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
@@ -693,8 +790,7 @@
       currentTime: container.querySelector('[data-vec-current-time]'),
       duration: container.querySelector('[data-vec-duration]'),
       mediaModal: container.querySelector('[data-vec-media-modal]'),
-      songAssetsPlaceholder: container.querySelector('[data-vec-song-assets-placeholder]'),
-      songAssetsNote: container.querySelector('[data-vec-song-assets-note]'),
+      songAssets: container.querySelector('[data-vec-song-assets]'),
       borrowPlaceholder: container.querySelector('[data-vec-borrow-placeholder]'),
       borrowNote: container.querySelector('[data-vec-borrow-note]'),
       orderMode: container.querySelector('[data-vec-order-mode]'),
@@ -712,7 +808,6 @@
       target.textContent = message;
     }
 
-    elements.songAssetsPlaceholder?.addEventListener('click', () => showPlaceholderNote(elements.songAssetsNote, 'Song-only uploads are coming in the next phase.'));
     elements.borrowPlaceholder?.addEventListener('click', () => showPlaceholderNote(elements.borrowNote, 'Borrow-from-song tools are coming in the next phase.'));
 
     const previewAudio = new Audio();
@@ -1042,6 +1137,14 @@
     }
 
     function buildCurrentRecipe() {
+      const songAssetRecipe = { active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
+      (state.songAssets || []).forEach((asset) => {
+        const id = asset.id || clean(asset.public_url);
+        if (!id) return;
+        const included = isSongAssetIncluded(state, asset);
+        const target = normalizeAssetType(asset) === 'clip' ? (included ? songAssetRecipe.active_clip_ids : songAssetRecipe.excluded_clip_ids) : (included ? songAssetRecipe.active_image_ids : songAssetRecipe.excluded_image_ids);
+        target.push(id);
+      });
       const selectedFolders = getSelectedFolders(state);
       const folders = selectedFolders.map((folder) => {
         const assets = getFolderAssetState(state, folder.id).assets || [];
@@ -1072,6 +1175,7 @@
           repeat_every_seconds: Number(state.artworkRules.repeatEverySeconds) || 60,
         },
         folders,
+        song_assets: songAssetRecipe,
         shuffle: {
           order_mode: state.shuffleRules.orderMode,
           max_same_folder_in_row: state.shuffleRules.maxSameFolderInRow,
@@ -1088,6 +1192,7 @@
       state.selectedFolderIds = new Set();
       state.expandedFolderIds = new Set();
       state.assetInclusionByFolder = new Map();
+      state.songAssetInclusion = new Map();
       previewState.index = 0;
     }
 
@@ -1111,6 +1216,10 @@
           maxAssetsPerFolder: String(shuffle.max_assets_per_folder_per_play || DEFAULT_SHUFFLE_RULES.maxAssetsPerFolder),
           avoidRepeats: shuffle.avoid_repeating_same_asset !== false,
         };
+        const songAssetsRecipe = recipe.song_assets || {};
+        [...(songAssetsRecipe.active_image_ids || []), ...(songAssetsRecipe.active_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), true));
+        [...(songAssetsRecipe.excluded_image_ids || []), ...(songAssetsRecipe.excluded_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), false));
+        initializeSongAssetInclusion(state, state.songAssets || []);
         (Array.isArray(recipe.folders) ? recipe.folders : []).forEach((folderRecipe) => {
           const folderId = clean(folderRecipe.folder_id);
           if (!folderId || folderRecipe.enabled === false) return;
@@ -1173,6 +1282,7 @@
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
       updatePreviewOnly();
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
+      if (elements.songAssets) elements.songAssets.innerHTML = renderSongAssets(state);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
       syncArtworkControls();
@@ -1228,6 +1338,7 @@
       state.expandedFolderIds = new Set();
       state.previewModalAsset = null;
       state.assetInclusionByFolder = new Map();
+      state.songAssetInclusion = new Map();
       previewState.preloadCache = new Map();
       previewState.index = 0;
       loadPreviewAudio();
@@ -1236,6 +1347,74 @@
       state.recipeStatus = state.songContext ? 'Loading saved recipe...' : 'No song selected.';
       renderDynamic();
       return state.songContext;
+    }
+
+
+
+    async function loadSongAssetsForCurrentSong() {
+      if (!state.songKey) { state.songAssets = []; renderDynamic(); return; }
+      state.songAssetsLoading = true;
+      state.songAssetsError = '';
+      renderDynamic();
+      try {
+        state.songAssets = await fetchSongAssets(state.songKey);
+        initializeSongAssetInclusion(state, state.songAssets);
+      } catch (error) {
+        state.songAssets = [];
+        state.songAssetsError = error.message || 'Could not load song-only assets.';
+      } finally {
+        state.songAssetsLoading = false;
+        renderDynamic();
+      }
+    }
+
+    function inferUploadType(file, requestedType = '') {
+      const type = String(requestedType || '').toLowerCase();
+      if (type === 'image' || type === 'clip') return type;
+      return String(file?.type || '').startsWith('video/') ? 'clip' : 'image';
+    }
+
+    async function uploadSongAssetFile(file, requestedType = '') {
+      if (!state.songContext || !file) return;
+      const assetType = inferUploadType(file, requestedType);
+      state.songAssetUploading = true;
+      state.songAssetUploadMessage = `Uploading ${file.name}...`;
+      state.songAssetsError = '';
+      renderDynamic();
+      try {
+        const purpose = assetType === 'clip' ? 'song_visual_clip' : 'song_visual_image';
+        const presign = await presignUpload({ filename: file.name, content_type: file.type || 'application/octet-stream', purpose, song_key: state.songKey, artist: state.songContext.artist || 'stashbox' });
+        const uploadResponse = await fetch(presign.uploadUrl || presign.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || presign.contentType || 'application/octet-stream' }, body: file });
+        if (!uploadResponse.ok) throw new Error(`S3 upload failed (${uploadResponse.status}).`);
+        const saved = await createSongAsset({ song_key: state.songKey, asset_type: assetType, file_name: file.name, s3_key: presign.key, public_url: presign.publicUrl || presign.public_url, thumbnail_url: presign.publicUrl || presign.public_url, content_type: file.type || presign.contentType, size_bytes: file.size });
+        const asset = normalizeAsset(saved.asset || saved);
+        if (asset) {
+          state.songAssets = [asset, ...state.songAssets.filter((item) => item.id !== asset.id)];
+          getSongAssetInclusionMap(state).set(asset.id, true);
+        } else await loadSongAssetsForCurrentSong();
+        state.songAssetUploadMessage = `Uploaded ${file.name}.`;
+        markDirty();
+      } catch (error) {
+        state.songAssetsError = error.message || 'Upload failed.';
+      } finally {
+        state.songAssetUploading = false;
+        renderDynamic();
+      }
+    }
+
+    async function deleteSongAssetById(assetId) {
+      if (!assetId || !window.confirm('Delete this song-only asset from the dev VEC manager?')) return;
+      state.songAssetUploadMessage = 'Deleting song-only asset...';
+      renderDynamic();
+      try {
+        await deleteSongAsset(assetId);
+        state.songAssets = state.songAssets.filter((asset) => String(asset.id) !== String(assetId));
+        getSongAssetInclusionMap(state).delete(assetId);
+        state.songAssetUploadMessage = 'Song-only asset deleted.';
+        markDirty();
+      } catch (error) {
+        state.songAssetsError = error.message || 'Could not delete song-only asset.';
+      } finally { renderDynamic(); }
     }
 
     function toggleAssetInclusion(toggle) {
@@ -1259,6 +1438,42 @@
       markDirty();
       renderDynamic();
     }
+
+
+
+    elements.songAssets?.addEventListener('change', (event) => {
+      const input = event.target.closest('[data-vec-song-upload]');
+      if (!input?.files?.length) return;
+      [...input.files].forEach((file) => uploadSongAssetFile(file, input.dataset.vecSongUpload));
+      input.value = '';
+    });
+
+    elements.songAssets?.addEventListener('click', (event) => {
+      const toggle = event.target.closest('[data-vec-song-asset-toggle]');
+      if (toggle) {
+        const asset = state.songAssets.find((item) => String(item.id) === String(toggle.dataset.vecSongAssetToggle));
+        if (!asset) return;
+        const inclusion = getSongAssetInclusionMap(state);
+        inclusion.set(asset.id, inclusion.get(asset.id) === false);
+        markDirty();
+        renderDynamic();
+        return;
+      }
+      const deleteButton = event.target.closest('[data-vec-song-asset-delete]');
+      if (deleteButton) deleteSongAssetById(deleteButton.dataset.vecSongAssetDelete);
+    });
+
+    elements.songAssets?.addEventListener('dragover', (event) => {
+      if (!state.songContext) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    });
+
+    elements.songAssets?.addEventListener('drop', (event) => {
+      if (!state.songContext) return;
+      event.preventDefault();
+      [...(event.dataTransfer?.files || [])].forEach((file) => uploadSongAssetFile(file));
+    });
 
     elements.folderGrid.addEventListener('keydown', (event) => {
       const previewButton = event.target.closest('[data-vec-preview-asset]');
@@ -1396,6 +1611,7 @@
       const selected = state.songs.find((song) => getSongKey(song) === elements.select.value);
       if (state.dirty && !window.confirm('Discard unsaved VEC recipe changes for this song?')) { elements.select.value = state.songKey; return; }
       setSongContext(selected || null);
+      loadSongAssetsForCurrentSong();
       loadRecipeForCurrentSong();
     });
     elements.playButton.addEventListener('click', startPreview);
@@ -1449,7 +1665,7 @@
         elements.status.textContent = `Loaded ${state.songs.length} song${state.songs.length === 1 ? '' : 's'} from the existing dev Songs CMS API.`;
         if (state.songKey) {
           const initialSong = state.songs.find((song) => getSongKey(song) === state.songKey);
-          if (initialSong) { setSongContext(initialSong); loadRecipeForCurrentSong(); }
+          if (initialSong) { setSongContext(initialSong); loadSongAssetsForCurrentSong(); loadRecipeForCurrentSong(); }
         }
       }).catch((error) => {
         elements.select.innerHTML = '<option value="">Songs unavailable</option>';

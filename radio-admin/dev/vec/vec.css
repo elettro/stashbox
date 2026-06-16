@@ -991,3 +991,42 @@
     border-radius: 16px;
   }
 }
+
+.vec-song-assets-manager {
+  display: grid;
+  gap: 1rem;
+}
+
+.vec-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.vec-song-dropzone {
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  color: var(--muted-text, #b8c2d6);
+  padding: 1rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.vec-song-asset-card {
+  position: relative;
+}
+
+.vec-song-asset-delete {
+  border: 1px solid rgba(255, 120, 120, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 80, 80, 0.12);
+  color: #ffd8d8;
+  cursor: pointer;
+  font-size: 0.76rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.vec-song-asset-delete:hover,
+.vec-song-asset-delete:focus-visible {
+  background: rgba(255, 80, 80, 0.24);
+}
