@@ -4,6 +4,17 @@
   const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 
+  const DEFAULT_SHUFFLE_RULES = {
+    orderMode: 'randomize',
+    maxSameFolderInRow: 1,
+    maxAssetsPerFolder: 'all',
+    avoidRepeats: true,
+  };
+
+  const ORDER_MODE_LABELS = { manual: 'Manual Order', randomize: 'Randomize', newest: 'Newest First' };
+  const MAX_SAME_FOLDER_LABELS = { 1: '1', 2: '2', 3: '3', none: 'No limit' };
+  const MAX_ASSETS_PER_FOLDER_LABELS = { 1: '1', 2: '2', 3: '3', 5: '5', all: 'All' };
+
   const DEFAULT_ARTWORK_RULES = {
     startWithArtwork: true,
     startDurationSeconds: 4,
@@ -184,6 +195,7 @@
       status: clean(asset.status) || 'active',
       created_at: asset.created_at || asset.createdAt || '',
       updated_at: asset.updated_at || asset.updatedAt || '',
+      uploaded_at: asset.uploaded_at || asset.uploadedAt || asset.upload_timestamp || asset.uploadTimestamp || '',
     };
   }
 
@@ -282,7 +294,7 @@
   function getActiveFolderAssets(state, selectedFolders = getSelectedFolders(state)) {
     const visuals = [];
     selectedFolders.forEach((folder) => {
-      const assets = getFolderAssetState(state, folder.id).assets || [];
+      const assets = [...(getFolderAssetState(state, folder.id).assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
       assets.forEach((asset) => {
         const url = clean(asset.public_url);
         if (!url || clean(asset.status).toLowerCase() === 'hidden' || !isAssetIncluded(state, folder.id, asset)) return;
@@ -297,6 +309,9 @@
           url,
           alt: asset.alt_text || title,
           durationSeconds: type === 'clip' ? 6 : 4,
+          created_at: asset.created_at || '',
+          updated_at: asset.updated_at || '',
+          uploaded_at: asset.uploaded_at || '',
         });
       });
     });
@@ -312,21 +327,86 @@
     }, { artwork: 0, images: 0, clips: 0 });
   }
 
+  function getAssetTimestamp(visual) {
+    const time = Date.parse(visual?.updated_at || visual?.created_at || visual?.uploaded_at || '');
+    return Number.isFinite(time) ? time : 0;
+  }
+
+  function shuffleVisuals(visuals) {
+    const shuffled = [...visuals];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled;
+  }
+
+  function applyFolderPlayLimit(visuals, maxAssetsPerFolder) {
+    if (maxAssetsPerFolder === 'all') return visuals;
+    const maxPerFolder = Number(maxAssetsPerFolder);
+    if (!Number.isFinite(maxPerFolder) || maxPerFolder <= 0) return visuals;
+    const counts = new Map();
+    return visuals.filter((visual) => {
+      const count = counts.get(visual.folderId) || 0;
+      if (count >= maxPerFolder) return false;
+      counts.set(visual.folderId, count + 1);
+      return true;
+    });
+  }
+
+  function applySameFolderRowLimit(visuals, maxSameFolderInRow) {
+    if (maxSameFolderInRow === 'none') return visuals;
+    const maxInRow = Number(maxSameFolderInRow);
+    if (!Number.isFinite(maxInRow) || maxInRow <= 0 || visuals.length < 2) return visuals;
+    const remaining = [...visuals];
+    const ordered = [];
+    while (remaining.length) {
+      const lastFolder = ordered[ordered.length - 1]?.folderId;
+      let runLength = 0;
+      for (let index = ordered.length - 1; index >= 0 && ordered[index].folderId === lastFolder; index -= 1) runLength += 1;
+      let nextIndex = 0;
+      if (lastFolder && runLength >= maxInRow) {
+        const alternativeIndex = remaining.findIndex((visual) => visual.folderId !== lastFolder);
+        if (alternativeIndex >= 0) nextIndex = alternativeIndex;
+      }
+      ordered.push(remaining.splice(nextIndex, 1)[0]);
+    }
+    return ordered;
+  }
+
+  function orderActiveAssets(activeAssets, shuffleRules) {
+    let orderedAssets = [...activeAssets];
+    if (shuffleRules.orderMode === 'randomize') {
+      orderedAssets = shuffleVisuals(orderedAssets);
+    } else if (shuffleRules.orderMode === 'newest') {
+      // TODO: If visual library assets do not include created/updated/upload timestamps, this falls back to the current displayed order.
+      orderedAssets = orderedAssets
+        .map((visual, index) => ({ visual, index, time: getAssetTimestamp(visual) }))
+        .sort((a, b) => (b.time - a.time) || (a.index - b.index))
+        .map((item) => item.visual);
+    }
+    orderedAssets = applyFolderPlayLimit(orderedAssets, shuffleRules.maxAssetsPerFolder);
+    orderedAssets = applySameFolderRowLimit(orderedAssets, shuffleRules.maxSameFolderInRow);
+    return orderedAssets;
+  }
+
   function buildPreviewSequence(state) {
     if (!state.songContext) return [];
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
     const artworkUrl = getArtworkUrl(state.songContext);
     const selectedFolders = getSelectedFolders(state);
     const activeAssets = getActiveFolderAssets(state, selectedFolders);
+    const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };
+    const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);
     const sequence = [];
 
     if (state.artworkRules.startWithArtwork && artworkUrl) {
       sequence.push({ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
     }
 
-    activeAssets.forEach((visual) => sequence.push(visual));
+    orderedAssets.forEach((visual) => sequence.push(visual));
 
-    if (state.artworkRules.rePresentArtwork && artworkUrl && activeAssets.length && !sequence.some((visual) => visual.type === 'artwork')) {
+    if (state.artworkRules.rePresentArtwork && artworkUrl && orderedAssets.length && !sequence.some((visual) => visual.type === 'artwork')) {
       sequence.unshift({ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: state.artworkRules.startDurationSeconds || 4 });
     }
 
@@ -429,7 +509,7 @@
     }, { images: 0, clips: 0 });
   }
 
-  function renderSummary(songContext, artworkRules, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null) {
+  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
@@ -441,6 +521,9 @@
     const sequenceTotal = previewSequence.length;
     const sequenceLabel = `${sequenceCounts.artwork} artwork + ${sequenceCounts.images} images + ${sequenceCounts.clips} clips`;
     const currentLabel = currentVisual ? `${currentVisual.type === 'clip' ? 'Video clip' : (currentVisual.type === 'image' ? 'Image' : 'Artwork')}: ${currentVisual.label || 'Preview visual'}` : 'None';
+    const orderModeLabel = ORDER_MODE_LABELS[shuffleRules.orderMode] || ORDER_MODE_LABELS.randomize;
+    const maxSameFolderLabel = MAX_SAME_FOLDER_LABELS[shuffleRules.maxSameFolderInRow] || String(shuffleRules.maxSameFolderInRow || '1');
+    const maxAssetsPerFolderLabel = MAX_ASSETS_PER_FOLDER_LABELS[shuffleRules.maxAssetsPerFolder] || String(shuffleRules.maxAssetsPerFolder || 'All');
     return `
       <p class="vec-empty-state">${songContext ? `Selected song context loaded for ${escapeHtml(title)}.` : 'No song selected yet.'}</p>
       <div class="vec-summary-grid">
@@ -450,12 +533,15 @@
         <div class="vec-summary-card"><strong>Official artwork</strong><span>${artworkStatus}</span></div>
         <div class="vec-summary-card"><strong>Selected folders</strong><span>${selectedFolders.length} folder${selectedFolders.length === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
-        <div class="vec-summary-card"><strong>Active images</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
-        <div class="vec-summary-card"><strong>Active clips</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
-        <div class="vec-summary-card"><strong>Preview sequence</strong><span>${sequenceTotal} visual${sequenceTotal === 1 ? '' : 's'}: ${escapeHtml(sequenceLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Active image count</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Active clip count</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Preview sequence count</strong><span>${sequenceTotal} visual${sequenceTotal === 1 ? '' : 's'}: ${escapeHtml(sequenceLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Order mode</strong><span>${escapeHtml(orderModeLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Max same folder in row</strong><span>${escapeHtml(maxSameFolderLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Max assets per folder</strong><span>${escapeHtml(maxAssetsPerFolderLabel)}</span></div>
+        <div class="vec-summary-card"><strong>Avoid repeats</strong><span>${onOffLabel(shuffleRules.avoidRepeats)}</span></div>
         <div class="vec-summary-card"><strong>Current visual</strong><span>${escapeHtml(currentLabel)}</span></div>
         <div class="vec-summary-card"><strong>Artwork rules</strong><span>Start ${onOffLabel(artworkRules.startWithArtwork)} · ${secondsLabel(artworkRules.startDurationSeconds)} · End ${onOffLabel(artworkRules.endWithArtwork)} · ${secondsLabel(artworkRules.endDurationSeconds)} · Re-present ${onOffLabel(artworkRules.rePresentArtwork)} every ${secondsLabel(artworkRules.repeatEverySeconds)}</span></div>
-        <div class="vec-summary-card"><strong>Shuffle mode</strong><span>Randomize · avoid repeats</span></div>
       </div>`;
   }
 
@@ -538,7 +624,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -552,7 +638,7 @@
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Song Artwork Controller</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Visual Assets</h2><p class="vec-copy">Assets uploaded here will apply only to the selected song.</p></div></div><div class="vec-two-column"><article class="vec-placeholder-panel"><h3>Image upload placeholder</h3><p>Song-specific still image upload wiring will come later.</p></article><article class="vec-placeholder-panel"><h3>Video clip upload placeholder</h3><p>Song-specific clip upload wiring will come later.</p></article></div><div class="vec-thumbnail-grid" aria-label="Empty thumbnail grid placeholder"><p>No song-only visual assets yet.</p></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s local VEC recipe draft.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
-      <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle Settings</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" disabled><option>Manual Order</option><option selected>Randomize</option><option>Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><input type="text" value="1" readonly disabled /></label><label class="vec-field"><span>Max assets per folder per play</span><input type="text" value="All" readonly disabled /></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" disabled aria-pressed="true">ON</button></label></div></section>
+      <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle Settings</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section" aria-labelledby="recipeSummaryHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Recipe</p><h2 id="recipeSummaryHeading">Recipe Summary</h2></div></div><div data-vec-summary></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Recipe saving will be wired in a later PR.</p></div><div class="vec-button-row"><button type="button" disabled>Save VEC Recipe</button><button type="button" disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
@@ -572,6 +658,10 @@
       currentTime: container.querySelector('[data-vec-current-time]'),
       duration: container.querySelector('[data-vec-duration]'),
       mediaModal: container.querySelector('[data-vec-media-modal]'),
+      orderMode: container.querySelector('[data-vec-order-mode]'),
+      maxSameFolder: container.querySelector('[data-vec-max-same-folder]'),
+      maxFolderAssets: container.querySelector('[data-vec-max-folder-assets]'),
+      avoidRepeats: container.querySelector('[data-vec-avoid-repeats]'),
     };
 
     // Song-specific VEC recipe draft state stays in this controller only.
@@ -864,6 +954,18 @@
       preloadPreviewVisual(getNextVisual());
     }
 
+    function syncShuffleControls() {
+      if (elements.orderMode) elements.orderMode.value = state.shuffleRules.orderMode;
+      if (elements.maxSameFolder) elements.maxSameFolder.value = state.shuffleRules.maxSameFolderInRow;
+      if (elements.maxFolderAssets) elements.maxFolderAssets.value = state.shuffleRules.maxAssetsPerFolder;
+      if (elements.avoidRepeats) {
+        elements.avoidRepeats.classList.toggle('is-on', state.shuffleRules.avoidRepeats);
+        elements.avoidRepeats.classList.toggle('is-off', !state.shuffleRules.avoidRepeats);
+        elements.avoidRepeats.setAttribute('aria-pressed', String(state.shuffleRules.avoidRepeats));
+        elements.avoidRepeats.textContent = onOffLabel(state.shuffleRules.avoidRepeats);
+      }
+    }
+
     function renderDynamic() {
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
@@ -871,7 +973,8 @@
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
+      syncShuffleControls();
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index]);
       renderMediaModal();
     }
 
@@ -1011,6 +1114,24 @@
         state.previewModalAsset = null;
         renderDynamic();
       }
+    });
+
+
+    elements.orderMode.addEventListener('change', () => {
+      state.shuffleRules.orderMode = elements.orderMode.value;
+      renderDynamic();
+    });
+    elements.maxSameFolder.addEventListener('change', () => {
+      state.shuffleRules.maxSameFolderInRow = elements.maxSameFolder.value;
+      renderDynamic();
+    });
+    elements.maxFolderAssets.addEventListener('change', () => {
+      state.shuffleRules.maxAssetsPerFolder = elements.maxFolderAssets.value;
+      renderDynamic();
+    });
+    elements.avoidRepeats.addEventListener('click', () => {
+      state.shuffleRules.avoidRepeats = !state.shuffleRules.avoidRepeats;
+      renderDynamic();
     });
 
     elements.select.addEventListener('change', () => {
