@@ -874,3 +874,52 @@
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
+.vec-next-phase-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-color: rgba(240, 192, 76, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(80, 210, 120, 0.08), transparent 18rem),
+    rgba(255, 255, 255, 0.045);
+}
+
+.vec-placeholder-button {
+  flex: 0 0 auto;
+  border: 1px dashed rgba(240, 192, 76, 0.5);
+  border-radius: 999px;
+  background: rgba(240, 192, 76, 0.09);
+  color: #ffe09a;
+  padding: 0.72rem 1rem;
+  font-weight: 900;
+}
+
+.vec-recipe-summary-block {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.vec-recipe-summary-block h3 {
+  margin: 0;
+  color: #d9f6df;
+}
+
+.vec-save-content {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+@media (max-width: 760px) {
+  .vec-next-phase-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vec-placeholder-button {
+    width: 100%;
+    border-radius: 16px;
+  }
+}
