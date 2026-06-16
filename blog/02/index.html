@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stashbox Radio — Listen. Watch. Shop. Share.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0a0a0a;
+    --deep: #111318;
+    --surface: #1a1d24;
+    --border: #2a2d35;
+    --rasta-red: #e53935;
+    --rasta-gold: #ffca28;
+    --rasta-green: #43a047;
+    --accent: #ffca28;
+    --accent2: #e53935;
+    --accent3: #43a047;
+    --text: #f0f0f0;
+    --muted: #8a8d96;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 100;
+    background: rgba(10,10,10,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+  }
+
+  .nav-logo img {
+    height: 36px;
+    display: block;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .nav-tab {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .nav-tab:hover { color: var(--text); border-color: var(--border); }
+  .nav-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(255,202,40,0.08); }
+
+  /* ── PANELS ── */
+  .panel { display: none; padding-top: 60px; min-height: 100vh; }
+  .panel.active { display: block; }
+
+  /* ══════════════════════════════════
+     PANEL 1 — OVERVIEW (CINEMATIC)
+  ══════════════════════════════════ */
+  #panel-overview {
+    background: var(--black);
+  }
+
+  .hero {
+    min-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    padding: 4rem 2rem 3rem;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 60%, rgba(229,57,53,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 20% 80%, rgba(67,160,71,0.10) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 80% 20%, rgba(255,202,40,0.08) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .rasta-stripe {
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--rasta-red) 33.33%, var(--rasta-gold) 33.33% 66.66%, var(--rasta-green) 66.66%);
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rasta-gold);
+    margin-bottom: 1.2rem;
+    opacity: 0.9;
+  }
+
+  .hero-headline {
+    font-family: var(--display);
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-headline .word-listen { color: var(--rasta-red); }
+  .hero-headline .word-watch  { color: var(--text); }
+  .hero-headline .word-shop   { color: var(--rasta-gold); }
+  .hero-headline .word-share  { color: var(--rasta-green); }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    max-width: 560px;
+    margin: 1.5rem auto 2.5rem;
+    font-weight: 300;
+  }
+
+  .hero-cta-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 28px;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s;
+  }
+
+  .btn-gold { background: var(--rasta-gold); color: var(--black); font-weight: 700; }
+  .btn-gold:hover { background: #ffe566; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--muted); }
+
+  /* Infographic display */
+  .infographic-section {
+    padding: 4rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .infographic-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .infographic-label::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .infographic-wrapper {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .infographic-wrapper img {
+    width: 100%;
+    display: block;
+  }
+
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+
+  .overview-stat {
+    background: var(--deep);
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: var(--display);
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 0.4rem;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ══════════════════════════════════
+     PANEL 2 — PLATFORM (TECH DEEP DIVE)
+  ══════════════════════════════════ */
+  #panel-platform {
+    background: var(--black);
+  }
+
+  .platform-hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .platform-hero h2 {
+    font-family: var(--display);
+    font-size: clamp(2rem, 5vw, 4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 1rem;
+  }
+
+  .platform-hero p {
+    color: var(--muted);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+    margin: 0 0 1px;
+  }
+
+  .pillar {
+    background: var(--deep);
+    padding: 2.5rem 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pillar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+  }
+
+  .pillar.red::before { background: var(--rasta-red); }
+  .pillar.gold::before { background: var(--rasta-gold); }
+  .pillar.green::before { background: var(--rasta-green); }
+  .pillar.white::before { background: #fff; }
+
+  .pillar-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.8rem;
+  }
+
+  .pillar h3 {
+    font-family: var(--display);
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 0.8rem;
+  }
+
+  .pillar p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .feature-list {
+    list-style: none;
+    margin-top: 1rem;
+  }
+
+  .feature-list li {
+    font-size: 0.88rem;
+    color: var(--muted);
+    padding: 4px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .feature-list li::before {
+    content: '→';
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .infographic-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    margin-top: 1px;
+  }
+
+  .infographic-pair .infographic-wrapper {
+    border-radius: 0;
+    border: none;
+  }
+
+  /* ══════════════════════════════════
+     PANEL 3 — FOR BRANDS
+  ══════════════════════════════════ */
+  #panel-brands {
+    background: var(--black);
+  }
+
+  .brands-hero {
+    padding: 5rem 2rem 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .brands-headline {
+    font-family: var(--display);
+    font-size: clamp(2.2rem, 6vw, 5rem);
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+
+  .brands-headline em {
+    font-style: normal;
+    color: var(--rasta-gold);
+  }
+
+  .brands-sub {
+    color: var(--muted);
+    max-width: 540px;
+    margin-bottom: 3rem;
+    font-size: 1rem;
+  }
+
+  .use-cases {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  .use-case {
+    background: var(--deep);
+    padding: 2rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+
+  .use-case:hover { background: var(--surface); }
+
+  .uc-icon {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .uc-name {
+    font-family: var(--display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .uc-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .compare-table {
+    max-width: 900px;
+    margin: 4rem auto;
+    padding: 0 2rem;
+  }
+
+  .compare-table h3 {
+    font-family: var(--display);
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  th {
+    padding: 1rem 1.2rem;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th.highlight { color: var(--accent); }
+
+  td {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    vertical-align: top;
+  }
+
+  td.highlight {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .check { color: var(--rasta-green); font-weight: 700; }
+  .cross { color: var(--rasta-red); }
+
+  /* ══════════════════════════════════
+     PANEL 4 — PODCAST
+  ══════════════════════════════════ */
+  #panel-podcast {
+    background: var(--black);
+  }
+
+  .podcast-hero {
+    padding: 5rem 2rem 3rem;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .podcast-hero h2 {
+    font-family: var(--display);
+    font-size: clamp(2rem, 5vw, 4rem);
+    font-weight: 800;
+    margin-bottom: 0.8rem;
+  }
+
+  .podcast-hero p { color: var(--muted); }
+
+  .podcast-cards {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 2rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .podcast-card {
+    background: var(--deep);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    transition: border-color 0.2s;
+  }
+
+  .podcast-card:hover { border-color: var(--accent); }
+
+  .pod-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+  }
+
+  .pod-flag {
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+
+  .pod-info h3 {
+    font-family: var(--display);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .pod-info span {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .pod-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    line-height: 1.7;
+  }
+
+  audio {
+    width: 100%;
+    height: 44px;
+    border-radius: 4px;
+    accent-color: var(--rasta-gold);
+  }
+
+  audio::-webkit-media-controls-panel {
+    background: var(--surface);
+  }
+
+  .pod-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-decoration: none;
+    margin-top: 12px;
+    transition: color 0.2s;
+  }
+
+  .pod-link:hover { color: #ffe566; }
+  .pod-link svg { width: 14px; height: 14px; }
+
+  .podcast-infographic {
+    max-width: 1100px;
+    margin: 0 auto 4rem;
+    padding: 0 2rem;
+  }
+
+  /* ══════════════════════════════════
+     PANEL 5 — MUSIC ISLAND (VISUAL)
+  ══════════════════════════════════ */
+  #panel-island {
+    background: var(--black);
+  }
+
+  .island-hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 1000px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .island-hero h2 {
+    font-family: var(--display);
+    font-size: clamp(2.5rem, 7vw, 6rem);
+    font-weight: 800;
+    line-height: 0.95;
+    margin-bottom: 1.5rem;
+  }
+
+  .island-hero h2 .glow {
+    color: var(--rasta-green);
+    text-shadow: 0 0 40px rgba(67,160,71,0.4);
+  }
+
+  .island-hero p {
+    color: var(--muted);
+    max-width: 600px;
+    margin: 0 auto 2rem;
+    font-size: 1.05rem;
+  }
+
+  .island-full-graphic {
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+    padding: 0 2rem;
+  }
+
+  .island-full-graphic .infographic-wrapper {
+    border-radius: 12px;
+  }
+
+  .island-breakdown {
+    max-width: 1100px;
+    margin: 0 auto 5rem;
+    padding: 0 2rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .island-block {
+    background: var(--deep);
+    padding: 2rem 1.5rem;
+  }
+
+  .island-block-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+
+  .icon-red { background: rgba(229,57,53,0.15); }
+  .icon-gold { background: rgba(255,202,40,0.12); }
+  .icon-green { background: rgba(67,160,71,0.15); }
+
+  .island-block h4 {
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .island-block p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--deep);
+    border-top: 1px solid var(--border);
+    padding: 3rem 2rem;
+    text-align: center;
+  }
+
+  .footer-logos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .footer-logos img {
+    height: 32px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+
+  .footer-logos img:hover { opacity: 1; }
+
+  .footer-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--border);
+  }
+
+  .footer-tagline {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .footer-tagline a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  /* ── RASTA ACCENT LINE between sections ── */
+  .rasta-line {
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--rasta-red) 33.33%, var(--rasta-gold) 33.33% 66.66%, var(--rasta-green) 66.66%);
+    margin: 4rem 0 0;
+    opacity: 0.4;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .nav-tabs { gap: 2px; }
+    .nav-tab { font-size: 9px; padding: 5px 8px; }
+    .pillars { grid-template-columns: 1fr; }
+    .use-cases { grid-template-columns: repeat(2, 1fr); }
+    .infographic-pair { grid-template-columns: 1fr; }
+    .overview-grid { grid-template-columns: 1fr; }
+    .island-breakdown { grid-template-columns: 1fr; }
+    .footer-logos { gap: 1.5rem; }
+  }
+
+  @media (max-width: 480px) {
+    .use-cases { grid-template-columns: 1fr; }
+    .nav-tabs { gap: 1px; }
+    .nav-tab { font-size: 8px; padding: 4px 6px; letter-spacing: 0; }
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel.active .hero-headline,
+  .panel.active .hero-sub,
+  .panel.active .hero-cta-row {
+    animation: fadeInUp 0.6s ease both;
+  }
+
+  .panel.active .hero-sub { animation-delay: 0.1s; }
+  .panel.active .hero-cta-row { animation-delay: 0.2s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a href="https://stashbox.com/radio-admin/dev/" class="nav-logo" target="_blank" rel="noopener">
+    <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png"
+         alt="Stashbox Radio"
+         onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-family:var(--display);font-weight:800;font-size:1.1rem;color:var(--accent)\'>STASHBOX</span>'">
+  </a>
+  <div class="nav-tabs" role="tablist">
+    <button class="nav-tab active" onclick="showPanel('overview')" role="tab">Overview</button>
+    <button class="nav-tab" onclick="showPanel('platform')" role="tab">Platform</button>
+    <button class="nav-tab" onclick="showPanel('brands')" role="tab">For Brands</button>
+    <button class="nav-tab" onclick="showPanel('podcast')" role="tab">Podcast</button>
+    <button class="nav-tab" onclick="showPanel('island')" role="tab">Music Island</button>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════
+     PANEL 1 — OVERVIEW
+══════════════════════════════════ -->
+<section id="panel-overview" class="panel active">
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="rasta-stripe"></div>
+    <p class="eyebrow">Stashbox Radio &nbsp;·&nbsp; Visual Commerce Platform</p>
+    <h1 class="hero-headline">
+      <span class="word-listen">Listen.</span>&nbsp;
+      <span class="word-watch">Watch.</span><br>
+      <span class="word-shop">Shop.</span>&nbsp;
+      <span class="word-share">Share.</span>
+    </h1>
+    <p class="hero-sub">
+      A browser-based streaming radio player that combines music discovery, visual brand experiences, contextual commerce, and real-time analytics — all in one owned platform.
+    </p>
+    <div class="hero-cta-row">
+      <a href="https://stashbox.com/radio-admin/dev/" class="btn btn-gold" target="_blank">Launch Radio ↗</a>
+      <button class="btn btn-outline" onclick="showPanel('platform')">Explore Platform →</button>
+    </div>
+  </div>
+
+  <!-- Overview infographic -->
+  <div class="infographic-section">
+    <p class="infographic-label">System Overview — Infographic 1 of 3</p>
+    <div class="infographic-wrapper">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/stashbox-radio-infographic-overview.png"
+           alt="Stashbox Radio Visual Commerce Ecosystem Overview"
+           loading="lazy">
+    </div>
+  </div>
+
+  <!-- Stats strip -->
+  <div style="max-width:1200px;margin:0 auto 4rem;padding:0 2rem;">
+    <div class="overview-grid">
+      <div class="overview-stat">
+        <div class="stat-num" style="color:var(--rasta-gold)">110+</div>
+        <div class="stat-label">Tracks in the Library</div>
+      </div>
+      <div class="overview-stat">
+        <div class="stat-num" style="color:var(--rasta-green)">10+</div>
+        <div class="stat-label">Live Performance Metrics</div>
+      </div>
+      <div class="overview-stat">
+        <div class="stat-num" style="color:var(--rasta-red)">∞</div>
+        <div class="stat-label">Revenue Paths Per Song</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-logos">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+      <div class="footer-divider"></div>
+      <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="by Elettro"
+           onerror="this.style.display='none'">
+    </div>
+    <p class="footer-tagline">
+      Built by <a href="https://stashbox.com/radio-admin/dev/" target="_blank">Stashbox</a> &nbsp;·&nbsp; Produced by Elettro
+    </p>
+  </footer>
+</section>
+
+<!-- ══════════════════════════════════
+     PANEL 2 — PLATFORM
+══════════════════════════════════ -->
+<section id="panel-platform" class="panel">
+
+  <div class="platform-hero">
+    <p class="eyebrow">The Technical Foundation</p>
+    <h2>Four Pillars.<br>One Owned Platform.</h2>
+    <p>Stashbox Radio is not a streaming service. It's a private-label music and commerce ecosystem built on AWS infrastructure — giving brands full control over sound, visuals, ads, and data.</p>
+  </div>
+
+  <div style="max-width:1200px;margin:0 auto;padding:0 2rem;">
+    <div class="pillars">
+      <div class="pillar red">
+        <p class="pillar-tag">01 — Content</p>
+        <h3>Full-Scale Song CMS</h3>
+        <p>Every track has a dedicated profile: metadata, genre, mood, visibility, audio URL, artwork, and linked video. Centralized management with granular filtering by artist, album, mood, and genre.</p>
+        <ul class="feature-list">
+          <li>Reggae, Rock, Soul, Funk, Blues, Calypso, Electronic</li>
+          <li>Browser-based RDS Integration (AWS)</li>
+          <li>Granular mood tagging (Chill, Energetic, Spiritual)</li>
+        </ul>
+      </div>
+      <div class="pillar gold">
+        <p class="pillar-tag">02 — Visuals</p>
+        <h3>Visual Experience Controller</h3>
+        <p>Beyond static artwork. The VEC pulls from curated Visual Library Folders to create a dynamic moving slideshow while each song plays — lifestyle clips, performance footage, or brand visuals.</p>
+        <ul class="feature-list">
+          <li>Approved media folders per track or brand</li>
+          <li>Music-video quality without full production cost</li>
+          <li>Randomized "visual recipes" per brand category</li>
+        </ul>
+      </div>
+      <div class="pillar green">
+        <p class="pillar-tag">03 — Commerce</p>
+        <h3>Integrated Commerce & Ad Engine</h3>
+        <p>Every song page is a commercial storefront. Song-specific Shopify product links appear directly in the player. Automated merch fallbacks ensure no revenue opportunity is ever missed.</p>
+        <ul class="feature-list">
+          <li>Direct Shopify product placement per track</li>
+          <li>YouTube-style ad inventory (30–90 second spots)</li>
+          <li>Customizable skip-logic and ad frequency controls</li>
+        </ul>
+      </div>
+      <div class="pillar white">
+        <p class="pillar-tag">04 — Analytics</p>
+        <h3>Owned Data & Performance</h3>
+        <p>Close the attribution loop. Track plays, likes, shares, skips, and ad engagement. See exactly which songs drive product clicks and purchases. Your data, never shared with streaming giants.</p>
+        <ul class="feature-list">
+          <li>10+ key performance metrics per song</li>
+          <li>Ad click-through, skip rate, "Learn More" engagement</li>
+          <li>Direct commerce attribution from stream to purchase</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Both secondary infographics side by side -->
+  <div class="section-label" style="margin-top:3rem;">Platform Architecture — Detailed Views</div>
+  <div style="max-width:1200px;margin:0 auto;padding:0 2rem 4rem;">
+    <div class="infographic-pair">
+      <div class="infographic-wrapper">
+        <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/Stashbox-Radio-infographic2-Brand_Music_Commerce_Ecosystem_Platform%20(1).png"
+             alt="Brand Music Commerce Ecosystem Platform"
+             loading="lazy">
+      </div>
+      <div class="infographic-wrapper">
+        <img src="https://stashbox.com/radio/infographics/Building_Profitable_Music_Islands.png"
+             alt="Building Profitable Music Islands"
+             loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-logos">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+      <div class="footer-divider"></div>
+      <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="by Elettro" onerror="this.style.display='none'">
+    </div>
+    <p class="footer-tagline">Built by <a href="https://stashbox.com/radio-admin/dev/" target="_blank">Stashbox</a> &nbsp;·&nbsp; Produced by Elettro</p>
+  </footer>
+</section>
+
+<!-- ══════════════════════════════════
+     PANEL 3 — FOR BRANDS
+══════════════════════════════════ -->
+<section id="panel-brands" class="panel">
+
+  <div class="brands-hero">
+    <p class="eyebrow">For Artists &amp; Advertising Brands</p>
+    <h2 class="brands-headline">Your music.<br><em>Your platform.</em><br>Your data.</h2>
+    <p class="brands-sub">Stashbox Radio gives large artists and brands the infrastructure to own a music-commerce experience — instead of renting space on someone else's platform.</p>
+  </div>
+
+  <!-- Use cases grid -->
+  <div style="max-width:1100px;margin:0 auto;padding:0 2rem;">
+    <div class="use-cases">
+      <div class="use-case">
+        <div class="uc-icon">🏨</div>
+        <div class="uc-name">Resorts &amp; Hotels</div>
+        <p class="uc-desc">Create a unique destination sound used in lobbies, pools, restaurants, and events. Reusable music assets for videos and social content.</p>
+      </div>
+      <div class="use-case">
+        <div class="uc-icon">🍺</div>
+        <div class="uc-name">Restaurants &amp; Venues</div>
+        <p class="uc-desc">Custom songs for menu items, happy hours, and seasonal promos. Live entertainment that matches the venue vibe. Short-form social hooks.</p>
+      </div>
+      <div class="use-case">
+        <div class="uc-icon">📦</div>
+        <div class="uc-name">Product Brands</div>
+        <p class="uc-desc">Campaign music packages for product launches, seasonal promos, and ads. Song series tied to specific products with consistent voice and CTA.</p>
+      </div>
+      <div class="use-case">
+        <div class="uc-icon">🎪</div>
+        <div class="uc-name">Events &amp; Festivals</div>
+        <p class="uc-desc">Walk-on songs, opening themes, sponsor tracks, award music. Post-event assets reused in recap reels and sponsor thank-you videos.</p>
+      </div>
+      <div class="use-case">
+        <div class="uc-icon">🌊</div>
+        <div class="uc-name">Tourism &amp; Cities</div>
+        <p class="uc-desc">Destination storytelling with custom music that names exact places, landmarks, slogans. Shareable audio/video assets for tourism boards.</p>
+      </div>
+      <div class="use-case">
+        <div class="uc-icon">🎬</div>
+        <div class="uc-name">Artists &amp; Creators</div>
+        <p class="uc-desc">Original music for video content. Release-ready production support. Branded music for sponsorships and recurring content formats.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison table -->
+  <div class="compare-table">
+    <div class="rasta-line" style="margin:4rem 0 3rem;opacity:0.3;"></div>
+    <h3>Stashbox Radio vs. Giant Streaming Platforms</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Giant Streaming Platforms</th>
+          <th class="highlight">Stashbox Radio "Islands"</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Control</td>
+          <td>Rented attention in a shared warehouse</td>
+          <td class="highlight">Complete ownership of the tool and context</td>
+        </tr>
+        <tr>
+          <td>Visuals</td>
+          <td class="cross">Static JPG artwork for 3–5 minutes</td>
+          <td class="highlight check">Dynamic VEC moving slideshows + video</td>
+        </tr>
+        <tr>
+          <td>Monetization</td>
+          <td class="cross">Passive volume-based payouts</td>
+          <td class="highlight check">Direct product placement + custom ad engine</td>
+        </tr>
+        <tr>
+          <td>Commerce</td>
+          <td class="cross">None</td>
+          <td class="highlight check">Song-specific Shopify storefront per track</td>
+        </tr>
+        <tr>
+          <td>Your Data</td>
+          <td class="cross">Owned by the platform</td>
+          <td class="highlight check">10+ owned metrics, full attribution</td>
+        </tr>
+        <tr>
+          <td>Ad Inventory</td>
+          <td class="cross">Platform-controlled</td>
+          <td class="highlight check">Your own YouTube-style ad engine</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <div class="footer-logos">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+      <div class="footer-divider"></div>
+      <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="by Elettro" onerror="this.style.display='none'">
+    </div>
+    <p class="footer-tagline">Built by <a href="https://stashbox.com/radio-admin/dev/" target="_blank">Stashbox</a> &nbsp;·&nbsp; Produced by Elettro</p>
+  </footer>
+</section>
+
+<!-- ══════════════════════════════════
+     PANEL 4 — PODCAST
+══════════════════════════════════ -->
+<section id="panel-podcast" class="panel">
+
+  <div class="podcast-hero">
+    <p class="eyebrow">Audio Deep Dives</p>
+    <h2>Hear the Story</h2>
+    <p>Two podcast episodes exploring how Stashbox Radio replaces passive streaming with independent, branded Music Islands — available in English and German.</p>
+  </div>
+
+  <div class="podcast-cards">
+
+    <div class="podcast-card">
+      <div class="pod-meta">
+        <div class="pod-flag">🇺🇸</div>
+        <div class="pod-info">
+          <h3>Replacing Streaming with Independent Music Islands</h3>
+          <span>English &nbsp;·&nbsp; Episode 01 &nbsp;·&nbsp; Stashbox Radio</span>
+        </div>
+      </div>
+      <p class="pod-desc">
+        Why renting your audience on Spotify or Apple Music is a losing game — and how independent artists and brands can build their own streaming ecosystems with full commerce integration, owned data, and real monetization.
+      </p>
+      <audio controls preload="none">
+        <source src="https://www.dropbox.com/scl/fi/3ihy5z59pxc7c0j27ta3n/Stashbox-Radio-pod1-Replacing_Streaming_with_Independent_Music_Islands.m4a?rlkey=bhuegy75lle7cjawnpqf09ao5&st=uptilq2m&dl=1" type="audio/mp4">
+        Your browser does not support the audio element.
+      </audio>
+      <a class="pod-link" href="https://www.dropbox.com/scl/fi/3ihy5z59pxc7c0j27ta3n/Stashbox-Radio-pod1-Replacing_Streaming_with_Independent_Music_Islands.m4a?rlkey=bhuegy75lle7cjawnpqf09ao5&st=uptilq2m&dl=0" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Episode (EN)
+      </a>
+    </div>
+
+    <div class="podcast-card">
+      <div class="pod-meta">
+        <div class="pod-flag">🇩🇪</div>
+        <div class="pod-info">
+          <h3>Musik-Inseln statt Streaming-Ozean mit Stashbox Radio</h3>
+          <span>Deutsch &nbsp;·&nbsp; Episode 01 &nbsp;·&nbsp; Stashbox Radio</span>
+        </div>
+      </div>
+      <p class="pod-desc">
+        Warum das Mieten von Aufmerksamkeit auf großen Plattformen keine langfristige Strategie ist — und wie Künstler und Marken mit Stashbox Radio ihren eigenen Musik-Commerce-Kosmos aufbauen können.
+      </p>
+      <audio controls preload="none">
+        <source src="https://www.dropbox.com/scl/fi/lt2eyh9g4i8qthdy8c37d/Stashbox-radio-pod1-de-Musik-Inseln_statt_Streaming-Ozean_mit_Stashbox_Radio.m4a?rlkey=kcaf8xlyua8nybsdkty9yq7os&st=vhyegf5p&dl=1" type="audio/mp4">
+        Your browser does not support the audio element.
+      </audio>
+      <a class="pod-link" href="https://www.dropbox.com/scl/fi/lt2eyh9g4i8qthdy8c37d/Stashbox-radio-pod1-de-Musik-Inseln_statt_Streaming-Ozean_mit_Stashbox_Radio.m4a?rlkey=kcaf8xlyua8nybsdkty9yq7os&st=vhyegf5p&dl=0" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Episode herunterladen (DE)
+      </a>
+    </div>
+
+  </div>
+
+  <!-- Supporting infographic -->
+  <div class="podcast-infographic">
+    <p class="infographic-label">Referenced in the Episodes — Platform Map</p>
+    <div class="infographic-wrapper">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/stashbox-radio-infographic-overview.png"
+           alt="Platform Overview"
+           loading="lazy">
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-logos">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+      <div class="footer-divider"></div>
+      <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="by Elettro" onerror="this.style.display='none'">
+    </div>
+    <p class="footer-tagline">Built by <a href="https://stashbox.com/radio-admin/dev/" target="_blank">Stashbox</a> &nbsp;·&nbsp; Produced by Elettro</p>
+  </footer>
+</section>
+
+<!-- ══════════════════════════════════
+     PANEL 5 — MUSIC ISLAND
+══════════════════════════════════ -->
+<section id="panel-island" class="panel">
+
+  <div class="island-hero">
+    <p class="eyebrow">Beyond Streaming</p>
+    <h2>Build Your<br><span class="glow">Music Island</span></h2>
+    <p>Stop renting space in someone else's ocean. Stashbox Radio gives artists and brands a sovereign music-commerce platform — with owned visuals, owned ads, and owned revenue paths tied directly to every song.</p>
+    <a href="https://stashbox.com/radio-admin/dev/" class="btn btn-gold" target="_blank">Experience It Live ↗</a>
+  </div>
+
+  <!-- Full island infographic -->
+  <div class="island-full-graphic">
+    <p class="infographic-label">The Music Island Concept — Full System Map</p>
+    <div class="infographic-wrapper">
+      <img src="https://stashbox.com/radio/infographics/Building_Profitable_Music_Islands.png"
+           alt="Building Profitable Music Islands"
+           loading="lazy">
+    </div>
+  </div>
+
+  <!-- 6-block breakdown -->
+  <div class="section-label">What Makes a Profitable Music Island</div>
+  <div class="island-breakdown">
+    <div class="island-block">
+      <div class="island-block-icon icon-gold">🏪</div>
+      <h4>Song-Specific Commerce</h4>
+      <p>Every song acts as a commercial storefront. Listeners can shop the specific track or a general brand fallback — no revenue moment is ever missed.</p>
+    </div>
+    <div class="island-block">
+      <div class="island-block-icon icon-green">📈</div>
+      <h4>From Royalties to Revenue</h4>
+      <p>Replace low-volume streaming payouts with direct-to-fan paths: merch, sponsors, themed collections, and product placements triggered by audio context.</p>
+    </div>
+    <div class="island-block">
+      <div class="island-block-icon icon-red">🔄</div>
+      <h4>Automated Merch Fallbacks</h4>
+      <p>If a specific track lacks assigned merch, the system automatically surfaces general store products to ensure no listener leaves without a buy opportunity.</p>
+    </div>
+    <div class="island-block">
+      <div class="island-block-icon icon-gold">🎬</div>
+      <h4>Visual Experience Controller</h4>
+      <p>Replace static album art with a moving slideshow of approved brand visuals and clips. Music-video quality without a full production budget per song.</p>
+    </div>
+    <div class="island-block">
+      <div class="island-block-icon icon-red">📺</div>
+      <h4>Owned Ad &amp; Media Engine</h4>
+      <p>Run your own YouTube-style ad sequences with full control over frequency, duration (30–90 seconds), and skip logic. Your inventory, your rules.</p>
+    </div>
+    <div class="island-block">
+      <div class="island-block-icon icon-green">📊</div>
+      <h4>10+ Performance Metrics</h4>
+      <p>Close the attribution loop: track direct clicks from songs to product purchases and ad engagement. Know exactly what's working — song by song.</p>
+    </div>
+  </div>
+
+  <!-- Secondary infographics -->
+  <div style="max-width:1200px;margin:2rem auto 0;padding:0 2rem;">
+    <div class="infographic-pair">
+      <div class="infographic-wrapper">
+        <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/stashbox-radio-infographic-overview.png"
+             alt="System Overview"
+             loading="lazy">
+      </div>
+      <div class="infographic-wrapper">
+        <img src="https://raw.githubusercontent.com/elettro/stashbox/main/radio/infographics/Stashbox-Radio-infographic2-Brand_Music_Commerce_Ecosystem_Platform%20(1).png"
+             alt="Brand Ecosystem"
+             loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top:4rem;">
+    <div class="footer-logos">
+      <img src="https://raw.githubusercontent.com/elettro/stashbox/main/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox">
+      <div class="footer-divider"></div>
+      <img src="https://raw.githubusercontent.com/elettro/elettro/main/images/Elettro-logo-white.png" alt="by Elettro" onerror="this.style.display='none'">
+    </div>
+    <p class="footer-tagline">
+      <a href="https://stashbox.com/radio-admin/dev/" target="_blank">Listen. Watch. Shop. Share.</a> &nbsp;·&nbsp; Built by Stashbox &nbsp;·&nbsp; Produced by Elettro
+    </p>
+  </footer>
+</section>
+
+<script>
+  function showPanel(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+
+    const panel = document.getElementById('panel-' + id);
+    if (panel) panel.classList.add('active');
+
+    const tabs = document.querySelectorAll('.nav-tab');
+    const order = ['overview','platform','brands','podcast','island'];
+    const idx = order.indexOf(id);
+    if (tabs[idx]) tabs[idx].classList.add('active');
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
