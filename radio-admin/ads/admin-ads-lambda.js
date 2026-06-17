@@ -274,6 +274,24 @@ async function buildSafeSongInsert(input, columnMeta) {
   return { payload, fields, values };
 }
 
+async function buildSafeSongUpdate(input, columnMeta) {
+  const foreignKeys = await getSongForeignKeyMetadata();
+  const updateEntries = Object.entries(buildSongPayload(input, { partial: true }))
+    .filter(([field, value]) => value !== undefined && columnMeta.has(field) && field !== 'song_key')
+    .map(([field, value]) => [field, normalizeSongLookupInsertValue(field, value, foreignKeys)])
+    .map(([field, value]) => [field, normalizeDbValue(field, value, columnMeta.get(field))])
+    .filter(([, value]) => value !== undefined);
+
+  const payload = Object.fromEntries(updateEntries);
+  await validateSongForeignKeyValues(payload, foreignKeys);
+
+  return {
+    payload,
+    fields: updateEntries.map(([field]) => field),
+    values: updateEntries.map(([, value]) => value)
+  };
+}
+
 
 async function getSongForeignKeyMetadata() {
   const result = await client.query(
@@ -297,9 +315,52 @@ async function getSongForeignKeyMetadata() {
 }
 
 function normalizeSongLookupInsertValue(field, value, foreignKeys) {
-  if (value !== '') return value;
-  if (foreignKeys.has(field) || OPTIONAL_SONG_LOOKUP_FIELDS.has(field)) return null;
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return value;
+
+  const trimmedValue = value.trim();
+  if (foreignKeys.has(field) || OPTIONAL_SONG_LOOKUP_FIELDS.has(field)) {
+    return trimmedValue || null;
+  }
+
   return value;
+}
+
+function isAlbumNameForeignKey(field, foreignKey) {
+  return field === 'album_name'
+    && foreignKey?.foreign_table_schema === 'radio'
+    && foreignKey?.foreign_table_name === 'albums'
+    && foreignKey?.foreign_column_name === 'album_name';
+}
+
+async function canAutoCreateAlbum() {
+  const columns = await getTableColumnMeta('radio', 'albums');
+  for (const [columnName, column] of columns.entries()) {
+    if (columnName === 'album_name') continue;
+    const isNullable = String(column?.is_nullable || '').toUpperCase() === 'YES';
+    const hasDefault = column?.column_default !== null && column?.column_default !== undefined;
+    if (!isNullable && !hasDefault) return false;
+  }
+  return columns.has('album_name');
+}
+
+async function ensureAlbumExists(albumName) {
+  if (!albumName) return;
+  if (!(await canAutoCreateAlbum())) {
+    const error = new Error('Album does not exist. Create the album first or leave Album Name blank.');
+    error.statusCode = 400;
+    error.code = 'ALBUM_LOOKUP_REQUIRED';
+    error.field = 'album_name';
+    error.detail = error.message;
+    throw error;
+  }
+
+  await client.query(
+    `INSERT INTO radio.albums (album_name)
+     VALUES ($1)
+     ON CONFLICT (album_name) DO NOTHING`,
+    [albumName]
+  );
 }
 
 function quoteIdentifier(identifier) {
@@ -321,6 +382,11 @@ async function validateSongForeignKeyValues(payload, foreignKeys) {
     );
 
     if (!result.rowCount) {
+      if (isAlbumNameForeignKey(field, foreignKey)) {
+        await ensureAlbumExists(value);
+        continue;
+      }
+
       const error = new Error(`${field} value "${value}" does not exist in ${foreignKey.foreign_table_schema}.${foreignKey.foreign_table_name}.${foreignKey.foreign_column_name}.`);
       error.statusCode = 400;
       error.code = 'INVALID_LOOKUP_VALUE';
@@ -1167,7 +1233,7 @@ function buildSongPayload(input, { partial = false } = {}) {
 
 async function getTableColumnMeta(schemaName, tableName) {
   const result = await client.query(
-    `SELECT column_name, data_type, udt_name, is_nullable
+    `SELECT column_name, data_type, udt_name, is_nullable, column_default
      FROM information_schema.columns
      WHERE table_schema = $1 AND table_name = $2`,
     [schemaName, tableName]
@@ -1542,16 +1608,18 @@ async function updateAdminSong(event) {
   const cleanSpecificProductUrls = Object.prototype.hasOwnProperty.call(body, 'specific_product_urls')
     ? normalizeStringArray(body.specific_product_urls)
     : undefined;
-  const payload = buildSongPayload(body, { partial: true });
-  const columns = await getTableColumns('radio', 'songs');
-  const fields = Object.keys(payload).filter((field) => columns.has(field) && field !== 'song_key');
-  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
-
-  const values = fields.map((field) => payload[field]);
-  values.push(songKey);
-  const updatedAt = columns.has('updated_at') ? ', updated_at = now()' : '';
+  let payload = {};
+  let fields = [];
+  let values = [];
+  let columnMeta = new Map();
 
   try {
+    columnMeta = await getTableColumnMeta('radio', 'songs');
+    ({ payload, fields, values } = await buildSafeSongUpdate(body, columnMeta));
+    if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+
+    values.push(songKey);
+    const updatedAt = columnMeta.has('updated_at') ? ', updated_at = now()' : '';
     const result = await client.query(
       `UPDATE radio.songs
        SET ${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
@@ -1569,6 +1637,17 @@ async function updateAdminSong(event) {
       errorMessage: error.message,
       errorStack: error.stack
     });
+
+    if (error?.statusCode === 400) {
+      return response(400, {
+        success: false,
+        error: error.message || 'Invalid song lookup value.',
+        detail: error.detail || error.message,
+        code: error.code || undefined,
+        field: error.field
+      });
+    }
+
     throw error;
   }
 }
