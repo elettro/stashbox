@@ -768,6 +768,54 @@
   margin: 0.1rem 0 0;
 }
 
+.vec-modal-status-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  color: #fff;
+  font-weight: 950;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.vec-modal-status-toggle.is-on {
+  border-color: rgba(80, 210, 120, 0.62);
+  background: rgba(80, 210, 120, 0.18);
+  box-shadow: 0 0 0 4px rgba(80, 210, 120, 0.08);
+}
+
+.vec-modal-status-toggle.is-off {
+  border-color: rgba(255, 95, 111, 0.62);
+  background: rgba(255, 95, 111, 0.18);
+  box-shadow: 0 0 0 4px rgba(255, 95, 111, 0.08);
+}
+
+.vec-modal-status-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.vec-modal-status-dot {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+}
+
+.vec-modal-status-toggle.is-on .vec-modal-status-dot {
+  background: #50d278;
+  box-shadow: 0 0 14px rgba(80, 210, 120, 0.72);
+}
+
+.vec-modal-status-toggle.is-off .vec-modal-status-dot {
+  background: #ff5f6f;
+  box-shadow: 0 0 13px rgba(255, 95, 111, 0.58);
+}
+
 .vec-media-stage {
   display: grid;
   min-height: min(68vh, 36rem);

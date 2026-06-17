@@ -1005,6 +1005,42 @@
       return { folder, asset, sourceLabel: folder?.folder_name || 'Folder visual' };
     }
 
+
+    function isModalAssetIncluded(modalKey) {
+      const key = String(modalKey || '');
+      const { folder, asset } = findAssetByModalKey(key);
+      if (!asset) return false;
+      if (key.startsWith('song:')) return isSongAssetIncluded(state, asset);
+      if (key.startsWith('borrow:')) {
+        const rest = key.slice(7);
+        const [sourceSongKey] = rest.split(':');
+        return isBorrowedAssetIncluded(state, sourceSongKey, asset);
+      }
+      return folder ? isAssetIncluded(state, folder.id, asset) : false;
+    }
+
+    function toggleModalAssetInclusion() {
+      const key = String(state.previewModalAsset || '');
+      const { folder, asset } = findAssetByModalKey(key);
+      if (!asset) return;
+      if (key.startsWith('song:')) {
+        const inclusion = getSongAssetInclusionMap(state);
+        inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      } else if (key.startsWith('borrow:')) {
+        const rest = key.slice(7);
+        const [sourceSongKey] = rest.split(':');
+        const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+        inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      } else if (folder && state.selectedFolderIds.has(folder.id)) {
+        const inclusion = getAssetInclusionMap(state, folder.id);
+        inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      } else {
+        return;
+      }
+      markDirty();
+      renderDynamic();
+    }
+
     function renderMediaModal() {
       if (!elements.mediaModal) return;
       if (!state.previewModalAsset) {
@@ -1018,12 +1054,16 @@
       const title = asset.caption || asset.file_name || 'Visual asset preview';
       const url = clean(asset.public_url);
       const notes = clean(asset.notes);
+      const included = isModalAssetIncluded(state.previewModalAsset);
+      const statusLabel = included ? 'Included in recipe: ON' : 'Included in recipe: OFF';
+      const toggleLabel = included ? 'Exclude this visual from this VEC recipe' : 'Include this visual in this VEC recipe';
       const media = type === 'clip'
         ? `<video src="${escapeHtml(url)}" controls autoplay playsinline></video>`
         : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`;
       elements.mediaModal.classList.remove('hidden');
       elements.mediaModal.innerHTML = `<div class="vec-media-dialog">
         <div class="vec-media-dialog-head"><div><p class="eyebrow">${escapeHtml(sourceLabel || 'Visual asset')}</p><h2 id="vecMediaModalTitle">${escapeHtml(title)}</h2></div><button type="button" class="vec-media-close" data-vec-close-modal aria-label="Close preview">×</button></div>
+        <button type="button" class="vec-modal-status-toggle ${included ? 'is-on' : 'is-off'}" data-vec-modal-asset-toggle aria-pressed="${included}" aria-label="${escapeHtml(toggleLabel)}"><span class="vec-modal-status-dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</button>
         <div class="vec-media-stage">${media}</div>
         ${type === 'clip' && notes ? `<p class="vec-media-notes">${escapeHtml(notes)}</p>` : ''}
         <p class="vec-media-caption">${escapeHtml(asset.alt_text || asset.file_name || '')}</p>
@@ -1849,6 +1889,13 @@
     });
 
     elements.mediaModal.addEventListener('click', (event) => {
+      const modalToggle = event.target.closest('[data-vec-modal-asset-toggle]');
+      if (modalToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleModalAssetInclusion();
+        return;
+      }
       if (event.target === elements.mediaModal || event.target.closest('[data-vec-close-modal]')) {
         state.previewModalAsset = null;
         renderDynamic();
