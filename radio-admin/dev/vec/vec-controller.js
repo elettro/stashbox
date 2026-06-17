@@ -584,6 +584,14 @@
     return 'mixed';
   }
 
+  function getSongAssetToggleState(state, assets = []) {
+    if (!assets.length) return 'off';
+    const includedCount = assets.filter((asset) => isSongAssetIncluded(state, asset)).length;
+    if (includedCount === assets.length) return 'on';
+    if (includedCount === 0) return 'off';
+    return 'mixed';
+  }
+
   function getSelectedActiveAssetCounts(state, selectedFolders = getSelectedFolders(state)) {
     const songCounts = getActiveSongAssetCounts(state);
     return selectedFolders.reduce((totals, folder) => {
@@ -708,13 +716,21 @@
     const counts = getActiveSongAssetCounts(state);
     const assets = [...(state.songAssets || [])].sort((a, b) => latestTime(b) - latestTime(a));
     const message = state.songAssetUploadMessage || (state.songAssetsLoading ? 'Loading song-only assets...' : (state.songAssetsError || ''));
+    const toggleState = getSongAssetToggleState(state, assets);
     return `<div class="vec-song-assets-manager">
       <div class="vec-upload-row">
         <label class="vec-placeholder-button">Upload image<input class="sr-only" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" data-vec-song-upload="image" /></label>
         <label class="vec-placeholder-button">Upload video clip<input class="sr-only" type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" data-vec-song-upload="clip" /></label>
       </div>
       <div class="vec-song-dropzone" data-vec-song-dropzone>Drag and drop song-only images or clips here.</div>
-      <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+      <div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Song-only visual inclusion controls">
+        <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+        ${assets.length ? `<div class="vec-folder-toggle-all" aria-label="Toggle all song-only visuals">
+          <button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-song-assets-toggle="on" aria-pressed="${toggleState === 'on'}">All On</button>
+          <button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-song-assets-toggle="off" aria-pressed="${toggleState === 'off'}">All Off</button>
+          ${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}
+        </div>` : ''}
+      </div>
       ${state.songAssetUploading ? '<p class="vec-empty-state">Uploading song-only asset...</p>' : ''}
       ${message ? `<p class="vec-empty-state ${state.songAssetsError ? 'vec-error-state' : ''}">${escapeHtml(message)}</p>` : ''}
       ${assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderSongAssetCard(state, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips uploaded yet.</p>'}
@@ -1449,6 +1465,15 @@
       renderDynamic();
     }
 
+    function setSongAssetInclusion(includeAssets) {
+      const assets = state.songAssets || [];
+      if (!assets.length) return;
+      const inclusion = getSongAssetInclusionMap(state);
+      assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
+      markDirty();
+      renderDynamic();
+    }
+
 
 
     elements.songAssets?.addEventListener('change', (event) => {
@@ -1468,6 +1493,13 @@
     });
 
     elements.songAssets?.addEventListener('click', (event) => {
+      const toggleAll = event.target.closest('[data-vec-song-assets-toggle]');
+      if (toggleAll) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSongAssetInclusion(toggleAll.dataset.vecSongAssetsToggle === 'on');
+        return;
+      }
       const toggle = event.target.closest('[data-vec-song-asset-toggle]');
       if (toggle) {
         const asset = state.songAssets.find((item) => String(item.id) === String(toggle.dataset.vecSongAssetToggle));
