@@ -1036,13 +1036,73 @@ function buildSongPayload(input, { partial = false } = {}) {
 }
 
 async function getTableColumns(schemaName, tableName) {
+  const metadata = await getTableColumnMetadata(schemaName, tableName);
+  return new Set(metadata.keys());
+}
+
+async function getTableColumnMetadata(schemaName, tableName) {
   const result = await client.query(
-    `SELECT column_name
+    `SELECT column_name, data_type, udt_name
      FROM information_schema.columns
      WHERE table_schema = $1 AND table_name = $2`,
     [schemaName, tableName]
   );
-  return new Set(result.rows.map((row) => row.column_name));
+  return new Map(result.rows.map((row) => [row.column_name, row]));
+}
+
+function normalizeSongInsertValue(field, value, column = {}) {
+  if (value === undefined) return undefined;
+  if (value === '') return null;
+
+  const dataType = String(column.data_type || '').toLowerCase();
+  const udtName = String(column.udt_name || '').toLowerCase();
+  const isJson = dataType === 'json' || dataType === 'jsonb' || udtName === 'json' || udtName === 'jsonb';
+  const isArray = dataType === 'array' || udtName.startsWith('_');
+
+  if (field === 'specific_product_urls' || field === 'visual_assets') {
+    return JSON.stringify(field === 'visual_assets' ? normalizeVisualAssets(value) : normalizeStringArray(value));
+  }
+
+  if (field === 'mood_tags' || field === 'languages') {
+    const values = normalizeStringArray(value);
+    if (isJson) return JSON.stringify(values);
+    if (isArray) return values;
+    return values.join(field === 'mood_tags' ? ', ' : ',');
+  }
+
+  if (isJson && (Array.isArray(value) || (value && typeof value === 'object'))) {
+    return JSON.stringify(value);
+  }
+
+  if (!isArray && Array.isArray(value)) {
+    return value.join(', ');
+  }
+
+  return value;
+}
+
+function getSongInsertPlaceholder(field, index, column = {}) {
+  const dataType = String(column.data_type || '').toLowerCase();
+  const udtName = String(column.udt_name || '').toLowerCase();
+  return dataType === 'jsonb' || udtName === 'jsonb' ? `$${index}::jsonb` : `$${index}`;
+}
+
+function isDevRuntime() {
+  return [
+    process.env.STAGE,
+    process.env.NODE_ENV,
+    process.env.ENVIRONMENT,
+    process.env.AWS_LAMBDA_FUNCTION_NAME
+  ].some((value) => String(value || '').toLowerCase().includes('dev'));
+}
+
+function safeDbError(error) {
+  return {
+    message: error?.message || String(error || 'Unknown database error'),
+    code: error?.code || '',
+    detail: error?.detail || '',
+    hint: error?.hint || ''
+  };
 }
 
 async function findFirstTable(candidates) {
@@ -1383,21 +1443,75 @@ async function getAdminSong(event) {
 }
 
 async function createAdminSong(event) {
-  await ensureSongExperienceColumns();
-  const payload = buildSongPayload(parseBody(event));
-  const columns = await getTableColumns('radio', 'songs');
-  const fields = Object.keys(payload).filter((field) => columns.has(field));
-  if (!fields.includes('song_key')) return response(400, { success: false, error: 'song_key is required.' });
-  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+  const requestMethod = getMethod(event);
+  const requestPath = getPath(event);
+  const body = parseBody(event);
+  let payload = buildSongPayload(body);
+  payload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 
-  const values = fields.map((field) => payload[field]);
-  const result = await client.query(
-    `INSERT INTO radio.songs (${fields.join(', ')})
-     VALUES (${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
-     RETURNING *`,
-    values
-  );
-  return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+  console.info('[Stashbox Radio Admin Dev] song create request', {
+    method: requestMethod,
+    path: requestPath,
+    payloadKeys: Object.keys(body || {}),
+    normalized_song_key: payload.song_key || ''
+  });
+
+  try {
+    await ensureSongExperienceColumns();
+    const columnMetadata = await getTableColumnMetadata('radio', 'songs');
+    const fields = Object.keys(payload).filter((field) => columnMetadata.has(field));
+
+    if (!fields.includes('song_key') || !String(payload.song_key || '').trim()) {
+      return response(400, { success: false, error: 'song_key is required.' });
+    }
+
+    if (fields.length <= 1) {
+      return response(400, { success: false, error: 'No editable fields provided.' });
+    }
+
+    const values = fields.map((field) => normalizeSongInsertValue(field, payload[field], columnMetadata.get(field)));
+    const placeholders = fields.map((field, index) => getSongInsertPlaceholder(field, index + 1, columnMetadata.get(field)));
+
+    console.info('[Stashbox Radio Admin Dev] song create insert', {
+      normalized_song_key: payload.song_key,
+      insertFields: fields,
+      insertColumns: fields
+    });
+
+    const result = await client.query(
+      `INSERT INTO radio.songs (${fields.join(', ')})
+       VALUES (${placeholders.join(', ')})
+       RETURNING *`,
+      values
+    );
+    return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+  } catch (error) {
+    const dbError = safeDbError(error);
+    console.error('[Stashbox Radio Admin Dev] song create failed', {
+      method: requestMethod,
+      path: requestPath,
+      payloadKeys: Object.keys(body || {}),
+      normalized_song_key: payload.song_key || '',
+      insertFields: Object.keys(payload || {}),
+      errorMessage: dbError.message,
+      errorCode: dbError.code,
+      errorDetail: dbError.detail,
+      errorHint: dbError.hint
+    });
+
+    const errorBody = {
+      success: false,
+      error: isDevRuntime() ? `Song record save failed: ${dbError.message}` : 'Internal Server Error'
+    };
+
+    if (isDevRuntime()) {
+      errorBody.code = dbError.code || undefined;
+      errorBody.detail = dbError.detail || undefined;
+      errorBody.hint = dbError.hint || undefined;
+    }
+
+    return response(500, errorBody);
+  }
 }
 
 async function updateAdminSong(event) {
