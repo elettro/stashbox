@@ -2259,6 +2259,9 @@ async function createSongVisualAsset(event) {
   return response(201, { success: true, asset: normalizeSongVisualAsset(result.rows[0]) });
 }
 
+// VEC 2.0 Song-Only Assets boundary: this DELETE soft-hides exactly one row in
+// radio.song_visual_assets by asset id. It must not touch Visual Library folder
+// tables, recipes, player data, or S3 objects.
 async function deleteSongVisualAsset(event) {
   const assetId = getSongAssetId(event);
   if (!assetId) return response(400, { success: false, error: 'asset_id is required.' });
@@ -2450,9 +2453,7 @@ async function handleAdminVisualsFoldersRoute(event) {
   }
 
   if (method === 'DELETE' && id) {
-    const result = await client.query('DELETE FROM radio.visuals_folders WHERE id = $1', [id]);
-    if (!result.rowCount) return response(404, { success: false, error: 'Visuals folder not found.' });
-    return response(200, { success: true });
+    return response(405, { success: false, error: 'Legacy Visual Library delete actions are paused. Use VEC Song-Only Assets for song-level uploads.' });
   }
 
   return response(404, { success: false, error: 'Not found.' });
