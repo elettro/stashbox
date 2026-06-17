@@ -1032,14 +1032,14 @@
 }
 
 .vec-song-asset-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 13.75rem));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 16.5rem));
   justify-content: start;
   align-items: start;
 }
 
 .vec-song-asset-card {
   width: 100%;
-  max-width: 13.75rem;
+  max-width: 16.5rem;
   background:
     radial-gradient(circle at top left, rgba(240, 192, 76, 0.09), transparent 10rem),
     rgba(3, 5, 4, 0.48);
