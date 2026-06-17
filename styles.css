@@ -275,6 +275,17 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
 }
 
+.nav__links > li {
+  display: flex;
+  align-items: center;
+}
+
+.nav__links > li > a {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
 .nav__links a {
   font-family: var(--font-body);
   font-weight: 400;
@@ -1951,7 +1962,7 @@ h1, h2, h3, h4, h5, h6 {
 
   .nav__item--dropdown {
     flex: 0 0 auto;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .nav__dropdown-menu {
