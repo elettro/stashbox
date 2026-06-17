@@ -2397,13 +2397,51 @@ async function createVisualsFolderAsset(folderId, body) {
   const validation = normalizeFolderAssetPayload(body, folderResult.rows[0]);
   if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
   const p = validation.payload;
-  const result = await client.query(
-    `INSERT INTO radio.visuals_folder_assets (id, folder_id, folder_slug, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16)
-     RETURNING *`,
-    [p.id, p.folder_id, p.folder_slug, p.asset_type, p.file_name, p.s3_key, p.public_url, p.thumbnail_url, p.content_type, p.size_bytes, p.width, p.height, p.ratio_label, p.caption, p.alt_text, p.notes]
-  );
-  return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+  try {
+    console.log('Visuals folder asset insert attempt:', {
+      folder_id: p.folder_id,
+      folder_slug: p.folder_slug,
+      asset_type: p.asset_type,
+      file_name: p.file_name,
+      has_s3_key: Boolean(p.s3_key),
+      has_public_url: Boolean(p.public_url),
+      content_type: p.content_type,
+      size_bytes: p.size_bytes,
+      width: p.width,
+      height: p.height,
+      ratio_label: p.ratio_label
+    });
+    const result = await client.query(
+      `INSERT INTO radio.visuals_folder_assets (id, folder_id, folder_slug, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16)
+       RETURNING *`,
+      [p.id, p.folder_id, p.folder_slug, p.asset_type, p.file_name, p.s3_key, p.public_url, p.thumbnail_url, p.content_type, p.size_bytes, p.width, p.height, p.ratio_label, p.caption, p.alt_text, p.notes]
+    );
+    const asset = normalizeVisualsFolderAsset(result.rows[0]);
+    return { statusCode: 200, body: { success: true, folder_id: p.folder_id, asset } };
+  } catch (error) {
+    const safeDetails = {
+      code: error.code || '',
+      constraint: error.constraint || '',
+      table: error.table || '',
+      column: error.column || '',
+      folder_id: p.folder_id,
+      folder_slug: p.folder_slug,
+      asset_type: p.asset_type,
+      file_name: p.file_name,
+      has_s3_key: Boolean(p.s3_key),
+      has_public_url: Boolean(p.public_url),
+      content_type: p.content_type
+    };
+    console.error('Visuals folder asset insert failed:', safeDetails);
+    const columnMismatchCodes = new Set(['42703', '42601', '42883', '42804']);
+    let reason = 'database insert error';
+    if (!p.public_url) reason = 'missing public_url';
+    else if (!p.s3_key) reason = 'missing s3_key';
+    else if (columnMismatchCodes.has(error.code)) reason = 'column mismatch';
+    else if (error.constraint) reason = `constraint ${error.constraint}`;
+    return { statusCode: 500, body: { success: false, error: `Folder asset insert failed: ${reason}` } };
+  }
 }
 
 async function updateVisualsFolderAsset(folderId, assetId, body) {
@@ -2469,7 +2507,7 @@ async function handleAdminVisualsFoldersRoute(event) {
   const method = getMethod(event).toUpperCase();
   const segments = getRouteSegments(event);
   const foldersIndex = segments.lastIndexOf('folders');
-  const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
+  const id = event.pathParameters?.folder_id || event.pathParameters?.folderId || event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
 
   if (id && segments[foldersIndex + 2] === 'assets') {
     const assetId = segments[foldersIndex + 3] || '';
