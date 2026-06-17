@@ -466,7 +466,17 @@ small, .small, .meta, .caption, .microcopy,
   gap: 4px;
 }
 
+.site-nav__links > .site-nav__link,
+.site-nav__dropdown {
+  display: inline-flex;
+  align-items: center;
+}
+
 .site-nav__link {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+
   font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 500;
