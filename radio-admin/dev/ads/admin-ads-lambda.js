@@ -2287,6 +2287,7 @@ async function ensureVisualsFolderAssetsTable() {
     CREATE TABLE IF NOT EXISTS radio.visuals_folder_assets (
       id TEXT PRIMARY KEY,
       folder_id TEXT NOT NULL REFERENCES radio.visuals_folders(id) ON DELETE CASCADE,
+      folder_slug TEXT,
       asset_type TEXT NOT NULL DEFAULT 'image',
       file_name TEXT,
       s3_key TEXT,
@@ -2307,6 +2308,7 @@ async function ensureVisualsFolderAssetsTable() {
       CONSTRAINT visuals_folder_assets_status_check CHECK (status IN ('active', 'hidden'))
     )
   `);
+  await client.query('ALTER TABLE radio.visuals_folder_assets ADD COLUMN IF NOT EXISTS folder_slug TEXT');
   await client.query('CREATE INDEX IF NOT EXISTS visuals_folder_assets_folder_idx ON radio.visuals_folder_assets(folder_id)');
   await client.query('CREATE INDEX IF NOT EXISTS visuals_folder_assets_type_idx ON radio.visuals_folder_assets(asset_type)');
 }
@@ -2316,6 +2318,7 @@ function normalizeVisualsFolderAsset(row) {
   return {
     id: row.id,
     folder_id: row.folder_id,
+    folder_slug: row.folder_slug || '',
     type: mediaType,
     media_type: mediaType,
     asset_type: mediaType,
@@ -2345,7 +2348,7 @@ async function getVisualsFolderAssets(folderId) {
   if (!folder.rowCount) return null;
   const result = await client.query(
     `SELECT * FROM radio.visuals_folder_assets
-     WHERE folder_id = $1
+     WHERE folder_id = $1 AND status <> 'hidden'
      ORDER BY created_at ASC, file_name ASC NULLS LAST`,
     [folderId]
   );
@@ -2355,13 +2358,85 @@ async function getVisualsFolderAssets(folderId) {
   return { success: true, folder_id: folderId, images, clips, assets };
 }
 
+
+function normalizeFolderAssetPayload(body, folder) {
+  const assetType = body.asset_type === 'clip' || body.type === 'clip' ? 'clip' : 'image';
+  const fileName = String(body.file_name || body.filename || '').trim();
+  const publicUrl = String(body.public_url || body.url || '').trim();
+  const s3Key = String(body.s3_key || body.key || '').trim();
+  const contentType = String(body.content_type || body.contentType || '').trim().toLowerCase();
+  const extension = getFileExtension(fileName || s3Key || publicUrl);
+  const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
+  if (assetType === 'image' && !imageExtensions.has(extension)) return { error: 'Visual Library folder images must be JPG, JPEG, PNG, or WEBP.' };
+  if (assetType === 'clip' && extension !== 'mp4') return { error: 'Visual Library folder clips must be MP4 files.' };
+  if (!publicUrl || !s3Key) return { error: 'public_url and s3_key are required.' };
+  return { payload: {
+    id: String(body.id || crypto.randomUUID()),
+    folder_id: folder.id,
+    folder_slug: folder.folder_slug || '',
+    asset_type: assetType,
+    file_name: fileName || s3Key.split('/').pop() || '',
+    s3_key: s3Key,
+    public_url: publicUrl,
+    thumbnail_url: String(body.thumbnail_url || body.thumbnailUrl || publicUrl),
+    content_type: contentType || (assetType === 'clip' ? 'video/mp4' : 'image/' + (extension === 'jpg' ? 'jpeg' : extension)),
+    size_bytes: Number.isFinite(Number(body.size_bytes || body.sizeBytes)) ? Number(body.size_bytes || body.sizeBytes) : null,
+    width: Number.isFinite(Number(body.width)) ? Number(body.width) : null,
+    height: Number.isFinite(Number(body.height)) ? Number(body.height) : null,
+    ratio_label: String(body.ratio_label || body.ratioLabel || ''),
+    caption: String(body.caption || ''),
+    alt_text: String(body.alt_text || body.altText || ''),
+    notes: String(body.notes || '')
+  }};
+}
+
+async function createVisualsFolderAsset(folderId, body) {
+  await ensureVisualsFolderAssetsTable();
+  const folderResult = await client.query('SELECT id, folder_slug FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [folderId]);
+  if (!folderResult.rowCount) return { statusCode: 404, body: { success: false, error: 'Visuals folder not found.' } };
+  const validation = normalizeFolderAssetPayload(body, folderResult.rows[0]);
+  if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
+  const p = validation.payload;
+  const result = await client.query(
+    `INSERT INTO radio.visuals_folder_assets (id, folder_id, folder_slug, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16)
+     RETURNING *`,
+    [p.id, p.folder_id, p.folder_slug, p.asset_type, p.file_name, p.s3_key, p.public_url, p.thumbnail_url, p.content_type, p.size_bytes, p.width, p.height, p.ratio_label, p.caption, p.alt_text, p.notes]
+  );
+  return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+}
+
+async function updateVisualsFolderAsset(folderId, assetId, body) {
+  await ensureVisualsFolderAssetsTable();
+  const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
+  const result = await client.query(
+    `UPDATE radio.visuals_folder_assets
+     SET status = COALESCE($3, status), caption = COALESCE($4, caption), alt_text = COALESCE($5, alt_text), notes = COALESCE($6, notes), updated_at = now()
+     WHERE folder_id = $1 AND id = $2
+     RETURNING *`,
+    [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null]
+  );
+  if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+  return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+}
+
+async function hideVisualsFolderAsset(folderId, assetId) {
+  await ensureVisualsFolderAssetsTable();
+  const result = await client.query(
+    `UPDATE radio.visuals_folder_assets SET status = 'hidden', updated_at = now() WHERE folder_id = $1 AND id = $2 RETURNING id`,
+    [folderId, assetId]
+  );
+  if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+  return { statusCode: 200, body: { success: true, folder_id: folderId, asset_id: assetId, status: 'hidden' } };
+}
+
 async function getVisualsFolders() {
   await ensureVisualsFolderAssetsTable();
   const result = await client.query(`
     SELECT f.*,
-      COALESCE(COUNT(a.id), 0)::int AS asset_count,
-      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image'), 0)::int AS images_count,
-      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip'), 0)::int AS clips_count
+      COALESCE(COUNT(a.id) FILTER (WHERE a.status <> 'hidden'), 0)::int AS asset_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image' AND a.status <> 'hidden'), 0)::int AS images_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip' AND a.status <> 'hidden'), 0)::int AS clips_count
     FROM radio.visuals_folders f
     LEFT JOIN radio.visuals_folder_assets a ON a.folder_id = f.id
     GROUP BY f.id
@@ -2375,9 +2450,9 @@ async function getVisualsFolderById(id) {
   await ensureVisualsFolderAssetsTable();
   const result = await client.query(`
     SELECT f.*,
-      COALESCE(COUNT(a.id), 0)::int AS asset_count,
-      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image'), 0)::int AS images_count,
-      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip'), 0)::int AS clips_count
+      COALESCE(COUNT(a.id) FILTER (WHERE a.status <> 'hidden'), 0)::int AS asset_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'image' AND a.status <> 'hidden'), 0)::int AS images_count,
+      COALESCE(COUNT(a.id) FILTER (WHERE a.asset_type = 'clip' AND a.status <> 'hidden'), 0)::int AS clips_count
     FROM radio.visuals_folders f
     LEFT JOIN radio.visuals_folder_assets a ON a.folder_id = f.id
     WHERE f.id = $1
@@ -2396,10 +2471,25 @@ async function handleAdminVisualsFoldersRoute(event) {
   const foldersIndex = segments.lastIndexOf('folders');
   const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
 
-  if (method === 'GET' && id && segments[foldersIndex + 2] === 'assets') {
-    const payload = await getVisualsFolderAssets(id);
-    if (!payload) return response(404, { success: false, error: 'Visuals folder not found.' });
-    return response(200, payload);
+  if (id && segments[foldersIndex + 2] === 'assets') {
+    const assetId = segments[foldersIndex + 3] || '';
+    if (method === 'GET' && !assetId) {
+      const payload = await getVisualsFolderAssets(id);
+      if (!payload) return response(404, { success: false, error: 'Visuals folder not found.' });
+      return response(200, payload);
+    }
+    if (method === 'POST' && !assetId) {
+      const result = await createVisualsFolderAsset(id, parseBody(event));
+      return response(result.statusCode, result.body);
+    }
+    if (method === 'PUT' && assetId) {
+      const result = await updateVisualsFolderAsset(id, assetId, parseBody(event));
+      return response(result.statusCode, result.body);
+    }
+    if (method === 'DELETE' && assetId) {
+      const result = await hideVisualsFolderAsset(id, assetId);
+      return response(result.statusCode, result.body);
+    }
   }
 
   if (method === 'GET' && !id) return response(200, { success: true, folders: await getVisualsFolders() });
@@ -2467,6 +2557,12 @@ function uploadFolderForRequest(purpose, body) {
 
   const songKey = String(body.song_key || body.songKey || 'unsorted').trim();
   const artist = String(body.artist || body.artist_slug || body.artistSlug || 'stashbox').trim();
+  if (purpose === 'visual_folder_image' || purpose === 'visual_folder_clip') {
+    const rawSlug = String(body.folder_slug || body.folderSlug || 'unsorted').trim().toLowerCase();
+    const folderSlug = rawSlug.replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'unsorted';
+    return `radio-assets/visual-experience/dev/folders/${folderSlug}/${purpose === 'visual_folder_clip' ? 'clips' : 'images'}`;
+  }
+
   return uploadFolderForPurpose(purpose, artist, songKey);
 }
 
@@ -2486,8 +2582,8 @@ function validateUploadRequest(body) {
   const extension = getFileExtension(filename);
   const audioPurposes = new Set(['audio']);
   const artworkPurposes = new Set(['artwork']);
-  const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image']);
-  const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip']);
+  const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image', 'visual_folder_image']);
+  const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip', 'visual_folder_clip']);
   const adVideoPurposes = new Set(['ad_video']);
   const audioExtensions = new Set(['wav', 'mp3', 'm4a', 'flac', 'aiff', 'aif']);
   const audioMimeTypes = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/aiff', 'audio/x-aiff']);
@@ -2503,7 +2599,8 @@ function validateUploadRequest(body) {
   const validAudio = isUploadPurpose(purpose, audioPurposes) && (audioMimeTypes.has(contentType) || (isOctetStream && audioExtensions.has(extension)));
   const validArtwork = isUploadPurpose(purpose, artworkPurposes) && (artworkMimeTypes.has(contentType) || (isOctetStream && artworkExtensions.has(extension)));
   const validVisualImage = isUploadPurpose(purpose, visualImagePurposes) && ((contentType.startsWith('image/') && visualImageExtensions.has(extension)) || (isOctetStream && visualImageExtensions.has(extension)));
-  const validVisualClip = isUploadPurpose(purpose, visualClipPurposes) && ((contentType.startsWith('video/') && visualClipExtensions.has(extension)) || (isOctetStream && visualClipExtensions.has(extension)));
+  const validVisualFolderClip = purpose === 'visual_folder_clip' && extension === 'mp4' && (contentType === 'video/mp4' || isOctetStream);
+  const validVisualClip = isUploadPurpose(purpose, visualClipPurposes) && (purpose === 'visual_folder_clip' ? validVisualFolderClip : ((contentType.startsWith('video/') && visualClipExtensions.has(extension)) || (isOctetStream && visualClipExtensions.has(extension))));
   const validAdVideo = isUploadPurpose(purpose, adVideoPurposes) && (adVideoMimeTypes.has(contentType) || (isOctetStream && adVideoExtensions.has(extension)));
 
   if (validAudio || validArtwork || validVisualImage || validVisualClip || validAdVideo) {
