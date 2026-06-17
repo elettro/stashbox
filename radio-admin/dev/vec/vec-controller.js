@@ -695,7 +695,7 @@
     const url = clean(asset.public_url);
     const included = isSongAssetIncluded(state, asset);
     const media = !url ? `<span>${type === 'clip' ? 'CLIP' : 'IMG'}</span>` : (type === 'clip' ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>` : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
-    return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'}">
+    return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-song-preview-asset="${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
       <span class="vec-folder-asset-thumb">${media}</span>
       <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-song-asset-toggle="${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${included ? 'Exclude this song-only visual' : 'Include this song-only visual'}"><span class="sr-only">${included ? 'Included' : 'Excluded'}</span></button>
       <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
@@ -717,7 +717,7 @@
       <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
       ${state.songAssetUploading ? '<p class="vec-empty-state">Uploading song-only asset...</p>' : ''}
       ${message ? `<p class="vec-empty-state ${state.songAssetsError ? 'vec-error-state' : ''}">${escapeHtml(message)}</p>` : ''}
-      ${assets.length ? `<div class="vec-folder-asset-grid">${assets.map((asset) => renderSongAssetCard(state, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips uploaded yet.</p>'}
+      ${assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderSongAssetCard(state, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips uploaded yet.</p>'}
     </div>`;
   }
 
@@ -877,11 +877,17 @@
     }
 
     function findAssetByModalKey(key) {
-      const [folderId, ...assetParts] = String(key || '').split(':');
+      const modalKey = String(key || '');
+      if (modalKey.startsWith('song:')) {
+        const assetId = modalKey.slice(5);
+        const asset = state.songAssets.find((item) => String(item.id) === assetId);
+        return { folder: null, asset, sourceLabel: 'Song-only asset' };
+      }
+      const [folderId, ...assetParts] = modalKey.split(':');
       const assetId = assetParts.join(':');
       const folder = state.visualFolders.find((item) => item.id === folderId);
       const asset = getFolderAssetState(state, folderId).assets.find((item) => String(item.id) === assetId);
-      return { folder, asset };
+      return { folder, asset, sourceLabel: folder?.folder_name || 'Folder visual' };
     }
 
     function renderMediaModal() {
@@ -891,7 +897,7 @@
         elements.mediaModal.innerHTML = '';
         return;
       }
-      const { folder, asset } = findAssetByModalKey(state.previewModalAsset);
+      const { asset, sourceLabel } = findAssetByModalKey(state.previewModalAsset);
       if (!asset) { state.previewModalAsset = null; renderMediaModal(); return; }
       const type = normalizeAssetType(asset);
       const title = asset.caption || asset.file_name || 'Visual asset preview';
@@ -902,7 +908,7 @@
         : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`;
       elements.mediaModal.classList.remove('hidden');
       elements.mediaModal.innerHTML = `<div class="vec-media-dialog">
-        <div class="vec-media-dialog-head"><div><p class="eyebrow">${escapeHtml(folder?.folder_name || 'Folder visual')}</p><h2 id="vecMediaModalTitle">${escapeHtml(title)}</h2></div><button type="button" class="vec-media-close" data-vec-close-modal>Close</button></div>
+        <div class="vec-media-dialog-head"><div><p class="eyebrow">${escapeHtml(sourceLabel || 'Visual asset')}</p><h2 id="vecMediaModalTitle">${escapeHtml(title)}</h2></div><button type="button" class="vec-media-close" data-vec-close-modal aria-label="Close preview">×</button></div>
         <div class="vec-media-stage">${media}</div>
         ${type === 'clip' && notes ? `<p class="vec-media-notes">${escapeHtml(notes)}</p>` : ''}
         <p class="vec-media-caption">${escapeHtml(asset.alt_text || asset.file_name || '')}</p>
@@ -1452,6 +1458,15 @@
       input.value = '';
     });
 
+    elements.songAssets?.addEventListener('keydown', (event) => {
+      const previewButton = event.target.closest('[data-vec-song-preview-asset]');
+      if (previewButton && !event.target.closest('[data-vec-song-asset-toggle], [data-vec-song-asset-delete]') && (event.key === 'Enter' || event.key === ' ') && previewButton.getAttribute('aria-disabled') !== 'true') {
+        event.preventDefault();
+        state.previewModalAsset = `song:${previewButton.dataset.vecSongPreviewAsset}`;
+        renderDynamic();
+      }
+    });
+
     elements.songAssets?.addEventListener('click', (event) => {
       const toggle = event.target.closest('[data-vec-song-asset-toggle]');
       if (toggle) {
@@ -1464,7 +1479,17 @@
         return;
       }
       const deleteButton = event.target.closest('[data-vec-song-asset-delete]');
-      if (deleteButton) deleteSongAssetById(deleteButton.dataset.vecSongAssetDelete);
+      if (deleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteSongAssetById(deleteButton.dataset.vecSongAssetDelete);
+        return;
+      }
+      const previewButton = event.target.closest('[data-vec-song-preview-asset]');
+      if (previewButton && previewButton.getAttribute('aria-disabled') !== 'true') {
+        state.previewModalAsset = `song:${previewButton.dataset.vecSongPreviewAsset}`;
+        renderDynamic();
+      }
     });
 
     elements.songAssets?.addEventListener('dragover', (event) => {
@@ -1560,6 +1585,13 @@
 
     elements.mediaModal.addEventListener('click', (event) => {
       if (event.target === elements.mediaModal || event.target.closest('[data-vec-close-modal]')) {
+        state.previewModalAsset = null;
+        renderDynamic();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.previewModalAsset) {
         state.previewModalAsset = null;
         renderDynamic();
       }

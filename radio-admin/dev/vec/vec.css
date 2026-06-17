@@ -1030,3 +1030,71 @@
 .vec-song-asset-delete:focus-visible {
   background: rgba(255, 80, 80, 0.24);
 }
+
+.vec-song-asset-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 13.75rem));
+  justify-content: start;
+  align-items: start;
+}
+
+.vec-song-asset-card {
+  width: 100%;
+  max-width: 13.75rem;
+  background:
+    radial-gradient(circle at top left, rgba(240, 192, 76, 0.09), transparent 10rem),
+    rgba(3, 5, 4, 0.48);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.vec-song-asset-card:not(.is-disabled):hover,
+.vec-song-asset-card:not(.is-disabled):focus-visible {
+  border-color: rgba(240, 192, 76, 0.46);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  transform: translateY(-1px);
+}
+
+.vec-song-asset-card .vec-folder-asset-thumb {
+  aspect-ratio: 4 / 3;
+}
+
+.vec-song-asset-card .vec-folder-asset-thumb img,
+.vec-song-asset-card .vec-folder-asset-thumb video {
+  object-fit: cover;
+}
+
+.vec-song-asset-delete {
+  justify-self: start;
+  opacity: 0.78;
+}
+
+.vec-song-asset-delete:hover,
+.vec-song-asset-delete:focus-visible {
+  opacity: 1;
+}
+
+.vec-media-close {
+  display: inline-grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.vec-media-stage img,
+.vec-media-stage video {
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 520px) {
+  .vec-song-asset-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  }
+
+  .vec-song-asset-card {
+    max-width: none;
+  }
+}
