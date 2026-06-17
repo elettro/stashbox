@@ -114,10 +114,10 @@
 .vec-preview-window {
   position: relative;
   display: grid;
-  aspect-ratio: 16 / 9;
-  width: 100%;
-  min-height: clamp(16rem, 42vw, 30rem);
-  max-height: min(72vh, 34rem);
+  aspect-ratio: 1 / 1;
+  width: min(100%, 42rem);
+  min-height: 0;
+  justify-self: center;
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(240, 192, 76, 0.22);
@@ -319,8 +319,8 @@
 
 .vec-preview-stage {
   position: relative;
-  width: min(86vw, 34rem);
-  aspect-ratio: 16 / 9;
+  width: min(100%, 34rem);
+  aspect-ratio: 1 / 1;
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(240, 192, 76, 0.36);
@@ -356,12 +356,14 @@
   border-radius: 0;
   box-shadow: none;
   object-fit: contain;
+  object-position: center center;
   background: #020302;
 }
 
 .vec-preview-layer.is-artwork img,
 .vec-preview-layer .vec-artwork-fallback {
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
 }
 
 .vec-artwork-fallback {
