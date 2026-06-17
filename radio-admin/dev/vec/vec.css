@@ -1053,6 +1053,44 @@
   transform: translateY(-1px);
 }
 
+.vec-song-asset-card .vec-asset-status-light {
+  top: 0.42rem;
+  right: 0.42rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vec-song-asset-card .vec-asset-status-light::before {
+  content: '';
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 999px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.vec-song-asset-card .vec-asset-status-light.is-on::before {
+  background: #50d278;
+  box-shadow: 0 0 0 5px rgba(80, 210, 120, 0.15), 0 0 18px rgba(80, 210, 120, 0.76);
+}
+
+.vec-song-asset-card .vec-asset-status-light.is-off::before {
+  background: #ff5f6f;
+  box-shadow: 0 0 0 5px rgba(255, 95, 111, 0.14), 0 0 17px rgba(255, 95, 111, 0.62);
+}
+
+.vec-song-asset-card .vec-asset-status-light:hover::before,
+.vec-song-asset-card .vec-asset-status-light:focus-visible::before {
+  border-color: rgba(255, 255, 255, 0.78);
+  transform: scale(1.08);
+}
+
 .vec-song-asset-card .vec-folder-asset-thumb {
   aspect-ratio: 4 / 3;
 }
