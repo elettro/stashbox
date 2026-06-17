@@ -1924,6 +1924,10 @@ function sha256(value, encoding = 'hex') {
   return crypto.createHash('sha256').update(value).digest(encoding);
 }
 
+function encodeRfc3986QueryComponent(value) {
+  return encodeURIComponent(String(value)).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
 function slugifyPathSegment(value, fallback = 'stashbox') {
   const slug = String(value || '')
     .normalize('NFKD')
@@ -2514,8 +2518,8 @@ function validateUploadRequest(body) {
 
 async function createAdminUploadPresign(event) {
   const body = parseBody(event);
-  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
-  const region = process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || 'us-east-2';
+  const bucket = 'stashbox-media-656260749296-us-east-2-an';
+  const region = 'us-east-2';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
   const sessionToken = process.env.AWS_SESSION_TOKEN || '';
@@ -2542,17 +2546,18 @@ async function createAdminUploadPresign(event) {
   const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
   const signedHeaders = 'host';
   const credential = `${accessKeyId}/${credentialScope}`;
-  const query = new URLSearchParams({
-    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-    'X-Amz-Credential': credential,
-    'X-Amz-Date': amzDate,
-    'X-Amz-Expires': '900',
-    'X-Amz-SignedHeaders': signedHeaders
-  });
-  if (sessionToken) query.set('X-Amz-Security-Token', sessionToken);
-  const canonicalQuery = Array.from(query.entries())
+  const queryParams = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', credential],
+    ['X-Amz-Date', amzDate],
+    ['X-Amz-Expires', '900'],
+    ['X-Amz-SignedHeaders', signedHeaders]
+  ];
+  if (sessionToken) queryParams.push(['X-Amz-Security-Token', sessionToken]);
+  const canonicalQuery = queryParams
+    .map(([keyName, value]) => [encodeRfc3986QueryComponent(keyName), encodeRfc3986QueryComponent(value)])
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([keyName, value]) => `${encodeURIComponent(keyName)}=${encodeURIComponent(value).replace(/%2F/g, '%252F')}`)
+    .map(([keyName, value]) => `${keyName}=${value}`)
     .join('&');
   const canonicalUri = `/${key.split('/').map(encodeURIComponent).join('/')}`;
   const canonicalRequest = ['PUT', canonicalUri, canonicalQuery, `host:${host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
