@@ -158,6 +158,7 @@ const ADMIN_SONG_UPLOAD_METADATA_FIELDS = new Set([
 
 const JSON_SONG_FIELDS = new Set(['specific_product_urls', 'visual_assets']);
 const ARRAY_SONG_FIELDS = new Set(['mood_tags', 'languages']);
+const CREATE_OMIT_SONG_FIELDS = new Set(['visual_assets']);
 const RESPONSE_ONLY_SONG_FIELDS = new Set([
   'resolved_artwork_url',
   'like_count',
@@ -174,6 +175,9 @@ const RESPONSE_ONLY_SONG_FIELDS = new Set([
   'product_clicks'
 ]);
 const TEXTUAL_DB_TYPES = new Set(['character varying', 'character', 'text', 'citext']);
+const OPTIONAL_SONG_LOOKUP_FIELDS = new Set(['album_name', 'secondary_genre', 'internal_version_name', 'shop_url']);
+// FK-backed song create fields are discovered from information_schema at runtime.
+
 const NUMERIC_DB_TYPES = new Set(['smallint', 'integer', 'bigint', 'decimal', 'numeric', 'real', 'double precision']);
 const TIMESTAMP_DB_TYPES = new Set(['timestamp without time zone', 'timestamp with time zone', 'date', 'time without time zone', 'time with time zone']);
 
@@ -1184,14 +1188,13 @@ function isEditableSongInsertField(field, columnMetadata) {
   if (ADMIN_SONG_UPLOAD_METADATA_FIELDS.has(field) || RESPONSE_ONLY_SONG_FIELDS.has(field)) return false;
   if (!columnMetadata.has(field)) return false;
 
-  if (field === 'visual_assets') {
-    return isJsonColumn(columnMetadata.get(field));
-  }
+  if (CREATE_OMIT_SONG_FIELDS.has(field)) return false;
 
   return true;
 }
 
-function buildSafeSongInsert(input, columnMetadata) {
+async function buildSafeSongInsert(input, columnMetadata) {
+  const foreignKeys = await getSongForeignKeyMetadata();
   const payload = Object.fromEntries(
     Object.entries(buildSongPayload(input)).filter(([field, value]) => (
       value !== undefined
@@ -1199,14 +1202,75 @@ function buildSafeSongInsert(input, columnMetadata) {
     ))
   );
   const insertEntries = Object.entries(payload)
+    .map(([field, value]) => [field, normalizeSongLookupInsertValue(field, value, foreignKeys)])
     .map(([field, value]) => [field, normalizeSongInsertValue(field, value, columnMetadata.get(field))])
     .filter(([, value]) => value !== undefined);
 
+  const normalizedPayload = Object.fromEntries(insertEntries);
+  await validateSongForeignKeyValues(normalizedPayload, foreignKeys);
+
   return {
-    payload,
+    payload: normalizedPayload,
     fields: insertEntries.map(([field]) => field),
     values: insertEntries.map(([, value]) => value)
   };
+}
+
+
+async function getSongForeignKeyMetadata() {
+  const result = await client.query(
+    `SELECT
+       kcu.column_name,
+       ccu.table_schema AS foreign_table_schema,
+       ccu.table_name AS foreign_table_name,
+       ccu.column_name AS foreign_column_name
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu
+       ON tc.constraint_name = kcu.constraint_name
+      AND tc.table_schema = kcu.table_schema
+     JOIN information_schema.constraint_column_usage ccu
+       ON ccu.constraint_name = tc.constraint_name
+      AND ccu.table_schema = tc.table_schema
+     WHERE tc.constraint_type = 'FOREIGN KEY'
+       AND tc.table_schema = 'radio'
+       AND tc.table_name = 'songs'`
+  );
+  return new Map(result.rows.map((row) => [row.column_name, row]));
+}
+
+function normalizeSongLookupInsertValue(field, value, foreignKeys) {
+  if (value !== '') return value;
+  if (foreignKeys.has(field) || OPTIONAL_SONG_LOOKUP_FIELDS.has(field)) return null;
+  return value;
+}
+
+function quoteIdentifier(identifier) {
+  return `"${String(identifier).replace(/"/g, '""')}"`;
+}
+
+async function validateSongForeignKeyValues(payload, foreignKeys) {
+  for (const [field, foreignKey] of foreignKeys.entries()) {
+    if (!Object.prototype.hasOwnProperty.call(payload, field)) continue;
+    const value = payload[field];
+    if (value === null || value === undefined || value === '') continue;
+
+    const result = await client.query(
+      `SELECT 1
+       FROM ${quoteIdentifier(foreignKey.foreign_table_schema)}.${quoteIdentifier(foreignKey.foreign_table_name)}
+       WHERE ${quoteIdentifier(foreignKey.foreign_column_name)} = $1
+       LIMIT 1`,
+      [value]
+    );
+
+    if (!result.rowCount) {
+      const error = new Error(`${field} value "${value}" does not exist in ${foreignKey.foreign_table_schema}.${foreignKey.foreign_table_name}.${foreignKey.foreign_column_name}.`);
+      error.statusCode = 400;
+      error.code = 'INVALID_LOOKUP_VALUE';
+      error.field = field;
+      error.detail = `Choose an existing ${field} value before saving the song.`;
+      throw error;
+    }
+  }
 }
 
 function logAdminSongCreateFailure({ event, input, payload, fields, values, columnMetadata, error }) {
@@ -1609,7 +1673,7 @@ async function createAdminSong(event) {
   try {
     await ensureSongExperienceColumns();
     columnMetadata = await getTableColumnMetadata('radio', 'songs');
-    ({ payload, fields, values } = buildSafeSongInsert(body, columnMetadata));
+    ({ payload, fields, values } = await buildSafeSongInsert(body, columnMetadata));
 
     if (!fields.includes('song_key') || !String(payload.song_key || '').trim()) {
       return response(400, { success: false, error: 'song_key is required.' });
@@ -1641,11 +1705,22 @@ async function createAdminSong(event) {
     const dbError = safeDbError(error);
     logAdminSongCreateFailure({ event, input: body, payload, fields, values, columnMetadata, error });
 
+    if (error?.statusCode === 400) {
+      return response(400, {
+        success: false,
+        error: 'Invalid song lookup value.',
+        detail: error.detail || error.message,
+        code: error.code || undefined,
+        field: error.field,
+        fields
+      });
+    }
+
     if (isDevRuntime()) {
       return response(500, {
         success: false,
         error: 'Song record save failed.',
-        detail: dbError.message,
+        detail: dbError.detail || dbError.message,
         code: dbError.code || undefined,
         fields
       });

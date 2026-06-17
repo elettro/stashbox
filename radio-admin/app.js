@@ -3593,7 +3593,7 @@ async function createSelectedSong() {
       return;
     }
 
-    showMessage(error.message, 'error');
+    showMessage(`Song upload succeeded, but saving the song record failed: ${getApiErrorMessage(error.data, error.message, error.status)}`, 'error');
   } finally {
     setBusy(els.saveChangesButton, false);
   }
