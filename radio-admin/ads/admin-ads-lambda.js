@@ -138,6 +138,111 @@ const BOOLEAN_SONG_FIELDS = new Set([
   'shuffle_visuals'
 ]);
 
+
+const ADMIN_SONG_UPLOAD_METADATA_FIELDS = new Set([
+  'uploadUrl',
+  'upload_url',
+  'publicUrl',
+  'public_url',
+  'key',
+  'method',
+  'purpose',
+  'headers',
+  'contentType'
+]);
+
+const JSON_SONG_FIELDS = new Set(['specific_product_urls', 'visual_assets']);
+const ARRAY_SONG_FIELDS = new Set(['mood_tags', 'languages']);
+const TEXTUAL_DB_TYPES = new Set(['character varying', 'character', 'text', 'citext']);
+
+function isDevRequest(event) {
+  const path = getPath(event);
+  const stage = String(event.requestContext?.stage || process.env.STAGE || process.env.NODE_ENV || process.env.APP_ENV || '').toLowerCase();
+  return path.includes('/dev/') || stage === 'dev' || stage === 'development';
+}
+
+function safeDatabaseError(error) {
+  return {
+    code: error?.code,
+    message: error?.message,
+    detail: error?.detail,
+    hint: error?.hint,
+    stack: error?.stack
+  };
+}
+
+function isTextColumn(column) {
+  return TEXTUAL_DB_TYPES.has(column?.data_type) || String(column?.udt_name || '').startsWith('varchar');
+}
+
+function isJsonColumn(column) {
+  return column?.data_type === 'json' || column?.data_type === 'jsonb' || column?.udt_name === 'json' || column?.udt_name === 'jsonb';
+}
+
+function isArrayColumn(column) {
+  return column?.data_type === 'ARRAY' || String(column?.udt_name || '').startsWith('_');
+}
+
+function normalizeDbValue(field, value, column) {
+  if (value === undefined) return undefined;
+
+  if (value === '' && !isTextColumn(column)) {
+    return null;
+  }
+
+  if (value === null) return null;
+
+  if (JSON_SONG_FIELDS.has(field) || isJsonColumn(column)) {
+    if (field === 'specific_product_urls') return JSON.stringify(normalizeStringArray(value));
+    if (field === 'visual_assets') return JSON.stringify(normalizeVisualAssets(value));
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  }
+
+  if (ARRAY_SONG_FIELDS.has(field) || isArrayColumn(column)) {
+    const normalizedArray = normalizeStringArray(value);
+    return isArrayColumn(column) ? normalizedArray : JSON.stringify(normalizedArray);
+  }
+
+  return value;
+}
+
+function valuePlaceholder(field, column, index) {
+  const placeholder = `$${index + 1}`;
+  if (isJsonColumn(column)) return `${placeholder}::jsonb`;
+  if (isArrayColumn(column)) return placeholder;
+  return placeholder;
+}
+
+function buildSafeSongInsert(input, columnMeta) {
+  const payload = buildSongPayload(input);
+  const insertEntries = Object.entries(payload)
+    .filter(([field, value]) => value !== undefined && columnMeta.has(field))
+    .map(([field, value]) => [field, normalizeDbValue(field, value, columnMeta.get(field))])
+    .filter(([, value]) => value !== undefined);
+
+  const fields = insertEntries.map(([field]) => field);
+  const values = insertEntries.map(([, value]) => value);
+
+  return { payload, fields, values };
+}
+
+function logAdminSongCreateFailure({ event, input, payload, fields, columns, error }) {
+  console.error('[Stashbox Radio Admin] song create failed', {
+    routePath: getPath(event),
+    requestMethod: getMethod(event),
+    payloadKeys: Object.keys(input || {}).filter((key) => !ADMIN_SONG_UPLOAD_METADATA_FIELDS.has(key)),
+    song_key: payload?.song_key || input?.song_key,
+    insertFields: fields,
+    sqlColumnList: fields.join(', '),
+    knownSongColumns: Array.from(columns.keys()),
+    databaseErrorCode: error?.code,
+    databaseErrorMessage: error?.message,
+    databaseErrorDetail: error?.detail,
+    databaseErrorHint: error?.hint,
+    stackTrace: error?.stack
+  });
+}
+
 const DEFAULT_SONG_COLUMNS = `
   song_key,
   song_name,
@@ -955,14 +1060,18 @@ function buildSongPayload(input, { partial = false } = {}) {
   return payload;
 }
 
-async function getTableColumns(schemaName, tableName) {
+async function getTableColumnMeta(schemaName, tableName) {
   const result = await client.query(
-    `SELECT column_name
+    `SELECT column_name, data_type, udt_name, is_nullable
      FROM information_schema.columns
      WHERE table_schema = $1 AND table_name = $2`,
     [schemaName, tableName]
   );
-  return new Set(result.rows.map((row) => row.column_name));
+  return new Map(result.rows.map((row) => [row.column_name, row]));
+}
+
+async function getTableColumns(schemaName, tableName) {
+  return new Set((await getTableColumnMeta(schemaName, tableName)).keys());
 }
 
 async function findFirstTable(candidates) {
@@ -1266,20 +1375,43 @@ async function getAdminSong(event) {
 }
 
 async function createAdminSong(event) {
-  const payload = buildSongPayload(parseBody(event));
-  const columns = await getTableColumns('radio', 'songs');
-  const fields = Object.keys(payload).filter((field) => columns.has(field));
-  if (!fields.includes('song_key')) return response(400, { success: false, error: 'song_key is required.' });
-  if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
+  const input = parseBody(event);
+  const columnMeta = await getTableColumnMeta('radio', 'songs');
+  const { payload, fields, values } = buildSafeSongInsert(input, columnMeta);
 
-  const values = fields.map((field) => payload[field]);
-  const result = await client.query(
-    `INSERT INTO radio.songs (${fields.join(', ')})
-     VALUES (${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `$${index + 1}::jsonb` : `$${index + 1}`).join(', ')})
-     RETURNING *`,
-    values
-  );
-  return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+  if (!fields.includes('song_key') || !String(payload.song_key || '').trim()) {
+    return response(400, { success: false, error: 'song_key is required.' });
+  }
+
+  if (!fields.length) {
+    return response(400, { success: false, error: 'No editable fields provided.' });
+  }
+
+  const placeholders = fields.map((field, index) => valuePlaceholder(field, columnMeta.get(field), index));
+
+  try {
+    const result = await client.query(
+      `INSERT INTO radio.songs (${fields.join(', ')})
+       VALUES (${placeholders.join(', ')})
+       RETURNING *`,
+      values
+    );
+    return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+  } catch (error) {
+    logAdminSongCreateFailure({ event, input, payload, fields, columns: columnMeta, error });
+
+    if (isDevRequest(event)) {
+      const safeError = safeDatabaseError(error);
+      return response(500, {
+        success: false,
+        error: 'Song record save failed.',
+        detail: safeError.detail || safeError.message,
+        code: safeError.code
+      });
+    }
+
+    return response(500, { success: false, error: 'Internal Server Error' });
+  }
 }
 
 async function updateAdminSong(event) {
