@@ -158,6 +158,21 @@ const ADMIN_SONG_UPLOAD_METADATA_FIELDS = new Set([
 
 const JSON_SONG_FIELDS = new Set(['specific_product_urls', 'visual_assets']);
 const ARRAY_SONG_FIELDS = new Set(['mood_tags', 'languages']);
+const RESPONSE_ONLY_SONG_FIELDS = new Set([
+  'resolved_artwork_url',
+  'like_count',
+  'total_likes',
+  'share_count',
+  'total_shares',
+  'total_plays',
+  'full_play_count',
+  'partial_play_count',
+  'skip_count',
+  'total_seconds_played',
+  'share_link_visits',
+  'video_clicks',
+  'product_clicks'
+]);
 const TEXTUAL_DB_TYPES = new Set(['character varying', 'character', 'text', 'citext']);
 const NUMERIC_DB_TYPES = new Set(['smallint', 'integer', 'bigint', 'decimal', 'numeric', 'real', 'double precision']);
 const TIMESTAMP_DB_TYPES = new Set(['timestamp without time zone', 'timestamp with time zone', 'date', 'time without time zone', 'time with time zone']);
@@ -899,6 +914,13 @@ function normalizeStringArray(value) {
   }
 
   if (typeof value === 'string') {
+    try {
+      const parsedValue = JSON.parse(value);
+      if (Array.isArray(parsedValue)) return normalizeStringArray(parsedValue);
+    } catch (error) {
+      // Treat non-JSON strings as newline-delimited text input.
+    }
+
     return value
       .split(/\r?\n/)
       .map((item) => item.trim())
@@ -1109,11 +1131,21 @@ function isTimestampColumn(column) {
   return TIMESTAMP_DB_TYPES.has(String(column?.data_type || '').toLowerCase());
 }
 
+function normalizeJsonArrayFieldValue(field, value) {
+  if (field === 'visual_assets') return normalizeVisualAssets(value);
+  if (field === 'specific_product_urls' || field === 'mood_tags' || field === 'languages') return normalizeStringArray(value);
+  return Array.isArray(value) ? value : [];
+}
+
 function normalizeSongInsertValue(field, value, column = {}) {
   if (value === undefined) return undefined;
   if (value === null) return null;
 
-  if (value === '' && !isTextColumn(column)) return null;
+  if (value === '' && !isTextColumn(column)) {
+    if (isJsonColumn(column)) return '[]';
+    if (isArrayColumn(column)) return [];
+    return null;
+  }
 
   if (isBooleanColumn(column) || BOOLEAN_SONG_FIELDS.has(field)) {
     return value === '' ? null : normalizeBoolean(value);
@@ -1129,29 +1161,41 @@ function normalizeSongInsertValue(field, value, column = {}) {
     return value === '' ? null : value;
   }
 
-  if (JSON_SONG_FIELDS.has(field) || isJsonColumn(column)) {
-    if (value === '') return null;
-    if (field === 'specific_product_urls') return JSON.stringify(normalizeStringArray(value));
-    if (field === 'visual_assets') return JSON.stringify(normalizeVisualAssets(value));
+  if (isJsonColumn(column)) {
+    if (field === 'specific_product_urls' || field === 'visual_assets' || field === 'mood_tags' || field === 'languages') {
+      return JSON.stringify(normalizeJsonArrayFieldValue(field, value));
+    }
     return typeof value === 'string' ? value : JSON.stringify(value);
   }
 
-  if (ARRAY_SONG_FIELDS.has(field) || isArrayColumn(column)) {
-    if (value === '') return null;
-    const normalizedArray = normalizeStringArray(value);
-    return isArrayColumn(column) ? normalizedArray : JSON.stringify(normalizedArray);
+  if (isArrayColumn(column)) {
+    return normalizeStringArray(value);
+  }
+
+  if (JSON_SONG_FIELDS.has(field) || ARRAY_SONG_FIELDS.has(field)) {
+    return normalizeStringArray(value);
   }
 
   if (Array.isArray(value)) return value.join(', ');
   return value;
 }
 
+function isEditableSongInsertField(field, columnMetadata) {
+  if (ADMIN_SONG_UPLOAD_METADATA_FIELDS.has(field) || RESPONSE_ONLY_SONG_FIELDS.has(field)) return false;
+  if (!columnMetadata.has(field)) return false;
+
+  if (field === 'visual_assets') {
+    return isJsonColumn(columnMetadata.get(field));
+  }
+
+  return true;
+}
+
 function buildSafeSongInsert(input, columnMetadata) {
   const payload = Object.fromEntries(
     Object.entries(buildSongPayload(input)).filter(([field, value]) => (
       value !== undefined
-      && columnMetadata.has(field)
-      && !ADMIN_SONG_UPLOAD_METADATA_FIELDS.has(field)
+      && isEditableSongInsertField(field, columnMetadata)
     ))
   );
   const insertEntries = Object.entries(payload)
@@ -1186,7 +1230,9 @@ function logAdminSongCreateFailure({ event, input, payload, fields, values, colu
 function getSongInsertPlaceholder(field, index, column = {}) {
   const dataType = String(column.data_type || '').toLowerCase();
   const udtName = String(column.udt_name || '').toLowerCase();
-  return dataType === 'jsonb' || udtName === 'jsonb' ? `$${index}::jsonb` : `$${index}`;
+  if (dataType === 'jsonb' || udtName === 'jsonb') return `$${index}::jsonb`;
+  if (dataType === 'json' || udtName === 'json') return `$${index}::json`;
+  return `$${index}`;
 }
 
 function isDevRuntime() {
@@ -1590,7 +1636,7 @@ async function createAdminSong(event) {
        RETURNING *`,
       values
     );
-    return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+    return response(200, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
   } catch (error) {
     const dbError = safeDbError(error);
     logAdminSongCreateFailure({ event, input: body, payload, fields, values, columnMetadata, error });

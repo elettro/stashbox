@@ -882,21 +882,15 @@ function getApiErrorMessage(data, fallback, status) {
 
   const parsedBody = parseJsonMaybe(data.body);
 
-  if (typeof data.error === 'string' && data.error.trim()) {
-    return data.error;
-  }
-
-  if (typeof parsedBody?.error === 'string' && parsedBody.error.trim()) {
-    return parsedBody.error;
-  }
-
   const backendDetails = [
-    data.message,
     data.detail,
+    data.error,
+    data.message,
     data.details,
     data.field,
-    parsedBody?.message,
     parsedBody?.detail,
+    parsedBody?.error,
+    parsedBody?.message,
     parsedBody?.details,
     parsedBody?.field
   ]
@@ -4070,7 +4064,7 @@ async function createSelectedSong() {
       return;
     }
 
-    showMessage(`Song upload succeeded, but saving the song record failed: ${error.message}`, 'error');
+    showMessage(`Song upload succeeded, but saving the song record failed: ${getApiErrorMessage(error.data, error.message, error.status)}`, 'error');
   } finally {
     setBusy(els.saveChangesButton, false);
   }

@@ -153,6 +153,21 @@ const ADMIN_SONG_UPLOAD_METADATA_FIELDS = new Set([
 
 const JSON_SONG_FIELDS = new Set(['specific_product_urls', 'visual_assets']);
 const ARRAY_SONG_FIELDS = new Set(['mood_tags', 'languages']);
+const RESPONSE_ONLY_SONG_FIELDS = new Set([
+  'resolved_artwork_url',
+  'like_count',
+  'total_likes',
+  'share_count',
+  'total_shares',
+  'total_plays',
+  'full_play_count',
+  'partial_play_count',
+  'skip_count',
+  'total_seconds_played',
+  'share_link_visits',
+  'video_clicks',
+  'product_clicks'
+]);
 const TEXTUAL_DB_TYPES = new Set(['character varying', 'character', 'text', 'citext']);
 
 function isDevRequest(event) {
@@ -183,24 +198,36 @@ function isArrayColumn(column) {
   return column?.data_type === 'ARRAY' || String(column?.udt_name || '').startsWith('_');
 }
 
+function normalizeJsonArrayFieldValue(field, value) {
+  if (field === 'visual_assets') return normalizeVisualAssets(value);
+  if (field === 'specific_product_urls' || field === 'mood_tags' || field === 'languages') return normalizeStringArray(value);
+  return Array.isArray(value) ? value : [];
+}
+
 function normalizeDbValue(field, value, column) {
   if (value === undefined) return undefined;
 
   if (value === '' && !isTextColumn(column)) {
+    if (isJsonColumn(column)) return '[]';
+    if (isArrayColumn(column)) return [];
     return null;
   }
 
   if (value === null) return null;
 
-  if (JSON_SONG_FIELDS.has(field) || isJsonColumn(column)) {
-    if (field === 'specific_product_urls') return JSON.stringify(normalizeStringArray(value));
-    if (field === 'visual_assets') return JSON.stringify(normalizeVisualAssets(value));
+  if (isJsonColumn(column)) {
+    if (field === 'specific_product_urls' || field === 'visual_assets' || field === 'mood_tags' || field === 'languages') {
+      return JSON.stringify(normalizeJsonArrayFieldValue(field, value));
+    }
     return typeof value === 'string' ? value : JSON.stringify(value);
   }
 
-  if (ARRAY_SONG_FIELDS.has(field) || isArrayColumn(column)) {
-    const normalizedArray = normalizeStringArray(value);
-    return isArrayColumn(column) ? normalizedArray : JSON.stringify(normalizedArray);
+  if (isArrayColumn(column)) {
+    return normalizeStringArray(value);
+  }
+
+  if (JSON_SONG_FIELDS.has(field) || ARRAY_SONG_FIELDS.has(field)) {
+    return normalizeStringArray(value);
   }
 
   return value;
@@ -208,15 +235,30 @@ function normalizeDbValue(field, value, column) {
 
 function valuePlaceholder(field, column, index) {
   const placeholder = `$${index + 1}`;
-  if (isJsonColumn(column)) return `${placeholder}::jsonb`;
+  if (isJsonColumn(column)) {
+    return String(column?.data_type || '').toLowerCase() === 'json' || String(column?.udt_name || '').toLowerCase() === 'json'
+      ? `${placeholder}::json`
+      : `${placeholder}::jsonb`;
+  }
   if (isArrayColumn(column)) return placeholder;
   return placeholder;
+}
+
+function isEditableSongInsertField(field, columnMeta) {
+  if (ADMIN_SONG_UPLOAD_METADATA_FIELDS.has(field) || RESPONSE_ONLY_SONG_FIELDS.has(field)) return false;
+  if (!columnMeta.has(field)) return false;
+
+  if (field === 'visual_assets') {
+    return isJsonColumn(columnMeta.get(field));
+  }
+
+  return true;
 }
 
 function buildSafeSongInsert(input, columnMeta) {
   const payload = buildSongPayload(input);
   const insertEntries = Object.entries(payload)
-    .filter(([field, value]) => value !== undefined && columnMeta.has(field))
+    .filter(([field, value]) => value !== undefined && isEditableSongInsertField(field, columnMeta))
     .map(([field, value]) => [field, normalizeDbValue(field, value, columnMeta.get(field))])
     .filter(([, value]) => value !== undefined);
 
@@ -1396,7 +1438,7 @@ async function createAdminSong(event) {
        RETURNING *`,
       values
     );
-    return response(201, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
+    return response(200, { success: true, message: 'Song created', song: normalizeSongRow(result.rows[0]) });
   } catch (error) {
     logAdminSongCreateFailure({ event, input, payload, fields, columns: columnMeta, error });
 
