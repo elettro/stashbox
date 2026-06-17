@@ -322,6 +322,103 @@
     `;
   }
 
+
+  function getBorrowedInclusionMap(state, sourceSongKey) {
+    if (!state.borrowedAssetInclusionBySource) state.borrowedAssetInclusionBySource = new Map();
+    if (!state.borrowedAssetInclusionBySource.has(sourceSongKey)) state.borrowedAssetInclusionBySource.set(sourceSongKey, new Map());
+    return state.borrowedAssetInclusionBySource.get(sourceSongKey);
+  }
+
+  function initializeBorrowedAssetInclusion(state, sourceSongKey, assets = []) {
+    const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+    assets.forEach((asset) => { if (!inclusion.has(asset.id)) inclusion.set(asset.id, true); });
+  }
+
+  function isBorrowedAssetIncluded(state, sourceSongKey, asset) {
+    return getBorrowedInclusionMap(state, sourceSongKey).get(asset.id) !== false;
+  }
+
+  function getBorrowedAssetState(state, sourceSongKey) {
+    return state.borrowedAssetsBySource.get(sourceSongKey) || { loading: false, error: '', assets: [] };
+  }
+
+  function getActiveBorrowedAssetCounts(state) {
+    return [...(state.borrowedAssetsBySource || new Map()).entries()].reduce((counts, [sourceSongKey, assetState]) => {
+      (assetState.assets || []).forEach((asset) => {
+        if (clean(asset.status).toLowerCase() === 'hidden' || !isBorrowedAssetIncluded(state, sourceSongKey, asset)) return;
+        if (normalizeAssetType(asset) === 'clip') counts.clips += 1; else counts.images += 1;
+      });
+      return counts;
+    }, { images: 0, clips: 0 });
+  }
+
+  function getActiveBorrowedSongAssets(state) {
+    const visuals = [];
+    [...(state.borrowedAssetsBySource || new Map()).entries()].forEach(([sourceSongKey, assetState]) => {
+      const sourceSong = (state.songs || []).find((song) => getSongKey(song) === sourceSongKey);
+      const sourceTitle = sourceSong ? getSongTitle(sourceSong) : sourceSongKey;
+      (assetState.assets || []).forEach((asset) => {
+        const url = clean(asset.public_url);
+        if (!url || clean(asset.status).toLowerCase() === 'hidden' || !isBorrowedAssetIncluded(state, sourceSongKey, asset)) return;
+        const type = normalizeAssetType(asset);
+        const title = asset.caption || asset.file_name || 'Borrowed song visual';
+        visuals.push({
+          type, folderId: `borrowed:${sourceSongKey}`, assetId: asset.id, folderName: `Borrowed from ${sourceTitle}`,
+          label: title, url, alt: asset.alt_text || title, durationSeconds: type === 'clip' ? 6 : 4,
+          created_at: asset.created_at || '', updated_at: asset.updated_at || '', uploaded_at: asset.uploaded_at || '',
+        });
+      });
+    });
+    return visuals;
+  }
+
+  function getBorrowedAssetToggleState(state, sourceSongKey, assets = []) {
+    if (!assets.length) return 'off';
+    const includedCount = assets.filter((asset) => isBorrowedAssetIncluded(state, sourceSongKey, asset)).length;
+    if (includedCount === assets.length) return 'on';
+    if (includedCount === 0) return 'off';
+    return 'mixed';
+  }
+
+  function renderBorrowedAssetCard(state, sourceSongKey, asset) {
+    const type = normalizeAssetType(asset);
+    const title = asset.caption || asset.file_name || 'Borrowed song visual';
+    const url = clean(asset.public_url);
+    const included = isBorrowedAssetIncluded(state, sourceSongKey, asset);
+    const media = !url ? `<span>${type === 'clip' ? 'CLIP' : 'IMG'}</span>` : (type === 'clip' ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>` : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
+    return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-borrow-preview-asset="${escapeHtml(sourceSongKey)}:${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
+      <span class="vec-folder-asset-thumb">${media}</span>
+      <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-borrow-asset-toggle="${escapeHtml(sourceSongKey)}:${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${included ? 'Exclude this borrowed visual' : 'Include this borrowed visual'}"><span class="sr-only">${included ? 'Included' : 'Excluded'}</span></button>
+      <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
+    </div>`;
+  }
+
+  function renderBorrowedSongAssets(state) {
+    if (!state.songContext) return '<p class="vec-empty-state">Select a current song before borrowing visuals.</p>';
+    const currentKey = state.songKey || '';
+    const options = (state.songs || []).filter((song) => getSongKey(song)).map((song) => {
+      const songKey = getSongKey(song);
+      const disabled = songKey === currentKey;
+      const artist = clean(song.artist);
+      const label = `${getSongTitle(song)}${artist ? ` — ${artist}` : ''}${disabled ? ' (current song)' : ''}`;
+      return `<option value="${escapeHtml(songKey)}"${state.borrowedSourceSongKey === songKey ? ' selected' : ''}${disabled ? ' disabled' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+    const sourceKey = state.borrowedSourceSongKey;
+    const assetState = sourceKey ? getBorrowedAssetState(state, sourceKey) : { assets: [] };
+    const assets = [...(assetState.assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
+    const counts = assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 });
+    const toggleState = getBorrowedAssetToggleState(state, sourceKey, assets);
+    return `<div class="vec-song-assets-manager vec-borrow-assets-manager">
+      <label class="vec-field"><span>Choose Source Song</span><select class="vec-select" data-vec-borrow-source-song><option value="">Choose Source Song</option>${options}</select></label>
+      ${!sourceKey ? '<p class="vec-empty-state">Choose a different source song to load its song-only assets.</p>' : ''}
+      ${sourceKey === currentKey ? '<p class="vec-empty-state">Current song assets are already managed under Song-Only Assets.</p>' : ''}
+      ${assetState.loading ? '<p class="vec-empty-state">Loading borrowed source assets...</p>' : ''}
+      ${assetState.error ? `<p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p>` : ''}
+      ${sourceKey && !assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls"><p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
+      ${sourceKey && !assetState.loading && !assetState.error ? (assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderBorrowedAssetCard(state, sourceKey, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips found for this source song.</p>') : ''}
+    </div>`;
+  }
+
   function getSelectedFolders(state) {
     const selectedIds = state.selectedFolderIds || new Set();
     return (state.visualFolders || []).filter((folder) => selectedIds.has(folder.id));
@@ -448,7 +545,7 @@
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
     const artworkUrl = getArtworkUrl(state.songContext);
     const selectedFolders = getSelectedFolders(state);
-    const activeAssets = [...getActiveSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];
+    const activeAssets = [...getActiveSongAssets(state), ...getActiveBorrowedSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];
     const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };
     const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);
     const sequence = [];
@@ -594,15 +691,16 @@
 
   function getSelectedActiveAssetCounts(state, selectedFolders = getSelectedFolders(state)) {
     const songCounts = getActiveSongAssetCounts(state);
+    const borrowedCounts = getActiveBorrowedAssetCounts(state);
     return selectedFolders.reduce((totals, folder) => {
       const counts = getActiveAssetCounts(state, folder);
       totals.images += counts.images;
       totals.clips += counts.clips;
       return totals;
-    }, { images: songCounts.images, clips: songCounts.clips });
+    }, { images: songCounts.images + borrowedCounts.images, clips: songCounts.clips + borrowedCounts.clips });
   }
 
-  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}) {
+  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}, borrowedCounts = { images: 0, clips: 0 }) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
@@ -632,6 +730,7 @@
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
         <div class="vec-summary-card"><strong>Active image count</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card"><strong>Active clip count</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
+        <div class="vec-summary-card"><strong>Borrowed assets</strong><span>${borrowedCounts.images || 0} images · ${borrowedCounts.clips || 0} clips</span></div>
         <div class="vec-summary-card"><strong>Preview sequence count</strong><span>${sequenceTotal} visual${sequenceTotal === 1 ? '' : 's'}: ${escapeHtml(sequenceLabel)}</span></div>
         <div class="vec-summary-card"><strong>Order mode</strong><span>${escapeHtml(orderModeLabel)}</span></div>
         <div class="vec-summary-card"><strong>Max same folder in row</strong><span>${escapeHtml(maxSameFolderLabel)}</span></div>
@@ -772,7 +871,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -786,7 +885,7 @@
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Images and clips uploaded directly for this selected song only.</p></div></div><div data-vec-song-assets></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Select reusable Visual Library folders to include in this song’s local VEC recipe draft.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
-      <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><article class="vec-placeholder-panel vec-next-phase-panel"><div><h3>Next phase placeholder</h3><p>Borrowed song visuals will be added in the next phase.</p><p class="vec-microcopy" data-vec-borrow-note aria-live="polite"></p></div><button type="button" class="vec-placeholder-button" data-vec-borrow-placeholder>Choose Source Song</button></article></section>
+      <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
@@ -807,8 +906,7 @@
       duration: container.querySelector('[data-vec-duration]'),
       mediaModal: container.querySelector('[data-vec-media-modal]'),
       songAssets: container.querySelector('[data-vec-song-assets]'),
-      borrowPlaceholder: container.querySelector('[data-vec-borrow-placeholder]'),
-      borrowNote: container.querySelector('[data-vec-borrow-note]'),
+      borrowAssets: container.querySelector('[data-vec-borrow-assets]'),
       orderMode: container.querySelector('[data-vec-order-mode]'),
       maxSameFolder: container.querySelector('[data-vec-max-same-folder]'),
       maxFolderAssets: container.querySelector('[data-vec-max-folder-assets]'),
@@ -819,13 +917,6 @@
     };
 
     // Song-specific VEC recipe draft state stays in this dev-only controller; /radio/dev/ does not consume it yet.
-    function showPlaceholderNote(target, message) {
-      if (!target) return;
-      target.textContent = message;
-    }
-
-    elements.borrowPlaceholder?.addEventListener('click', () => showPlaceholderNote(elements.borrowNote, 'Borrow-from-song tools are coming in the next phase.'));
-
     const previewAudio = new Audio();
     previewAudio.preload = 'metadata';
 
@@ -898,6 +989,14 @@
         const assetId = modalKey.slice(5);
         const asset = state.songAssets.find((item) => String(item.id) === assetId);
         return { folder: null, asset, sourceLabel: 'Song-only asset' };
+      }
+      if (modalKey.startsWith('borrow:')) {
+        const rest = modalKey.slice(7);
+        const [sourceSongKey, ...assetParts] = rest.split(':');
+        const assetId = assetParts.join(':');
+        const asset = getBorrowedAssetState(state, sourceSongKey).assets.find((item) => String(item.id) === assetId);
+        const sourceSong = state.songs.find((song) => getSongKey(song) === sourceSongKey);
+        return { folder: null, asset, sourceLabel: `Borrowed from ${sourceSong ? getSongTitle(sourceSong) : sourceSongKey}` };
       }
       const [folderId, ...assetParts] = modalKey.split(':');
       const assetId = assetParts.join(':');
@@ -1158,6 +1257,30 @@
       state.recipeStatus = 'Unsaved changes';
     }
 
+
+    function buildBorrowedSongAssetsRecipe() {
+      const sourceKeys = new Set([...(state.borrowedAssetInclusionBySource || new Map()).keys(), ...(state.borrowedAssetsBySource || new Map()).keys()]);
+      return [...sourceKeys].map((sourceSongKey) => {
+        const recipe = { source_song_key: sourceSongKey, active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
+        const assets = getBorrowedAssetState(state, sourceSongKey).assets || [];
+        const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+        if (assets.length) {
+          assets.forEach((asset) => {
+            const id = asset.id || clean(asset.public_url);
+            if (!id) return;
+            const included = isBorrowedAssetIncluded(state, sourceSongKey, asset);
+            const target = normalizeAssetType(asset) === 'clip' ? (included ? recipe.active_clip_ids : recipe.excluded_clip_ids) : (included ? recipe.active_image_ids : recipe.excluded_image_ids);
+            target.push(id);
+          });
+        } else {
+          inclusion.forEach((included, id) => {
+            (included ? recipe.active_image_ids : recipe.excluded_image_ids).push(id);
+          });
+        }
+        return recipe;
+      }).filter((recipe) => recipe.source_song_key && recipe.source_song_key !== state.songKey);
+    }
+
     function buildCurrentRecipe() {
       const songAssetRecipe = { active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
       (state.songAssets || []).forEach((asset) => {
@@ -1198,6 +1321,7 @@
         },
         folders,
         song_assets: songAssetRecipe,
+        borrowed_song_assets: buildBorrowedSongAssetsRecipe(),
         shuffle: {
           order_mode: state.shuffleRules.orderMode,
           max_same_folder_in_row: state.shuffleRules.maxSameFolderInRow,
@@ -1215,6 +1339,9 @@
       state.expandedFolderIds = new Set();
       state.assetInclusionByFolder = new Map();
       state.songAssetInclusion = new Map();
+      state.borrowedSourceSongKey = '';
+      state.borrowedAssetsBySource = new Map();
+      state.borrowedAssetInclusionBySource = new Map();
       previewState.index = 0;
     }
 
@@ -1242,6 +1369,16 @@
         [...(songAssetsRecipe.active_image_ids || []), ...(songAssetsRecipe.active_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), true));
         [...(songAssetsRecipe.excluded_image_ids || []), ...(songAssetsRecipe.excluded_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), false));
         initializeSongAssetInclusion(state, state.songAssets || []);
+        const borrowedRecipes = Array.isArray(recipe.borrowed_song_assets) ? recipe.borrowed_song_assets : [];
+        borrowedRecipes.forEach((borrowedRecipe, index) => {
+          const sourceSongKey = clean(borrowedRecipe.source_song_key);
+          if (!sourceSongKey || sourceSongKey === state.songKey) return;
+          if (!state.borrowedSourceSongKey || index === 0) state.borrowedSourceSongKey = sourceSongKey;
+          const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+          [...(borrowedRecipe.active_image_ids || []), ...(borrowedRecipe.active_clip_ids || [])].forEach((id) => inclusion.set(String(id), true));
+          [...(borrowedRecipe.excluded_image_ids || []), ...(borrowedRecipe.excluded_clip_ids || [])].forEach((id) => inclusion.set(String(id), false));
+          loadBorrowedAssetsForSource(sourceSongKey, { markAsDirty: false });
+        });
         (Array.isArray(recipe.folders) ? recipe.folders : []).forEach((folderRecipe) => {
           const folderId = clean(folderRecipe.folder_id);
           if (!folderId || folderRecipe.enabled === false) return;
@@ -1305,11 +1442,12 @@
       updatePreviewOnly();
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       if (elements.songAssets) elements.songAssets.innerHTML = renderSongAssets(state);
+      if (elements.borrowAssets) elements.borrowAssets.innerHTML = renderBorrowedSongAssets(state);
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
       syncArtworkControls();
       syncShuffleControls();
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt });
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt }, getActiveBorrowedAssetCounts(state));
       if (elements.saveRecipe) elements.saveRecipe.disabled = !state.songContext || state.recipeLoading;
       if (elements.resetRecipe) elements.resetRecipe.disabled = !state.songContext || state.recipeLoading;
       if (elements.recipeStatus) elements.recipeStatus.textContent = state.songContext ? (state.dirty ? 'Unsaved changes' : (state.recipeStatus || 'Saved')) : 'No song selected.';
@@ -1361,6 +1499,9 @@
       state.previewModalAsset = null;
       state.assetInclusionByFolder = new Map();
       state.songAssetInclusion = new Map();
+      state.borrowedSourceSongKey = '';
+      state.borrowedAssetsBySource = new Map();
+      state.borrowedAssetInclusionBySource = new Map();
       previewState.preloadCache = new Map();
       previewState.index = 0;
       loadPreviewAudio();
@@ -1372,6 +1513,42 @@
     }
 
 
+
+
+    async function loadBorrowedAssetsForSource(sourceSongKey, { markAsDirty = true } = {}) {
+      if (!sourceSongKey || sourceSongKey === state.songKey) return;
+      state.borrowedSourceSongKey = sourceSongKey;
+      state.borrowedAssetsBySource.set(sourceSongKey, { loading: true, error: '', assets: getBorrowedAssetState(state, sourceSongKey).assets || [] });
+      renderDynamic();
+      try {
+        const assets = await fetchSongAssets(sourceSongKey);
+        state.borrowedAssetsBySource.set(sourceSongKey, { loading: false, error: '', assets });
+        initializeBorrowedAssetInclusion(state, sourceSongKey, assets);
+        if (markAsDirty) markDirty();
+      } catch (error) {
+        state.borrowedAssetsBySource.set(sourceSongKey, { loading: false, error: error.message || 'Could not load borrowed source song assets.', assets: [] });
+      } finally {
+        renderDynamic();
+      }
+    }
+
+    function toggleBorrowedAsset(sourceSongKey, assetId) {
+      const asset = getBorrowedAssetState(state, sourceSongKey).assets.find((item) => String(item.id) === String(assetId));
+      if (!asset) return;
+      const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+      inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      markDirty();
+      renderDynamic();
+    }
+
+    function setBorrowedAssetInclusion(sourceSongKey, includeAssets) {
+      const assets = getBorrowedAssetState(state, sourceSongKey).assets || [];
+      if (!assets.length) return;
+      const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
+      assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
+      markDirty();
+      renderDynamic();
+    }
 
     async function loadSongAssetsForCurrentSong() {
       if (!state.songKey) { state.songAssets = []; renderDynamic(); return; }
@@ -1475,6 +1652,62 @@
     }
 
 
+
+
+    elements.borrowAssets?.addEventListener('change', (event) => {
+      const select = event.target.closest('[data-vec-borrow-source-song]');
+      if (!select) return;
+      if (select.value === state.songKey) {
+        state.borrowedSourceSongKey = '';
+        renderDynamic();
+        return;
+      }
+      if (!select.value) {
+        state.borrowedSourceSongKey = '';
+        markDirty();
+        renderDynamic();
+        return;
+      }
+      loadBorrowedAssetsForSource(select.value);
+    });
+
+    elements.borrowAssets?.addEventListener('keydown', (event) => {
+      const previewButton = event.target.closest('[data-vec-borrow-preview-asset]');
+      if (previewButton && !event.target.closest('[data-vec-borrow-asset-toggle]') && (event.key === 'Enter' || event.key === ' ') && previewButton.getAttribute('aria-disabled') !== 'true') {
+        event.preventDefault();
+        state.previewModalAsset = `borrow:${previewButton.dataset.vecBorrowPreviewAsset}`;
+        renderDynamic();
+        return;
+      }
+      const toggle = event.target.closest('[data-vec-borrow-asset-toggle]');
+      if (!toggle || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      const [sourceSongKey, ...assetParts] = String(toggle.dataset.vecBorrowAssetToggle || '').split(':');
+      toggleBorrowedAsset(sourceSongKey, assetParts.join(':'));
+    });
+
+    elements.borrowAssets?.addEventListener('click', (event) => {
+      const toggleAll = event.target.closest('[data-vec-borrow-assets-toggle]');
+      if (toggleAll) {
+        event.preventDefault();
+        event.stopPropagation();
+        setBorrowedAssetInclusion(toggleAll.dataset.vecBorrowAssetsToggle, toggleAll.dataset.vecBorrowAssetsToggleValue === 'on');
+        return;
+      }
+      const toggle = event.target.closest('[data-vec-borrow-asset-toggle]');
+      if (toggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        const [sourceSongKey, ...assetParts] = String(toggle.dataset.vecBorrowAssetToggle || '').split(':');
+        toggleBorrowedAsset(sourceSongKey, assetParts.join(':'));
+        return;
+      }
+      const previewButton = event.target.closest('[data-vec-borrow-preview-asset]');
+      if (previewButton && previewButton.getAttribute('aria-disabled') !== 'true') {
+        state.previewModalAsset = `borrow:${previewButton.dataset.vecBorrowPreviewAsset}`;
+        renderDynamic();
+      }
+    });
 
     elements.songAssets?.addEventListener('change', (event) => {
       const input = event.target.closest('[data-vec-song-upload]');
