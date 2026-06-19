@@ -342,23 +342,26 @@
     return state.borrowedAssetsBySource.get(sourceSongKey) || { loading: false, error: '', assets: [] };
   }
 
+  function getBorrowedSourceSongKeys(state) {
+    return [...(state.borrowedSourceSongKeys || new Set())].filter((sourceSongKey) => sourceSongKey && sourceSongKey !== state.songKey);
+  }
+
   function getActiveBorrowedAssetCounts(state) {
-    const activeSourceKey = state.borrowedSourceSongKey || '';
-    return [...(state.borrowedAssetsBySource || new Map()).entries()].reduce((counts, [sourceSongKey, assetState]) => {
-      if (activeSourceKey && sourceSongKey !== activeSourceKey) return counts;
+    return getBorrowedSourceSongKeys(state).reduce((counts, sourceSongKey) => {
+      const assetState = getBorrowedAssetState(state, sourceSongKey);
       (assetState.assets || []).forEach((asset) => {
         if (clean(asset.status).toLowerCase() === 'hidden' || !isBorrowedAssetIncluded(state, sourceSongKey, asset)) return;
         if (normalizeAssetType(asset) === 'clip') counts.clips += 1; else counts.images += 1;
       });
+      counts.sourceSongs = getBorrowedSourceSongKeys(state).length;
       return counts;
-    }, { images: 0, clips: 0 });
+    }, { images: 0, clips: 0, sourceSongs: 0 });
   }
 
   function getActiveBorrowedSongAssets(state) {
     const visuals = [];
-    const activeSourceKey = state.borrowedSourceSongKey || '';
-    [...(state.borrowedAssetsBySource || new Map()).entries()].forEach(([sourceSongKey, assetState]) => {
-      if (activeSourceKey && sourceSongKey !== activeSourceKey) return;
+    getBorrowedSourceSongKeys(state).forEach((sourceSongKey) => {
+      const assetState = getBorrowedAssetState(state, sourceSongKey);
       const sourceSong = (state.songs || []).find((song) => getSongKey(song) === sourceSongKey);
       const sourceTitle = sourceSong ? getSongTitle(sourceSong) : sourceSongKey;
       (assetState.assets || []).forEach((asset) => {
@@ -397,30 +400,46 @@
     </div>`;
   }
 
+  function renderBorrowedSourceGroup(state, sourceKey) {
+    const sourceSong = (state.songs || []).find((song) => getSongKey(song) === sourceKey);
+    const sourceTitle = sourceSong ? getSongTitle(sourceSong) : sourceKey;
+    const assetState = getBorrowedAssetState(state, sourceKey);
+    const assets = [...(assetState.assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
+    const counts = assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 });
+    const toggleState = getBorrowedAssetToggleState(state, sourceKey, assets);
+    return `<article class="vec-folder-card vec-borrow-source-card is-selected" data-vec-borrow-source-card="${escapeHtml(sourceKey)}">
+      <div class="vec-folder-card-top">
+        <div class="vec-folder-card-main">
+          <div class="vec-folder-card-head"><h3>${escapeHtml(sourceTitle)}</h3><span class="vec-folder-status is-active">Borrowed source</span></div>
+          <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+          <small>${escapeHtml(sourceKey)}</small>
+        </div>
+        <div class="vec-folder-actions"><button type="button" class="vec-folder-expand" data-vec-borrow-source-remove="${escapeHtml(sourceKey)}">Remove Borrowed Song</button></div>
+      </div>
+      ${assetState.loading ? '<p class="vec-empty-state">Loading borrowed source assets...</p>' : ''}
+      ${assetState.error ? `<p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p>` : ''}
+      ${!assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls for ${escapeHtml(sourceTitle)}"><p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
+      ${!assetState.loading && !assetState.error ? (assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderBorrowedAssetCard(state, sourceKey, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips found for this source song.</p>') : ''}
+    </article>`;
+  }
+
   function renderBorrowedSongAssets(state) {
     if (!state.songContext) return '<p class="vec-empty-state">Select a current song before borrowing visuals.</p>';
     const currentKey = state.songKey || '';
+    const selectedKey = state.borrowedSourceSongSelect || '';
     const options = (state.songs || []).filter((song) => getSongKey(song)).map((song) => {
       const songKey = getSongKey(song);
       const isCurrent = songKey === currentKey;
       const artist = clean(song.artist);
       const label = `${getSongTitle(song)}${artist ? ` — ${artist}` : ''}${isCurrent ? ' (current song)' : ''}`;
-      return `<option value="${escapeHtml(songKey)}"${state.borrowedSourceSongKey === songKey ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(songKey)}"${selectedKey === songKey ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }).join('');
-    const sourceKey = state.borrowedSourceSongKey;
-    const canBorrowFromSource = sourceKey && sourceKey !== currentKey;
-    const assetState = canBorrowFromSource ? getBorrowedAssetState(state, sourceKey) : { assets: [] };
-    const assets = [...(assetState.assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
-    const counts = assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 });
-    const toggleState = getBorrowedAssetToggleState(state, sourceKey, assets);
+    const sourceKeys = getBorrowedSourceSongKeys(state);
     return `<div class="vec-song-assets-manager vec-borrow-assets-manager">
-      <label class="vec-field"><span>Choose Source Song</span><select class="vec-select" data-vec-borrow-source-song><option value="">Choose Source Song</option>${options}</select></label>
-      ${!sourceKey ? '<p class="vec-empty-state">Choose a different source song to load its song-only assets.</p>' : ''}
-      ${sourceKey === currentKey ? '<p class="vec-empty-state">Current song assets are already managed under Song-Only Assets.</p>' : ''}
-      ${assetState.loading ? '<p class="vec-empty-state">Loading borrowed source assets...</p>' : ''}
-      ${assetState.error ? `<p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p>` : ''}
-      ${canBorrowFromSource && !assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls"><p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
-      ${canBorrowFromSource && !assetState.loading && !assetState.error ? (assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderBorrowedAssetCard(state, sourceKey, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips found for this source song.</p>') : ''}
+      <div class="vec-upload-row"><label class="vec-field"><span>Choose Source Song</span><select class="vec-select" data-vec-borrow-source-song><option value="">Choose Source Song</option>${options}</select></label><button type="button" class="vec-placeholder-button" data-vec-add-borrowed-song>Add Borrowed Song</button></div>
+      ${state.borrowedSourceSongMessage ? `<p class="vec-empty-state ${state.borrowedSourceSongMessageIsError ? 'vec-error-state' : ''}">${escapeHtml(state.borrowedSourceSongMessage)}</p>` : ''}
+      ${!sourceKeys.length ? '<p class="vec-empty-state">Choose a different source song, then click Add Borrowed Song to load its song-only assets.</p>' : ''}
+      ${sourceKeys.map((sourceKey) => renderBorrowedSourceGroup(state, sourceKey)).join('')}
     </div>`;
   }
 
@@ -735,7 +754,7 @@
         <div class="vec-summary-card vec-summary-wide"><strong>Selected folder names</strong><span>${escapeHtml(selectedNames)}</span></div>
         <div class="vec-summary-card"><strong>Active image count</strong><span>${selectedImages} image${selectedImages === 1 ? '' : 's'}</span></div>
         <div class="vec-summary-card"><strong>Active clip count</strong><span>${selectedClips} clip${selectedClips === 1 ? '' : 's'}</span></div>
-        <div class="vec-summary-card"><strong>Borrowed assets</strong><span>${borrowedCounts.images || 0} images · ${borrowedCounts.clips || 0} clips</span></div>
+        <div class="vec-summary-card"><strong>Borrowed assets</strong><span>${borrowedCounts.images || 0} images · ${borrowedCounts.clips || 0} clips · ${borrowedCounts.sourceSongs || 0} source songs</span></div>
         <div class="vec-summary-card"><strong>Preview sequence count</strong><span>${sequenceTotal} visual${sequenceTotal === 1 ? '' : 's'}: ${escapeHtml(sequenceLabel)}</span></div>
         <div class="vec-summary-card"><strong>Order mode</strong><span>${escapeHtml(orderModeLabel)}</span></div>
         <div class="vec-summary-card"><strong>Max same folder in row</strong><span>${escapeHtml(maxSameFolderLabel)}</span></div>
@@ -876,7 +895,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -1304,7 +1323,7 @@
 
 
     function buildBorrowedSongAssetsRecipe() {
-      const sourceKeys = state.borrowedSourceSongKey ? [state.borrowedSourceSongKey] : [];
+      const sourceKeys = getBorrowedSourceSongKeys(state);
       return sourceKeys.map((sourceSongKey) => {
         const recipe = { source_song_key: sourceSongKey, active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
         const assets = getBorrowedAssetState(state, sourceSongKey).assets || [];
@@ -1385,6 +1404,10 @@
       state.assetInclusionByFolder = new Map();
       state.songAssetInclusion = new Map();
       state.borrowedSourceSongKey = '';
+      state.borrowedSourceSongKeys = new Set();
+      state.borrowedSourceSongSelect = '';
+      state.borrowedSourceSongMessage = '';
+      state.borrowedSourceSongMessageIsError = false;
       state.borrowedAssetsBySource = new Map();
       state.borrowedAssetInclusionBySource = new Map();
       previewState.index = 0;
@@ -1418,6 +1441,7 @@
         borrowedRecipes.forEach((borrowedRecipe, index) => {
           const sourceSongKey = clean(borrowedRecipe.source_song_key);
           if (!sourceSongKey || sourceSongKey === state.songKey) return;
+          state.borrowedSourceSongKeys.add(sourceSongKey);
           if (!state.borrowedSourceSongKey || index === 0) state.borrowedSourceSongKey = sourceSongKey;
           const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
           [...(borrowedRecipe.active_image_ids || []), ...(borrowedRecipe.active_clip_ids || [])].forEach((id) => inclusion.set(String(id), true));
@@ -1545,6 +1569,10 @@
       state.assetInclusionByFolder = new Map();
       state.songAssetInclusion = new Map();
       state.borrowedSourceSongKey = '';
+      state.borrowedSourceSongKeys = new Set();
+      state.borrowedSourceSongSelect = '';
+      state.borrowedSourceSongMessage = '';
+      state.borrowedSourceSongMessageIsError = false;
       state.borrowedAssetsBySource = new Map();
       state.borrowedAssetInclusionBySource = new Map();
       previewState.preloadCache = new Map();
@@ -1563,6 +1591,7 @@
     async function loadBorrowedAssetsForSource(sourceSongKey, { markAsDirty = true } = {}) {
       if (!sourceSongKey || sourceSongKey === state.songKey) return;
       state.borrowedSourceSongKey = sourceSongKey;
+      state.borrowedSourceSongKeys.add(sourceSongKey);
       state.borrowedAssetsBySource.set(sourceSongKey, { loading: true, error: '', assets: getBorrowedAssetState(state, sourceSongKey).assets || [] });
       renderDynamic();
       try {
@@ -1702,19 +1731,10 @@
     elements.borrowAssets?.addEventListener('change', (event) => {
       const select = event.target.closest('[data-vec-borrow-source-song]');
       if (!select) return;
-      if (select.value === state.songKey) {
-        state.borrowedSourceSongKey = select.value;
-        markDirty();
-        renderDynamic();
-        return;
-      }
-      if (!select.value) {
-        state.borrowedSourceSongKey = '';
-        markDirty();
-        renderDynamic();
-        return;
-      }
-      loadBorrowedAssetsForSource(select.value);
+      state.borrowedSourceSongSelect = select.value;
+      state.borrowedSourceSongMessage = '';
+      state.borrowedSourceSongMessageIsError = false;
+      renderDynamic();
     });
 
     elements.borrowAssets?.addEventListener('keydown', (event) => {
@@ -1733,6 +1753,37 @@
     });
 
     elements.borrowAssets?.addEventListener('click', (event) => {
+      const addButton = event.target.closest('[data-vec-add-borrowed-song]');
+      if (addButton) {
+        event.preventDefault();
+        const sourceSongKey = state.borrowedSourceSongSelect || '';
+        state.borrowedSourceSongMessageIsError = true;
+        if (!sourceSongKey) state.borrowedSourceSongMessage = 'Choose Source Song';
+        else if (sourceSongKey === state.songKey) state.borrowedSourceSongMessage = 'Current song assets are already managed under Song-Only Assets.';
+        else if ((state.borrowedSourceSongKeys || new Set()).has(sourceSongKey)) state.borrowedSourceSongMessage = 'This source song is already added.';
+        else {
+          state.borrowedSourceSongMessage = '';
+          state.borrowedSourceSongMessageIsError = false;
+          loadBorrowedAssetsForSource(sourceSongKey);
+          return;
+        }
+        renderDynamic();
+        return;
+      }
+      const removeButton = event.target.closest('[data-vec-borrow-source-remove]');
+      if (removeButton) {
+        event.preventDefault();
+        const sourceSongKey = removeButton.dataset.vecBorrowSourceRemove;
+        state.borrowedSourceSongKeys.delete(sourceSongKey);
+        state.borrowedAssetsBySource.delete(sourceSongKey);
+        state.borrowedAssetInclusionBySource.delete(sourceSongKey);
+        if (state.borrowedSourceSongKey === sourceSongKey) state.borrowedSourceSongKey = getBorrowedSourceSongKeys(state)[0] || '';
+        state.borrowedSourceSongMessage = '';
+        state.borrowedSourceSongMessageIsError = false;
+        markDirty();
+        renderDynamic();
+        return;
+      }
       const toggleAll = event.target.closest('[data-vec-borrow-assets-toggle]');
       if (toggleAll) {
         event.preventDefault();
