@@ -1098,6 +1098,26 @@ function matchesAdminVecRecipeRoute(event, route) {
     routeEndsWith(event.resource, '/admin/vec/recipe');
 }
 
+function matchesPublicVecSongAssetsRoute(event, route) {
+  return matchesRoute(route, ['radio/vec/song-assets', '/radio/vec/song-assets']) ||
+    routeEndsWith(route, '/radio/vec/song-assets') ||
+    routeEndsWith(event.rawPath, '/radio/vec/song-assets') ||
+    routeEndsWith(event.path, '/radio/vec/song-assets') ||
+    routeEndsWith(event.routeKey, '/radio/vec/song-assets') ||
+    routeEndsWith(event.resource, '/radio/vec/song-assets') ||
+    getRouteSegments(event).slice(0, 3).join('/') === 'radio/vec/song-assets';
+}
+
+function matchesAdminVecSongAssetsRoute(event, route) {
+  return matchesRoute(route, ['admin/vec/song-assets', '/admin/vec/song-assets']) ||
+    routeEndsWith(route, '/admin/vec/song-assets') ||
+    routeEndsWith(event.rawPath, '/admin/vec/song-assets') ||
+    routeEndsWith(event.path, '/admin/vec/song-assets') ||
+    routeEndsWith(event.routeKey, '/admin/vec/song-assets') ||
+    routeEndsWith(event.resource, '/admin/vec/song-assets') ||
+    getRouteSegments(event).slice(0, 3).join('/') === 'admin/vec/song-assets';
+}
+
 
 function getQueryLimit(event, fallback = 100, max = 500) {
   const rawLimit = Number(event.queryStringParameters?.limit || fallback);
@@ -1695,6 +1715,142 @@ async function handlePublicVecRecipeRoute(event) {
   const method = getMethod(event).toUpperCase();
   if (method === 'OPTIONS') return response(204, {});
   if (method === 'GET') return loadSongVisualRecipe(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function ensureSongVisualAssetsTable() {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS radio.song_visual_assets (
+      id TEXT PRIMARY KEY,
+      song_key TEXT NOT NULL,
+      asset_type TEXT NOT NULL DEFAULT 'image',
+      file_name TEXT,
+      s3_key TEXT,
+      public_url TEXT NOT NULL,
+      thumbnail_url TEXT,
+      content_type TEXT,
+      size_bytes BIGINT,
+      width INTEGER,
+      height INTEGER,
+      ratio_label TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      caption TEXT,
+      alt_text TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT song_visual_assets_type_check CHECK (asset_type IN ('image', 'clip')),
+      CONSTRAINT song_visual_assets_status_check CHECK (status IN ('active', 'hidden'))
+    )
+  `);
+  await client.query('CREATE INDEX IF NOT EXISTS song_visual_assets_song_key_idx ON radio.song_visual_assets(song_key)');
+  await client.query('CREATE INDEX IF NOT EXISTS song_visual_assets_type_idx ON radio.song_visual_assets(asset_type)');
+}
+
+function normalizeSongVisualAsset(row) {
+  const mediaType = row.asset_type === 'clip' ? 'clip' : 'image';
+  return {
+    id: row.id,
+    song_key: row.song_key,
+    type: mediaType,
+    media_type: mediaType,
+    asset_type: mediaType,
+    file_name: row.file_name || '',
+    filename: row.file_name || '',
+    public_url: row.public_url || '',
+    url: row.public_url || '',
+    thumbnail_url: row.thumbnail_url || row.public_url || '',
+    content_type: row.content_type || '',
+    size_bytes: row.size_bytes,
+    width: row.width,
+    height: row.height,
+    ratio_label: row.ratio_label || '',
+    status: row.status || 'active',
+    caption: row.caption || '',
+    alt_text: row.alt_text || '',
+    notes: row.notes || '',
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || ''
+  };
+}
+
+function getSongAssetId(event) {
+  const segments = getRouteSegments(event);
+  const assetsIndex = segments.lastIndexOf('song-assets');
+  return event.pathParameters?.asset_id || event.pathParameters?.assetId || (assetsIndex >= 0 ? segments[assetsIndex + 1] || '' : '');
+}
+
+async function getSongVisualAssets(event, { ensureTable = false } = {}) {
+  const validation = validateVecSongKey(event.queryStringParameters?.song_key || event.queryStringParameters?.songKey);
+  if (validation.error) return response(400, { success: false, error: validation.error });
+  if (ensureTable) await ensureSongVisualAssetsTable();
+  let assets = [];
+  try {
+    const result = await client.query(
+      `SELECT *
+       FROM radio.song_visual_assets
+       WHERE song_key = $1 AND status <> 'hidden'
+       ORDER BY created_at ASC, file_name ASC NULLS LAST`,
+      [validation.songKey]
+    );
+    assets = result.rows.map(normalizeSongVisualAsset);
+  } catch (error) {
+    if (error?.code !== '42P01') throw error;
+  }
+  return response(200, {
+    success: true,
+    song_key: validation.songKey,
+    images: assets.filter((asset) => asset.asset_type === 'image'),
+    clips: assets.filter((asset) => asset.asset_type === 'clip'),
+    assets
+  });
+}
+
+async function createSongVisualAsset(event) {
+  const body = parseBody(event);
+  const validation = validateVecSongKey(body.song_key || body.songKey);
+  if (validation.error) return response(400, { success: false, error: validation.error });
+  const assetType = String(body.asset_type || body.assetType || body.type || '').toLowerCase() === 'clip' ? 'clip' : 'image';
+  const publicUrl = String(body.public_url || body.publicUrl || body.url || '').trim();
+  if (!publicUrl) return response(400, { success: false, error: 'public_url is required.' });
+  const result = await client.query(
+    `INSERT INTO radio.song_visual_assets (id, song_key, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     RETURNING *`,
+    [crypto.randomUUID(), validation.songKey, assetType, String(body.file_name || body.fileName || '').trim(), String(body.s3_key || body.s3Key || '').trim(), publicUrl, String(body.thumbnail_url || body.thumbnailUrl || publicUrl).trim(), String(body.content_type || body.contentType || '').trim(), Number(body.size_bytes || body.sizeBytes) || null, Number(body.width) || null, Number(body.height) || null, String(body.ratio_label || body.ratioLabel || '').trim(), 'active', String(body.caption || '').trim(), String(body.alt_text || body.altText || '').trim(), String(body.notes || '').trim()]
+  );
+  return response(201, { success: true, asset: normalizeSongVisualAsset(result.rows[0]) });
+}
+
+// VEC Song-Only Assets boundary: this DELETE soft-hides exactly one row in
+// radio.song_visual_assets by asset id. It must not touch Visual Library folder
+// tables, recipes, player data, or S3 objects.
+async function deleteSongVisualAsset(event) {
+  const assetId = getSongAssetId(event);
+  if (!assetId) return response(400, { success: false, error: 'asset_id is required.' });
+  await ensureSongVisualAssetsTable();
+  const result = await client.query(`UPDATE radio.song_visual_assets SET status = 'hidden', updated_at = now() WHERE id = $1 RETURNING id`, [assetId]);
+  if (!result.rowCount) return response(404, { success: false, error: 'Song visual asset not found.' });
+  return response(200, { success: true, asset_id: assetId });
+}
+
+async function handleAdminVecSongAssetsRoute(event) {
+  if (getMethod(event).toUpperCase() === 'OPTIONS') return response(204, {});
+  await requireAdmin(event);
+  const method = getMethod(event).toUpperCase();
+  if (method === 'GET') return getSongVisualAssets(event, { ensureTable: true });
+  if (method === 'POST') {
+    await ensureSongVisualAssetsTable();
+    return createSongVisualAsset(event);
+  }
+  if (method === 'DELETE') return deleteSongVisualAsset(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicVecSongAssetsRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  if (method === 'GET') return getSongVisualAssets(event);
   return response(404, { success: false, error: 'Not found.' });
 }
 
@@ -2643,6 +2799,14 @@ async function dispatch(event) {
 
   if (matchesPublicVecRecipeRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'recipe'])) {
     return handlePublicVecRecipeRoute(event);
+  }
+
+  if (matchesPublicVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'song-assets'])) {
+    return handlePublicVecSongAssetsRoute(event);
+  }
+
+  if (matchesAdminVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['admin', 'vec', 'song-assets'])) {
+    return handleAdminVecSongAssetsRoute(event);
   }
 
   if (matchesAdminVecRecipeRoute(event, route)) {
