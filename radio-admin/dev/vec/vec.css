@@ -193,6 +193,28 @@
   color: #ffb8c0;
 }
 
+.vec-artwork-only-control {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.85rem 0 1rem;
+}
+
+.vec-artwork-only-note {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(80, 210, 120, 0.35);
+  border-radius: 14px;
+  background: rgba(80, 210, 120, 0.12);
+  color: #d8ffe1;
+  font-weight: 850;
+}
+
+.is-artwork-only-mode [data-vec-song-assets],
+.is-artwork-only-mode [data-vec-folder-grid],
+.is-artwork-only-mode [data-vec-borrow-assets] {
+  opacity: 0.58;
+}
+
 .vec-summary-grid,
 .vec-folder-grid,
 .vec-control-grid,
