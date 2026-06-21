@@ -888,6 +888,24 @@ function matchesAdminVecRecipeRoute(event, route) {
     routeEndsWith(event.resource, '/admin/vec/recipe');
 }
 
+function matchesPublicVecRecipeRoute(event, route) {
+  return matchesRoute(route, ['radio/vec/recipe', '/radio/vec/recipe']) ||
+    routeEndsWith(route, '/radio/vec/recipe') ||
+    routeEndsWith(event.rawPath, '/radio/vec/recipe') ||
+    routeEndsWith(event.path, '/radio/vec/recipe') ||
+    routeEndsWith(event.routeKey, '/radio/vec/recipe') ||
+    routeEndsWith(event.resource, '/radio/vec/recipe');
+}
+
+function matchesPublicVecSongAssetsRoute(event, route) {
+  return routeEndsWith(route, '/radio/vec/song-assets') ||
+    routeEndsWith(event.rawPath, '/radio/vec/song-assets') ||
+    routeEndsWith(event.path, '/radio/vec/song-assets') ||
+    routeEndsWith(event.routeKey, '/radio/vec/song-assets') ||
+    routeEndsWith(event.resource, '/radio/vec/song-assets') ||
+    getRouteSegments(event).slice(0, 3).join('/') === 'radio/vec/song-assets';
+}
+
 function getQueryLimit(event, fallback = 100, max = 500) {
   const rawLimit = Number(event.queryStringParameters?.limit || fallback);
   if (!Number.isFinite(rawLimit) || rawLimit <= 0) return fallback;
@@ -2580,6 +2598,13 @@ async function handleAdminVecRecipeRoute(event) {
   return response(404, { success: false, error: 'Not found.' });
 }
 
+async function handlePublicVecRecipeRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  if (method === 'GET') return loadSongVisualRecipe(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
 
 async function ensureSongVisualAssetsTable() {
   await client.query(`
@@ -2687,6 +2712,13 @@ async function handleAdminVecSongAssetsRoute(event) {
   if (method === 'GET') return getSongVisualAssets(event);
   if (method === 'POST') { await ensureSongVisualAssetsTable(); return createSongVisualAsset(event); }
   if (method === 'DELETE') return deleteSongVisualAsset(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicVecSongAssetsRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  if (method === 'GET') return getSongVisualAssets(event);
   return response(404, { success: false, error: 'Not found.' });
 }
 
@@ -2996,6 +3028,21 @@ async function handleAdminVisualsFoldersRoute(event) {
   return response(404, { success: false, error: 'Not found.' });
 }
 
+async function handlePublicVisualsFolderAssetsRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  const segments = getRouteSegments(event);
+  const foldersIndex = segments.lastIndexOf('folders');
+  const id = event.pathParameters?.folder_id || event.pathParameters?.folderId || event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
+  const isAssetsRoute = id && segments[foldersIndex + 2] === 'assets' && !segments[foldersIndex + 3];
+  if (method === 'GET' && isAssetsRoute) {
+    const payload = await getVisualsFolderAssets(id);
+    if (!payload) return response(404, { success: false, error: 'Visuals folder not found.' });
+    return response(200, payload);
+  }
+  return response(404, { success: false, error: 'Not found.' });
+}
+
 
 function uploadFolderForRequest(purpose, body) {
   if (purpose === 'ad_video') {
@@ -3159,6 +3206,18 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'ads'])) {
     return handleAdminAdsRoute(event, { requireAdmin });
+  }
+
+  if (matchesPublicVecRecipeRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'recipe'])) {
+    return handlePublicVecRecipeRoute(event);
+  }
+
+  if (matchesPublicVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'song-assets'])) {
+    return handlePublicVecSongAssetsRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['radio', 'visuals', 'folders'])) {
+    return handlePublicVisualsFolderAssetsRoute(event);
   }
 
   if (matchesAdminVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['admin', 'vec', 'song-assets'])) {
