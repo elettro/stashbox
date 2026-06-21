@@ -29,6 +29,8 @@
 
   const DURATION_OPTIONS = [2, 3, 4, 5, 8, 10];
   const REPEAT_OPTIONS = [30, 45, 60, 90, 120];
+  const VISUAL_MODE_CUSTOM = 'custom';
+  const VISUAL_MODE_ARTWORK_ONLY = 'artwork_only';
   const SONG_CONTEXT_FIELDS = [
     'song_key',
     'song_name',
@@ -568,6 +570,9 @@
     if (!state.songContext) return [];
     const title = state.songContext.display_title || state.songContext.song_name || 'Untitled song';
     const artworkUrl = getArtworkUrl(state.songContext);
+    if (state.visualMode === VISUAL_MODE_ARTWORK_ONLY) {
+      return [{ type: 'artwork', label: 'Artwork', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 9999 }];
+    }
     const selectedFolders = getSelectedFolders(state);
     const activeAssets = [...getActiveSongAssets(state), ...getActiveBorrowedSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];
     const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };
@@ -724,7 +729,7 @@
     }, { images: songCounts.images + borrowedCounts.images, clips: songCounts.clips + borrowedCounts.clips });
   }
 
-  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}, borrowedCounts = { images: 0, clips: 0 }) {
+  function renderSummary(songContext, artworkRules, shuffleRules = DEFAULT_SHUFFLE_RULES, selectedFolders = [], activeCounts = { images: 0, clips: 0 }, previewSequence = [], currentVisual = null, recipeMeta = {}, borrowedCounts = { images: 0, clips: 0 }, visualMode = VISUAL_MODE_CUSTOM) {
     const title = songContext ? (songContext.display_title || songContext.song_name || 'Untitled song') : 'None';
     const artist = songContext?.artist || '—';
     const songKey = songContext?.song_key || '—';
@@ -734,6 +739,7 @@
     const selectedImages = activeCounts.images || 0;
     const selectedClips = activeCounts.clips || 0;
     const selectedNames = selectedFolders.map((folder) => folder.folder_name).join(', ') || 'None selected';
+    const visualModeLabel = visualMode === VISUAL_MODE_ARTWORK_ONLY ? 'Song Artwork Only' : 'Custom';
     const sequenceCounts = getPreviewSequenceCounts(previewSequence);
     const sequenceTotal = previewSequence.length;
     const sequenceLabel = `${sequenceCounts.artwork} artwork + ${sequenceCounts.images} images + ${sequenceCounts.clips} clips`;
@@ -748,6 +754,7 @@
         <div class="vec-summary-card"><strong>Artist</strong><span>${escapeHtml(artist)}</span></div>
         <div class="vec-summary-card"><strong>Song key</strong><span>${escapeHtml(songKey)}</span></div>
         <div class="vec-summary-card"><strong>Official artwork</strong><span>${artworkStatus}</span></div>
+        <div class="vec-summary-card"><strong>Mode</strong><span>${escapeHtml(visualModeLabel)}</span></div>
         <div class="vec-summary-card"><strong>Saved status</strong><span>${escapeHtml(recipeStatus)}</span></div>
         <div class="vec-summary-card"><strong>Last saved</strong><span>${escapeHtml(lastSaved)}</span></div>
         <div class="vec-summary-card"><strong>Selected folders</strong><span>${selectedFolders.length} folder${selectedFolders.length === 1 ? '' : 's'}</span></div>
@@ -895,7 +902,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -906,7 +913,7 @@
         <p class="vec-microcopy" data-vec-song-status>Loading real Songs CMS data from the existing dev admin songs API.</p>
       </section>
       <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
-      <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
+      <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-artwork-only-control"><label class="vec-field vec-toggle-field"><span>Use Song Artwork Only</span><button class="vec-toggle is-off" type="button" aria-pressed="false" data-vec-artwork-only-toggle>OFF</button></label><p class="vec-microcopy">Shows only the official song artwork for the full song and ignores song-only assets, borrowed assets, and visual library folders.</p><p class="vec-artwork-only-note hidden" data-vec-artwork-only-note>Artwork Only Mode is active. Other visual sources are ignored for this song.</p></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Active upload path: images and clips uploaded directly for this selected song only.</p></div></div><div data-vec-song-assets></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Reusable Visual Library folders are selectable sources only; manage new song-level media in Song-Only Assets.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
@@ -935,6 +942,8 @@
       maxSameFolder: container.querySelector('[data-vec-max-same-folder]'),
       maxFolderAssets: container.querySelector('[data-vec-max-folder-assets]'),
       avoidRepeats: container.querySelector('[data-vec-avoid-repeats]'),
+      artworkOnlyToggle: container.querySelector('[data-vec-artwork-only-toggle]'),
+      artworkOnlyNote: container.querySelector('[data-vec-artwork-only-note]'),
       saveRecipe: container.querySelector('[data-vec-save-recipe]'),
       resetRecipe: container.querySelector('[data-vec-reset-recipe]'),
       recipeStatus: container.querySelector('[data-vec-recipe-status]'),
@@ -1302,6 +1311,18 @@
       });
     }
 
+    function syncVisualModeControls() {
+      const artworkOnly = state.visualMode === VISUAL_MODE_ARTWORK_ONLY;
+      if (elements.artworkOnlyToggle) {
+        elements.artworkOnlyToggle.classList.toggle('is-on', artworkOnly);
+        elements.artworkOnlyToggle.classList.toggle('is-off', !artworkOnly);
+        elements.artworkOnlyToggle.setAttribute('aria-pressed', String(artworkOnly));
+        elements.artworkOnlyToggle.textContent = onOffLabel(artworkOnly);
+      }
+      if (elements.artworkOnlyNote) elements.artworkOnlyNote.classList.toggle('hidden', !artworkOnly);
+      container.classList.toggle('is-artwork-only-mode', artworkOnly);
+    }
+
     function syncShuffleControls() {
       if (elements.orderMode) elements.orderMode.value = state.shuffleRules.orderMode;
       if (elements.maxSameFolder) elements.maxSameFolder.value = state.shuffleRules.maxSameFolderInRow;
@@ -1375,6 +1396,7 @@
       return {
         version: 1,
         song_key: state.songKey,
+        visual_mode: state.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM,
         artwork: {
           start_with_artwork: Boolean(state.artworkRules.startWithArtwork),
           start_duration_seconds: Number(state.artworkRules.startDurationSeconds) || 4,
@@ -1399,6 +1421,7 @@
     function resetLocalRecipeState() {
       state.artworkRules = { ...DEFAULT_ARTWORK_RULES };
       state.shuffleRules = { ...DEFAULT_SHUFFLE_RULES };
+      state.visualMode = VISUAL_MODE_CUSTOM;
       state.selectedFolderIds = new Set();
       state.expandedFolderIds = new Set();
       state.assetInclusionByFolder = new Map();
@@ -1417,6 +1440,7 @@
       state.recipeLoading = true;
       resetLocalRecipeState();
       if (recipe && typeof recipe === 'object') {
+        state.visualMode = recipe.visual_mode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM;
         const artwork = recipe.artwork || {};
         state.artworkRules = {
           startWithArtwork: artwork.start_with_artwork !== false,
@@ -1515,8 +1539,9 @@
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
       syncArtworkControls();
+      syncVisualModeControls();
       syncShuffleControls();
-      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt }, getActiveBorrowedAssetCounts(state));
+      elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt }, getActiveBorrowedAssetCounts(state), state.visualMode);
       if (elements.saveRecipe) elements.saveRecipe.disabled = !state.songContext || state.recipeLoading;
       if (elements.resetRecipe) elements.resetRecipe.disabled = !state.songContext || state.recipeLoading;
       if (elements.recipeStatus) elements.recipeStatus.textContent = state.songContext ? (state.dirty ? 'Unsaved changes' : (state.recipeStatus || 'Saved')) : 'No song selected.';
@@ -1563,6 +1588,7 @@
       pausePreview();
       state.songContext = createSongContext(songOrContext);
       state.songKey = state.songContext?.song_key || '';
+      state.visualMode = VISUAL_MODE_CUSTOM;
       state.selectedFolderIds = new Set();
       state.expandedFolderIds = new Set();
       state.previewModalAsset = null;
@@ -1966,6 +1992,13 @@
       }
     });
 
+
+    elements.artworkOnlyToggle?.addEventListener('click', () => {
+      state.visualMode = state.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_CUSTOM : VISUAL_MODE_ARTWORK_ONLY;
+      previewState.index = 0;
+      markDirty();
+      renderDynamic();
+    });
 
     elements.orderMode.addEventListener('change', () => {
       state.shuffleRules.orderMode = elements.orderMode.value;
