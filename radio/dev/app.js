@@ -7,6 +7,9 @@ const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
 const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
 const PUBLIC_ADS_API_URL = `${API_ROOT_URL}/radio/ads`;
 const SONG_VISUALS_API_URL = `${API_ROOT_URL}/radio/visuals`;
+const VEC_RECIPE_API_URL = `${API_ROOT_URL}/admin/vec/recipe`;
+const VEC_SONG_ASSETS_API_URL = `${API_ROOT_URL}/admin/vec/song-assets`;
+const VEC_VISUAL_FOLDERS_API_URL = `${API_ROOT_URL}/admin/visuals/folders`;
 const PUBLIC_ADS_API_URLS = [PUBLIC_ADS_API_URL, `${API_ROOT_URL}/ads`];
 const PUBLIC_AD_SETTINGS_API_URLS = [`${API_ROOT_URL}/radio/ad-settings`, `${API_ROOT_URL}/ad-settings`];
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
@@ -44,6 +47,8 @@ const DEFAULT_AD_SETTINGS = { ads_enabled: true, break_method: 'count', ads_per_
 const FALLBACK_AD_DURATION_SECONDS = 15;
 const DEFAULT_TARGET_AD_SECONDS = DEFAULT_AD_SETTINGS.target_ad_seconds;
 const DEFAULT_VISUAL_STILL_DURATION_SECONDS = 8;
+const VEC_PLAYER_LOG_PREFIX = '[VEC Player]';
+const VEC_PLAYER_DEBUG = /(?:^|[?&])vec_debug=1(?:&|$)/.test(window.location.search);
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -277,6 +282,121 @@ const normalizeShareCount = row => normalizeCount(row, SHARE_COUNT_FIELDS);
 const normalizeLikeCount = row => normalizeCount(row, LIKE_COUNT_FIELDS);
 const normalizePlayCount = row => normalizeCount(row, PLAY_COUNT_FIELDS);
 const YOUTUBE_ORIGIN = 'https://elettro.github.io';
+
+
+function vecPlayerLog(...args) {
+  if (VEC_PLAYER_DEBUG) console.log(VEC_PLAYER_LOG_PREFIX, ...args);
+}
+
+function parseJsonBody(data) {
+  if (typeof data?.body === 'string') {
+    try { return parseJsonBody(JSON.parse(data.body)); } catch (_) { return data; }
+  }
+  return data;
+}
+
+async function fetchJsonNoStore(url, { signal } = {}) {
+  const response = await fetch(url, { cache: 'no-store', signal });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+  data = parseJsonBody(data);
+  if (!response.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${response.status}`);
+  return data;
+}
+
+function normalizeVecAssetType(asset) {
+  const value = clean(asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type).toLowerCase();
+  if (value === 'clip' || value === 'video' || value.startsWith('video/')) return 'clip';
+  return 'image';
+}
+
+function normalizeVecAsset(asset, source = 'vec') {
+  if (!asset || typeof asset !== 'object') return null;
+  const url = fixDropbox(clean(asset.public_url || asset.url || asset.asset_url || asset.src || asset.file_url || asset.s3_url));
+  const id = clean(asset.id || asset.asset_id || asset.s3_key || asset.key || url);
+  if (!id && !url) return null;
+  const status = clean(asset.status).toLowerCase();
+  if (['hidden', 'deleted', 'archived', 'inactive'].includes(status) || bool(asset.hidden) || bool(asset.deleted)) return null;
+  if (!url) return null;
+  return {
+    type: normalizeVecAssetType(asset),
+    url,
+    key: id || url,
+    id: id || url,
+    source,
+    alt: clean(asset.alt_text || asset.altText || asset.file_name || asset.name || asset.title) || 'Song visual',
+    caption: clean(asset.caption),
+    durationSeconds: normalizeVisualDuration(asset.duration_seconds || asset.durationSeconds)
+  };
+}
+
+function normalizeVecAssetsResponse(data, source = 'vec') {
+  data = parseJsonBody(data);
+  const list = Array.isArray(data) ? data : (Array.isArray(data?.assets) ? data.assets : (Array.isArray(data?.items) ? data.items : []));
+  return list.map(asset => normalizeVecAsset(asset, source)).filter(Boolean);
+}
+
+function asIdSet(values) {
+  return new Set((Array.isArray(values) ? values : []).map(value => clean(value)).filter(Boolean));
+}
+
+function includeRecipeAssets(assets, recipePart = {}) {
+  const activeImages = asIdSet(recipePart.active_image_ids);
+  const activeClips = asIdSet(recipePart.active_clip_ids);
+  const excludedImages = asIdSet(recipePart.excluded_image_ids);
+  const excludedClips = asIdSet(recipePart.excluded_clip_ids);
+  const hasExplicitActive = activeImages.size || activeClips.size;
+  return assets.filter(asset => {
+    const isClip = asset.type === 'clip';
+    const id = clean(asset.id || asset.key || asset.url);
+    if ((isClip ? excludedClips : excludedImages).has(id)) return false;
+    if (!hasExplicitActive) return true;
+    return (isClip ? activeClips : activeImages).has(id);
+  });
+}
+
+function buildOfficialArtworkAsset(song, recipe = {}) {
+  const artworkUrl = normalizedSongArtworkUrl(song) || youtubeThumbnail(song?.videoLink) || '';
+  if (!artworkUrl) return null;
+  return {
+    type: 'image',
+    url: artworkUrl,
+    key: `official-artwork:${clean(song?.songKey || song?.idx || artworkUrl)}`,
+    id: `official-artwork:${clean(song?.songKey || song?.idx || artworkUrl)}`,
+    source: 'official-artwork',
+    alt: `${getSongTitle(song)} artwork`,
+    durationSeconds: normalizeVisualDuration(recipe?.artwork?.start_duration_seconds || recipe?.artwork?.repeat_every_seconds || DEFAULT_VISUAL_STILL_DURATION_SECONDS)
+  };
+}
+
+function shuffleVecIfNeeded(assets, recipe = {}) {
+  const orderMode = clean(recipe?.shuffle?.order_mode).toLowerCase();
+  const enabled = orderMode === 'randomize' || bool(recipe?.shuffle?.enabled) || bool(recipe?.shuffle?.shuffle_enabled) || bool(recipe?.shuffle?.randomize);
+  if (!enabled) return assets;
+  const artwork = assets.filter(asset => asset.source === 'official-artwork');
+  const others = shuffleVisualAssets(assets.filter(asset => asset.source !== 'official-artwork'));
+  return artwork.length && recipe?.artwork?.start_with_artwork !== false ? [artwork[0], ...others, ...artwork.slice(1)] : [...artwork, ...others];
+}
+
+function buildVecSequence(song, recipe, pools) {
+  const artwork = buildOfficialArtworkAsset(song, recipe);
+  if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
+  const assets = [
+    ...includeRecipeAssets(pools.songAssets || [], recipe?.song_assets || {}),
+    ...(pools.folderAssets || []),
+    ...(pools.borrowedAssets || [])
+  ];
+  let sequence = shuffleVecIfNeeded(assets, recipe);
+  const artworkRules = recipe?.artwork || {};
+  if (artwork && artworkRules.start_with_artwork !== false) sequence = [artwork, ...sequence];
+  if (artwork && artworkRules.re_present_artwork !== false && Number(artworkRules.repeat_every_seconds || 0) > 0 && sequence.length > 1) {
+    sequence = sequence.flatMap((asset, index) => (index > 0 && index % 6 === 0 ? [artwork, asset] : [asset]));
+  }
+  // TODO: Time the final end_with_artwork/end_duration_seconds segment against audio duration once this dev integration owns song-duration scheduling.
+  if (artwork && !sequence.length) sequence = [artwork];
+  return sequence;
+}
 
 function getBrowserSessionId() {
   try {
@@ -3208,6 +3328,65 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     }
   }, []);
 
+  const loadVecRecipeVisuals = useCallback(async (song, { signal } = {}) => {
+    const songKey = clean(song?.song_key || song?.songKey || song?.raw?.song_key || song?.id || song?.raw?.id);
+    if (!songKey) return null;
+    try {
+      const recipeUrl = `${VEC_RECIPE_API_URL}?song_key=${encodeURIComponent(songKey)}`;
+      const recipeData = await fetchJsonNoStore(recipeUrl, { signal });
+      const recipe = parseJsonBody(recipeData)?.recipe || null;
+      if (!recipe) {
+        vecPlayerLog('recipe not found', { song_key: songKey });
+        return null;
+      }
+      vecPlayerLog('recipe loaded', { song_key: songKey, visual_mode: recipe.visual_mode || 'custom' });
+      if (recipe.visual_mode === 'artwork_only') {
+        return buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] });
+      }
+
+      const songAssetsData = await fetchJsonNoStore(`${VEC_SONG_ASSETS_API_URL}?song_key=${encodeURIComponent(songKey)}`, { signal }).catch(error => {
+        if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'song-only assets failed; continuing', error?.message || error);
+        return null;
+      });
+      const songAssets = normalizeVecAssetsResponse(songAssetsData, 'song-only');
+      vecPlayerLog('song-only assets', songAssets.length);
+
+      const folderRecipes = (Array.isArray(recipe.folders) ? recipe.folders : []).filter(folder => folder?.enabled !== false && clean(folder?.folder_id));
+      const folderLists = await Promise.all(folderRecipes.map(async folderRecipe => {
+        try {
+          const data = await fetchJsonNoStore(`${VEC_VISUAL_FOLDERS_API_URL}/${encodeURIComponent(folderRecipe.folder_id)}/assets`, { signal });
+          return includeRecipeAssets(normalizeVecAssetsResponse(data, `folder:${folderRecipe.folder_id}`), folderRecipe);
+        } catch (error) {
+          if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'folder assets failed; continuing', { folder_id: folderRecipe.folder_id, error: error?.message || error });
+          return [];
+        }
+      }));
+      const folderAssets = folderLists.flat();
+      vecPlayerLog('folder assets', folderAssets.length);
+
+      const borrowedRecipes = (Array.isArray(recipe.borrowed_song_assets) ? recipe.borrowed_song_assets : []).filter(item => clean(item?.source_song_key));
+      const borrowedLists = await Promise.all(borrowedRecipes.map(async borrowedRecipe => {
+        try {
+          const sourceKey = clean(borrowedRecipe.source_song_key);
+          const data = await fetchJsonNoStore(`${VEC_SONG_ASSETS_API_URL}?song_key=${encodeURIComponent(sourceKey)}`, { signal });
+          return includeRecipeAssets(normalizeVecAssetsResponse(data, `borrowed:${sourceKey}`), borrowedRecipe);
+        } catch (error) {
+          if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'borrowed assets failed; continuing', { source_song_key: borrowedRecipe.source_song_key, error: error?.message || error });
+          return [];
+        }
+      }));
+      const borrowedAssets = borrowedLists.flat();
+      vecPlayerLog('borrowed assets', borrowedAssets.length);
+
+      const sequence = buildVecSequence(song, recipe, { songAssets, folderAssets, borrowedAssets });
+      vecPlayerLog('final visual sequence count', sequence.length);
+      return sequence;
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'recipe fetch failed; using existing visuals', error?.message || error);
+      return null;
+    }
+  }, []);
+
   const renderCurrentVisualOrArtwork = useCallback((song, images) => {
     setCurrentVisualIndex(0);
     setCurrentVisualImages(Array.isArray(images) ? images : []);
@@ -3223,11 +3402,21 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
 
   useEffect(() => {
     const controller = new AbortController();
+    const sequenceSongKey = selected?.songKey || selected?.idx || '';
     clearVisualRotation();
+    setVisualIndex(0);
+    setVisualSequenceState({ songKey: '', assets: [] });
     renderCurrentVisualOrArtwork(selected, []);
     if (!selected) return () => controller.abort();
     let disposed = false;
-    fetchSongVisuals(selected, { signal: controller.signal }).then(images => {
+    loadVecRecipeVisuals(selected, { signal: controller.signal }).then(async sequence => {
+      if (disposed || controller.signal.aborted) return;
+      if (Array.isArray(sequence)) {
+        setCurrentVisualImages([]);
+        setVisualSequenceState({ songKey: sequenceSongKey, assets: sequence });
+        return;
+      }
+      const images = await fetchSongVisuals(selected, { signal: controller.signal });
       if (disposed || controller.signal.aborted) return;
       renderCurrentVisualOrArtwork(selected, images);
     });
@@ -3235,8 +3424,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       disposed = true;
       controller.abort();
       clearVisualRotation();
+      setCurrentVisualImages([]);
+      setVisualSequenceState({ songKey: '', assets: [] });
     };
-  }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, renderCurrentVisualOrArtwork]);
+  }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, loadVecRecipeVisuals, renderCurrentVisualOrArtwork]);
 
   useEffect(() => {
     startVisualRotation(selected, currentVisualImages);
@@ -3285,26 +3476,25 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
 
   useEffect(() => {
+    if (visualSequenceState.songKey === visualSequenceSongKey && visualSequenceState.assets.length) return;
+    if (!canUseEnhancedVisuals) return;
     setVisualIndex(0);
-    if (!canUseEnhancedVisuals) {
-      setVisualSequenceState({ songKey: '', assets: [] });
-      return;
-    }
     setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected) });
-  }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey]);
+  }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey, visualSequenceState.songKey, visualSequenceState.assets.length]);
 
   const skipVisualAsset = useCallback((assetUrl) => {
     if (!assetUrl) return;
+    vecPlayerLog('skipped broken asset', assetUrl);
     setVisualSequenceState(sequence => ({ ...sequence, assets: sequence.assets.filter(asset => asset.url !== assetUrl) }));
     setVisualIndex(0);
   }, []);
 
   useEffect(() => {
     if (!hasEnhancedVisuals || !activeVisualIsImage || mediaMode === 'video' || !isPlaying) return undefined;
-    const durationMs = normalizeVisualDuration(selected.stillImageDurationSeconds) * 1000;
+    const durationMs = normalizeVisualDuration(activeVisualAsset?.durationSeconds || selected.stillImageDurationSeconds) * 1000;
     const timer = window.setTimeout(() => setVisualIndex((index) => index + 1), durationMs);
     return () => window.clearTimeout(timer);
-  }, [hasEnhancedVisuals, activeVisualIsImage, activeVisualKey, selected?.stillImageDurationSeconds, isPlaying, mediaMode]);
+  }, [hasEnhancedVisuals, activeVisualIsImage, activeVisualKey, selected?.stillImageDurationSeconds, activeVisualAsset?.durationSeconds, isPlaying, mediaMode]);
 
   useEffect(() => {
     const clip = visualClipRef.current;
