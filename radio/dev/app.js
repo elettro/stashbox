@@ -7,9 +7,9 @@ const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
 const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
 const PUBLIC_ADS_API_URL = `${API_ROOT_URL}/radio/ads`;
 const SONG_VISUALS_API_URL = `${API_ROOT_URL}/radio/visuals`;
-const VEC_RECIPE_API_URL = `${API_ROOT_URL}/admin/vec/recipe`;
-const VEC_SONG_ASSETS_API_URL = `${API_ROOT_URL}/admin/vec/song-assets`;
-const VEC_VISUAL_FOLDERS_API_URL = `${API_ROOT_URL}/admin/visuals/folders`;
+const VEC_RECIPE_API_URL = `${API_ROOT_URL}/radio/vec/recipe`;
+const VEC_SONG_ASSETS_API_URL = `${API_ROOT_URL}/radio/vec/song-assets`;
+const VEC_VISUAL_FOLDERS_API_URL = `${API_ROOT_URL}/radio/visuals/folders`;
 const PUBLIC_ADS_API_URLS = [PUBLIC_ADS_API_URL, `${API_ROOT_URL}/ads`];
 const PUBLIC_AD_SETTINGS_API_URLS = [`${API_ROOT_URL}/radio/ad-settings`, `${API_ROOT_URL}/ad-settings`];
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
@@ -3333,13 +3333,17 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     if (!songKey) return null;
     try {
       const recipeUrl = `${VEC_RECIPE_API_URL}?song_key=${encodeURIComponent(songKey)}`;
+      vecPlayerLog('recipe URL', recipeUrl);
       const recipeData = await fetchJsonNoStore(recipeUrl, { signal });
-      const recipe = parseJsonBody(recipeData)?.recipe || null;
+      const parsedRecipeData = parseJsonBody(recipeData) || {};
+      vecPlayerLog('recipe status', { song_key: songKey, success: parsedRecipeData.success === true, found: parsedRecipeData.found === true });
+      const recipe = parsedRecipeData.recipe || null;
       if (!recipe) {
-        vecPlayerLog('recipe not found', { song_key: songKey });
+        vecPlayerLog('recipe not found', { song_key: songKey, found: parsedRecipeData.found === true });
         return null;
       }
-      vecPlayerLog('recipe loaded', { song_key: songKey, visual_mode: recipe.visual_mode || 'custom' });
+      const sequenceCount = Array.isArray(recipe.sequence) ? recipe.sequence.length : 0;
+      vecPlayerLog('recipe loaded', { song_key: songKey, found: true, visual_mode: recipe.visual_mode || 'custom', sequence_count: sequenceCount });
       if (recipe.visual_mode === 'artwork_only') {
         return buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] });
       }
