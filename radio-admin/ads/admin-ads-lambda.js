@@ -1854,6 +1854,95 @@ async function handlePublicVecSongAssetsRoute(event) {
   return response(404, { success: false, error: 'Not found.' });
 }
 
+
+function getVisualsFolderAssetsRouteMatch(event) {
+  const segments = getRouteSegments(event);
+  const foldersIndex = segments.lastIndexOf('folders');
+  const folderId = event.pathParameters?.folder_id ||
+    event.pathParameters?.folderId ||
+    event.pathParameters?.id ||
+    (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
+  const isAssetsRoute = foldersIndex >= 0 &&
+    segments[foldersIndex - 1] === 'visuals' &&
+    Boolean(folderId) &&
+    segments[foldersIndex + 2] === 'assets' &&
+    !segments[foldersIndex + 3];
+  return { isAssetsRoute, folderId };
+}
+
+function matchesPublicVisualsFolderAssetsRoute(event, route) {
+  const folderAssetPattern = /(?:^|\/)radio\/visuals\/folders\/[^/]+\/assets$/;
+  const candidates = [
+    route,
+    event.rawPath,
+    event.path,
+    event.routeKey,
+    event.resource
+  ];
+  return candidates.some((candidate) => folderAssetPattern.test(normalizeRoute(String(candidate || '').split('?')[0]))) ||
+    getVisualsFolderAssetsRouteMatch(event).isAssetsRoute;
+}
+
+function normalizeVisualsFolderAsset(row) {
+  const mediaType = row.asset_type === 'clip' ? 'clip' : 'image';
+  return {
+    id: row.id,
+    folder_id: row.folder_id,
+    folder_slug: row.folder_slug || '',
+    type: mediaType,
+    media_type: mediaType,
+    asset_type: mediaType,
+    url: row.public_url || '',
+    public_url: row.public_url || '',
+    thumbnail_url: row.thumbnail_url || row.public_url || '',
+    filename: row.file_name || row.caption || '',
+    file_name: row.file_name || '',
+    title: row.caption || row.file_name || '',
+    width: row.width,
+    height: row.height,
+    ratio_label: row.ratio_label || '',
+    content_type: row.content_type || '',
+    size_bytes: row.size_bytes,
+    status: row.status || 'active',
+    caption: row.caption || '',
+    alt_text: row.alt_text || '',
+    notes: row.notes || '',
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || ''
+  };
+}
+
+async function getVisualsFolderAssets(folderId) {
+  let assets = [];
+  try {
+    const result = await client.query(
+      `SELECT *
+       FROM radio.visuals_folder_assets
+       WHERE folder_id = $1 AND status <> 'hidden' AND public_url IS NOT NULL AND public_url <> ''
+       ORDER BY created_at ASC, file_name ASC NULLS LAST`,
+      [folderId]
+    );
+    assets = result.rows.map(normalizeVisualsFolderAsset);
+  } catch (error) {
+    if (error?.code !== '42P01') throw error;
+  }
+  return {
+    success: true,
+    folder_id: folderId,
+    images: assets.filter((asset) => asset.asset_type === 'image'),
+    clips: assets.filter((asset) => asset.asset_type === 'clip'),
+    assets
+  };
+}
+
+async function handlePublicVisualsFolderAssetsRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  const { isAssetsRoute, folderId } = getVisualsFolderAssetsRouteMatch(event);
+  if (method === 'GET' && isAssetsRoute) return response(200, await getVisualsFolderAssets(folderId));
+  return response(404, { success: false, error: 'Not found.' });
+}
+
 async function updateAdminSong(event) {
   const songKey = event.pathParameters?.song_key || event.pathParameters?.songKey || getRouteSegments(event)[2] || '';
   if (!songKey) return response(400, { success: false, error: 'song_key is required.' });
@@ -2803,6 +2892,10 @@ async function dispatch(event) {
 
   if (matchesPublicVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'song-assets'])) {
     return handlePublicVecSongAssetsRoute(event);
+  }
+
+  if (matchesPublicVisualsFolderAssetsRoute(event, route)) {
+    return handlePublicVisualsFolderAssetsRoute(event);
   }
 
   if (matchesAdminVecSongAssetsRoute(event, route) || routeStartsWith(segments, ['admin', 'vec', 'song-assets'])) {
