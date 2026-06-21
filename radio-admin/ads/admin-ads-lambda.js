@@ -1055,7 +1055,7 @@ function getRouteSegments(event) {
   if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
 
   const routeRootIndex = segments.findIndex((segment) =>
-    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals'].includes(segment)
+    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals', 'vec'].includes(segment)
   );
   if (routeRootIndex > 0) return segments.slice(routeRootIndex);
 
@@ -1074,6 +1074,30 @@ function matchesRoute(route, candidates) {
   const clean = normalizeRoute(route);
   return candidates.some((candidate) => clean === normalizeRoute(candidate));
 }
+function routeEndsWith(path, suffix) {
+  const cleanPath = normalizeRoute(String(path || '').split('?')[0]);
+  const cleanSuffix = normalizeRoute(suffix);
+  return cleanPath === cleanSuffix || cleanPath.endsWith(`/${cleanSuffix}`);
+}
+
+function matchesPublicVecRecipeRoute(event, route) {
+  return matchesRoute(route, ['radio/vec/recipe', '/radio/vec/recipe']) ||
+    routeEndsWith(route, '/radio/vec/recipe') ||
+    routeEndsWith(event.rawPath, '/radio/vec/recipe') ||
+    routeEndsWith(event.path, '/radio/vec/recipe') ||
+    routeEndsWith(event.routeKey, '/radio/vec/recipe') ||
+    routeEndsWith(event.resource, '/radio/vec/recipe');
+}
+
+function matchesAdminVecRecipeRoute(event, route) {
+  return matchesRoute(route, ['admin/vec/recipe', '/admin/vec/recipe']) ||
+    routeEndsWith(route, '/admin/vec/recipe') ||
+    routeEndsWith(event.rawPath, '/admin/vec/recipe') ||
+    routeEndsWith(event.path, '/admin/vec/recipe') ||
+    routeEndsWith(event.routeKey, '/admin/vec/recipe') ||
+    routeEndsWith(event.resource, '/admin/vec/recipe');
+}
+
 
 function getQueryLimit(event, fallback = 100, max = 500) {
   const rawLimit = Number(event.queryStringParameters?.limit || fallback);
@@ -1597,6 +1621,81 @@ async function createAdminSong(event) {
 
     return response(500, { success: false, error: 'Internal Server Error' });
   }
+}
+
+function validateVecSongKey(value) {
+  const songKey = String(value || '').trim();
+  if (!songKey) return { error: 'song_key is required.' };
+  if (songKey.length > 200) return { error: 'song_key is too long.' };
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(songKey)) return { error: 'song_key contains unsupported characters.' };
+  return { songKey };
+}
+
+function validateVecRecipe(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'recipe must be a JSON object.' };
+  return { recipe: value };
+}
+
+async function ensureSongVisualRecipesTable() {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS radio.song_visual_recipes (
+      song_key TEXT PRIMARY KEY,
+      recipe JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
+async function loadSongVisualRecipe(event) {
+  const validation = validateVecSongKey(event.queryStringParameters?.song_key || event.queryStringParameters?.songKey);
+  if (validation.error) return response(400, { success: false, error: validation.error });
+  try {
+    const result = await client.query(
+      'SELECT song_key, recipe, created_at, updated_at FROM radio.song_visual_recipes WHERE song_key = $1 LIMIT 1',
+      [validation.songKey]
+    );
+    if (!result.rowCount) return response(200, { success: true, found: false, song_key: validation.songKey, recipe: null });
+    return response(200, { success: true, found: true, ...result.rows[0] });
+  } catch (error) {
+    if (error?.code === '42P01') return response(200, { success: true, found: false, song_key: validation.songKey, recipe: null });
+    throw error;
+  }
+}
+
+async function saveSongVisualRecipe(event) {
+  const body = parseBody(event);
+  const keyValidation = validateVecSongKey(body.song_key || body.songKey);
+  if (keyValidation.error) return response(400, { success: false, error: keyValidation.error });
+  const recipeValidation = validateVecRecipe(body.recipe);
+  if (recipeValidation.error) return response(400, { success: false, error: recipeValidation.error });
+  await ensureSongVisualRecipesTable();
+  const recipe = { ...recipeValidation.recipe, song_key: keyValidation.songKey, updated_at: new Date().toISOString() };
+  if (!recipe.version) recipe.version = 1;
+  const result = await client.query(
+    `INSERT INTO radio.song_visual_recipes (song_key, recipe)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (song_key) DO UPDATE SET recipe = EXCLUDED.recipe, updated_at = now()
+     RETURNING song_key, recipe, created_at, updated_at`,
+    [keyValidation.songKey, JSON.stringify(recipe)]
+  );
+  return response(200, { success: true, ...result.rows[0] });
+}
+
+async function handleAdminVecRecipeRoute(event) {
+  await requireAdmin(event);
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  if (method === 'GET') return loadSongVisualRecipe(event);
+  if (method === 'PUT') return saveSongVisualRecipe(event);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicVecRecipeRoute(event) {
+  const method = getMethod(event).toUpperCase();
+  if (method === 'OPTIONS') return response(204, {});
+  if (method === 'GET') return loadSongVisualRecipe(event);
+  return response(404, { success: false, error: 'Not found.' });
 }
 
 async function updateAdminSong(event) {
@@ -2542,6 +2641,13 @@ async function dispatch(event) {
     return handleAdminAdsRoute(event, { requireAdmin });
   }
 
+  if (matchesPublicVecRecipeRoute(event, route) || routeStartsWith(segments, ['radio', 'vec', 'recipe'])) {
+    return handlePublicVecRecipeRoute(event);
+  }
+
+  if (matchesAdminVecRecipeRoute(event, route)) {
+    return handleAdminVecRecipeRoute(event);
+  }
 
   if (routeStartsWith(segments, ['radio', 'admin', 'visuals', 'folders'])) {
     return handleAdminVisualsFoldersRoute(event);
