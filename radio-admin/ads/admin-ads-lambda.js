@@ -2795,10 +2795,15 @@ function validateUploadRequest(body) {
   };
 }
 
+const MEDIA_UPLOAD_BUCKET = 'stashbox-media-656260749296-us-east-2-an';
+const MEDIA_UPLOAD_BUCKET_REGION = 'us-east-2';
+
 async function createAdminUploadPresign(event) {
   const body = parseBody(event);
-  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
-  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || MEDIA_UPLOAD_BUCKET;
+  const region = bucket === MEDIA_UPLOAD_BUCKET
+    ? MEDIA_UPLOAD_BUCKET_REGION
+    : (process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || MEDIA_UPLOAD_BUCKET_REGION);
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
   const sessionToken = process.env.AWS_SESSION_TOKEN || '';
@@ -2833,7 +2838,7 @@ async function createAdminUploadPresign(event) {
   if (sessionToken) query.set('X-Amz-Security-Token', sessionToken);
   const canonicalQuery = Array.from(query.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([keyName, value]) => `${encodeURIComponent(keyName)}=${encodeURIComponent(value).replace(/%2F/g, '%252F')}`)
+    .map(([keyName, value]) => `${encodeURIComponent(keyName)}=${encodeURIComponent(value)}`)
     .join('&');
   const canonicalUri = `/${key.split('/').map(encodeURIComponent).join('/')}`;
   const canonicalRequest = ['PUT', canonicalUri, canonicalQuery, `host:${host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
