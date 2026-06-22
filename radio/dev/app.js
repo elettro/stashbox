@@ -3368,7 +3368,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       const folderAssets = folderLists.flat();
       vecPlayerLog('folder assets', folderAssets.length);
 
-      const borrowedRecipes = (Array.isArray(recipe.borrowed_song_assets) ? recipe.borrowed_song_assets : []).filter(item => clean(item?.source_song_key));
+      const borrowedRecipes = (Array.isArray(recipe.borrowed_song_assets) ? recipe.borrowed_song_assets : []).filter(item => item?.enabled !== false && clean(item?.source_song_key));
       const borrowedLists = await Promise.all(borrowedRecipes.map(async borrowedRecipe => {
         try {
           const sourceKey = clean(borrowedRecipe.source_song_key);

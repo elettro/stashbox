@@ -344,18 +344,33 @@
     return state.borrowedAssetsBySource.get(sourceSongKey) || { loading: false, error: '', assets: [] };
   }
 
+  function getBorrowedSourceEnabledMap(state) {
+    if (!state.borrowedSourceEnabledBySource) state.borrowedSourceEnabledBySource = new Map();
+    return state.borrowedSourceEnabledBySource;
+  }
+
+  function isBorrowedSourceEnabled(state, sourceSongKey) {
+    const enabledMap = getBorrowedSourceEnabledMap(state);
+    return enabledMap.get(sourceSongKey) !== false;
+  }
+
+  function setBorrowedSourceEnabled(state, sourceSongKey, enabled) {
+    getBorrowedSourceEnabledMap(state).set(sourceSongKey, enabled !== false);
+  }
+
   function getBorrowedSourceSongKeys(state) {
     return [...(state.borrowedSourceSongKeys || new Set())].filter((sourceSongKey) => sourceSongKey && sourceSongKey !== state.songKey);
   }
 
   function getActiveBorrowedAssetCounts(state) {
     return getBorrowedSourceSongKeys(state).reduce((counts, sourceSongKey) => {
+      if (!isBorrowedSourceEnabled(state, sourceSongKey)) return counts;
       const assetState = getBorrowedAssetState(state, sourceSongKey);
       (assetState.assets || []).forEach((asset) => {
         if (clean(asset.status).toLowerCase() === 'hidden' || !isBorrowedAssetIncluded(state, sourceSongKey, asset)) return;
         if (normalizeAssetType(asset) === 'clip') counts.clips += 1; else counts.images += 1;
       });
-      counts.sourceSongs = getBorrowedSourceSongKeys(state).length;
+      counts.sourceSongs += 1;
       return counts;
     }, { images: 0, clips: 0, sourceSongs: 0 });
   }
@@ -363,6 +378,7 @@
   function getActiveBorrowedSongAssets(state) {
     const visuals = [];
     getBorrowedSourceSongKeys(state).forEach((sourceSongKey) => {
+      if (!isBorrowedSourceEnabled(state, sourceSongKey)) return;
       const assetState = getBorrowedAssetState(state, sourceSongKey);
       const sourceSong = (state.songs || []).find((song) => getSongKey(song) === sourceSongKey);
       const sourceTitle = sourceSong ? getSongTitle(sourceSong) : sourceSongKey;
@@ -407,19 +423,22 @@
     const sourceTitle = sourceSong ? getSongTitle(sourceSong) : sourceKey;
     const assetState = getBorrowedAssetState(state, sourceKey);
     const assets = [...(assetState.assets || [])].sort((a, b) => latestTime(b) - latestTime(a));
-    const counts = assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 });
+    const sourceEnabled = isBorrowedSourceEnabled(state, sourceKey);
+    const counts = sourceEnabled ? assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 }) : { images: 0, clips: 0 };
+    const savedCounts = assets.reduce((total, asset) => { if (clean(asset.status).toLowerCase() !== 'hidden' && isBorrowedAssetIncluded(state, sourceKey, asset)) { if (normalizeAssetType(asset) === 'clip') total.clips += 1; else total.images += 1; } return total; }, { images: 0, clips: 0 });
     const toggleState = getBorrowedAssetToggleState(state, sourceKey, assets);
-    return `<article class="vec-folder-card vec-borrow-source-card is-selected" data-vec-borrow-source-card="${escapeHtml(sourceKey)}">
+    return `<article class="vec-folder-card vec-borrow-source-card is-selected ${sourceEnabled ? 'is-borrow-enabled' : 'is-borrow-disabled'}" data-vec-borrow-source-card="${escapeHtml(sourceKey)}">
       <div class="vec-folder-card-top">
         <div class="vec-folder-card-main">
           <div class="vec-folder-card-head"><h3>${escapeHtml(sourceTitle)}</h3><span class="vec-folder-status is-active">Borrowed source</span></div>
           <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
           <small>${escapeHtml(sourceKey)}</small>
         </div>
-        <div class="vec-folder-actions"><button type="button" class="vec-folder-expand" data-vec-borrow-source-remove="${escapeHtml(sourceKey)}">Remove Borrowed Song</button></div>
+        <div class="vec-folder-actions"><button type="button" class="vec-toggle ${sourceEnabled ? 'is-on' : 'is-off'}" data-vec-borrow-source-enabled="${escapeHtml(sourceKey)}" aria-pressed="${sourceEnabled}">Borrowed Song ${sourceEnabled ? 'ON' : 'OFF'}</button><button type="button" class="vec-folder-expand" data-vec-borrow-source-remove="${escapeHtml(sourceKey)}">Remove Borrowed Song</button></div>
       </div>
       ${assetState.loading ? '<p class="vec-empty-state">Loading borrowed source assets...</p>' : ''}
       ${assetState.error ? `<p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p>` : ''}
+      ${!sourceEnabled ? `<p class="vec-empty-state vec-borrow-disabled-note">This borrowed song is OFF and ignored in the preview. Saved selections preserved: ${savedCounts.images} image${savedCounts.images === 1 ? '' : 's'} · ${savedCounts.clips} clip${savedCounts.clips === 1 ? '' : 's'}.</p>` : ''}
       ${!assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls for ${escapeHtml(sourceTitle)}"><p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
       ${!assetState.loading && !assetState.error ? (assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderBorrowedAssetCard(state, sourceKey, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips found for this source song.</p>') : ''}
     </article>`;
@@ -902,7 +921,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -1346,7 +1365,7 @@
     function buildBorrowedSongAssetsRecipe() {
       const sourceKeys = getBorrowedSourceSongKeys(state);
       return sourceKeys.map((sourceSongKey) => {
-        const recipe = { source_song_key: sourceSongKey, active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
+        const recipe = { source_song_key: sourceSongKey, enabled: isBorrowedSourceEnabled(state, sourceSongKey), active_image_ids: [], active_clip_ids: [], excluded_image_ids: [], excluded_clip_ids: [] };
         const assets = getBorrowedAssetState(state, sourceSongKey).assets || [];
         const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
         if (assets.length) {
@@ -1433,6 +1452,7 @@
       state.borrowedSourceSongMessageIsError = false;
       state.borrowedAssetsBySource = new Map();
       state.borrowedAssetInclusionBySource = new Map();
+      state.borrowedSourceEnabledBySource = new Map();
       previewState.index = 0;
     }
 
@@ -1466,6 +1486,7 @@
           const sourceSongKey = clean(borrowedRecipe.source_song_key);
           if (!sourceSongKey || sourceSongKey === state.songKey) return;
           state.borrowedSourceSongKeys.add(sourceSongKey);
+          setBorrowedSourceEnabled(state, sourceSongKey, borrowedRecipe.enabled !== false);
           if (!state.borrowedSourceSongKey || index === 0) state.borrowedSourceSongKey = sourceSongKey;
           const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
           [...(borrowedRecipe.active_image_ids || []), ...(borrowedRecipe.active_clip_ids || [])].forEach((id) => inclusion.set(String(id), true));
@@ -1601,6 +1622,7 @@
       state.borrowedSourceSongMessageIsError = false;
       state.borrowedAssetsBySource = new Map();
       state.borrowedAssetInclusionBySource = new Map();
+      state.borrowedSourceEnabledBySource = new Map();
       previewState.preloadCache = new Map();
       previewState.index = 0;
       loadPreviewAudio();
@@ -1618,6 +1640,7 @@
       if (!sourceSongKey || sourceSongKey === state.songKey) return;
       state.borrowedSourceSongKey = sourceSongKey;
       state.borrowedSourceSongKeys.add(sourceSongKey);
+      if (!getBorrowedSourceEnabledMap(state).has(sourceSongKey)) setBorrowedSourceEnabled(state, sourceSongKey, true);
       state.borrowedAssetsBySource.set(sourceSongKey, { loading: true, error: '', assets: getBorrowedAssetState(state, sourceSongKey).assets || [] });
       renderDynamic();
       try {
@@ -1637,6 +1660,13 @@
       if (!asset) return;
       const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
       inclusion.set(asset.id, inclusion.get(asset.id) === false);
+      markDirty();
+      renderDynamic();
+    }
+
+    function toggleBorrowedSourceEnabled(sourceSongKey) {
+      if (!(state.borrowedSourceSongKeys || new Set()).has(sourceSongKey)) return;
+      setBorrowedSourceEnabled(state, sourceSongKey, !isBorrowedSourceEnabled(state, sourceSongKey));
       markDirty();
       renderDynamic();
     }
@@ -1800,14 +1830,23 @@
       if (removeButton) {
         event.preventDefault();
         const sourceSongKey = removeButton.dataset.vecBorrowSourceRemove;
+        if (!window.confirm('Remove this borrowed song from this recipe? Source song assets will not be deleted.')) return;
         state.borrowedSourceSongKeys.delete(sourceSongKey);
         state.borrowedAssetsBySource.delete(sourceSongKey);
         state.borrowedAssetInclusionBySource.delete(sourceSongKey);
+        state.borrowedSourceEnabledBySource.delete(sourceSongKey);
         if (state.borrowedSourceSongKey === sourceSongKey) state.borrowedSourceSongKey = getBorrowedSourceSongKeys(state)[0] || '';
         state.borrowedSourceSongMessage = '';
         state.borrowedSourceSongMessageIsError = false;
         markDirty();
         renderDynamic();
+        return;
+      }
+      const sourceEnabledToggle = event.target.closest('[data-vec-borrow-source-enabled]');
+      if (sourceEnabledToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleBorrowedSourceEnabled(sourceEnabledToggle.dataset.vecBorrowSourceEnabled);
         return;
       }
       const toggleAll = event.target.closest('[data-vec-borrow-assets-toggle]');
