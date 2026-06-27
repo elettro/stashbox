@@ -1957,19 +1957,21 @@ async function trackSongEvent(client, event) {
   const params = fields.map((field) => payload[field]);
 
   console.log('[Stashbox Radio API] Track insert SQL', { sql, params });
-  console.log("TRACK TABLE", {
+  console.log("TRACK DEBUG", {
     schemaName,
     tableName,
     columns: Array.from(columns),
     payload
   });
 
-  const insertResult = await client.query(sql, params);
-  const insertRowCount = insertResult.rowCount || 0;
-  console.log("TRACK INSERT RESULT", insertResult.rowCount);
+  const result = await client.query(sql, params);
+  const insertRowCount = result.rowCount || 0;
+  console.log("INSERT ROWCOUNT", result.rowCount);
 
-  if (insertRowCount === 0) {
-    throw new Error('Track event insert did not affect any rows.');
+  if (result.rowCount !== 1) {
+    throw new Error(
+      `Track event insert failed. rowCount=${result.rowCount} table=${schemaName}.${tableName}`
+    );
   }
 
   if (normalizedEventType === 'play_start') {
