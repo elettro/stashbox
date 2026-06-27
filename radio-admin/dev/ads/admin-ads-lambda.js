@@ -1871,15 +1871,23 @@ async function updateAdminSong(event) {
 async function trackSongEvent(client, event) {
   const body = parseBody(event);
   const eventType = getPayloadEventType(body);
+  const normalizedEventType = eventType === 'play' ? 'play_start' : eventType;
   const normalizedSongKey = String(body.song_key || body.songKey || body.track_key || '').trim();
   const normalizedSongId = String(body.song_id || body.songId || body.id || '').trim();
   const songKey = normalizedSongKey || null;
   const songId = normalizedSongId || null;
   const songIdentity = songKey || songId;
 
-  if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
+  if (!songIdentity || !SONG_EVENT_TYPES.has(normalizedEventType)) {
     return response(400, { success: false, error: 'Invalid or missing song event' });
   }
+
+  console.log('[Stashbox Radio API Dev] song track event received', {
+    received_song_key: songKey,
+    received_song_id: songId,
+    received_event_type: eventType,
+    normalized_event_type: normalizedEventType
+  });
 
   const [schemaName, tableName] = await findFirstTable([
     ['radio', 'song_events'],
@@ -1891,7 +1899,7 @@ async function trackSongEvent(client, event) {
   const payload = {
     song_key: songKey || songIdentity,
     song_id: songId || songIdentity,
-    event_type: eventType,
+    event_type: normalizedEventType,
     session_id: body.session_id || body.sessionId || '',
     device_type: body.device_type || body.deviceType || '',
     referrer: body.referrer || '',
@@ -1907,16 +1915,83 @@ async function trackSongEvent(client, event) {
     source_page: body.source_page || body.sourcePage || '/stashbox/radio/dev/'
   };
   const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
+  let insertRowCount = 0;
 
   if (fields.length) {
-    await client.query(
+    const insertResult = await client.query(
       `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
        VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
       fields.map((field) => payload[field])
     );
+    insertRowCount = insertResult.rowCount || 0;
   }
 
-  if (eventType === 'like') {
+  if (normalizedEventType === 'play_start') {
+    const songColumns = await getTableColumns('radio', 'songs');
+    const playCountColumn = firstExistingColumn(songColumns, ['play_count', 'total_plays', 'plays']);
+
+    if (!playCountColumn) {
+      console.warn('[Stashbox Radio API Dev] play tracking has no writable song count column', {
+        songKey,
+        songId,
+        target_table: `${schemaName}.${tableName}`,
+        insertRowCount
+      });
+      return response(500, {
+        success: false,
+        error: 'No song play count column is available for play tracking.',
+        song_key: songKey,
+        song_id: songId
+      });
+    }
+
+    const updateResult = await client.query(
+      `UPDATE radio.songs
+       SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
+           updated_at = now()
+       WHERE ($1::text IS NOT NULL AND id::text = $1)
+          OR ($2::text IS NOT NULL AND song_key = $2)
+       RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
+      [songId, songKey]
+    );
+
+    console.log('[Stashbox Radio API Dev] play tracking persistence result', {
+      received_song_key: songKey,
+      received_song_id: songId,
+      received_event_type: eventType,
+      normalized_event_type: normalizedEventType,
+      matched_song_id: updateResult.rows[0]?.id || null,
+      target_table: `${schemaName}.${tableName}`,
+      count_column: playCountColumn,
+      insert_row_count: insertRowCount,
+      update_row_count: updateResult.rowCount || 0
+    });
+
+    if (!updateResult.rowCount) {
+      return response(404, {
+        success: false,
+        error: 'Song not found for play tracking.',
+        song_key: songKey,
+        song_id: songId
+      });
+    }
+
+    const updated = updateResult.rows[0];
+    const playCount = Number(updated.play_count || 0);
+    return response(200, {
+      success: true,
+      message: 'Song play recorded.',
+      event_type: normalizedEventType,
+      id: updated.id,
+      song_key: updated.song_key,
+      display_title: updated.display_title,
+      play_count: playCount,
+      total_plays: playCount,
+      plays: playCount
+    });
+  }
+
+  if (normalizedEventType === 'like') {
     console.log('[Stashbox Radio API Dev] like event received', {
       songKey,
       songId,
@@ -1966,7 +2041,7 @@ async function trackSongEvent(client, event) {
   }
 
 
-  if (eventType === 'share') {
+  if (normalizedEventType === 'share') {
     console.log('[Stashbox Radio API Dev] share event received', {
       songKey,
       songId,
@@ -2018,7 +2093,18 @@ async function trackSongEvent(client, event) {
     });
   }
 
-  return response(200, { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey || songIdentity, song_id: songId || songIdentity });
+  console.log('[Stashbox Radio API Dev] song event insert result', {
+    received_song_key: songKey,
+    received_song_id: songId,
+    received_event_type: eventType,
+    normalized_event_type: normalizedEventType,
+    matched_song_id: null,
+    target_table: `${schemaName}.${tableName}`,
+    insert_row_count: insertRowCount,
+    update_row_count: 0
+  });
+
+  return response(200, { success: true, message: 'Song event recorded.', event_type: normalizedEventType, song_key: songKey || songIdentity, song_id: songId || songIdentity });
 }
 
 async function listEvents(event) {
