@@ -2030,6 +2030,15 @@ async function trackSongEvent(client, event) {
   }
 
   const [schemaName, tableName] = eventTable;
+  if (schemaName !== 'radio' || tableName !== 'radio_events') {
+    console.error('[Stashbox Radio API] Track event resolved unexpected table', {
+      schemaName,
+      tableName,
+      expectedSchema: 'radio',
+      expectedTable: 'radio_events'
+    });
+    throw new Error(`Track event resolved unexpected table: ${schemaName}.${tableName}`);
+  }
   const columns = await getTableColumns(schemaName, tableName);
   const payload = {
     song_key: songKey || songIdentity,
@@ -2064,12 +2073,24 @@ async function trackSongEvent(client, event) {
     });
   }
 
-  if (fields.length) {
-    await client.query(
-      `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
-       VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
-      fields.map((field) => payload[field])
-    );
+  const sql = `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
+       VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`;
+  const params = fields.map((field) => payload[field]);
+
+  console.log('[Stashbox Radio API] Track insert SQL', { sql, params });
+  console.log("TRACK TABLE", {
+    schemaName,
+    tableName,
+    columns: Array.from(columns),
+    payload
+  });
+
+  const insertResult = await client.query(sql, params);
+  const insertRowCount = insertResult.rowCount || 0;
+  console.log("TRACK INSERT RESULT", insertResult.rowCount);
+
+  if (insertRowCount === 0) {
+    throw new Error('Track event insert did not affect any rows.');
   }
 
   if (eventType === 'like') {
