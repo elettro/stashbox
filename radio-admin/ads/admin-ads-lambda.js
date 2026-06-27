@@ -2097,7 +2097,7 @@ async function trackSongEvent(client, event) {
     await ensureSongsLikesColumn(client);
     const result = await client.query(
       `UPDATE radio.songs
-       SET likes = COALESCE(likes, 0) + 1,
+       SET likes = COALESCE(likes,0)+1,
            updated_at = now()
        WHERE song_key = $1
           OR id::text = $2
@@ -2147,7 +2147,7 @@ async function trackSongEvent(client, event) {
     await ensureSongsShareColumn(client);
     const result = await client.query(
       `UPDATE radio.songs
-       SET shares = COALESCE(shares, 0) + 1,
+       SET shares = COALESCE(shares,0)+1,
            updated_at = now()
        WHERE song_key = $1
           OR id::text = $2
