@@ -2018,7 +2018,7 @@ async function trackSongEvent(client, event) {
   ]);
 
   if (!eventTable) {
-    console.error('[Stashbox Radio API] No song event table found for track request', {
+    console.error('[Stashbox Radio API] No song event table found', {
       songKey,
       songId,
       eventType
@@ -2030,15 +2030,6 @@ async function trackSongEvent(client, event) {
   }
 
   const [schemaName, tableName] = eventTable;
-  if (schemaName !== 'radio' || tableName !== 'radio_events') {
-    console.error('[Stashbox Radio API] Track event resolved unexpected table', {
-      schemaName,
-      tableName,
-      expectedSchema: 'radio',
-      expectedTable: 'radio_events'
-    });
-    throw new Error(`Track event resolved unexpected table: ${schemaName}.${tableName}`);
-  }
   const columns = await getTableColumns(schemaName, tableName);
   const payload = {
     song_key: songKey || songIdentity,
@@ -2061,38 +2052,37 @@ async function trackSongEvent(client, event) {
   const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
 
   if (!fields.length) {
-    console.error('[Stashbox Radio API] Track event had no insertable fields', {
+    console.error('[Stashbox Radio API] No insertable track fields', {
       schemaName,
       tableName,
-      knownColumns: Array.from(columns),
+      columns: Array.from(columns),
       payload
     });
+
     return response(500, {
       success: false,
-      error: 'Track event table has no matching insert columns.'
+      error: 'No insertable track fields.'
     });
   }
 
-  const sql = `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
-       VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`;
-  const params = fields.map((field) => payload[field]);
+  const insertResult = await client.query(
+    `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
+     VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
+    fields.map((field) => payload[field])
+  );
 
-  console.log('[Stashbox Radio API] Track insert SQL', { sql, params });
-  console.log("TRACK DEBUG", {
-    schemaName,
-    tableName,
-    columns: Array.from(columns),
-    payload
-  });
+  if (insertResult.rowCount !== 1) {
+    console.error('[Stashbox Radio API] Track insert failed', {
+      schemaName,
+      tableName,
+      rowCount: insertResult.rowCount,
+      payload
+    });
 
-  const result = await client.query(sql, params);
-  const insertRowCount = result.rowCount || 0;
-  console.log("INSERT ROWCOUNT", result.rowCount);
-
-  if (result.rowCount !== 1) {
-    throw new Error(
-      `Track event insert failed. rowCount=${result.rowCount} table=${schemaName}.${tableName}`
-    );
+    return response(500, {
+      success: false,
+      error: 'Track insert failed.'
+    });
   }
 
   if (eventType === 'like') {
