@@ -1986,29 +1986,46 @@ async function trackSongEvent(client, event) {
       });
     }
 
-    const updateResult = await client.query(
-      `UPDATE radio.songs
-       SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
-           updated_at = now()
-       WHERE ($1::text IS NOT NULL AND id::text = $1)
-          OR ($2::text IS NOT NULL AND song_key = $2)
-       RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
-      [songId, songKey]
-    );
+    let playResult;
+    try {
+      console.log('[PLAY UPDATE START]', {
+        songKey,
+        songId,
+        eventType
+      });
+
+      playResult = await client.query(
+        `UPDATE radio.songs
+         SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
+             updated_at = now()
+         WHERE ($1::text IS NOT NULL AND id::text = $1)
+            OR ($2::text IS NOT NULL AND song_key = $2)
+         RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
+        [songId, songKey]
+      );
+
+      console.log('[PLAY UPDATE RESULT]', {
+        rowCount: playResult.rowCount,
+        rows: playResult.rows
+      });
+    } catch (err) {
+      console.error('[PLAY UPDATE FAILED]', err);
+      throw err;
+    }
 
     console.log('[Stashbox Radio API Dev] play tracking persistence result', {
       received_song_key: songKey,
       received_song_id: songId,
       received_event_type: eventType,
       normalized_event_type: normalizedEventType,
-      matched_song_id: updateResult.rows[0]?.id || null,
+      matched_song_id: playResult.rows[0]?.id || null,
       target_table: `${schemaName}.${tableName}`,
       count_column: playCountColumn,
       insert_row_count: insertRowCount,
-      update_row_count: updateResult.rowCount || 0
+      update_row_count: playResult.rowCount || 0
     });
 
-    if (!updateResult.rowCount) {
+    if (!playResult.rowCount) {
       return response(404, {
         success: false,
         error: 'Song not found for play tracking.',
@@ -2017,7 +2034,7 @@ async function trackSongEvent(client, event) {
       });
     }
 
-    const updated = updateResult.rows[0];
+    const updated = playResult.rows[0];
     const playCount = Number(updated.play_count || 0);
     return response(200, {
       success: true,
