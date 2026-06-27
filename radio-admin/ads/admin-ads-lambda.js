@@ -2009,12 +2009,27 @@ async function trackSongEvent(client, event) {
     return response(400, { success: false, error: 'Invalid or missing song event' });
   }
 
-  const [schemaName, tableName] = await findFirstTable([
+  const eventTable = await findExistingTable([
+    ['radio', 'radio_events'],
     ['radio', 'song_events'],
     ['radio', 'events'],
     ['public', 'song_events'],
     ['public', 'song_play_events']
   ]);
+
+  if (!eventTable) {
+    console.error('[Stashbox Radio API] No song event table found for track request', {
+      songKey,
+      songId,
+      eventType
+    });
+    return response(500, {
+      success: false,
+      error: 'No song event table found.'
+    });
+  }
+
+  const [schemaName, tableName] = eventTable;
   const columns = await getTableColumns(schemaName, tableName);
   const payload = {
     song_key: songKey || songIdentity,
@@ -2035,6 +2050,19 @@ async function trackSongEvent(client, event) {
     source_page: body.source_page || body.sourcePage || '/stashbox/radio/'
   };
   const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
+
+  if (!fields.length) {
+    console.error('[Stashbox Radio API] Track event had no insertable fields', {
+      schemaName,
+      tableName,
+      knownColumns: Array.from(columns),
+      payload
+    });
+    return response(500, {
+      success: false,
+      error: 'Track event table has no matching insert columns.'
+    });
+  }
 
   if (fields.length) {
     await client.query(
