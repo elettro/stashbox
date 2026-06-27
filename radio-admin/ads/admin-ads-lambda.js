@@ -2004,6 +2004,8 @@ async function trackSongEvent(client, event) {
   const songKey = normalizedSongKey || null;
   const songId = normalizedSongId || null;
   const songIdentity = songKey || songId;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const safeSongId = UUID_RE.test(String(songId || '')) ? songId : null;
 
   if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
     return response(400, { success: false, error: 'Invalid or missing song event' });
@@ -2033,7 +2035,7 @@ async function trackSongEvent(client, event) {
   const columns = await getTableColumns(schemaName, tableName);
   const payload = {
     song_key: songKey || songIdentity,
-    song_id: songId || songIdentity,
+    song_id: safeSongId,
     event_type: eventType,
     session_id: body.session_id || body.sessionId || '',
     device_type: body.device_type || body.deviceType || '',
@@ -2065,11 +2067,25 @@ async function trackSongEvent(client, event) {
     });
   }
 
-  const insertResult = await client.query(
-    `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
-     VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
-    fields.map((field) => payload[field])
-  );
+  let insertResult;
+  try {
+    insertResult = await client.query(
+      `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
+       VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
+      fields.map((field) => payload[field])
+    );
+  } catch (error) {
+    console.error('[Stashbox Radio API] Track insert SQL error', {
+      schemaName,
+      tableName,
+      fields,
+      payload,
+      error: error?.message || error,
+      code: error?.code || undefined,
+      detail: error?.detail || undefined
+    });
+    throw error;
+  }
 
   if (insertResult.rowCount !== 1) {
     console.error('[Stashbox Radio API] Track insert failed', {
@@ -2102,7 +2118,7 @@ async function trackSongEvent(client, event) {
        WHERE song_key = $1
           OR id::text = $2
        RETURNING id, song_key, display_title, likes`,
-      [songKey, songId]
+      [songKey, safeSongId || songId]
     );
 
     console.log('[Stashbox Radio API] like update result', {
@@ -2152,7 +2168,7 @@ async function trackSongEvent(client, event) {
        WHERE song_key = $1
           OR id::text = $2
        RETURNING id, song_key, display_title, shares`,
-      [songKey, songId]
+      [songKey, safeSongId || songId]
     );
 
     console.log('[Stashbox Radio API] share update result', {
