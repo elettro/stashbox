@@ -30,8 +30,30 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 
+function getRuntimeEnv() {
+  return String(process.env.APP_ENV || process.env.STAGE || process.env.NODE_ENV || process.env.ENVIRONMENT || 'prod').trim().toLowerCase();
+}
+
+function getAdSettingsId() {
+  return String(process.env.AD_SETTINGS_ID || getRuntimeEnv()).trim().toLowerCase();
+}
+
+function getUploadRegion() {
+  return process.env.UPLOAD_REGION ||
+    process.env.UPLOAD_BUCKET_REGION ||
+    process.env.S3_BUCKET_REGION ||
+    process.env.RADIO_UPLOAD_BUCKET_REGION ||
+    process.env.AWS_REGION ||
+    process.env.AWS_DEFAULT_REGION ||
+    'us-east-1';
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
 const DEFAULT_AD_SETTINGS = {
-  id: 'dev',
+  id: getAdSettingsId(),
   ads_enabled: true,
   break_method: 'count',
   ads_per_break: 1,
@@ -178,9 +200,9 @@ const OPTIONAL_SONG_LOOKUP_FIELDS = new Set(['album_name', 'secondary_genre', 'i
 
 
 function isDevRequest(event) {
-  const path = getPath(event);
-  const stage = String(event.requestContext?.stage || process.env.STAGE || process.env.NODE_ENV || process.env.APP_ENV || '').toLowerCase();
-  return path.includes('/dev/') || stage === 'dev' || stage === 'development';
+  const stage = String(event.requestContext?.stage || '').toLowerCase();
+  const runtimeEnv = getRuntimeEnv();
+  return stage === 'dev' || stage === 'development' || runtimeEnv === 'dev' || runtimeEnv === 'development';
 }
 
 function safeDatabaseError(error) {
@@ -635,7 +657,7 @@ function normalizeAdSettings(input = {}) {
     : defaults.break_method;
 
   return {
-    id: 'dev',
+    id: getAdSettingsId(),
     ads_enabled: Object.prototype.hasOwnProperty.call(input, 'ads_enabled') ? Boolean(input.ads_enabled) : defaults.ads_enabled,
     break_method: breakMethod,
     ads_per_break: normalizeInteger(input.ads_per_break, defaults.ads_per_break, VALID_ADS_PER_BREAK),
@@ -658,7 +680,7 @@ async function ensureAdSettingsTable() {
   await client.query(`
     CREATE SCHEMA IF NOT EXISTS radio;
     CREATE TABLE IF NOT EXISTS radio.ad_settings (
-      id text PRIMARY KEY DEFAULT 'dev',
+      id text PRIMARY KEY DEFAULT 'prod',
       ads_enabled boolean DEFAULT true,
       break_method text DEFAULT 'count',
       ads_per_break integer DEFAULT 1,
@@ -743,7 +765,7 @@ async function getAdSettings({ publicOnly = false } = {}) {
         break_interval,
         updated_at
       )
-      VALUES ('dev', $1, $2, $3, $4, $5, now())
+      VALUES ($6, $1, $2, $3, $4, $5, now())
       ON CONFLICT (id) DO NOTHING
       RETURNING *
     `, [
@@ -751,12 +773,13 @@ async function getAdSettings({ publicOnly = false } = {}) {
       DEFAULT_AD_SETTINGS.break_method,
       DEFAULT_AD_SETTINGS.ads_per_break,
       DEFAULT_AD_SETTINGS.target_ad_seconds,
-      DEFAULT_AD_SETTINGS.break_interval
+      DEFAULT_AD_SETTINGS.break_interval,
+      getAdSettingsId()
     ]);
 
     const settingsResult = result.rowCount
       ? result
-      : await client.query('SELECT * FROM radio.ad_settings WHERE id = $1', ['dev']);
+      : await client.query('SELECT * FROM radio.ad_settings WHERE id = $1', [getAdSettingsId()]);
     const settings = normalizeAdSettings(settingsResult.rows[0] || DEFAULT_AD_SETTINGS);
     const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
     return response(200, { success: true, settings: bodySettings });
@@ -786,7 +809,7 @@ async function updateAdSettings(event) {
     await ensureAdSettingsTable();
     const result = await client.query(`
       INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
-      VALUES ('dev', $1, $2, $3, $4, $5, now())
+      VALUES ($6, $1, $2, $3, $4, $5, now())
       ON CONFLICT (id) DO UPDATE SET
         ads_enabled = EXCLUDED.ads_enabled,
         break_method = EXCLUDED.break_method,
@@ -795,7 +818,7 @@ async function updateAdSettings(event) {
         break_interval = EXCLUDED.break_interval,
         updated_at = now()
       RETURNING *
-    `, [payload.ads_enabled, payload.break_method, payload.ads_per_break, payload.target_ad_seconds, payload.break_interval]);
+    `, [payload.ads_enabled, payload.break_method, payload.ads_per_break, payload.target_ad_seconds, payload.break_interval, getAdSettingsId()]);
     return response(200, { success: true, message: 'Ad settings saved', settings: normalizeAdSettings(result.rows[0]) });
   } catch (error) {
     console.error('Could not save ad settings:', error);
@@ -1104,11 +1127,17 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 function getRouteSegments(event) {
   const path = getPath(event).split('?')[0].replace(/\/+$/, '');
   const segments = path.split('/').filter(Boolean);
-  const lambdaName = process.env.AWS_LAMBDA_FUNCTION_NAME || 'stashbox-radio-api-dev';
-  const serviceIndex = segments.lastIndexOf(lambdaName);
+  const lambdaName = process.env.AWS_LAMBDA_FUNCTION_NAME || '';
+  const serviceIndex = lambdaName ? segments.lastIndexOf(lambdaName) : -1;
   if (serviceIndex >= 0) return segments.slice(serviceIndex + 1);
   const defaultIndex = segments.lastIndexOf('default');
-  if (defaultIndex >= 0) return segments.slice(defaultIndex + 1);
+  if (defaultIndex >= 0) {
+    const afterDefault = segments.slice(defaultIndex + 1);
+    const routeRootAfterDefault = afterDefault.findIndex((segment) =>
+      ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals', 'vec'].includes(segment)
+    );
+    return routeRootAfterDefault >= 0 ? afterDefault.slice(routeRootAfterDefault) : afterDefault;
+  }
 
   const routeRootIndex = segments.findIndex((segment) =>
     ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals', 'vec'].includes(segment)
@@ -2145,8 +2174,7 @@ async function trackSongEvent(client, event) {
   const songKey = normalizedSongKey || null;
   const songId = normalizedSongId || null;
   const songIdentity = songKey || songId;
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const safeSongId = UUID_RE.test(String(songId || '')) ? songId : null;
+  const safeSongId = isUuid(songId) ? songId : null;
 
   if (!songIdentity || !SONG_EVENT_TYPES.has(eventType)) {
     return response(400, { success: false, error: 'Invalid or missing song event' });
@@ -2188,9 +2216,9 @@ async function trackSongEvent(client, event) {
     display_title: body.display_title || body.displayTitle || '',
     song_name: body.song_name || body.songName || '',
     artist: body.artist || '',
-    page: body.page || 'production',
+    page: body.page || getRuntimeEnv(),
     source: body.source || 'public_player',
-    source_page: body.source_page || body.sourcePage || '/stashbox/radio/'
+    source_page: body.source_page || body.sourcePage || process.env.PUBLIC_PLAYER_PATH || '/radio/'
   };
   const fields = Object.keys(payload).filter((field) => columns.has(field) && payload[field] !== null && payload[field] !== '');
 
@@ -2245,22 +2273,30 @@ async function trackSongEvent(client, event) {
 
   // Cherry-picked safely from abandoned Lambda: increment a denormalized song play counter on play_start,
   // while preserving the working base's safe UUID handling and song_key fallback.
+  let eventWarning = '';
+
   if (eventType === 'play_start') {
     const songColumns = await getTableColumns('radio', 'songs');
     const playCountColumn = firstExistingColumn(songColumns, ['play_count', 'total_plays', 'plays']);
 
     if (playCountColumn) {
-      const playResult = await client.query(
-        `UPDATE radio.songs
-         SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
-             updated_at = now()
-         WHERE ($1::text IS NOT NULL AND id::text = $1)
-            OR ($2::text IS NOT NULL AND song_key = $2)
-         RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
-        [safeSongId, songKey]
-      );
+      let playResult;
+      try {
+        playResult = await client.query(
+          `UPDATE radio.songs
+           SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
+               updated_at = now()
+           WHERE ($1::text IS NOT NULL AND id::text = $1)
+              OR ($2::text IS NOT NULL AND song_key = $2)
+           RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
+          [safeSongId, songKey]
+        );
+      } catch (error) {
+        eventWarning = 'Song event recorded, but denormalized play counter update was skipped.';
+        console.warn('[Stashbox Radio API] play_start recorded but denormalized counter update failed', { songKey, songId, error: error?.message || error });
+      }
 
-      if (playResult.rowCount) {
+      if (playResult?.rowCount) {
         const updated = playResult.rows[0];
         const playCount = Number(updated.play_count || 0);
         return response(200, {
@@ -2278,6 +2314,7 @@ async function trackSongEvent(client, event) {
 
       console.warn('[Stashbox Radio API] play_start did not match song for denormalized counter update', { songKey, songId });
     } else {
+      eventWarning = 'Song event recorded, but no denormalized play counter column exists.';
       console.warn('[Stashbox Radio API] play_start recorded without denormalized counter column', { songKey, songId });
     }
   }
@@ -2299,7 +2336,7 @@ async function trackSongEvent(client, event) {
        WHERE song_key = $1
           OR id::text = $2
        RETURNING id, song_key, display_title, likes`,
-      [songKey, safeSongId || songId]
+      [songKey, safeSongId]
     );
 
     console.log('[Stashbox Radio API] like update result', {
@@ -2316,7 +2353,7 @@ async function trackSongEvent(client, event) {
         success: false,
         error: 'Like did not match a song',
         song_key: songKey,
-        song_id: songId
+        song_id: safeSongId
       });
     }
 
@@ -2349,7 +2386,7 @@ async function trackSongEvent(client, event) {
        WHERE song_key = $1
           OR id::text = $2
        RETURNING id, song_key, display_title, shares`,
-      [songKey, safeSongId || songId]
+      [songKey, safeSongId]
     );
 
     console.log('[Stashbox Radio API] share update result', {
@@ -2366,7 +2403,7 @@ async function trackSongEvent(client, event) {
         success: false,
         error: 'Share did not match a song',
         song_key: songKey,
-        song_id: songId
+        song_id: safeSongId
       });
     }
 
@@ -2384,7 +2421,9 @@ async function trackSongEvent(client, event) {
     });
   }
 
-  return response(200, { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey || songIdentity, song_id: songId || songIdentity });
+  const bodyResponse = { success: true, message: 'Song event recorded.', event_type: eventType, song_key: songKey || songIdentity, song_id: safeSongId };
+  if (eventWarning) bodyResponse.warning = eventWarning;
+  return response(200, bodyResponse);
 }
 
 async function listEvents(event) {
@@ -3055,7 +3094,7 @@ function validateUploadRequest(body) {
 async function createAdminUploadPresign(event) {
   const body = parseBody(event);
   const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
-  const region = process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '';
+  const region = getUploadRegion();
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
   const sessionToken = process.env.AWS_SESSION_TOKEN || '';
@@ -3072,7 +3111,8 @@ async function createAdminUploadPresign(event) {
   const filename = validation.filename.replace(/[^A-Za-z0-9._-]/g, '-') || 'upload.bin';
   const purpose = validation.purpose;
   const contentType = validation.contentType;
-  const key = `${uploadFolderForRequest(purpose, body)}/${Date.now()}-${filename}`;
+  const timestamp = new Date().toISOString().replace(/[-:.]/g, '').replace('T', 'T').replace('Z', 'Z');
+  const key = `${uploadFolderForRequest(purpose, body)}/${timestamp}-${crypto.randomUUID()}-${filename}`;
   const host = `${bucket}.s3.${region}.amazonaws.com`;
   const now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
