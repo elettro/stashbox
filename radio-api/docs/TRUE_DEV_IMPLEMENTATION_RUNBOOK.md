@@ -32,7 +32,7 @@ Do not run any command in this document until an explicit later AWS implementati
 
 ## Blockers to resolve before deploying
 
-1. Confirm whether `radio-api/index.mjs` supports `PGSCHEMA=radio_dev`. If SQL references are hardcoded to `radio.` tables, add schema-routing support or use database objects/search path that safely isolate DEV writes before connecting DEV Lambda to shared RDS.
+1. Confirm the current `radio-api/docs/PGSCHEMA_MIGRATION_REPORT.md` still shows no hardcoded SQL `radio.` table references before connecting DEV Lambda to shared RDS.
 2. Confirm the production Lambda runtime and packaging dependency set.
 3. Confirm the AWS region for Lambda and API Gateway. The DEV S3 bucket is explicitly `us-east-1`.
 4. Confirm whether public S3 reads are acceptable or whether CloudFront/signed URLs are required for DEV media.
@@ -66,13 +66,17 @@ Never reuse production `ADMIN_TOKEN`, broad production DB users, or production S
 
 1. Review this runbook and `radio-api/docs/TRUE_DEV_BACKEND_PLAN.md`.
 2. Confirm `radio-api/index.mjs` is the canonical source.
-3. Run only local checks, for example:
+3. Confirm `PGSCHEMA=radio_dev` is present in the DEV Lambda environment plan and `PGSCHEMA` is unset or `radio` in production.
+4. Run only local checks, for example:
 
 ```bash
 node --check radio-api/index.mjs
+rg "radio\." radio-api/index.mjs
 ```
 
-4. Package the Lambda artifact locally only after dependency requirements are confirmed. Example only:
+The `rg` command should not show hardcoded SQL table references. A match in the required helper comment is acceptable.
+
+5. Package the Lambda artifact locally only after dependency requirements are confirmed. Example only:
 
 ```bash
 cd radio-api

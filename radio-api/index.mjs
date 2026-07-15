@@ -23,6 +23,28 @@ const client = {
   }
 };
 
+// Used for true DEV/PROD database schema separation. Default is production schema radio.
+function getDbSchema() {
+  const schemaName = String(process.env.PGSCHEMA || 'radio').trim();
+  if (!/^[A-Za-z0-9_]+$/.test(schemaName)) {
+    throw new Error('Invalid PGSCHEMA. Only letters, numbers, and underscores are allowed.');
+  }
+  return schemaName;
+}
+
+
+function quoteIdentifier(identifier) {
+  return `"${String(identifier).replace(/"/g, '""')}"`;
+}
+
+function qname(tableName) {
+  const table = String(tableName || '').trim();
+  if (!/^[A-Za-z0-9_]+$/.test(table)) {
+    throw new Error('Invalid table name. Only letters, numbers, and underscores are allowed.');
+  }
+  return `${quoteIdentifier(getDbSchema())}.${quoteIdentifier(table)}`;
+}
+
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
@@ -386,8 +408,9 @@ async function getSongForeignKeyMetadata() {
        ON ccu.constraint_name = tc.constraint_name
       AND ccu.table_schema = tc.table_schema
      WHERE tc.constraint_type = 'FOREIGN KEY'
-       AND tc.table_schema = 'radio'
-       AND tc.table_name = 'songs'`
+       AND tc.table_schema = $1
+       AND tc.table_name = 'songs'`,
+    [getDbSchema()]
   );
   return new Map(result.rows.map((row) => [row.column_name, row]));
 }
@@ -406,13 +429,13 @@ function normalizeSongLookupInsertValue(field, value, foreignKeys) {
 
 function isAlbumNameForeignKey(field, foreignKey) {
   return field === 'album_name'
-    && foreignKey?.foreign_table_schema === 'radio'
+    && foreignKey?.foreign_table_schema === getDbSchema()
     && foreignKey?.foreign_table_name === 'albums'
     && foreignKey?.foreign_column_name === 'album_name';
 }
 
 async function canAutoCreateAlbum() {
-  const columns = await getTableColumnMeta('radio', 'albums');
+  const columns = await getTableColumnMeta(getDbSchema(), 'albums');
   for (const [columnName, column] of columns.entries()) {
     if (columnName === 'album_name') continue;
     const isNullable = String(column?.is_nullable || '').toUpperCase() === 'YES';
@@ -434,15 +457,11 @@ async function ensureAlbumExists(albumName) {
   }
 
   await client.query(
-    `INSERT INTO radio.albums (album_name)
+    `INSERT INTO ${qname('albums')} (album_name)
      VALUES ($1)
      ON CONFLICT (album_name) DO NOTHING`,
     [albumName]
   );
-}
-
-function quoteIdentifier(identifier) {
-  return `"${String(identifier).replace(/"/g, '""')}"`;
 }
 
 async function validateSongForeignKeyValues(payload, foreignKeys) {
@@ -678,8 +697,8 @@ function publicAdSettings(settings) {
 
 async function ensureAdSettingsTable() {
   await client.query(`
-    CREATE SCHEMA IF NOT EXISTS radio;
-    CREATE TABLE IF NOT EXISTS radio.ad_settings (
+    CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(getDbSchema())};
+    CREATE TABLE IF NOT EXISTS ${qname('ad_settings')} (
       id text PRIMARY KEY DEFAULT 'prod',
       ads_enabled boolean DEFAULT true,
       break_method text DEFAULT 'count',
@@ -693,41 +712,41 @@ async function ensureAdSettingsTable() {
 
 async function ensureAdsDurationColumn() {
   try {
-    await client.query('ALTER TABLE radio.ads ADD COLUMN IF NOT EXISTS duration_seconds integer');
+    await client.query(`ALTER TABLE ${qname('ads')} ADD COLUMN IF NOT EXISTS duration_seconds integer`);
   } catch (error) {
-    console.warn('Could not ensure radio.ads.duration_seconds. Continuing safely.', error.message || error);
+    console.warn(`Could not ensure ${qname('ads')}.duration_seconds. Continuing safely.`, error.message || error);
   }
 }
 
 async function ensureSongsLikesColumn(dbClient = client) {
   try {
     await dbClient.query(`
-      ALTER TABLE radio.songs
+      ALTER TABLE ${qname('songs')}
       ADD COLUMN IF NOT EXISTS likes integer DEFAULT 0
     `);
     await dbClient.query(`
-      UPDATE radio.songs
+      UPDATE ${qname('songs')}
       SET likes = 0
       WHERE likes IS NULL
     `);
   } catch (error) {
-    console.warn('Could not ensure radio.songs.likes. Continuing safely.', error.message || error);
+    console.warn(`Could not ensure ${qname('songs')}.likes. Continuing safely.`, error.message || error);
   }
 }
 
 async function ensureSongsShareColumn(dbClient = client) {
   try {
     await dbClient.query(`
-      ALTER TABLE radio.songs
+      ALTER TABLE ${qname('songs')}
       ADD COLUMN IF NOT EXISTS shares integer DEFAULT 0
     `);
     await dbClient.query(`
-      UPDATE radio.songs
+      UPDATE ${qname('songs')}
       SET shares = 0
       WHERE shares IS NULL
     `);
   } catch (error) {
-    console.warn('Could not ensure radio.songs.shares. Continuing safely.', error.message || error);
+    console.warn(`Could not ensure ${qname('songs')}.shares. Continuing safely.`, error.message || error);
   }
 }
 
@@ -735,12 +754,13 @@ async function adsDurationColumnSelect() {
   try {
     const result = await client.query(
       `SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'radio' AND table_name = 'ads' AND column_name = 'duration_seconds'
-       LIMIT 1`
+       WHERE table_schema = $1 AND table_name = 'ads' AND column_name = 'duration_seconds'
+       LIMIT 1`,
+      [getDbSchema()]
     );
     return result.rowCount ? 'duration_seconds,' : 'NULL::integer AS duration_seconds,';
   } catch (error) {
-    console.warn('Could not inspect radio.ads.duration_seconds. Returning NULL duration.', error.message || error);
+    console.warn(`Could not inspect ${qname('ads')}.duration_seconds. Returning NULL duration.`, error.message || error);
     return 'NULL::integer AS duration_seconds,';
   }
 }
@@ -756,7 +776,7 @@ async function getAdSettings({ publicOnly = false } = {}) {
   try {
     await ensureAdSettingsTable();
     const result = await client.query(`
-      INSERT INTO radio.ad_settings (
+      INSERT INTO ${qname('ad_settings')} (
         id,
         ads_enabled,
         break_method,
@@ -779,7 +799,7 @@ async function getAdSettings({ publicOnly = false } = {}) {
 
     const settingsResult = result.rowCount
       ? result
-      : await client.query('SELECT * FROM radio.ad_settings WHERE id = $1', [getAdSettingsId()]);
+      : await client.query(`SELECT * FROM ${qname('ad_settings')} WHERE id = $1`, [getAdSettingsId()]);
     const settings = normalizeAdSettings(settingsResult.rows[0] || DEFAULT_AD_SETTINGS);
     const bodySettings = publicOnly ? publicAdSettings(settings) : settings;
     return response(200, { success: true, settings: bodySettings });
@@ -808,7 +828,7 @@ async function updateAdSettings(event) {
   try {
     await ensureAdSettingsTable();
     const result = await client.query(`
-      INSERT INTO radio.ad_settings (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
+      INSERT INTO ${qname('ad_settings')} (id, ads_enabled, break_method, ads_per_break, target_ad_seconds, break_interval, updated_at)
       VALUES ($6, $1, $2, $3, $4, $5, now())
       ON CONFLICT (id) DO UPDATE SET
         ads_enabled = EXCLUDED.ads_enabled,
@@ -848,7 +868,7 @@ function buildInsert(payload) {
   const values = fields.map((field) => payload[field]);
 
   return {
-    text: `INSERT INTO radio.ads (${columns}) VALUES (${placeholders}) RETURNING *`,
+    text: `INSERT INTO ${qname('ads')} (${columns}) VALUES (${placeholders}) RETURNING *`,
     values
   };
 }
@@ -860,7 +880,7 @@ function buildUpdate(adId, payload) {
   values.push(adId);
 
   return {
-    text: `UPDATE radio.ads SET ${assignments}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+    text: `UPDATE ${qname('ads')} SET ${assignments}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
     values
   };
 }
@@ -876,7 +896,7 @@ async function listAds() {
         THEN ROUND((COALESCE(skips, 0)::numeric / COALESCE(views, 0)::numeric) * 100, 2)
         ELSE 0
       END AS skip_rate
-    FROM radio.ads
+    FROM ${qname('ads')}
     ORDER BY created_at DESC
   `);
   return response(200, { success: true, count: result.rowCount, ads: result.rows });
@@ -918,7 +938,7 @@ async function listPublicAds() {
       END AS skip_rate,
       created_at,
       updated_at
-    FROM radio.ads
+    FROM ${qname('ads')}
     WHERE active = true
       AND hidden = false
       AND (start_date IS NULL OR start_date <= CURRENT_DATE)
@@ -960,7 +980,7 @@ async function deleteAd(event) {
   const adId = getAdId(event);
   if (!adId) return response(400, { success: false, error: 'ad_id is required.' });
 
-  const result = await client.query('DELETE FROM radio.ads WHERE id = $1', [adId]);
+  const result = await client.query(`DELETE FROM ${qname('ads')} WHERE id = $1`, [adId]);
   if (!result.rowCount) return response(404, { success: false, error: 'Ad not found.' });
   return response(200, { success: true, message: 'Ad deleted', ad_id: adId });
 }
@@ -1027,7 +1047,7 @@ async function trackAdEvent(client, event, overrides = {}) {
 
   if (eventType === 'ad_start') {
     const result = await client.query(
-      `UPDATE radio.ads
+      `UPDATE ${qname('ads')}
        SET views = COALESCE(views, 0) + 1,
            updated_at = now()
        WHERE id = $1
@@ -1042,7 +1062,7 @@ async function trackAdEvent(client, event, overrides = {}) {
 
   if (eventType === 'ad_click') {
     const result = await client.query(
-      `UPDATE radio.ads
+      `UPDATE ${qname('ads')}
        SET clicks = COALESCE(clicks, 0) + 1,
            updated_at = now()
        WHERE id = $1
@@ -1057,7 +1077,7 @@ async function trackAdEvent(client, event, overrides = {}) {
 
   if (eventType === 'ad_skip') {
     const result = await client.query(
-      `UPDATE radio.ads
+      `UPDATE ${qname('ads')}
        SET skips = COALESCE(skips, 0) + 1,
            updated_at = now()
        WHERE id = $1
@@ -1077,7 +1097,7 @@ async function trackAdEvent(client, event, overrides = {}) {
   }
 
   const result = await client.query(
-    'SELECT id, internal_title, views, clicks, skips FROM radio.ads WHERE id = $1',
+    `SELECT id, internal_title, views, clicks, skips FROM ${qname('ads')} WHERE id = $1`,
     [adId]
   );
 
@@ -1389,9 +1409,9 @@ async function findFirstTable(candidates) {
 
 
 const STATS_EVENT_TABLE_CANDIDATES = [
-  ['radio', 'song_events'],
-  ['radio', 'events'],
-  ['radio', 'radio_events'],
+  [getDbSchema(), 'song_events'],
+  [getDbSchema(), 'events'],
+  [getDbSchema(), 'radio_events'],
   ['public', 'song_events'],
   ['public', 'song_play_events']
 ];
@@ -1567,7 +1587,7 @@ async function getStatsEventTable() {
   if (!table) return null;
   const [schemaName, tableName] = table;
   const columns = await getTableColumns(schemaName, tableName);
-  return { schemaName, tableName, columns, qualifiedName: `${schemaName}.${tableName}` };
+  return { schemaName, tableName, columns, qualifiedName: `${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}` };
 }
 
 async function withStatsRouteLogging(route, method, handler) {
@@ -1587,7 +1607,7 @@ async function withStatsRouteLogging(route, method, handler) {
 async function getSongs({ includeArchived = false } = {}) {
   await ensureSongsLikesColumn();
   await ensureSongsShareColumn();
-  const columns = await getTableColumns('radio', 'songs');
+  const columns = await getTableColumns(getDbSchema(), 'songs');
   const hasVisibility = columns.has('public_visibility');
   const hasSortOrder = columns.has('sort_order');
   const where = includeArchived || !hasVisibility ? '' : "WHERE COALESCE(public_visibility, 'visible') = 'visible'";
@@ -1598,7 +1618,7 @@ async function getSongs({ includeArchived = false } = {}) {
     ? '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(s.shares, 0)::int AS shares, COALESCE(resolved_artwork_url, song_artwork_url) AS resolved_artwork_url'
     : '*, COALESCE(s.likes, 0)::int AS likes, COALESCE(s.shares, 0)::int AS shares, song_artwork_url AS resolved_artwork_url';
   const [result, countsByIdentity] = await Promise.all([
-    client.query(`SELECT ${artworkSelect} FROM radio.songs s ${where} ${orderBy}`),
+    client.query(`SELECT ${artworkSelect} FROM ${qname('songs')} s ${where} ${orderBy}`),
     loadSongEventCounts()
   ]);
   const songs = result.rows
@@ -1612,7 +1632,7 @@ async function getAdminSongs() {
 }
 
 async function getAdminSong(event) {
-  const columns = await getTableColumns('radio', 'songs');
+  const columns = await getTableColumns(getDbSchema(), 'songs');
   const params = event.queryStringParameters || {};
   const pathIdentifier = getRouteSegments(event)[2] || '';
   const requestedId = String(params.id || params.song_id || params.songId || '').trim();
@@ -1654,7 +1674,7 @@ async function getAdminSong(event) {
   const orderBy = orderClauses.length ? `ORDER BY CASE ${orderClauses.join(' ')} ELSE 4 END` : '';
   const result = await client.query(
     `SELECT ${artworkSelect}
-     FROM radio.songs
+     FROM ${qname('songs')}
      WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
      ${orderBy}
      LIMIT 1`,
@@ -1682,7 +1702,7 @@ async function createAdminSong(event) {
   let columnMeta = new Map();
 
   try {
-    columnMeta = await getTableColumnMeta('radio', 'songs');
+    columnMeta = await getTableColumnMeta(getDbSchema(), 'songs');
     ({ payload, fields, values } = await buildSafeSongInsert(input, columnMeta));
 
     if (!fields.includes('song_key') || !String(payload.song_key || '').trim()) {
@@ -1695,7 +1715,7 @@ async function createAdminSong(event) {
 
     const placeholders = fields.map((field, index) => valuePlaceholder(field, columnMeta.get(field), index));
     const result = await client.query(
-      `INSERT INTO radio.songs (${fields.join(', ')})
+      `INSERT INTO ${qname('songs')} (${fields.join(', ')})
        VALUES (${placeholders.join(', ')})
        RETURNING *`,
       values
@@ -1743,7 +1763,7 @@ function validateVecRecipe(value) {
 
 async function ensureSongVisualRecipesTable() {
   await client.query(`
-    CREATE TABLE IF NOT EXISTS radio.song_visual_recipes (
+    CREATE TABLE IF NOT EXISTS ${qname('song_visual_recipes')} (
       song_key TEXT PRIMARY KEY,
       recipe JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1757,7 +1777,7 @@ async function loadSongVisualRecipe(event) {
   if (validation.error) return response(400, { success: false, error: validation.error });
   try {
     const result = await client.query(
-      'SELECT song_key, recipe, created_at, updated_at FROM radio.song_visual_recipes WHERE song_key = $1 LIMIT 1',
+      `SELECT song_key, recipe, created_at, updated_at FROM ${qname('song_visual_recipes')} WHERE song_key = $1 LIMIT 1`,
       [validation.songKey]
     );
     if (!result.rowCount) return response(200, { success: true, found: false, song_key: validation.songKey, recipe: null });
@@ -1778,7 +1798,7 @@ async function saveSongVisualRecipe(event) {
   const recipe = { ...recipeValidation.recipe, song_key: keyValidation.songKey, updated_at: new Date().toISOString() };
   if (!recipe.version) recipe.version = 1;
   const result = await client.query(
-    `INSERT INTO radio.song_visual_recipes (song_key, recipe)
+    `INSERT INTO ${qname('song_visual_recipes')} (song_key, recipe)
      VALUES ($1, $2::jsonb)
      ON CONFLICT (song_key) DO UPDATE SET recipe = EXCLUDED.recipe, updated_at = now()
      RETURNING song_key, recipe, created_at, updated_at`,
@@ -1805,7 +1825,7 @@ async function handlePublicVecRecipeRoute(event) {
 
 async function ensureSongVisualAssetsTable() {
   await client.query(`
-    CREATE TABLE IF NOT EXISTS radio.song_visual_assets (
+    CREATE TABLE IF NOT EXISTS ${qname('song_visual_assets')} (
       id TEXT PRIMARY KEY,
       song_key TEXT NOT NULL,
       asset_type TEXT NOT NULL DEFAULT 'image',
@@ -1828,8 +1848,8 @@ async function ensureSongVisualAssetsTable() {
       CONSTRAINT song_visual_assets_status_check CHECK (status IN ('active', 'hidden'))
     )
   `);
-  await client.query('CREATE INDEX IF NOT EXISTS song_visual_assets_song_key_idx ON radio.song_visual_assets(song_key)');
-  await client.query('CREATE INDEX IF NOT EXISTS song_visual_assets_type_idx ON radio.song_visual_assets(asset_type)');
+  await client.query(`CREATE INDEX IF NOT EXISTS song_visual_assets_song_key_idx ON ${qname('song_visual_assets')}(song_key)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS song_visual_assets_type_idx ON ${qname('song_visual_assets')}(asset_type)`);
 }
 
 function normalizeSongVisualAsset(row) {
@@ -1873,7 +1893,7 @@ async function getSongVisualAssets(event, { ensureTable = false } = {}) {
   try {
     const result = await client.query(
       `SELECT *
-       FROM radio.song_visual_assets
+       FROM ${qname('song_visual_assets')}
        WHERE song_key = $1 AND status <> 'hidden'
        ORDER BY created_at ASC, file_name ASC NULLS LAST`,
       [validation.songKey]
@@ -1899,7 +1919,7 @@ async function createSongVisualAsset(event) {
   const publicUrl = String(body.public_url || body.publicUrl || body.url || '').trim();
   if (!publicUrl) return response(400, { success: false, error: 'public_url is required.' });
   const result = await client.query(
-    `INSERT INTO radio.song_visual_assets (id, song_key, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
+    `INSERT INTO ${qname('song_visual_assets')} (id, song_key, asset_type, file_name, s3_key, public_url, thumbnail_url, content_type, size_bytes, width, height, ratio_label, status, caption, alt_text, notes)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING *`,
     [crypto.randomUUID(), validation.songKey, assetType, String(body.file_name || body.fileName || '').trim(), String(body.s3_key || body.s3Key || '').trim(), publicUrl, String(body.thumbnail_url || body.thumbnailUrl || publicUrl).trim(), String(body.content_type || body.contentType || '').trim(), Number(body.size_bytes || body.sizeBytes) || null, Number(body.width) || null, Number(body.height) || null, String(body.ratio_label || body.ratioLabel || '').trim(), 'active', String(body.caption || '').trim(), String(body.alt_text || body.altText || '').trim(), String(body.notes || '').trim()]
@@ -1908,13 +1928,13 @@ async function createSongVisualAsset(event) {
 }
 
 // VEC Song-Only Assets boundary: this DELETE soft-hides exactly one row in
-// radio.song_visual_assets by asset id. It must not touch Visual Library folder
+// song_visual_assets by asset id. It must not touch Visual Library folder
 // tables, recipes, player data, or S3 objects.
 async function deleteSongVisualAsset(event) {
   const assetId = getSongAssetId(event);
   if (!assetId) return response(400, { success: false, error: 'asset_id is required.' });
   await ensureSongVisualAssetsTable();
-  const result = await client.query(`UPDATE radio.song_visual_assets SET status = 'hidden', updated_at = now() WHERE id = $1 RETURNING id`, [assetId]);
+  const result = await client.query(`UPDATE ${qname('song_visual_assets')} SET status = 'hidden', updated_at = now() WHERE id = $1 RETURNING id`, [assetId]);
   if (!result.rowCount) return response(404, { success: false, error: 'Song visual asset not found.' });
   return response(200, { success: true, asset_id: assetId });
 }
@@ -2002,7 +2022,7 @@ async function getVisualsFolderAssets(folderId) {
   try {
     const result = await client.query(
       `SELECT *
-       FROM radio.visuals_folder_assets
+       FROM ${qname('visuals_folder_assets')}
        WHERE folder_id = $1 AND status <> 'hidden' AND public_url IS NOT NULL AND public_url <> ''
        ORDER BY created_at ASC, file_name ASC NULLS LAST`,
       [folderId]
@@ -2022,12 +2042,12 @@ async function getVisualsFolderAssets(folderId) {
 
 
 
-// Cherry-picked safely from abandoned Lambda: admin CRUD for existing radio.visuals_folder_assets rows only.
+// Cherry-picked safely from abandoned Lambda: admin CRUD for existing visuals_folder_assets rows only.
 async function ensureVisualsFolderAssetsSchema() {
-  const columns = await getTableColumns('radio', 'visuals_folder_assets');
+  const columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
   const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
   if (!requiredColumns.every((column) => columns.has(column))) {
-    const error = new Error('radio.visuals_folder_assets schema is missing required columns.');
+    const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
     error.statusCode = 501;
     throw error;
   }
@@ -2067,7 +2087,7 @@ function normalizeFolderAssetPayload(body, folder) {
 
 async function createVisualsFolderAsset(folderId, body) {
   const columns = await ensureVisualsFolderAssetsSchema();
-  const folderResult = await client.query('SELECT id, folder_slug FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [folderId]);
+  const folderResult = await client.query(`SELECT id, folder_slug FROM ${qname('visuals_folders')} WHERE id = $1 LIMIT 1`, [folderId]);
   if (!folderResult.rowCount) return { statusCode: 404, body: { success: false, error: 'Visuals folder not found.' } };
   const validation = normalizeFolderAssetPayload(body, folderResult.rows[0]);
   if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
@@ -2075,7 +2095,7 @@ async function createVisualsFolderAsset(folderId, body) {
   const insertFields = ['id', 'folder_id', 'folder_slug', 'asset_type', 'file_name', 's3_key', 'public_url', 'thumbnail_url', 'content_type', 'size_bytes', 'width', 'height', 'ratio_label', 'status', 'caption', 'alt_text', 'notes'].filter((field) => columns.has(field));
   const values = insertFields.map((field) => field === 'status' ? 'active' : payload[field]);
   const result = await client.query(
-    `INSERT INTO radio.visuals_folder_assets (${insertFields.join(', ')}) VALUES (${insertFields.map((_, index) => `$${index + 1}`).join(', ')}) RETURNING *`,
+    `INSERT INTO ${qname('visuals_folder_assets')} (${insertFields.join(', ')}) VALUES (${insertFields.map((_, index) => `$${index + 1}`).join(', ')}) RETURNING *`,
     values
   );
   return { statusCode: 200, body: { success: true, folder_id: folderId, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
@@ -2085,7 +2105,7 @@ async function updateVisualsFolderAsset(folderId, assetId, body) {
   await ensureVisualsFolderAssetsSchema();
   const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
   const result = await client.query(
-    `UPDATE radio.visuals_folder_assets
+    `UPDATE ${qname('visuals_folder_assets')}
      SET status = COALESCE($3, status), caption = COALESCE($4, caption), alt_text = COALESCE($5, alt_text), notes = COALESCE($6, notes), updated_at = now()
      WHERE folder_id = $1 AND id = $2
      RETURNING *`,
@@ -2098,7 +2118,7 @@ async function updateVisualsFolderAsset(folderId, assetId, body) {
 async function hideVisualsFolderAsset(folderId, assetId) {
   await ensureVisualsFolderAssetsSchema();
   const result = await client.query(
-    `UPDATE radio.visuals_folder_assets SET status = 'hidden', updated_at = now() WHERE folder_id = $1 AND id = $2 RETURNING id`,
+    `UPDATE ${qname('visuals_folder_assets')} SET status = 'hidden', updated_at = now() WHERE folder_id = $1 AND id = $2 RETURNING id`,
     [folderId, assetId]
   );
   if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
@@ -2128,14 +2148,14 @@ async function updateAdminSong(event) {
   let columnMeta = new Map();
 
   try {
-    columnMeta = await getTableColumnMeta('radio', 'songs');
+    columnMeta = await getTableColumnMeta(getDbSchema(), 'songs');
     ({ payload, fields, values } = await buildSafeSongUpdate(body, columnMeta));
     if (!fields.length) return response(400, { success: false, error: 'No editable fields provided.' });
 
     values.push(songKey);
     const updatedAt = columnMeta.has('updated_at') ? ', updated_at = now()' : '';
     const result = await client.query(
-      `UPDATE radio.songs
+      `UPDATE ${qname('songs')}
        SET ${fields.map((field, index) => field === 'specific_product_urls' || field === 'visual_assets' ? `${field} = $${index + 1}::jsonb` : `${field} = $${index + 1}`).join(', ')}${updatedAt}
        WHERE song_key = $${values.length}
        RETURNING *`,
@@ -2181,9 +2201,9 @@ async function trackSongEvent(client, event) {
   }
 
   const eventTable = await findExistingTable([
-    ['radio', 'radio_events'],
-    ['radio', 'song_events'],
-    ['radio', 'events'],
+    [getDbSchema(), 'radio_events'],
+    [getDbSchema(), 'song_events'],
+    [getDbSchema(), 'events'],
     ['public', 'song_events'],
     ['public', 'song_play_events']
   ]);
@@ -2239,7 +2259,7 @@ async function trackSongEvent(client, event) {
   let insertResult;
   try {
     insertResult = await client.query(
-      `INSERT INTO ${schemaName}.${tableName} (${fields.join(', ')})
+      `INSERT INTO ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)} (${fields.join(', ')})
        VALUES (${fields.map((_, index) => `$${index + 1}`).join(', ')})`,
       fields.map((field) => payload[field])
     );
@@ -2276,14 +2296,14 @@ async function trackSongEvent(client, event) {
   let eventWarning = '';
 
   if (eventType === 'play_start') {
-    const songColumns = await getTableColumns('radio', 'songs');
+    const songColumns = await getTableColumns(getDbSchema(), 'songs');
     const playCountColumn = firstExistingColumn(songColumns, ['play_count', 'total_plays', 'plays']);
 
     if (playCountColumn) {
       let playResult;
       try {
         playResult = await client.query(
-          `UPDATE radio.songs
+          `UPDATE ${qname('songs')}
            SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
                updated_at = now()
            WHERE ($1::text IS NOT NULL AND id::text = $1)
@@ -2330,7 +2350,7 @@ async function trackSongEvent(client, event) {
 
     await ensureSongsLikesColumn(client);
     const result = await client.query(
-      `UPDATE radio.songs
+      `UPDATE ${qname('songs')}
        SET likes = COALESCE(likes,0)+1,
            updated_at = now()
        WHERE song_key = $1
@@ -2380,7 +2400,7 @@ async function trackSongEvent(client, event) {
 
     await ensureSongsShareColumn(client);
     const result = await client.query(
-      `UPDATE radio.songs
+      `UPDATE ${qname('songs')}
        SET shares = COALESCE(shares,0)+1,
            updated_at = now()
        WHERE song_key = $1
@@ -2507,15 +2527,15 @@ async function songStats(event) {
   }
 
   const { columns, qualifiedName } = statsTable;
-  const songsTable = await findExistingTable([['radio', 'songs']]);
-  const songColumns = songsTable ? await getTableColumns('radio', 'songs') : new Set();
+  const songsTable = await findExistingTable([[getDbSchema(), 'songs']]);
+  const songColumns = songsTable ? await getTableColumns(getDbSchema(), 'songs') : new Set();
   const eventSongKeyExpr = columns.has('song_key') ? 'e.song_key::text' : columns.has('song_id') ? 'e.song_id::text' : textLiteral('');
   const eventSongIdExpr = columns.has('song_id') ? 'e.song_id::text' : eventSongKeyExpr;
   const canJoinSongs = songsTable && ((columns.has('song_key') && songColumns.has('song_key')) || (columns.has('song_id') && songColumns.has('id')));
   const joinCondition = columns.has('song_key') && songColumns.has('song_key')
     ? 's.song_key::text = e.song_key::text'
     : 's.id::text = e.song_id::text';
-  const fromClause = canJoinSongs ? `${qualifiedName} e LEFT JOIN radio.songs s ON ${joinCondition}` : `${qualifiedName} e`;
+  const fromClause = canJoinSongs ? `${qualifiedName} e LEFT JOIN ${qname('songs')} s ON ${joinCondition}` : `${qualifiedName} e`;
   const displayTitleExpr = canJoinSongs && songColumns.has('display_title') ? 's.display_title' : 'NULL::text';
   const songNameExpr = canJoinSongs && songColumns.has('song_name') ? 's.song_name' : 'NULL::text';
   const artistExpr = canJoinSongs && songColumns.has('artist') ? 's.artist' : 'NULL::text';
@@ -2889,30 +2909,30 @@ async function createUniqueVisualsFolderSlug(baseName, existingId = '') {
       values.push(existingId);
       idClause = ` AND id <> $${values.length}`;
     }
-    const result = await client.query(`SELECT 1 FROM radio.visuals_folders WHERE folder_slug = $1${idClause} LIMIT 1`, values);
+    const result = await client.query(`SELECT 1 FROM ${qname('visuals_folders')} WHERE folder_slug = $1${idClause} LIMIT 1`, values);
     if (!result.rowCount) return candidate;
   }
   return `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 async function saveFolderMatches(folderId, payload) {
-  await client.query('DELETE FROM radio.visuals_folder_artist_matches WHERE folder_id = $1', [folderId]);
-  await client.query('DELETE FROM radio.visuals_folder_genre_matches WHERE folder_id = $1', [folderId]);
-  await client.query('DELETE FROM radio.visuals_folder_mood_matches WHERE folder_id = $1', [folderId]);
-  await client.query('DELETE FROM radio.visuals_folder_song_matches WHERE folder_id = $1', [folderId]);
+  await client.query(`DELETE FROM ${qname('visuals_folder_artist_matches')} WHERE folder_id = $1`, [folderId]);
+  await client.query(`DELETE FROM ${qname('visuals_folder_genre_matches')} WHERE folder_id = $1`, [folderId]);
+  await client.query(`DELETE FROM ${qname('visuals_folder_mood_matches')} WHERE folder_id = $1`, [folderId]);
+  await client.query(`DELETE FROM ${qname('visuals_folder_song_matches')} WHERE folder_id = $1`, [folderId]);
 
   for (const artist of payload.relevant_artists) {
-    await client.query('INSERT INTO radio.visuals_folder_artist_matches (folder_id, artist) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, artist]);
+    await client.query(`INSERT INTO ${qname('visuals_folder_artist_matches')} (folder_id, artist) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [folderId, artist]);
   }
   for (const genre of payload.relevant_genres) {
-    await client.query('INSERT INTO radio.visuals_folder_genre_matches (folder_id, genre) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, genre]);
+    await client.query(`INSERT INTO ${qname('visuals_folder_genre_matches')} (folder_id, genre) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [folderId, genre]);
   }
   for (const mood of payload.relevant_moods) {
-    await client.query('INSERT INTO radio.visuals_folder_mood_matches (folder_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING', [folderId, mood]);
+    await client.query(`INSERT INTO ${qname('visuals_folder_mood_matches')} (folder_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [folderId, mood]);
   }
   for (const song of payload.relevant_songs) {
     await client.query(
-      'INSERT INTO radio.visuals_folder_song_matches (folder_id, song_key, song_title, artist) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+      `INSERT INTO ${qname('visuals_folder_song_matches')} (folder_id, song_key, song_title, artist) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
       [folderId, song.song_key, song.song_title || null, song.artist || null]
     );
   }
@@ -2921,10 +2941,10 @@ async function saveFolderMatches(folderId, payload) {
 async function getVisualsFolderMatches(folderIds) {
   const matches = Object.fromEntries(folderIds.map((id) => [id, { artists: [], genres: [], moods: [], songs: [] }]));
   if (!folderIds.length) return matches;
-  const artistRows = await client.query('SELECT folder_id, artist FROM radio.visuals_folder_artist_matches WHERE folder_id = ANY($1::text[]) ORDER BY artist', [folderIds]);
-  const genreRows = await client.query('SELECT folder_id, genre FROM radio.visuals_folder_genre_matches WHERE folder_id = ANY($1::text[]) ORDER BY genre', [folderIds]);
-  const moodRows = await client.query('SELECT folder_id, mood FROM radio.visuals_folder_mood_matches WHERE folder_id = ANY($1::text[]) ORDER BY mood', [folderIds]);
-  const songRows = await client.query('SELECT folder_id, song_key, song_title, artist FROM radio.visuals_folder_song_matches WHERE folder_id = ANY($1::text[]) ORDER BY song_title NULLS LAST, song_key', [folderIds]);
+  const artistRows = await client.query(`SELECT folder_id, artist FROM ${qname('visuals_folder_artist_matches')} WHERE folder_id = ANY($1::text[]) ORDER BY artist`, [folderIds]);
+  const genreRows = await client.query(`SELECT folder_id, genre FROM ${qname('visuals_folder_genre_matches')} WHERE folder_id = ANY($1::text[]) ORDER BY genre`, [folderIds]);
+  const moodRows = await client.query(`SELECT folder_id, mood FROM ${qname('visuals_folder_mood_matches')} WHERE folder_id = ANY($1::text[]) ORDER BY mood`, [folderIds]);
+  const songRows = await client.query(`SELECT folder_id, song_key, song_title, artist FROM ${qname('visuals_folder_song_matches')} WHERE folder_id = ANY($1::text[]) ORDER BY song_title NULLS LAST, song_key`, [folderIds]);
   artistRows.rows.forEach((row) => matches[row.folder_id]?.artists.push(row.artist));
   genreRows.rows.forEach((row) => matches[row.folder_id]?.genres.push(row.genre));
   moodRows.rows.forEach((row) => matches[row.folder_id]?.moods.push(row.mood));
@@ -2933,13 +2953,13 @@ async function getVisualsFolderMatches(folderIds) {
 }
 
 async function getVisualsFolders() {
-  const result = await client.query('SELECT * FROM radio.visuals_folders ORDER BY created_at DESC, folder_name ASC');
+  const result = await client.query(`SELECT * FROM ${qname('visuals_folders')} ORDER BY created_at DESC, folder_name ASC`);
   const matches = await getVisualsFolderMatches(result.rows.map((row) => row.id));
   return result.rows.map((row) => buildVisualsFolderResponse(row, matches[row.id]));
 }
 
 async function getVisualsFolderById(id) {
-  const result = await client.query('SELECT * FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [id]);
+  const result = await client.query(`SELECT * FROM ${qname('visuals_folders')} WHERE id = $1 LIMIT 1`, [id]);
   if (!result.rowCount) return null;
   const matches = await getVisualsFolderMatches([id]);
   return buildVisualsFolderResponse(result.rows[0], matches[id]);
@@ -2979,7 +2999,7 @@ async function handleAdminVisualsFoldersRoute(event) {
     await client.query('BEGIN');
     try {
       await client.query(
-        `INSERT INTO radio.visuals_folders (id, folder_name, folder_slug, folder_type, description, status, priority, notes)
+        `INSERT INTO ${qname('visuals_folders')} (id, folder_name, folder_slug, folder_type, description, status, priority, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [folderId, validation.payload.folder_name, slug, validation.payload.folder_type, validation.payload.description, validation.payload.status, validation.payload.priority, validation.payload.notes]
       );
@@ -3000,7 +3020,7 @@ async function handleAdminVisualsFoldersRoute(event) {
     await client.query('BEGIN');
     try {
       const result = await client.query(
-        `UPDATE radio.visuals_folders
+        `UPDATE ${qname('visuals_folders')}
          SET folder_name = $1, folder_slug = $2, folder_type = $3, description = $4, status = $5, priority = $6, notes = $7, updated_at = now()
          WHERE id = $8`,
         [validation.payload.folder_name, slug, validation.payload.folder_type, validation.payload.description, validation.payload.status, validation.payload.priority, validation.payload.notes, id]
@@ -3020,7 +3040,7 @@ async function handleAdminVisualsFoldersRoute(event) {
   }
 
   if (method === 'DELETE' && id) {
-    const result = await client.query('DELETE FROM radio.visuals_folders WHERE id = $1', [id]);
+    const result = await client.query(`DELETE FROM ${qname('visuals_folders')} WHERE id = $1`, [id]);
     if (!result.rowCount) return response(404, { success: false, error: 'Visuals folder not found.' });
     return response(200, { success: true });
   }
