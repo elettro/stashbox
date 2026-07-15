@@ -42,8 +42,8 @@ BEGIN
     ELSE
       -- LIKE INCLUDING ALL copies columns, defaults, generated expressions, identity,
       -- storage, comments, indexes, constraints, and statistics where PostgreSQL supports it.
-      -- Foreign keys copied this way may still reference their original targets depending on
-      -- PostgreSQL behavior/version and should be inspected before using DEV for writes.
+      -- Inspect foreign keys, sequence ownership, index names, and extension-backed defaults
+      -- after creation; complex objects may require manual DEV-specific follow-up.
       EXECUTE format(
         'CREATE TABLE radio_dev.%I (LIKE radio.%I INCLUDING ALL)',
         table_name,
@@ -54,7 +54,8 @@ BEGIN
   END LOOP;
 END $$;
 
--- Ensure a DEV ad settings row can exist even if the production table was absent when cloning.
+-- Fallback only: ensure a DEV ad settings table can exist even if the production
+-- ad_settings table was absent when cloning. This writes only to radio_dev.
 CREATE TABLE IF NOT EXISTS radio_dev.ad_settings (
   id text PRIMARY KEY DEFAULT 'dev',
   ads_enabled boolean DEFAULT true,
