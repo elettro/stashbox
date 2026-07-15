@@ -1,0 +1,15 @@
+{
+  "name": "stashbox-radio-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Stashbox Radio API Lambda package metadata.",
+  "main": "index.mjs",
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "scripts": {
+    "check": "node --check index.mjs",
+    "package:dev-v2": "bash scripts/package-dev-v2.sh"
+  }
+}
