@@ -1,4 +1,3 @@
-// LEGACY PATH. Canonical Lambda source is radio-api/index.mjs. Do not edit or deploy this file.
 import crypto from 'node:crypto';
 import pg from 'pg';
 
@@ -171,6 +170,9 @@ const RESPONSE_ONLY_SONG_FIELDS = new Set([
   'product_clicks'
 ]);
 const TEXTUAL_DB_TYPES = new Set(['character varying', 'character', 'text', 'citext']);
+// Cherry-picked safely from abandoned Lambda: richer DB type handling for song normalization.
+const NUMERIC_DB_TYPES = new Set(['smallint', 'integer', 'bigint', 'decimal', 'numeric', 'real', 'double precision']);
+const TIMESTAMP_DB_TYPES = new Set(['timestamp without time zone', 'timestamp with time zone', 'date', 'time without time zone', 'time with time zone']);
 const OPTIONAL_SONG_LOOKUP_FIELDS = new Set(['album_name', 'secondary_genre', 'internal_version_name', 'shop_url']);
 // FK-backed song create fields are discovered from information_schema at runtime.
 
@@ -192,15 +194,52 @@ function safeDatabaseError(error) {
 }
 
 function isTextColumn(column) {
-  return TEXTUAL_DB_TYPES.has(column?.data_type) || String(column?.udt_name || '').startsWith('varchar');
+  const dataType = String(column?.data_type || '').toLowerCase();
+  const udtName = String(column?.udt_name || '').toLowerCase();
+  return TEXTUAL_DB_TYPES.has(dataType) || udtName === 'text' || udtName === 'citext' || udtName.startsWith('varchar') || udtName.startsWith('bpchar');
 }
 
 function isJsonColumn(column) {
-  return column?.data_type === 'json' || column?.data_type === 'jsonb' || column?.udt_name === 'json' || column?.udt_name === 'jsonb';
+  const dataType = String(column?.data_type || '').toLowerCase();
+  const udtName = String(column?.udt_name || '').toLowerCase();
+  return dataType === 'json' || dataType === 'jsonb' || udtName === 'json' || udtName === 'jsonb';
 }
 
 function isArrayColumn(column) {
-  return column?.data_type === 'ARRAY' || String(column?.udt_name || '').startsWith('_');
+  const dataType = String(column?.data_type || '').toLowerCase();
+  const udtName = String(column?.udt_name || '').toLowerCase();
+  return dataType === 'array' || udtName.startsWith('_');
+}
+
+// Cherry-picked safely from abandoned Lambda: boolean, numeric, UUID, and timestamp column coercion helpers.
+function normalizeBoolean(value, defaultValue = false) {
+  if (value === null || value === undefined || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalizedValue)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalizedValue)) return false;
+  }
+  return Boolean(value);
+}
+
+function isBooleanColumn(column) {
+  return String(column?.data_type || '').toLowerCase() === 'boolean' || String(column?.udt_name || '').toLowerCase() === 'bool';
+}
+
+function isNumericColumn(column) {
+  const dataType = String(column?.data_type || '').toLowerCase();
+  const udtName = String(column?.udt_name || '').toLowerCase();
+  return NUMERIC_DB_TYPES.has(dataType) || ['int2', 'int4', 'int8', 'float4', 'float8', 'numeric'].includes(udtName);
+}
+
+function isUuidColumn(column) {
+  return String(column?.data_type || '').toLowerCase() === 'uuid' || String(column?.udt_name || '').toLowerCase() === 'uuid';
+}
+
+function isTimestampColumn(column) {
+  return TIMESTAMP_DB_TYPES.has(String(column?.data_type || '').toLowerCase());
 }
 
 function normalizeJsonArrayFieldValue(field, value) {
@@ -220,6 +259,20 @@ function normalizeDbValue(field, value, column) {
 
   if (value === null) return null;
 
+  if (isBooleanColumn(column) || BOOLEAN_SONG_FIELDS.has(field)) {
+    return value === '' ? null : normalizeBoolean(value);
+  }
+
+  if (isNumericColumn(column)) {
+    if (value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  if (isUuidColumn(column) || isTimestampColumn(column)) {
+    return value === '' ? null : value;
+  }
+
   if (isJsonColumn(column)) {
     if (field === 'specific_product_urls' || field === 'visual_assets' || field === 'mood_tags' || field === 'languages') {
       return JSON.stringify(normalizeJsonArrayFieldValue(field, value));
@@ -235,6 +288,8 @@ function normalizeDbValue(field, value, column) {
     return normalizeStringArray(value);
   }
 
+  // Cherry-picked safely from abandoned Lambda: stringify array values for textual columns instead of passing arrays to scalar fields.
+  if (Array.isArray(value)) return value.join(', ');
   return value;
 }
 
@@ -1936,6 +1991,91 @@ async function getVisualsFolderAssets(folderId) {
   };
 }
 
+
+
+// Cherry-picked safely from abandoned Lambda: admin CRUD for existing radio.visuals_folder_assets rows only.
+async function ensureVisualsFolderAssetsSchema() {
+  const columns = await getTableColumns('radio', 'visuals_folder_assets');
+  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
+  if (!requiredColumns.every((column) => columns.has(column))) {
+    const error = new Error('radio.visuals_folder_assets schema is missing required columns.');
+    error.statusCode = 501;
+    throw error;
+  }
+  return columns;
+}
+
+function normalizeFolderAssetPayload(body, folder) {
+  const assetType = body.asset_type === 'clip' || body.type === 'clip' ? 'clip' : 'image';
+  const fileName = String(body.file_name || body.filename || '').trim();
+  const publicUrl = String(body.public_url || body.url || '').trim();
+  const s3Key = String(body.s3_key || body.key || '').trim();
+  const contentType = String(body.content_type || body.contentType || '').trim().toLowerCase();
+  const extension = getFileExtension(fileName || s3Key || publicUrl);
+  const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
+  if (assetType === 'image' && !imageExtensions.has(extension)) return { error: 'Visual Library folder images must be JPG, JPEG, PNG, or WEBP.' };
+  if (assetType === 'clip' && extension !== 'mp4') return { error: 'Visual Library folder clips must be MP4 files.' };
+  if (!publicUrl || !s3Key) return { error: 'public_url and s3_key are required.' };
+  return { payload: {
+    id: String(body.id || crypto.randomUUID()),
+    folder_id: folder.id,
+    folder_slug: folder.folder_slug || '',
+    asset_type: assetType,
+    file_name: fileName || s3Key.split('/').pop() || '',
+    s3_key: s3Key,
+    public_url: publicUrl,
+    thumbnail_url: String(body.thumbnail_url || body.thumbnailUrl || publicUrl),
+    content_type: contentType || (assetType === 'clip' ? 'video/mp4' : 'image/' + (extension === 'jpg' ? 'jpeg' : extension)),
+    size_bytes: Number.isFinite(Number(body.size_bytes || body.sizeBytes)) ? Number(body.size_bytes || body.sizeBytes) : null,
+    width: Number.isFinite(Number(body.width)) ? Number(body.width) : null,
+    height: Number.isFinite(Number(body.height)) ? Number(body.height) : null,
+    ratio_label: String(body.ratio_label || body.ratioLabel || ''),
+    caption: String(body.caption || ''),
+    alt_text: String(body.alt_text || body.altText || ''),
+    notes: String(body.notes || '')
+  }};
+}
+
+async function createVisualsFolderAsset(folderId, body) {
+  const columns = await ensureVisualsFolderAssetsSchema();
+  const folderResult = await client.query('SELECT id, folder_slug FROM radio.visuals_folders WHERE id = $1 LIMIT 1', [folderId]);
+  if (!folderResult.rowCount) return { statusCode: 404, body: { success: false, error: 'Visuals folder not found.' } };
+  const validation = normalizeFolderAssetPayload(body, folderResult.rows[0]);
+  if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
+  const payload = validation.payload;
+  const insertFields = ['id', 'folder_id', 'folder_slug', 'asset_type', 'file_name', 's3_key', 'public_url', 'thumbnail_url', 'content_type', 'size_bytes', 'width', 'height', 'ratio_label', 'status', 'caption', 'alt_text', 'notes'].filter((field) => columns.has(field));
+  const values = insertFields.map((field) => field === 'status' ? 'active' : payload[field]);
+  const result = await client.query(
+    `INSERT INTO radio.visuals_folder_assets (${insertFields.join(', ')}) VALUES (${insertFields.map((_, index) => `$${index + 1}`).join(', ')}) RETURNING *`,
+    values
+  );
+  return { statusCode: 200, body: { success: true, folder_id: folderId, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+}
+
+async function updateVisualsFolderAsset(folderId, assetId, body) {
+  await ensureVisualsFolderAssetsSchema();
+  const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
+  const result = await client.query(
+    `UPDATE radio.visuals_folder_assets
+     SET status = COALESCE($3, status), caption = COALESCE($4, caption), alt_text = COALESCE($5, alt_text), notes = COALESCE($6, notes), updated_at = now()
+     WHERE folder_id = $1 AND id = $2
+     RETURNING *`,
+    [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null]
+  );
+  if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+  return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+}
+
+async function hideVisualsFolderAsset(folderId, assetId) {
+  await ensureVisualsFolderAssetsSchema();
+  const result = await client.query(
+    `UPDATE radio.visuals_folder_assets SET status = 'hidden', updated_at = now() WHERE folder_id = $1 AND id = $2 RETURNING id`,
+    [folderId, assetId]
+  );
+  if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+  return { statusCode: 200, body: { success: true, folder_id: folderId, asset_id: assetId, status: 'hidden' } };
+}
+
 async function handlePublicVisualsFolderAssetsRoute(event) {
   const method = getMethod(event).toUpperCase();
   if (method === 'OPTIONS') return response(204, {});
@@ -2100,6 +2240,46 @@ async function trackSongEvent(client, event) {
       success: false,
       error: 'Track insert failed.'
     });
+  }
+
+
+  // Cherry-picked safely from abandoned Lambda: increment a denormalized song play counter on play_start,
+  // while preserving the working base's safe UUID handling and song_key fallback.
+  if (eventType === 'play_start') {
+    const songColumns = await getTableColumns('radio', 'songs');
+    const playCountColumn = firstExistingColumn(songColumns, ['play_count', 'total_plays', 'plays']);
+
+    if (playCountColumn) {
+      const playResult = await client.query(
+        `UPDATE radio.songs
+         SET ${playCountColumn} = COALESCE(${playCountColumn}, 0) + 1,
+             updated_at = now()
+         WHERE ($1::text IS NOT NULL AND id::text = $1)
+            OR ($2::text IS NOT NULL AND song_key = $2)
+         RETURNING id, song_key, display_title, ${playCountColumn} AS play_count`,
+        [safeSongId, songKey]
+      );
+
+      if (playResult.rowCount) {
+        const updated = playResult.rows[0];
+        const playCount = Number(updated.play_count || 0);
+        return response(200, {
+          success: true,
+          message: 'Song play recorded.',
+          event_type: eventType,
+          id: updated.id,
+          song_key: updated.song_key,
+          display_title: updated.display_title,
+          play_count: playCount,
+          total_plays: playCount,
+          plays: playCount
+        });
+      }
+
+      console.warn('[Stashbox Radio API] play_start did not match song for denormalized counter update', { songKey, songId });
+    } else {
+      console.warn('[Stashbox Radio API] play_start recorded without denormalized counter column', { songKey, songId });
+    }
   }
 
   if (eventType === 'like') {
@@ -2733,6 +2913,23 @@ async function handleAdminVisualsFoldersRoute(event) {
   const foldersIndex = segments.lastIndexOf('folders');
   const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
 
+  if (id && segments[foldersIndex + 2] === 'assets') {
+    const assetId = segments[foldersIndex + 3] || '';
+    if (method === 'GET' && !assetId) return response(200, await getVisualsFolderAssets(id));
+    if (method === 'POST' && !assetId) {
+      const result = await createVisualsFolderAsset(id, parseBody(event));
+      return response(result.statusCode, result.body);
+    }
+    if (method === 'PUT' && assetId) {
+      const result = await updateVisualsFolderAsset(id, assetId, parseBody(event));
+      return response(result.statusCode, result.body);
+    }
+    if (method === 'DELETE' && assetId) {
+      const result = await hideVisualsFolderAsset(id, assetId);
+      return response(result.statusCode, result.body);
+    }
+  }
+
   if (method === 'GET' && !id) return response(200, { success: true, folders: await getVisualsFolders() });
 
   if (method === 'POST' && !id) {
@@ -2823,8 +3020,9 @@ function validateUploadRequest(body) {
   const extension = getFileExtension(filename);
   const audioPurposes = new Set(['audio']);
   const artworkPurposes = new Set(['artwork']);
-  const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image']);
-  const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip']);
+  // Cherry-picked safely from abandoned Lambda: Visual Library folder upload purpose aliases.
+  const visualImagePurposes = new Set(['visual_image', 'visual_images', 'song_visual_image', 'visual_folder_image']);
+  const visualClipPurposes = new Set(['visual_clip', 'visual_clips', 'song_visual_clip', 'visual_folder_clip']);
   const adVideoPurposes = new Set(['ad_video']);
   const audioExtensions = new Set(['wav', 'mp3', 'm4a', 'flac', 'aiff', 'aif']);
   const audioMimeTypes = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/aiff', 'audio/x-aiff']);
@@ -2853,15 +3051,11 @@ function validateUploadRequest(body) {
   };
 }
 
-const MEDIA_UPLOAD_BUCKET = 'stashbox-media-656260749296-us-east-2-an';
-const MEDIA_UPLOAD_BUCKET_REGION = 'us-east-2';
 
 async function createAdminUploadPresign(event) {
   const body = parseBody(event);
-  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || MEDIA_UPLOAD_BUCKET;
-  const region = bucket === MEDIA_UPLOAD_BUCKET
-    ? MEDIA_UPLOAD_BUCKET_REGION
-    : (process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || MEDIA_UPLOAD_BUCKET_REGION);
+  const bucket = process.env.UPLOAD_BUCKET || process.env.S3_BUCKET || process.env.RADIO_UPLOAD_BUCKET || '';
+  const region = process.env.UPLOAD_BUCKET_REGION || process.env.S3_BUCKET_REGION || process.env.RADIO_UPLOAD_BUCKET_REGION || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
   const sessionToken = process.env.AWS_SESSION_TOKEN || '';
