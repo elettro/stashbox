@@ -1,3 +1,4 @@
+// LEGACY PATH. Canonical Lambda source is radio-api/index.mjs. Do not edit or deploy this file.
 import crypto from 'node:crypto';
 import pg from 'pg';
 
