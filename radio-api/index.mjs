@@ -1150,24 +1150,56 @@ async function handleAdminAdsRoute(event, { requireAdmin }) {
 }
 
 
+const ROUTE_ROOT_SEGMENTS = new Set([
+  'admin',
+  'radio',
+  'dashboard',
+  'ad-settings',
+  'ads',
+  'songs',
+  'track',
+  'visuals',
+  'vec'
+]);
+const FALLBACK_STAGE_SEGMENTS = new Set(['dev', 'prod', 'default']);
+
+function isKnownRouteRoot(segment) {
+  return ROUTE_ROOT_SEGMENTS.has(String(segment || '').toLowerCase());
+}
+
+function getRequestStage(event) {
+  return String(event.requestContext?.stage || '').trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+}
+
+function isStagePrefixSegment(segment, event) {
+  const cleanSegment = String(segment || '').trim().toLowerCase();
+  if (!cleanSegment) return false;
+  const requestStage = getRequestStage(event);
+  if (requestStage) return cleanSegment === requestStage;
+  return FALLBACK_STAGE_SEGMENTS.has(cleanSegment);
+}
+
+function stripLeadingStageSegment(segments, event) {
+  if (segments.length < 2) return segments;
+  if (!isStagePrefixSegment(segments[0], event)) return segments;
+  if (!isKnownRouteRoot(segments[1])) return segments;
+  return segments.slice(1);
+}
+
 function getRouteSegments(event) {
   const path = getPath(event).split('?')[0].replace(/\/+$/, '');
-  const segments = path.split('/').filter(Boolean);
+  let segments = stripLeadingStageSegment(path.split('/').filter(Boolean), event);
   const lambdaName = process.env.AWS_LAMBDA_FUNCTION_NAME || '';
   const serviceIndex = lambdaName ? segments.lastIndexOf(lambdaName) : -1;
-  if (serviceIndex >= 0) return segments.slice(serviceIndex + 1);
+  if (serviceIndex >= 0) return stripLeadingStageSegment(segments.slice(serviceIndex + 1), event);
   const defaultIndex = segments.lastIndexOf('default');
   if (defaultIndex >= 0) {
-    const afterDefault = segments.slice(defaultIndex + 1);
-    const routeRootAfterDefault = afterDefault.findIndex((segment) =>
-      ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals', 'vec'].includes(segment)
-    );
+    const afterDefault = stripLeadingStageSegment(segments.slice(defaultIndex + 1), event);
+    const routeRootAfterDefault = afterDefault.findIndex(isKnownRouteRoot);
     return routeRootAfterDefault >= 0 ? afterDefault.slice(routeRootAfterDefault) : afterDefault;
   }
 
-  const routeRootIndex = segments.findIndex((segment) =>
-    ['admin', 'radio', 'ad-settings', 'ads', 'songs', 'track', 'visuals', 'vec'].includes(segment)
-  );
+  const routeRootIndex = segments.findIndex(isKnownRouteRoot);
   if (routeRootIndex > 0) return segments.slice(routeRootIndex);
 
   return segments;
