@@ -1038,7 +1038,7 @@
         song_targeting: String(ad.song_targeting || ''),
         start_date: normalizeDate(ad.start_date || todayString()),
         end_date: String(ad.end_date || ''),
-        notes: String(ad.notes || ''),
+        notes: String(ad.notes ?? ad.note ?? ad.internal_notes ?? ad.internalNotes ?? ''),
         views,
         clicks,
         skips,
@@ -1410,7 +1410,7 @@
         song_targeting: ad.song_targeting,
         start_date: ad.start_date || todayString(),
         end_date: ad.end_date || null,
-        notes: ad.notes
+        notes: String(ad.notes ?? '')
       };
     }
 
