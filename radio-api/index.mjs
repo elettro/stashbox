@@ -1843,6 +1843,180 @@ async function saveSongVisualRecipe(event) {
   return response(200, { success: true, ...result.rows[0] });
 }
 
+
+const VISUAL_ORDER_MODES = new Set(['random', 'manual', 'newest_first']);
+const VISUAL_INCLUSION_STATES = new Set(['included', 'excluded']);
+
+function normalizeVisualOrderMode(value) {
+  const mode = String(value || 'random').trim().toLowerCase().replace(/[ -]+/g, '_');
+  return VISUAL_ORDER_MODES.has(mode) ? mode : 'random';
+}
+
+function normalizeInclusionState(value) {
+  const state = String(value || '').trim().toLowerCase();
+  return VISUAL_INCLUSION_STATES.has(state) ? state : '';
+}
+
+function isVisualSettingsRoute(event) {
+  const segments = getRouteSegments(event);
+  const songsIndex = segments.indexOf('songs');
+  return songsIndex >= 0 && Boolean(segments[songsIndex + 1]) && segments[songsIndex + 2] === 'visual-settings';
+}
+
+function getVisualSettingsSongKey(event) {
+  const segments = getRouteSegments(event);
+  const songsIndex = segments.indexOf('songs');
+  return event.pathParameters?.song_key || event.pathParameters?.songKey || (songsIndex >= 0 ? decodeURIComponent(segments[songsIndex + 1] || '') : '');
+}
+
+async function ensureSongVisualSettingsTables() {
+  const requiredTables = ['song_visual_settings', 'song_visual_folder_mappings', 'song_visual_asset_mappings'];
+  const result = await client.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name = ANY($2::text[])`,
+    [getDbSchema(), requiredTables]
+  );
+  const found = new Set(result.rows.map((row) => row.table_name));
+  const missing = requiredTables.filter((tableName) => !found.has(tableName));
+  if (missing.length) {
+    const error = new Error(`VE-10B migration is required before saving visual settings. Missing table: ${missing[0]}.`);
+    error.statusCode = 501;
+    throw error;
+  }
+}
+
+
+async function songExists(songKey) {
+  const result = await client.query(`SELECT 1 FROM ${qname('songs')} WHERE song_key = $1 LIMIT 1`, [songKey]);
+  return result.rowCount > 0;
+}
+
+function mapBy(rows, key) {
+  return Object.fromEntries(rows.map((row) => [String(row[key]), row]));
+}
+
+async function loadSongVisualSettings(songKey, { ensureTables = false } = {}) {
+  const validation = validateVecSongKey(songKey);
+  if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
+  if (!(await songExists(validation.songKey))) return { statusCode: 404, body: { success: false, error: 'Song not found.' } };
+  if (ensureTables) await ensureSongVisualSettingsTables();
+
+  let settings = { order_mode: 'random' };
+  let folderMappings = [];
+  let assetMappings = [];
+  try {
+    const settingsResult = await client.query(`SELECT song_key, order_mode, created_at, updated_at FROM ${qname('song_visual_settings')} WHERE song_key = $1 LIMIT 1`, [validation.songKey]);
+    if (settingsResult.rowCount) settings = settingsResult.rows[0];
+    folderMappings = (await client.query(`SELECT song_key, folder_id, inclusion_state, created_at, updated_at FROM ${qname('song_visual_folder_mappings')} WHERE song_key = $1`, [validation.songKey])).rows;
+    assetMappings = (await client.query(`SELECT song_key, asset_id, asset_scope, inclusion_state, manual_order, created_at, updated_at FROM ${qname('song_visual_asset_mappings')} WHERE song_key = $1`, [validation.songKey])).rows;
+  } catch (error) {
+    if (error?.code !== '42P01') throw error;
+  }
+
+  const directRows = await client.query(`SELECT * FROM ${qname('song_visual_assets')} WHERE song_key = $1 AND status <> 'hidden' ORDER BY created_at ASC, file_name ASC NULLS LAST`, [validation.songKey]).catch((error) => error?.code === '42P01' ? { rows: [] } : Promise.reject(error));
+  const folderRows = await client.query(`SELECT * FROM ${qname('visuals_folders')} ORDER BY created_at DESC, folder_name ASC`).catch((error) => error?.code === '42P01' ? { rows: [] } : Promise.reject(error));
+  const folderIds = folderRows.rows.map((row) => row.id);
+  const matches = await getVisualsFolderMatches(folderIds).catch(() => ({}));
+  const assetRows = folderIds.length ? await client.query(`SELECT * FROM ${qname('visuals_folder_assets')} WHERE folder_id = ANY($1::text[]) AND status <> 'hidden' ORDER BY created_at ASC, file_name ASC NULLS LAST`, [folderIds]).catch((error) => error?.code === '42P01' ? { rows: [] } : Promise.reject(error)) : { rows: [] };
+  const assetsByFolder = {};
+  assetRows.rows.map(normalizeVisualsFolderAsset).forEach((asset) => {
+    const key = String(asset.folder_id);
+    assetsByFolder[key] = assetsByFolder[key] || [];
+    assetsByFolder[key].push(asset);
+  });
+  const folderMap = mapBy(folderMappings, 'folder_id');
+  const assetMap = mapBy(assetMappings, 'asset_id');
+  const directAssets = directRows.rows.map(normalizeSongVisualAsset).map((asset) => ({ ...asset, inclusion_state: assetMap[String(asset.id)]?.inclusion_state || '', manual_order: assetMap[String(asset.id)]?.manual_order ?? null }));
+  const folders = folderRows.rows.map((row) => {
+    const assets = assetsByFolder[String(row.id)] || [];
+    return {
+      ...buildVisualsFolderResponse(row, matches[row.id] || {}),
+      inclusion_state: folderMap[String(row.id)]?.inclusion_state || '',
+      image_count: assets.filter((asset) => asset.asset_type === 'image').length,
+      clip_count: assets.filter((asset) => asset.asset_type === 'clip').length,
+      video_clip_count: assets.filter((asset) => asset.asset_type === 'clip').length,
+      assets: assets.map((asset) => ({ ...asset, inclusion_state: assetMap[String(asset.id)]?.inclusion_state || '', manual_order: assetMap[String(asset.id)]?.manual_order ?? null }))
+    };
+  });
+  const eligibleDirect = directAssets.filter((asset) => asset.inclusion_state !== 'excluded');
+  const eligibleFolderAssets = folders.flatMap((folder) => folder.inclusion_state === 'included' ? folder.assets.filter((asset) => asset.inclusion_state !== 'excluded') : []);
+  let eligibleAssets = [...eligibleDirect, ...eligibleFolderAssets];
+  if (normalizeVisualOrderMode(settings.order_mode) === 'newest_first') eligibleAssets = eligibleAssets.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  if (normalizeVisualOrderMode(settings.order_mode) === 'manual') eligibleAssets = eligibleAssets.sort((a, b) => Number(a.manual_order ?? 999999) - Number(b.manual_order ?? 999999));
+  return { statusCode: 200, body: { success: true, song_key: validation.songKey, order_mode: normalizeVisualOrderMode(settings.order_mode), direct_assets: directAssets, folders, folder_mappings: folderMappings, asset_mappings: assetMappings, eligible_assets: eligibleAssets, fallback: { uses_artwork: eligibleAssets.length === 0, eligible_visual_count: eligibleAssets.length } } };
+}
+
+async function saveSongVisualSettings(event, songKey) {
+  const validation = validateVecSongKey(songKey);
+  if (validation.error) return response(400, { success: false, error: validation.error });
+  if (!(await songExists(validation.songKey))) return response(404, { success: false, error: 'Song not found.' });
+  const body = parseBody(event);
+  const orderMode = normalizeVisualOrderMode(body.order_mode || body.orderMode);
+  const folders = Array.isArray(body.folder_mappings) ? body.folder_mappings : [];
+  const assets = [...(Array.isArray(body.asset_mappings) ? body.asset_mappings : []), ...(Array.isArray(body.direct_asset_mappings) ? body.direct_asset_mappings.map((item) => ({ ...item, asset_scope: 'direct' })) : [])];
+  const seenFolders = new Set();
+  const seenAssets = new Set();
+  for (const item of folders) {
+    const id = String(item.folder_id || item.folderId || '').trim();
+    const state = normalizeInclusionState(item.inclusion_state || item.state);
+    if (!id || !state) return response(400, { success: false, error: 'Each folder mapping requires folder_id and inclusion_state.' });
+    if (seenFolders.has(id)) return response(400, { success: false, error: `Duplicate folder mapping: ${id}` });
+    seenFolders.add(id);
+  }
+  for (const item of assets) {
+    const id = String(item.asset_id || item.assetId || item.id || '').trim();
+    const state = normalizeInclusionState(item.inclusion_state || item.state);
+    if (!id || !state) return response(400, { success: false, error: 'Each asset mapping requires asset_id and inclusion_state.' });
+    if (seenAssets.has(id)) return response(400, { success: false, error: `Duplicate asset mapping: ${id}` });
+    seenAssets.add(id);
+  }
+  if (seenFolders.size) {
+    const result = await client.query(`SELECT id FROM ${qname('visuals_folders')} WHERE id = ANY($1::text[])`, [[...seenFolders]]);
+    const found = new Set(result.rows.map((row) => String(row.id)));
+    const missing = [...seenFolders].filter((id) => !found.has(id));
+    if (missing.length) return response(400, { success: false, error: `Invalid folder ID: ${missing[0]}` });
+  }
+  if (seenAssets.size) {
+    const direct = await client.query(`SELECT id FROM ${qname('song_visual_assets')} WHERE id = ANY($1::text[]) AND song_key = $2`, [[...seenAssets], validation.songKey]).catch((error) => error?.code === '42P01' ? { rows: [] } : Promise.reject(error));
+    const folder = await client.query(`SELECT id FROM ${qname('visuals_folder_assets')} WHERE id = ANY($1::text[])`, [[...seenAssets]]).catch((error) => error?.code === '42P01' ? { rows: [] } : Promise.reject(error));
+    const found = new Set([...direct.rows, ...folder.rows].map((row) => String(row.id)));
+    const missing = [...seenAssets].filter((id) => !found.has(id));
+    if (missing.length) return response(400, { success: false, error: `Invalid asset ID: ${missing[0]}` });
+  }
+  await ensureSongVisualSettingsTables();
+  await client.query('BEGIN');
+  try {
+    await client.query(`INSERT INTO ${qname('song_visual_settings')} (song_key, order_mode) VALUES ($1, $2) ON CONFLICT (song_key) DO UPDATE SET order_mode = EXCLUDED.order_mode, updated_at = now()`, [validation.songKey, orderMode]);
+    await client.query(`DELETE FROM ${qname('song_visual_folder_mappings')} WHERE song_key = $1`, [validation.songKey]);
+    for (const item of folders) await client.query(`INSERT INTO ${qname('song_visual_folder_mappings')} (song_key, folder_id, inclusion_state) VALUES ($1, $2, $3)`, [validation.songKey, String(item.folder_id || item.folderId).trim(), normalizeInclusionState(item.inclusion_state || item.state)]);
+    await client.query(`DELETE FROM ${qname('song_visual_asset_mappings')} WHERE song_key = $1`, [validation.songKey]);
+    for (const item of assets) await client.query(`INSERT INTO ${qname('song_visual_asset_mappings')} (song_key, asset_id, asset_scope, inclusion_state, manual_order) VALUES ($1, $2, $3, $4, $5)`, [validation.songKey, String(item.asset_id || item.assetId || item.id).trim(), item.asset_scope === 'direct' ? 'direct' : 'folder', normalizeInclusionState(item.inclusion_state || item.state), Number.isFinite(Number(item.manual_order ?? item.manualOrder)) ? Number(item.manual_order ?? item.manualOrder) : null]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
+  const loaded = await loadSongVisualSettings(validation.songKey, { ensureTables: true });
+  return response(200, loaded.body);
+}
+
+async function handleAdminSongVisualSettingsRoute(event) {
+  if (getMethod(event).toUpperCase() === 'OPTIONS') return response(204, {});
+  await requireAdmin(event);
+  const songKey = getVisualSettingsSongKey(event);
+  if (getMethod(event).toUpperCase() === 'GET') { const result = await loadSongVisualSettings(songKey); return response(result.statusCode, result.body); }
+  if (getMethod(event).toUpperCase() === 'PUT') return saveSongVisualSettings(event, songKey);
+  return response(404, { success: false, error: 'Not found.' });
+}
+
+async function handlePublicSongVisualSettingsRoute(event) {
+  if (getMethod(event).toUpperCase() === 'OPTIONS') return response(204, {});
+  if (getMethod(event).toUpperCase() !== 'GET') return response(404, { success: false, error: 'Not found.' });
+  const result = await loadSongVisualSettings(getVisualSettingsSongKey(event));
+  if (result.statusCode !== 200) return response(result.statusCode, result.body);
+  const body = result.body;
+  return response(200, { success: true, song_key: body.song_key, order_mode: body.order_mode, assets: body.eligible_assets, fallback: body.fallback });
+}
+
 async function handleAdminVecRecipeRoute(event) {
   await requireAdmin(event);
   const method = getMethod(event).toUpperCase();
@@ -3327,6 +3501,14 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'visuals', 'folders'])) {
     return handleAdminVisualsFoldersRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['admin', 'songs']) && isVisualSettingsRoute(event)) {
+    return handleAdminSongVisualSettingsRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event)) {
+    return handlePublicSongVisualSettingsRoute(event);
   }
 
   if (routeStartsWith(segments, ['dashboard', 'summary']) && method === 'GET') {
