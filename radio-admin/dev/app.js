@@ -3504,14 +3504,15 @@ async function loadVisualExperienceSettings(songKey) {
 }
 
 async function saveVisualExperienceSettings() {
-  if (!selectedSongKey) return;
+  if (!selectedSongKey) return false;
   visualExperienceState.saving = true; visualExperienceState.status = 'Saving Visual Experience…'; renderVisualExperience();
   try {
     const payload = { order_mode: visualExperienceState.orderMode, folder_mappings: [...visualExperienceState.folderMappings.entries()].map(([folder_id, item]) => ({ folder_id, inclusion_state: item.inclusion_state })), asset_mappings: [...visualExperienceState.assetMappings.entries()].map(([asset_id, item]) => ({ asset_id, asset_scope: item.asset_scope || 'folder', inclusion_state: item.inclusion_state, manual_order: item.manual_order ?? null })) };
     const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(selectedSongKey)}/visual-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     visualExperienceState.saving = false; visualExperienceState.dirty = false; visualExperienceState.status = `Visual Experience saved. ${data.fallback?.uses_artwork ? 'Artwork fallback active.' : `${data.fallback?.eligible_visual_count || 0} eligible visuals.`}`;
     await loadVisualExperienceSettings(selectedSongKey);
-  } catch (error) { visualExperienceState.saving = false; visualExperienceState.status = `Visual Experience save failed: ${error.message}`; renderVisualExperience(); }
+    return true;
+  } catch (error) { visualExperienceState.saving = false; visualExperienceState.status = `Visual Experience save failed: ${error.message}`; renderVisualExperience(); return false; }
 }
 
 function buildEditForm() {
@@ -3975,8 +3976,8 @@ async function saveSelectedSong(event) {
 
   if (!changedFields.length) {
     if (visualExperienceState.dirty) {
-      await saveVisualExperienceSettings();
-      showMessage('Visual Experience saved', 'success');
+      const success = await saveVisualExperienceSettings();
+      showMessage(success ? 'Visual Experience saved' : 'Failed to save Visual Experience', success ? 'success' : 'error');
       return;
     }
     showMessage('No changes to save', 'success');
@@ -4014,12 +4015,13 @@ async function saveSelectedSong(event) {
     if (events.length) {
       renderEvents();
     }
+    let visualExperienceSaved = true;
     if (visualExperienceState.dirty) {
-      await saveVisualExperienceSettings();
+      visualExperienceSaved = await saveVisualExperienceSettings();
     }
     populateEditor(updatedSong);
     setActiveTab('edit');
-    showMessage('Saved successfully', 'success');
+    showMessage(visualExperienceSaved ? 'Saved successfully' : 'Song saved, but Visual Experience save failed', visualExperienceSaved ? 'success' : 'error');
   } catch (error) {
     showMessage(error.message, 'error');
   } finally {

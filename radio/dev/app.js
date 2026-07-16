@@ -3443,9 +3443,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     loadVe10bVisualSettings(selected, { signal: controller.signal }).then(async ve10bSequence => {
       if (disposed || controller.signal.aborted) return;
       if (Array.isArray(ve10bSequence) && ve10bSequence.length) {
-        setCurrentVisualImages([]);
-        setVisualSequenceState({ songKey: sequenceSongKey, assets: ve10bSequence });
-        return;
+        return ve10bSequence;
       }
       return loadVecRecipeVisuals(selected, { signal: controller.signal });
     }).then(async sequence => {
@@ -3466,7 +3464,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       setCurrentVisualImages([]);
       setVisualSequenceState({ songKey: '', assets: [] });
     };
-  }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, loadVecRecipeVisuals, renderCurrentVisualOrArtwork]);
+  }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, loadVe10bVisualSettings, loadVecRecipeVisuals, renderCurrentVisualOrArtwork]);
 
   useEffect(() => {
     startVisualRotation(selected, currentVisualImages);
