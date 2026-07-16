@@ -1989,7 +1989,11 @@ async function saveSongVisualSettings(event, songKey) {
     await client.query(`DELETE FROM ${qname('song_visual_folder_mappings')} WHERE song_key = $1`, [validation.songKey]);
     for (const item of folders) await client.query(`INSERT INTO ${qname('song_visual_folder_mappings')} (song_key, folder_id, inclusion_state) VALUES ($1, $2, $3)`, [validation.songKey, String(item.folder_id || item.folderId).trim(), normalizeInclusionState(item.inclusion_state || item.state)]);
     await client.query(`DELETE FROM ${qname('song_visual_asset_mappings')} WHERE song_key = $1`, [validation.songKey]);
-    for (const item of assets) await client.query(`INSERT INTO ${qname('song_visual_asset_mappings')} (song_key, asset_id, asset_scope, inclusion_state, manual_order) VALUES ($1, $2, $3, $4, $5)`, [validation.songKey, String(item.asset_id || item.assetId || item.id).trim(), item.asset_scope === 'direct' ? 'direct' : 'folder', normalizeInclusionState(item.inclusion_state || item.state), Number.isFinite(Number(item.manual_order ?? item.manualOrder)) ? Number(item.manual_order ?? item.manualOrder) : null]);
+    for (const item of assets) {
+      const rawOrder = item.manual_order ?? item.manualOrder;
+      const manualOrder = rawOrder !== null && rawOrder !== undefined && rawOrder !== '' ? Number(rawOrder) : null;
+      await client.query(`INSERT INTO ${qname('song_visual_asset_mappings')} (song_key, asset_id, asset_scope, inclusion_state, manual_order) VALUES ($1, $2, $3, $4, $5)`, [validation.songKey, String(item.asset_id || item.assetId || item.id).trim(), item.asset_scope === 'direct' ? 'direct' : 'folder', normalizeInclusionState(item.inclusion_state || item.state), Number.isFinite(manualOrder) ? manualOrder : null]);
+    }
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
