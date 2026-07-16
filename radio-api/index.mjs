@@ -607,11 +607,17 @@ function getAdId(event) {
 }
 
 function normalizePayload(input, { partial = false } = {}) {
+  const normalizedInput = { ...input };
+  if (!Object.prototype.hasOwnProperty.call(normalizedInput, 'notes')) {
+    const notesAlias = normalizedInput.note ?? normalizedInput.internal_notes ?? normalizedInput.internalNotes;
+    if (notesAlias != null) normalizedInput.notes = notesAlias;
+  }
+
   const payload = {};
 
   EDITABLE_FIELDS.forEach((field) => {
-    if (Object.prototype.hasOwnProperty.call(input, field)) {
-      payload[field] = input[field];
+    if (Object.prototype.hasOwnProperty.call(normalizedInput, field)) {
+      payload[field] = normalizedInput[field];
     }
   });
 
