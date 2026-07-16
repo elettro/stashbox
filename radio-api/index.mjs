@@ -1415,11 +1415,9 @@ async function findFirstTable(candidates) {
 
 
 const STATS_EVENT_TABLE_CANDIDATES = [
-  [getDbSchema(), 'song_events'],
-  [getDbSchema(), 'events'],
   [getDbSchema(), 'radio_events'],
-  ['public', 'song_events'],
-  ['public', 'song_play_events']
+  [getDbSchema(), 'song_events'],
+  [getDbSchema(), 'events']
 ];
 
 function hasAnyColumn(columns, names) {
@@ -2514,14 +2512,63 @@ async function statsSummary() {
       : Promise.resolve({ rows: [] })
   ]);
 
+  const [songsResponse, productResponse, recentEventsResult] = await Promise.all([
+    songStats({ queryStringParameters: { limit: '25' } }),
+    productStats({ queryStringParameters: { limit: '25' } }),
+    publicRecentEvents(statsTable, 50)
+  ]);
+  const songsPayload = JSON.parse(songsResponse.body || '{}');
+  const productPayload = JSON.parse(productResponse.body || '{}');
+  const summaryRow = summary.rows[0] || {};
+  const todayRow = today.rows[0] || {};
+  const songs = Array.isArray(songsPayload.songs) ? songsPayload.songs : [];
+  const products = Array.isArray(productPayload.products) ? productPayload.products : [];
+  const recentClicks = Array.isArray(productPayload.recent_clicks) ? productPayload.recent_clicks : [];
+
   return response(200, {
     success: true,
-    summary: summary.rows[0] || {},
-    today: today.rows[0] || {},
+    summary: {
+      ...summaryRow,
+      songs_tracked: songs.length,
+      total_plays: summaryRow.play_starts || 0,
+      total_likes: summaryRow.likes || 0,
+      total_shares: summaryRow.shares || 0,
+      total_video_clicks: summaryRow.video_clicks || 0,
+      skip_count: summaryRow.skips || 0
+    },
+    today: todayRow,
     devices: devices.rows,
     event_types: eventTypes.rows,
+    top_songs_by_plays: songs.slice().sort((a, b) => Number(b.plays || b.total_plays || 0) - Number(a.plays || a.total_plays || 0)).slice(0, 10),
+    most_liked_songs: songs.slice().sort((a, b) => Number(b.likes || b.total_likes || 0) - Number(a.likes || a.total_likes || 0)).slice(0, 10),
+    most_shared_songs: songs.slice().sort((a, b) => Number(b.shares || b.total_shares || 0) - Number(a.shares || a.total_shares || 0)).slice(0, 10),
+    recent_events: recentEventsResult.rows,
+    product_stats: productPayload.summary || { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 },
+    products,
+    recent_product_clicks: recentClicks,
+    product_clicks_message: productPayload.message || (recentClicks.length ? '' : 'No public-safe product click detail is available yet.'),
     generated_at: new Date().toISOString()
   });
+}
+
+async function publicRecentEvents(statsTable, limit = 50) {
+  const { columns, qualifiedName } = statsTable;
+  const result = await client.query(`
+    SELECT
+      ${columns.has('created_at') ? 'created_at' : 'NULL::timestamptz AS created_at'},
+      ${optionalColumnExpression(columns, 'event_type')},
+      ${optionalColumnExpression(columns, 'song_key')},
+      ${optionalColumnExpression(columns, 'song_id')},
+      ${optionalColumnExpression(columns, 'display_title')},
+      ${optionalColumnExpression(columns, 'song_name')},
+      ${optionalColumnExpression(columns, 'artist')},
+      ${optionalColumnExpression(columns, 'device_type')},
+      ${columns.has('seconds_played') ? 'seconds_played' : 'NULL::numeric AS seconds_played'},
+      ${columns.has('completion_percent') ? 'completion_percent' : 'NULL::numeric AS completion_percent'}
+    FROM ${qualifiedName}
+    ${columns.has('created_at') ? 'ORDER BY created_at DESC NULLS LAST' : ''}
+    LIMIT $1`, [limit]);
+  return result;
 }
 
 async function songStats(event) {
@@ -2590,11 +2637,24 @@ async function productStats(event) {
   const { columns, qualifiedName } = statsTable;
   const productColumn = firstExistingColumn(columns, ['product_url', 'product_id']);
 
-  if (!productColumn && !columns.has('event_type')) {
-    return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], generated_at: new Date().toISOString() });
+  if (!productColumn) {
+    if (!columns.has('event_type')) {
+      return response(200, { success: true, summary: { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], message: 'No public-safe product click detail is stored yet.', generated_at: new Date().toISOString() });
+    }
+
+    const summaryResult = await client.query(`
+      SELECT
+        COUNT(*)::int AS total_product_clicks,
+        0::int AS unique_products_clicked,
+        ${createdAtCountExpression(columns, "now() - interval '24 hours'", 'product_clicks_last_24h')},
+        ${createdAtCountExpression(columns, "now() - interval '7 days'", 'product_clicks_last_7d')}
+      FROM ${qualifiedName}
+      WHERE event_type IN ('product_click')`);
+
+    return response(200, { success: true, summary: summaryResult.rows[0] || { total_product_clicks: 0, unique_products_clicked: 0, product_clicks_last_24h: 0, product_clicks_last_7d: 0 }, products: [], recent_clicks: [], message: 'Product click events exist, but public-safe product detail is not stored yet.', generated_at: new Date().toISOString() });
   }
 
-  const productExpr = productColumn ? productColumn : textLiteral('unknown product');
+  const productExpr = productColumn;
   const productFilter = columns.has('event_type')
     ? `(event_type IN ('product_click')${productColumn ? ` OR NULLIF(${productColumn}::text, '') IS NOT NULL` : ''})`
     : `NULLIF(${productColumn}::text, '') IS NOT NULL`;
@@ -3235,6 +3295,14 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'visuals', 'folders'])) {
     return handleAdminVisualsFoldersRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['dashboard', 'summary']) && method === 'GET') {
+    return withStatsRouteLogging('dashboard/summary', method, () => statsSummary());
+  }
+
+  if (routeStartsWith(segments, ['dashboard', 'songs']) && method === 'GET') {
+    return withStatsRouteLogging('dashboard/songs', method, () => songStats(event));
   }
 
   if (routeStartsWith(segments, ['admin', 'stats', 'summary']) && method === 'GET') {
