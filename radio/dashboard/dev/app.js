@@ -1,4 +1,4 @@
-const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const PUBLIC_SONGS_URL = `${API_ROOT}/radio/songs`;
 const PUBLIC_DASHBOARD_ENDPOINTS = {
   summary: `${API_ROOT}/dashboard/summary`,

@@ -1,5 +1,5 @@
 (function () {
-  const API_ROOT = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const SONGS_API_URL = `${API_ROOT}/admin/songs`;
   const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
   const VEC_RECIPE_API_URL = `${API_ROOT}/admin/vec/recipe`;
