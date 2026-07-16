@@ -1,0 +1,26 @@
+name: True DEV Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Run TRUE DEV smoke test
+    runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check TRUE DEV smoke test
+        run: node --check radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Run TRUE DEV smoke test
+        run: node radio-api/scripts/smoke-test-true-dev.mjs
