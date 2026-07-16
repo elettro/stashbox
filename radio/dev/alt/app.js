@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
-const SONGS_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/songs';
-const TRACKING_API_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev/radio/track';
+const SONGS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs';
+const TRACKING_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/track';
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
 const PRODUCT_POOL_LIMIT = 200;
 const COMPLETION_THRESHOLD = 0.95;

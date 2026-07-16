@@ -57,7 +57,7 @@
       document.addEventListener('click',event=>{if(visualsAdminNav.classList.contains('is-open')&&!visualsAdminNav.contains(event.target)&&!visualsMenuToggle.contains(event.target)){visualsAdminNav.classList.remove('is-open');visualsMenuToggle.setAttribute('aria-expanded','false')}});
       document.addEventListener('keydown',event=>{if(event.key==='Escape'){visualsAdminNav.classList.remove('is-open');visualsMenuToggle.setAttribute('aria-expanded','false')}});
     }
-    const API_ROOT='https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+    const API_ROOT='https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
     const SONGS_API_URL=`${API_ROOT}/admin/songs`;
     const VISUALS_FOLDERS_API_URL=`${API_ROOT}/admin/visuals/folders`;
     const SONG_FOLDER_MAPPING_API_URL=`${API_ROOT}/admin/visuals/song-folders`;
