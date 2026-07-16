@@ -260,7 +260,8 @@
               <h2 id="recentProductClicksHeading">Recent Product Clicks</h2>
             </div>
           </div>
-          <p class="section-copy">Recent product-click detail is not exposed in the current public-safe dashboard payload, so this view keeps the existing data flow unchanged.</p>
+          <p id="recentProductClicksMessage" class="section-copy">Loading public-safe recent product click data…</p>
+          <div id="recentProductClicks" class="rank-grid rank-grid--compact"></div>
         </section>
 
         <section class="card" data-dashboard-section="events" aria-labelledby="eventsHeading">
@@ -270,7 +271,8 @@
               <h2 id="eventsHeading">Events</h2>
             </div>
           </div>
-          <p class="section-copy">Event totals remain represented in the operational and today stats already loaded by the dashboard.</p>
+          <div id="eventTypeStats" class="stats-grid"></div>
+          <div id="recentEvents" class="rank-grid rank-grid--compact"></div>
         </section>
 
         <section class="card" data-dashboard-section="archive" aria-labelledby="archiveHeading">

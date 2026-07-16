@@ -44,6 +44,10 @@ const state = {
   summary: null,
   today: null,
   productStats: null,
+  eventTypes: [],
+  recentEvents: [],
+  recentProductClicks: [],
+  productClicksMessage: '',
   missingPublicEndpoints: new Set(),
   loadErrors: []
 };
@@ -62,6 +66,10 @@ const els = {
   todayStats: document.getElementById('todayStats'),
   productAnalytics: document.getElementById('productAnalytics'),
   skipRateSongs: document.getElementById('skipRateSongs'),
+  eventTypeStats: document.getElementById('eventTypeStats'),
+  recentEvents: document.getElementById('recentEvents'),
+  recentProductClicks: document.getElementById('recentProductClicks'),
+  recentProductClicksMessage: document.getElementById('recentProductClicksMessage'),
   dashboardSections: [...document.querySelectorAll('[data-dashboard-section]')],
   dashboardViewLinks: [...document.querySelectorAll('[data-dashboard-view-link]')]
 };
@@ -386,22 +394,26 @@ function normalizeStatsSummaryResponse(data) {
   ];
   const today = firstPayloadObject(todayCandidates, hasTodayStatsFields) || findNestedTodayStats(payload) || {};
   const products = firstPayloadObject([
-    payload.products,
     payload.product_stats,
-    dataPayload.products,
     dataPayload.product_stats,
-    dashboard.products,
     dashboard.product_stats,
-    stats.products,
     stats.product_stats,
-    summary.products,
-    summary.product_stats
+    summary.product_stats,
+    payload.products,
+    dataPayload.products,
+    dashboard.products,
+    stats.products,
+    summary.products
   ]);
 
   return {
     summary,
     today,
     products,
+    eventTypes: extractArray(payload, ['event_types', 'eventTypes']),
+    recentEvents: extractArray(payload, ['recent_events', 'recentEvents']),
+    recentProductClicks: extractArray(payload, ['recent_product_clicks', 'recentProductClicks', 'recent_clicks']),
+    productClicksMessage: clean(payload.product_clicks_message || payload.productClicksMessage || ''),
     generated_at: payload.generated_at || dataPayload.generated_at || dashboard.generated_at || stats.generated_at || summary.generated_at || ''
   };
 }
@@ -458,6 +470,10 @@ async function loadDashboardData() {
   state.summary = statsSummary.summary || null;
   state.today = normalizeTodayStats(statsSummary.today);
   state.productStats = statsSummary.products || null;
+  state.eventTypes = statsSummary.eventTypes || [];
+  state.recentEvents = statsSummary.recentEvents || [];
+  state.recentProductClicks = statsSummary.recentProductClicks || [];
+  state.productClicksMessage = statsSummary.productClicksMessage || '';
 
   renderAll();
   setStatus(statusMessage(), state.songs.length ? 'success' : 'error');
@@ -507,6 +523,8 @@ function renderAll() {
   renderStats();
   renderSongTables();
   renderRankings();
+  renderEvents();
+  renderRecentProductClicks();
 }
 
 function totals() {
@@ -663,6 +681,39 @@ function renderRankGrid(container, songs, metricFormatter, label) {
     card.querySelector('.rank-meta').textContent = `${song.artist} · ${song.genre}`;
     card.querySelector('.rank-value').textContent = metricFormatter(song);
     card.appendChild(openRadioButton(song));
+    container.appendChild(card);
+  });
+}
+
+
+function renderEvents() {
+  if (!els.eventTypeStats || !els.recentEvents) return;
+  renderStatGrid(els.eventTypeStats, state.eventTypes.slice(0, 12).map(row => [clean(row.event_type || row.eventType || 'unknown'), row.event_count || row.count || 0]));
+  renderSimpleEventList(els.recentEvents, state.recentEvents, 'No recent public-safe events returned.');
+}
+
+function renderRecentProductClicks() {
+  if (!els.recentProductClicks || !els.recentProductClicksMessage) return;
+  els.recentProductClicksMessage.textContent = state.recentProductClicks.length
+    ? 'Recent product clicks are shown with public-safe song and product details only.'
+    : (state.productClicksMessage || 'No product_click events have public-safe detail yet.');
+  renderSimpleEventList(els.recentProductClicks, state.recentProductClicks, 'No recent product clicks returned.');
+}
+
+function renderSimpleEventList(container, rows, emptyMessage) {
+  container.innerHTML = '';
+  if (!rows.length) {
+    container.innerHTML = `<article class="rank-card muted">${emptyMessage}</article>`;
+    return;
+  }
+  rows.slice(0, 25).forEach((row) => {
+    const title = clean(row.display_title || row.song_title || row.song_name || row.song_key || row.product_url || 'Stashbox Radio event');
+    const metaParts = [row.event_type, row.artist, row.device_type, row.created_at].map(clean).filter(Boolean);
+    const card = document.createElement('article');
+    card.className = 'rank-card';
+    card.innerHTML = '<div class="rank-meta"></div><div class="rank-value"></div>';
+    card.querySelector('.rank-meta').textContent = metaParts.join(' · ') || 'Public-safe event';
+    card.querySelector('.rank-value').textContent = title;
     container.appendChild(card);
   });
 }
