@@ -1,6 +1,7 @@
 const API_BASE_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/songs';
 const EVENTS_API_BASE_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/events';
 const STATS_SUMMARY_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/summary';
+const VISUAL_FOLDERS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/visuals/folders';
 // TODO: If product focused views need true top-50+ pagination beyond the current client-side payload, add backend pagination/limit support without changing dashboard calculations.
 const PRODUCT_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/products?limit=25';
 const SONG_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/songs?limit=100';
@@ -335,6 +336,8 @@ const fieldElements = new Map();
 const fieldWrappers = new Map();
 const mediaUploadElements = new Map();
 let editorVisualAssets = [];
+let visualExperienceState = { songKey: '', loading: false, saving: false, dirty: false, orderMode: 'random', directAssets: [], folders: [], folderMappings: new Map(), assetMappings: new Map(), expandedFolders: new Set(), status: 'Select an existing song to load song-level visual controls.' };
+let visualExperienceEls = {};
 
 const requiredSongFields = new Set([
   'song_name',
@@ -3372,31 +3375,143 @@ function createFormDivider(label, className = '') {
 }
 
 function createVecPlaceholder() {
-  const placeholder = document.createElement('section');
-  placeholder.className = 'vec-placeholder field-full';
-  placeholder.setAttribute('aria-labelledby', 'vecPlaceholderTitle');
+  const section = document.createElement('section');
+  section.className = 'visual-experience-controller field-full';
+  section.setAttribute('aria-labelledby', 'visualExperienceTitle');
 
+  const header = document.createElement('div');
+  header.className = 'visual-experience-header';
   const title = document.createElement('h3');
-  title.id = 'vecPlaceholderTitle';
-  title.textContent = 'VEC Controller';
+  title.id = 'visualExperienceTitle';
+  title.textContent = 'Visual Experience';
+  const status = document.createElement('p');
+  status.className = 'visual-experience-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  header.append(title, status);
 
-  const copy = document.createElement('p');
-  copy.textContent = 'Song-level visual experience controls will be added here.';
+  const orderLabel = document.createElement('label');
+  orderLabel.className = 'field visual-order-field';
+  orderLabel.textContent = 'Visual Order';
+  const orderSelect = document.createElement('select');
+  orderSelect.innerHTML = '<option value="random">Random</option><option value="manual">Manual</option><option value="newest_first">Newest First</option>';
+  orderSelect.addEventListener('change', () => { visualExperienceState.orderMode = orderSelect.value; visualExperienceState.dirty = true; renderVisualExperience(); });
+  orderLabel.appendChild(orderSelect);
 
-  const list = document.createElement('ul');
-  [
-    'Official artwork behavior',
-    'Song-only visual assets',
-    'Folder ON/OFF controls',
-    'Controlled shuffle settings'
-  ].forEach((itemText) => {
-    const item = document.createElement('li');
-    item.textContent = itemText;
-    list.appendChild(item);
+  const directTitle = document.createElement('h4');
+  directTitle.textContent = 'Direct Only';
+  const directGrid = document.createElement('div');
+  directGrid.className = 'visual-asset-grid';
+
+  const foldersTitle = document.createElement('h4');
+  foldersTitle.textContent = 'Visuals Folders';
+  const foldersGrid = document.createElement('div');
+  foldersGrid.className = 'visual-folder-grid';
+
+  const actions = document.createElement('div');
+  actions.className = 'visual-experience-actions';
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.className = 'button button-small';
+  saveButton.textContent = 'Save Visual Experience';
+  saveButton.addEventListener('click', saveVisualExperienceSettings);
+  actions.appendChild(saveButton);
+
+  section.append(header, orderLabel, directTitle, directGrid, foldersTitle, foldersGrid, actions);
+  visualExperienceEls = { section, status, orderSelect, directGrid, foldersGrid, saveButton };
+  return section;
+}
+
+function setVisualMapping(map, id, state, extra = {}) {
+  const key = String(id || '').trim();
+  if (!key) return;
+  map.set(key, { ...extra, inclusion_state: state });
+  visualExperienceState.dirty = true;
+  renderVisualExperience();
+}
+
+function getAssetMapping(assetId) {
+  return visualExperienceState.assetMappings.get(String(assetId || '').trim()) || {};
+}
+
+function makeStateControls(currentState, onInclude, onExclude) {
+  const wrap = document.createElement('div');
+  wrap.className = 'visual-state-controls';
+  const badge = document.createElement('span');
+  badge.className = `visual-state-badge ${currentState === 'included' ? 'is-included' : currentState === 'excluded' ? 'is-excluded' : ''}`;
+  badge.textContent = currentState || 'not set';
+  const include = document.createElement('button');
+  include.type = 'button'; include.className = 'song-action-button visual-include-button'; include.textContent = 'Include'; include.addEventListener('click', onInclude);
+  const exclude = document.createElement('button');
+  exclude.type = 'button'; exclude.className = 'song-action-button visual-exclude-button'; exclude.textContent = 'Exclude'; exclude.addEventListener('click', onExclude);
+  wrap.append(badge, include, exclude);
+  return wrap;
+}
+
+function createVisualAssetCard(asset, scope = 'folder') {
+  const card = document.createElement('article');
+  card.className = 'visual-asset-card';
+  const mediaType = asset.asset_type || asset.media_type || asset.type || 'image';
+  const preview = document.createElement(mediaType === 'clip' ? 'video' : 'img');
+  preview.className = 'visual-asset-preview';
+  preview.src = asset.thumbnail_url || asset.public_url || asset.url || '';
+  if (preview.tagName === 'VIDEO') { preview.muted = true; preview.playsInline = true; preview.preload = 'metadata'; } else { preview.alt = asset.title || asset.filename || asset.file_name || 'Visual asset'; }
+  const title = document.createElement('strong');
+  title.textContent = asset.title || asset.filename || asset.file_name || asset.id || 'Untitled visual';
+  const meta = document.createElement('span');
+  meta.textContent = `${mediaType === 'clip' ? 'Video clip' : 'Image'} · ${asset.content_type || 'media'}${asset.manual_order !== null && asset.manual_order !== undefined ? ` · order ${asset.manual_order}` : ''}`;
+  const mapping = getAssetMapping(asset.id);
+  card.append(preview, title, meta, makeStateControls(mapping.inclusion_state || asset.inclusion_state || '', () => setVisualMapping(visualExperienceState.assetMappings, asset.id, 'included', { asset_scope: scope }), () => setVisualMapping(visualExperienceState.assetMappings, asset.id, 'excluded', { asset_scope: scope })));
+  return card;
+}
+
+function renderVisualExperience() {
+  if (!visualExperienceEls.section) return;
+  visualExperienceEls.status.textContent = visualExperienceState.status + (visualExperienceState.dirty ? ' Unsaved visual changes.' : '');
+  visualExperienceEls.orderSelect.value = visualExperienceState.orderMode || 'random';
+  visualExperienceEls.saveButton.disabled = editorMode === 'create' || visualExperienceState.loading || visualExperienceState.saving || !selectedSongKey;
+  visualExperienceEls.saveButton.textContent = visualExperienceState.saving ? 'Saving Visual Experience…' : 'Save Visual Experience';
+  visualExperienceEls.directGrid.innerHTML = '';
+  (visualExperienceState.directAssets || []).forEach((asset) => visualExperienceEls.directGrid.appendChild(createVisualAssetCard(asset, 'direct')));
+  if (!visualExperienceState.directAssets.length) visualExperienceEls.directGrid.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active direct-only visuals for this song.' }));
+  visualExperienceEls.foldersGrid.innerHTML = '';
+  (visualExperienceState.folders || []).forEach((folder) => {
+    const card = document.createElement('article'); card.className = 'visual-folder-card';
+    const state = visualExperienceState.folderMappings.get(String(folder.id))?.inclusion_state || folder.inclusion_state || '';
+    const title = document.createElement('h5'); title.textContent = folder.folder_name || folder.name || folder.folder_slug || folder.id;
+    const desc = document.createElement('p'); desc.textContent = folder.description || 'No description.';
+    const meta = document.createElement('p'); meta.className = 'song-meta'; meta.textContent = `${folder.folder_type || 'folder'} · ${folder.status || 'active'} · images ${folder.image_count || 0} · clips ${folder.video_clip_count || folder.clip_count || 0}`;
+    const rel = document.createElement('p'); rel.className = 'song-meta'; rel.textContent = `Artists: ${(folder.relevant_artists || []).join(', ') || '—'} · Genres: ${(folder.relevant_genres || []).join(', ') || '—'} · Moods: ${(folder.relevant_moods || []).join(', ') || '—'} · Songs: ${(folder.relevant_songs || []).map(s => s.song_title || s.song_key).join(', ') || '—'}`;
+    const expand = document.createElement('button'); expand.type = 'button'; expand.className = 'song-action-button'; const expanded = visualExperienceState.expandedFolders.has(String(folder.id)); expand.textContent = expanded ? 'Collapse assets' : 'Expand assets'; expand.addEventListener('click', () => { const id = String(folder.id); expanded ? visualExperienceState.expandedFolders.delete(id) : visualExperienceState.expandedFolders.add(id); renderVisualExperience(); });
+    card.append(title, desc, meta, rel, makeStateControls(state, () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'included'), () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'excluded')), expand);
+    if (expanded) { const assets = document.createElement('div'); assets.className = 'visual-asset-grid visual-folder-assets'; (folder.assets || []).forEach(asset => assets.appendChild(createVisualAssetCard(asset, 'folder'))); if (!(folder.assets || []).length) assets.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active assets in this folder.' })); card.appendChild(assets); }
+    visualExperienceEls.foldersGrid.appendChild(card);
   });
+}
 
-  placeholder.append(title, copy, list);
-  return placeholder;
+async function loadVisualExperienceSettings(songKey) {
+  if (!songKey || editorMode === 'create') {
+    visualExperienceState = { ...visualExperienceState, songKey: '', directAssets: [], folders: [], folderMappings: new Map(), assetMappings: new Map(), dirty: false, status: 'Save the new song before configuring Visual Experience.' }; renderVisualExperience(); return;
+  }
+  visualExperienceState = { ...visualExperienceState, songKey, loading: true, dirty: false, status: 'Loading Visual Experience…' }; renderVisualExperience();
+  try {
+    const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(songKey)}/visual-settings`);
+    visualExperienceState = { ...visualExperienceState, songKey, loading: false, orderMode: data.order_mode || 'random', directAssets: data.direct_assets || [], folders: data.folders || [], folderMappings: new Map((data.folder_mappings || []).map(item => [String(item.folder_id), item])), assetMappings: new Map((data.asset_mappings || []).map(item => [String(item.asset_id), item])), dirty: false, status: data.fallback?.uses_artwork ? 'Loaded. Artwork fallback will be used until eligible visuals are included.' : `Loaded ${data.fallback?.eligible_visual_count || 0} eligible visuals.` };
+  } catch (error) {
+    visualExperienceState = { ...visualExperienceState, loading: false, status: `Visual Experience failed to load: ${error.message}` };
+  }
+  renderVisualExperience();
+}
+
+async function saveVisualExperienceSettings() {
+  if (!selectedSongKey) return;
+  visualExperienceState.saving = true; visualExperienceState.status = 'Saving Visual Experience…'; renderVisualExperience();
+  try {
+    const payload = { order_mode: visualExperienceState.orderMode, folder_mappings: [...visualExperienceState.folderMappings.entries()].map(([folder_id, item]) => ({ folder_id, inclusion_state: item.inclusion_state })), asset_mappings: [...visualExperienceState.assetMappings.entries()].map(([asset_id, item]) => ({ asset_id, asset_scope: item.asset_scope || 'folder', inclusion_state: item.inclusion_state, manual_order: item.manual_order ?? null })) };
+    const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(selectedSongKey)}/visual-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    visualExperienceState.saving = false; visualExperienceState.dirty = false; visualExperienceState.status = `Visual Experience saved. ${data.fallback?.uses_artwork ? 'Artwork fallback active.' : `${data.fallback?.eligible_visual_count || 0} eligible visuals.`}`;
+    await loadVisualExperienceSettings(selectedSongKey);
+  } catch (error) { visualExperienceState.saving = false; visualExperienceState.status = `Visual Experience save failed: ${error.message}`; renderVisualExperience(); }
 }
 
 function buildEditForm() {
@@ -3724,6 +3839,8 @@ function populateEditor(song, { mode = 'edit' } = {}) {
     }
   });
 
+  loadVisualExperienceSettings(selectedSongKey);
+
   if (mode !== 'create') {
     console.log("[Stashbox Radio Admin Dev] edit song loaded", {
       id: song.id,
@@ -3825,6 +3942,8 @@ function clearEditor() {
       updateMediaPreview(field.name);
     }
   });
+  visualExperienceState = { ...visualExperienceState, songKey: '', directAssets: [], folders: [], folderMappings: new Map(), assetMappings: new Map(), dirty: false, status: 'Select an existing song to load song-level visual controls.' };
+  renderVisualExperience();
   renderSongList();
 }
 
@@ -3855,6 +3974,11 @@ async function saveSelectedSong(event) {
   console.log("Admin PUT payload:", payload);
 
   if (!changedFields.length) {
+    if (visualExperienceState.dirty) {
+      await saveVisualExperienceSettings();
+      showMessage('Visual Experience saved', 'success');
+      return;
+    }
     showMessage('No changes to save', 'success');
     return;
   }
@@ -3889,6 +4013,9 @@ async function saveSelectedSong(event) {
 
     if (events.length) {
       renderEvents();
+    }
+    if (visualExperienceState.dirty) {
+      await saveVisualExperienceSettings();
     }
     populateEditor(updatedSong);
     setActiveTab('edit');

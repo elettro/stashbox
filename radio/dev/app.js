@@ -10,6 +10,7 @@ const SONG_VISUALS_API_URL = `${API_ROOT_URL}/radio/visuals`;
 const VEC_RECIPE_API_URL = `${API_ROOT_URL}/radio/vec/recipe`;
 const VEC_SONG_ASSETS_API_URL = `${API_ROOT_URL}/radio/vec/song-assets`;
 const VEC_VISUAL_FOLDERS_API_URL = `${API_ROOT_URL}/radio/visuals/folders`;
+const VE10B_VISUAL_SETTINGS_API_URL = `${API_ROOT_URL}/radio/songs`;
 const PUBLIC_ADS_API_URLS = [PUBLIC_ADS_API_URL, `${API_ROOT_URL}/ads`];
 const PUBLIC_AD_SETTINGS_API_URLS = [`${API_ROOT_URL}/radio/ad-settings`, `${API_ROOT_URL}/ad-settings`];
 const SESSION_STORAGE_KEY = 'stashbox-radio-rds-dev-session-id';
@@ -303,6 +304,16 @@ async function fetchJsonNoStore(url, { signal } = {}) {
   data = parseJsonBody(data);
   if (!response.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${response.status}`);
   return data;
+}
+
+
+function normalizeVe10bVisualSettingsResponse(data, song) {
+  data = parseJsonBody(data) || {};
+  const assets = normalizeVecAssetsResponse(data.assets || data.eligible_assets || data, 've10b');
+  const mode = clean(data.order_mode || data.orderMode).toLowerCase();
+  if (mode === 'newest_first') return assets.sort((a, b) => clean(b.created_at).localeCompare(clean(a.created_at)));
+  if (mode === 'random') return shuffleVisualAssets(assets);
+  return assets;
 }
 
 function normalizeVecAssetType(asset) {
@@ -3328,6 +3339,22 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     }
   }, []);
 
+
+  const loadVe10bVisualSettings = useCallback(async (song, { signal } = {}) => {
+    const songKey = clean(song?.song_key || song?.songKey || song?.raw?.song_key || song?.id || song?.raw?.id);
+    if (!songKey) return null;
+    try {
+      const data = await fetchJsonNoStore(`${VE10B_VISUAL_SETTINGS_API_URL}/${encodeURIComponent(songKey)}/visual-settings`, { signal });
+      const parsed = parseJsonBody(data) || {};
+      if (parsed.success !== true) return null;
+      const sequence = normalizeVe10bVisualSettingsResponse(parsed, song);
+      return Array.isArray(sequence) && sequence.length ? sequence : null;
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.warn('[Stashbox Radio Dev] VE-10B visual settings failed; preserving VE-10A fallback', error?.message || error);
+      return null;
+    }
+  }, []);
+
   const loadVecRecipeVisuals = useCallback(async (song, { signal } = {}) => {
     const songKey = clean(song?.song_key || song?.songKey || song?.raw?.song_key || song?.id || song?.raw?.id);
     if (!songKey) return null;
@@ -3413,7 +3440,15 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     renderCurrentVisualOrArtwork(selected, []);
     if (!selected) return () => controller.abort();
     let disposed = false;
-    loadVecRecipeVisuals(selected, { signal: controller.signal }).then(async sequence => {
+    loadVe10bVisualSettings(selected, { signal: controller.signal }).then(async ve10bSequence => {
+      if (disposed || controller.signal.aborted) return;
+      if (Array.isArray(ve10bSequence) && ve10bSequence.length) {
+        setCurrentVisualImages([]);
+        setVisualSequenceState({ songKey: sequenceSongKey, assets: ve10bSequence });
+        return;
+      }
+      return loadVecRecipeVisuals(selected, { signal: controller.signal });
+    }).then(async sequence => {
       if (disposed || controller.signal.aborted) return;
       if (Array.isArray(sequence)) {
         setCurrentVisualImages([]);
