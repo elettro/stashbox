@@ -37,6 +37,43 @@ You can combine both environment variables when testing a different DEV API base
 TRUE_DEV_API_BASE="https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev" ADMIN_TOKEN="your-token" node radio-api/scripts/smoke-test-true-dev.mjs
 ```
 
+
+## Run from GitHub Actions UI
+
+The repository includes a manually runnable GitHub Actions workflow named **True DEV Smoke Test** at `.github/workflows/true-dev-smoke-test.yml`. It checks out the repository, sets up Node.js 22, syntax-checks `radio-api/scripts/smoke-test-true-dev.mjs`, and then runs the read-only TRUE DEV smoke test against:
+
+```text
+https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+```
+
+To run it from GitHub:
+
+1. Open the repository on GitHub.
+2. Click the **Actions** tab.
+3. In the left sidebar, click **True DEV Smoke Test**.
+4. Click **Run workflow**.
+5. Leave the branch set to the branch you want to test, then click the green **Run workflow** button.
+6. Open the new workflow run and click the **Run TRUE DEV smoke test** job.
+7. Expand **Syntax check TRUE DEV smoke test** to confirm `node --check radio-api/scripts/smoke-test-true-dev.mjs` passed.
+8. Expand **Run TRUE DEV smoke test** to read the checklist output. `[PASS]` means a check passed, `[SKIP]` means optional admin checks were skipped because no admin token was configured, and `[FAIL]` means a required public check failed.
+
+The workflow passes when all required public checks pass. If the `STASHBOX_DEV_ADMIN_TOKEN` GitHub Secret is missing, the admin routes are skipped and the workflow can still pass.
+
+### Add the optional admin token later
+
+The workflow reads the optional admin token from the `STASHBOX_DEV_ADMIN_TOKEN` GitHub Secret and exposes it to the script as `ADMIN_TOKEN`. Never hardcode this value in the workflow, docs, or scripts.
+
+To add it later:
+
+1. Open the repository on GitHub.
+2. Click **Settings**.
+3. In the left sidebar, click **Secrets and variables**, then **Actions**.
+4. Click **New repository secret**.
+5. Enter `STASHBOX_DEV_ADMIN_TOKEN` as the secret name.
+6. Paste the DEV admin token as the secret value.
+7. Click **Add secret**.
+8. Re-run **Actions** > **True DEV Smoke Test** > **Run workflow** to include the admin read-only route checks.
+
 ## What each check proves
 
 | Check | What it proves |
