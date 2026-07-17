@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https:
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
 
-const API_ROOT_URL = 'https://fmexmp5o52.execute-api.us-east-1.amazonaws.com/default/stashbox-radio-api-dev';
+const API_ROOT_URL = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
 const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
 const TRACKING_API_URL = `${API_ROOT_URL}/radio/track`;
 const PUBLIC_ADS_API_URL = `${API_ROOT_URL}/radio/ads`;
