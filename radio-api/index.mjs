@@ -2198,8 +2198,10 @@ function matchesPublicVisualsFolderAssetsRoute(event, route) {
     event.routeKey,
     event.resource
   ];
+  const segments = getRouteSegments(event);
+  const routeMatch = getVisualsFolderAssetsRouteMatch(event);
   return candidates.some((candidate) => folderAssetPattern.test(normalizeRoute(String(candidate || '').split('?')[0]))) ||
-    getVisualsFolderAssetsRouteMatch(event).isAssetsRoute;
+    (segments[0] === 'radio' && routeMatch.isAssetsRoute);
 }
 
 function normalizeVisualsFolderAsset(row) {
@@ -3487,6 +3489,14 @@ async function dispatch(event) {
     return handlePublicVecSongAssetsRoute(event);
   }
 
+  if (routeStartsWith(segments, ['radio', 'admin', 'visuals', 'folders'])) {
+    return handleAdminVisualsFoldersRoute(event);
+  }
+
+  if (routeStartsWith(segments, ['admin', 'visuals', 'folders'])) {
+    return handleAdminVisualsFoldersRoute(event);
+  }
+
   if (matchesPublicVisualsFolderAssetsRoute(event, route)) {
     return handlePublicVisualsFolderAssetsRoute(event);
   }
@@ -3497,14 +3507,6 @@ async function dispatch(event) {
 
   if (matchesAdminVecRecipeRoute(event, route)) {
     return handleAdminVecRecipeRoute(event);
-  }
-
-  if (routeStartsWith(segments, ['radio', 'admin', 'visuals', 'folders'])) {
-    return handleAdminVisualsFoldersRoute(event);
-  }
-
-  if (routeStartsWith(segments, ['admin', 'visuals', 'folders'])) {
-    return handleAdminVisualsFoldersRoute(event);
   }
 
   if (routeStartsWith(segments, ['admin', 'songs']) && isVisualSettingsRoute(event)) {
@@ -3607,5 +3609,9 @@ export {
   trackAdEvent,
   createAd,
   updateAd,
-  deleteAd
+  deleteAd,
+  getRouteSegments,
+  getVisualsFolderAssetsRouteMatch,
+  matchesPublicVisualsFolderAssetsRoute,
+  handlePublicVisualsFolderAssetsRoute
 };
