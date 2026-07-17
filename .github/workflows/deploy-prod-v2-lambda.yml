@@ -1,0 +1,173 @@
+name: Deploy PROD v2 Lambda
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-prod-v2-lambda:
+    name: Deploy PROD v2 Lambda code
+    runs-on: ubuntu-latest
+    env:
+      PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-prod-v2
+      AWS_REGION: us-east-1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate PROD v2 deployment safety locks
+        run: |
+          set -euo pipefail
+
+          if [ "${PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME}" != "stashbox-radio-api-prod-v2" ]; then
+            echo "Refusing to deploy: PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME must exactly equal stashbox-radio-api-prod-v2." >&2
+            exit 1
+          fi
+
+          if [ "${AWS_REGION}" != "us-east-1" ]; then
+            echo "Refusing to deploy: AWS_REGION must exactly equal us-east-1." >&2
+            exit 1
+          fi
+
+          case "${PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME}" in
+            stashbox-radio-api-dev|stashbox-radio-api-dev-v2)
+              echo "Refusing to deploy: protected Lambda function name ${PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME} is not allowed." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Check canonical Lambda syntax
+        run: node --check radio-api/index.mjs
+
+      - name: Install production dependencies
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+
+          if [ ! -f package.json ]; then
+            echo "radio-api/package.json is required to install Lambda dependencies." >&2
+            exit 1
+          fi
+
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          else
+            npm install --omit=dev
+          fi
+
+      - name: Build PROD v2 Lambda ZIP
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+
+          rm -rf dist
+          mkdir -p dist
+          zip -r dist/prod-v2-lambda.zip . \
+            -x "dist/*" \
+            -x ".git/*" \
+            -x "*.zip" \
+            -x "tests/*" \
+            -x "test/*" \
+            -x "__tests__/*" \
+            -x "docs/*" \
+            -x "db/*" \
+            -x "scripts/*" \
+            -x "*.md" \
+            -x "env/*"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify PROD v2 Lambda target before deploy
+        run: |
+          set -euo pipefail
+
+          aws lambda get-function-configuration \
+            --function-name "${PROD_V2_EXPECTED_LAMBDA_FUNCTION_NAME}" \
+            --region "${AWS_REGION}" \
+            > /tmp/prod-v2-lambda-before.json
+
+          function_name="$(jq -r '.FunctionName' /tmp/prod-v2-lambda-before.json)"
+          runtime="$(jq -r '.Runtime' /tmp/prod-v2-lambda-before.json)"
+          handler="$(jq -r '.Handler' /tmp/prod-v2-lambda-before.json)"
+          function_arn="$(jq -r '.FunctionArn' /tmp/prod-v2-lambda-before.json)"
+
+          if [ "${function_name}" != "stashbox-radio-api-prod-v2" ]; then
+            echo "Refusing to deploy: Lambda FunctionName must exactly equal stashbox-radio-api-prod-v2." >&2
+            exit 1
+          fi
+
+          if [ "${runtime}" != "nodejs22.x" ]; then
+            echo "Refusing to deploy: Lambda runtime must exactly equal nodejs22.x." >&2
+            exit 1
+          fi
+
+          if [ "${handler}" != "index.handler" ]; then
+            echo "Refusing to deploy: Lambda handler must exactly equal index.handler." >&2
+            exit 1
+          fi
+
+          if [ "${AWS_REGION}" != "us-east-1" ]; then
+            echo "Refusing to deploy: AWS region must exactly equal us-east-1." >&2
+            exit 1
+          fi
+
+          if echo "${function_arn}" | grep -Eq 'stashbox-radio-api-dev($|[^[:alnum:]-])|stashbox-radio-api-dev-v2($|[^[:alnum:]-])'; then
+            echo "Refusing to deploy: target ARN contains a protected dev Lambda function name." >&2
+            exit 1
+          fi
+
+      - name: Deploy PROD v2 Lambda code
+        run: |
+          set -euo pipefail
+
+          aws lambda update-function-code \
+            --function-name stashbox-radio-api-prod-v2 \
+            --zip-file fileb://radio-api/dist/prod-v2-lambda.zip \
+            --region us-east-1
+
+      - name: Wait for PROD v2 Lambda update
+        run: |
+          set -euo pipefail
+
+          aws lambda wait function-updated \
+            --function-name stashbox-radio-api-prod-v2 \
+            --region us-east-1
+
+      - name: Verify PROD v2 Lambda after deploy
+        run: |
+          set -euo pipefail
+
+          aws lambda get-function-configuration \
+            --function-name stashbox-radio-api-prod-v2 \
+            --region us-east-1 \
+            --query '{FunctionName:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified,CodeSize:CodeSize,State:State,LastUpdateStatus:LastUpdateStatus}' \
+            --output json \
+            > /tmp/prod-v2-lambda-after.json
+
+          cat /tmp/prod-v2-lambda-after.json
+
+          state="$(jq -r '.State' /tmp/prod-v2-lambda-after.json)"
+          last_update_status="$(jq -r '.LastUpdateStatus' /tmp/prod-v2-lambda-after.json)"
+
+          if [ "${state}" != "Active" ]; then
+            echo "PROD v2 Lambda State must be Active." >&2
+            exit 1
+          fi
+
+          if [ "${last_update_status}" != "Successful" ]; then
+            echo "PROD v2 Lambda LastUpdateStatus must be Successful." >&2
+            exit 1
+          fi
