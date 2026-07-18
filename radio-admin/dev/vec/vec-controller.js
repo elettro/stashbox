@@ -703,18 +703,20 @@
   }
 
   function isAssetIncluded(state, folderId, asset) {
+    folderId = String(folderId);
     if (!state.selectedFolderIds.has(folderId)) return false;
     const inclusion = getAssetInclusionMap(state, folderId);
     return inclusion.get(asset.id) !== false;
   }
 
   function getActiveAssetCounts(state, folder) {
-    if (!state.selectedFolderIds.has(folder.id)) return { images: 0, clips: 0 };
-    const assetState = getFolderAssetState(state, folder.id);
+    const folderId = String(folder.id);
+    if (!state.selectedFolderIds.has(folderId)) return { images: 0, clips: 0 };
+    const assetState = getFolderAssetState(state, folderId);
     const assets = assetState.assets || [];
     if (!assets.length) return { images: folder.images_count || 0, clips: folder.clips_count || 0 };
     return assets.reduce((counts, asset) => {
-      if (clean(asset.status).toLowerCase() === 'hidden' || !isAssetIncluded(state, folder.id, asset)) return counts;
+      if (clean(asset.status).toLowerCase() === 'hidden' || !isAssetIncluded(state, folderId, asset)) return counts;
       if (normalizeAssetType(asset) === 'clip') counts.clips += 1;
       else counts.images += 1;
       return counts;
@@ -893,7 +895,7 @@
     return (state.visualFolders || []).filter((folder) => {
       const matchesSearch = !search || [folder.folder_name, folder.description, folder.folder_slug].some((value) => clean(value).toLowerCase().includes(search));
       const matchesType = !type || type === 'all' || folder.folder_type === type;
-      const selected = state.selectedFolderIds.has(folder.id);
+      const selected = state.selectedFolderIds.has(String(folder.id));
       const matchesActive = !active || active === 'all' || (active === 'active' ? selected : !selected);
       return matchesSearch && matchesType && matchesActive;
     });
@@ -917,15 +919,16 @@
     const folders = getFilteredVisualFolders(state);
     if (!folders.length) return '<p class="vec-empty-state">No folders match the current filters.</p>';
     return folders.map((folder) => {
-      const selected = state.selectedFolderIds.has(folder.id);
+      const folderId = String(folder.id);
+      const selected = state.selectedFolderIds.has(folderId);
       const typeLabel = FOLDER_TYPE_LABELS[folder.folder_type] || folder.folder_type || 'General';
       const statusLabel = FOLDER_STATUS_LABELS[folder.status] || folder.status || 'Active';
       const dateLabel = formatDate(folder.updated_at || folder.created_at);
-      const expanded = state.expandedFolderIds.has(folder.id);
+      const expanded = state.expandedFolderIds.has(folderId);
       const selectionLabel = selected ? 'Folder included. Click to exclude this folder.' : 'Folder excluded. Click to include this folder.';
       const activeCounts = getActiveAssetCounts(state, folder);
       return `<article class="vec-folder-card ${selected ? 'is-selected' : 'is-unselected'} ${expanded ? 'is-expanded' : ''}">
-        <div class="vec-folder-card-top">
+        <div class="vec-folder-summary vec-folder-card-top">
           <div class="vec-folder-card-main">
             <div class="vec-folder-card-head"><div class="vec-folder-title-area"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div></div>
             <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span></div>
@@ -934,11 +937,11 @@
             ${dateLabel ? `<small>${folder.updated_at ? 'Updated' : 'Created'} ${escapeHtml(dateLabel)}</small>` : ''}
           </div>
           <div class="vec-folder-actions">
-            <label class="vec-folder-toggle-label"><span>Active</span><button type="button" class="vec-folder-status-light ${selected ? 'is-on' : 'is-off'}" data-vec-folder-toggle="${escapeHtml(folder.id)}" aria-pressed="${selected}" aria-label="${selectionLabel}" title="${selectionLabel}"><span class="sr-only">${selected ? 'Included' : 'Excluded'}</span></button></label>
-            <button type="button" class="vec-folder-expand" data-vec-folder-expand="${escapeHtml(folder.id)}" aria-expanded="${expanded}">${expanded ? 'Hide visuals' : 'Show visuals'}</button>
+            <label class="vec-folder-toggle-label"><span>Active</span><button type="button" class="vec-folder-status-light ${selected ? 'is-on' : 'is-off'}" data-vec-folder-toggle="${escapeHtml(folderId)}" aria-pressed="${selected}" aria-label="${selectionLabel}" title="${selectionLabel}"><span class="sr-only">${selected ? 'Included' : 'Excluded'}</span></button></label>
+            <button type="button" class="vec-folder-expand" data-vec-folder-expand="${escapeHtml(folderId)}" aria-expanded="${expanded}">${expanded ? 'Collapse Assets' : 'Expand Assets'}</button>
           </div>
         </div>
-        ${expanded ? renderFolderAssets(state, folder) : ''}
+        ${expanded ? renderFolderAssets(state, { ...folder, id: folderId }) : ''}
       </article>`;
     }).join('');
   }
@@ -946,7 +949,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -1109,8 +1112,8 @@
         const [sourceSongKey] = rest.split(':');
         const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
         inclusion.set(asset.id, inclusion.get(asset.id) === false);
-      } else if (folder && state.selectedFolderIds.has(folder.id)) {
-        const inclusion = getAssetInclusionMap(state, folder.id);
+      } else if (folder && state.selectedFolderIds.has(String(folder.id))) {
+        const inclusion = getAssetInclusionMap(state, String(folder.id));
         inclusion.set(asset.id, inclusion.get(asset.id) === false);
       } else {
         return;
@@ -1523,7 +1526,6 @@
           const folderId = clean(folderRecipe.folder_id);
           if (!folderId || folderRecipe.enabled === false) return;
           state.selectedFolderIds.add(folderId);
-          state.expandedFolderIds.add(folderId);
           const inclusion = getAssetInclusionMap(state, folderId);
           [...(folderRecipe.active_image_ids || []), ...(folderRecipe.active_clip_ids || [])].forEach((id) => inclusion.set(String(id), true));
           [...(folderRecipe.excluded_image_ids || []), ...(folderRecipe.excluded_clip_ids || [])].forEach((id) => inclusion.set(String(id), false));

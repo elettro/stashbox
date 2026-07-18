@@ -679,6 +679,10 @@
   color: #ffccd2;
 }
 
+.vec-folder-assets[hidden] {
+  display: none !important;
+}
+
 .vec-folder-assets {
   display: grid;
   gap: 0.75rem;
@@ -1316,6 +1320,7 @@
 }
 
 .vec-folder-card {
+  grid-column: auto;
   min-width: 0;
   width: 100%;
   min-height: 230px;
