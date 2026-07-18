@@ -1763,6 +1763,7 @@ function App() {
   const selectedRef = useRef(null);
   const playbackRef = useRef({ currentSongKey: null, startedAt: 0, hasStarted: false, secondsPlayed: 0, duration: 0, hasCompleted: false, mode: 'idle' });
   const currentPlayInstanceRef = useRef(null);
+  const playbackStartSourceRef = useRef('manual_play');
   const audioRef = useRef(null);
   const playerRef = useRef(null);
   const youtubePlayerRef = useRef(null);
@@ -1814,17 +1815,10 @@ function App() {
 
   useEffect(() => {
     if (!selectedSong?.songKey) {
-      currentPlayInstanceRef.current = null;
+      resetQualifiedPlayTracking('no_selected_song');
       return;
     }
-    currentPlayInstanceRef.current = {
-      songKey: selectedSong.songKey,
-      instanceId: `${selectedSong.songKey}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      listenedSeconds: 0,
-      playStartSent: false,
-      lastTickAt: null,
-      isPlaying: false
-    };
+    resetQualifiedPlayTracking('song_changed', selectedSong);
   }, [selectedSong?.idx, selectedSong?.songKey]);
   useEffect(() => { console.log('[Stashbox Radio Dev] mediaMode', mediaMode); }, [mediaMode]);
   useEffect(() => { console.log('[Stashbox Radio Dev] activeVideoEmbedUrl', activeVideoEmbedUrl); }, [activeVideoEmbedUrl]);
@@ -2242,11 +2236,75 @@ function App() {
     setShuffleNotice('');
   }
 
+  function createQualifiedPlaybackInstance(song, startSource = playbackStartSourceRef.current || 'manual_play') {
+    const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
+    if (!songKey) return null;
+    return {
+      songKey,
+      instanceId: `${songKey}:${Date.now()}:${Math.random().toString(16).slice(2)}`,
+      listenedSeconds: 0,
+      playStartSent: false,
+      lastTickAt: null,
+      isPlaying: false,
+      startSource
+    };
+  }
+
+  function resetQualifiedPlayTracking(reason = 'reset', nextSong = null) {
+    const prior = currentPlayInstanceRef.current;
+    if (prior) {
+      prior.isPlaying = false;
+      prior.lastTickAt = null;
+    }
+    currentPlayInstanceRef.current = nextSong?.songKey ? createQualifiedPlaybackInstance(nextSong) : null;
+    console.log('[Stashbox Radio Dev] qualified play tracking reset', {
+      reason,
+      previous_song_key: prior?.songKey || null,
+      previous_session_id: prior?.instanceId || null,
+      song_key: nextSong?.songKey || null,
+      playback_session_id: currentPlayInstanceRef.current?.instanceId || null,
+      start_source: currentPlayInstanceRef.current?.startSource || playbackStartSourceRef.current
+    });
+  }
+
+  function beginQualifiedPlayTracking(song, startSource = playbackStartSourceRef.current || 'manual_play') {
+    const songKey = clean(song?.songKey || song?.song_key || song?.raw?.song_key || song?.id || song?.raw?.id);
+    if (!songKey) return null;
+    let instance = currentPlayInstanceRef.current;
+    if (!instance || instance.songKey !== songKey) {
+      if (instance) console.log('[Stashbox Radio Dev] stale qualified play session ignored', { song_key: songKey, stale_song_key: instance.songKey, stale_session_id: instance.instanceId });
+      instance = createQualifiedPlaybackInstance(song, startSource);
+      currentPlayInstanceRef.current = instance;
+    } else if (instance.isPlaying) {
+      console.log('[Stashbox Radio Dev] duplicate qualified play start prevented', { song_key: songKey, playback_session_id: instance.instanceId, start_source: instance.startSource });
+      return instance;
+    }
+    instance.startSource = startSource || instance.startSource;
+    instance.isPlaying = true;
+    instance.lastTickAt = Date.now();
+    console.log('[Stashbox Radio Dev] qualified play tracking session started', { song_key: songKey, playback_session_id: instance.instanceId, start_source: instance.startSource, threshold_seconds: QUALIFIED_PLAY_SECONDS });
+    return instance;
+  }
+
   const sendQualifiedPlayStart = useCallback((song, instance) => {
     // play_start is delayed until 10 seconds of actual playback to avoid inflated play counts from pause/resume.
-    if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) return;
+    if (!song || !instance || instance.playStartSent || instance.songKey !== song.songKey) {
+      console.log('[Stashbox Radio Dev] duplicate play request prevented', { song_key: song?.songKey, playback_session_id: instance?.instanceId, already_sent: Boolean(instance?.playStartSent) });
+      return;
+    }
+    if (currentPlayInstanceRef.current?.instanceId !== instance.instanceId) {
+      console.log('[Stashbox Radio Dev] stale qualified play session ignored', { song_key: song.songKey, stale_session_id: instance.instanceId, current_session_id: currentPlayInstanceRef.current?.instanceId });
+      return;
+    }
     instance.playStartSent = true;
-    sendTrackingEvent(song, 'play_start', sessionId, { seconds_played: QUALIFIED_PLAY_SECONDS }).then(result => {
+    console.log('[Stashbox Radio Dev] qualified play threshold reached', { song_key: song.songKey, playback_session_id: instance.instanceId, accumulated_seconds: instance.listenedSeconds });
+    console.log('[Stashbox Radio Dev] play request sent', { song_key: song.songKey, playback_session_id: instance.instanceId });
+    sendTrackingEvent(song, 'play_start', sessionId, { seconds_played: QUALIFIED_PLAY_SECONDS, playback_session_id: instance.instanceId, start_source: instance.startSource }).then(result => {
+      console.log('[Stashbox Radio Dev] play response received', { song_key: song.songKey, playback_session_id: instance.instanceId, status: result?.response?.status, ok: result?.response?.ok });
+      if (currentPlayInstanceRef.current?.instanceId !== instance.instanceId) {
+        console.log('[Stashbox Radio Dev] stale qualified play response ignored', { song_key: song.songKey, stale_session_id: instance.instanceId, current_session_id: currentPlayInstanceRef.current?.instanceId });
+        return;
+      }
       if (!result?.response?.ok) {
         console.warn('[Stashbox Radio Dev] play_start event was not saved; leaving persisted play count unchanged', { song_key: song.songKey, result });
         return;
@@ -2267,6 +2325,7 @@ function App() {
     if (instance.lastTickAt) {
       const elapsed = Math.max(0, (now - instance.lastTickAt) / 1000);
       instance.listenedSeconds += Math.min(elapsed, 2);
+      console.log('[Stashbox Radio Dev] accumulated qualified playback seconds', { song_key: instance.songKey, playback_session_id: instance.instanceId, accumulated_seconds: Number(instance.listenedSeconds.toFixed(2)) });
     }
     instance.lastTickAt = now;
     if (!instance.playStartSent && instance.listenedSeconds >= QUALIFIED_PLAY_SECONDS) {
@@ -2290,11 +2349,7 @@ function App() {
     if (!(state.hasStarted && state.currentSongKey === song.songKey && state.mode === mode)) {
       playbackRef.current = { currentSongKey: song.songKey, startedAt: Date.now(), hasStarted: true, secondsPlayed: 0, duration: 0, hasCompleted: false, mode };
     }
-    const instance = currentPlayInstanceRef.current;
-    if (instance?.songKey === song.songKey) {
-      instance.isPlaying = true;
-      instance.lastTickAt = null;
-    }
+    beginQualifiedPlayTracking(song, playbackStartSourceRef.current || 'manual_play');
   }, []);
 
   const updatePlaybackPosition = useCallback((secondsPlayed, duration) => {
@@ -2394,17 +2449,18 @@ function App() {
     console.log('[radio-dev] video reset complete');
   }
 
-  function selectTrack(track, { autoStart = false, preferVideo = false } = {}) {
+  function selectTrack(track, { autoStart = false, preferVideo = false, startSource = autoStart ? 'manual_play' : 'song_select' } = {}) {
     if (!track) return;
     resetVideoPlaybackBeforeSongSwitch(track);
     console.log('[radio-dev] rendering selected song:', track?.title);
     const shouldStartVideo = Boolean(autoStart && preferVideo && track.hasVideo);
     const embedUrl = shouldStartVideo ? youtubeEmbed(track.videoLink) : '';
+    playbackStartSourceRef.current = startSource;
     setPlayerMessage('');
     setSelected(track);
     setMediaMode(embedUrl ? 'video' : 'idle');
     setActiveVideoEmbedUrl(embedUrl);
-    setAutoPlayRequest(autoStart ? { idx: track.idx, requestedAt: Date.now(), preferVideo: shouldStartVideo } : null);
+    setAutoPlayRequest(autoStart ? { idx: track.idx, requestedAt: Date.now(), preferVideo: shouldStartVideo, startSource } : null);
     window.requestAnimationFrame(() => {
       videoCleanupInProgressRef.current = false;
       playerRef.current?.focus?.();
@@ -2483,6 +2539,7 @@ function App() {
       setAutoPlayRequest(null);
     });
 
+    playbackStartSourceRef.current = 'song_select';
     playSelectedSongAudioFromCardTap(track);
   }
 
@@ -2514,14 +2571,14 @@ function App() {
     return { track: activeShuffleQueue[nextIndex], index: nextIndex };
   }
 
-  function shiftTrack(direction, { autoStart = false, finishType = 'play_partial', forcedSong = null, preferVideo = false } = {}) {
+  function shiftTrack(direction, { autoStart = false, finishType = 'play_partial', forcedSong = null, preferVideo = false, startSource = direction < 0 ? 'manual_previous' : 'manual_next' } = {}) {
     if (!playbackList.length) return;
     const queuedNext = getNextShuffleQueueItem(direction, forcedSong || selectedSong);
     const next = queuedNext?.track || resolveAdjacentPlayableSong(direction, forcedSong || selectedSong);
     if (!next) return;
     if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     finishPlayback(finishType, forcedSong);
-    selectTrack(next, { autoStart, preferVideo });
+    selectTrack(next, { autoStart, preferVideo, startSource });
   }
 
   function safelyCleanupYouTubeBeforeNext(nextSong = null) {
@@ -2562,7 +2619,8 @@ function App() {
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
     setSelected(nextSong);
-    setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
+    playbackStartSourceRef.current = 'manual_next';
+    setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo, startSource: 'manual_next' } : null);
     console.log("Selected next song after video cleanup:", nextSong?.song_key);
     console.log("Player shell should stay mounted");
     window.requestAnimationFrame(() => {
@@ -2629,7 +2687,7 @@ function App() {
     if (queuedNext) setActiveShuffleIndex(queuedNext.index);
     console.log("Next autoplay item:", next.song_key);
     if (maybeStartAdBeforeNextSong(next, song)) return;
-    selectTrack(next, { autoStart: true, preferVideo: preferVideo || (videoFocusedList && next.hasVideo) });
+    selectTrack(next, { autoStart: true, preferVideo: preferVideo || (videoFocusedList && next.hasVideo), startSource: 'auto_advance' });
   }
 
   useEffect(() => {
@@ -2823,7 +2881,7 @@ function App() {
 
     setHandler('play', playHandler);
     setHandler('pause', pauseHandler);
-    setHandler('previoustrack', () => shiftTrack(-1, { autoStart: true, preferVideo: videoFocusedList && selectedRef.current?.hasVideo }));
+    setHandler('previoustrack', () => { playbackStartSourceRef.current = 'manual_previous'; shiftTrack(-1, { autoStart: true, preferVideo: videoFocusedList && selectedRef.current?.hasVideo, startSource: 'manual_previous' }); });
     setHandler('nexttrack', handleManualNext);
 
     return () => {
@@ -3009,7 +3067,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => { playbackStartSourceRef.current = 'manual_previous'; shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo, startSource: 'manual_previous' }); }, onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: startSource => { playbackStartSourceRef.current = startSource || playbackStartSourceRef.current || 'manual_play'; setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -3929,7 +3987,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     playerMessage ? h('p', { className: 'notes player-message', 'aria-live': 'polite' }, playerMessage) : null,
     isVideoMode && selected.publicVideoNote ? h('p', { className: 'notes video-note' }, selected.publicVideoNote) : null,
     isVideoMode && selected.videoSetlist ? h('pre', { className: 'notes video-setlist' }, selected.videoSetlist) : null,
-    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'auto', autoPlay: Boolean(autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video'), onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onCanPlay: () => { syncAudioState(); if (autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video') audioRef.current?.play?.().catch?.(error => console.warn('[radio-dev] playback error: unable to continue playback on canplay.', error.message || error)); }, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selectedIsVideoOnly ? 'This is a video-only record. Use the main play button to start the YouTube player.' : 'No audio URL is available for this track.'),
+    hasAudio && mediaMode !== 'video' ? h(React.Fragment, null, h('audio', { className: 'audio native-audio', ref: audioRef, src: selected.audioUrl, controls: false, controlsList: 'nodownload', disableRemotePlayback: true, preload: 'auto', autoPlay: Boolean(autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video'), onContextMenu: event => event.preventDefault(), onLoadedMetadata: syncAudioState, onCanPlay: () => { syncAudioState(); if (autoPlayRequest && autoPlayRequest.idx === selected.idx && mediaMode !== 'video') audioRef.current?.play?.().catch?.(error => console.warn('[radio-dev] playback error: unable to continue playback on canplay.', error.message || error)); }, onTimeUpdate: syncAudioState, onPlay: () => { syncAudioState(); onAudioStart?.(autoPlayRequest?.startSource || 'manual_play'); }, onPlaying: () => { syncAudioState(); onAudioStart?.(autoPlayRequest?.startSource || 'manual_play'); }, onPause: () => { syncAudioState(); if (!audioRef.current?.ended) onAudioPause?.(); }, onEnded: () => { syncAudioState(); onAudioComplete?.(); }, onDurationChange: syncAudioState }), h('div', { className: 'player-timeline' }, h('span', { className: 'timecode' }, formatTime(currentTime)), h('input', { className: 'scrubber', type: 'range', min: '0', max: duration || 0, step: '0.1', value: duration ? Math.min(currentTime, duration) : 0, onInput: seekAudio, onChange: seekAudio, 'aria-label': 'Audio timeline', style: { '--progress': `${progress}%` } }), h('span', { className: 'timecode end' }, formatTime(duration)))) : h('p', { className: 'notes no-audio-note' }, selectedIsVideoOnly ? 'This is a video-only record. Use the main play button to start the YouTube player.' : 'No audio URL is available for this track.'),
     h(ProductRecommendations, { products, onProductClick })
   );
 }
