@@ -7,6 +7,33 @@
   const UPLOAD_PRESIGN_API_URL = `${API_ROOT}/admin/uploads/presign`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
 
+  const VEC_PREVIEW_READY_TIMEOUT_MS = 5000;
+  const VEC_PREVIEW_MEDIA_STATES = Object.freeze({ IDLE: 'idle', LOADING: 'loading', READY: 'ready', PLAYING: 'playing', WAITING: 'waiting', FAILED: 'failed' });
+
+  function normalizeMediaError(media) {
+    const error = media?.error || null;
+    return error ? { code: error.code || 0, message: error.message || '' } : { code: 0, message: '' };
+  }
+
+  function applyMutedVideoSettings(video) {
+    if (!video) return;
+    video.muted = true;
+    video.defaultMuted = true;
+    video.volume = 0;
+    video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+  }
+
+  function isVideoFirstFrameReady(video) {
+    return Boolean(video && video.readyState >= 2);
+  }
+
+  function collectPreviewMediaState(video, extra = {}) {
+    const mediaError = normalizeMediaError(video);
+    return { ...extra, readyState: video?.readyState ?? null, networkState: video?.networkState ?? null, videoWidth: video?.videoWidth ?? 0, videoHeight: video?.videoHeight ?? 0, duration: Number.isFinite(video?.duration) ? video.duration : null, media_error_code: mediaError.code, media_error_message: mediaError.message };
+  }
+
   const DEFAULT_SHUFFLE_RULES = {
     orderMode: 'randomize',
     maxSameFolderInRow: 1,
@@ -951,6 +978,7 @@
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
     const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), artworkOverride: null, endArtworkActive: false, lastRepeatSlot: 0 };
+    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), mediaState: VEC_PREVIEW_MEDIA_STATES.IDLE, transitionId: 0, failedPreviewAssetIds: new Set() };
 
     container.innerHTML = `
       <section class="card vec-section" aria-labelledby="songSelectorHeading">
@@ -1258,9 +1286,8 @@
       if (visual.type === 'clip') {
         const video = document.createElement('video');
         video.src = visual.url;
-        video.muted = true;
-        video.defaultMuted = true;
-        video.playsInline = true;
+        video.poster = getArtworkUrl(state.songContext) || '';
+        applyMutedVideoSettings(video);
         video.preload = 'auto';
         video.controls = false;
         video.dataset.vecPreviewVideo = '';
@@ -1275,20 +1302,77 @@
       return layer;
     }
 
-    function waitForPreviewLayer(layer) {
+    function waitForPreviewLayer(layer, visual, transitionId) {
       const media = layer.querySelector('img, video');
-      if (!media) return Promise.resolve();
+      if (!media) return Promise.resolve({ ready: true, reason: 'no-media' });
+      if (media.tagName === 'IMG') {
+        return new Promise((resolve) => {
+          if (media.complete) resolve({ ready: true, reason: 'image-complete' });
+          else {
+            media.addEventListener('load', () => resolve({ ready: true, reason: 'image-load' }), { once: true });
+            media.addEventListener('error', () => resolve({ ready: true, reason: 'image-error' }), { once: true });
+          }
+        });
+      }
+      const startedAt = Date.now();
+      const base = { song_key: state.songContext?.song_key || state.songKey || '', asset_id: clean(visual?.id || visual?.key || visual?.url), asset_url: visual?.url || '', folder_id: visual?.folderId || '', folder_name: visual?.folderName || '' };
+      const log = (label, extra = {}) => console.log('[VEC Preview Media]', label, collectPreviewMediaState(media, { ...base, elapsed_load_ms: Date.now() - startedAt, playback_status: previewState.mediaState, ...extra }));
+      const isCurrent = () => previewState.transitionId === transitionId;
+      previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.LOADING;
+      applyMutedVideoSettings(media);
+      log('layer created');
       return new Promise((resolve) => {
         let done = false;
-        const finish = () => { if (!done) { done = true; resolve(); } };
-        window.setTimeout(finish, 900);
-        if (media.tagName === 'IMG') {
-          if (media.complete) finish();
-          else { media.addEventListener('load', finish, { once: true }); media.addEventListener('error', finish, { once: true }); }
-          return;
+        const finish = (result) => { if (!done) { done = true; cleanup(); resolve(result); } };
+        const ready = (reason) => {
+          if (!isCurrent()) return finish({ ready: false, reason: 'stale' });
+          if (!isVideoFirstFrameReady(media)) return;
+          previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.READY;
+          log('first frame ready', { reason });
+          finish({ ready: true, reason: 'first-frame' });
+        };
+        const fail = (reason) => {
+          previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.FAILED;
+          log(reason === 'timeout' ? 'load timeout' : 'asset skipped', { reason });
+          finish({ ready: false, reason });
+        };
+        const tryPlay = () => {
+          if (!previewState.isPlaying) return;
+          applyMutedVideoSettings(media);
+          const playPromise = media.play?.();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.then(() => { previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.PLAYING; log('playing'); }).catch((error) => { log('playback rejected', { error: error?.message || String(error) }); });
+          }
+        };
+        const onLoadStart = () => log('load started');
+        const onMetadata = () => log('metadata loaded');
+        const onReady = (event) => { ready(event.type); tryPlay(); };
+        const onPlaying = () => { ready('playing'); previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.PLAYING; log('playing'); };
+        const onWaiting = (event) => { previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.WAITING; log(event.type); };
+        const timeoutId = window.setTimeout(() => fail('timeout'), VEC_PREVIEW_READY_TIMEOUT_MS);
+        function cleanup() {
+          window.clearTimeout(timeoutId);
+          media.removeEventListener('loadstart', onLoadStart);
+          media.removeEventListener('loadedmetadata', onMetadata);
+          media.removeEventListener('loadeddata', onReady);
+          media.removeEventListener('canplay', onReady);
+          media.removeEventListener('playing', onPlaying);
+          media.removeEventListener('waiting', onWaiting);
+          media.removeEventListener('stalled', onWaiting);
+          media.removeEventListener('error', onError);
         }
-        if (media.readyState >= 2) finish();
-        else { media.addEventListener('canplay', finish, { once: true }); media.addEventListener('loadeddata', finish, { once: true }); media.addEventListener('error', finish, { once: true }); media.load(); }
+        const onError = () => fail('error');
+        media.addEventListener('loadstart', onLoadStart);
+        media.addEventListener('loadedmetadata', onMetadata);
+        media.addEventListener('loadeddata', onReady);
+        media.addEventListener('canplay', onReady);
+        media.addEventListener('playing', onPlaying);
+        media.addEventListener('waiting', onWaiting);
+        media.addEventListener('stalled', onWaiting);
+        media.addEventListener('error', onError);
+        if (typeof media.requestVideoFrameCallback === 'function') media.requestVideoFrameCallback(() => ready('requestVideoFrameCallback'));
+        if (isVideoFirstFrameReady(media)) ready('readyState');
+        else { try { media.load(); } catch (_) {} tryPlay(); }
       });
     }
 
@@ -1300,8 +1384,9 @@
         video.controls = false;
         const active = video.closest('.vec-preview-layer')?.classList.contains('is-active');
         if (previewState.isPlaying && active) {
+          applyMutedVideoSettings(video);
           const playPromise = video.play();
-          if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
+          if (playPromise && typeof playPromise.catch === 'function') playPromise.catch((error) => console.log('[VEC Preview Media]', 'playback rejected', collectPreviewMediaState(video, { error: error?.message || String(error) })));
         } else {
           video.pause();
           if (!active) video.currentTime = 0;
@@ -1313,6 +1398,8 @@
       ensurePreviewShell();
       const title = state.songContext ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
       const visual = state.songContext ? getEffectivePreviewVisual() : null;
+      const availableSequence = state.songContext ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
+      const visual = state.songContext ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
       const nextKey = getVisualKey(visual);
       const stage = elements.preview.querySelector('[data-vec-preview-stage]');
       const activeLayer = stage.querySelector('.vec-preview-layer.is-active');
@@ -1322,11 +1409,29 @@
       const nextLayer = createPreviewLayer(visual, title);
       nextLayer.classList.add('is-next');
       stage.appendChild(nextLayer);
-      await waitForPreviewLayer(nextLayer);
+      const readiness = await waitForPreviewLayer(nextLayer, visual, transitionId);
       if (previewState.transitionId !== transitionId) { nextLayer.remove(); return; }
+      if (visual?.type === 'clip' && !readiness.ready) {
+        const failedId = clean(visual?.id || visual?.key || visual?.url);
+        previewState.failedPreviewAssetIds.add(failedId);
+        console.log('[VEC Preview Media]', 'asset skipped', { song_key: state.songContext?.song_key || state.songKey || '', asset_id: failedId, asset_url: visual?.url || '', reason: readiness.reason });
+        nextLayer.remove();
+        const remaining = previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url)));
+        if (remaining.some((item) => item.type === 'clip')) { previewState.index += 1; updatePreviewMedia(); return; }
+        const artworkUrl = getArtworkUrl(state.songContext);
+        if (artworkUrl) {
+          previewState.sequence = [{ type: 'artwork', label: 'Artwork fallback', url: artworkUrl, alt: `${title} official artwork`, durationSeconds: 9999 }];
+          previewState.index = 0;
+          updatePreviewChrome();
+          updatePreviewMedia();
+          console.log('[VEC Preview Media]', 'fallback shown', { song_key: state.songContext?.song_key || state.songKey || '', reason: 'all clips failed' });
+        }
+        return;
+      }
       window.requestAnimationFrame(() => {
         nextLayer.classList.remove('is-next');
         nextLayer.classList.add('is-active');
+        console.log('[VEC Preview Media]', 'layer activated', { song_key: state.songContext?.song_key || state.songKey || '', asset_id: clean(visual?.id || visual?.key || visual?.url), asset_url: visual?.url || '', reason: readiness.reason });
         if (activeLayer) activeLayer.classList.add('is-fading-out');
         syncPreviewVideoPlayback();
         window.setTimeout(() => {
@@ -1346,6 +1451,8 @@
       const artist = hasSong ? (state.songContext.artist || 'Artist unavailable') : 'Artist unavailable';
       const genre = hasSong ? clean(state.songContext.genre) : '';
       const visual = hasSong ? getEffectivePreviewVisual() : null;
+      const availableSequence = hasSong ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
+      const visual = hasSong ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
       const visualTypeLabel = visual ? (visual.type === 'clip' ? 'Video clip' : (visual.type === 'image' ? 'Image' : 'Artwork')) : '';
       const card = elements.preview.querySelector('[data-vec-preview-card]');
       card.className = `vec-preview-song ${previewState.isPlaying ? 'is-playing' : 'is-paused'} is-${escapeHtml(visual?.type || 'empty')}`;
@@ -1359,7 +1466,7 @@
       typeBadge.classList.toggle('hidden', !visualTypeLabel);
       elements.preview.querySelector('[data-vec-preview-status]').textContent = !hasSong
         ? 'Select a song to preview its visual experience.'
-        : (visual ? `${visual.label || 'Preview visual'} · ${previewState.isPlaying ? 'Playing local preview' : 'Paused local preview'}` : 'No active visuals selected');
+        : (!availableSequence.length && previewState.failedPreviewAssetIds.size ? 'No playable video clips. Showing artwork fallback.' : (visual ? `${visual.label || 'Preview visual'} · ${previewState.isPlaying ? 'Playing local preview' : 'Paused local preview'}` : 'No active visuals selected'));
     }
 
     function updatePreviewControls() {
@@ -1520,6 +1627,8 @@
       state.borrowedAssetsBySource = new Map();
       state.borrowedAssetInclusionBySource = new Map();
       state.borrowedSourceEnabledBySource = new Map();
+      previewState.failedPreviewAssetIds = new Set();
+      previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
       previewState.index = 0;
       previewState.artworkOverride = null;
       previewState.endArtworkActive = false;
@@ -1665,6 +1774,10 @@
 
     function startPreview() {
       if (!state.songContext) return;
+      if (!previewState.isPlaying) {
+        previewState.failedPreviewAssetIds = new Set();
+        previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
+      }
       previewState.isPlaying = true;
       syncVisualToAudioTime();
       const playPromise = getAudioUrl(state.songContext) ? previewAudio.play() : null;
@@ -1685,6 +1798,8 @@
     }
 
     function restartPreview() {
+      previewState.failedPreviewAssetIds = new Set();
+      previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
       previewState.index = 0;
       previewState.artworkOverride = null;
       previewState.endArtworkActive = false;
