@@ -1314,3 +1314,29 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   border-color: rgba(240,192,76,.72);
   outline: none;
 }
+
+.player-media.enhanced-visual-media .song-visual-fallback,
+.player-media.enhanced-visual-media video.song-visual-clip {
+  position: absolute;
+  inset: 0;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+.player-media.enhanced-visual-media .song-visual-fallback {
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+  background: #080808;
+}
+
+.player-media.enhanced-visual-media video.song-visual-clip {
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  background: transparent;
+}
+
+.player-media.enhanced-visual-media video.song-visual-clip.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
