@@ -3476,15 +3476,35 @@ function renderVisualExperience() {
   if (!visualExperienceState.directAssets.length) visualExperienceEls.directGrid.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active direct-only visuals for this song.' }));
   visualExperienceEls.foldersGrid.innerHTML = '';
   (visualExperienceState.folders || []).forEach((folder) => {
-    const card = document.createElement('article'); card.className = 'visual-folder-card';
+    const card = document.createElement('article');
+    card.className = 'visual-folder-card';
     const state = visualExperienceState.folderMappings.get(String(folder.id))?.inclusion_state || folder.inclusion_state || '';
     const title = document.createElement('h5'); title.textContent = folder.folder_name || folder.name || folder.folder_slug || folder.id;
     const desc = document.createElement('p'); desc.textContent = folder.description || 'No description.';
     const meta = document.createElement('p'); meta.className = 'song-meta'; meta.textContent = `${folder.folder_type || 'folder'} · ${folder.status || 'active'} · images ${folder.image_count || 0} · clips ${folder.video_clip_count || folder.clip_count || 0}`;
     const rel = document.createElement('p'); rel.className = 'song-meta'; rel.textContent = `Artists: ${(folder.relevant_artists || []).join(', ') || '—'} · Genres: ${(folder.relevant_genres || []).join(', ') || '—'} · Moods: ${(folder.relevant_moods || []).join(', ') || '—'} · Songs: ${(folder.relevant_songs || []).map(s => s.song_title || s.song_key).join(', ') || '—'}`;
-    const expand = document.createElement('button'); expand.type = 'button'; expand.className = 'song-action-button'; const expanded = visualExperienceState.expandedFolders.has(String(folder.id)); expand.textContent = expanded ? 'Collapse assets' : 'Expand assets'; expand.addEventListener('click', () => { const id = String(folder.id); expanded ? visualExperienceState.expandedFolders.delete(id) : visualExperienceState.expandedFolders.add(id); renderVisualExperience(); });
-    card.append(title, desc, meta, rel, makeStateControls(state, () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'included'), () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'excluded')), expand);
-    if (expanded) { const assets = document.createElement('div'); assets.className = 'visual-asset-grid visual-folder-assets'; (folder.assets || []).forEach(asset => assets.appendChild(createVisualAssetCard(asset, 'folder'))); if (!(folder.assets || []).length) assets.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active assets in this folder.' })); card.appendChild(assets); }
+    const expanded = visualExperienceState.expandedFolders.has(String(folder.id));
+    card.classList.toggle('is-expanded', expanded);
+    const summary = document.createElement('div');
+    summary.className = 'folder-summary';
+    const expand = document.createElement('button');
+    expand.type = 'button'; expand.className = 'song-action-button'; expand.textContent = expanded ? 'Collapse assets' : 'Expand assets'; expand.setAttribute('aria-expanded', String(expanded));
+    const assets = document.createElement('div');
+    assets.className = 'visual-asset-grid visual-folder-assets folder-assets-grid';
+    assets.hidden = !expanded;
+    (folder.assets || []).forEach(asset => assets.appendChild(createVisualAssetCard(asset, 'folder')));
+    if (!(folder.assets || []).length) assets.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active assets in this folder.' }));
+    expand.addEventListener('click', () => {
+      const id = String(folder.id);
+      const card = expand.closest('.visual-folder-card');
+      const isExpanded = card.classList.toggle('is-expanded');
+      isExpanded ? visualExperienceState.expandedFolders.add(id) : visualExperienceState.expandedFolders.delete(id);
+      assets.hidden = !isExpanded;
+      expand.textContent = isExpanded ? 'Collapse assets' : 'Expand assets';
+      expand.setAttribute('aria-expanded', String(isExpanded));
+    });
+    summary.append(title, desc, meta, rel, makeStateControls(state, () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'included'), () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'excluded')), expand);
+    card.append(summary, assets);
     visualExperienceEls.foldersGrid.appendChild(card);
   });
 }
