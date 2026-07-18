@@ -49,7 +49,7 @@ const FALLBACK_AD_DURATION_SECONDS = 15;
 const DEFAULT_TARGET_AD_SECONDS = DEFAULT_AD_SETTINGS.target_ad_seconds;
 const DEFAULT_VISUAL_STILL_DURATION_SECONDS = 8;
 const VEC_PLAYER_LOG_PREFIX = '[VEC Player]';
-const VEC_PLAYER_DEBUG = /(?:^|[?&])vec_debug=1(?:&|$)/.test(window.location.search);
+const VEC_PLAYER_DEBUG = true;
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -338,7 +338,9 @@ function normalizeVecAsset(asset, source = 'vec') {
     source,
     alt: clean(asset.alt_text || asset.altText || asset.file_name || asset.name || asset.title) || 'Song visual',
     caption: clean(asset.caption),
-    durationSeconds: normalizeVisualDuration(asset.duration_seconds || asset.durationSeconds)
+    durationSeconds: normalizeVisualDuration(asset.duration_seconds || asset.durationSeconds),
+    folderId: clean(asset.folder_id || asset.folderId || asset.source_folder_id || asset.sourceFolderId || asset.source),
+    folderName: clean(asset.folder_name || asset.folderName || asset.source_folder_name || asset.sourceFolderName || asset.source)
   };
 }
 
@@ -390,22 +392,59 @@ function shuffleVecIfNeeded(assets, recipe = {}) {
   return artwork.length && recipe?.artwork?.start_with_artwork !== false ? [artwork[0], ...others, ...artwork.slice(1)] : [...artwork, ...others];
 }
 
+function dedupeVecAssets(assets) {
+  const seen = new Set();
+  return (Array.isArray(assets) ? assets : []).filter(asset => {
+    const key = clean(asset.id || asset.key || asset.url).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getVecFolderKey(asset) {
+  return clean(asset?.folderId || asset?.folderName || asset?.source || 'unknown');
+}
+
+function orderVecShuffleBag(assets, lastFolder = '') {
+  const remaining = shuffleVisualAssets(dedupeVecAssets(assets));
+  const ordered = [];
+  let previousFolder = clean(lastFolder);
+  while (remaining.length) {
+    let index = previousFolder ? remaining.findIndex(asset => getVecFolderKey(asset) !== previousFolder) : 0;
+    if (index < 0) index = 0;
+    const [next] = remaining.splice(index, 1);
+    ordered.push(next);
+    previousFolder = getVecFolderKey(next);
+  }
+  return ordered;
+}
+
 function buildVecSequence(song, recipe, pools) {
   const artwork = buildOfficialArtworkAsset(song, recipe);
   if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
-  const assets = [
+  const rawAssets = [
     ...includeRecipeAssets(pools.songAssets || [], recipe?.song_assets || {}),
     ...(pools.folderAssets || []),
     ...(pools.borrowedAssets || [])
   ];
-  let sequence = shuffleVecIfNeeded(assets, recipe);
+  const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');
+  const imageAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type !== 'clip');
+  const bag = orderVecShuffleBag(videoAssets.length ? videoAssets : imageAssets);
   const artworkRules = recipe?.artwork || {};
-  if (artwork && artworkRules.start_with_artwork !== false) sequence = [artwork, ...sequence];
-  if (artwork && artworkRules.re_present_artwork !== false && Number(artworkRules.repeat_every_seconds || 0) > 0 && sequence.length > 1) {
-    sequence = sequence.flatMap((asset, index) => (index > 0 && index % 6 === 0 ? [artwork, asset] : [asset]));
-  }
-  // TODO: Time the final end_with_artwork/end_duration_seconds segment against audio duration once this dev integration owns song-duration scheduling.
-  if (artwork && !sequence.length) sequence = [artwork];
+  const sequence = bag.length ? bag : (artwork ? [artwork] : []);
+  vecPlayerLog('song diagnostic', {
+    song_key: clean(song?.songKey || song?.song_key || song?.idx),
+    folders_evaluated: Array.isArray(recipe?.folders) ? recipe.folders.length : 0,
+    total_assets_returned: rawAssets.length,
+    active_video_clips: videoAssets.length,
+    excluded_clips: (Array.isArray(recipe?.folders) ? recipe.folders : []).reduce((n, f) => n + (Array.isArray(f.excluded_clip_ids) ? f.excluded_clip_ids.length : 0), 0),
+    deduplicated_clips: videoAssets.length,
+    final_eligible_clip_count: bag.length,
+    shuffled_clip_id_order: bag.map(asset => asset.id || asset.key),
+    failed_clip_ids: []
+  });
+  if (artwork && !sequence.length && artworkRules.start_with_artwork !== false) return [artwork];
   return sequence;
 }
 
@@ -3521,10 +3560,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
 
   const skipVisualAsset = useCallback((assetUrl) => {
     if (!assetUrl) return;
-    vecPlayerLog('skipped broken asset', assetUrl);
+    vecPlayerLog('skipped broken asset', { asset_id: clean(activeVisualAsset?.id || activeVisualAsset?.key || assetUrl) });
     setVisualSequenceState(sequence => ({ ...sequence, assets: sequence.assets.filter(asset => asset.url !== assetUrl) }));
     setVisualIndex(0);
-  }, []);
+  }, [activeVisualAsset?.id, activeVisualAsset?.key]);
 
   useEffect(() => {
     if (!hasEnhancedVisuals || !activeVisualIsImage || mediaMode === 'video' || !isPlaying) return undefined;

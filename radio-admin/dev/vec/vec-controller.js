@@ -431,7 +431,7 @@
       <div class="vec-folder-card-top">
         <div class="vec-folder-card-main">
           <div class="vec-folder-card-head"><h3>${escapeHtml(sourceTitle)}</h3><span class="vec-folder-status is-active">Borrowed source</span></div>
-          <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+          <p class="vec-folder-active-count">Active: ${counts.images + counts.clips} · Excluded: ${Math.max(0, assets.length - counts.images - counts.clips)} · Total: ${assets.length}</p>
           <small>${escapeHtml(sourceKey)}</small>
         </div>
         <div class="vec-folder-actions"><button type="button" class="vec-toggle ${sourceEnabled ? 'is-on' : 'is-off'}" data-vec-borrow-source-enabled="${escapeHtml(sourceKey)}" aria-pressed="${sourceEnabled}">Borrowed Song ${sourceEnabled ? 'ON' : 'OFF'}</button><button type="button" class="vec-folder-expand" data-vec-borrow-source-remove="${escapeHtml(sourceKey)}">Remove Borrowed Song</button></div>
@@ -439,7 +439,7 @@
       ${assetState.loading ? '<p class="vec-empty-state">Loading borrowed source assets...</p>' : ''}
       ${assetState.error ? `<p class="vec-empty-state vec-error-state">${escapeHtml(assetState.error)}</p>` : ''}
       ${!sourceEnabled ? `<p class="vec-empty-state vec-borrow-disabled-note">This borrowed song is OFF and ignored in the preview. Saved selections preserved: ${savedCounts.images} image${savedCounts.images === 1 ? '' : 's'} · ${savedCounts.clips} clip${savedCounts.clips === 1 ? '' : 's'}.</p>` : ''}
-      ${!assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls for ${escapeHtml(sourceTitle)}"><p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
+      ${!assetState.loading && !assetState.error ? `<div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Borrowed visual inclusion controls for ${escapeHtml(sourceTitle)}"><p class="vec-folder-active-count">Active: ${counts.images + counts.clips} · Excluded: ${Math.max(0, assets.length - counts.images - counts.clips)} · Total: ${assets.length}</p>${assets.length ? `<div class="vec-folder-toggle-all"><button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button><button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-borrow-assets-toggle="${escapeHtml(sourceKey)}" data-vec-borrow-assets-toggle-value="off" aria-pressed="${toggleState === 'off'}">All Off</button>${toggleState === 'mixed' ? '<em>Mixed</em>' : ''}</div>` : ''}</div>` : ''}
       ${!assetState.loading && !assetState.error ? (assets.length ? `<div class="vec-folder-asset-grid vec-song-asset-grid">${assets.map((asset) => renderBorrowedAssetCard(state, sourceKey, asset)).join('')}</div>` : '<p class="vec-empty-state">No song-only images or clips found for this source song.</p>') : ''}
     </article>`;
   }
@@ -832,7 +832,7 @@
     return `<div class="vec-folder-assets">
       <div class="vec-folder-assets-head"><strong>Folder visuals</strong><span>${images.length} image${images.length === 1 ? '' : 's'} · ${clips.length} clip${clips.length === 1 ? '' : 's'}</span></div>
       <div class="vec-folder-assets-controls" aria-label="Folder visual inclusion controls">
-        <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
+        <p class="vec-folder-active-count">Active: ${activeCounts.images + activeCounts.clips} · Excluded: ${Math.max(0, assets.length - activeCounts.images - activeCounts.clips)} · Total: ${assets.length}</p>
         <div class="vec-folder-toggle-all" aria-label="Toggle all visuals in this folder">
           <span>Toggle All:</span>
           <button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-folder-assets-toggle="${escapeHtml(folder.id)}" data-vec-folder-assets-toggle-value="on" aria-pressed="${toggleState === 'on'}">All On</button>
@@ -873,7 +873,7 @@
       </div>
       <div class="vec-song-dropzone" data-vec-song-dropzone>Drag and drop song-only images or clips here.</div>
       <div class="vec-folder-assets-controls vec-song-assets-controls" aria-label="Song-only visual inclusion controls">
-        <p class="vec-folder-active-count">Active: ${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</p>
+        <p class="vec-folder-active-count">Active: ${counts.images + counts.clips} · Excluded: ${Math.max(0, assets.length - counts.images - counts.clips)} · Total: ${assets.length}</p>
         ${assets.length ? `<div class="vec-folder-toggle-all" aria-label="Toggle all song-only visuals">
           <button type="button" class="vec-folder-toggle-all-button is-on ${toggleState === 'on' ? 'is-active' : ''}" data-vec-song-assets-toggle="on" aria-pressed="${toggleState === 'on'}">All On</button>
           <button type="button" class="vec-folder-toggle-all-button is-off ${toggleState === 'off' ? 'is-active' : ''}" data-vec-song-assets-toggle="off" aria-pressed="${toggleState === 'off'}">All Off</button>
@@ -1562,7 +1562,7 @@
     }
 
     async function saveCurrentRecipe() {
-      if (!state.songKey) return;
+      if (!state.songKey) return false;
       state.recipeStatus = 'Saving recipe...';
       renderDynamic();
       try {
@@ -1571,9 +1571,32 @@
         state.savedRecipeUpdatedAt = data?.updated_at || data?.recipe?.updated_at || '';
         state.dirty = false;
         state.recipeStatus = 'Saved';
+        return true;
       } catch (error) {
         state.recipeStatus = error.message || 'Could not save recipe.';
+        return false;
       } finally { renderDynamic(); }
+    }
+
+    async function persistRecipeChange(previousRecipe, actionLabel = 'status update') {
+      if (state.recipeSaveInFlight) return;
+      state.recipeSaveInFlight = true;
+      state.recipeStatus = `Saving ${actionLabel}...`;
+      renderDynamic();
+      try {
+        const data = await putRecipe(state.songKey, buildCurrentRecipe());
+        const confirmed = await fetchRecipe(state.songKey);
+        state.savedRecipe = confirmed?.recipe || data?.recipe || null;
+        state.savedRecipeUpdatedAt = confirmed?.updated_at || data?.updated_at || state.savedRecipe?.updated_at || '';
+        state.dirty = false;
+        state.recipeStatus = 'Saved';
+      } catch (error) {
+        applyRecipe(previousRecipe || state.savedRecipe || null);
+        state.recipeStatus = `${error.message || 'Could not save visual status.'} Previous status restored.`;
+      } finally {
+        state.recipeSaveInFlight = false;
+        renderDynamic();
+      }
     }
 
     function renderDynamic() {
@@ -1685,26 +1708,32 @@
     function toggleBorrowedAsset(sourceSongKey, assetId) {
       const asset = getBorrowedAssetState(state, sourceSongKey).assets.find((item) => String(item.id) === String(assetId));
       if (!asset) return;
+      const previousRecipe = buildCurrentRecipe();
       const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
       inclusion.set(asset.id, inclusion.get(asset.id) === false);
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, 'borrowed clip status');
     }
 
     function toggleBorrowedSourceEnabled(sourceSongKey) {
       if (!(state.borrowedSourceSongKeys || new Set()).has(sourceSongKey)) return;
+      const previousRecipe = buildCurrentRecipe();
       setBorrowedSourceEnabled(state, sourceSongKey, !isBorrowedSourceEnabled(state, sourceSongKey));
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, 'borrowed source status');
     }
 
     function setBorrowedAssetInclusion(sourceSongKey, includeAssets) {
       const assets = getBorrowedAssetState(state, sourceSongKey).assets || [];
       if (!assets.length) return;
+      const previousRecipe = buildCurrentRecipe();
       const inclusion = getBorrowedInclusionMap(state, sourceSongKey);
       assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, includeAssets ? 'all on' : 'all off');
     }
 
     async function loadSongAssetsForCurrentSong() {
@@ -1782,10 +1811,12 @@
       const assetId = assetParts.join(':');
       const asset = getFolderAssetState(state, folderId).assets.find((item) => String(item.id) === assetId);
       if (!asset || !state.selectedFolderIds.has(folderId)) return;
+      const previousRecipe = buildCurrentRecipe();
       const inclusion = getAssetInclusionMap(state, folderId);
       inclusion.set(asset.id, inclusion.get(asset.id) === false);
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, 'clip status');
     }
 
     function setFolderAssetInclusion(toggle) {
@@ -1793,19 +1824,23 @@
       const includeAssets = toggle.dataset.vecFolderAssetsToggleValue === 'on';
       const assets = getFolderAssetState(state, folderId).assets || [];
       if (!assets.length || !state.selectedFolderIds.has(folderId)) return;
+      const previousRecipe = buildCurrentRecipe();
       const inclusion = getAssetInclusionMap(state, folderId);
       assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, includeAssets ? 'all on' : 'all off');
     }
 
     function setSongAssetInclusion(includeAssets) {
       const assets = state.songAssets || [];
       if (!assets.length) return;
+      const previousRecipe = buildCurrentRecipe();
       const inclusion = getSongAssetInclusionMap(state);
       assets.forEach((asset) => inclusion.set(asset.id, includeAssets));
       markDirty();
       renderDynamic();
+      persistRecipeChange(previousRecipe, includeAssets ? 'all on' : 'all off');
     }
 
 
@@ -1926,10 +1961,12 @@
       if (toggle) {
         const asset = state.songAssets.find((item) => String(item.id) === String(toggle.dataset.vecSongAssetToggle));
         if (!asset) return;
+        const previousRecipe = buildCurrentRecipe();
         const inclusion = getSongAssetInclusionMap(state);
         inclusion.set(asset.id, inclusion.get(asset.id) === false);
         markDirty();
         renderDynamic();
+        persistRecipeChange(previousRecipe, 'clip status');
         return;
       }
       const deleteButton = event.target.closest('[data-vec-song-asset-delete]');
