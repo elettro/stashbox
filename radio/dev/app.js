@@ -3523,9 +3523,13 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [visualIndex, setVisualIndex] = useState(0);
-  const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [], artworkRules: null });
+  const [visualSequenceState, setVisualSequenceState] = useState({
+    songKey: '',
+    assets: [],
+    artworkRules: null
+  });
+
   const [timedArtworkOverride, setTimedArtworkOverride] = useState(null);
-  const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [] });
   const [visualMediaState, setVisualMediaState] = useState(VEC_MEDIA_STATES.IDLE);
   const [visibleClipKey, setVisibleClipKey] = useState('');
   const [currentVisualImages, setCurrentVisualImages] = useState([]);
@@ -3768,9 +3772,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const artworkRules = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.artworkRules : null;
   const secondsRemaining = Number.isFinite(duration) && duration > 0 ? Math.max(0, duration - currentTime) : Infinity;
   const forceEndArtwork = Boolean(artworkRules?.endWithArtwork && posterImage && Number.isFinite(duration) && duration > 0 && secondsRemaining <= artworkRules.endDurationSeconds);
-  const activeVisualAsset = forceEndArtwork || timedArtworkOverride ? null : (apiVisualImage || (hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null));
   const selectableVisualSequence = hasEnhancedVisuals ? visualSequence.filter(asset => !visualMediaSessionRef.current.failedVisualAssetIds.has(clean(asset?.id || asset?.key || asset?.url))) : [];
-  const activeVisualAsset = apiVisualImage || (selectableVisualSequence.length ? selectableVisualSequence[visualIndex % selectableVisualSequence.length] : null);
+  const activeVisualAsset = forceEndArtwork || timedArtworkOverride ? null : (apiVisualImage || (selectableVisualSequence.length ? selectableVisualSequence[visualIndex % selectableVisualSequence.length] : null));
   const activeVisualKey = activeVisualAsset ? `${activeVisualAsset.type}:${activeVisualAsset.url}` : '';
   const activeVisualIsImage = activeVisualAsset?.type === 'image';
   const activeVisualIsClip = activeVisualAsset?.type === 'clip';

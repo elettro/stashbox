@@ -977,8 +977,21 @@
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
     const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
-    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), artworkOverride: null, endArtworkActive: false, lastRepeatSlot: 0 };
-    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), mediaState: VEC_PREVIEW_MEDIA_STATES.IDLE, transitionId: 0, failedPreviewAssetIds: new Set() };
+    const previewState = {
+      sequence: buildPreviewSequence(state),
+      index: 0,
+      isPlaying: false,
+      timerId: null,
+      preloadCache: new Map(),
+
+      artworkOverride: null,
+      endArtworkActive: false,
+      lastRepeatSlot: 0,
+
+      mediaState: VEC_PREVIEW_MEDIA_STATES.IDLE,
+      transitionId: 0,
+      failedPreviewAssetIds: new Set()
+    };
 
     container.innerHTML = `
       <section class="card vec-section" aria-labelledby="songSelectorHeading">
@@ -1397,9 +1410,24 @@
     async function updatePreviewMedia() {
       ensurePreviewShell();
       const title = state.songContext ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
-      const visual = state.songContext ? getEffectivePreviewVisual() : null;
-      const availableSequence = state.songContext ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
-      const visual = state.songContext ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
+      const availableSequence = state.songContext
+        ? previewState.sequence.filter(
+            item =>
+              !previewState.failedPreviewAssetIds.has(
+                clean(item?.id || item?.key || item?.url)
+              )
+          )
+        : [];
+
+      const visual = state.songContext
+        ? (
+            previewState.artworkOverride ||
+            availableSequence[
+              previewState.index % Math.max(availableSequence.length, 1)
+            ] ||
+            null
+          )
+        : null;
       const nextKey = getVisualKey(visual);
       const stage = elements.preview.querySelector('[data-vec-preview-stage]');
       const activeLayer = stage.querySelector('.vec-preview-layer.is-active');
@@ -1450,9 +1478,24 @@
       const title = hasSong ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
       const artist = hasSong ? (state.songContext.artist || 'Artist unavailable') : 'Artist unavailable';
       const genre = hasSong ? clean(state.songContext.genre) : '';
-      const visual = hasSong ? getEffectivePreviewVisual() : null;
-      const availableSequence = hasSong ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
-      const visual = hasSong ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
+      const availableSequence = hasSong
+        ? previewState.sequence.filter(
+            item =>
+              !previewState.failedPreviewAssetIds.has(
+                clean(item?.id || item?.key || item?.url)
+              )
+          )
+        : [];
+
+      const visual = hasSong
+        ? (
+            previewState.artworkOverride ||
+            availableSequence[
+              previewState.index % Math.max(availableSequence.length, 1)
+            ] ||
+            null
+          )
+        : null;
       const visualTypeLabel = visual ? (visual.type === 'clip' ? 'Video clip' : (visual.type === 'image' ? 'Image' : 'Artwork')) : '';
       const card = elements.preview.querySelector('[data-vec-preview-card]');
       card.className = `vec-preview-song ${previewState.isPlaying ? 'is-playing' : 'is-paused'} is-${escapeHtml(visual?.type || 'empty')}`;
