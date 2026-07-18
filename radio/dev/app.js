@@ -50,6 +50,42 @@ const DEFAULT_TARGET_AD_SECONDS = DEFAULT_AD_SETTINGS.target_ad_seconds;
 const DEFAULT_VISUAL_STILL_DURATION_SECONDS = 8;
 const VEC_PLAYER_LOG_PREFIX = '[VEC Player]';
 const VEC_PLAYER_DEBUG = true;
+
+const VEC_MEDIA_READY_TIMEOUT_MS = 5000;
+const VEC_MEDIA_STATES = Object.freeze({ IDLE: 'idle', LOADING: 'loading', READY: 'ready', PLAYING: 'playing', WAITING: 'waiting', FAILED: 'failed' });
+
+function normalizeMediaError(media) {
+  const error = media?.error || null;
+  if (!error) return { code: 0, message: '' };
+  return { code: error.code || 0, message: error.message || '' };
+}
+
+function applyMutedVideoSettings(video) {
+  if (!video) return;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.volume = 0;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('muted', '');
+}
+
+function collectVecMediaState(video, extra = {}) {
+  return {
+    ...extra,
+    readyState: video?.readyState ?? null,
+    networkState: video?.networkState ?? null,
+    videoWidth: video?.videoWidth ?? 0,
+    videoHeight: video?.videoHeight ?? 0,
+    duration: Number.isFinite(video?.duration) ? video.duration : null,
+    media_error_code: normalizeMediaError(video).code,
+    media_error_message: normalizeMediaError(video).message
+  };
+}
+
+function isVideoFirstFrameReady(video) {
+  return Boolean(video && (video.readyState >= 2 || (video.videoWidth > 0 && video.videoHeight > 0 && !video.paused)));
+}
 const SECTIONS = [
   { key: 'Reggae', emoji: '🌴', color: '#3ecf6e' }, { key: 'Rock', emoji: '🎸', color: '#f0a500' },
   { key: 'Blues', emoji: '🎷', color: '#50a0ff' }, { key: 'Funk', emoji: '🕺', color: '#e05c2a' },
@@ -3469,6 +3505,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [duration, setDuration] = useState(0);
   const [visualIndex, setVisualIndex] = useState(0);
   const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [] });
+  const [visualMediaState, setVisualMediaState] = useState(VEC_MEDIA_STATES.IDLE);
+  const [visibleClipKey, setVisibleClipKey] = useState('');
   const [currentVisualImages, setCurrentVisualImages] = useState([]);
   const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
   const videoFrameRef = useRef(null);
@@ -3483,6 +3521,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const onVideoCompleteRef = useRef(onVideoComplete);
   const onYouTubeEndedRef = useRef(onYouTubeEnded);
   const visualRotationTimerRef = useRef(null);
+  const visualMediaSessionRef = useRef({ token: '', failedVisualAssetIds: new Set(), transition: 0 });
   useEffect(() => { onVideoStartRef.current = onVideoStart; }, [onVideoStart]);
   useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
   useEffect(() => { onYouTubeEndedRef.current = onYouTubeEnded; }, [onYouTubeEnded]);
@@ -3615,6 +3654,9 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const sequenceSongKey = selected?.songKey || selected?.idx || '';
     clearVisualRotation();
     setVisualIndex(0);
+    visualMediaSessionRef.current = { token: '', failedVisualAssetIds: new Set(), transition: 0 };
+    setVisualMediaState(VEC_MEDIA_STATES.IDLE);
+    setVisibleClipKey('');
     setVisualSequenceState({ songKey: '', assets: [] });
     renderCurrentVisualOrArtwork(selected, []);
     if (!selected) return () => controller.abort();
@@ -3641,6 +3683,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       controller.abort();
       clearVisualRotation();
       setCurrentVisualImages([]);
+      setVisualMediaState(VEC_MEDIA_STATES.IDLE);
+      setVisibleClipKey('');
       setVisualSequenceState({ songKey: '', assets: [] });
     };
   }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, loadVe10bVisualSettings, loadVecRecipeVisuals, renderCurrentVisualOrArtwork]);
@@ -3683,10 +3727,13 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const visualSequence = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.assets : [];
   const hasEnhancedVisuals = visualSequence.length > 0;
   const apiVisualImage = currentVisualImages.length ? currentVisualImages[currentVisualIndex % currentVisualImages.length] : null;
-  const activeVisualAsset = apiVisualImage || (hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null);
+  const selectableVisualSequence = hasEnhancedVisuals ? visualSequence.filter(asset => !visualMediaSessionRef.current.failedVisualAssetIds.has(clean(asset?.id || asset?.key || asset?.url))) : [];
+  const activeVisualAsset = apiVisualImage || (selectableVisualSequence.length ? selectableVisualSequence[visualIndex % selectableVisualSequence.length] : null);
   const activeVisualKey = activeVisualAsset ? `${activeVisualAsset.type}:${activeVisualAsset.url}` : '';
   const activeVisualIsImage = activeVisualAsset?.type === 'image';
   const activeVisualIsClip = activeVisualAsset?.type === 'clip';
+  const activeVisualId = clean(activeVisualAsset?.id || activeVisualAsset?.key || activeVisualAsset?.url);
+  const clipIsVisible = activeVisualIsClip && visibleClipKey === activeVisualKey && (visualMediaState === VEC_MEDIA_STATES.READY || visualMediaState === VEC_MEDIA_STATES.PLAYING);
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
 
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
@@ -3698,12 +3745,20 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected) });
   }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey, visualSequenceState.songKey, visualSequenceState.assets.length]);
 
-  const skipVisualAsset = useCallback((assetUrl) => {
+  const skipVisualAsset = useCallback((assetUrl, reason = 'failed') => {
     if (!assetUrl) return;
-    vecPlayerLog('skipped broken asset', { asset_id: clean(activeVisualAsset?.id || activeVisualAsset?.key || assetUrl) });
-    setVisualSequenceState(sequence => ({ ...sequence, assets: sequence.assets.filter(asset => asset.url !== assetUrl) }));
-    setVisualIndex(0);
-  }, [activeVisualAsset?.id, activeVisualAsset?.key]);
+    const failedId = clean(activeVisualAsset?.id || activeVisualAsset?.key || assetUrl);
+    visualMediaSessionRef.current.failedVisualAssetIds.add(failedId);
+    vecPlayerLog('asset skipped', { song_key: visualSequenceSongKey, asset_id: failedId, asset_url: assetUrl, reason });
+    setVisualMediaState(VEC_MEDIA_STATES.FAILED);
+    setVisibleClipKey('');
+    setVisualSequenceState(sequence => {
+      const remaining = sequence.assets.filter(asset => !visualMediaSessionRef.current.failedVisualAssetIds.has(clean(asset?.id || asset?.key || asset?.url)));
+      if (!remaining.some(asset => asset.type === 'clip')) vecPlayerLog('all clips failed', { song_key: visualSequenceSongKey, failed_count: visualMediaSessionRef.current.failedVisualAssetIds.size });
+      return { ...sequence, assets: remaining.length ? sequence.assets : [] };
+    });
+    setVisualIndex(index => index + 1);
+  }, [activeVisualAsset?.id, activeVisualAsset?.key, visualSequenceSongKey]);
 
   useEffect(() => {
     if (!hasEnhancedVisuals || !activeVisualIsImage || mediaMode === 'video' || !isPlaying) return undefined;
@@ -3715,22 +3770,88 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => {
     const clip = visualClipRef.current;
     if (!clip || !activeVisualIsClip || mediaMode === 'video') return undefined;
-    return () => {
-      try { clip.pause?.(); } catch (_) {}
-      try {
-        clip.removeAttribute('src');
-        clip.load?.();
-      } catch (_) {}
+    const transition = (visualMediaSessionRef.current.transition || 0) + 1;
+    const token = `${visualSequenceSongKey}:${activeVisualId}:${activeVisualAsset?.url}:${transition}`;
+    visualMediaSessionRef.current.transition = transition;
+    visualMediaSessionRef.current.token = token;
+    const startedAt = Date.now();
+    let disposed = false;
+    let playAttempts = 0;
+    let timeoutId = null;
+    const base = { song_key: visualSequenceSongKey, asset_id: activeVisualId, asset_url: activeVisualAsset?.url, folder_id: activeVisualAsset?.folderId || '', folder_name: activeVisualAsset?.folderName || '' };
+    const isCurrent = () => !disposed && visualMediaSessionRef.current.token === token && visualClipRef.current === clip;
+    const log = (label, extra = {}) => vecPlayerLog(label, collectVecMediaState(clip, { ...base, elapsed_load_ms: Date.now() - startedAt, playback_status: visualMediaState, ...extra }));
+    const fail = (reason) => {
+      if (!isCurrent()) return;
+      log(reason === 'timeout' ? 'load timeout' : 'asset skipped', { reason });
+      skipVisualAsset(activeVisualAsset?.url, reason);
     };
-  }, [activeVisualIsClip, activeVisualKey, mediaMode, selected?.idx]);
+    const markReady = (reason) => {
+      if (!isCurrent() || !isVideoFirstFrameReady(clip)) return;
+      window.clearTimeout(timeoutId);
+      setVisualMediaState(VEC_MEDIA_STATES.READY);
+      setVisibleClipKey(activeVisualKey);
+      log('first frame ready', { reason });
+    };
+    const tryPlay = () => {
+      if (!isCurrent() || !isPlaying) return;
+      applyMutedVideoSettings(clip);
+      playAttempts += 1;
+      const promise = clip.play?.();
+      if (promise && typeof promise.then === 'function') {
+        promise.then(() => { if (isCurrent()) { setVisualMediaState(VEC_MEDIA_STATES.PLAYING); log('playing', { play_attempts: playAttempts }); } }).catch(error => {
+          if (!isCurrent()) return;
+          log('playback rejected', { error: error?.message || String(error), play_attempts: playAttempts });
+          if (playAttempts < 2) window.setTimeout(tryPlay, 250);
+          else fail('playback rejected');
+        });
+      }
+    };
+    applyMutedVideoSettings(clip);
+    setVisualMediaState(VEC_MEDIA_STATES.LOADING);
+    setVisibleClipKey('');
+    log('selected asset');
+    const onLoadStart = () => log('load started');
+    const onMetadata = () => log('metadata loaded');
+    const onReady = event => { markReady(event.type); tryPlay(); };
+    const onPlaying = () => { markReady('playing'); setVisualMediaState(VEC_MEDIA_STATES.PLAYING); log('playing'); };
+    const onWaiting = event => { if (isCurrent()) { setVisualMediaState(VEC_MEDIA_STATES.WAITING); log(event.type); } };
+    const onError = () => fail('error');
+    clip.addEventListener('loadstart', onLoadStart);
+    clip.addEventListener('loadedmetadata', onMetadata);
+    clip.addEventListener('loadeddata', onReady);
+    clip.addEventListener('canplay', onReady);
+    clip.addEventListener('playing', onPlaying);
+    clip.addEventListener('waiting', onWaiting);
+    clip.addEventListener('stalled', onWaiting);
+    clip.addEventListener('suspend', onWaiting);
+    clip.addEventListener('abort', onWaiting);
+    clip.addEventListener('error', onError);
+    if (typeof clip.requestVideoFrameCallback === 'function') clip.requestVideoFrameCallback(() => markReady('requestVideoFrameCallback'));
+    timeoutId = window.setTimeout(() => fail('timeout'), VEC_MEDIA_READY_TIMEOUT_MS);
+    try { clip.load?.(); } catch (_) {}
+    tryPlay();
+    return () => {
+      disposed = true;
+      window.clearTimeout(timeoutId);
+      clip.removeEventListener('loadstart', onLoadStart);
+      clip.removeEventListener('loadedmetadata', onMetadata);
+      clip.removeEventListener('loadeddata', onReady);
+      clip.removeEventListener('canplay', onReady);
+      clip.removeEventListener('playing', onPlaying);
+      clip.removeEventListener('waiting', onWaiting);
+      clip.removeEventListener('stalled', onWaiting);
+      clip.removeEventListener('suspend', onWaiting);
+      clip.removeEventListener('abort', onWaiting);
+      clip.removeEventListener('error', onError);
+      try { clip.pause?.(); } catch (_) {}
+    };
+  }, [activeVisualIsClip, activeVisualKey, activeVisualId, activeVisualAsset?.url, activeVisualAsset?.folderId, activeVisualAsset?.folderName, mediaMode, selected?.idx]);
 
   useEffect(() => {
     const clip = visualClipRef.current;
     if (!clip || !activeVisualIsClip || mediaMode === 'video') return;
-    clip.muted = true;
-    clip.defaultMuted = true;
-    clip.volume = 0;
-    clip.playsInline = true;
+    applyMutedVideoSettings(clip);
     if (!isPlaying) {
       clip.pause?.();
       return;
@@ -3738,11 +3859,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const playPromise = clip.play?.();
     if (playPromise && typeof playPromise.catch === 'function') {
       playPromise.catch(error => {
-        console.warn('[radio-dev] visual clip skipped because it could not autoplay.', error.message || error);
-        skipVisualAsset(activeVisualAsset?.url);
+        vecPlayerLog('playback rejected', collectVecMediaState(clip, { song_key: visualSequenceSongKey, asset_id: activeVisualId, asset_url: activeVisualAsset?.url, error: error?.message || String(error) }));
+        skipVisualAsset(activeVisualAsset?.url, 'resume rejected');
       });
     }
-  }, [activeVisualIsClip, activeVisualKey, activeVisualAsset?.url, isPlaying, mediaMode, skipVisualAsset]);
+  }, [activeVisualIsClip, activeVisualKey, activeVisualId, activeVisualAsset?.url, isPlaying, mediaMode, skipVisualAsset, visualSequenceSongKey]);
 
   useEffect(() => {
     if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
@@ -3948,7 +4069,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     onKeyDown: event => event.stopPropagation()
   }, h(FullscreenIcon, { isActive: isMediaFullscreen }));
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { ref: mediaFullscreenRef, className: `player-media clickable-media${activeVisualAsset && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : activeVisualIsImage ? h('img', { key: activeVisualKey, className: 'song-visual-asset', src: activeVisualAsset.url, alt: activeVisualAsset.alt || `${selected.title} visual`, onError: () => { if (apiVisualImage) setCurrentVisualImages(images => images.filter(image => image.url !== activeVisualAsset.url)); else skipVisualAsset(activeVisualAsset.url); } }) : activeVisualIsClip ? h('video', { key: activeVisualKey, ref: visualClipRef, className: 'song-visual-asset song-visual-clip', src: activeVisualAsset.url, title: `${selected.title} visual clip`, muted: true, defaultMuted: true, playsInline: true, controls: false, preload: 'auto', style: { display: 'block', objectFit: 'contain', objectPosition: 'center center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', margin: '0 auto', background: '#000' }, onEnded: () => { if (visualSequence.length > 1) setVisualIndex((index) => index + 1); else skipVisualAsset(activeVisualAsset.url); }, onError: () => skipVisualAsset(activeVisualAsset.url), onLoadedData: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onLoadedMetadata: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onVolumeChange: event => { if (!event.currentTarget.muted || event.currentTarget.volume !== 0) { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; } } }) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title), mediaFullscreenButton),
+    h('div', { ref: mediaFullscreenRef, className: `player-media clickable-media${activeVisualAsset && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : activeVisualIsImage ? h('img', { key: activeVisualKey, className: 'song-visual-asset', src: activeVisualAsset.url, alt: activeVisualAsset.alt || `${selected.title} visual`, onError: () => { if (apiVisualImage) setCurrentVisualImages(images => images.filter(image => image.url !== activeVisualAsset.url)); else skipVisualAsset(activeVisualAsset.url); } }) : activeVisualIsClip ? h(React.Fragment, null,
+      h('img', { className: `song-visual-asset song-visual-fallback${clipIsVisible ? '' : ' is-active'}`, src: posterImage || APP_FALLBACK_ARTWORK_URL, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }),
+      h('video', { key: activeVisualKey, ref: visualClipRef, className: `song-visual-asset song-visual-clip${clipIsVisible ? ' is-visible' : ' is-loading'}`, src: activeVisualAsset.url, poster: posterImage || APP_FALLBACK_ARTWORK_URL, title: `${selected.title} visual clip`, muted: true, defaultMuted: true, playsInline: true, controls: false, preload: 'auto', style: { display: 'block', objectFit: 'contain', objectPosition: 'center center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', margin: '0 auto' }, onEnded: () => { if (selectableVisualSequence.length > 1) setVisualIndex((index) => index + 1); else skipVisualAsset(activeVisualAsset.url, 'ended'); }, onVolumeChange: event => { applyMutedVideoSettings(event.currentTarget); } })
+    ) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title), mediaFullscreenButton),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
