@@ -354,6 +354,17 @@ function asIdSet(values) {
   return new Set((Array.isArray(values) ? values : []).map(value => clean(value)).filter(Boolean));
 }
 
+function getVecAssetIdentityValues(asset) {
+  return [asset?.id, asset?.asset_id, asset?.key, asset?.url, asset?.public_url]
+    .map(value => clean(value))
+    .filter(Boolean);
+}
+
+function vecAssetMatchesIdSet(asset, idSet) {
+  if (!idSet?.size) return false;
+  return getVecAssetIdentityValues(asset).some(value => idSet.has(value));
+}
+
 function includeRecipeAssets(assets, recipePart = {}) {
   const activeImages = asIdSet(recipePart.active_image_ids);
   const activeClips = asIdSet(recipePart.active_clip_ids);
@@ -362,10 +373,9 @@ function includeRecipeAssets(assets, recipePart = {}) {
   const hasExplicitActive = activeImages.size || activeClips.size;
   return assets.filter(asset => {
     const isClip = asset.type === 'clip';
-    const id = clean(asset.id || asset.key || asset.url);
-    if ((isClip ? excludedClips : excludedImages).has(id)) return false;
+    if (vecAssetMatchesIdSet(asset, isClip ? excludedClips : excludedImages)) return false;
     if (!hasExplicitActive) return true;
-    return (isClip ? activeClips : activeImages).has(id);
+    return vecAssetMatchesIdSet(asset, isClip ? activeClips : activeImages);
   });
 }
 
@@ -392,10 +402,27 @@ function shuffleVecIfNeeded(assets, recipe = {}) {
   return artwork.length && recipe?.artwork?.start_with_artwork !== false ? [artwork[0], ...others, ...artwork.slice(1)] : [...artwork, ...others];
 }
 
+function getNormalizedVecUrl(url) {
+  try {
+    const parsed = new URL(fixDropbox(clean(url)));
+    parsed.hash = '';
+    return parsed.toString().toLowerCase();
+  } catch (_) {
+    return fixDropbox(clean(url)).split('#')[0].toLowerCase();
+  }
+}
+
+function getVecDedupeKey(asset) {
+  const stableId = clean(asset?.id || asset?.asset_id || asset?.key);
+  if (stableId) return `id:${stableId.toLowerCase()}`;
+  const url = getNormalizedVecUrl(asset?.url || asset?.public_url || asset?.asset_url || asset?.src);
+  return url ? `url:${url}` : '';
+}
+
 function dedupeVecAssets(assets) {
   const seen = new Set();
   return (Array.isArray(assets) ? assets : []).filter(asset => {
-    const key = clean(asset.id || asset.key || asset.url).toLowerCase();
+    const key = getVecDedupeKey(asset);
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -420,6 +447,41 @@ function orderVecShuffleBag(assets, lastFolder = '') {
   return ordered;
 }
 
+function getVecSongDiagnosticsEnabled(song) {
+  const title = getSongTitle(song).toLowerCase();
+  const songKey = clean(song?.songKey || song?.song_key || song?.idx).toLowerCase();
+  return title === "i'm waiting" || title === 'im waiting' || songKey.includes('waiting');
+}
+
+function buildVecFolderDiagnostics(recipe, pools, finalBag) {
+  const folderRecipes = Array.isArray(recipe?.folders) ? recipe.folders : [];
+  const assetsByFolder = new Map();
+  (pools.folderAssetsBeforeDedupe || pools.folderAssets || []).forEach(asset => {
+    const folderId = clean(asset.folderId);
+    if (!folderId) return;
+    if (!assetsByFolder.has(folderId)) assetsByFolder.set(folderId, []);
+    assetsByFolder.get(folderId).push(asset);
+  });
+  const finalFolders = new Set((finalBag || []).map(asset => clean(asset.folderId)).filter(Boolean));
+  return folderRecipes.map(folder => {
+    const folderId = clean(folder.folder_id || folder.visual_folder_id);
+    const assets = assetsByFolder.get(folderId) || [];
+    const activeVideos = assets.filter(asset => asset.type === 'clip');
+    const excludedCount = (Array.isArray(folder.excluded_clip_ids) ? folder.excluded_clip_ids.length : 0);
+    return {
+      folder_id: folderId,
+      folder_name: clean(folder.folder_name || folder.name || activeVideos[0]?.folderName || assets[0]?.folderName) || '(unknown)',
+      selected_for_song: folder.enabled !== false,
+      targeting_match: Boolean(folder.targeting_match || folder.targetingMatch),
+      asset_count: assets.length,
+      active_video_count: activeVideos.length,
+      excluded_video_count: excludedCount,
+      included_in_final_pool: finalFolders.has(folderId),
+      exclusion_reason: finalFolders.has(folderId) ? '' : (folder.enabled === false ? 'folder disabled' : (assets.length ? 'no active included videos after filtering/deduplication' : 'no assets returned or folder inactive/failed'))
+    };
+  });
+}
+
 function buildVecSequence(song, recipe, pools) {
   const artwork = buildOfficialArtworkAsset(song, recipe);
   if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
@@ -433,6 +495,20 @@ function buildVecSequence(song, recipe, pools) {
   const bag = orderVecShuffleBag(videoAssets.length ? videoAssets : imageAssets);
   const artworkRules = recipe?.artwork || {};
   const sequence = bag.length ? bag : (artwork ? [artwork] : []);
+  const diagnosticsEnabled = getVecSongDiagnosticsEnabled(song);
+  if (diagnosticsEnabled) {
+    const folderDiagnostics = buildVecFolderDiagnostics(recipe, pools, bag);
+    console.table(folderDiagnostics);
+    vecPlayerLog('I\'m Waiting totals', {
+      total_selected_folder_count: folderDiagnostics.filter(row => row.selected_for_song).length,
+      total_resolved_folder_count: folderDiagnostics.filter(row => row.asset_count > 0 || row.exclusion_reason !== 'no assets returned or folder inactive/failed').length,
+      total_folders_represented_in_final_pool: new Set(bag.map(asset => clean(asset.folderId)).filter(Boolean)).size,
+      total_active_video_clips_before_deduplication: (pools.folderAssetsBeforeDedupe || pools.folderAssets || []).filter(asset => asset.type === 'clip').length,
+      total_clips_after_deduplication: videoAssets.length,
+      final_folder_names_represented_in_shuffle_bag: [...new Set(bag.map(asset => clean(asset.folderName || asset.folderId)).filter(Boolean))],
+      final_shuffled_clip_order: bag.map(asset => ({ id: asset.id || asset.key, folder_name: asset.folderName || asset.folderId || '' }))
+    });
+  }
   vecPlayerLog('song diagnostic', {
     song_key: clean(song?.songKey || song?.song_key || song?.idx),
     folders_evaluated: Array.isArray(recipe?.folders) ? recipe.folders.length : 0,
@@ -3421,13 +3497,19 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       const songAssets = normalizeVecAssetsResponse(songAssetsData, 'song-only');
       vecPlayerLog('song-only assets', songAssets.length);
 
-      const folderRecipes = (Array.isArray(recipe.folders) ? recipe.folders : []).filter(folder => folder?.enabled !== false && clean(folder?.folder_id));
+      const folderRecipes = (Array.isArray(recipe.folders) ? recipe.folders : []).filter(folder => folder?.enabled !== false && clean(folder?.folder_id || folder?.visual_folder_id));
+      vecPlayerLog('selected folder ids', folderRecipes.map(folder => clean(folder.folder_id || folder.visual_folder_id)));
       const folderLists = await Promise.all(folderRecipes.map(async folderRecipe => {
+        const folderId = clean(folderRecipe.folder_id || folderRecipe.visual_folder_id);
         try {
-          const data = await fetchJsonNoStore(`${VEC_VISUAL_FOLDERS_API_URL}/${encodeURIComponent(folderRecipe.folder_id)}/assets`, { signal });
-          return includeRecipeAssets(normalizeVecAssetsResponse(data, `folder:${folderRecipe.folder_id}`), folderRecipe);
+          const data = await fetchJsonNoStore(`${VEC_VISUAL_FOLDERS_API_URL}/${encodeURIComponent(folderId)}/assets`, { signal });
+          const parsedFolder = parseJsonBody(data) || {};
+          if (parsedFolder.folder_status && clean(parsedFolder.folder_status).toLowerCase() !== 'active') return [];
+          const folderName = clean(parsedFolder.folder_name || folderRecipe.folder_name || folderRecipe.name);
+          const normalizedAssets = normalizeVecAssetsResponse(parsedFolder, `folder:${folderId}`).map(asset => ({ ...asset, folderId, folderName: folderName || asset.folderName || folderId }));
+          return includeRecipeAssets(normalizedAssets, folderRecipe);
         } catch (error) {
-          if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'folder assets failed; continuing', { folder_id: folderRecipe.folder_id, error: error?.message || error });
+          if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'folder assets failed; continuing', { folder_id: folderId, error: error?.message || error });
           return [];
         }
       }));
@@ -3448,7 +3530,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       const borrowedAssets = borrowedLists.flat();
       vecPlayerLog('borrowed assets', borrowedAssets.length);
 
-      const sequence = buildVecSequence(song, recipe, { songAssets, folderAssets, borrowedAssets });
+      const sequence = buildVecSequence(song, recipe, { songAssets, folderAssets, folderAssetsBeforeDedupe: folderAssets, borrowedAssets });
       vecPlayerLog('final visual sequence count', sequence.length);
       return sequence;
     } catch (error) {
@@ -3479,12 +3561,12 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     renderCurrentVisualOrArtwork(selected, []);
     if (!selected) return () => controller.abort();
     let disposed = false;
-    loadVe10bVisualSettings(selected, { signal: controller.signal }).then(async ve10bSequence => {
+    loadVecRecipeVisuals(selected, { signal: controller.signal }).then(async vecSequence => {
       if (disposed || controller.signal.aborted) return;
-      if (Array.isArray(ve10bSequence) && ve10bSequence.length) {
-        return ve10bSequence;
+      if (Array.isArray(vecSequence) && vecSequence.length) {
+        return vecSequence;
       }
-      return loadVecRecipeVisuals(selected, { signal: controller.signal });
+      return loadVe10bVisualSettings(selected, { signal: controller.signal });
     }).then(async sequence => {
       if (disposed || controller.signal.aborted) return;
       if (Array.isArray(sequence)) {
