@@ -1315,28 +1315,39 @@ main,#root{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   outline: none;
 }
 
-.player-media.enhanced-visual-media .song-visual-fallback,
-.player-media.enhanced-visual-media video.song-visual-clip {
+.player-media.enhanced-visual-media {
+  background: #000;
+  overflow: hidden;
+}
+
+.song-visual-video-stage {
   position: absolute;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+
+.song-visual-video-stage .song-visual-clip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  background: #000;
   transition: opacity 220ms ease, visibility 220ms ease;
 }
 
-.player-media.enhanced-visual-media .song-visual-fallback {
-  z-index: 1;
-  opacity: 1;
-  visibility: visible;
-  background: #080808;
-}
-
-.player-media.enhanced-visual-media video.song-visual-clip {
-  z-index: 2;
+.song-visual-video-stage .song-visual-clip.is-loading {
   opacity: 0;
   visibility: hidden;
-  background: transparent;
 }
 
-.player-media.enhanced-visual-media video.song-visual-clip.is-visible {
+.song-visual-video-stage .song-visual-clip.is-visible {
   opacity: 1;
   visibility: visible;
 }
