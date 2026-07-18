@@ -482,6 +482,22 @@ function buildVecFolderDiagnostics(recipe, pools, finalBag) {
   });
 }
 
+
+function normalizeVecArtworkRules(artwork = {}) {
+  return {
+    startWithArtwork: artwork.start_with_artwork !== false,
+    startDurationSeconds: Number(artwork.start_duration_seconds) || 4,
+    endWithArtwork: artwork.end_with_artwork !== false,
+    endDurationSeconds: Number(artwork.end_duration_seconds) || 4,
+    rePresentArtwork: artwork.re_present_artwork !== false,
+    repeatEverySeconds: Number(artwork.repeat_every_seconds) || 60
+  };
+}
+
+function vecArtworkTransitionLog(label, payload) {
+  console.log('[VEC Artwork]', label, payload);
+}
+
 function buildVecSequence(song, recipe, pools) {
   const artwork = buildOfficialArtworkAsset(song, recipe);
   if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
@@ -493,8 +509,11 @@ function buildVecSequence(song, recipe, pools) {
   const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');
   const imageAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type !== 'clip');
   const bag = orderVecShuffleBag(videoAssets.length ? videoAssets : imageAssets);
-  const artworkRules = recipe?.artwork || {};
-  const sequence = bag.length ? bag : (artwork ? [artwork] : []);
+  const artworkRules = normalizeVecArtworkRules(recipe?.artwork || {});
+  const sequence = [];
+  if (artwork && artworkRules.startWithArtwork) sequence.push({ ...artwork, durationSeconds: artworkRules.startDurationSeconds });
+  sequence.push(...bag);
+  if (!sequence.length && artwork) sequence.push(artwork);
   const diagnosticsEnabled = getVecSongDiagnosticsEnabled(song);
   if (diagnosticsEnabled) {
     const folderDiagnostics = buildVecFolderDiagnostics(recipe, pools, bag);
@@ -520,7 +539,7 @@ function buildVecSequence(song, recipe, pools) {
     shuffled_clip_id_order: bag.map(asset => asset.id || asset.key),
     failed_clip_ids: []
   });
-  if (artwork && !sequence.length && artworkRules.start_with_artwork !== false) return [artwork];
+  if (artwork && !sequence.length && artworkRules.startWithArtwork) return [artwork];
   return sequence;
 }
 
@@ -3468,7 +3487,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [visualIndex, setVisualIndex] = useState(0);
-  const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [] });
+  const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [], artworkRules: null });
+  const [timedArtworkOverride, setTimedArtworkOverride] = useState(null);
   const [currentVisualImages, setCurrentVisualImages] = useState([]);
   const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
   const videoFrameRef = useRef(null);
@@ -3483,6 +3503,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const onVideoCompleteRef = useRef(onVideoComplete);
   const onYouTubeEndedRef = useRef(onYouTubeEnded);
   const visualRotationTimerRef = useRef(null);
+  const endArtworkActiveRef = useRef(false);
+  const lastRepeatSlotRef = useRef(0);
   useEffect(() => { onVideoStartRef.current = onVideoStart; }, [onVideoStart]);
   useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
   useEffect(() => { onYouTubeEndedRef.current = onYouTubeEnded; }, [onYouTubeEnded]);
@@ -3545,7 +3567,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       const sequenceCount = Array.isArray(recipe.sequence) ? recipe.sequence.length : 0;
       vecPlayerLog('recipe loaded', { song_key: songKey, found: true, visual_mode: recipe.visual_mode || 'custom', sequence_count: sequenceCount });
       if (recipe.visual_mode === 'artwork_only') {
-        return buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] });
+        return { assets: buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] }), artworkRules: normalizeVecArtworkRules(recipe.artwork || {}) };
       }
 
       const songAssetsData = await fetchJsonNoStore(`${VEC_SONG_ASSETS_API_URL}?song_key=${encodeURIComponent(songKey)}`, { signal }).catch(error => {
@@ -3589,8 +3611,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       vecPlayerLog('borrowed assets', borrowedAssets.length);
 
       const sequence = buildVecSequence(song, recipe, { songAssets, folderAssets, folderAssetsBeforeDedupe: folderAssets, borrowedAssets });
+      const artworkRules = normalizeVecArtworkRules(recipe.artwork || {});
+      vecArtworkTransitionLog('recipe rules', { song_key: songKey, ...artworkRules });
       vecPlayerLog('final visual sequence count', sequence.length);
-      return sequence;
+      return { assets: sequence, artworkRules };
     } catch (error) {
       if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'recipe fetch failed; using existing visuals', error?.message || error);
       return null;
@@ -3615,21 +3639,28 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const sequenceSongKey = selected?.songKey || selected?.idx || '';
     clearVisualRotation();
     setVisualIndex(0);
-    setVisualSequenceState({ songKey: '', assets: [] });
+    setVisualSequenceState({ songKey: '', assets: [], artworkRules: null });
+    setTimedArtworkOverride(null);
+    endArtworkActiveRef.current = false;
+    lastRepeatSlotRef.current = 0;
+    vecArtworkTransitionLog('song changed reset', { song_key: sequenceSongKey });
     renderCurrentVisualOrArtwork(selected, []);
     if (!selected) return () => controller.abort();
     let disposed = false;
     loadVecRecipeVisuals(selected, { signal: controller.signal }).then(async vecSequence => {
       if (disposed || controller.signal.aborted) return;
-      if (Array.isArray(vecSequence) && vecSequence.length) {
+      if (Array.isArray(vecSequence?.assets) && vecSequence.assets.length) {
         return vecSequence;
+      }
+      if (Array.isArray(vecSequence) && vecSequence.length) {
+        return { assets: vecSequence, artworkRules: null };
       }
       return loadVe10bVisualSettings(selected, { signal: controller.signal });
     }).then(async sequence => {
       if (disposed || controller.signal.aborted) return;
-      if (Array.isArray(sequence)) {
+      if (Array.isArray(sequence?.assets)) {
         setCurrentVisualImages([]);
-        setVisualSequenceState({ songKey: sequenceSongKey, assets: sequence });
+        setVisualSequenceState({ songKey: sequenceSongKey, assets: sequence.assets, artworkRules: sequence.artworkRules || null });
         return;
       }
       const images = await fetchSongVisuals(selected, { signal: controller.signal });
@@ -3641,7 +3672,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       controller.abort();
       clearVisualRotation();
       setCurrentVisualImages([]);
-      setVisualSequenceState({ songKey: '', assets: [] });
+      setVisualSequenceState({ songKey: '', assets: [], artworkRules: null });
+      setTimedArtworkOverride(null);
+      endArtworkActiveRef.current = false;
+      lastRepeatSlotRef.current = 0;
+      vecArtworkTransitionLog('song changed reset', { song_key: sequenceSongKey });
     };
   }, [selected?.idx, selected?.songKey, clearVisualRotation, fetchSongVisuals, loadVe10bVisualSettings, loadVecRecipeVisuals, renderCurrentVisualOrArtwork]);
 
@@ -3683,7 +3718,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const visualSequence = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.assets : [];
   const hasEnhancedVisuals = visualSequence.length > 0;
   const apiVisualImage = currentVisualImages.length ? currentVisualImages[currentVisualIndex % currentVisualImages.length] : null;
-  const activeVisualAsset = apiVisualImage || (hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null);
+  const artworkRules = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.artworkRules : null;
+  const secondsRemaining = Number.isFinite(duration) && duration > 0 ? Math.max(0, duration - currentTime) : Infinity;
+  const forceEndArtwork = Boolean(artworkRules?.endWithArtwork && posterImage && Number.isFinite(duration) && duration > 0 && secondsRemaining <= artworkRules.endDurationSeconds);
+  const activeVisualAsset = forceEndArtwork || timedArtworkOverride ? null : (apiVisualImage || (hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null));
   const activeVisualKey = activeVisualAsset ? `${activeVisualAsset.type}:${activeVisualAsset.url}` : '';
   const activeVisualIsImage = activeVisualAsset?.type === 'image';
   const activeVisualIsClip = activeVisualAsset?.type === 'clip';
@@ -3692,10 +3730,37 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
 
   useEffect(() => {
+    if (!artworkRules || !posterImage || isVideoMode) return;
+    const logPayload = { song_key: visualSequenceSongKey, currentTime, duration, secondsRemaining, endDurationSeconds: artworkRules.endDurationSeconds, forceEndArtwork };
+    if (forceEndArtwork) {
+      setTimedArtworkOverride(null);
+      if (!endArtworkActiveRef.current) {
+        endArtworkActiveRef.current = true;
+        vecArtworkTransitionLog('end override started', logPayload);
+        vecArtworkTransitionLog('seconds remaining', logPayload);
+      }
+      return;
+    }
+    if (endArtworkActiveRef.current) {
+      endArtworkActiveRef.current = false;
+      vecArtworkTransitionLog('end override cleared', logPayload);
+    }
+    if (!artworkRules.rePresentArtwork || !Number.isFinite(currentTime) || currentTime <= 0) return;
+    const repeatEvery = Number(artworkRules.repeatEverySeconds) || 60;
+    const repeatSlot = Math.floor(currentTime / repeatEvery);
+    if (repeatSlot > 0 && repeatSlot !== lastRepeatSlotRef.current) {
+      lastRepeatSlotRef.current = repeatSlot;
+      setTimedArtworkOverride({ slot: repeatSlot });
+      vecArtworkTransitionLog('repeated artwork started', logPayload);
+      window.setTimeout(() => setTimedArtworkOverride(current => current?.slot === repeatSlot ? null : current), Math.max(1, Number(artworkRules.startDurationSeconds) || 4) * 1000);
+    }
+  }, [artworkRules, posterImage, isVideoMode, forceEndArtwork, currentTime, duration, secondsRemaining, visualSequenceSongKey]);
+
+  useEffect(() => {
     if (visualSequenceState.songKey === visualSequenceSongKey && visualSequenceState.assets.length) return;
     if (!canUseEnhancedVisuals) return;
     setVisualIndex(0);
-    setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected) });
+    setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected), artworkRules: null });
   }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey, visualSequenceState.songKey, visualSequenceState.assets.length]);
 
   const skipVisualAsset = useCallback((assetUrl) => {
@@ -3731,7 +3796,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     clip.defaultMuted = true;
     clip.volume = 0;
     clip.playsInline = true;
-    if (!isPlaying) {
+    if (forceEndArtwork || timedArtworkOverride || !isPlaying) {
       clip.pause?.();
       return;
     }
@@ -3742,7 +3807,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
         skipVisualAsset(activeVisualAsset?.url);
       });
     }
-  }, [activeVisualIsClip, activeVisualKey, activeVisualAsset?.url, isPlaying, mediaMode, skipVisualAsset]);
+  }, [activeVisualIsClip, activeVisualKey, activeVisualAsset?.url, isPlaying, mediaMode, forceEndArtwork, timedArtworkOverride, skipVisualAsset]);
 
   useEffect(() => {
     if (!autoPlayRequest || autoPlayRequest.idx !== selected?.idx || mediaMode === 'video') return;
@@ -3948,7 +4013,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     onKeyDown: event => event.stopPropagation()
   }, h(FullscreenIcon, { isActive: isMediaFullscreen }));
   return h('aside', { className: 'panel player', ref: playerRef, tabIndex: -1, 'aria-label': 'Selected song player' },
-    h('div', { ref: mediaFullscreenRef, className: `player-media clickable-media${activeVisualAsset && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : activeVisualIsImage ? h('img', { key: activeVisualKey, className: 'song-visual-asset', src: activeVisualAsset.url, alt: activeVisualAsset.alt || `${selected.title} visual`, onError: () => { if (apiVisualImage) setCurrentVisualImages(images => images.filter(image => image.url !== activeVisualAsset.url)); else skipVisualAsset(activeVisualAsset.url); } }) : activeVisualIsClip ? h('video', { key: activeVisualKey, ref: visualClipRef, className: 'song-visual-asset song-visual-clip', src: activeVisualAsset.url, title: `${selected.title} visual clip`, muted: true, defaultMuted: true, playsInline: true, controls: false, preload: 'auto', style: { display: 'block', objectFit: 'contain', objectPosition: 'center center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', margin: '0 auto', background: '#000' }, onEnded: () => { if (visualSequence.length > 1) setVisualIndex((index) => index + 1); else skipVisualAsset(activeVisualAsset.url); }, onError: () => skipVisualAsset(activeVisualAsset.url), onLoadedData: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onLoadedMetadata: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onVolumeChange: event => { if (!event.currentTarget.muted || event.currentTarget.volume !== 0) { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; } } }) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title), mediaFullscreenButton),
+    h('div', { ref: mediaFullscreenRef, className: `player-media clickable-media${activeVisualAsset && !isVideoMode ? ' enhanced-visual-media' : ''}`, role: 'button', tabIndex: 0, title: 'Play or pause current track', 'aria-label': 'Play or pause current track', onClick: toggleMediaAreaPlayback, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } } }, isVideoMode && hasVideo ? (directVideo ? h('video', { key: videoSrc, ref: videoFrameRef, title: `${selected.title} video`, src: videoSrc, controls: true, playsInline: true, autoPlay: true, onPlay: () => { setIsVideoPlaying(true); onVideoStart?.(); }, onPause: () => setIsVideoPlaying(false), onTimeUpdate: event => onVideoProgress?.(event.currentTarget.currentTime, event.currentTarget.duration), onEnded: () => { setIsVideoPlaying(false); onVideoComplete?.(); } }) : h('div', { key: videoSrc, ref: youtubeMountRef, className: 'youtube-player-frame', title: `${selected.title} video`, 'aria-label': `${selected.title} YouTube video` })) : (forceEndArtwork || timedArtworkOverride) && posterImage ? h('img', { key: forceEndArtwork ? `end-artwork:${posterImage}` : `repeat-artwork:${posterImage}`, className: 'song-visual-asset song-artwork-override', src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : activeVisualIsImage ? h('img', { key: activeVisualKey, className: 'song-visual-asset', src: activeVisualAsset.url, alt: activeVisualAsset.alt || `${selected.title} visual`, onError: () => { if (apiVisualImage) setCurrentVisualImages(images => images.filter(image => image.url !== activeVisualAsset.url)); else skipVisualAsset(activeVisualAsset.url); } }) : activeVisualIsClip ? h('video', { key: activeVisualKey, ref: visualClipRef, className: 'song-visual-asset song-visual-clip', src: activeVisualAsset.url, title: `${selected.title} visual clip`, muted: true, defaultMuted: true, playsInline: true, controls: false, preload: 'auto', style: { display: 'block', objectFit: 'contain', objectPosition: 'center center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', margin: '0 auto', background: '#000' }, onEnded: () => { if (forceEndArtwork || timedArtworkOverride) return; if (visualSequence.length > 1) setVisualIndex((index) => index + 1); else skipVisualAsset(activeVisualAsset.url); }, onError: () => skipVisualAsset(activeVisualAsset.url), onLoadedData: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onLoadedMetadata: event => { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; }, onVolumeChange: event => { if (!event.currentTarget.muted || event.currentTarget.volume !== 0) { event.currentTarget.muted = true; event.currentTarget.defaultMuted = true; event.currentTarget.volume = 0; } } }) : posterImage ? h('img', { src: posterImage, alt: `${selected.title} artwork`, onError: e => { e.currentTarget.style.display = 'none'; } }) : h('div', { className: 'art-fallback' }, selected.title), mediaFullscreenButton),
     h('div', { className: 'player-bar' },
       h('div', { className: 'player-controls', 'aria-label': 'Song and playback controls' },
         h('div', { className: 'player-controls-layout' },
