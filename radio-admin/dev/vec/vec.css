@@ -1225,3 +1225,202 @@
     max-width: none;
   }
 }
+
+/* VEC Lab responsive folder redesign */
+.vec-lab-page .shell.vec-lab {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px 24px 60px;
+}
+
+.vec-lab-page .radio-admin-macro-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.vec-lab-page .radio-admin-macro-nav a {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1.1;
+  text-decoration: none;
+}
+
+.vec-lab-page .radio-admin-macro-nav a:hover,
+.vec-lab-page .radio-admin-macro-nav a:focus-visible,
+.vec-lab-page .radio-admin-macro-nav a[aria-current="page"] {
+  border-color: rgba(240, 192, 76, 0.42);
+  background: rgba(240, 192, 76, 0.13);
+  color: #ffe09a;
+}
+
+.vec-folder-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 190px) minmax(150px, 190px) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 1rem 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(3, 5, 4, 0.28);
+}
+
+.vec-toolbar-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.vec-toolbar-field input,
+.vec-toolbar-field select {
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  padding: 0.55rem 0.7rem;
+}
+
+.vec-folder-collapse-all,
+.vec-folder-expand,
+.vec-folder-toggle-all-button {
+  min-height: 34px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.vec-folder-collapse-all {
+  border: 1px solid rgba(240, 192, 76, 0.34);
+  background: rgba(240, 192, 76, 0.11);
+  color: #ffe09a;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.vec-folder-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.vec-folder-card {
+  min-width: 0;
+  width: 100%;
+  min-height: 230px;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.vec-folder-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(240, 192, 76, 0.28);
+}
+
+.vec-folder-card.is-expanded {
+  grid-column: 1 / -1;
+}
+
+.vec-folder-card-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.vec-folder-card-head,
+.vec-folder-title-area {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vec-folder-card-head h3 {
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.vec-folder-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vec-folder-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.vec-folder-summary-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vec-folder-summary-counts span {
+  border: 1px solid rgba(80, 210, 120, 0.22);
+  border-radius: 999px;
+  background: rgba(80, 210, 120, 0.08);
+  color: #d9f6df;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.vec-folder-asset-grid {
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.vec-folder-asset-thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+.vec-folder-asset-meta strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+@media (max-width: 1199px) {
+  .vec-folder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vec-folder-asset-grid { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+}
+
+@media (max-width: 899px) {
+  .vec-folder-grid,
+  .vec-folder-toolbar { grid-template-columns: 1fr; }
+  .vec-folder-card-top { grid-template-columns: 1fr; }
+  .vec-folder-actions { align-items: stretch; }
+  .vec-folder-asset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 420px) {
+  .vec-lab-page .shell.vec-lab { padding: 20px 16px 48px; }
+  .vec-folder-asset-grid { grid-template-columns: 1fr; }
+}

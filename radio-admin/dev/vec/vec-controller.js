@@ -886,12 +886,37 @@
     </div>`;
   }
 
+  function getFilteredVisualFolders(state) {
+    const search = clean(state.folderSearch).toLowerCase();
+    const type = clean(state.folderTypeFilter).toLowerCase();
+    const active = clean(state.folderActiveFilter).toLowerCase();
+    return (state.visualFolders || []).filter((folder) => {
+      const matchesSearch = !search || [folder.folder_name, folder.description, folder.folder_slug].some((value) => clean(value).toLowerCase().includes(search));
+      const matchesType = !type || type === 'all' || folder.folder_type === type;
+      const selected = state.selectedFolderIds.has(folder.id);
+      const matchesActive = !active || active === 'all' || (active === 'active' ? selected : !selected);
+      return matchesSearch && matchesType && matchesActive;
+    });
+  }
+
+  function renderFolderToolbar(state) {
+    const typeOptions = [['all', 'All types'], ...Object.entries(FOLDER_TYPE_LABELS).map(([value, label]) => [value, label])];
+    return `<div class="vec-folder-toolbar" aria-label="Visual Library folder filters">
+      <label class="vec-toolbar-field"><span>Search folders</span><input type="search" data-vec-folder-search value="${escapeHtml(state.folderSearch || '')}" placeholder="Search folders" aria-label="Search folders" /></label>
+      <label class="vec-toolbar-field"><span>Folder type</span><select data-vec-folder-type-filter aria-label="Filter by folder type">${typeOptions.map(([value, label]) => `<option value="${escapeHtml(value)}"${(state.folderTypeFilter || 'all') === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>
+      <label class="vec-toolbar-field"><span>Folder state</span><select data-vec-folder-active-filter aria-label="Filter active, inactive, or all folders"><option value="all"${(state.folderActiveFilter || 'all') === 'all' ? ' selected' : ''}>All</option><option value="active"${state.folderActiveFilter === 'active' ? ' selected' : ''}>Active</option><option value="inactive"${state.folderActiveFilter === 'inactive' ? ' selected' : ''}>Inactive</option></select></label>
+      <button type="button" class="vec-folder-collapse-all" data-vec-collapse-folders>Collapse All</button>
+    </div>`;
+  }
+
   function renderFolderCards(state) {
     if (!state.songContext) return '<p class="vec-empty-state">Select a song before choosing Visual Library folders.</p>';
     if (state.visualFoldersLoading) return '<p class="vec-empty-state">Loading real Visual Library folders...</p>';
     if (state.visualFoldersError) return `<p class="vec-empty-state vec-error-state">${escapeHtml(state.visualFoldersError)}</p>`;
     if (!state.visualFolders.length) return '<p class="vec-empty-state">No Visual Library folders are available yet.</p>';
-    return state.visualFolders.map((folder) => {
+    const folders = getFilteredVisualFolders(state);
+    if (!folders.length) return '<p class="vec-empty-state">No folders match the current filters.</p>';
+    return folders.map((folder) => {
       const selected = state.selectedFolderIds.has(folder.id);
       const typeLabel = FOLDER_TYPE_LABELS[folder.folder_type] || folder.folder_type || 'General';
       const statusLabel = FOLDER_STATUS_LABELS[folder.status] || folder.status || 'Active';
@@ -902,14 +927,14 @@
       return `<article class="vec-folder-card ${selected ? 'is-selected' : 'is-unselected'} ${expanded ? 'is-expanded' : ''}">
         <div class="vec-folder-card-top">
           <div class="vec-folder-card-main">
-            <div class="vec-folder-card-head"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div>
-            <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span><span>${folder.images_count} images</span><span>${folder.clips_count} clips</span>${folder.asset_count ? `<span>${folder.asset_count} assets</span>` : ''}</div>
-            <p class="vec-folder-active-count">Active: ${activeCounts.images} image${activeCounts.images === 1 ? '' : 's'} · ${activeCounts.clips} clip${activeCounts.clips === 1 ? '' : 's'}</p>
+            <div class="vec-folder-card-head"><div class="vec-folder-title-area"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div></div>
+            <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span></div>
             ${folder.description ? `<p>${escapeHtml(folder.description)}</p>` : '<p>No description available.</p>'}
+            <div class="vec-folder-summary-counts"><span>${folder.images_count} images</span><span>${folder.clips_count} clips</span><span>${activeCounts.images + activeCounts.clips} active</span></div>
             ${dateLabel ? `<small>${folder.updated_at ? 'Updated' : 'Created'} ${escapeHtml(dateLabel)}</small>` : ''}
           </div>
           <div class="vec-folder-actions">
-            <button type="button" class="vec-folder-status-light ${selected ? 'is-on' : 'is-off'}" data-vec-folder-toggle="${escapeHtml(folder.id)}" aria-pressed="${selected}" aria-label="${selectionLabel}" title="${selectionLabel}"><span class="sr-only">${selected ? 'Included' : 'Excluded'}</span></button>
+            <label class="vec-folder-toggle-label"><span>Active</span><button type="button" class="vec-folder-status-light ${selected ? 'is-on' : 'is-off'}" data-vec-folder-toggle="${escapeHtml(folder.id)}" aria-pressed="${selected}" aria-label="${selectionLabel}" title="${selectionLabel}"><span class="sr-only">${selected ? 'Included' : 'Excluded'}</span></button></label>
             <button type="button" class="vec-folder-expand" data-vec-folder-expand="${escapeHtml(folder.id)}" aria-expanded="${expanded}">${expanded ? 'Hide visuals' : 'Show visuals'}</button>
           </div>
         </div>
@@ -921,7 +946,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set(options.selectedFolderIds || []), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map() };
 
     container.innerHTML = `
@@ -934,7 +959,7 @@
       <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-artwork-only-control"><label class="vec-field vec-toggle-field"><span>Use Song Artwork Only</span><button class="vec-toggle is-off" type="button" aria-pressed="false" data-vec-artwork-only-toggle>OFF</button></label><p class="vec-microcopy">Shows only the official song artwork for the full song and ignores song-only assets, borrowed assets, and visual library folders.</p><p class="vec-artwork-only-note hidden" data-vec-artwork-only-note>Artwork Only Mode is active. Other visual sources are ignored for this song.</p></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Active upload path: images and clips uploaded directly for this selected song only.</p></div></div><div data-vec-song-assets></div></section>
-      <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Reusable Visual Library folders are selectable sources only; manage new song-level media in Song-Only Assets.</p></div></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
+      <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Reusable Visual Library folders are selectable sources only; manage new song-level media in Song-Only Assets.</p></div></div><div data-vec-folder-toolbar></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
@@ -946,6 +971,7 @@
       artworkStatus: container.querySelector('[data-vec-artwork-status]'),
       summary: container.querySelector('[data-vec-summary]'),
       folderGrid: container.querySelector('[data-vec-folder-grid]'),
+      folderToolbar: container.querySelector('[data-vec-folder-toolbar]'),
       playButton: container.querySelector('[data-vec-preview-play]'),
       pauseButton: container.querySelector('[data-vec-preview-pause]'),
       restartButton: container.querySelector('[data-vec-preview-restart]'),
@@ -1557,6 +1583,7 @@
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       if (elements.songAssets) elements.songAssets.innerHTML = renderSongAssets(state);
       if (elements.borrowAssets) elements.borrowAssets.innerHTML = renderBorrowedSongAssets(state);
+      if (elements.folderToolbar) elements.folderToolbar.innerHTML = state.songContext ? renderFolderToolbar(state) : '';
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
       syncArtworkControls();
@@ -1929,6 +1956,28 @@
       if (!state.songContext) return;
       event.preventDefault();
       [...(event.dataTransfer?.files || [])].forEach((file) => uploadSongAssetFile(file));
+    });
+
+    elements.folderToolbar?.addEventListener('input', (event) => {
+      const search = event.target.closest('[data-vec-folder-search]');
+      if (!search) return;
+      state.folderSearch = search.value;
+      renderDynamic();
+    });
+
+    elements.folderToolbar?.addEventListener('change', (event) => {
+      const typeFilter = event.target.closest('[data-vec-folder-type-filter]');
+      const activeFilter = event.target.closest('[data-vec-folder-active-filter]');
+      if (typeFilter) state.folderTypeFilter = typeFilter.value || 'all';
+      if (activeFilter) state.folderActiveFilter = activeFilter.value || 'all';
+      if (typeFilter || activeFilter) renderDynamic();
+    });
+
+    elements.folderToolbar?.addEventListener('click', (event) => {
+      const collapseButton = event.target.closest('[data-vec-collapse-folders]');
+      if (!collapseButton) return;
+      state.expandedFolderIds.clear();
+      renderDynamic();
     });
 
     elements.folderGrid.addEventListener('keydown', (event) => {
