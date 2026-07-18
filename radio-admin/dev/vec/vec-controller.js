@@ -1047,11 +1047,26 @@
       previewState.timerId = null;
     }
 
+    function hasPreviewAudio() {
+      return Boolean(getAudioUrl(state.songContext));
+    }
+
     function schedulePreviewTick() {
       stopPreviewTimer();
-      if (!previewState.isPlaying || !previewState.sequence.length || previewState.artworkOverride) return;
+
+      if (
+        !previewState.isPlaying ||
+        !previewState.sequence.length ||
+        previewState.artworkOverride ||
+        hasPreviewAudio()
+      ) {
+        return;
+      }
+
       const visual = previewState.sequence[previewState.index] || {};
-      const durationMs = Math.max(1, Number(visual.durationSeconds) || 4) * 1000;
+      const durationMs =
+        Math.max(1, Number(visual.durationSeconds) || 4) * 1000;
+
       previewState.timerId = window.setTimeout(() => {
         nextPreviewVisual({ keepPlaying: true });
       }, durationMs);
@@ -1106,10 +1121,42 @@
       return previewState.artworkOverride || previewState.sequence[previewState.index] || null;
     }
 
+    function getEffectivePreviewVisualKey() {
+      return getVisualKey(getEffectivePreviewVisual());
+    }
+
+    function getPreviewTimelineStartForIndex(targetIndex) {
+      const sequence = previewState.sequence || [];
+      const clampedIndex = Math.max(0, Math.min(sequence.length - 1, Number(targetIndex) || 0));
+      return sequence.slice(0, clampedIndex).reduce((total, visual) => total + Math.max(1, Number(visual.durationSeconds) || 4), 0);
+    }
+
     function syncVisualToAudioTime() {
-      if (!getAudioUrl(state.songContext)) return;
+      if (!hasPreviewAudio()) {
+        return false;
+      }
+
+      const previousKey = getEffectivePreviewVisualKey();
+      const previousIndex = previewState.index;
+      const previousOverrideType =
+        previewState.artworkOverride?.overrideType || '';
+
       syncPreviewArtworkOverride();
-      if (!previewState.artworkOverride) previewState.index = getVisualIndexForTime(previewAudio.currentTime || 0);
+
+      if (!previewState.artworkOverride) {
+        previewState.index =
+          getVisualIndexForTime(previewAudio.currentTime || 0);
+      }
+
+      const nextKey = getEffectivePreviewVisualKey();
+      const nextOverrideType =
+        previewState.artworkOverride?.overrideType || '';
+
+      return (
+        previousIndex !== previewState.index ||
+        previousKey !== nextKey ||
+        previousOverrideType !== nextOverrideType
+      );
     }
 
     function updateScrubber() {
@@ -1304,7 +1351,18 @@
         video.preload = 'auto';
         video.controls = false;
         video.dataset.vecPreviewVideo = '';
-        video.onended = () => { if (!previewState.artworkOverride) nextPreviewVisual({ keepPlaying: previewState.isPlaying }); };
+        video.onended = () => {
+          if (
+            previewState.artworkOverride ||
+            hasPreviewAudio()
+          ) {
+            return;
+          }
+
+          nextPreviewVisual({
+            keepPlaying: previewState.isPlaying
+          });
+        };
         layer.appendChild(video);
         return layer;
       }
@@ -1391,18 +1449,32 @@
 
     function syncPreviewVideoPlayback() {
       elements.preview?.querySelectorAll('[data-vec-preview-video]').forEach((video) => {
-        video.muted = true;
-        video.defaultMuted = true;
-        video.playsInline = true;
         video.controls = false;
         const active = video.closest('.vec-preview-layer')?.classList.contains('is-active');
+
         if (previewState.isPlaying && active) {
           applyMutedVideoSettings(video);
-          const playPromise = video.play();
-          if (playPromise && typeof playPromise.catch === 'function') playPromise.catch((error) => console.log('[VEC Preview Media]', 'playback rejected', collectPreviewMediaState(video, { error: error?.message || String(error) })));
-        } else {
+
+          if (video.paused || video.ended) {
+            const playPromise = video.play();
+
+            if (
+              playPromise &&
+              typeof playPromise.catch === 'function'
+            ) {
+              playPromise.catch((error) => {
+                console.log(
+                  '[VEC Preview Media]',
+                  'playback rejected',
+                  collectPreviewMediaState(video, {
+                    error: error?.message || String(error)
+                  })
+                );
+              });
+            }
+          }
+        } else if (!active) {
           video.pause();
-          if (!active) video.currentTime = 0;
         }
       });
     }
@@ -1817,18 +1889,42 @@
 
     function startPreview() {
       if (!state.songContext) return;
+
       if (!previewState.isPlaying) {
         previewState.failedPreviewAssetIds = new Set();
-        previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
+        previewState.mediaState =
+          VEC_PREVIEW_MEDIA_STATES.IDLE;
       }
+
       previewState.isPlaying = true;
-      syncVisualToAudioTime();
-      const playPromise = getAudioUrl(state.songContext) ? previewAudio.play() : null;
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => { previewState.isPlaying = false; updatePreviewOnly(); updateScrubber(); });
+
+      const visualChanged = syncVisualToAudioTime();
+      const playPromise = hasPreviewAudio()
+        ? previewAudio.play()
+        : null;
+
+      if (
+        playPromise &&
+        typeof playPromise.catch === 'function'
+      ) {
+        playPromise.catch(() => {
+          previewState.isPlaying = false;
+          updatePreviewOnly();
+          updateScrubber();
+        });
       }
-      updatePreviewOnly();
-      schedulePreviewTick();
+
+      if (visualChanged) {
+        updatePreviewOnly();
+      } else {
+        updatePreviewChrome();
+        updatePreviewControls();
+        syncPreviewVideoPlayback();
+      }
+
+      if (!hasPreviewAudio()) {
+        schedulePreviewTick();
+      }
     }
 
     function pausePreview() {
@@ -1847,7 +1943,7 @@
       previewState.artworkOverride = null;
       previewState.endArtworkActive = false;
       previewState.lastRepeatSlot = 0;
-      if (getAudioUrl(state.songContext)) previewAudio.currentTime = 0;
+      if (hasPreviewAudio()) previewAudio.currentTime = 0;
       updateScrubber();
       updatePreviewOnly();
       schedulePreviewTick();
@@ -1856,8 +1952,19 @@
     function nextPreviewVisual({ keepPlaying = previewState.isPlaying } = {}) {
       if (!state.songContext || !previewState.sequence.length) return;
       if (previewState.artworkOverride) return;
-      previewState.index = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : 0;
+      const nextIndex = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : 0;
       previewState.isPlaying = keepPlaying;
+
+      if (hasPreviewAudio()) {
+        previewAudio.currentTime = getPreviewTimelineStartForIndex(nextIndex);
+        const visualChanged = syncVisualToAudioTime();
+        if (!visualChanged) previewState.index = nextIndex;
+        updateScrubber();
+        updatePreviewOnly();
+        return;
+      }
+
+      previewState.index = nextIndex;
       updatePreviewOnly();
       schedulePreviewTick();
     }
@@ -2390,7 +2497,15 @@
     elements.nextButton.addEventListener('click', () => nextPreviewVisual({ keepPlaying: previewState.isPlaying }));
     previewAudio.addEventListener('loadedmetadata', updateScrubber);
     previewAudio.addEventListener('durationchange', updateScrubber);
-    previewAudio.addEventListener('timeupdate', () => { syncVisualToAudioTime(); updateScrubber(); updatePreviewOnly(); });
+    previewAudio.addEventListener('timeupdate', () => {
+      const visualChanged = syncVisualToAudioTime();
+
+      updateScrubber();
+
+      if (visualChanged) {
+        updatePreviewOnly();
+      }
+    });
     previewAudio.addEventListener('ended', () => {
       previewState.isPlaying = false;
       stopPreviewTimer();
@@ -2398,7 +2513,7 @@
       updatePreviewOnly();
     });
     elements.scrubber.addEventListener('input', () => {
-      if (!getAudioUrl(state.songContext)) return;
+      if (!hasPreviewAudio()) return;
       previewAudio.currentTime = Number(elements.scrubber.value) || 0;
       syncVisualToAudioTime();
       updateScrubber();
