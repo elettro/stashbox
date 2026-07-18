@@ -3448,21 +3448,110 @@ function makeStateControls(currentState, onInclude, onExclude) {
   return wrap;
 }
 
+function getVisualAssetId(asset) {
+  return String(asset?.id || asset?.asset_id || '').trim();
+}
+
+function getVisualAssetType(asset) {
+  return asset?.asset_type || asset?.media_type || asset?.type || 'image';
+}
+
+function getVisualAssetTitle(asset) {
+  return asset?.title || asset?.filename || asset?.file_name || asset?.id || 'Untitled visual';
+}
+
+function getVisualAssetUrl(asset) {
+  return asset?.thumbnail_url || asset?.public_url || asset?.url || '';
+}
+
+function getVisualAssetState(asset) {
+  return getAssetMapping(getVisualAssetId(asset)).inclusion_state || asset?.inclusion_state || '';
+}
+
+function getFolderAssets(folder) {
+  return Array.isArray(folder?.assets) ? folder.assets : [];
+}
+
+function getFolderAssetCounts(folder) {
+  const assets = getFolderAssets(folder);
+  const counts = assets.reduce((nextCounts, asset) => {
+    if (getVisualAssetState(asset) === 'excluded') nextCounts.excluded += 1;
+    else nextCounts.active += 1;
+    if (getVisualAssetType(asset) === 'clip') nextCounts.clips += 1;
+    else nextCounts.images += 1;
+    return nextCounts;
+  }, { active: 0, excluded: 0, images: 0, clips: 0 });
+  if (!assets.length) {
+    counts.images = Number(folder?.image_count || folder?.images_count || 0);
+    counts.clips = Number(folder?.video_clip_count || folder?.clip_count || folder?.clips_count || 0);
+  }
+  return counts;
+}
+
+function setFolderAssetMappings(folder, state) {
+  getFolderAssets(folder).forEach((asset) => {
+    const id = getVisualAssetId(asset);
+    if (id) visualExperienceState.assetMappings.set(id, { asset_scope: 'folder', inclusion_state: state });
+  });
+  visualExperienceState.dirty = true;
+  renderVisualExperience();
+}
+
 function createVisualAssetCard(asset, scope = 'folder') {
   const card = document.createElement('article');
-  card.className = 'visual-asset-card';
-  const mediaType = asset.asset_type || asset.media_type || asset.type || 'image';
+  const mediaType = getVisualAssetType(asset);
+  const url = getVisualAssetUrl(asset);
+  const titleText = getVisualAssetTitle(asset);
+  const currentState = getVisualAssetState(asset);
+  card.className = `visual-asset-card vec-folder-asset-card ${scope === 'direct' ? 'vec-song-asset-card ' : ''}${mediaType === 'clip' ? 'is-clip' : 'is-image'} ${currentState === 'excluded' ? 'is-excluded' : 'is-included'} ${url ? '' : 'is-disabled'}`;
+  const thumb = document.createElement('span');
+  thumb.className = 'vec-folder-asset-thumb';
   const preview = document.createElement(mediaType === 'clip' ? 'video' : 'img');
-  preview.className = 'visual-asset-preview';
-  preview.src = asset.thumbnail_url || asset.public_url || asset.url || '';
-  if (preview.tagName === 'VIDEO') { preview.muted = true; preview.playsInline = true; preview.preload = 'metadata'; } else { preview.alt = asset.title || asset.filename || asset.file_name || 'Visual asset'; }
-  const title = document.createElement('strong');
-  title.textContent = asset.title || asset.filename || asset.file_name || asset.id || 'Untitled visual';
+  preview.src = url;
+  if (preview.tagName === 'VIDEO') { preview.muted = true; preview.playsInline = true; preview.preload = 'metadata'; } else { preview.alt = titleText; }
+  thumb.appendChild(url ? preview : document.createTextNode(mediaType === 'clip' ? 'Video' : 'Image'));
   const meta = document.createElement('span');
-  meta.textContent = `${mediaType === 'clip' ? 'Video clip' : 'Image'} · ${asset.content_type || 'media'}${asset.manual_order !== null && asset.manual_order !== undefined ? ` · order ${asset.manual_order}` : ''}`;
-  const mapping = getAssetMapping(asset.id);
-  card.append(preview, title, meta, makeStateControls(mapping.inclusion_state || asset.inclusion_state || '', () => setVisualMapping(visualExperienceState.assetMappings, asset.id, 'included', { asset_scope: scope }), () => setVisualMapping(visualExperienceState.assetMappings, asset.id, 'excluded', { asset_scope: scope })));
+  meta.className = 'vec-folder-asset-meta';
+  const title = document.createElement('strong');
+  title.textContent = titleText;
+  const detail = document.createElement('small');
+  detail.textContent = `${mediaType === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}`;
+  meta.append(title, detail);
+  card.append(thumb, meta, makeStateControls(currentState, () => setVisualMapping(visualExperienceState.assetMappings, getVisualAssetId(asset), 'included', { asset_scope: scope }), () => setVisualMapping(visualExperienceState.assetMappings, getVisualAssetId(asset), 'excluded', { asset_scope: scope })));
   return card;
+}
+
+function createFolderAssets(folder) {
+  const assets = getFolderAssets(folder);
+  const counts = getFolderAssetCounts(folder);
+  const wrap = document.createElement('div');
+  wrap.className = 'vec-folder-assets';
+  const head = document.createElement('div');
+  head.className = 'vec-folder-assets-head';
+  head.innerHTML = `<strong>Folder visuals</strong><span>${counts.images} image${counts.images === 1 ? '' : 's'} · ${counts.clips} clip${counts.clips === 1 ? '' : 's'}</span>`;
+  const controls = document.createElement('div');
+  controls.className = 'vec-folder-assets-controls';
+  const active = document.createElement('p');
+  active.className = 'vec-folder-active-count';
+  active.textContent = `Active: ${counts.active} · Excluded: ${counts.excluded} · Total: ${assets.length}`;
+  const toggleAll = document.createElement('div');
+  toggleAll.className = 'vec-folder-toggle-all';
+  const allOn = document.createElement('button');
+  allOn.type = 'button'; allOn.className = 'vec-folder-toggle-all-button is-on'; allOn.textContent = 'All On'; allOn.addEventListener('click', () => setFolderAssetMappings(folder, 'included'));
+  const allOff = document.createElement('button');
+  allOff.type = 'button'; allOff.className = 'vec-folder-toggle-all-button is-off'; allOff.textContent = 'All Off'; allOff.addEventListener('click', () => setFolderAssetMappings(folder, 'excluded'));
+  toggleAll.append(allOn, allOff);
+  controls.append(active, toggleAll);
+  wrap.append(head, controls);
+  if (assets.length) {
+    const grid = document.createElement('div');
+    grid.className = 'vec-folder-asset-grid';
+    assets.forEach(asset => grid.appendChild(createVisualAssetCard(asset, 'folder')));
+    wrap.appendChild(grid);
+  } else {
+    wrap.appendChild(Object.assign(document.createElement('p'), { className: 'vec-empty-state', textContent: 'No active assets in this folder.' }));
+  }
+  return wrap;
 }
 
 function renderVisualExperience() {
@@ -3476,47 +3565,51 @@ function renderVisualExperience() {
   if (!visualExperienceState.directAssets.length) visualExperienceEls.directGrid.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active direct-only visuals for this song.' }));
   visualExperienceEls.foldersGrid.innerHTML = '';
   (visualExperienceState.folders || []).forEach((folder) => {
+    const folderId = String(folder.id);
     const card = document.createElement('article');
-    card.className = 'visual-folder-card';
-    const state = visualExperienceState.folderMappings.get(String(folder.id))?.inclusion_state || folder.inclusion_state || '';
-    const title = document.createElement('h5'); title.textContent = folder.folder_name || folder.name || folder.folder_slug || folder.id;
-    const desc = document.createElement('p'); desc.textContent = folder.description || 'No description.';
-    const meta = document.createElement('p'); meta.className = 'song-meta'; meta.textContent = `${folder.folder_type || 'folder'} · ${folder.status || 'active'} · images ${folder.image_count || 0} · clips ${folder.video_clip_count || folder.clip_count || 0}`;
-    const rel = document.createElement('p'); rel.className = 'song-meta'; rel.textContent = `Artists: ${(folder.relevant_artists || []).join(', ') || '—'} · Genres: ${(folder.relevant_genres || []).join(', ') || '—'} · Moods: ${(folder.relevant_moods || []).join(', ') || '—'} · Songs: ${(folder.relevant_songs || []).map(s => s.song_title || s.song_key).join(', ') || '—'}`;
-    const expanded = visualExperienceState.expandedFolders.has(String(folder.id));
-    card.classList.toggle('is-expanded', expanded);
+    const state = visualExperienceState.folderMappings.get(folderId)?.inclusion_state || folder.inclusion_state || '';
+    const expanded = visualExperienceState.expandedFolders.has(folderId);
+    const counts = getFolderAssetCounts(folder);
+    card.className = `vec-folder-card ${state === 'included' ? 'is-selected' : 'is-unselected'} ${expanded ? 'is-expanded' : ''}`;
     const summary = document.createElement('div');
-    summary.className = 'folder-summary';
+    summary.className = 'vec-folder-summary vec-folder-card-top';
+    const main = document.createElement('div');
+    main.className = 'vec-folder-card-main';
+    const head = document.createElement('div');
+    head.className = 'vec-folder-card-head';
+    const titleArea = document.createElement('div');
+    titleArea.className = 'vec-folder-title-area';
+    const title = document.createElement('h3'); title.textContent = folder.folder_name || folder.name || folder.folder_slug || folder.id;
+    const status = document.createElement('span'); status.className = `vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}`; status.textContent = folder.status || 'active';
+    titleArea.append(title, status); head.appendChild(titleArea);
+    const badges = document.createElement('div'); badges.className = 'vec-folder-badges'; badges.appendChild(Object.assign(document.createElement('span'), { textContent: folder.folder_type || 'folder' }));
+    const desc = document.createElement('p'); desc.textContent = folder.description || 'No description available.';
+    const rel = document.createElement('p'); rel.className = 'song-meta'; rel.textContent = `Artists: ${(folder.relevant_artists || []).join(', ') || '—'} · Genres: ${(folder.relevant_genres || []).join(', ') || '—'} · Moods: ${(folder.relevant_moods || []).join(', ') || '—'} · Songs: ${(folder.relevant_songs || []).map(s => s.song_title || s.song_key || s).join(', ') || '—'}`;
+    const summaryCounts = document.createElement('div'); summaryCounts.className = 'vec-folder-summary-counts';
+    [`${counts.images} images`, `${counts.clips} clips`, `${counts.active} active`].forEach(text => summaryCounts.appendChild(Object.assign(document.createElement('span'), { textContent: text })));
+    main.append(head, badges, desc, rel, summaryCounts);
+    if (folder.updated_at || folder.created_at) main.appendChild(Object.assign(document.createElement('small'), { textContent: `${folder.updated_at ? 'Updated' : 'Created'} ${new Date(folder.updated_at || folder.created_at).toLocaleDateString()}` }));
+    const actions = document.createElement('div'); actions.className = 'vec-folder-actions';
+    const stateControls = makeStateControls(state, () => setVisualMapping(visualExperienceState.folderMappings, folderId, 'included'), () => setVisualMapping(visualExperienceState.folderMappings, folderId, 'excluded'));
     const expand = document.createElement('button');
-    expand.type = 'button'; expand.className = 'song-action-button'; expand.textContent = expanded ? 'Collapse assets' : 'Expand assets'; expand.setAttribute('aria-expanded', String(expanded));
-    const assets = document.createElement('div');
-    assets.className = 'visual-asset-grid visual-folder-assets folder-assets-grid';
-    assets.hidden = !expanded;
-    (folder.assets || []).forEach(asset => assets.appendChild(createVisualAssetCard(asset, 'folder')));
-    if (!(folder.assets || []).length) assets.appendChild(Object.assign(document.createElement('p'), { className: 'song-meta', textContent: 'No active assets in this folder.' }));
-    expand.addEventListener('click', () => {
-      const id = String(folder.id);
-      const card = expand.closest('.visual-folder-card');
-      const isExpanded = card.classList.toggle('is-expanded');
-      isExpanded ? visualExperienceState.expandedFolders.add(id) : visualExperienceState.expandedFolders.delete(id);
-      assets.hidden = !isExpanded;
-      expand.textContent = isExpanded ? 'Collapse assets' : 'Expand assets';
-      expand.setAttribute('aria-expanded', String(isExpanded));
-    });
-    summary.append(title, desc, meta, rel, makeStateControls(state, () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'included'), () => setVisualMapping(visualExperienceState.folderMappings, folder.id, 'excluded')), expand);
-    card.append(summary, assets);
+    expand.type = 'button'; expand.className = 'vec-folder-expand'; expand.textContent = expanded ? 'Collapse Assets' : 'Expand Assets'; expand.setAttribute('aria-expanded', String(expanded));
+    expand.addEventListener('click', () => { if (visualExperienceState.expandedFolders.has(folderId)) visualExperienceState.expandedFolders.delete(folderId); else visualExperienceState.expandedFolders.add(folderId); renderVisualExperience(); });
+    actions.append(stateControls, expand);
+    summary.append(main, actions);
+    card.appendChild(summary);
+    if (expanded) card.appendChild(createFolderAssets(folder));
     visualExperienceEls.foldersGrid.appendChild(card);
   });
 }
 
 async function loadVisualExperienceSettings(songKey) {
   if (!songKey || editorMode === 'create') {
-    visualExperienceState = { ...visualExperienceState, songKey: '', directAssets: [], folders: [], folderMappings: new Map(), assetMappings: new Map(), dirty: false, status: 'Save the new song before configuring Visual Experience.' }; renderVisualExperience(); return;
+    visualExperienceState = { ...visualExperienceState, songKey: '', directAssets: [], folders: [], folderMappings: new Map(), assetMappings: new Map(), expandedFolders: new Set(), dirty: false, status: 'Save the new song before configuring Visual Experience.' }; renderVisualExperience(); return;
   }
-  visualExperienceState = { ...visualExperienceState, songKey, loading: true, dirty: false, status: 'Loading Visual Experience…' }; renderVisualExperience();
+  visualExperienceState = { ...visualExperienceState, songKey, loading: true, expandedFolders: new Set(), dirty: false, status: 'Loading Visual Experience…' }; renderVisualExperience();
   try {
     const data = await adminFetch(`${API_BASE_URL}/${encodeURIComponent(songKey)}/visual-settings`);
-    visualExperienceState = { ...visualExperienceState, songKey, loading: false, orderMode: data.order_mode || 'random', directAssets: data.direct_assets || [], folders: data.folders || [], folderMappings: new Map((data.folder_mappings || []).map(item => [String(item.folder_id), item])), assetMappings: new Map((data.asset_mappings || []).map(item => [String(item.asset_id), item])), dirty: false, status: data.fallback?.uses_artwork ? 'Loaded. Artwork fallback will be used until eligible visuals are included.' : `Loaded ${data.fallback?.eligible_visual_count || 0} eligible visuals.` };
+    visualExperienceState = { ...visualExperienceState, songKey, loading: false, expandedFolders: new Set(), orderMode: data.order_mode || 'random', directAssets: data.direct_assets || [], folders: data.folders || [], folderMappings: new Map((data.folder_mappings || []).map(item => [String(item.folder_id), item])), assetMappings: new Map((data.asset_mappings || []).map(item => [String(item.asset_id), item])), dirty: false, status: data.fallback?.uses_artwork ? 'Loaded. Artwork fallback will be used until eligible visuals are included.' : `Loaded ${data.fallback?.eligible_visual_count || 0} eligible visuals.` };
   } catch (error) {
     visualExperienceState = { ...visualExperienceState, loading: false, status: `Visual Experience failed to load: ${error.message}` };
   }
