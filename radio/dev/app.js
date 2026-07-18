@@ -518,6 +518,22 @@ function buildVecFolderDiagnostics(recipe, pools, finalBag) {
   });
 }
 
+
+function normalizeVecArtworkRules(artwork = {}) {
+  return {
+    startWithArtwork: artwork.start_with_artwork !== false,
+    startDurationSeconds: Number(artwork.start_duration_seconds) || 4,
+    endWithArtwork: artwork.end_with_artwork !== false,
+    endDurationSeconds: Number(artwork.end_duration_seconds) || 4,
+    rePresentArtwork: artwork.re_present_artwork !== false,
+    repeatEverySeconds: Number(artwork.repeat_every_seconds) || 60
+  };
+}
+
+function vecArtworkTransitionLog(label, payload) {
+  console.log('[VEC Artwork]', label, payload);
+}
+
 function buildVecSequence(song, recipe, pools) {
   const artwork = buildOfficialArtworkAsset(song, recipe);
   if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
@@ -529,8 +545,11 @@ function buildVecSequence(song, recipe, pools) {
   const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');
   const imageAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type !== 'clip');
   const bag = orderVecShuffleBag(videoAssets.length ? videoAssets : imageAssets);
-  const artworkRules = recipe?.artwork || {};
-  const sequence = bag.length ? bag : (artwork ? [artwork] : []);
+  const artworkRules = normalizeVecArtworkRules(recipe?.artwork || {});
+  const sequence = [];
+  if (artwork && artworkRules.startWithArtwork) sequence.push({ ...artwork, durationSeconds: artworkRules.startDurationSeconds });
+  sequence.push(...bag);
+  if (!sequence.length && artwork) sequence.push(artwork);
   const diagnosticsEnabled = getVecSongDiagnosticsEnabled(song);
   if (diagnosticsEnabled) {
     const folderDiagnostics = buildVecFolderDiagnostics(recipe, pools, bag);
@@ -556,7 +575,7 @@ function buildVecSequence(song, recipe, pools) {
     shuffled_clip_id_order: bag.map(asset => asset.id || asset.key),
     failed_clip_ids: []
   });
-  if (artwork && !sequence.length && artworkRules.start_with_artwork !== false) return [artwork];
+  if (artwork && !sequence.length && artworkRules.startWithArtwork) return [artwork];
   return sequence;
 }
 
@@ -3504,6 +3523,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [visualIndex, setVisualIndex] = useState(0);
+  const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [], artworkRules: null });
+  const [timedArtworkOverride, setTimedArtworkOverride] = useState(null);
   const [visualSequenceState, setVisualSequenceState] = useState({ songKey: '', assets: [] });
   const [visualMediaState, setVisualMediaState] = useState(VEC_MEDIA_STATES.IDLE);
   const [visibleClipKey, setVisibleClipKey] = useState('');
@@ -3521,6 +3542,8 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const onVideoCompleteRef = useRef(onVideoComplete);
   const onYouTubeEndedRef = useRef(onYouTubeEnded);
   const visualRotationTimerRef = useRef(null);
+  const endArtworkActiveRef = useRef(false);
+  const lastRepeatSlotRef = useRef(0);
   const visualMediaSessionRef = useRef({ token: '', failedVisualAssetIds: new Set(), transition: 0 });
   useEffect(() => { onVideoStartRef.current = onVideoStart; }, [onVideoStart]);
   useEffect(() => { onVideoCompleteRef.current = onVideoComplete; }, [onVideoComplete]);
@@ -3584,7 +3607,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       const sequenceCount = Array.isArray(recipe.sequence) ? recipe.sequence.length : 0;
       vecPlayerLog('recipe loaded', { song_key: songKey, found: true, visual_mode: recipe.visual_mode || 'custom', sequence_count: sequenceCount });
       if (recipe.visual_mode === 'artwork_only') {
-        return buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] });
+        return { assets: buildVecSequence(song, recipe, { songAssets: [], folderAssets: [], borrowedAssets: [] }), artworkRules: normalizeVecArtworkRules(recipe.artwork || {}) };
       }
 
       const songAssetsData = await fetchJsonNoStore(`${VEC_SONG_ASSETS_API_URL}?song_key=${encodeURIComponent(songKey)}`, { signal }).catch(error => {
@@ -3628,8 +3651,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       vecPlayerLog('borrowed assets', borrowedAssets.length);
 
       const sequence = buildVecSequence(song, recipe, { songAssets, folderAssets, folderAssetsBeforeDedupe: folderAssets, borrowedAssets });
+      const artworkRules = normalizeVecArtworkRules(recipe.artwork || {});
+      vecArtworkTransitionLog('recipe rules', { song_key: songKey, ...artworkRules });
       vecPlayerLog('final visual sequence count', sequence.length);
-      return sequence;
+      return { assets: sequence, artworkRules };
     } catch (error) {
       if (error?.name !== 'AbortError') console.warn(VEC_PLAYER_LOG_PREFIX, 'recipe fetch failed; using existing visuals', error?.message || error);
       return null;
@@ -3654,6 +3679,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     const sequenceSongKey = selected?.songKey || selected?.idx || '';
     clearVisualRotation();
     setVisualIndex(0);
+    setVisualSequenceState({ songKey: '', assets: [], artworkRules: null });
+    setTimedArtworkOverride(null);
+    endArtworkActiveRef.current = false;
+    lastRepeatSlotRef.current = 0;
+    vecArtworkTransitionLog('song changed reset', { song_key: sequenceSongKey });
     visualMediaSessionRef.current = { token: '', failedVisualAssetIds: new Set(), transition: 0 };
     setVisualMediaState(VEC_MEDIA_STATES.IDLE);
     setVisibleClipKey('');
@@ -3663,15 +3693,18 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
     let disposed = false;
     loadVecRecipeVisuals(selected, { signal: controller.signal }).then(async vecSequence => {
       if (disposed || controller.signal.aborted) return;
-      if (Array.isArray(vecSequence) && vecSequence.length) {
+      if (Array.isArray(vecSequence?.assets) && vecSequence.assets.length) {
         return vecSequence;
+      }
+      if (Array.isArray(vecSequence) && vecSequence.length) {
+        return { assets: vecSequence, artworkRules: null };
       }
       return loadVe10bVisualSettings(selected, { signal: controller.signal });
     }).then(async sequence => {
       if (disposed || controller.signal.aborted) return;
-      if (Array.isArray(sequence)) {
+      if (Array.isArray(sequence?.assets)) {
         setCurrentVisualImages([]);
-        setVisualSequenceState({ songKey: sequenceSongKey, assets: sequence });
+        setVisualSequenceState({ songKey: sequenceSongKey, assets: sequence.assets, artworkRules: sequence.artworkRules || null });
         return;
       }
       const images = await fetchSongVisuals(selected, { signal: controller.signal });
@@ -3683,6 +3716,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
       controller.abort();
       clearVisualRotation();
       setCurrentVisualImages([]);
+      setVisualSequenceState({ songKey: '', assets: [], artworkRules: null });
+      setTimedArtworkOverride(null);
+      endArtworkActiveRef.current = false;
+      lastRepeatSlotRef.current = 0;
+      vecArtworkTransitionLog('song changed reset', { song_key: sequenceSongKey });
       setVisualMediaState(VEC_MEDIA_STATES.IDLE);
       setVisibleClipKey('');
       setVisualSequenceState({ songKey: '', assets: [] });
@@ -3727,6 +3765,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const visualSequence = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.assets : [];
   const hasEnhancedVisuals = visualSequence.length > 0;
   const apiVisualImage = currentVisualImages.length ? currentVisualImages[currentVisualIndex % currentVisualImages.length] : null;
+  const artworkRules = visualSequenceState.songKey === visualSequenceSongKey ? visualSequenceState.artworkRules : null;
+  const secondsRemaining = Number.isFinite(duration) && duration > 0 ? Math.max(0, duration - currentTime) : Infinity;
+  const forceEndArtwork = Boolean(artworkRules?.endWithArtwork && posterImage && Number.isFinite(duration) && duration > 0 && secondsRemaining <= artworkRules.endDurationSeconds);
+  const activeVisualAsset = forceEndArtwork || timedArtworkOverride ? null : (apiVisualImage || (hasEnhancedVisuals ? visualSequence[visualIndex % visualSequence.length] : null));
   const selectableVisualSequence = hasEnhancedVisuals ? visualSequence.filter(asset => !visualMediaSessionRef.current.failedVisualAssetIds.has(clean(asset?.id || asset?.key || asset?.url))) : [];
   const activeVisualAsset = apiVisualImage || (selectableVisualSequence.length ? selectableVisualSequence[visualIndex % selectableVisualSequence.length] : null);
   const activeVisualKey = activeVisualAsset ? `${activeVisualAsset.type}:${activeVisualAsset.url}` : '';
@@ -3739,10 +3781,37 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
 
   useEffect(() => {
+    if (!artworkRules || !posterImage || isVideoMode) return;
+    const logPayload = { song_key: visualSequenceSongKey, currentTime, duration, secondsRemaining, endDurationSeconds: artworkRules.endDurationSeconds, forceEndArtwork };
+    if (forceEndArtwork) {
+      setTimedArtworkOverride(null);
+      if (!endArtworkActiveRef.current) {
+        endArtworkActiveRef.current = true;
+        vecArtworkTransitionLog('end override started', logPayload);
+        vecArtworkTransitionLog('seconds remaining', logPayload);
+      }
+      return;
+    }
+    if (endArtworkActiveRef.current) {
+      endArtworkActiveRef.current = false;
+      vecArtworkTransitionLog('end override cleared', logPayload);
+    }
+    if (!artworkRules.rePresentArtwork || !Number.isFinite(currentTime) || currentTime <= 0) return;
+    const repeatEvery = Number(artworkRules.repeatEverySeconds) || 60;
+    const repeatSlot = Math.floor(currentTime / repeatEvery);
+    if (repeatSlot > 0 && repeatSlot !== lastRepeatSlotRef.current) {
+      lastRepeatSlotRef.current = repeatSlot;
+      setTimedArtworkOverride({ slot: repeatSlot });
+      vecArtworkTransitionLog('repeated artwork started', logPayload);
+      window.setTimeout(() => setTimedArtworkOverride(current => current?.slot === repeatSlot ? null : current), Math.max(1, Number(artworkRules.startDurationSeconds) || 4) * 1000);
+    }
+  }, [artworkRules, posterImage, isVideoMode, forceEndArtwork, currentTime, duration, secondsRemaining, visualSequenceSongKey]);
+
+  useEffect(() => {
     if (visualSequenceState.songKey === visualSequenceSongKey && visualSequenceState.assets.length) return;
     if (!canUseEnhancedVisuals) return;
     setVisualIndex(0);
-    setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected) });
+    setVisualSequenceState({ songKey: visualSequenceSongKey, assets: buildVisualSequence(selected), artworkRules: null });
   }, [selected?.idx, selected?.songKey, selected?.enhancedVisualsEnabled, selected?.shuffleVisuals, selected?.visualAssets, selected?.visual_assets, canUseEnhancedVisuals, visualSequenceSongKey, visualSequenceState.songKey, visualSequenceState.assets.length]);
 
   const skipVisualAsset = useCallback((assetUrl, reason = 'failed') => {
@@ -3851,6 +3920,11 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   useEffect(() => {
     const clip = visualClipRef.current;
     if (!clip || !activeVisualIsClip || mediaMode === 'video') return;
+    clip.muted = true;
+    clip.defaultMuted = true;
+    clip.volume = 0;
+    clip.playsInline = true;
+    if (forceEndArtwork || timedArtworkOverride || !isPlaying) {
     applyMutedVideoSettings(clip);
     if (!isPlaying) {
       clip.pause?.();
@@ -3863,6 +3937,7 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
         skipVisualAsset(activeVisualAsset?.url, 'resume rejected');
       });
     }
+  }, [activeVisualIsClip, activeVisualKey, activeVisualAsset?.url, isPlaying, mediaMode, forceEndArtwork, timedArtworkOverride, skipVisualAsset]);
   }, [activeVisualIsClip, activeVisualKey, activeVisualId, activeVisualAsset?.url, isPlaying, mediaMode, skipVisualAsset, visualSequenceSongKey]);
 
   useEffect(() => {

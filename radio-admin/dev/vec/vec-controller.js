@@ -977,6 +977,7 @@
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
     const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), artworkOverride: null, endArtworkActive: false, lastRepeatSlot: 0 };
     const previewState = { sequence: buildPreviewSequence(state), index: 0, isPlaying: false, timerId: null, preloadCache: new Map(), mediaState: VEC_PREVIEW_MEDIA_STATES.IDLE, transitionId: 0, failedPreviewAssetIds: new Set() };
 
     container.innerHTML = `
@@ -1035,7 +1036,7 @@
 
     function schedulePreviewTick() {
       stopPreviewTimer();
-      if (!previewState.isPlaying || !previewState.sequence.length) return;
+      if (!previewState.isPlaying || !previewState.sequence.length || previewState.artworkOverride) return;
       const visual = previewState.sequence[previewState.index] || {};
       const durationMs = Math.max(1, Number(visual.durationSeconds) || 4) * 1000;
       previewState.timerId = window.setTimeout(() => {
@@ -1055,9 +1056,47 @@
       return 0;
     }
 
+    function syncPreviewArtworkOverride() {
+      const artworkUrl = getArtworkUrl(state.songContext);
+      const duration = Number.isFinite(previewAudio.duration) ? previewAudio.duration : 0;
+      const currentTime = Number.isFinite(previewAudio.currentTime) ? previewAudio.currentTime : 0;
+      const rules = state.artworkRules || DEFAULT_ARTWORK_RULES;
+      const secondsRemaining = duration > 0 ? Math.max(0, duration - currentTime) : Infinity;
+      const forceEndArtwork = Boolean(rules.endWithArtwork && artworkUrl && duration > 0 && secondsRemaining <= (Number(rules.endDurationSeconds) || 4));
+      if (forceEndArtwork) {
+        previewState.artworkOverride = { type: 'artwork', label: 'Ending artwork', url: artworkUrl, alt: `${state.songContext?.display_title || state.songContext?.song_name || 'Song'} official artwork`, durationSeconds: Number(rules.endDurationSeconds) || 4, overrideType: 'end' };
+        previewState.endArtworkActive = true;
+        stopPreviewTimer();
+        return;
+      }
+      if (previewState.artworkOverride?.overrideType === 'end') previewState.artworkOverride = null;
+      previewState.endArtworkActive = false;
+      if (!rules.rePresentArtwork || !artworkUrl || duration <= 0 || secondsRemaining <= (Number(rules.endDurationSeconds) || 4)) return;
+      const repeatEvery = Number(rules.repeatEverySeconds) || 60;
+      const repeatSlot = Math.floor(currentTime / repeatEvery);
+      if (repeatSlot > 0 && repeatSlot !== previewState.lastRepeatSlot) {
+        previewState.lastRepeatSlot = repeatSlot;
+        previewState.artworkOverride = { type: 'artwork', label: 'Repeated artwork', url: artworkUrl, alt: `${state.songContext?.display_title || state.songContext?.song_name || 'Song'} official artwork`, durationSeconds: Number(rules.startDurationSeconds) || 4, overrideType: 'repeat', slot: repeatSlot };
+        stopPreviewTimer();
+        window.setTimeout(() => {
+          if (previewState.artworkOverride?.overrideType === 'repeat' && previewState.artworkOverride.slot === repeatSlot) {
+            previewState.artworkOverride = null;
+            syncVisualToAudioTime();
+            updatePreviewOnly();
+            schedulePreviewTick();
+          }
+        }, Math.max(1, Number(rules.startDurationSeconds) || 4) * 1000);
+      }
+    }
+
+    function getEffectivePreviewVisual() {
+      return previewState.artworkOverride || previewState.sequence[previewState.index] || null;
+    }
+
     function syncVisualToAudioTime() {
       if (!getAudioUrl(state.songContext)) return;
-      previewState.index = getVisualIndexForTime(previewAudio.currentTime || 0);
+      syncPreviewArtworkOverride();
+      if (!previewState.artworkOverride) previewState.index = getVisualIndexForTime(previewAudio.currentTime || 0);
     }
 
     function updateScrubber() {
@@ -1252,7 +1291,7 @@
         video.preload = 'auto';
         video.controls = false;
         video.dataset.vecPreviewVideo = '';
-        video.onended = () => nextPreviewVisual({ keepPlaying: previewState.isPlaying });
+        video.onended = () => { if (!previewState.artworkOverride) nextPreviewVisual({ keepPlaying: previewState.isPlaying }); };
         layer.appendChild(video);
         return layer;
       }
@@ -1358,6 +1397,7 @@
     async function updatePreviewMedia() {
       ensurePreviewShell();
       const title = state.songContext ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
+      const visual = state.songContext ? getEffectivePreviewVisual() : null;
       const availableSequence = state.songContext ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
       const visual = state.songContext ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
       const nextKey = getVisualKey(visual);
@@ -1410,6 +1450,7 @@
       const title = hasSong ? (state.songContext.display_title || state.songContext.song_name || 'Untitled song') : 'VEC Preview';
       const artist = hasSong ? (state.songContext.artist || 'Artist unavailable') : 'Artist unavailable';
       const genre = hasSong ? clean(state.songContext.genre) : '';
+      const visual = hasSong ? getEffectivePreviewVisual() : null;
       const availableSequence = hasSong ? previewState.sequence.filter((item) => !previewState.failedPreviewAssetIds.has(clean(item?.id || item?.key || item?.url))) : [];
       const visual = hasSong ? (availableSequence[previewState.index % Math.max(availableSequence.length, 1)] || null) : null;
       const visualTypeLabel = visual ? (visual.type === 'clip' ? 'Video clip' : (visual.type === 'image' ? 'Image' : 'Artwork')) : '';
@@ -1589,6 +1630,9 @@
       previewState.failedPreviewAssetIds = new Set();
       previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
       previewState.index = 0;
+      previewState.artworkOverride = null;
+      previewState.endArtworkActive = false;
+      previewState.lastRepeatSlot = 0;
     }
 
     function applyRecipe(recipe) {
@@ -1710,6 +1754,7 @@
     function renderDynamic() {
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
+      syncPreviewArtworkOverride();
       updatePreviewOnly();
       elements.artworkStatus.innerHTML = renderArtworkStatus(state.songContext);
       if (elements.songAssets) elements.songAssets.innerHTML = renderSongAssets(state);
@@ -1747,6 +1792,7 @@
       previewState.isPlaying = false;
       previewAudio.pause();
       stopPreviewTimer();
+      syncVisualToAudioTime();
       updateScrubber();
       updatePreviewOnly();
     }
@@ -1755,6 +1801,9 @@
       previewState.failedPreviewAssetIds = new Set();
       previewState.mediaState = VEC_PREVIEW_MEDIA_STATES.IDLE;
       previewState.index = 0;
+      previewState.artworkOverride = null;
+      previewState.endArtworkActive = false;
+      previewState.lastRepeatSlot = 0;
       if (getAudioUrl(state.songContext)) previewAudio.currentTime = 0;
       updateScrubber();
       updatePreviewOnly();
@@ -1763,6 +1812,7 @@
 
     function nextPreviewVisual({ keepPlaying = previewState.isPlaying } = {}) {
       if (!state.songContext || !previewState.sequence.length) return;
+      if (previewState.artworkOverride) return;
       previewState.index = previewState.sequence.length > 1 ? (previewState.index + 1) % previewState.sequence.length : 0;
       previewState.isPlaying = keepPlaying;
       updatePreviewOnly();
@@ -2297,7 +2347,7 @@
     elements.nextButton.addEventListener('click', () => nextPreviewVisual({ keepPlaying: previewState.isPlaying }));
     previewAudio.addEventListener('loadedmetadata', updateScrubber);
     previewAudio.addEventListener('durationchange', updateScrubber);
-    previewAudio.addEventListener('timeupdate', updateScrubber);
+    previewAudio.addEventListener('timeupdate', () => { syncVisualToAudioTime(); updateScrubber(); updatePreviewOnly(); });
     previewAudio.addEventListener('ended', () => {
       previewState.isPlaying = false;
       stopPreviewTimer();
