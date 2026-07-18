@@ -2235,21 +2235,40 @@ function normalizeVisualsFolderAsset(row) {
 
 async function getVisualsFolderAssets(folderId) {
   let assets = [];
+  let folder = null;
   try {
-    const result = await client.query(
-      `SELECT *
-       FROM ${qname('visuals_folder_assets')}
-       WHERE folder_id = $1 AND status <> 'hidden' AND public_url IS NOT NULL AND public_url <> ''
-       ORDER BY created_at ASC, file_name ASC NULLS LAST`,
+    const folderResult = await client.query(
+      `SELECT id, folder_name, folder_slug, status
+       FROM ${qname('visuals_folders')}
+       WHERE id = $1
+       LIMIT 1`,
       [folderId]
     );
-    assets = result.rows.map(normalizeVisualsFolderAsset);
+    folder = folderResult.rows[0] || null;
+    if (folder && String(folder.status || '').toLowerCase() === 'active') {
+      const result = await client.query(
+        `SELECT *
+         FROM ${qname('visuals_folder_assets')}
+         WHERE folder_id = $1 AND status <> 'hidden' AND public_url IS NOT NULL AND public_url <> ''
+         ORDER BY created_at ASC, file_name ASC NULLS LAST`,
+        [folderId]
+      );
+      assets = result.rows.map(normalizeVisualsFolderAsset).map((asset) => ({
+        ...asset,
+        folder_name: folder.folder_name || '',
+        source_folder_name: folder.folder_name || '',
+        folder_status: folder.status || ''
+      }));
+    }
   } catch (error) {
     if (error?.code !== '42P01') throw error;
   }
   return {
     success: true,
     folder_id: folderId,
+    folder_name: folder?.folder_name || '',
+    folder_slug: folder?.folder_slug || '',
+    folder_status: folder?.status || '',
     images: assets.filter((asset) => asset.asset_type === 'image'),
     clips: assets.filter((asset) => asset.asset_type === 'clip'),
     assets
