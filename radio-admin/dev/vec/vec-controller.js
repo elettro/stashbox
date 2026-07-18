@@ -1346,7 +1346,6 @@
       if (visual.type === 'clip') {
         const video = document.createElement('video');
         video.src = visual.url;
-        video.poster = getArtworkUrl(state.songContext) || '';
         applyMutedVideoSettings(video);
         video.preload = 'auto';
         video.controls = false;
