@@ -12,9 +12,42 @@ jobs:
   live-status:
     runs-on: ubuntu-latest
     env:
+      AWS_REGION: us-east-1
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect Lambda Video Factory configuration and VPC routes
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "${LAMBDA_NAME}" \
+            --query '{FunctionName:FunctionName,Timeout:Timeout,VpcConfig:VpcConfig,VideoFactoryEnv:Environment.Variables.{Cluster:VIDEO_FACTORY_ECS_CLUSTER,Task:VIDEO_FACTORY_ECS_TASK_DEFINITION,Subnets:VIDEO_FACTORY_ECS_SUBNETS,SecurityGroups:VIDEO_FACTORY_ECS_SECURITY_GROUPS,Bucket:VIDEO_FACTORY_RENDER_BUCKET,ApiBase:VIDEO_FACTORY_API_BASE}}' \
+            --output json
+
+          VPC_ID=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --query 'VpcConfig.VpcId' --output text)
+          SUBNETS=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --query 'VpcConfig.SubnetIds' --output text)
+          echo "LAMBDA_VPC_ID=${VPC_ID}"
+          echo "LAMBDA_SUBNETS=${SUBNETS}"
+
+          if [ -n "${VPC_ID}" ] && [ "${VPC_ID}" != "None" ]; then
+            aws ec2 describe-route-tables \
+              --filters "Name=vpc-id,Values=${VPC_ID}" \
+              --query 'RouteTables[].{RouteTableId:RouteTableId,Associations:Associations[].SubnetId,Routes:Routes[].{Destination:DestinationCidrBlock,GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
+              --output json
+          fi
+
+      - name: Read recent Lambda logs when permitted
+        continue-on-error: true
+        run: aws logs tail "/aws/lambda/${LAMBDA_NAME}" --since 15m --format short
+
       - name: Read Video Factory infrastructure and jobs
         run: |
           node <<'NODE'
@@ -63,8 +96,6 @@ jobs:
               status_message: runtime.status_message || '',
               error_message: job.error_message || '',
               output_filename: job.output_filename || '',
-              output_url: job.output_url || '',
-              thumbnail_url: job.thumbnail_url || '',
               created_at: job.created_at,
               updated_at: job.updated_at
             }));
