@@ -6,6 +6,7 @@ import {
 } from './routes.mjs';
 import {
   cancelVideoFactoryJob,
+  checkVideoFactoryInfrastructure,
   completeVideoFactoryJob,
   getVideoFactorySignedAsset,
   launchVideoFactoryJob,
@@ -21,6 +22,15 @@ export { getVideoFactoryRouteMatch };
 export async function handleAdminVideoFactoryRoute(event, dependencies = {}) {
   const route = getVideoFactoryRouteMatch(dependencies.getRouteSegments(event));
   const method = methodFor(event);
+
+  if (route.isRoute && route.resource === 'infrastructure' && !route.jobId) {
+    if (method === 'OPTIONS') return dependencies.response(204, {});
+    await dependencies.requireAdmin(event);
+    if (method !== 'GET') return dependencies.response(404, { success: false, error: 'Not found.' });
+    const infrastructure = await checkVideoFactoryInfrastructure(dependencies);
+    return dependencies.response(200, infrastructure);
+  }
+
   const action = route.action;
   const actionRoute = route.isRoute && route.resource === 'jobs' && route.jobId && action;
 
