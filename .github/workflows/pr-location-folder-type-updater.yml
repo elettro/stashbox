@@ -1,0 +1,189 @@
+name: Temporary Location Folder Type Updater
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-location-folder-type-updater.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'radio/visual-experience/dev/index.html'
+      - 'radio-api/index.mjs'
+      - 'radio-admin/dev/ads/migrations/create_visuals_folders.sql'
+      - 'radio-admin/ads/migrations/create_visuals_folders.sql'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  apply-location-folder-type:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Patch Visual Library, API, and baseline migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file_path = Path(path)
+              text = file_path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}: {old[:120]}')
+              file_path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          html = 'radio/visual-experience/dev/index.html'
+          replace_once(
+              html,
+              '<option>Campaign</option><option>Brand</option></select></label><label>Status',
+              '<option>Campaign</option><option>Brand</option><option>Location</option></select></label><label>Status'
+          )
+          replace_once(
+              html,
+              '<option>Campaign</option><option>Brand</option></select></div><p id="folderCount"',
+              '<option>Campaign</option><option>Brand</option><option>Location</option></select></div><p id="folderCount"'
+          )
+          replace_once(
+              html,
+              "const typeLabels={general:'General',artist:'Artist',song:'Song',genre:'Genre',mood:'Mood',global:'Global',campaign:'Campaign',brand:'Brand'};",
+              "const typeLabels={general:'General',artist:'Artist',song:'Song',genre:'Genre',mood:'Mood',global:'Global',campaign:'Campaign',brand:'Brand',location:'Location'};"
+          )
+
+          api = 'radio-api/index.mjs'
+          replace_once(
+              api,
+              "const VISUALS_FOLDER_TYPES = new Set(['general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand']);\nconst VISUALS_FOLDER_STATUSES",
+              "const VISUALS_FOLDER_TYPES = new Set(['general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location']);\nconst VISUALS_FOLDER_STATUSES"
+          )
+          replace_once(
+              api,
+              "if (!VISUALS_FOLDER_TYPES.has(folderType)) return { error: 'folder_type must be one of: general, artist, song, genre, mood, global, campaign, brand.' };",
+              "if (!VISUALS_FOLDER_TYPES.has(folderType)) return { error: 'folder_type must be one of: general, artist, song, genre, mood, global, campaign, brand, location.' };"
+          )
+
+          api_path = Path(api)
+          api_text = api_path.read_text(encoding='utf-8')
+          anchor = "const VISUALS_FOLDER_PRIORITIES = new Set(['high', 'medium', 'low']);\n\nfunction slugify(value)"
+          helper = """const VISUALS_FOLDER_PRIORITIES = new Set(['high', 'medium', 'low']);
+
+async function ensureVisualsFolderTypeConstraint() {
+  const result = await client.query(
+    `SELECT pg_get_constraintdef(c.oid) AS definition
+     FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = $1
+       AND t.relname = 'visuals_folders'
+       AND c.conname = 'visuals_folders_folder_type_check'
+     LIMIT 1`,
+    [getDbSchema()]
+  );
+  const definition = String(result.rows[0]?.definition || '').toLowerCase();
+  if (definition.includes("'location'")) return;
+
+  await client.query(`ALTER TABLE ${qname('visuals_folders')} DROP CONSTRAINT IF EXISTS visuals_folders_folder_type_check`);
+  await client.query(`ALTER TABLE ${qname('visuals_folders')} ADD CONSTRAINT visuals_folders_folder_type_check CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location'))`);
+}
+
+function slugify(value)"""
+          if api_text.count(anchor) != 1:
+              raise SystemExit(f'{api}: helper anchor count was {api_text.count(anchor)}')
+          api_text = api_text.replace(anchor, helper, 1)
+
+          route_anchor = "async function handleAdminVisualsFoldersRoute(event) {\n  await requireAdmin(event);\n  const method = getMethod(event).toUpperCase();"
+          route_replacement = "async function handleAdminVisualsFoldersRoute(event) {\n  await requireAdmin(event);\n  const method = getMethod(event).toUpperCase();\n  if (method === 'POST' || method === 'PUT') await ensureVisualsFolderTypeConstraint();"
+          if api_text.count(route_anchor) != 1:
+              raise SystemExit(f'{api}: route anchor count was {api_text.count(route_anchor)}')
+          api_text = api_text.replace(route_anchor, route_replacement, 1)
+          api_path.write_text(api_text, encoding='utf-8')
+
+          for migration in [
+              'radio-admin/dev/ads/migrations/create_visuals_folders.sql',
+              'radio-admin/ads/migrations/create_visuals_folders.sql'
+          ]:
+              replace_once(
+                  migration,
+                  "CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand'))",
+                  "CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location'))"
+              )
+          PY
+
+          node --check radio-api/index.mjs
+          git diff --check
+
+      - name: Restore updater workflow and commit feature files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/pr-location-folder-type-updater.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/visual-experience/dev/index.html radio-api/index.mjs radio-admin/dev/ads/migrations/create_visuals_folders.sql radio-admin/ads/migrations/create_visuals_folders.sql .github/workflows/pr-location-folder-type-updater.yml
+          git commit -m 'Add Location visual folder type'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+  deploy-location-folder-type-dev:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+    steps:
+      - name: Dispatch TRUE DEV Lambda deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run deploy-true-dev-lambda.yml --repo "${GITHUB_REPOSITORY}" --ref main
+
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow deploy-true-dev-lambda.yml \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${STARTED_AT}\")) | sort_by(.createdAt) | last | .databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+
+          test -n "${RUN_ID}" || { echo 'TRUE DEV deployment run could not be located.' >&2; exit 1; }
+          echo "TRUE_DEV_DEPLOYMENT_RUN_ID=${RUN_ID}"
+          gh run watch "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --exit-status
+
+      - name: Verify Location folder type end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="Location Type Verification $(date -u +%Y%m%dT%H%M%SZ)"
+          CREATE_RESPONSE=$(curl --fail-with-body --silent --show-error \
+            -X POST "${API_BASE}/admin/visuals/folders" \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'content-type: application/json' \
+            --data "{\"folder_name\":\"${NAME}\",\"folder_type\":\"location\",\"description\":\"Temporary automated verification\",\"status\":\"hidden\",\"priority\":\"low\",\"notes\":\"Delete after verification\",\"relevant_artists\":[],\"relevant_genres\":[],\"relevant_moods\":[],\"relevant_songs\":[]}")
+
+          export CREATE_RESPONSE
+          FOLDER_ID=$(node -e "const b=JSON.parse(process.env.CREATE_RESPONSE); if(!b.success||b.folder?.folder_type!=='location'||!b.folder?.id) process.exit(1); process.stdout.write(b.folder.id)")
+          echo "LOCATION_FOLDER_CREATED=${FOLDER_ID}"
+
+          curl --fail-with-body --silent --show-error \
+            -X DELETE "${API_BASE}/admin/visuals/folders/${FOLDER_ID}" \
+            -H "x-admin-token: ${ADMIN_TOKEN}" >/dev/null
+          echo 'LOCATION_FOLDER_CREATE_DELETE_VERIFIED=true'
