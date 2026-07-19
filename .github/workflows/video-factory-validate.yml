@@ -73,4 +73,16 @@ jobs:
         run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
 
       - name: Run FFmpeg container smoke render
-        run: docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs
+        id: smoke_render
+        run: |
+          set -o pipefail
+          docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs 2>&1 | tee video-factory-smoke-render.log
+
+      - name: Upload FFmpeg smoke diagnostics
+        if: failure() && steps.smoke_render.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-factory-smoke-render-log
+          path: video-factory-smoke-render.log
+          if-no-files-found: error
+          retention-days: 3
