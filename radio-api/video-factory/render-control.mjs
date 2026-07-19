@@ -1,6 +1,16 @@
 import crypto from 'node:crypto';
-import { ECSClient, RunTaskCommand, StopTaskCommand } from '@aws-sdk/client-ecs';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DescribeClustersCommand,
+  DescribeTaskDefinitionCommand,
+  ECSClient,
+  RunTaskCommand,
+  StopTaskCommand
+} from '@aws-sdk/client-ecs';
+import {
+  GetObjectCommand,
+  HeadBucketCommand,
+  S3Client
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getVideoFactoryJob } from './routes.mjs';
 
@@ -47,12 +57,25 @@ function requiredConfig(name, value) {
 }
 
 export function getRenderInfrastructureConfig(env = process.env) {
+  const subnets = csvValues(requiredConfig('VIDEO_FACTORY_ECS_SUBNETS', env.VIDEO_FACTORY_ECS_SUBNETS));
+  const securityGroups = csvValues(requiredConfig('VIDEO_FACTORY_ECS_SECURITY_GROUPS', env.VIDEO_FACTORY_ECS_SECURITY_GROUPS));
+  if (!subnets.length) {
+    const error = new Error('Video Factory render infrastructure is not configured: VIDEO_FACTORY_ECS_SUBNETS.');
+    error.statusCode = 503;
+    throw error;
+  }
+  if (!securityGroups.length) {
+    const error = new Error('Video Factory render infrastructure is not configured: VIDEO_FACTORY_ECS_SECURITY_GROUPS.');
+    error.statusCode = 503;
+    throw error;
+  }
+
   return {
     cluster: requiredConfig('VIDEO_FACTORY_ECS_CLUSTER', env.VIDEO_FACTORY_ECS_CLUSTER),
     taskDefinition: requiredConfig('VIDEO_FACTORY_ECS_TASK_DEFINITION', env.VIDEO_FACTORY_ECS_TASK_DEFINITION),
     containerName: stringValue(env.VIDEO_FACTORY_ECS_CONTAINER_NAME) || 'video-factory-renderer',
-    subnets: csvValues(requiredConfig('VIDEO_FACTORY_ECS_SUBNETS', env.VIDEO_FACTORY_ECS_SUBNETS)),
-    securityGroups: csvValues(requiredConfig('VIDEO_FACTORY_ECS_SECURITY_GROUPS', env.VIDEO_FACTORY_ECS_SECURITY_GROUPS)),
+    subnets,
+    securityGroups,
     outputBucket: requiredConfig('VIDEO_FACTORY_RENDER_BUCKET', env.VIDEO_FACTORY_RENDER_BUCKET),
     apiBase: requiredConfig('VIDEO_FACTORY_API_BASE', env.VIDEO_FACTORY_API_BASE),
     outputPrefix: stringValue(env.VIDEO_FACTORY_OUTPUT_PREFIX) || 'video-factory'
@@ -97,6 +120,49 @@ export function buildRunTaskInput(job, config) {
     ],
     enableECSManagedTags: true,
     propagateTags: 'TASK_DEFINITION'
+  };
+}
+
+export async function checkVideoFactoryInfrastructure(dependencies = {}) {
+  const config = dependencies.renderConfig || getRenderInfrastructureConfig(dependencies.env || process.env);
+  const region = stringValue(dependencies.env?.AWS_REGION || process.env.AWS_REGION) || 'us-east-1';
+  const ecsClient = dependencies.ecsClient || new ECSClient({ region });
+  const s3Client = dependencies.s3Client || new S3Client({ region });
+
+  const [clusterResult, taskResult] = await Promise.all([
+    ecsClient.send(new DescribeClustersCommand({ clusters: [config.cluster] })),
+    ecsClient.send(new DescribeTaskDefinitionCommand({ taskDefinition: config.taskDefinition })),
+    s3Client.send(new HeadBucketCommand({ Bucket: config.outputBucket }))
+  ]);
+
+  const clusterFailure = clusterResult.failures?.[0];
+  const cluster = clusterResult.clusters?.[0];
+  if (clusterFailure || !cluster) {
+    const error = new Error(clusterFailure?.reason || 'Video Factory ECS cluster was not found.');
+    error.statusCode = 503;
+    throw error;
+  }
+  if (!taskResult.taskDefinition?.taskDefinitionArn) {
+    const error = new Error('Video Factory ECS task definition was not found.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return {
+    success: true,
+    configured: true,
+    region,
+    cluster_arn: cluster.clusterArn,
+    cluster_status: cluster.status,
+    registered_container_instances: cluster.registeredContainerInstancesCount || 0,
+    running_tasks: cluster.runningTasksCount || 0,
+    pending_tasks: cluster.pendingTasksCount || 0,
+    task_definition_arn: taskResult.taskDefinition.taskDefinitionArn,
+    task_cpu: taskResult.taskDefinition.cpu,
+    task_memory: taskResult.taskDefinition.memory,
+    output_bucket: config.outputBucket,
+    container_name: config.containerName,
+    concurrency: 1
   };
 }
 
@@ -167,12 +233,12 @@ async function reserveJobForLaunch(jobId, { client, qname }) {
 }
 
 export async function launchVideoFactoryJob(jobId, dependencies = {}) {
+  const config = dependencies.renderConfig || getRenderInfrastructureConfig(dependencies.env || process.env);
+  const input = buildRunTaskInput({ id: jobId }, config);
   const reservation = await reserveJobForLaunch(jobId, dependencies);
   if (reservation.error) return reservation;
 
-  const config = dependencies.renderConfig || getRenderInfrastructureConfig(dependencies.env || process.env);
   const ecsClient = dependencies.ecsClient || new ECSClient({ region: process.env.AWS_REGION || 'us-east-1' });
-  const input = buildRunTaskInput(reservation.job, config);
 
   try {
     const result = await ecsClient.send(new RunTaskCommand(input));
@@ -291,6 +357,20 @@ export async function completeVideoFactoryJob(jobId, input = {}, { client, qname
   if (!current) return { statusCode: 404, body: { success: false, error: 'Video Factory job not found.' } };
   if (current.status === 'cancelled') {
     return { statusCode: 409, body: { success: false, error: 'The render job was cancelled.' } };
+  }
+  if (current.status === 'completed') {
+    const existingOutput = current.outputs?.[0] || null;
+    return {
+      statusCode: 200,
+      body: {
+        success: true,
+        message: 'Video Factory render was already completed.',
+        job_id: jobId,
+        output_id: existingOutput?.id || null,
+        status: 'completed',
+        idempotent: true
+      }
+    };
   }
 
   const s3Bucket = stringValue(input.s3_bucket || input.s3Bucket);
