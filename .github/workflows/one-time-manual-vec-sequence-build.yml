@@ -31,8 +31,15 @@ jobs:
 
       - name: Validate and apply patch
         run: |
-          python -m py_compile /tmp/apply-manual-sequence.py
-          python /tmp/apply-manual-sequence.py
+          set -o pipefail
+          { python -m py_compile /tmp/apply-manual-sequence.py && python /tmp/apply-manual-sequence.py; } 2>&1 | tee /tmp/manual-sequence-patch.log
+
+      - name: Upload patch diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-sequence-patch-diagnostics
+          path: /tmp/manual-sequence-patch.log
 
       - name: Validate JavaScript syntax
         run: |
