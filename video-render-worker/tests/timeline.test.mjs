@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildRenderTimeline, seededShuffle } from '../src/timeline.mjs';
 
-test('seeded shuffle is deterministic and varies by seed', () => {
-  const source = ['a', 'b', 'c', 'd'];
-  assert.deepEqual(seededShuffle(source, 'seed-one'), seededShuffle(source, 'seed-one'));
-  assert.notDeepEqual(seededShuffle(source, 'seed-one'), seededShuffle(source, 'seed-two'));
-  assert.deepEqual(source, ['a', 'b', 'c', 'd']);
+test('seeded shuffle is deterministic and preserves the source pool', () => {
+  const source = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const first = seededShuffle(source, 'seed-one');
+  const repeated = seededShuffle(source, 'seed-one');
+  const secondSeed = seededShuffle(source, 'seed-two');
+
+  assert.deepEqual(first, repeated);
+  assert.deepEqual(first, ['d', 'f', 'e', 'a', 'b', 'c']);
+  assert.notDeepEqual(first, secondSeed);
+  assert.deepEqual(source, ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.deepEqual([...first].sort(), [...source].sort());
 });
 
 test('timeline covers the requested duration and exhausts the pool before repeating', () => {
