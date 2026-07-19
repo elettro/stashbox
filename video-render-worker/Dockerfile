@@ -17,4 +17,4 @@ COPY scripts ./scripts
 
 USER node
 
-CMD ["node", "src/index.mjs"]
+CMD ["node", "src/entry.mjs"]
