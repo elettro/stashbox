@@ -3,7 +3,10 @@ import { test } from 'node:test';
 import { buildOverlayFilter, escapeDrawtext } from '../src/ffmpeg.mjs';
 
 test('drawtext escaping protects filter separators', () => {
-  assert.equal(escapeDrawtext("Dean's: Song, 100%"), "Dean\'s\: Song\, 100\%");
+  assert.equal(
+    escapeDrawtext("Dean's: Song, 100%"),
+    String.raw`Dean\'s\: Song\, 100\%`
+  );
 });
 
 test('overlay filter contains valid drawtext syntax, intro, outro, and branding', () => {
