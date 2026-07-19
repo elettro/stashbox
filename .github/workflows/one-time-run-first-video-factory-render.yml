@@ -1,0 +1,211 @@
+name: One-Time Run First Video Factory DEV Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-run-first-video-factory-render.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: radio-api/docs/VIDEO_FACTORY_FIRST_RENDER_RESULT.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+      - name: Run Space Jam full-song render
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const api = String(process.env.API_BASE).replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          const reportPath = process.env.REPORT_PATH;
+          const headers = { accept: 'application/json', 'x-admin-token': token };
+
+          async function request(pathname, options = {}) {
+            const response = await fetch(`${api}${pathname}`, {
+              ...options,
+              headers: { ...headers, ...(options.headers || {}) }
+            });
+            const text = await response.text();
+            let body = null;
+            try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text.slice(0, 500) }; }
+            return { ok: response.ok, status: response.status, body };
+          }
+
+          function safeJob(job) {
+            if (!job) return null;
+            const runtime = job.render_recipe?.runtime || {};
+            return {
+              id: job.id,
+              batch_id: job.batch_id,
+              batch_name: job.batch_name,
+              song_key: job.song_key,
+              song_title: job.song_title,
+              artist: job.artist,
+              status: job.status,
+              progress_percent: runtime.progress_percent ?? (job.status === 'completed' ? 100 : 0),
+              status_message: runtime.status_message || '',
+              error_message: job.error_message || '',
+              output_filename: job.output_filename || '',
+              output_url: job.output_url || '',
+              thumbnail_url: job.thumbnail_url || '',
+              created_at: job.created_at,
+              updated_at: job.updated_at,
+              completed_at: job.completed_at
+            };
+          }
+
+          const report = {
+            captured_at: new Date().toISOString(),
+            infrastructure: null,
+            stranded_job_before: null,
+            stranded_job_after: null,
+            selected_song: null,
+            created_job: null,
+            launch_response: null,
+            final_job: null,
+            error: ''
+          };
+
+          try {
+            const infra = await request('/admin/video-factory/infrastructure');
+            if (!infra.ok || infra.body?.success !== true || infra.body?.configured !== true) {
+              throw new Error(`Infrastructure check failed: HTTP ${infra.status} ${JSON.stringify(infra.body)}`);
+            }
+            report.infrastructure = {
+              configured: infra.body.configured,
+              cluster_status: infra.body.cluster_status,
+              running_tasks: infra.body.running_tasks,
+              pending_tasks: infra.body.pending_tasks,
+              output_bucket: infra.body.output_bucket,
+              task_definition_arn: infra.body.task_definition_arn
+            };
+
+            const beforeJobs = await request('/admin/video-factory/jobs?limit=250');
+            if (!beforeJobs.ok) throw new Error(`Jobs list failed: HTTP ${beforeJobs.status}`);
+            const before = Array.isArray(beforeJobs.body?.jobs) ? beforeJobs.body.jobs : [];
+            report.stranded_job_before = safeJob(before.find(job => job.status === 'pending' && !job.render_recipe?.runtime?.ecs_task_arn));
+
+            const songsResult = await request('/admin/songs');
+            if (!songsResult.ok) throw new Error(`Song list failed: HTTP ${songsResult.status}`);
+            const songs = Array.isArray(songsResult.body?.songs)
+              ? songsResult.body.songs
+              : Array.isArray(songsResult.body) ? songsResult.body : [];
+            const song = songs.find(item => /space\s*jam/i.test(`${item.song_key || ''} ${item.song_name || ''} ${item.display_title || ''}`));
+            if (!song) throw new Error('A Space Jam song was not found in TRUE DEV Song CMS.');
+            report.selected_song = {
+              song_key: song.song_key,
+              title: song.display_title || song.song_name || song.song_key,
+              artist: song.artist || ''
+            };
+
+            const createResult = await request('/admin/video-factory/jobs', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                song_key: song.song_key,
+                batch_name: 'Space Jam First Full-Song Render',
+                client_name: 'Stashbox Radio',
+                project_name: 'Video Factory DEV End-to-End Test',
+                campaign_name: 'First Render',
+                duration_mode: 'full',
+                aspect_ratio: '16:9',
+                fps: 30,
+                intro_enabled: true,
+                outro_enabled: true,
+                corner_bug_enabled: true,
+                include_artist: true,
+                include_song: true,
+                include_album: true,
+                filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}'
+              })
+            });
+            if (!createResult.ok || !createResult.body?.job?.id) {
+              throw new Error(`Draft creation failed: HTTP ${createResult.status} ${JSON.stringify(createResult.body)}`);
+            }
+            const jobId = createResult.body.job.id;
+            report.created_job = safeJob(createResult.body.job);
+
+            const launchResult = await request(`/admin/video-factory/jobs/${jobId}/render`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: '{}'
+            });
+            report.launch_response = {
+              status: launchResult.status,
+              success: launchResult.body?.success === true,
+              message: launchResult.body?.message || '',
+              job_id: launchResult.body?.job_id || jobId,
+              task_arn: launchResult.body?.task_arn || '',
+              error: launchResult.body?.error || ''
+            };
+            if (!launchResult.ok) {
+              throw new Error(`Render launch failed: HTTP ${launchResult.status} ${JSON.stringify(launchResult.body)}`);
+            }
+
+            const afterLaunchJobs = await request('/admin/video-factory/jobs?limit=250');
+            const after = Array.isArray(afterLaunchJobs.body?.jobs) ? afterLaunchJobs.body.jobs : [];
+            if (report.stranded_job_before?.id) {
+              report.stranded_job_after = safeJob(after.find(job => job.id === report.stranded_job_before.id));
+            }
+
+            const terminal = new Set(['completed', 'failed', 'cancelled']);
+            const deadline = Date.now() + 45 * 60 * 1000;
+            while (Date.now() < deadline) {
+              await new Promise(resolve => setTimeout(resolve, 15000));
+              const jobResult = await request(`/admin/video-factory/jobs/${jobId}`);
+              if (!jobResult.ok || !jobResult.body?.job) continue;
+              report.final_job = safeJob(jobResult.body.job);
+              console.log(`Render status: ${report.final_job.status} ${report.final_job.progress_percent}% ${report.final_job.status_message}`);
+              if (terminal.has(report.final_job.status)) break;
+            }
+
+            if (!report.final_job) throw new Error('The render job could not be read after launch.');
+            if (report.final_job.status !== 'completed') {
+              throw new Error(`Render ended with status ${report.final_job.status}: ${report.final_job.error_message || report.final_job.status_message}`);
+            }
+          } catch (error) {
+            report.error = error.message;
+          }
+
+          const markdown = [
+            '# Video Factory First Render Result',
+            '',
+            `Captured: ${report.captured_at}`,
+            '',
+            '```json',
+            JSON.stringify(report, null, 2),
+            '```',
+            ''
+          ].join('\n');
+          fs.writeFileSync(reportPath, markdown);
+          console.log(markdown);
+          if (report.error) process.exitCode = 1;
+          NODE
+      - name: Commit final report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "${REPORT_PATH}" || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record first Video Factory DEV render result'
+          git push origin HEAD:main
