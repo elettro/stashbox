@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/one-time-deploy-video-factory-dev.yml'
 
+permissions:
+  contents: write
+
 jobs:
   deploy-true-dev-video-factory:
     name: Deploy Video Factory to TRUE DEV
@@ -83,3 +86,12 @@ jobs:
 
       - name: Run TRUE DEV smoke test
         run: node radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Record successful deployment
+        run: |
+          printf '# Video Factory TRUE DEV Deployment\n\nStatus: SUCCESS\nCommit: %s\nDeployed: %s UTC\nTarget: stashbox-radio-api-dev-v2\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M:%S')" > radio-api/docs/VIDEO_FACTORY_TRUE_DEV_DEPLOYED.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-api/docs/VIDEO_FACTORY_TRUE_DEV_DEPLOYED.md
+          git commit -m 'Record Video Factory TRUE DEV deployment'
+          git push
