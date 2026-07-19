@@ -1,0 +1,120 @@
+name: One-Time Diagnose Video Factory Endpoints
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-video-factory-endpoints.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: radio-api/docs/VIDEO_FACTORY_ENDPOINT_DIAGNOSTIC.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Capture endpoint and Lambda diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          START_MS=$(( $(date +%s) * 1000 ))
+          BODY=$(mktemp)
+          STATUS=$(curl --max-time 25 --silent --show-error \
+            -H 'accept: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o "${BODY}" -w '%{http_code}' \
+            "${API_BASE}/admin/video-factory/infrastructure" || true)
+          sleep 5
+
+          CONFIG=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json)
+          VPC_ID=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.VpcId')
+          SG_ID=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.SecurityGroupIds[0]')
+          ENDPOINTS=$(aws ec2 describe-vpc-endpoints \
+            --filters "Name=vpc-id,Values=${VPC_ID}" \
+            --query 'VpcEndpoints[].{Id:VpcEndpointId,Service:ServiceName,Type:VpcEndpointType,State:State,PrivateDns:PrivateDnsEnabled,Subnets:SubnetIds,RouteTables:RouteTableIds,Groups:Groups[].GroupId,Dns:DnsEntries[].DnsName}' \
+            --output json)
+          SECURITY_GROUP=$(aws ec2 describe-security-groups \
+            --group-ids "${SG_ID}" \
+            --query 'SecurityGroups[0].{GroupId:GroupId,Egress:IpPermissionsEgress}' \
+            --output json)
+          ENDPOINT_SGS=$(printf '%s' "${ENDPOINTS}" | jq -r '.[].Groups[]?' | sort -u | xargs -r aws ec2 describe-security-groups --group-ids 2>/dev/null || true)
+          ROUTES=$(aws ec2 describe-route-tables \
+            --filters "Name=vpc-id,Values=${VPC_ID}" \
+            --query 'RouteTables[].{Id:RouteTableId,Routes:Routes}' \
+            --output json)
+          LOGS=$(aws logs filter-log-events \
+            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
+            --start-time "${START_MS}" \
+            --query 'events[].message' \
+            --output text 2>&1 || true)
+
+          {
+            echo '# Video Factory Endpoint Diagnostic'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "- API status: ${STATUS}"
+            echo '- API body:'
+            echo '```json'
+            cat "${BODY}"
+            echo
+            echo '```'
+            echo
+            echo '- Lambda VPC configuration:'
+            echo '```json'
+            printf '%s' "${CONFIG}" | jq '{Timeout,VpcConfig,Environment:{Variables:{VIDEO_FACTORY_ECS_CLUSTER:.Environment.Variables.VIDEO_FACTORY_ECS_CLUSTER,VIDEO_FACTORY_ECS_TASK_DEFINITION:.Environment.Variables.VIDEO_FACTORY_ECS_TASK_DEFINITION,VIDEO_FACTORY_RENDER_BUCKET:.Environment.Variables.VIDEO_FACTORY_RENDER_BUCKET}}}'
+            echo '```'
+            echo
+            echo '- VPC endpoints:'
+            echo '```json'
+            printf '%s' "${ENDPOINTS}" | jq .
+            echo '```'
+            echo
+            echo '- Lambda security group:'
+            echo '```json'
+            printf '%s' "${SECURITY_GROUP}" | jq .
+            echo '```'
+            echo
+            echo '- Endpoint security groups:'
+            echo '```json'
+            printf '%s' "${ENDPOINT_SGS:-{}}" | jq . 2>/dev/null || printf '%s\n' "${ENDPOINT_SGS}"
+            echo '```'
+            echo
+            echo '- Route tables:'
+            echo '```json'
+            printf '%s' "${ROUTES}" | jq .
+            echo '```'
+            echo
+            echo '- Lambda logs after request:'
+            echo '```text'
+            printf '%s\n' "${LOGS}"
+            echo '```'
+          } > "${REPORT_PATH}"
+          cat "${REPORT_PATH}"
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Video Factory endpoint diagnostic'
+          git push origin HEAD:main
