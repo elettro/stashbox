@@ -1,0 +1,84 @@
+name: One-Time Video Factory Space Jam Status
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-space-jam-status.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  capture-status:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_SPACE_JAM_STATUS.md
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Read live Video Factory status
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const api = String(process.env.API_BASE).replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          const resultPath = process.env.RESULT_PATH;
+
+          async function get(pathname) {
+            const response = await fetch(`${api}${pathname}`, {
+              headers: { accept: 'application/json', 'x-admin-token': token }
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(`${pathname} returned ${response.status}: ${body.error || 'Unknown error'}`);
+            return body;
+          }
+
+          let content = '# Video Factory Space Jam Live Status\n\n';
+          try {
+            const infra = await get('/admin/video-factory/infrastructure');
+            const jobsBody = await get('/admin/video-factory/jobs?limit=250');
+            const jobs = Array.isArray(jobsBody.jobs) ? jobsBody.jobs : [];
+            const job = jobs.find(item => String(item.batch_name || '').includes('Space Jam First Full-Song Render'))
+              || jobs.find(item => /space jam/i.test(`${item.song_title || ''} ${item.song_key || ''}`));
+            content += `Captured: ${new Date().toISOString()}\n\n`;
+            content += `- Infrastructure configured: ${Boolean(infra.configured)}\n`;
+            content += `- ECS cluster status: ${infra.cluster_status || ''}\n`;
+            content += `- Running tasks: ${infra.running_tasks ?? ''}\n`;
+            content += `- Pending tasks: ${infra.pending_tasks ?? ''}\n`;
+            if (!job) {
+              content += '- Space Jam job: not found yet\n';
+            } else {
+              const runtime = job.render_recipe?.runtime || {};
+              content += `- Job ID: \`${job.id}\`\n`;
+              content += `- Song: ${job.artist || ''} — ${job.song_title || job.song_key || ''}\n`;
+              content += `- Status: ${job.status}\n`;
+              content += `- Progress: ${runtime.progress_percent ?? 0}%\n`;
+              content += `- Message: ${runtime.status_message || ''}\n`;
+              content += `- Error: ${job.error_message || 'none'}\n`;
+              content += `- Output filename: \`${job.output_filename || ''}\`\n`;
+            }
+          } catch (error) {
+            content += `Captured: ${new Date().toISOString()}\n\nError: ${error.message}\n`;
+          }
+          fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+          fs.writeFileSync(resultPath, content);
+          NODE
+
+      - name: Commit status snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${RESULT_PATH}"
+          git commit -m 'Record Space Jam Video Factory live status'
+          git push origin HEAD:main
