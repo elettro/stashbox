@@ -18,6 +18,8 @@ on:
 permissions:
   actions: write
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   apply-location-folder-type:
@@ -103,3 +105,7 @@ jobs:
             -X DELETE "${API_BASE}/admin/visuals/folders/${FOLDER_ID}" \
             -H "x-admin-token: ${ADMIN_TOKEN}" >/dev/null
           echo 'LOCATION_FOLDER_CREATE_DELETE_VERIFIED=true'
+
+          gh pr comment 743 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --body "LOCATION_FOLDER_TYPE_DEV_VERIFIED=true\nTRUE DEV deployment passed. A temporary Location folder was created successfully, returned folder_type=location, and was deleted after verification."
