@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Read-only refresh for the active DUB REGGAE 01 VEC montage render.
+# Final read-only snapshot for the completed DUB REGGAE 01 VEC montage render.
 : "${API_BASE:=https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev}"
 : "${ADMIN_TOKEN:?ADMIN_TOKEN is required}"
 
@@ -32,6 +32,9 @@ jq -c '
       output_filename,
       created_at,
       updated_at,
+      completed_at,
+      output_url,
+      thumbnail_url,
       eligible_asset_count: (.render_recipe.visuals.eligible_asset_count // 0),
       timeline_segment_count: ((.render_recipe.timeline // []) | length),
       timeline_clip_segment_count: ([.render_recipe.timeline[]? | select(.type == "clip")] | length),
