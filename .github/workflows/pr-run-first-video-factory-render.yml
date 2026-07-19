@@ -15,12 +15,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
+      AWS_REGION: us-east-1
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Fetch first-render runner
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: curl --fail --silent --show-error --location "https://raw.githubusercontent.com/elettro/stashbox/${HEAD_SHA}/.github/scripts/run-first-video-factory-render.mjs" --output /tmp/run-first-video-factory-render.mjs
+
       - name: Create, launch, and verify first Space Jam render
+        id: render
         run: node /tmp/run-first-video-factory-render.mjs
+
+      - name: Capture recent Lambda errors
+        if: failure()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          START_MS=$(( $(date +%s) * 1000 - 600000 ))
+          aws logs filter-log-events \
+            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
+            --start-time "${START_MS}" \
+            --query 'events[].message' \
+            --output text | grep -E 'Video Factory|ERROR|Error|AccessDenied|ValidationException|InvalidParameter|Task timed out|operator does not exist|permission|ECS|S3' | tail -n 100
