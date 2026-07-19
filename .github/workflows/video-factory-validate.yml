@@ -156,7 +156,7 @@ function slugify(value)"""
           git push origin HEAD:agent/video-factory-location-folder-type
 
   deploy-location-folder-type-dev:
-    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'Restore Video Factory validation workflow')
+    if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'Restore Video Factory validation workflow') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
