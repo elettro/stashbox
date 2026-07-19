@@ -18,4 +18,6 @@ jobs:
       - name: Dispatch existing Video Factory DEV deployment
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run deploy-video-factory-renderer-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
+        run: |
+          # Redeploy latest merged stale-job recovery fix.
+          gh workflow run deploy-video-factory-renderer-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
