@@ -24,31 +24,54 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Inspect Lambda Video Factory configuration and VPC routes
+      - name: Inspect Lambda VPC default routes
         run: |
           set -euo pipefail
-          aws lambda get-function-configuration \
-            --function-name "${LAMBDA_NAME}" \
-            --query '{FunctionName:FunctionName,Timeout:Timeout,VpcConfig:VpcConfig,VideoFactoryEnv:Environment.Variables.{Cluster:VIDEO_FACTORY_ECS_CLUSTER,Task:VIDEO_FACTORY_ECS_TASK_DEFINITION,Subnets:VIDEO_FACTORY_ECS_SUBNETS,SecurityGroups:VIDEO_FACTORY_ECS_SECURITY_GROUPS,Bucket:VIDEO_FACTORY_RENDER_BUCKET,ApiBase:VIDEO_FACTORY_API_BASE}}' \
-            --output json
+          CONFIG=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json)
+          printf '%s' "${CONFIG}" | jq '{
+            FunctionName,
+            Timeout,
+            VpcConfig,
+            VideoFactoryEnv: {
+              Cluster: .Environment.Variables.VIDEO_FACTORY_ECS_CLUSTER,
+              Task: .Environment.Variables.VIDEO_FACTORY_ECS_TASK_DEFINITION,
+              Subnets: .Environment.Variables.VIDEO_FACTORY_ECS_SUBNETS,
+              SecurityGroups: .Environment.Variables.VIDEO_FACTORY_ECS_SECURITY_GROUPS,
+              Bucket: .Environment.Variables.VIDEO_FACTORY_RENDER_BUCKET
+            }
+          }'
 
-          VPC_ID=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --query 'VpcConfig.VpcId' --output text)
-          SUBNETS=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --query 'VpcConfig.SubnetIds' --output text)
+          VPC_ID=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.VpcId // empty')
+          SUBNETS=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.SubnetIds[]?')
           echo "LAMBDA_VPC_ID=${VPC_ID}"
-          echo "LAMBDA_SUBNETS=${SUBNETS}"
 
-          if [ -n "${VPC_ID}" ] && [ "${VPC_ID}" != "None" ]; then
-            aws ec2 describe-route-tables \
-              --filters "Name=vpc-id,Values=${VPC_ID}" \
-              --query 'RouteTables[].{RouteTableId:RouteTableId,Associations:Associations[].SubnetId,Routes:Routes[].{Destination:DestinationCidrBlock,GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
-              --output json
-          fi
+          for SUBNET_ID in ${SUBNETS}; do
+            ROUTE_TABLE=$(aws ec2 describe-route-tables \
+              --filters "Name=association.subnet-id,Values=${SUBNET_ID}" \
+              --query 'RouteTables[0].{RouteTableId:RouteTableId,DefaultRoutes:Routes[?DestinationCidrBlock==`0.0.0.0/0`].{GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
+              --output json)
+            if [ "${ROUTE_TABLE}" = "null" ]; then
+              ROUTE_TABLE=$(aws ec2 describe-route-tables \
+                --filters "Name=vpc-id,Values=${VPC_ID}" "Name=association.main,Values=true" \
+                --query 'RouteTables[0].{RouteTableId:RouteTableId,DefaultRoutes:Routes[?DestinationCidrBlock==`0.0.0.0/0`].{GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
+                --output json)
+            fi
+            echo "SUBNET=${SUBNET_ID} ROUTE_TABLE=${ROUTE_TABLE}"
+          done
 
-      - name: Read recent Lambda logs when permitted
+      - name: Read recent Lambda timeout and error lines
         continue-on-error: true
-        run: aws logs tail "/aws/lambda/${LAMBDA_NAME}" --since 15m --format short
+        run: |
+          set -euo pipefail
+          START_MS=$(( $(date +%s) * 1000 - 1200000 ))
+          aws logs filter-log-events \
+            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
+            --start-time "${START_MS}" \
+            --filter-pattern '?ERROR ?Error ?Task timed out ?AccessDenied ?ETIMEDOUT ?TimeoutError' \
+            --query 'events[].message' \
+            --output text | tail -n 80
 
-      - name: Read Video Factory infrastructure and jobs
+      - name: Read Video Factory API status
         run: |
           node <<'NODE'
           const api = String(process.env.API_BASE).replace(/\/+$/, '');
@@ -56,6 +79,7 @@ jobs:
           if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
 
           async function request(pathname) {
+            const started = Date.now();
             try {
               const response = await fetch(`${api}${pathname}`, {
                 headers: { accept: 'application/json', 'x-admin-token': token }
@@ -63,9 +87,9 @@ jobs:
               const text = await response.text();
               let body = null;
               try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
-              return { pathname, ok: response.ok, status: response.status, body };
+              return { pathname, ok: response.ok, status: response.status, elapsed_ms: Date.now() - started, body };
             } catch (error) {
-              return { pathname, ok: false, status: null, body: null, network_error: error.message };
+              return { pathname, ok: false, status: null, elapsed_ms: Date.now() - started, network_error: error.message };
             }
           }
 
@@ -76,6 +100,7 @@ jobs:
             pathname: jobsResult.pathname,
             ok: jobsResult.ok,
             status: jobsResult.status,
+            elapsed_ms: jobsResult.elapsed_ms,
             error: jobsResult.body?.error || jobsResult.body?.message || jobsResult.network_error || '',
             count: Array.isArray(jobsResult.body?.jobs) ? jobsResult.body.jobs.length : null
           }));
