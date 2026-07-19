@@ -1,0 +1,85 @@
+name: One-Time Manual VEC Renderer PR Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  deploy-and-verify:
+    if: ${{ github.head_ref == 'agent/manual-vec-renderer-pr-deploy' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record dispatch time
+        id: start
+        run: echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch DEV renderer deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-video-factory-renderer-dev.yml \
+            --repo "${REPOSITORY}" \
+            --ref main
+
+      - name: Resolve dispatched deployment run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          STARTED_AT: ${{ steps.start.outputs.started_at }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            RUN_ID=$(gh run list \
+              --repo "${REPOSITORY}" \
+              --workflow deploy-video-factory-renderer-dev.yml \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq '[.[] | select(.createdAt >= env.STARTED_AT)][0].databaseId // empty')
+            if [ -n "${RUN_ID}" ]; then
+              echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+              echo "Resolved deployment run ${RUN_ID}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Could not locate the newly dispatched renderer deployment run.' >&2
+          exit 1
+
+      - name: Watch DEV renderer deployment
+        id: watch
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        run: gh run watch "${RUN_ID}" --repo "${REPOSITORY}" --exit-status --interval 10
+
+      - name: Print deployment result
+        if: always() && steps.resolve.outputs.run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        run: |
+          gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs
+          if [ "${{ steps.watch.outcome }}" != 'success' ]; then
+            echo '--- Failed deployment logs ---'
+            gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed || true
+          fi
+
+      - name: Fail when renderer deployment failed
+        if: ${{ steps.watch.outcome != 'success' }}
+        run: exit 1
