@@ -22,29 +22,34 @@ jobs:
           const token = String(process.env.ADMIN_TOKEN || '').trim();
           if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
 
-          async function get(pathname) {
-            const response = await fetch(`${api}${pathname}`, {
-              headers: { accept: 'application/json', 'x-admin-token': token }
-            });
-            const body = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(`${pathname} returned ${response.status}: ${body.error || 'Unknown error'}`);
-            return body;
+          async function request(pathname) {
+            try {
+              const response = await fetch(`${api}${pathname}`, {
+                headers: { accept: 'application/json', 'x-admin-token': token }
+              });
+              const text = await response.text();
+              let body = null;
+              try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+              return { pathname, ok: response.ok, status: response.status, body };
+            } catch (error) {
+              return { pathname, ok: false, status: null, body: null, network_error: error.message };
+            }
           }
 
-          const infra = await get('/admin/video-factory/infrastructure');
-          const jobsBody = await get('/admin/video-factory/jobs?limit=250');
-          const jobs = Array.isArray(jobsBody.jobs) ? jobsBody.jobs : [];
+          const infraResult = await request('/admin/video-factory/infrastructure');
+          const jobsResult = await request('/admin/video-factory/jobs?limit=250');
+          console.log('INFRA_RESPONSE=' + JSON.stringify(infraResult));
+          console.log('JOBS_RESPONSE_META=' + JSON.stringify({
+            pathname: jobsResult.pathname,
+            ok: jobsResult.ok,
+            status: jobsResult.status,
+            error: jobsResult.body?.error || jobsResult.body?.message || jobsResult.network_error || '',
+            count: Array.isArray(jobsResult.body?.jobs) ? jobsResult.body.jobs.length : null
+          }));
+
+          const jobs = Array.isArray(jobsResult.body?.jobs) ? jobsResult.body.jobs : [];
           const job = jobs.find(item => String(item.batch_name || '').includes('Space Jam First Full-Song Render'))
             || jobs.find(item => /space jam/i.test(`${item.song_title || ''} ${item.song_key || ''}`));
-
-          console.log('VIDEO_FACTORY_INFRA=' + JSON.stringify({
-            configured: infra.configured,
-            cluster_status: infra.cluster_status,
-            running_tasks: infra.running_tasks,
-            pending_tasks: infra.pending_tasks,
-            output_bucket: infra.output_bucket,
-            task_definition_arn: infra.task_definition_arn
-          }));
 
           if (!job) {
             console.log('SPACE_JAM_JOB=NOT_FOUND');
@@ -58,8 +63,12 @@ jobs:
               status_message: runtime.status_message || '',
               error_message: job.error_message || '',
               output_filename: job.output_filename || '',
+              output_url: job.output_url || '',
+              thumbnail_url: job.thumbnail_url || '',
               created_at: job.created_at,
               updated_at: job.updated_at
             }));
           }
+
+          if (!infraResult.ok || !jobsResult.ok) process.exitCode = 1;
           NODE
