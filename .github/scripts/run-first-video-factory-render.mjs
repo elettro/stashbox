@@ -19,42 +19,21 @@ const songs = Array.isArray(songsBody?.songs) ? songsBody.songs : Array.isArray(
 const song = songs.find(item => /dub\s*reggae\s*0?1/i.test(`${item.song_key || ''} ${item.display_title || ''} ${item.song_name || ''}`));
 if (!song) throw new Error('DUB REGGAE 01 was not found.');
 
-const key = encodeURIComponent(song.song_key);
-const admin = await request(`/admin/songs/${key}/visual-settings`);
-const player = await request(`/radio/songs/${key}/visual-settings`);
-const folders = Array.isArray(admin?.folders) ? admin.folders : [];
-const folderMappings = Array.isArray(admin?.folder_mappings) ? admin.folder_mappings : [];
+const songKey = encodeURIComponent(song.song_key);
+const vecRecipe = await request(`/admin/vec/recipe?song_key=${songKey}`);
+const visualSettings = await request(`/admin/songs/${songKey}/visual-settings`);
 
-console.log('DUB_VEC_DIAGNOSTIC=' + JSON.stringify({
+console.log('DUB_VEC_RECIPE=' + JSON.stringify({
   song: {
     song_key: song.song_key,
     title: song.display_title || song.song_name,
     artist: song.artist
   },
-  order_mode: admin?.order_mode,
-  folder_mappings: folderMappings,
-  asset_mapping_count: Array.isArray(admin?.asset_mappings) ? admin.asset_mappings.length : 0,
-  admin_eligible_asset_count: Array.isArray(admin?.eligible_assets) ? admin.eligible_assets.length : 0,
-  player_eligible_asset_count: Array.isArray(player?.eligible_assets) ? player.eligible_assets.length : 0,
-  fallback: player?.fallback,
-  included_folders: folders.filter(folder => folder.inclusion_state === 'included').map(folder => ({
-    id: folder.id,
-    folder_name: folder.folder_name || folder.name,
-    status: folder.status,
-    inclusion_state: folder.inclusion_state,
-    clip_count: folder.clip_count,
-    image_count: folder.image_count,
-    asset_count: Array.isArray(folder.assets) ? folder.assets.length : 0
-  })),
-  folders_with_clips: folders.filter(folder => Number(folder.clip_count || 0) > 0).map(folder => ({
-    id: folder.id,
-    folder_name: folder.folder_name || folder.name,
-    status: folder.status,
-    inclusion_state: folder.inclusion_state,
-    clip_count: folder.clip_count,
-    image_count: folder.image_count,
-    relevant_songs: folder.relevant_songs,
-    song_matches: folder.song_matches,
-    matches: folder.matches
-  })).slice(0, 50)
+  found: vecRecipe?.found,
+  recipe: vecRecipe?.recipe,
+  source_controller: {
+    folder_mapping_count: Array.isArray(visualSettings?.folder_mappings) ? visualSettings.folder_mappings.length : 0,
+    eligible_asset_count: Array.isArray(visualSettings?.eligible_assets) ? visualSettings.eligible_assets.length : 0,
+    fallback: visualSettings?.fallback
+  }
 }));
