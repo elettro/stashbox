@@ -1,50 +1,14 @@
-name: One-Time Clean VEC Render Settings Branch
+name: One-Time Clean VEC Render Settings Branch (Disabled)
 
 on:
-  pull_request:
-    types: [edited, synchronize, reopened]
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  clean:
-    if: github.head_ref == 'agent/vec-render-still-ken-burns'
+  disabled:
+    if: false
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout feature branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/vec-render-still-ken-burns
-          fetch-depth: 0
-
-      - name: Remove generated dependencies
-        run: |
-          set -euo pipefail
-          rm -rf video-render-worker/node_modules
-          test ! -d video-render-worker/node_modules
-
-      - name: Confirm intended source files
-        run: |
-          set -euo pipefail
-          node --check radio-admin/dev/vec/vec-controller.js
-          node --check video-render-worker/src/vec-recipe.mjs
-          node --check video-render-worker/src/entry.mjs
-          node --check video-render-worker/src/timeline.mjs
-          node --check video-render-worker/src/ffmpeg.mjs
-          node --check video-render-worker/src/index.mjs
-
-      - name: Commit cleanup when needed
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          if git diff --cached --quiet; then
-            echo 'No generated dependency files remain.'
-            exit 0
-          fi
-          git commit -m 'Remove generated node_modules from VEC render settings branch'
-          git push origin HEAD:agent/vec-render-still-ken-burns
+      - run: echo 'Disabled after successful branch cleanup.'
