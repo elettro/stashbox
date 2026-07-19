@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const RATIO_DIMENSIONS = Object.freeze({
   '16:9': { width: 1920, height: 1080 },
   '9:16': { width: 1080, height: 1920 },
