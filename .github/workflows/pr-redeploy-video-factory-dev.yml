@@ -39,4 +39,14 @@ jobs:
 
           test -n "${RUN_ID}" || { echo 'Deployment run could not be located.' >&2; exit 1; }
           echo "VIDEO_FACTORY_DEPLOYMENT_RUN_ID=${RUN_ID}"
+
+          set +e
           gh run watch "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --exit-status
+          STATUS=$?
+          set -e
+
+          if [ "${STATUS}" -ne 0 ]; then
+            echo 'FAILED_DEPLOYMENT_LOGS:'
+            gh run view "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --log-failed || true
+          fi
+          exit "${STATUS}"
