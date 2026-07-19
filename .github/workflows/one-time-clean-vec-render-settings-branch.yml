@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   clean:
-    if: github.head_ref == 'agent/vec-render-still-ken-burns' && github.event.pull_request.head.sha == '182daf69e058d15a6444e74cb0aeff5fa984ce42'
+    if: github.head_ref == 'agent/vec-render-still-ken-burns'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
@@ -36,11 +36,15 @@ jobs:
           node --check video-render-worker/src/ffmpeg.mjs
           node --check video-render-worker/src/index.mjs
 
-      - name: Commit cleanup
+      - name: Commit cleanup when needed
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
+          if git diff --cached --quiet; then
+            echo 'No generated dependency files remain.'
+            exit 0
+          fi
           git commit -m 'Remove generated node_modules from VEC render settings branch'
           git push origin HEAD:agent/vec-render-still-ken-burns
