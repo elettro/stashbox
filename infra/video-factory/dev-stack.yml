@@ -277,14 +277,6 @@ Resources:
               awslogs-group: !Ref RenderLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: renderer
-          HealthCheck:
-            Command:
-              - CMD-SHELL
-              - node --version || exit 1
-            Interval: 30
-            Timeout: 5
-            Retries: 3
-            StartPeriod: 20
 
   ApiLambdaRenderPolicy:
     Type: AWS::IAM::Policy
@@ -295,25 +287,52 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          - Sid: RunVideoFactoryTask
+            Effect: Allow
             Action:
               - ecs:RunTask
             Resource: !Ref RenderTaskDefinition
-          - Effect: Allow
+          - Sid: TagVideoFactoryTaskOnLaunch
+            Effect: Allow
+            Action:
+              - ecs:TagResource
+            Resource: '*'
+            Condition:
+              StringEquals:
+                ecs:CreateAction: RunTask
+          - Sid: PassVideoFactoryTaskRoles
+            Effect: Allow
             Action:
               - iam:PassRole
             Resource:
               - !GetAtt RenderTaskExecutionRole.Arn
               - !GetAtt RenderTaskRole.Arn
-          - Effect: Allow
+            Condition:
+              StringEquals:
+                iam:PassedToService: ecs-tasks.amazonaws.com
+          - Sid: ReadVideoFactoryEcsConfiguration
+            Effect: Allow
+            Action:
+              - ecs:DescribeClusters
+              - ecs:DescribeTaskDefinition
+              - ecs:DescribeTasks
+            Resource: '*'
+          - Sid: StopVideoFactoryTask
+            Effect: Allow
             Action:
               - ecs:StopTask
-              - ecs:DescribeTasks
             Resource: '*'
             Condition:
               ArnEquals:
                 ecs:cluster: !GetAtt RenderCluster.Arn
-          - Effect: Allow
+          - Sid: ReadVideoFactoryBucketConfiguration
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource: !GetAtt RenderBucket.Arn
+          - Sid: DownloadVideoFactoryOutputs
+            Effect: Allow
             Action:
               - s3:GetObject
             Resource: !Sub ${RenderBucket.Arn}/*
