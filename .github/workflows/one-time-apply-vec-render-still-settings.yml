@@ -1,0 +1,46 @@
+name: One-Time Apply VEC Render Still Settings
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'agent/vec-render-still-ken-burns' && github.event.pull_request.head.sha == 'c0515ae1cd16e233ee20d7776285de78dfc5e726'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/vec-render-still-ken-burns
+          fetch-depth: 0
+
+      - name: Apply targeted code changes
+        run: python3 tools/apply-vec-render-still-ken-burns.py
+
+      - name: Validate syntax and unit tests
+        run: |
+          set -euo pipefail
+          node --check radio-admin/dev/vec/vec-controller.js
+          node --check video-render-worker/src/vec-recipe.mjs
+          node --check video-render-worker/src/entry.mjs
+          node --check video-render-worker/src/timeline.mjs
+          node --check video-render-worker/src/ffmpeg.mjs
+          node --check video-render-worker/src/index.mjs
+          cd video-render-worker
+          npm install --ignore-scripts
+          npm test
+
+      - name: Commit implementation
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add VEC still duration and Ken Burns render settings'
+          git push origin HEAD:agent/vec-render-still-ken-burns
