@@ -12,6 +12,7 @@ import {
   launchVideoFactoryJob,
   updateVideoFactoryWorkerStatus
 } from './render-control.mjs';
+import { recoverStalePendingJobs } from './stale-jobs.mjs';
 
 function methodFor(event) {
   return String(event?.requestContext?.http?.method || event?.httpMethod || '').toUpperCase();
@@ -41,6 +42,11 @@ export async function handleAdminVideoFactoryRoute(event, dependencies = {}) {
   await ensureVideoFactoryStorage(dependencies);
 
   if ((action === 'render' || action === 'retry') && method === 'POST') {
+    await recoverStalePendingJobs({
+      client: dependencies.client,
+      qname: dependencies.qname,
+      excludeJobId: route.jobId
+    });
     const result = await launchVideoFactoryJob(route.jobId, dependencies);
     return dependencies.response(result.statusCode, result.body || {
       success: false,
