@@ -1,0 +1,80 @@
+name: One-Time Video Factory Bootstrap Diagnostics
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-bootstrap-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-diagnostics:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      TRUE_DEV_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Attempt bootstrap and capture full result
+        run: |
+          set -u
+          ROLE_ARN=$(aws lambda get-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --query Role \
+            --output text)
+          ROLE_NAME="${ROLE_ARN##*/}"
+          set +e
+          aws cloudformation deploy \
+            --stack-name "${STACK_NAME}" \
+            --template-file infra/video-factory/dev-stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              ImageUri=public.ecr.aws/docker/library/node:22-bookworm-slim \
+              ApiLambdaRoleName="${ROLE_NAME}" \
+              ApiBase="${TRUE_DEV_API_BASE}" \
+            > /tmp/video-factory-bootstrap.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || printf 'STACK_NOT_FOUND')
+          mkdir -p radio-api/docs
+          {
+            echo '# Video Factory Bootstrap Diagnostics'
+            echo
+            echo "Exit code: ${EXIT_CODE}"
+            echo "Stack status: ${STATUS}"
+            echo
+            echo 'Command output:'
+            echo '```text'
+            cat /tmp/video-factory-bootstrap.log
+            echo '```'
+          } > radio-api/docs/VIDEO_FACTORY_BOOTSTRAP_DIAGNOSTICS.md
+
+      - name: Commit diagnostics
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-api/docs/VIDEO_FACTORY_BOOTSTRAP_DIAGNOSTICS.md
+          git commit -m 'Record Video Factory bootstrap diagnostics'
+          git push origin HEAD:main
