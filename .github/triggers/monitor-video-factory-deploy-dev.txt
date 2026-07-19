@@ -1,1 +1,1 @@
-Monitor the Video Factory DEV deployment triggered after the IAM policy update on 2026-07-19.
+Monitor the Video Factory DEV renderer deployment triggered for Manual VEC sequence support from PR 744 on 2026-07-19.
