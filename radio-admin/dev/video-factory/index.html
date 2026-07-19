@@ -34,9 +34,9 @@
       <div>
         <p class="eyebrow">Private backend CMS tool</p>
         <h2 id="videoFactoryTitle">Create one finished video at a time</h2>
-        <p class="vf-hero-copy">Choose a song and one output format. Video Factory saves a permanent render record with its recipe, overlays, metadata, filename, status, and completed output.</p>
+        <p class="vf-hero-copy">Choose a song and one output format. Video Factory freezes the eligible VEC assets into a repeatable recipe, renders a private MP4, and keeps the completed file available in Render History.</p>
       </div>
-      <span class="vf-stage-pill">Sprint 1 · Foundation</span>
+      <span class="vf-stage-pill">Sprint 2 · Render Worker</span>
     </section>
 
     <section class="vf-grid" aria-label="Video Factory workspace">
@@ -112,7 +112,7 @@
             <div class="vf-checkbox-grid">
               <label class="vf-check"><input id="introEnabled" type="checkbox" checked /> Intro overlay</label>
               <label class="vf-check"><input id="outroEnabled" type="checkbox" checked /> Outro overlay</label>
-              <label class="vf-check"><input id="cornerBugEnabled" type="checkbox" checked /> Stashbox corner icon</label>
+              <label class="vf-check"><input id="cornerBugEnabled" type="checkbox" checked /> Stashbox corner bug</label>
               <label class="vf-check"><input id="includeArtist" type="checkbox" checked /> Artist name</label>
               <label class="vf-check"><input id="includeSong" type="checkbox" checked /> Song name</label>
               <label class="vf-check"><input id="includeAlbum" type="checkbox" checked /> Album name</label>
@@ -131,7 +131,7 @@
 
           <div class="form-actions full">
             <button id="createDraftButton" class="button" type="submit">Create Render Draft</button>
-            <span class="vf-backend-note">This sprint creates the private job record first. ECS and FFmpeg rendering connect next.</span>
+            <span class="vf-backend-note">After creating the draft, use Render Now inside Render History. Only one job runs at a time.</span>
           </div>
         </form>
       </article>
@@ -148,6 +148,7 @@
         <div class="vf-summary-grid" aria-label="Video Factory summary">
           <div class="vf-summary-tile"><span class="vf-help">Total</span><strong id="totalJobs">0</strong></div>
           <div class="vf-summary-tile"><span class="vf-help">Drafts</span><strong id="draftJobs">0</strong></div>
+          <div class="vf-summary-tile"><span class="vf-help">Active</span><strong id="activeJobs">0</strong></div>
           <div class="vf-summary-tile"><span class="vf-help">Completed</span><strong id="completedJobs">0</strong></div>
           <div class="vf-summary-tile"><span class="vf-help">Failed</span><strong id="failedJobs">0</strong></div>
         </div>
@@ -158,9 +159,12 @@
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="pending">Pending</option>
+            <option value="preparing">Preparing</option>
             <option value="rendering">Rendering</option>
+            <option value="uploading">Uploading</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
+            <option value="cancelled">Cancelled</option>
             <option value="archived">Archived</option>
           </select>
         </div>
