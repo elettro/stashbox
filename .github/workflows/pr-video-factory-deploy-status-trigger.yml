@@ -13,19 +13,14 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Extract failed deployment verification
+      - name: Extract compact failed verification
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: '29691446658'
         run: |
           set -euo pipefail
-          echo 'RUN_SUMMARY'
-          gh run view "${RUN_ID}" \
-            --repo "${REPOSITORY}" \
-            --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs \
-            --jq '{databaseId,status,conclusion,createdAt,updatedAt,url,jobs:[.jobs[]|{name,conclusion,steps:[.steps[]|select(.conclusion=="failure")]}]}'
-          echo 'FAILED_LOG_TAIL'
-          gh run view "${RUN_ID}" \
-            --repo "${REPOSITORY}" \
-            --log-failed | tail -n 180
+          gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            | grep -E 'stashbox-video-factory-renderer-dev|Internal Server Error|Video Factory infrastructure endpoint returned|INFRA_STATUS|curl:|AccessDenied|Task timed out|Timeout|timed out|statusCode|configured|cluster_status|output_bucket|\{"message"|\{"success"|Process completed with exit code' \
+            | tail -n 60
