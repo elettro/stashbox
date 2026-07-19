@@ -61,8 +61,8 @@ jobs:
       - name: Run FFmpeg helper tests
         run: node --test --test-reporter=spec video-render-worker/tests/ffmpeg.test.mjs
 
-      - name: Run deterministic timeline tests
-        run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs
+      - name: Run timeline and VEC recipe tests
+        run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs video-render-worker/tests/vec-recipe.test.mjs video-render-worker/tests/visual-settings.test.mjs
 
       - name: Lint Video Factory CloudFormation
         run: |
