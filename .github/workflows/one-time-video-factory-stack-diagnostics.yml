@@ -65,3 +65,5 @@ jobs:
           git add radio-api/docs/VIDEO_FACTORY_CLOUDFORMATION_DIAGNOSTICS.md
           git commit -m 'Record Video Factory CloudFormation diagnostics'
           git push origin HEAD:main
+
+# Trigger: rerun after Secrets Manager permission update
