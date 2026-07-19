@@ -1,6 +1,6 @@
 name: PR Redeploy Video Factory DEV
 
-# Temporary redeploy trigger: VEC still image duration and Ken Burns controls.
+# Temporary redeploy trigger: smoother eased Ken Burns motion.
 on:
   pull_request:
     paths:
