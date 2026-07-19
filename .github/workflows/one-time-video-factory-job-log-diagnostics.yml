@@ -1,0 +1,64 @@
+name: One-Time Video Factory Job Log Diagnostics
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-job-log-diagnostics.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture-log:
+    runs-on: ubuntu-latest
+    env:
+      FAILED_JOB_ID: '88198005005'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Download failed job log
+        run: |
+          set -euo pipefail
+          curl --fail --location \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${FAILED_JOB_ID}/logs" \
+            --output /tmp/video-factory-deploy-job.log
+
+      - name: Extract deployment failure
+        run: |
+          set -euo pipefail
+          mkdir -p radio-api/docs
+          {
+            echo '# Video Factory Deployment Job Diagnostics'
+            echo
+            echo "Job ID: ${FAILED_JOB_ID}"
+            echo
+            echo 'Relevant failure lines:'
+            echo '```text'
+            grep -E -i 'AccessDenied|CREATE_FAILED|UPDATE_FAILED|ROLLBACK|ResourceStatusReason|not authorized|error occurred|failed to create|permission' /tmp/video-factory-deploy-job.log | tail -n 120 || true
+            echo '```'
+            echo
+            echo 'Final log lines:'
+            echo '```text'
+            tail -n 120 /tmp/video-factory-deploy-job.log
+            echo '```'
+          } > radio-api/docs/VIDEO_FACTORY_DEPLOYMENT_JOB_DIAGNOSTICS.md
+
+      - name: Commit diagnostics
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-api/docs/VIDEO_FACTORY_DEPLOYMENT_JOB_DIAGNOSTICS.md
+          git commit -m 'Record Video Factory deployment job diagnostics'
+          git push origin HEAD:main
