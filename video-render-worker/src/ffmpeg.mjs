@@ -56,6 +56,10 @@ function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function smoothStep(progress) {
+  return `(${progress})*(${progress})*(3-2*(${progress}))`;
+}
+
 function kenBurnsPosition(direction, axis, progress, range) {
   const forwardX = new Set(['left-to-right', 'top-left-to-bottom-right', 'bottom-left-to-top-right']);
   const reverseX = new Set(['right-to-left', 'bottom-right-to-top-left', 'top-right-to-bottom-left']);
@@ -74,26 +78,38 @@ function kenBurnsPosition(direction, axis, progress, range) {
 export function segmentVideoFilter({ width, height, fps, duration, segment = {} }) {
   const fadeDuration = Math.min(0.3, Math.max(0.08, duration / 8));
   const fadeOutStart = Math.max(0, duration - fadeDuration);
-  const filters = [
-    `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`
-  ];
   const motion = segment?.motion || {};
+  const filters = [];
+
   if (segment.type === 'image' && motion.enabled) {
     const frames = Math.max(2, Math.round(duration * fps));
     const denominator = Math.max(1, frames - 1);
-    const progress = `on/${denominator}`;
+    const linearProgress = `min(1,on/${denominator})`;
+    const easedProgress = smoothStep(linearProgress);
     const maxZoom = clamp(Number(motion.max_zoom || 1.075), 1.02, 1.1);
     const delta = maxZoom - 1;
     const zoom = motion.zoom_mode === 'out'
-      ? `${maxZoom.toFixed(4)}-${delta.toFixed(4)}*${progress}`
-      : `1+${delta.toFixed(4)}*${progress}`;
-    const x = kenBurnsPosition(motion.direction, 'x', progress, '(iw-iw/zoom)');
-    const y = kenBurnsPosition(motion.direction, 'y', progress, '(ih-ih/zoom)');
-    filters.push(`zoompan=z='${zoom}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps}`);
+      ? `${maxZoom.toFixed(4)}-${delta.toFixed(4)}*${easedProgress}`
+      : `1+${delta.toFixed(4)}*${easedProgress}`;
+    const x = kenBurnsPosition(motion.direction, 'x', easedProgress, '(iw-iw/zoom)');
+    const y = kenBurnsPosition(motion.direction, 'y', easedProgress, '(ih-ih/zoom)');
+    const motionWidth = Math.max(2, Math.round(width * 2));
+    const motionHeight = Math.max(2, Math.round(height * 2));
+
+    filters.push(
+      `scale=${motionWidth}:${motionHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,
+      `pad=${motionWidth}:${motionHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,
+      `zoompan=z='${zoom}':x='${x}':y='${y}':d=${frames}:s=${motionWidth}x${motionHeight}:fps=${fps}`,
+      `scale=${width}:${height}:flags=lanczos`
+    );
   } else {
-    filters.push(`fps=${fps}`);
+    filters.push(
+      `scale=${width}:${height}:force_original_aspect_ratio=decrease:flags=lanczos`,
+      `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`,
+      `fps=${fps}`
+    );
   }
+
   filters.push(
     'setsar=1',
     'format=yuv420p',
