@@ -1,1 +1,1 @@
-Recheck the latest Video Factory DEV renderer deployment for Manual VEC sequence support from PR 744 after the deployment dispatch had time to start.
+Monitor the latest Video Factory DEV renderer deployment dispatched by merged PR 745 for Manual VEC sequence support.
