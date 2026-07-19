@@ -8,6 +8,18 @@ Parameters:
   ApiLambdaRoleName:
     Type: String
     Description: Existing TRUE DEV API Lambda execution role name.
+  ApiLambdaVpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing VPC used by the TRUE DEV API Lambda.
+  ApiLambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Existing security group used by the TRUE DEV API Lambda.
+  ApiLambdaEndpointSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Existing Lambda VPC subnets used for private AWS API endpoints.
+  ApiLambdaRouteTableIds:
+    Type: CommaDelimitedList
+    Description: Route tables used by the TRUE DEV API Lambda subnets.
   ApiBase:
     Type: String
     Default: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
@@ -16,6 +28,42 @@ Parameters:
     Default: stashbox/video-factory/dev/admin-token
 
 Resources:
+  ApiLambdaEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS access from the TRUE DEV API Lambda to private AWS service endpoints.
+      VpcId: !Ref ApiLambdaVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref ApiLambdaSecurityGroupId
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-lambda-endpoints-dev
+
+  ApiLambdaEcsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref ApiLambdaVpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecs
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref ApiLambdaEndpointSubnetIds
+      SecurityGroupIds:
+        - !Ref ApiLambdaEndpointSecurityGroup
+
+  ApiLambdaS3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      VpcId: !Ref ApiLambdaVpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds: !Ref ApiLambdaRouteTableIds
+
   RenderRepository:
     Type: AWS::ECR::Repository
     Properties:
@@ -356,3 +404,9 @@ Outputs:
     Value: !GetAtt RenderTaskExecutionRole.Arn
   RenderTaskRoleArn:
     Value: !GetAtt RenderTaskRole.Arn
+  ApiLambdaEcsEndpointId:
+    Value: !Ref ApiLambdaEcsEndpoint
+  ApiLambdaS3EndpointId:
+    Value: !Ref ApiLambdaS3Endpoint
+  ApiLambdaEndpointSecurityGroupId:
+    Value: !Ref ApiLambdaEndpointSecurityGroup
