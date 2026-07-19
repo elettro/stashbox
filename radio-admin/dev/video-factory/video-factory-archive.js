@@ -66,6 +66,10 @@
       try {
         const body = await performAction(jobId, action);
         showMessage(body.message || `Render ${action} completed.`);
+        if (action === 'archive' && historyStatus.value !== 'archived') {
+          button.closest('.vf-job-card')?.remove();
+          updateEmptyState();
+        }
         refreshHistory.click();
       } catch (error) {
         showMessage(error.message, true);
@@ -78,8 +82,7 @@
 
   function updateEmptyState() {
     if (!historyEmpty) return;
-    const visibleCards = [...historyList.querySelectorAll('.vf-job-card')]
-      .filter(card => !card.hidden);
+    const visibleCards = [...historyList.querySelectorAll('.vf-job-card')];
     historyEmpty.classList.toggle('hidden', visibleCards.length > 0);
     if (!visibleCards.length && historyStatus.value === 'archived') {
       historyEmpty.textContent = 'No archived renders.';
@@ -94,7 +97,11 @@
     historyList.querySelectorAll('.vf-job-card').forEach(card => {
       const status = getStatus(card);
       const jobId = getJobId(card);
-      card.hidden = selectedStatus === 'all' && status === 'archived';
+
+      if (selectedStatus === 'all' && status === 'archived') {
+        card.remove();
+        return;
+      }
 
       if (!jobId || card.dataset.archiveEnhanced === 'true') return;
       const actions = card.querySelector('.vf-actions');
