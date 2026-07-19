@@ -1,0 +1,339 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private Stashbox Radio Video Factory DEV render infrastructure.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Container image used by the Video Factory renderer task.
+  ApiLambdaRoleName:
+    Type: String
+    Description: Existing TRUE DEV API Lambda execution role name.
+  ApiBase:
+    Type: String
+    Default: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+  AdminTokenSecretName:
+    Type: String
+    Default: stashbox/video-factory/dev/admin-token
+
+Resources:
+  RenderRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: stashbox-radio-video-factory-renderer-dev
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep the ten newest renderer images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+  RenderBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - https://stashbox.com
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - '*'
+            ExposedHeaders:
+              - Accept-Ranges
+              - Content-Length
+              - Content-Range
+              - ETag
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteTemporaryRenderFiles
+            Status: Enabled
+            Prefix: temp/
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  RenderVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.77.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-dev
+
+  RenderInternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  RenderGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref RenderVpc
+      InternetGatewayId: !Ref RenderInternetGateway
+
+  RenderPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RenderVpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.77.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-dev-a
+
+  RenderPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RenderVpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.77.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-dev-b
+
+  RenderRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref RenderVpc
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-dev-public
+
+  RenderDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: RenderGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RenderRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref RenderInternetGateway
+
+  RenderSubnetRouteAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref RenderPublicSubnetA
+      RouteTableId: !Ref RenderRouteTable
+
+  RenderSubnetRouteAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref RenderPublicSubnetB
+      RouteTableId: !Ref RenderRouteTable
+
+  RenderSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Outbound-only security group for Video Factory Fargate tasks.
+      VpcId: !Ref RenderVpc
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: stashbox-video-factory-renderer-dev
+
+  RenderCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stashbox-video-factory-dev
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  RenderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /stashbox/video-factory/dev
+      RetentionInDays: 14
+
+  AdminTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref AdminTokenSecretName
+      Description: Admin token used by the private Video Factory render worker.
+      GenerateSecretString:
+        PasswordLength: 40
+        ExcludePunctuation: true
+
+  RenderTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-video-factory-task-execution-dev
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: VideoFactoryReadAdminToken
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AdminTokenSecret
+
+  RenderTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-video-factory-task-dev
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: VideoFactoryPrivateOutputAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt RenderBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub ${RenderBucket.Arn}/*
+
+  RenderTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: stashbox-video-factory-renderer-dev
+      Cpu: '2048'
+      Memory: '4096'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt RenderTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt RenderTaskRole.Arn
+      EphemeralStorage:
+        SizeInGiB: 40
+      ContainerDefinitions:
+        - Name: video-factory-renderer
+          Image: !Ref ImageUri
+          Essential: true
+          StopTimeout: 120
+          Environment:
+            - Name: VIDEO_FACTORY_API_BASE
+              Value: !Ref ApiBase
+            - Name: VIDEO_FACTORY_OUTPUT_BUCKET
+              Value: !Ref RenderBucket
+            - Name: VIDEO_FACTORY_OUTPUT_PREFIX
+              Value: video-factory
+            - Name: NODE_ENV
+              Value: production
+          Secrets:
+            - Name: ADMIN_TOKEN
+              ValueFrom: !Ref AdminTokenSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref RenderLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: renderer
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - node --version || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 20
+
+  ApiLambdaRenderPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: StashboxVideoFactoryRenderDev
+      Roles:
+        - !Ref ApiLambdaRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:RunTask
+            Resource: !Ref RenderTaskDefinition
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !GetAtt RenderTaskExecutionRole.Arn
+              - !GetAtt RenderTaskRole.Arn
+          - Effect: Allow
+            Action:
+              - ecs:StopTask
+              - ecs:DescribeTasks
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                ecs:cluster: !GetAtt RenderCluster.Arn
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource: !Sub ${RenderBucket.Arn}/*
+
+Outputs:
+  EcrRepositoryUri:
+    Value: !GetAtt RenderRepository.RepositoryUri
+  RenderBucketName:
+    Value: !Ref RenderBucket
+  RenderClusterArn:
+    Value: !GetAtt RenderCluster.Arn
+  RenderTaskDefinitionArn:
+    Value: !Ref RenderTaskDefinition
+  RenderSubnetIds:
+    Value: !Join [',', [!Ref RenderPublicSubnetA, !Ref RenderPublicSubnetB]]
+  RenderSecurityGroupIds:
+    Value: !Ref RenderSecurityGroup
+  AdminTokenSecretArn:
+    Value: !Ref AdminTokenSecret
+  RenderTaskExecutionRoleArn:
+    Value: !GetAtt RenderTaskExecutionRole.Arn
+  RenderTaskRoleArn:
+    Value: !GetAtt RenderTaskRole.Arn
