@@ -10,6 +10,7 @@
   },
   "scripts": {
     "check": "node --check index.mjs",
+    "test:video-factory": "node --test tests/video-factory-foundation.test.mjs",
     "package:dev-v2": "bash scripts/package-dev-v2.sh",
     "smoke:true-dev": "node scripts/smoke-test-true-dev.mjs"
   }
