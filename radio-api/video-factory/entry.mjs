@@ -94,6 +94,27 @@ function isVideoFactoryRequest(event) {
   return getVideoFactoryRouteMatch(getRouteSegments(event)).isRoute;
 }
 
+function isDevRuntime() {
+  const runtime = String(
+    process.env.APP_ENV || process.env.STAGE || process.env.NODE_ENV || process.env.ENVIRONMENT || ''
+  ).trim().toLowerCase();
+  return runtime === 'dev' || runtime === 'development';
+}
+
+function buildErrorBody(error) {
+  const statusCode = Number(error?.statusCode) || 500;
+  const body = {
+    success: false,
+    error: statusCode < 500 ? String(error?.message || 'Request failed.') : 'Internal Server Error'
+  };
+
+  if (isDevRuntime() && statusCode >= 500) {
+    body.detail = String(error?.message || 'Unknown Video Factory error.').slice(0, 1000);
+    if (error?.code) body.code = String(error.code).slice(0, 100);
+  }
+  return body;
+}
+
 export const handler = async event => {
   if (!isVideoFactoryRequest(event)) return radioHandler(event);
 
@@ -113,12 +134,10 @@ export const handler = async event => {
       path: getPath(event),
       statusCode: error?.statusCode,
       message: error?.message,
+      code: error?.code,
       stack: error?.stack
     });
-    return response(error?.statusCode || 500, {
-      success: false,
-      error: error?.statusCode ? error.message : 'Internal Server Error'
-    });
+    return response(error?.statusCode || 500, buildErrorBody(error));
   } finally {
     await client.end().catch(closeError => {
       console.error('[Video Factory] PostgreSQL close failed', closeError);
