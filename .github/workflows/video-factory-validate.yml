@@ -64,5 +64,13 @@ jobs:
       - name: Run deterministic timeline tests
         run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs
 
+      - name: Lint Video Factory CloudFormation
+        run: |
+          python -m pip install --quiet cfn-lint
+          cfn-lint infra/video-factory/dev-stack.yml
+
       - name: Build FFmpeg worker container
         run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
+
+      - name: Run FFmpeg container smoke render
+        run: docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs
