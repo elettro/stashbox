@@ -1,1 +1,1 @@
-Trigger the private Video Factory DEV renderer deployment after the IAM policy update completed on 2026-07-19.
+Trigger the private Video Factory DEV renderer deployment for the Manual VEC drag-and-drop sequence merged in PR 744 on 2026-07-19.
