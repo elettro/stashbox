@@ -157,7 +157,7 @@
         <div class="vf-history-toolbar">
           <input id="historySearch" class="vf-filter" type="search" placeholder="Search song, artist, client, project, or filename" aria-label="Search Render History" />
           <select id="historyStatus" class="vf-filter" aria-label="Filter Render History by status">
-            <option value="all">All statuses</option>
+            <option value="all">All visible renders</option>
             <option value="draft">Draft</option>
             <option value="pending">Pending</option>
             <option value="preparing">Preparing</option>
@@ -166,7 +166,7 @@
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
             <option value="cancelled">Cancelled</option>
-            <option value="archived">Archived</option>
+            <option value="archived">Archived / Hidden</option>
           </select>
         </div>
 
@@ -177,5 +177,6 @@
   </main>
 
   <script src="./video-factory.js"></script>
+  <script src="./video-factory-archive.js"></script>
 </body>
 </html>

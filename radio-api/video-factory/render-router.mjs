@@ -4,6 +4,7 @@ import {
   getVideoFactoryRouteMatch,
   handleAdminVideoFactoryRoute as handleFoundationRoute
 } from './routes.mjs';
+import { archiveVideoFactoryJob, restoreVideoFactoryJob } from './archive.mjs';
 import {
   cancelVideoFactoryJob,
   checkVideoFactoryInfrastructure,
@@ -53,6 +54,16 @@ export async function handleAdminVideoFactoryRoute(event, dependencies = {}) {
       error: result.error,
       active_job_id: result.active_job_id
     });
+  }
+
+  if (action === 'archive' && method === 'POST') {
+    const result = await archiveVideoFactoryJob(route.jobId, dependencies);
+    return dependencies.response(result.statusCode, result.body);
+  }
+
+  if (action === 'restore' && method === 'POST') {
+    const result = await restoreVideoFactoryJob(route.jobId, dependencies);
+    return dependencies.response(result.statusCode, result.body);
   }
 
   if (action === 'status' && method === 'POST') {
