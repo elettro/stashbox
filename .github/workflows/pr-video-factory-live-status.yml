@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/pr-video-factory-live-status.yml'
+      - '.github/scripts/video-factory-live-status.sh'
 
 permissions:
   contents: read
@@ -17,114 +18,13 @@ jobs:
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Inspect Lambda VPC default routes
-        run: |
-          set -euo pipefail
-          CONFIG=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json)
-          printf '%s' "${CONFIG}" | jq '{
-            FunctionName,
-            Timeout,
-            VpcConfig,
-            VideoFactoryEnv: {
-              Cluster: .Environment.Variables.VIDEO_FACTORY_ECS_CLUSTER,
-              Task: .Environment.Variables.VIDEO_FACTORY_ECS_TASK_DEFINITION,
-              Subnets: .Environment.Variables.VIDEO_FACTORY_ECS_SUBNETS,
-              SecurityGroups: .Environment.Variables.VIDEO_FACTORY_ECS_SECURITY_GROUPS,
-              Bucket: .Environment.Variables.VIDEO_FACTORY_RENDER_BUCKET
-            }
-          }'
-
-          VPC_ID=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.VpcId // empty')
-          SUBNETS=$(printf '%s' "${CONFIG}" | jq -r '.VpcConfig.SubnetIds[]?')
-          echo "LAMBDA_VPC_ID=${VPC_ID}"
-
-          for SUBNET_ID in ${SUBNETS}; do
-            ROUTE_TABLE=$(aws ec2 describe-route-tables \
-              --filters "Name=association.subnet-id,Values=${SUBNET_ID}" \
-              --query 'RouteTables[0].{RouteTableId:RouteTableId,DefaultRoutes:Routes[?DestinationCidrBlock==`0.0.0.0/0`].{GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
-              --output json)
-            if [ "${ROUTE_TABLE}" = "null" ]; then
-              ROUTE_TABLE=$(aws ec2 describe-route-tables \
-                --filters "Name=vpc-id,Values=${VPC_ID}" "Name=association.main,Values=true" \
-                --query 'RouteTables[0].{RouteTableId:RouteTableId,DefaultRoutes:Routes[?DestinationCidrBlock==`0.0.0.0/0`].{GatewayId:GatewayId,NatGatewayId:NatGatewayId,State:State}}' \
-                --output json)
-            fi
-            echo "SUBNET=${SUBNET_ID} ROUTE_TABLE=${ROUTE_TABLE}"
-          done
-
-      - name: Read recent Lambda timeout and error lines
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          START_MS=$(( $(date +%s) * 1000 - 1200000 ))
-          aws logs filter-log-events \
-            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
-            --start-time "${START_MS}" \
-            --filter-pattern '?ERROR ?Error ?Task timed out ?AccessDenied ?ETIMEDOUT ?TimeoutError' \
-            --query 'events[].message' \
-            --output text | tail -n 80
-
-      - name: Read Video Factory API status
-        run: |
-          node <<'NODE'
-          const api = String(process.env.API_BASE).replace(/\/+$/, '');
-          const token = String(process.env.ADMIN_TOKEN || '').trim();
-          if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
-
-          async function request(pathname) {
-            const started = Date.now();
-            try {
-              const response = await fetch(`${api}${pathname}`, {
-                headers: { accept: 'application/json', 'x-admin-token': token }
-              });
-              const text = await response.text();
-              let body = null;
-              try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
-              return { pathname, ok: response.ok, status: response.status, elapsed_ms: Date.now() - started, body };
-            } catch (error) {
-              return { pathname, ok: false, status: null, elapsed_ms: Date.now() - started, network_error: error.message };
-            }
-          }
-
-          const infraResult = await request('/admin/video-factory/infrastructure');
-          const jobsResult = await request('/admin/video-factory/jobs?limit=250');
-          console.log('INFRA_RESPONSE=' + JSON.stringify(infraResult));
-          console.log('JOBS_RESPONSE_META=' + JSON.stringify({
-            pathname: jobsResult.pathname,
-            ok: jobsResult.ok,
-            status: jobsResult.status,
-            elapsed_ms: jobsResult.elapsed_ms,
-            error: jobsResult.body?.error || jobsResult.body?.message || jobsResult.network_error || '',
-            count: Array.isArray(jobsResult.body?.jobs) ? jobsResult.body.jobs.length : null
-          }));
-
-          const jobs = Array.isArray(jobsResult.body?.jobs) ? jobsResult.body.jobs : [];
-          const job = jobs.find(item => String(item.batch_name || '').includes('Space Jam First Full-Song Render'))
-            || jobs.find(item => /space jam/i.test(`${item.song_title || ''} ${item.song_key || ''}`));
-
-          if (!job) {
-            console.log('SPACE_JAM_JOB=NOT_FOUND');
-          } else {
-            const runtime = job.render_recipe?.runtime || {};
-            console.log('SPACE_JAM_JOB=' + JSON.stringify({
-              id: job.id,
-              batch_id: job.batch_id,
-              status: job.status,
-              progress_percent: runtime.progress_percent ?? 0,
-              status_message: runtime.status_message || '',
-              error_message: job.error_message || '',
-              output_filename: job.output_filename || '',
-              created_at: job.created_at,
-              updated_at: job.updated_at
-            }));
-          }
-
-          if (!infraResult.ok || !jobsResult.ok) process.exitCode = 1;
-          NODE
+      - name: Run compact diagnostic
+        run: bash .github/scripts/video-factory-live-status.sh
