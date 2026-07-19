@@ -13,7 +13,8 @@ export const VIDEO_FACTORY_DEFAULTS = Object.freeze({
   duration_mode: 'full',
   output_type: 'music_video',
   filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}',
-  variation: 1
+  variation: 1,
+  segment_duration_seconds: 8
 });
 
 export function sanitizeFilenameToken(value, fallback = 'stashbox') {
@@ -110,6 +111,17 @@ export function buildInitialRenderRecipe(input = {}) {
     audio: {
       url: String(input.audio_url || input.audioUrl || '').trim(),
       start_seconds: Number(input.audio_start_seconds || input.audioStartSeconds || 0)
+    },
+    artwork: {
+      url: String(input.artwork_url || input.artworkUrl || input.song_artwork_url || '').trim()
+    },
+    visuals: {
+      source: 'vec-eligible-assets',
+      segment_duration_seconds: Number(
+        input.segment_duration_seconds ||
+        input.segmentDurationSeconds ||
+        VIDEO_FACTORY_DEFAULTS.segment_duration_seconds
+      )
     },
     overlays: {
       intro_enabled: input.intro_enabled ?? input.introEnabled ?? true,
