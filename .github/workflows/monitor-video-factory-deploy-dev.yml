@@ -1,0 +1,87 @@
+name: Monitor Video Factory DEV Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/monitor-video-factory-deploy-dev.txt'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Wait for deployment and capture result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          WORKFLOW='deploy-video-factory-renderer-dev.yml'
+          RUN_ID=''
+
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --repo "${REPOSITORY}" \
+              --workflow "${WORKFLOW}" \
+              --event workflow_dispatch \
+              --limit 1 \
+              --json databaseId,createdAt \
+              --jq '.[0].databaseId // empty')
+            [ -n "${RUN_ID}" ] && break
+            sleep 10
+          done
+
+          test -n "${RUN_ID}" || { echo 'Deployment workflow run was not found.' >&2; exit 1; }
+          echo "Monitoring deployment run ${RUN_ID}"
+
+          for attempt in $(seq 1 180); do
+            STATUS=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json status --jq '.status')
+            [ "${STATUS}" = 'completed' ] && break
+            sleep 10
+          done
+
+          RUN_JSON=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs)
+          CONCLUSION=$(printf '%s' "${RUN_JSON}" | jq -r '.conclusion // "unknown"')
+
+          mkdir -p radio-api/docs
+          {
+            echo '# Video Factory DEV Deployment Result'
+            echo
+            echo "- Run ID: \`${RUN_ID}\`"
+            echo "- Status: $(printf '%s' "${RUN_JSON}" | jq -r '.status')"
+            echo "- Conclusion: ${CONCLUSION}"
+            echo "- Created: $(printf '%s' "${RUN_JSON}" | jq -r '.createdAt')"
+            echo "- Updated: $(printf '%s' "${RUN_JSON}" | jq -r '.updatedAt')"
+            echo "- URL: $(printf '%s' "${RUN_JSON}" | jq -r '.url')"
+            echo
+            echo '## Steps'
+            printf '%s' "${RUN_JSON}" | jq -r '.jobs[].steps[] | "- \(.name): \(.conclusion // .status)"'
+          } > radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_RESULT.md
+
+          if [ "${CONCLUSION}" != 'success' ]; then
+            gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed > radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_FAILED.log || true
+          else
+            rm -f radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_FAILED.log
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_RESULT.md
+          if [ -f radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_FAILED.log ]; then
+            git add radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_FAILED.log
+          else
+            git add -u radio-api/docs/VIDEO_FACTORY_DEV_DEPLOY_FAILED.log 2>/dev/null || true
+          fi
+          git commit -m 'Record Video Factory DEV deployment result'
+          git push origin HEAD:main
