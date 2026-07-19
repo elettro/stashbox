@@ -1,0 +1,55 @@
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	﻿2026-07-19T14:48:50.8816633Z ##[group]Run set -euo pipefail
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8817218Z ^[[36;1mset -euo pipefail^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8817809Z ^[[36;1maws s3api head-bucket --bucket "${VF_RENDER_BUCKET}"^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8818495Z ^[[36;1maws ecs describe-task-definition \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8819150Z ^[[36;1m  --task-definition "${VF_ECS_TASK_DEFINITION}" \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8819811Z ^[[36;1m  --query 'taskDefinition.family' \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8820347Z ^[[36;1m  --output text^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8820761Z ^[[36;1m^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8821419Z ^[[36;1mINFRA_BODY=$(mktemp)^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8822046Z ^[[36;1mINFRA_STATUS=$(curl --max-time 20 --silent --show-error \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8822754Z ^[[36;1m  -H 'accept: application/json' \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8823333Z ^[[36;1m  -H "x-admin-token: ${ADMIN_TOKEN}" \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8823938Z ^[[36;1m  -o "${INFRA_BODY}" -w '%{http_code}' \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8824631Z ^[[36;1m  "${TRUE_DEV_API_BASE}/admin/video-factory/infrastructure")^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8825364Z ^[[36;1mcat "${INFRA_BODY}"^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8826347Z ^[[36;1mtest "${INFRA_STATUS}" = "200" || { echo "Video Factory infrastructure endpoint returned ${INFRA_STATUS}." >&2; exit 1; }^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8827902Z ^[[36;1mjq -e '.success == true and .configured == true' "${INFRA_BODY}" >/dev/null^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8828688Z ^[[36;1mrm -f "${INFRA_BODY}"^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8829131Z ^[[36;1m^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8829702Z ^[[36;1mADMIN_TOKEN="${ADMIN_TOKEN}" TRUE_DEV_API_BASE="${TRUE_DEV_API_BASE}" \^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8830558Z ^[[36;1m  node radio-api/scripts/smoke-test-true-dev.mjs^[[0m
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8915911Z shell: /usr/bin/bash -e {0}
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8916343Z env:
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8916691Z   AWS_REGION: us-east-1
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8917194Z   STACK_NAME: stashbox-video-factory-dev
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8917797Z   TRUE_DEV_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8918383Z   TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8918912Z   ADMIN_TOKEN: ***
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8919145Z   AWS_DEFAULT_REGION: us-east-1
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8919460Z   AWS_ACCESS_KEY_ID: ***
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8919984Z   AWS_SECRET_ACCESS_KEY: ***
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8920525Z   API_LAMBDA_ROLE_NAME: stashbox-radio-api-dev-v2-role
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8921381Z   API_LAMBDA_VPC_ID: vpc-0f336fe5f1d929d36
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8921977Z   API_LAMBDA_SECURITY_GROUP_ID: sg-069f30e65e65b6b07
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8922812Z   API_LAMBDA_ENDPOINT_SUBNETS: subnet-065ac13129062f85d,subnet-0e2b4207279f79c3f
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8923674Z   API_LAMBDA_ROUTE_TABLE_IDS: rtb-01cbac51dfa0b5be7
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8924616Z   ECR_URI: 656260749296.dkr.ecr.us-east-1.amazonaws.com/stashbox-radio-video-factory-renderer-dev
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8926210Z   IMAGE_URI: 656260749296.dkr.ecr.us-east-1.amazonaws.com/stashbox-radio-video-factory-renderer-dev:4f9559d9d3271f14b60ada0475be271aa30276c0
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8927691Z   VF_RENDER_BUCKET: stashbox-radio-video-factory-dev-656260749296-us-east-1
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8928731Z   VF_ECS_CLUSTER: arn:aws:ecs:us-east-1:656260749296:cluster/stashbox-video-factory-dev
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8930011Z   VF_ECS_TASK_DEFINITION: arn:aws:ecs:us-east-1:656260749296:task-definition/stashbox-video-factory-renderer-dev:3
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8931661Z   VF_ECS_SUBNETS: subnet-0433ebbd4d3d71c42,subnet-0f31e92d042e6719c
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8932244Z   VF_ECS_SECURITY_GROUPS: sg-03b0f175622e71f8f
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8932679Z   VF_LAMBDA_ECS_ENDPOINT: vpce-02381babc0b193e0d
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8933112Z   VF_LAMBDA_S3_ENDPOINT: vpce-0963075fb34890de2
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:50.8933484Z ##[endgroup]
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:51.7717788Z {
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:51.7718628Z     "BucketArn": "arn:aws:s3:::stashbox-radio-video-factory-dev-656260749296-us-east-1",
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:51.7719292Z     "BucketRegion": "us-east-1",
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:51.7719647Z     "AccessPointAlias": false
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:51.7719970Z }
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:48:52.7801278Z stashbox-video-factory-renderer-dev
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:49:08.7887635Z Video Factory infrastructure endpoint returned 500.
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:49:08.7889254Z {"message":"Internal Server Error"}
+Deploy Video Factory renderer and API controls	Verify private render infrastructure	2026-07-19T14:49:08.7904532Z ##[error]Process completed with exit code 1.
