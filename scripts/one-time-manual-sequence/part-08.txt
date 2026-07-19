@@ -24,6 +24,7 @@ timeline_test_block = r'''
 test('manual timeline preserves duplicates, artwork placement, and per-image duration', () => {
   const timeline = buildRenderTimeline({
     total_duration_seconds: 24,
+    segment_duration_seconds: 6,
     order_mode: 'manual',
     artwork_url: 'https://example.com/artwork.jpg',
     assets: [
