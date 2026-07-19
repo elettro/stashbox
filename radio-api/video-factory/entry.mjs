@@ -3,7 +3,7 @@ import { handler as radioHandler } from './radio-main.mjs';
 import {
   getVideoFactoryRouteMatch,
   handleAdminVideoFactoryRoute
-} from './video-factory/routes.mjs';
+} from './video-factory/render-router.mjs';
 
 const { Client } = pg;
 
