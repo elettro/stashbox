@@ -1,0 +1,222 @@
+name: One-Time Video Factory Space Jam Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-space-jam-render.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  render-space-jam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_SPACE_JAM_RENDER_RESULT.md
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Create and monitor first full-song render
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const apiBase = String(process.env.API_BASE || '').replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          const resultPath = process.env.RESULT_PATH;
+          const startedAt = new Date().toISOString();
+          const result = {
+            status: 'failed',
+            started_at: startedAt,
+            completed_at: '',
+            song_key: '',
+            song_title: '',
+            artist: '',
+            job_id: '',
+            batch_id: '',
+            output_filename: '',
+            job_status: '',
+            progress_percent: 0,
+            status_message: '',
+            output_bucket: '',
+            output_key: '',
+            thumbnail_key: '',
+            error: ''
+          };
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+          async function request(pathname, options = {}) {
+            const response = await fetch(`${apiBase}${pathname}`, {
+              ...options,
+              headers: {
+                accept: 'application/json',
+                'x-admin-token': token,
+                ...(options.body ? { 'content-type': 'application/json' } : {}),
+                ...(options.headers || {})
+              }
+            });
+            const text = await response.text();
+            let body = {};
+            try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text.slice(0, 500) }; }
+            if (!response.ok) {
+              throw new Error(`${options.method || 'GET'} ${pathname} returned ${response.status}: ${body.error || body.message || JSON.stringify(body).slice(0, 500)}`);
+            }
+            return body;
+          }
+
+          function normalize(value) {
+            return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+          }
+
+          function markdown(data) {
+            const safe = value => String(value ?? '').replace(/`/g, '\\`');
+            return [
+              '# Video Factory Space Jam Render Result',
+              '',
+              `Status: ${safe(data.status)}`,
+              `Started: ${safe(data.started_at)}`,
+              `Completed: ${safe(data.completed_at)}`,
+              '',
+              `- Song: ${safe(data.artist)} — ${safe(data.song_title)}`,
+              `- Song key: \`${safe(data.song_key)}\``,
+              `- Job ID: \`${safe(data.job_id)}\``,
+              `- Batch ID: \`${safe(data.batch_id)}\``,
+              `- Job status: \`${safe(data.job_status)}\``,
+              `- Progress: ${safe(data.progress_percent)}%`,
+              `- Status message: ${safe(data.status_message)}`,
+              `- Output filename: \`${safe(data.output_filename)}\``,
+              `- Private bucket: \`${safe(data.output_bucket)}\``,
+              `- Private MP4 key: \`${safe(data.output_key)}\``,
+              `- Private thumbnail key: \`${safe(data.thumbnail_key)}\``,
+              '',
+              data.error ? `Error: ${safe(data.error)}` : 'Error: none',
+              ''
+            ].join('\n');
+          }
+
+          try {
+            if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
+
+            const infrastructure = await request('/admin/video-factory/infrastructure');
+            if (!infrastructure.success || !infrastructure.configured) {
+              throw new Error('Video Factory infrastructure check did not return configured=true.');
+            }
+
+            const songsBody = await request('/admin/songs');
+            const songs = Array.isArray(songsBody.songs) ? songsBody.songs : Array.isArray(songsBody) ? songsBody : [];
+            const song = songs.find(item => {
+              const title = normalize(item.display_title || item.song_name);
+              const key = normalize(item.song_key);
+              return title === 'space jam' || title.includes('space jam') || key.includes('space jam');
+            });
+            if (!song) {
+              const available = songs.map(item => `${item.artist || ''} - ${item.display_title || item.song_name || item.song_key || ''}`).slice(0, 100).join('; ');
+              throw new Error(`Space Jam was not found in ${songs.length} admin songs. Available: ${available}`);
+            }
+
+            result.song_key = song.song_key;
+            result.song_title = song.display_title || song.song_name || song.song_key;
+            result.artist = song.artist || '';
+
+            const existing = await request('/admin/video-factory/jobs?limit=250');
+            const active = (existing.jobs || []).find(job => ['pending', 'preparing', 'rendering', 'uploading'].includes(job.status));
+            if (active) throw new Error(`Another Video Factory job is already active: ${active.id} (${active.status}).`);
+
+            const draftBody = await request('/admin/video-factory/jobs', {
+              method: 'POST',
+              body: JSON.stringify({
+                song_key: song.song_key,
+                batch_name: 'Space Jam First Full-Song Render',
+                client_name: 'Stashbox Radio',
+                project_name: 'Video Factory MVP',
+                campaign_name: 'First End-to-End Render',
+                output_type: 'music_video',
+                duration_mode: 'full',
+                aspect_ratio: '16:9',
+                fps: 30,
+                intro_enabled: true,
+                outro_enabled: true,
+                corner_bug_enabled: true,
+                include_artist: true,
+                include_song: true,
+                include_album: true,
+                filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}',
+                metadata_comment: 'First Stashbox Radio Video Factory full-song render.'
+              })
+            });
+
+            const created = draftBody.job;
+            result.job_id = created.id;
+            result.batch_id = created.batch_id;
+            result.output_filename = created.output_filename;
+
+            await request(`/admin/video-factory/jobs/${created.id}/render`, { method: 'POST', body: '{}' });
+
+            const deadline = Date.now() + 75 * 60 * 1000;
+            let lastStatus = '';
+            while (Date.now() < deadline) {
+              const body = await request(`/admin/video-factory/jobs/${created.id}`);
+              const job = body.job;
+              const runtime = job.render_recipe?.runtime || {};
+              result.job_status = job.status;
+              result.progress_percent = Number(runtime.progress_percent || (job.status === 'completed' ? 100 : 0));
+              result.status_message = runtime.status_message || '';
+              result.output_filename = job.output_filename || result.output_filename;
+
+              const marker = `${job.status}:${result.progress_percent}:${result.status_message}`;
+              if (marker !== lastStatus) {
+                console.log(`[${new Date().toISOString()}] ${marker}`);
+                lastStatus = marker;
+              }
+
+              if (job.status === 'completed') {
+                const output = Array.isArray(job.outputs) ? job.outputs.find(item => item.output_kind === 'master') || job.outputs[0] : null;
+                result.status = 'completed';
+                result.completed_at = new Date().toISOString();
+                result.output_bucket = output?.s3_bucket || '';
+                result.output_key = output?.s3_key || '';
+                result.thumbnail_key = output?.metadata?.thumbnail_s3_key || output?.thumbnail_s3_key || '';
+                break;
+              }
+              if (job.status === 'failed' || job.status === 'cancelled') {
+                throw new Error(job.error_message || `Render ended with status ${job.status}.`);
+              }
+              await sleep(15000);
+            }
+
+            if (result.status !== 'completed') throw new Error('Timed out waiting for the full-song render to complete.');
+          } catch (error) {
+            result.status = 'failed';
+            result.completed_at = new Date().toISOString();
+            result.error = error.message;
+            console.error(error.stack || error.message);
+          } finally {
+            fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+            fs.writeFileSync(resultPath, markdown(result));
+          }
+          NODE
+
+      - name: Commit render result
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${RESULT_PATH}"
+          git commit -m 'Record first Space Jam Video Factory render result'
+          git push origin HEAD:main
+
+      - name: Require completed render
+        run: grep -q '^Status: completed$' "${RESULT_PATH}"
