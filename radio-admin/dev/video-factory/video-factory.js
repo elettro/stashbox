@@ -6,11 +6,14 @@
   const SUMMARY_URL = `${API_ROOT}/admin/video-factory/summary`;
   const SONGS_URL = `${API_ROOT}/admin/songs`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
+  const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 
   const state = {
     songs: [],
     jobs: [],
-    summary: {}
+    summary: {},
+    pollTimer: null,
+    actionJobId: ''
   };
 
   const els = {
@@ -45,6 +48,7 @@
     historyEmpty: document.getElementById('historyEmpty'),
     totalJobs: document.getElementById('totalJobs'),
     draftJobs: document.getElementById('draftJobs'),
+    activeJobs: document.getElementById('activeJobs'),
     completedJobs: document.getElementById('completedJobs'),
     failedJobs: document.getElementById('failedJobs')
   };
@@ -67,6 +71,7 @@
     if (!response.ok) {
       const error = new Error(body.error || `Request failed with status ${response.status}.`);
       error.status = response.status;
+      error.body = body;
       throw error;
     }
     return body;
@@ -174,8 +179,10 @@
   }
 
   function renderSummary() {
+    const activeCount = Number(state.summary.active_jobs || state.jobs.filter(job => ACTIVE_STATUSES.has(job.status)).length || 0);
     els.totalJobs.textContent = Number(state.summary.total_jobs || state.jobs.length || 0);
     els.draftJobs.textContent = Number(state.summary.draft_jobs || state.jobs.filter(job => job.status === 'draft').length || 0);
+    els.activeJobs.textContent = activeCount;
     els.completedJobs.textContent = Number(state.summary.completed_jobs || state.jobs.filter(job => job.status === 'completed').length || 0);
     els.failedJobs.textContent = Number(state.summary.failed_jobs || state.jobs.filter(job => job.status === 'failed').length || 0);
   }
@@ -184,6 +191,33 @@
     if (!value) return 'No date';
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+  }
+
+  function progressFor(job) {
+    const runtime = job.render_recipe?.runtime || {};
+    const progress = Number(runtime.progress_percent);
+    return {
+      percent: Number.isFinite(progress) ? Math.max(0, Math.min(100, Math.round(progress))) : (job.status === 'completed' ? 100 : 0),
+      message: String(runtime.status_message || '').trim()
+    };
+  }
+
+  function actionButtons(job) {
+    const busy = state.actionJobId === job.id;
+    if (job.status === 'completed') {
+      return `
+        <button class="vf-small-button" type="button" data-job-action="preview" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Preview</button>
+        <button class="vf-small-button" type="button" data-job-action="download" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Download MP4</button>`;
+    }
+    if (ACTIVE_STATUSES.has(job.status)) {
+      return `<button class="vf-small-button vf-danger-button" type="button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Cancel Render</button>`;
+    }
+    if (['draft', 'failed', 'cancelled'].includes(job.status)) {
+      const label = job.status === 'draft' ? 'Render Now' : 'Retry Render';
+      const action = job.status === 'draft' ? 'render' : 'retry';
+      return `<button class="vf-small-button vf-primary-action" type="button" data-job-action="${action}" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>${label}</button>`;
+    }
+    return '';
   }
 
   function renderHistory() {
@@ -205,11 +239,17 @@
 
     els.historyEmpty.classList.toggle('hidden', jobs.length > 0);
     els.historyList.innerHTML = jobs.map(job => {
-      const canDownload = Boolean(job.output_url);
       const duration = job.duration_mode === 'full' ? 'Full Song' : `${job.duration_seconds || 0}s`;
-      const downloadAction = canDownload
-        ? `<a class="vf-small-button" href="${escapeHtml(job.output_url)}" download>Download MP4</a>`
-        : '<button class="vf-small-button" type="button" disabled>MP4 not rendered</button>';
+      const progress = progressFor(job);
+      const errorBlock = job.error_message
+        ? `<div class="vf-job-error">${escapeHtml(job.error_message)}</div>`
+        : '';
+      const progressBlock = ACTIVE_STATUSES.has(job.status) || progress.percent > 0
+        ? `<div class="vf-progress-wrap" aria-label="Render progress ${progress.percent}%">
+             <div class="vf-progress-track"><span style="width:${progress.percent}%"></span></div>
+             <div class="vf-progress-meta"><span>${escapeHtml(progress.message || job.status)}</span><strong>${progress.percent}%</strong></div>
+           </div>`
+        : '';
       return `
         <article class="vf-job-card">
           <div class="vf-job-header">
@@ -226,23 +266,29 @@
             <span class="vf-badge">${escapeHtml(`${job.fps} FPS`)}</span>
           </div>
           <div class="vf-preview">${escapeHtml(job.output_filename)}</div>
+          ${progressBlock}
+          ${errorBlock}
           <div class="vf-actions">
-            ${downloadAction}
-            <button class="vf-small-button" type="button" data-copy-job="${escapeHtml(job.id)}">Copy Job ID</button>
+            ${actionButtons(job)}
+            <button class="vf-small-button" type="button" data-job-action="copy" data-job-id="${escapeHtml(job.id)}">Copy Job ID</button>
           </div>
         </article>`;
     }).join('');
 
-    els.historyList.querySelectorAll('[data-copy-job]').forEach(button => {
-      button.addEventListener('click', async () => {
-        await navigator.clipboard.writeText(button.dataset.copyJob || '');
-        button.textContent = 'Copied';
-        window.setTimeout(() => { button.textContent = 'Copy Job ID'; }, 1200);
-      });
+    els.historyList.querySelectorAll('[data-job-action]').forEach(button => {
+      button.addEventListener('click', () => handleJobAction(button.dataset.jobId, button.dataset.jobAction));
     });
   }
 
-  async function loadHistory() {
+  function schedulePolling() {
+    if (state.pollTimer) window.clearTimeout(state.pollTimer);
+    state.pollTimer = null;
+    if (state.jobs.some(job => ACTIVE_STATUSES.has(job.status))) {
+      state.pollTimer = window.setTimeout(() => loadHistory({ silent: true }), 8000);
+    }
+  }
+
+  async function loadHistory(options = {}) {
     try {
       const [jobsBody, summaryBody] = await Promise.all([
         fetchJson(JOBS_URL, { headers: headers() }),
@@ -252,15 +298,58 @@
       state.summary = summaryBody.summary || {};
       renderSummary();
       renderHistory();
+      schedulePolling();
     } catch (error) {
       state.jobs = [];
       state.summary = {};
       renderSummary();
       renderHistory();
-      const routeHint = error.status === 404
-        ? 'Video Factory CMS is installed. The private backend route still needs to be connected to the main Lambda router.'
-        : error.message;
-      showMessage(routeHint, true);
+      if (!options.silent) showMessage(error.message, true);
+    }
+  }
+
+  async function openSignedAsset(jobId, action) {
+    const body = await fetchJson(`${JOBS_URL}/${encodeURIComponent(jobId)}/${action}`, { headers: headers() });
+    if (!body.url) throw new Error('The signed file URL was not returned.');
+    if (action === 'download') {
+      const anchor = document.createElement('a');
+      anchor.href = body.url;
+      anchor.rel = 'noopener';
+      anchor.click();
+      return;
+    }
+    window.open(body.url, '_blank', 'noopener');
+  }
+
+  async function handleJobAction(jobId, action) {
+    if (!jobId || !action) return;
+    if (action === 'copy') {
+      await navigator.clipboard.writeText(jobId);
+      showMessage('Job ID copied.');
+      return;
+    }
+
+    clearMessage();
+    state.actionJobId = jobId;
+    renderHistory();
+    try {
+      if (action === 'preview' || action === 'download') {
+        await openSignedAsset(jobId, action);
+      } else {
+        const body = await fetchJson(`${JOBS_URL}/${encodeURIComponent(jobId)}/${action}`, {
+          method: 'POST',
+          headers: headers(true),
+          body: JSON.stringify({})
+        });
+        showMessage(body.message || `Job action ${action} completed.`);
+      }
+      await loadHistory({ silent: true });
+    } catch (error) {
+      const activeHint = error.body?.active_job_id ? ` Active job: ${error.body.active_job_id}` : '';
+      showMessage(`${error.message}${activeHint}`, true);
+    } finally {
+      state.actionJobId = '';
+      renderHistory();
     }
   }
 
@@ -304,7 +393,7 @@
         headers: headers(true),
         body: JSON.stringify(buildPayload())
       });
-      showMessage(body.message || 'Render draft created.');
+      showMessage(`${body.message || 'Render draft created.'} Use Render Now in Render History.`);
       await loadHistory();
     } catch (error) {
       showMessage(error.message, true);
@@ -335,7 +424,7 @@
     els.saveToken.addEventListener('click', saveToken);
     els.clearToken.addEventListener('click', clearToken);
     els.form.addEventListener('submit', createDraft);
-    els.refreshHistory.addEventListener('click', loadHistory);
+    els.refreshHistory.addEventListener('click', () => loadHistory());
     els.historySearch.addEventListener('input', renderHistory);
     els.historyStatus.addEventListener('change', renderHistory);
     [
@@ -346,6 +435,9 @@
       els.filenameTemplate
     ].forEach(element => element.addEventListener('input', previewFilename));
     els.durationMode.addEventListener('change', updateDurationControls);
+    window.addEventListener('beforeunload', () => {
+      if (state.pollTimer) window.clearTimeout(state.pollTimer);
+    });
   }
 
   async function init() {
