@@ -71,6 +71,15 @@ function normalizeArtworkRules(recipe = {}) {
   };
 }
 
+function normalizeRenderSettings(recipe = {}) {
+  const settings = recipe.render_settings || recipe.renderSettings || {};
+  const duration = Number(settings.still_image_duration_seconds ?? settings.stillImageDurationSeconds);
+  return {
+    still_image_duration_seconds: Number.isFinite(duration) && duration > 0 ? Math.min(30, duration) : 3,
+    ken_burns_enabled: settings.ken_burns_enabled !== false && settings.kenBurnsEnabled !== false
+  };
+}
+
 async function loadSongAssets(request, songKey) {
   if (!songKey) return [];
   const body = await request(`/admin/vec/song-assets?song_key=${encodeURIComponent(songKey)}`);
@@ -92,6 +101,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
       orderMode: 'random',
       assets: [],
       artworkRules: normalizeArtworkRules(),
+      renderSettings: normalizeRenderSettings(),
       recipe: null,
       missingAssetIds: []
     };
@@ -101,6 +111,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
   const visualMode = stringValue(recipe.visual_mode || 'custom').toLowerCase();
   const orderMode = normalizeOrderMode(recipe.shuffle?.order_mode || recipe.order_mode);
   const artworkRules = normalizeArtworkRules(recipe);
+  const renderSettings = normalizeRenderSettings(recipe);
 
   if (visualMode === 'artwork_only') {
     return {
@@ -110,6 +121,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
       orderMode,
       assets: [],
       artworkRules,
+      renderSettings,
       recipe,
       selectedAssetIds: [],
       missingAssetIds: []
@@ -172,6 +184,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
     orderMode,
     assets: dedupedAssets,
     artworkRules,
+    renderSettings,
     recipe,
     selectedAssetIds: expectedIds,
     missingAssetIds

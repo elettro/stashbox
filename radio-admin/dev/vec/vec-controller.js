@@ -54,6 +54,12 @@
     repeatEverySeconds: 60,
   };
 
+  const DEFAULT_RENDER_SETTINGS = {
+    stillImageDurationSeconds: 3,
+    kenBurnsEnabled: true,
+  };
+
+  const STILL_IMAGE_DURATION_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12];
   const DURATION_OPTIONS = [2, 3, 4, 5, 8, 10];
   const REPEAT_OPTIONS = [30, 45, 60, 90, 120];
   const VISUAL_MODE_CUSTOM = 'custom';
@@ -976,7 +982,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, renderSettings: { ...DEFAULT_RENDER_SETTINGS, ...(options.renderSettings || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = {
       sequence: buildPreviewSequence(state),
       index: 0,
@@ -1005,6 +1011,7 @@
       <section class="card vec-section" aria-labelledby="songAssetsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Song Assets</p><h2 id="songAssetsHeading">Song-Only Assets</h2><p class="vec-copy">Active upload path: images and clips uploaded directly for this selected song only.</p></div></div><div data-vec-song-assets></div></section>
       <section class="card vec-section" aria-labelledby="folderCardsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Folders</p><h2 id="folderCardsHeading">Visual Library Folders</h2><p class="vec-copy">Reusable Visual Library folders are selectable sources only; manage new song-level media in Song-Only Assets.</p></div></div><div data-vec-folder-toolbar></div><div class="vec-folder-grid" data-vec-folder-grid></div></section>
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
+      <section class="card vec-section" aria-labelledby="renderImageSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Rendered Video</p><h2 id="renderImageSettingsHeading">Still Image Motion</h2><p class="vec-copy">Controls still-image timing and subtle Ken Burns movement in Video Factory renders. These settings do not change video clip length.</p></div></div><div class="vec-control-grid" role="group" aria-label="Rendered video still image settings"><label class="vec-field"><span>Still image duration</span><select class="vec-select" data-vec-still-image-duration>${optionMarkup(STILL_IMAGE_DURATION_OPTIONS, state.renderSettings.stillImageDurationSeconds)}</select></label><label class="vec-field vec-toggle-field"><span>Ken Burns effect</span><button class="vec-toggle ${state.renderSettings.kenBurnsEnabled ? 'is-on' : 'is-off'}" type="button" data-vec-ken-burns-toggle aria-pressed="${state.renderSettings.kenBurnsEnabled}">${onOffLabel(state.renderSettings.kenBurnsEnabled)}</button></label></div><p class="vec-microcopy">Ken Burns uses slow, subtle, seeded random movement and a restrained zoom. Each render remains repeatable from its saved recipe.</p></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
@@ -1033,6 +1040,8 @@
       avoidRepeats: container.querySelector('[data-vec-avoid-repeats]'),
       artworkOnlyToggle: container.querySelector('[data-vec-artwork-only-toggle]'),
       artworkOnlyNote: container.querySelector('[data-vec-artwork-only-note]'),
+      stillImageDuration: container.querySelector('[data-vec-still-image-duration]'),
+      kenBurnsToggle: container.querySelector('[data-vec-ken-burns-toggle]'),
       saveRecipe: container.querySelector('[data-vec-save-recipe]'),
       resetRecipe: container.querySelector('[data-vec-reset-recipe]'),
       recipeStatus: container.querySelector('[data-vec-recipe-status]'),
@@ -1618,6 +1627,16 @@
       });
     }
 
+    function syncRenderSettingsControls() {
+      if (elements.stillImageDuration) elements.stillImageDuration.value = String(state.renderSettings.stillImageDurationSeconds);
+      if (elements.kenBurnsToggle) {
+        elements.kenBurnsToggle.classList.toggle('is-on', state.renderSettings.kenBurnsEnabled);
+        elements.kenBurnsToggle.classList.toggle('is-off', !state.renderSettings.kenBurnsEnabled);
+        elements.kenBurnsToggle.setAttribute('aria-pressed', String(state.renderSettings.kenBurnsEnabled));
+        elements.kenBurnsToggle.textContent = onOffLabel(state.renderSettings.kenBurnsEnabled);
+      }
+    }
+
     function syncVisualModeControls() {
       const artworkOnly = state.visualMode === VISUAL_MODE_ARTWORK_ONLY;
       if (elements.artworkOnlyToggle) {
@@ -1712,6 +1731,10 @@
           re_present_artwork: Boolean(state.artworkRules.rePresentArtwork),
           repeat_every_seconds: Number(state.artworkRules.repeatEverySeconds) || 60,
         },
+        render_settings: {
+          still_image_duration_seconds: Number(state.renderSettings.stillImageDurationSeconds) || DEFAULT_RENDER_SETTINGS.stillImageDurationSeconds,
+          ken_burns_enabled: state.renderSettings.kenBurnsEnabled !== false,
+        },
         folders,
         song_assets: songAssetRecipe,
         borrowed_song_assets: buildBorrowedSongAssetsRecipe(),
@@ -1727,6 +1750,7 @@
 
     function resetLocalRecipeState() {
       state.artworkRules = { ...DEFAULT_ARTWORK_RULES };
+      state.renderSettings = { ...DEFAULT_RENDER_SETTINGS };
       state.shuffleRules = { ...DEFAULT_SHUFFLE_RULES };
       state.visualMode = VISUAL_MODE_CUSTOM;
       state.selectedFolderIds = new Set();
@@ -1762,6 +1786,11 @@
           endDurationSeconds: Number(artwork.end_duration_seconds) || DEFAULT_ARTWORK_RULES.endDurationSeconds,
           rePresentArtwork: artwork.re_present_artwork !== false,
           repeatEverySeconds: Number(artwork.repeat_every_seconds) || DEFAULT_ARTWORK_RULES.repeatEverySeconds,
+        };
+        const renderSettings = recipe.render_settings || {};
+        state.renderSettings = {
+          stillImageDurationSeconds: Number(renderSettings.still_image_duration_seconds) || DEFAULT_RENDER_SETTINGS.stillImageDurationSeconds,
+          kenBurnsEnabled: renderSettings.ken_burns_enabled !== false,
         };
         const shuffle = recipe.shuffle || {};
         state.shuffleRules = {
@@ -1877,6 +1906,7 @@
       elements.folderGrid.innerHTML = renderFolderCards(state);
       const selectedFolders = getSelectedFolders(state);
       syncArtworkControls();
+      syncRenderSettingsControls();
       syncVisualModeControls();
       syncShuffleControls();
       elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt }, getActiveBorrowedAssetCounts(state), state.visualMode);
@@ -2434,6 +2464,17 @@
     elements.artworkOnlyToggle?.addEventListener('click', () => {
       state.visualMode = state.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_CUSTOM : VISUAL_MODE_ARTWORK_ONLY;
       previewState.index = 0;
+      markDirty();
+      renderDynamic();
+    });
+
+    elements.stillImageDuration?.addEventListener('change', () => {
+      state.renderSettings.stillImageDurationSeconds = Number(elements.stillImageDuration.value) || DEFAULT_RENDER_SETTINGS.stillImageDurationSeconds;
+      markDirty();
+      renderDynamic();
+    });
+    elements.kenBurnsToggle?.addEventListener('click', () => {
+      state.renderSettings.kenBurnsEnabled = !state.renderSettings.kenBurnsEnabled;
       markDirty();
       renderDynamic();
     });

@@ -19,6 +19,7 @@ test('timeline covers the requested duration and exhausts the pool before repeat
   const timeline = buildRenderTimeline({
     total_duration_seconds: 22,
     segment_duration_seconds: 5,
+    image_duration_seconds: 5,
     seed: 'space-jam-render-1',
     order_mode: 'random',
     assets: [
@@ -35,6 +36,32 @@ test('timeline covers the requested duration and exhausts the pool before repeat
   for (let index = 1; index < timeline.length; index += 1) {
     assert.notEqual(timeline[index].asset_id, timeline[index - 1].asset_id);
   }
+});
+
+test('still images default to three seconds with subtle deterministic Ken Burns motion', () => {
+  const options = {
+    total_duration_seconds: 7,
+    segment_duration_seconds: 8,
+    seed: 'still-motion-seed',
+    assets: [{ id: 'image-a', type: 'image', url: 'https://example.com/a.jpg' }]
+  };
+  const first = buildRenderTimeline(options);
+  const repeated = buildRenderTimeline(options);
+  assert.deepEqual(first, repeated);
+  assert.deepEqual(first.map(item => item.duration_seconds), [3, 3, 1]);
+  assert.ok(first.every(item => item.motion?.enabled));
+  assert.ok(first.every(item => item.motion.max_zoom >= 1.06 && item.motion.max_zoom <= 1.09));
+  assert.ok(first.every(item => ['in', 'out'].includes(item.motion.zoom_mode)));
+});
+
+test('Ken Burns can be disabled without changing the three-second still duration', () => {
+  const timeline = buildRenderTimeline({
+    total_duration_seconds: 6,
+    ken_burns_enabled: false,
+    assets: [{ id: 'image-a', type: 'image', url: 'https://example.com/a.jpg' }]
+  });
+  assert.deepEqual(timeline.map(item => item.duration_seconds), [3, 3]);
+  assert.ok(timeline.every(item => item.motion === null));
 });
 
 test('artwork becomes the fallback when no VEC assets are available', () => {

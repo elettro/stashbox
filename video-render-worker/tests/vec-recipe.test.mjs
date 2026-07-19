@@ -21,6 +21,7 @@ test('real VEC recipe resolves selected folder, direct, and borrowed assets', as
           re_present_artwork: true,
           repeat_every_seconds: 60
         },
+        render_settings: { still_image_duration_seconds: 3, ken_burns_enabled: true },
         shuffle: { order_mode: 'randomize', avoid_repeating_same_asset: true },
         song_assets: { active_image_ids: ['direct-1'] },
         folders: [{
@@ -68,6 +69,7 @@ test('real VEC recipe resolves selected folder, direct, and borrowed assets', as
   assert.equal(result.assets.filter(item => item.type === 'clip').length, 2);
   assert.deepEqual(result.missingAssetIds, []);
   assert.equal(result.artworkRules.repeat_every_seconds, 60);
+  assert.deepEqual(result.renderSettings, { still_image_duration_seconds: 3, ken_burns_enabled: true });
   assert.deepEqual(calls, [...responses.keys()]);
 });
 
@@ -92,6 +94,7 @@ test('artwork-only VEC recipe remains authoritative and resolves no clips', asyn
   assert.equal(result.found, true);
   assert.equal(result.visualMode, 'artwork_only');
   assert.deepEqual(result.assets, []);
+  assert.deepEqual(result.renderSettings, { still_image_duration_seconds: 3, ken_burns_enabled: true });
 });
 
 test('missing recipe allows the renderer to use the secondary Song CMS source', async () => {
@@ -103,4 +106,5 @@ test('missing recipe allows the renderer to use the secondary Song CMS source', 
   assert.equal(result.found, false);
   assert.equal(result.source, 'vec-recipe-not-found');
   assert.deepEqual(result.assets, []);
+  assert.deepEqual(result.renderSettings, { still_image_duration_seconds: 3, ken_burns_enabled: true });
 });
