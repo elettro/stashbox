@@ -1,0 +1,223 @@
+name: Deploy Video Factory Renderer DEV
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-video-factory-renderer-dev:
+    name: Deploy Video Factory renderer and API controls
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      TRUE_DEV_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate deployment target and secrets
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}" || { echo "STASHBOX_DEV_ADMIN_TOKEN is missing." >&2; exit 1; }
+          ACTUAL_FUNCTION=$(aws lambda get-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --query FunctionName \
+            --output text)
+          test "${ACTUAL_FUNCTION}" = "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" || { echo "Unexpected Lambda target." >&2; exit 1; }
+          ROLE_ARN=$(aws lambda get-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --query Role \
+            --output text)
+          ROLE_NAME="${ROLE_ARN##*/}"
+          echo "API_LAMBDA_ROLE_NAME=${ROLE_NAME}" >> "${GITHUB_ENV}"
+          echo "Validated TRUE DEV Lambda: ${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+
+      - name: Check source syntax and unit tests
+        run: |
+          set -euo pipefail
+          npm --prefix radio-api install --omit=dev --no-audit --no-fund
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/render-router.mjs
+          node --check radio-api/video-factory/render-control.mjs
+          node --check video-render-worker/src/index.mjs
+          node --check video-render-worker/src/ffmpeg.mjs
+          node --check video-render-worker/src/timeline.mjs
+          npm --prefix radio-api run test:video-factory
+          npm --prefix video-render-worker test
+
+      - name: Bootstrap infrastructure stack when missing
+        run: |
+          set -euo pipefail
+          if aws cloudformation describe-stacks --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
+            echo "Stack already exists. Skipping bootstrap image."
+          else
+            aws cloudformation deploy \
+              --stack-name "${STACK_NAME}" \
+              --template-file infra/video-factory/dev-stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset \
+              --parameter-overrides \
+                ImageUri=public.ecr.aws/docker/library/node:22-bookworm-slim \
+                ApiLambdaRoleName="${API_LAMBDA_ROLE_NAME}" \
+                ApiBase="${TRUE_DEV_API_BASE}"
+          fi
+
+      - name: Read ECR repository URI
+        run: |
+          set -euo pipefail
+          ECR_URI=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='EcrRepositoryUri'].OutputValue" \
+            --output text)
+          test -n "${ECR_URI}" || { echo "ECR repository output is missing." >&2; exit 1; }
+          echo "ECR_URI=${ECR_URI}" >> "${GITHUB_ENV}"
+          echo "IMAGE_URI=${ECR_URI}:${GITHUB_SHA}" >> "${GITHUB_ENV}"
+
+      - name: Build and push FFmpeg renderer image
+        run: |
+          set -euo pipefail
+          REGISTRY="${ECR_URI%%/*}"
+          aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${REGISTRY}"
+          docker build --pull --tag "${IMAGE_URI}" video-render-worker
+          docker push "${IMAGE_URI}"
+
+      - name: Deploy Video Factory infrastructure
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy \
+            --stack-name "${STACK_NAME}" \
+            --template-file infra/video-factory/dev-stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              ImageUri="${IMAGE_URI}" \
+              ApiLambdaRoleName="${API_LAMBDA_ROLE_NAME}" \
+              ApiBase="${TRUE_DEV_API_BASE}"
+
+      - name: Store worker admin token in Secrets Manager
+        run: |
+          set -euo pipefail
+          SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='AdminTokenSecretArn'].OutputValue" \
+            --output text)
+          test -n "${SECRET_ARN}" || { echo "Admin token secret output is missing." >&2; exit 1; }
+          umask 077
+          printf '%s' "${ADMIN_TOKEN}" > /tmp/video-factory-admin-token
+          aws secretsmanager put-secret-value \
+            --secret-id "${SECRET_ARN}" \
+            --secret-string file:///tmp/video-factory-admin-token >/dev/null
+          rm -f /tmp/video-factory-admin-token
+
+      - name: Read stack outputs
+        run: |
+          set -euo pipefail
+          output() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
+              --output text
+          }
+          echo "VF_RENDER_BUCKET=$(output RenderBucketName)" >> "${GITHUB_ENV}"
+          echo "VF_ECS_CLUSTER=$(output RenderClusterArn)" >> "${GITHUB_ENV}"
+          echo "VF_ECS_TASK_DEFINITION=$(output RenderTaskDefinitionArn)" >> "${GITHUB_ENV}"
+          echo "VF_ECS_SUBNETS=$(output RenderSubnetIds)" >> "${GITHUB_ENV}"
+          echo "VF_ECS_SECURITY_GROUPS=$(output RenderSecurityGroupIds)" >> "${GITHUB_ENV}"
+
+      - name: Configure TRUE DEV Lambda render environment
+        run: |
+          set -euo pipefail
+          CURRENT_ENV=$(aws lambda get-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --query 'Environment.Variables' \
+            --output json)
+          if [ "${CURRENT_ENV}" = "null" ] || [ -z "${CURRENT_ENV}" ]; then CURRENT_ENV='{}'; fi
+          MERGED_ENV=$(printf '%s' "${CURRENT_ENV}" | jq -c \
+            --arg cluster "${VF_ECS_CLUSTER}" \
+            --arg task "${VF_ECS_TASK_DEFINITION}" \
+            --arg container "video-factory-renderer" \
+            --arg subnets "${VF_ECS_SUBNETS}" \
+            --arg groups "${VF_ECS_SECURITY_GROUPS}" \
+            --arg bucket "${VF_RENDER_BUCKET}" \
+            --arg api "${TRUE_DEV_API_BASE}" \
+            --arg prefix "video-factory" \
+            '. + {
+              VIDEO_FACTORY_ECS_CLUSTER: $cluster,
+              VIDEO_FACTORY_ECS_TASK_DEFINITION: $task,
+              VIDEO_FACTORY_ECS_CONTAINER_NAME: $container,
+              VIDEO_FACTORY_ECS_SUBNETS: $subnets,
+              VIDEO_FACTORY_ECS_SECURITY_GROUPS: $groups,
+              VIDEO_FACTORY_RENDER_BUCKET: $bucket,
+              VIDEO_FACTORY_API_BASE: $api,
+              VIDEO_FACTORY_OUTPUT_PREFIX: $prefix
+            }')
+          jq -n --argjson variables "${MERGED_ENV}" '{Variables: $variables}' > /tmp/video-factory-lambda-env.json
+          aws lambda update-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --environment file:///tmp/video-factory-lambda-env.json >/dev/null
+          aws lambda wait function-updated --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+
+      - name: Build TRUE DEV Lambda package
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -r dist/true-dev-lambda.zip . \
+            -x "dist/*" \
+            -x ".git/*" \
+            -x "*.zip"
+
+      - name: Deploy TRUE DEV Lambda render controls
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip >/dev/null
+          aws lambda wait function-updated --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+
+      - name: Verify private render infrastructure
+        run: |
+          set -euo pipefail
+          aws s3api head-bucket --bucket "${VF_RENDER_BUCKET}"
+          aws ecs describe-task-definition \
+            --task-definition "${VF_ECS_TASK_DEFINITION}" \
+            --query 'taskDefinition.family' \
+            --output text
+          ADMIN_TOKEN="${ADMIN_TOKEN}" TRUE_DEV_API_BASE="${TRUE_DEV_API_BASE}" \
+            node radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Deployment summary
+        run: |
+          {
+            echo '## Video Factory DEV renderer deployed'
+            echo ''
+            echo "- Lambda: \`${TRUE_DEV_LAMBDA_FUNCTION_NAME}\`"
+            echo "- ECS cluster: \`${VF_ECS_CLUSTER}\`"
+            echo "- Task definition: \`${VF_ECS_TASK_DEFINITION}\`"
+            echo "- Private bucket: \`${VF_RENDER_BUCKET}\`"
+            echo "- Image: \`${IMAGE_URI}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

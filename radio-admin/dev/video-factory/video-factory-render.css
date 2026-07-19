@@ -1,0 +1,74 @@
+.vf-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.vf-progress-wrap {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.vf-progress-track {
+  height: 9px;
+  overflow: hidden;
+  border: 1px solid rgba(99, 179, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.vf-progress-track span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--vf-blue), var(--vf-purple));
+  transition: width 300ms ease;
+}
+
+.vf-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.vf-job-error {
+  border: 1px solid rgba(255, 104, 120, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 104, 120, 0.08);
+  color: #ffd3d8;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.vf-primary-action {
+  border-color: rgba(99, 179, 255, 0.55);
+  background: rgba(99, 179, 255, 0.14);
+  color: #d6edff;
+}
+
+.vf-danger-button {
+  border-color: rgba(255, 104, 120, 0.5);
+  background: rgba(255, 104, 120, 0.1);
+  color: #ffd3d8;
+}
+
+.vf-badge.status-pending,
+.vf-badge.status-preparing,
+.vf-badge.status-rendering,
+.vf-badge.status-uploading {
+  border-color: rgba(99, 179, 255, 0.52);
+  color: #b9ddff;
+}
+
+.vf-badge.status-cancelled {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #c3cbc6;
+}
+
+@media (max-width: 760px) {
+  .vf-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

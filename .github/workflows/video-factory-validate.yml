@@ -3,19 +3,27 @@ name: Validate Video Factory
 on:
   push:
     branches:
-      - agent/video-factory-mvp
+      - 'agent/video-factory-*'
     paths:
       - 'radio-api/video-factory/**'
       - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-api/package.json'
       - 'radio-admin/dev/video-factory/**'
+      - 'video-render-worker/**'
+      - 'infra/video-factory/**'
       - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
       - '.github/workflows/video-factory-validate.yml'
   pull_request:
     paths:
       - 'radio-api/video-factory/**'
       - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-api/package.json'
       - 'radio-admin/dev/video-factory/**'
+      - 'video-render-worker/**'
+      - 'infra/video-factory/**'
       - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
       - '.github/workflows/video-factory-validate.yml'
 
 jobs:
@@ -24,18 +32,57 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      - name: Install API and worker dependencies
+        run: |
+          npm --prefix radio-api install --omit=dev --no-audit --no-fund --silent
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund --silent
+
       - name: Check JavaScript syntax
         run: |
           node --check radio-api/video-factory/entry.mjs
           node --check radio-api/video-factory/routes.mjs
           node --check radio-api/video-factory/recipe.mjs
+          node --check radio-api/video-factory/render-router.mjs
+          node --check radio-api/video-factory/render-control.mjs
           node --check radio-admin/dev/video-factory/video-factory.js
+          npm --prefix video-render-worker run check --silent
 
-      - name: Run Video Factory tests
-        run: node --test radio-api/tests/video-factory-foundation.test.mjs
+      - name: Run Video Factory API tests
+        run: node --test --test-reporter=spec radio-api/tests/video-factory-foundation.test.mjs radio-api/tests/video-factory-render-control.test.mjs
+
+      - name: Run FFmpeg helper tests
+        run: node --test --test-reporter=spec video-render-worker/tests/ffmpeg.test.mjs
+
+      - name: Run deterministic timeline tests
+        run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs
+
+      - name: Lint Video Factory CloudFormation
+        run: |
+          python -m pip install --quiet cfn-lint
+          cfn-lint infra/video-factory/dev-stack.yml
+
+      - name: Build FFmpeg worker container
+        run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
+
+      - name: Run FFmpeg container smoke render
+        id: smoke_render
+        run: |
+          set -o pipefail
+          docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs 2>&1 | tee video-factory-smoke-render.log
+
+      - name: Upload FFmpeg smoke diagnostics
+        if: failure() && steps.smoke_render.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-factory-smoke-render-log
+          path: video-factory-smoke-render.log
+          if-no-files-found: error
+          retention-days: 3
