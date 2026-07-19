@@ -35,8 +35,8 @@ export async function recoverStalePendingJobs({
       return { recovered_count: 0, recovered_job_ids: [] };
     }
 
-    const jobIds = staleResult.rows.map(row => row.id);
-    const batchIds = [...new Set(staleResult.rows.map(row => row.batch_id).filter(Boolean))];
+    const jobIds = staleResult.rows.map(row => String(row.id));
+    const batchIds = [...new Set(staleResult.rows.map(row => String(row.batch_id || '')).filter(Boolean))];
     const errorMessage = 'Render launch did not receive an ECS task ARN and was recovered as stale.';
 
     await client.query(
@@ -45,7 +45,7 @@ export async function recoverStalePendingJobs({
            error_message = $2,
            completed_at = COALESCE(completed_at, now()),
            updated_at = now()
-       WHERE id = ANY($1::uuid[])`,
+       WHERE id::text = ANY($1::text[])`,
       [jobIds, errorMessage]
     );
 
@@ -53,7 +53,7 @@ export async function recoverStalePendingJobs({
       await client.query(
         `UPDATE ${qname('video_render_batches')}
          SET status = 'failed', updated_at = now()
-         WHERE id = ANY($1::uuid[])`,
+         WHERE id::text = ANY($1::text[])`,
         [batchIds]
       );
     }
