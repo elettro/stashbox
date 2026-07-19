@@ -1,9 +1,9 @@
 import pg from 'pg';
-import { handler as radioHandler } from '../radio-main.mjs';
+import { handler as radioHandler } from './radio-main.mjs';
 import {
   getVideoFactoryRouteMatch,
   handleAdminVideoFactoryRoute
-} from './routes.mjs';
+} from './video-factory/routes.mjs';
 
 const { Client } = pg;
 
@@ -69,16 +69,10 @@ function getHeader(event, name) {
 }
 
 async function requireAdmin(event) {
-  const configuredToken = String(process.env.ADMIN_TOKEN || process.env.STASHBOX_ADMIN_TOKEN || '').trim();
-  if (!configuredToken) {
-    const error = new Error('Admin authentication is not configured.');
-    error.statusCode = 503;
-    throw error;
-  }
-
+  const configuredToken = String(process.env.ADMIN_TOKEN || process.env.RADIO_ADMIN_TOKEN || '').trim();
   const suppliedToken = getHeader(event, 'x-admin-token').trim();
-  if (!suppliedToken || suppliedToken !== configuredToken) {
-    const error = new Error('Unauthorized.');
+  if (configuredToken && suppliedToken !== configuredToken) {
+    const error = new Error('Unauthorized. Check admin token.');
     error.statusCode = 401;
     throw error;
   }
