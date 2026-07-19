@@ -46,7 +46,9 @@ export async function probeDuration(filePath) {
     filePath
   ]);
   const duration = Number(result.stdout.trim());
-  if (!Number.isFinite(duration) || duration <= 0) throw new Error(`Could not determine media duration for ${filePath}.`);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error(`Could not determine media duration for ${filePath}.`);
+  }
   return duration;
 }
 
@@ -94,7 +96,9 @@ export async function renderTimelineSegment(segment, options = {}) {
     ], { streamStderr: options.streamStderr });
   }
 
-  if (!options.inputPath) throw new Error(`Input file is required for timeline segment ${segment.index}.`);
+  if (!options.inputPath) {
+    throw new Error(`Input file is required for timeline segment ${segment.index}.`);
+  }
   if (segment.type === 'image') {
     return runCommand('ffmpeg', [
       '-y',
@@ -116,7 +120,9 @@ export async function concatenateSegments(segmentPaths, outputPath, workDir) {
   if (!segmentPaths.length) throw new Error('At least one timeline segment is required.');
   await mkdir(workDir, { recursive: true });
   const concatPath = path.join(workDir, 'segments.txt');
-  const lines = segmentPaths.map(filePath => `file '${filePath.replace(/'/g, "'\\''")}'`).join('\n');
+  const lines = segmentPaths
+    .map(filePath => `file '${filePath.replace(/'/g, "'\\''")}'`)
+    .join('\n');
   await writeFile(concatPath, `${lines}\n`, 'utf8');
   await runCommand('ffmpeg', [
     '-y',
@@ -145,8 +151,7 @@ function between(start, end) {
 }
 
 function drawText({ fontFile, text, size, x, y, enable, box = true, opacity = 0.52 }) {
-  const parts = [
-    'drawtext',
+  const options = [
     `fontfile=${escapeDrawtext(fontFile)}`,
     `text='${escapeDrawtext(text)}'`,
     'fontcolor=white',
@@ -157,15 +162,18 @@ function drawText({ fontFile, text, size, x, y, enable, box = true, opacity = 0.
     'shadowx=2',
     'shadowy=2'
   ];
-  if (box) parts.push('box=1', `boxcolor=black@${opacity}`, 'boxborderw=18');
-  if (enable) parts.push(`enable='${enable}'`);
-  return parts.join(':');
+  if (box) options.push('box=1', `boxcolor=black@${opacity}`, 'boxborderw=18');
+  if (enable) options.push(`enable='${enable}'`);
+  return `drawtext=${options.join(':')}`;
 }
 
-export function buildOverlayFilter(recipe, totalDuration, fontFile = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf') {
+export function buildOverlayFilter(
+  recipe,
+  totalDuration,
+  fontFile = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+) {
   const overlays = recipe?.overlays || {};
   const metadata = recipe?.metadata || {};
-  const width = Number(recipe?.width || 1920);
   const height = Number(recipe?.height || 1080);
   const title = stringValue(metadata.title || recipe?.song_title);
   const artist = stringValue(metadata.artist || recipe?.artist);
@@ -180,18 +188,43 @@ export function buildOverlayFilter(recipe, totalDuration, fontFile = '/usr/share
   const addIdentityBlock = (start, end) => {
     const enable = between(start, end);
     if (overlays.include_song !== false && title) {
-      filters.push(drawText({ fontFile, text: title, size: titleSize, x: '(w-text_w)/2', y: 'h*0.40', enable }));
+      filters.push(drawText({
+        fontFile,
+        text: title,
+        size: titleSize,
+        x: '(w-text_w)/2',
+        y: 'h*0.40',
+        enable
+      }));
     }
     if (overlays.include_artist !== false && artist) {
-      filters.push(drawText({ fontFile, text: artist, size: secondarySize, x: '(w-text_w)/2', y: 'h*0.52', enable }));
+      filters.push(drawText({
+        fontFile,
+        text: artist,
+        size: secondarySize,
+        x: '(w-text_w)/2',
+        y: 'h*0.52',
+        enable
+      }));
     }
     if (overlays.include_album !== false && album) {
-      filters.push(drawText({ fontFile, text: album, size: secondarySize * 0.82, x: '(w-text_w)/2', y: 'h*0.60', enable }));
+      filters.push(drawText({
+        fontFile,
+        text: album,
+        size: secondarySize * 0.82,
+        x: '(w-text_w)/2',
+        y: 'h*0.60',
+        enable
+      }));
     }
   };
 
-  if (overlays.intro_enabled !== false && introDuration > 0) addIdentityBlock(0, introDuration);
-  if (overlays.outro_enabled !== false && outroDuration > 0) addIdentityBlock(outroStart, totalDuration);
+  if (overlays.intro_enabled !== false && introDuration > 0) {
+    addIdentityBlock(0, introDuration);
+  }
+  if (overlays.outro_enabled !== false && outroDuration > 0) {
+    addIdentityBlock(outroStart, totalDuration);
+  }
   if (overlays.corner_bug_enabled !== false) {
     filters.push(drawText({
       fontFile,
