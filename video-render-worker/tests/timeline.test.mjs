@@ -130,3 +130,27 @@ test('artwork control records without URLs do not become render assets', () => {
   assert.equal(timeline[0].asset_id, 'song-artwork');
   assert.equal(timeline.at(-1).end_seconds, 10);
 });
+
+test('manual timeline preserves duplicates, artwork placement, and per-image duration', () => {
+  const timeline = buildRenderTimeline({
+    total_duration_seconds: 24,
+    segment_duration_seconds: 6,
+    order_mode: 'manual',
+    artwork_url: 'https://example.com/artwork.jpg',
+    assets: [
+      { id: 'clip-a', type: 'clip', url: 'https://example.com/a.mp4' },
+      { id: 'image-a', type: 'image', url: 'https://example.com/a.jpg' }
+    ],
+    manual_sequence: [
+      { entry_id: 'one', asset_id: 'clip-a', source_kind: 'folder', duration_seconds: 6 },
+      { entry_id: 'two', asset_id: 'image-a', source_kind: 'song', duration_seconds: 5 },
+      { entry_id: 'three', asset_id: 'clip-a', source_kind: 'folder', duration_seconds: 6 },
+      { entry_id: 'four', asset_id: 'official-artwork', source_kind: 'artwork', duration_seconds: 4 }
+    ],
+    artwork_rules: { start_with_artwork: true, end_with_artwork: true, re_present_artwork: true, repeat_every_seconds: 5 }
+  });
+  assert.deepEqual(timeline.slice(0, 4).map(item => item.source_asset_id), ['clip-a', 'image-a', 'clip-a', 'official-artwork']);
+  assert.equal(timeline[1].duration_seconds, 5);
+  assert.equal(timeline[3].duration_seconds, 4);
+  assert.equal(timeline.at(-1).end_seconds, 24);
+});

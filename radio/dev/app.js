@@ -534,6 +534,48 @@ function vecArtworkTransitionLog(label, payload) {
   console.log('[VEC Artwork]', label, payload);
 }
 
+
+function normalizeManualVecEntries(recipe = {}) {
+  return (Array.isArray(recipe?.manual_sequence) ? recipe.manual_sequence : []).map((entry, index) => ({
+    entryId: clean(entry?.entry_id || entry?.entryId) || `manual-${index + 1}`,
+    assetId: clean(entry?.asset_id || entry?.assetId || entry?.asset_key || entry?.assetKey),
+    sourceKind: clean(entry?.source_kind || entry?.sourceKind).toLowerCase(),
+    label: clean(entry?.label),
+    assetType: clean(entry?.asset_type || entry?.assetType).toLowerCase(),
+    durationSeconds: Math.max(1, Number(entry?.duration_seconds ?? entry?.durationSeconds) || 4),
+    artworkRole: clean(entry?.artwork_role || entry?.artworkRole)
+  })).filter(entry => entry.assetId);
+}
+
+function buildManualVecSequence(rawAssets, artwork, recipe = {}) {
+  const orderMode = clean(recipe?.shuffle?.order_mode || recipe?.order_mode).toLowerCase();
+  const entries = normalizeManualVecEntries(recipe);
+  if (orderMode !== 'manual' || !entries.length) return [];
+  const assetsById = new Map();
+  rawAssets.forEach(asset => getVecAssetIdentityValues(asset).forEach(value => {
+    if (!assetsById.has(value)) assetsById.set(value, asset);
+  }));
+  return entries.map((entry, index) => {
+    const isArtwork = entry.sourceKind === 'artwork' || entry.assetId === 'official-artwork';
+    const sourceAsset = isArtwork ? artwork : assetsById.get(entry.assetId);
+    if (!sourceAsset?.url) {
+      vecPlayerLog('manual sequence asset missing', { entry_id: entry.entryId, asset_id: entry.assetId, position: index + 1 });
+      return null;
+    }
+    return {
+      ...sourceAsset,
+      id: `manual:${entry.entryId}`,
+      key: `manual:${entry.entryId}`,
+      sourceAssetId: entry.assetId,
+      manualEntryId: entry.entryId,
+      label: entry.label || sourceAsset.label || sourceAsset.caption || sourceAsset.alt,
+      durationSeconds: sourceAsset.type === 'clip'
+        ? (Number(sourceAsset.durationSeconds) || 6)
+        : entry.durationSeconds
+    };
+  }).filter(Boolean);
+}
+
 function buildVecSequence(song, recipe, pools) {
   const artwork = buildOfficialArtworkAsset(song, recipe);
   if (recipe?.visual_mode === 'artwork_only') return artwork ? [artwork] : [];
@@ -542,6 +584,11 @@ function buildVecSequence(song, recipe, pools) {
     ...(pools.folderAssets || []),
     ...(pools.borrowedAssets || [])
   ];
+  const manualSequence = buildManualVecSequence(rawAssets, artwork, recipe);
+  if (clean(recipe?.shuffle?.order_mode || recipe?.order_mode).toLowerCase() === 'manual' && Array.isArray(recipe?.manual_sequence) && recipe.manual_sequence.length) {
+    vecPlayerLog('manual sequence resolved', { requested: recipe.manual_sequence.length, playable: manualSequence.length, order: manualSequence.map(asset => asset.sourceAssetId || asset.id) });
+    return manualSequence.length ? manualSequence : (artwork ? [artwork] : []);
+  }
   const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');
   const imageAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type !== 'clip');
   const bag = orderVecShuffleBag(videoAssets.length ? videoAssets : imageAssets);

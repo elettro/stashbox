@@ -49,8 +49,45 @@ export function normalizeRenderAsset(asset, index = 0) {
     source: stringValue(asset?.source || asset?.folder_name || asset?.folder_id) || 'vec',
     file_name: stringValue(asset?.file_name || asset?.filename),
     created_at: stringValue(asset?.created_at),
-    manual_order: Number.isFinite(Number(asset?.manual_order)) ? Number(asset.manual_order) : null
+    manual_order: Number.isFinite(Number(asset?.manual_order)) ? Number(asset.manual_order) : null,
+    manual_duration_seconds: Number.isFinite(Number(asset?.manual_duration_seconds)) ? Math.max(1, Number(asset.manual_duration_seconds)) : null,
+    source_asset_id: stringValue(asset?.source_asset_id || asset?.sourceAssetId || asset?.id || asset?.asset_id)
   };
+}
+
+
+function normalizeManualSequenceEntries(value) {
+  return (Array.isArray(value) ? value : []).map((entry, index) => ({
+    entry_id: stringValue(entry?.entry_id || entry?.entryId) || `manual-${index + 1}`,
+    asset_id: stringValue(entry?.asset_id || entry?.assetId || entry?.asset_key || entry?.assetKey),
+    source_kind: stringValue(entry?.source_kind || entry?.sourceKind).toLowerCase(),
+    duration_seconds: Math.max(1, Number(entry?.duration_seconds ?? entry?.durationSeconds) || 4),
+    label: stringValue(entry?.label)
+  })).filter(entry => entry.asset_id);
+}
+
+function buildManualRenderPool(assets, manualSequence, artworkUrl) {
+  const byId = new Map();
+  assets.forEach(asset => {
+    [asset.asset_id, asset.source_asset_id].map(stringValue).filter(Boolean).forEach(id => {
+      if (!byId.has(id)) byId.set(id, asset);
+    });
+  });
+  return manualSequence.map((entry, index) => {
+    const isArtwork = entry.source_kind === 'artwork' || entry.asset_id === 'official-artwork';
+    const source = isArtwork
+      ? (artworkUrl ? { asset_id: 'song-artwork', type: 'image', url: artworkUrl, source: 'song-artwork', source_asset_id: 'official-artwork' } : null)
+      : byId.get(entry.asset_id);
+    if (!source?.url) return null;
+    return {
+      ...source,
+      asset_id: `manual:${entry.entry_id}`,
+      source_asset_id: entry.asset_id,
+      source: isArtwork ? 'song-artwork-manual' : source.source,
+      manual_order: index,
+      manual_duration_seconds: source.type === 'clip' ? null : entry.duration_seconds
+    };
+  }).filter(Boolean);
 }
 
 function orderedPool(assets, orderMode, seed, cycle) {
@@ -150,7 +187,10 @@ export function buildRenderTimeline(options = {}) {
   const rawAssets = Array.isArray(options.assets) ? options.assets : [];
   const embeddedArtworkRules = rawAssets.find(asset => asset?.renderer_artwork_rules)?.renderer_artwork_rules || {};
   const artworkRules = options.artwork_rules || embeddedArtworkRules;
-  const assets = rawAssets.map(normalizeRenderAsset).filter(Boolean);
+  let assets = rawAssets.map(normalizeRenderAsset).filter(Boolean);
+  const manualSequence = normalizeManualSequenceEntries(options.manual_sequence);
+  const manualExactMode = orderMode === 'manual' && manualSequence.length > 0;
+  if (manualExactMode) assets = buildManualRenderPool(assets, manualSequence, artworkUrl);
 
   if (!assets.length) {
     assets.push({
@@ -164,7 +204,7 @@ export function buildRenderTimeline(options = {}) {
     });
   }
 
-  const artworkAnchors = buildArtworkAnchors(totalDuration, artworkUrl, artworkRules, segmentDuration);
+  const artworkAnchors = manualExactMode ? [] : buildArtworkAnchors(totalDuration, artworkUrl, artworkRules, segmentDuration);
   const timeline = [];
   let currentTime = 0;
   let cycle = 0;
@@ -181,6 +221,7 @@ export function buildRenderTimeline(options = {}) {
       type: asset.type,
       url: asset.url,
       source: sourceOverride || asset.source,
+      source_asset_id: asset.source_asset_id || asset.asset_id,
       start_seconds: roundTime(currentTime),
       duration_seconds: roundTime(duration),
       end_seconds: roundTime(currentTime + duration),
@@ -204,7 +245,9 @@ export function buildRenderTimeline(options = {}) {
   function fillContentUntil(targetTime) {
     while (currentTime < targetTime - 0.001) {
       const asset = nextAsset();
-      const assetDuration = asset.type === 'image' && asset.asset_id !== 'song-artwork' ? imageDuration : segmentDuration;
+      const assetDuration = Number(asset.manual_duration_seconds) > 0
+        ? Number(asset.manual_duration_seconds)
+        : (asset.type === 'image' && asset.asset_id !== 'song-artwork' ? imageDuration : segmentDuration);
       appendSegment(asset, Math.min(assetDuration, targetTime - currentTime));
     }
   }
