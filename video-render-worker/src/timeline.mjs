@@ -70,6 +70,53 @@ function avoidImmediateRepeat(pool, previousId) {
   return result;
 }
 
+function roundTime(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
+function buildArtworkAnchors(totalDuration, artworkUrl, rules = {}, segmentDuration = 8) {
+  if (!artworkUrl) return [];
+
+  const startDuration = rules.start_with_artwork
+    ? Math.min(totalDuration, Math.max(0, Number(rules.start_duration_seconds || 0) || 0))
+    : 0;
+  const endDuration = rules.end_with_artwork
+    ? Math.min(totalDuration, Math.max(0, Number(rules.end_duration_seconds || 0) || 0))
+    : 0;
+  const endStart = Math.max(0, totalDuration - endDuration);
+  const anchors = [];
+
+  if (startDuration > 0) {
+    anchors.push({ start: 0, end: startDuration, kind: 'start' });
+  }
+
+  const repeatEvery = Math.max(0, Number(rules.repeat_every_seconds || 0) || 0);
+  if (rules.re_present_artwork && repeatEvery > 0) {
+    const repeatDuration = startDuration > 0 ? startDuration : Math.min(segmentDuration, 4);
+    for (let start = repeatEvery; start < endStart - 0.001; start += repeatEvery) {
+      if (start < startDuration - 0.001) continue;
+      if (start + repeatDuration > endStart + 0.001) break;
+      anchors.push({ start, end: start + repeatDuration, kind: 'repeat' });
+    }
+  }
+
+  if (endDuration > 0) {
+    anchors.push({ start: endStart, end: totalDuration, kind: 'end' });
+  }
+
+  const merged = [];
+  for (const anchor of anchors.sort((left, right) => left.start - right.start)) {
+    const last = merged.at(-1);
+    if (last && anchor.start <= last.end + 0.001) {
+      last.end = Math.max(last.end, anchor.end);
+      last.kind = `${last.kind}+${anchor.kind}`;
+    } else {
+      merged.push({ ...anchor });
+    }
+  }
+  return merged;
+}
+
 export function buildRenderTimeline(options = {}) {
   const totalDuration = positiveNumber(options.total_duration_seconds, 30);
   const segmentDuration = positiveNumber(options.segment_duration_seconds, 8);
@@ -77,12 +124,13 @@ export function buildRenderTimeline(options = {}) {
     ? String(options.order_mode).toLowerCase()
     : 'random';
   const seed = stringValue(options.seed) || 'stashbox-video-factory';
-  const assets = (Array.isArray(options.assets) ? options.assets : [])
-    .map(normalizeRenderAsset)
-    .filter(Boolean);
+  const artworkUrl = stringValue(options.artwork_url);
+  const rawAssets = Array.isArray(options.assets) ? options.assets : [];
+  const embeddedArtworkRules = rawAssets.find(asset => asset?.renderer_artwork_rules)?.renderer_artwork_rules || {};
+  const artworkRules = options.artwork_rules || embeddedArtworkRules;
+  const assets = rawAssets.map(normalizeRenderAsset).filter(Boolean);
 
   if (!assets.length) {
-    const artworkUrl = stringValue(options.artwork_url);
     assets.push({
       asset_id: artworkUrl ? 'song-artwork' : 'branded-black-fallback',
       type: artworkUrl ? 'image' : 'color',
@@ -94,33 +142,62 @@ export function buildRenderTimeline(options = {}) {
     });
   }
 
+  const artworkAnchors = buildArtworkAnchors(totalDuration, artworkUrl, artworkRules, segmentDuration);
   const timeline = [];
   let currentTime = 0;
   let cycle = 0;
   let previousId = '';
+  let pool = [];
+  let poolIndex = 0;
 
-  while (currentTime < totalDuration - 0.001) {
-    let pool = orderedPool(assets, orderMode, seed, cycle);
-    pool = avoidImmediateRepeat(pool, previousId);
-
-    for (const asset of pool) {
-      if (currentTime >= totalDuration - 0.001) break;
-      const duration = Math.min(segmentDuration, totalDuration - currentTime);
-      timeline.push({
-        index: timeline.length,
-        asset_id: asset.asset_id,
-        type: asset.type,
-        url: asset.url,
-        source: asset.source,
-        start_seconds: Math.round(currentTime * 1000) / 1000,
-        duration_seconds: Math.round(duration * 1000) / 1000,
-        end_seconds: Math.round((currentTime + duration) * 1000) / 1000
-      });
-      currentTime += duration;
-      previousId = asset.asset_id;
-    }
-    cycle += 1;
+  function appendSegment(asset, duration, sourceOverride = '') {
+    if (duration <= 0.001) return;
+    timeline.push({
+      index: timeline.length,
+      asset_id: asset.asset_id,
+      type: asset.type,
+      url: asset.url,
+      source: sourceOverride || asset.source,
+      start_seconds: roundTime(currentTime),
+      duration_seconds: roundTime(duration),
+      end_seconds: roundTime(currentTime + duration)
+    });
+    currentTime += duration;
+    previousId = asset.asset_id;
   }
 
+  function nextAsset() {
+    if (poolIndex >= pool.length) {
+      pool = avoidImmediateRepeat(orderedPool(assets, orderMode, seed, cycle), previousId);
+      poolIndex = 0;
+      cycle += 1;
+    }
+    const asset = pool[poolIndex];
+    poolIndex += 1;
+    return asset;
+  }
+
+  function fillContentUntil(targetTime) {
+    while (currentTime < targetTime - 0.001) {
+      const asset = nextAsset();
+      appendSegment(asset, Math.min(segmentDuration, targetTime - currentTime));
+    }
+  }
+
+  for (const anchor of artworkAnchors) {
+    if (currentTime < anchor.start - 0.001) fillContentUntil(anchor.start);
+    if (currentTime < anchor.end - 0.001) {
+      const start = Math.max(currentTime, anchor.start);
+      currentTime = start;
+      appendSegment({
+        asset_id: 'song-artwork',
+        type: 'image',
+        url: artworkUrl,
+        source: 'song-artwork'
+      }, anchor.end - start, `song-artwork-${anchor.kind}`);
+    }
+  }
+
+  fillContentUntil(totalDuration);
   return timeline;
 }
