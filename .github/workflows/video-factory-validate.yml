@@ -1,111 +1,88 @@
-name: Temporary Location Folder Type Rollout
+name: Validate Video Factory
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'radio-admin/dev/ads/migrations/create_visuals_folders.sql'
   push:
     branches:
-      - main
+      - 'agent/video-factory-*'
     paths:
-      - 'radio/visual-experience/dev/index.html'
-      - 'radio-api/index.mjs'
-      - 'radio-admin/dev/ads/migrations/create_visuals_folders.sql'
-      - 'radio-admin/ads/migrations/create_visuals_folders.sql'
-
-permissions:
-  actions: write
-  contents: write
-  issues: write
-  pull-requests: write
+      - 'radio-api/video-factory/**'
+      - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-api/package.json'
+      - 'radio-admin/dev/video-factory/**'
+      - 'video-render-worker/**'
+      - 'infra/video-factory/**'
+      - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
+      - '.github/workflows/video-factory-validate.yml'
+  pull_request:
+    paths:
+      - 'radio-api/video-factory/**'
+      - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-api/package.json'
+      - 'radio-admin/dev/video-factory/**'
+      - 'video-render-worker/**'
+      - 'infra/video-factory/**'
+      - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
+      - '.github/workflows/video-factory-validate.yml'
 
 jobs:
-  apply-location-folder-type:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/video-factory-location-folder-type'
+  validate-video-factory:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout feature branch
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-          token: ${{ github.token }}
+          show-progress: false
 
-      - name: Apply and validate Location folder type patch
-        shell: bash
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install API and worker dependencies
         run: |
-          set -euo pipefail
-          git fetch origin main
-          git show origin/main:.github/scripts/apply-location-folder-type.py > /tmp/apply-location-folder-type.py
-          python /tmp/apply-location-folder-type.py
+          npm --prefix radio-api install --omit=dev --no-audit --no-fund --silent
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund --silent
 
-      - name: Commit feature files
-        shell: bash
+      - name: Check JavaScript syntax
         run: |
-          set -euo pipefail
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/video-factory-validate.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add radio/visual-experience/dev/index.html radio-api/index.mjs radio-admin/dev/ads/migrations/create_visuals_folders.sql radio-admin/ads/migrations/create_visuals_folders.sql .github/workflows/video-factory-validate.yml
-          git commit -m 'Add Location visual folder type'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio-api/video-factory/render-router.mjs
+          node --check radio-api/video-factory/render-control.mjs
+          node --check radio-admin/dev/video-factory/video-factory.js
+          npm --prefix video-render-worker run check --silent
 
-  deploy-location-folder-type-dev:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
-      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
-    steps:
-      - name: Dispatch TRUE DEV Lambda deployment
-        shell: bash
+      - name: Run Video Factory API tests
+        run: node --test --test-reporter=spec radio-api/tests/video-factory-foundation.test.mjs radio-api/tests/video-factory-render-control.test.mjs
+
+      - name: Run FFmpeg helper tests
+        run: node --test --test-reporter=spec video-render-worker/tests/ffmpeg.test.mjs
+
+      - name: Run timeline and VEC recipe tests
+        run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs video-render-worker/tests/vec-recipe.test.mjs video-render-worker/tests/visual-settings.test.mjs
+
+      - name: Lint Video Factory CloudFormation
         run: |
-          set -euo pipefail
-          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          gh workflow run deploy-true-dev-lambda.yml --repo "${GITHUB_REPOSITORY}" --ref main
+          python -m pip install --quiet cfn-lint
+          cfn-lint infra/video-factory/dev-stack.yml
 
-          RUN_ID=""
-          for attempt in $(seq 1 30); do
-            RUN_ID=$(gh run list \
-              --repo "${GITHUB_REPOSITORY}" \
-              --workflow deploy-true-dev-lambda.yml \
-              --branch main \
-              --event workflow_dispatch \
-              --limit 10 \
-              --json databaseId,createdAt \
-              --jq "map(select(.createdAt >= \"${STARTED_AT}\")) | sort_by(.createdAt) | last | .databaseId // empty")
-            [ -n "${RUN_ID}" ] && break
-            sleep 5
-          done
+      - name: Build FFmpeg worker container
+        run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
 
-          test -n "${RUN_ID}" || { echo 'TRUE DEV deployment run could not be located.' >&2; exit 1; }
-          echo "TRUE_DEV_DEPLOYMENT_RUN_ID=${RUN_ID}"
-          gh run watch "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --exit-status
-
-      - name: Verify Location folder type end to end
-        shell: bash
+      - name: Run FFmpeg container smoke render
+        id: smoke_render
         run: |
-          set -euo pipefail
-          NAME="Location Type Verification $(date -u +%Y%m%dT%H%M%SZ)"
-          CREATE_RESPONSE=$(curl --fail-with-body --silent --show-error \
-            -X POST "${API_BASE}/admin/visuals/folders" \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -H 'content-type: application/json' \
-            --data "{\"folder_name\":\"${NAME}\",\"folder_type\":\"location\",\"description\":\"Temporary automated verification\",\"status\":\"hidden\",\"priority\":\"low\",\"notes\":\"Delete after verification\",\"relevant_artists\":[],\"relevant_genres\":[],\"relevant_moods\":[],\"relevant_songs\":[]}")
+          set -o pipefail
+          docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs 2>&1 | tee video-factory-smoke-render.log
 
-          export CREATE_RESPONSE
-          FOLDER_ID=$(node -e "const b=JSON.parse(process.env.CREATE_RESPONSE); if(!b.success||b.folder?.folder_type!=='location'||!b.folder?.id) process.exit(1); process.stdout.write(b.folder.id)")
-          echo "LOCATION_FOLDER_CREATED=${FOLDER_ID}"
-
-          curl --fail-with-body --silent --show-error \
-            -X DELETE "${API_BASE}/admin/visuals/folders/${FOLDER_ID}" \
-            -H "x-admin-token: ${ADMIN_TOKEN}" >/dev/null
-          echo 'LOCATION_FOLDER_CREATE_DELETE_VERIFIED=true'
-
-          gh pr comment 743 \
-            --repo "${GITHUB_REPOSITORY}" \
-            --body "LOCATION_FOLDER_TYPE_DEV_VERIFIED=true\nTRUE DEV deployment passed. A temporary Location folder was created successfully, returned folder_type=location, and was deleted after verification."
+      - name: Upload FFmpeg smoke diagnostics
+        if: failure() && steps.smoke_render.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-factory-smoke-render-log
+          path: video-factory-smoke-render.log
+          if-no-files-found: error
+          retention-days: 3
