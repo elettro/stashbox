@@ -1,0 +1,85 @@
+name: One-Time Deploy Video Factory TRUE DEV
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-deploy-video-factory-dev.yml'
+
+jobs:
+  deploy-true-dev-video-factory:
+    name: Deploy Video Factory to TRUE DEV
+    runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate TRUE DEV deployment target
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          if [ "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" != "${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}" ]; then
+            echo "Refusing to deploy: TRUE_DEV_LAMBDA_FUNCTION_NAME must exactly equal ${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}." >&2
+            exit 1
+          fi
+          if [ "${AWS_REGION}" != "us-east-1" ]; then
+            echo "Refusing to deploy: AWS_REGION must exactly equal us-east-1." >&2
+            exit 1
+          fi
+
+      - name: Check Lambda and Video Factory syntax
+        run: |
+          node --check radio-api/index.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio-admin/dev/video-factory/video-factory.js
+
+      - name: Run Video Factory foundation tests
+        run: node --test radio-api/tests/video-factory-foundation.test.mjs
+
+      - name: Install production dependencies
+        working-directory: radio-api
+        run: npm ci --omit=dev
+
+      - name: Build TRUE DEV Lambda ZIP
+        working-directory: radio-api
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -r dist/true-dev-lambda.zip . -x "dist/*" -x ".git/*" -x "*.zip"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy TRUE DEV Lambda code
+        env:
+          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip
+          aws lambda wait function-updated --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+
+      - name: Run TRUE DEV smoke test
+        run: node radio-api/scripts/smoke-test-true-dev.mjs
