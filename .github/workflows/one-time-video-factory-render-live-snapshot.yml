@@ -1,0 +1,79 @@
+name: One-Time Video Factory Render Live Snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-render-live-snapshot.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: radio-api/docs/VIDEO_FACTORY_RENDER_LIVE_SNAPSHOT.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Capture live job and ECS task state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          JOBS=$(curl --max-time 20 --silent --show-error \
+            -H 'accept: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${API_BASE}/admin/video-factory/jobs?limit=250")
+          CLUSTER='arn:aws:ecs:us-east-1:656260749296:cluster/stashbox-video-factory-dev'
+          TASK_ARNS=$(aws ecs list-tasks --cluster "${CLUSTER}" --desired-status RUNNING --query 'taskArns' --output json)
+          if [ "$(printf '%s' "${TASK_ARNS}" | jq length)" -gt 0 ]; then
+            TASKS=$(aws ecs describe-tasks --cluster "${CLUSTER}" --tasks $(printf '%s' "${TASK_ARNS}" | jq -r '.[]') --output json)
+          else
+            TASKS='{"tasks":[]}'
+          fi
+          SPACE_JAM=$(printf '%s' "${JOBS}" | jq '[.jobs[] | select((.batch_name // "" | contains("Space Jam First Full-Song Render")) or ((.song_title // "") | test("space jam"; "i")) or ((.song_key // "") | test("space.?jam"; "i"))) | {id,batch_id,batch_name,song_key,song_title,artist,status,error_message,output_filename,output_url,thumbnail_url,created_at,updated_at,completed_at,runtime:(.render_recipe.runtime // {})}]')
+          STRANDED=$(printf '%s' "${JOBS}" | jq '[.jobs[] | select(.status == "pending" and ((.render_recipe.runtime.ecs_task_arn // "") == "")) | {id,batch_name,song_key,status,error_message,created_at,updated_at,runtime:(.render_recipe.runtime // {})}]')
+          {
+            echo '# Video Factory Render Live Snapshot'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo '- Space Jam jobs:'
+            echo '```json'
+            printf '%s' "${SPACE_JAM}" | jq .
+            echo '```'
+            echo
+            echo '- Stranded pending jobs:'
+            echo '```json'
+            printf '%s' "${STRANDED}" | jq .
+            echo '```'
+            echo
+            echo '- Running ECS tasks:'
+            echo '```json'
+            printf '%s' "${TASKS}" | jq '[.tasks[] | {taskArn,lastStatus,desiredStatus,healthStatus,createdAt,startedAt,stoppedReason,containers:[.containers[] | {name,lastStatus,exitCode,reason}]}]'
+            echo '```'
+          } > "${REPORT_PATH}"
+          cat "${REPORT_PATH}"
+      - name: Commit live snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Video Factory render live snapshot'
+          git push origin HEAD:main
