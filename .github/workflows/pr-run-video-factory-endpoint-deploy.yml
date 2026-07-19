@@ -1,0 +1,41 @@
+name: PR Run Video Factory Endpoint Deployment
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-run-video-factory-endpoint-deploy.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-and-wait:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Dispatch permanent Video Factory DEV deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run deploy-video-factory-renderer-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
+
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow deploy-video-factory-renderer-dev.yml \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${STARTED_AT}\")) | sort_by(.createdAt) | last | .databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+
+          test -n "${RUN_ID}" || { echo 'Deployment run could not be located.' >&2; exit 1; }
+          echo "VIDEO_FACTORY_DEPLOYMENT_RUN_ID=${RUN_ID}"
+          gh run watch "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --exit-status
