@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 50
     env:
       AWS_REGION: us-east-1
-      LAMBDA_NAME: stashbox-radio-api-dev-v2
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
@@ -27,23 +26,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Ensure ECS service-linked role exists
+        shell: bash
+        run: |
+          set +e
+          RESULT=$(aws iam create-service-linked-role --aws-service-name ecs.amazonaws.com 2>&1)
+          CODE=$?
+          set -e
+          if [ "${CODE}" -eq 0 ]; then
+            echo "ECS service-linked role created."
+          elif echo "${RESULT}" | grep -Eqi 'already exists|has been taken'; then
+            echo "ECS service-linked role already exists."
+          else
+            echo "${RESULT}" >&2
+            exit "${CODE}"
+          fi
+
       - name: Fetch first-render runner
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: curl --fail --silent --show-error --location "https://raw.githubusercontent.com/elettro/stashbox/${HEAD_SHA}/.github/scripts/run-first-video-factory-render.mjs" --output /tmp/run-first-video-factory-render.mjs
 
       - name: Create, launch, and verify first Space Jam render
-        id: render
         run: node /tmp/run-first-video-factory-render.mjs
-
-      - name: Capture recent Lambda errors
-        if: failure()
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          START_MS=$(( $(date +%s) * 1000 - 600000 ))
-          aws logs filter-log-events \
-            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
-            --start-time "${START_MS}" \
-            --query 'events[].message' \
-            --output text | grep -E 'Video Factory|ERROR|Error|AccessDenied|ValidationException|InvalidParameter|Task timed out|operator does not exist|permission|ECS|S3' | tail -n 100
