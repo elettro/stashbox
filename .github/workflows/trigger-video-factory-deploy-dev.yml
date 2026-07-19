@@ -1,0 +1,27 @@
+name: Trigger Video Factory DEV Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/run-video-factory-deploy-dev.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch renderer deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-video-factory-renderer-dev.yml \
+            --repo "${REPOSITORY}" \
+            --ref main
+          echo 'Video Factory DEV deployment dispatched.'
