@@ -7,7 +7,7 @@ on:
       - '.github/scripts/video-factory-live-status.sh'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   live-status:
@@ -17,14 +17,26 @@ jobs:
       LAMBDA_NAME: stashbox-radio-api-dev-v2
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_LIVE_STATUS.txt
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/video-factory-live-status
           show-progress: false
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Run compact diagnostic
-        run: bash .github/scripts/video-factory-live-status.sh
+      - name: Capture compact diagnostic
+        run: |
+          mkdir -p "$(dirname "${RESULT_PATH}")"
+          bash .github/scripts/video-factory-live-status.sh > "${RESULT_PATH}" 2>&1
+      - name: Save diagnostic result
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${RESULT_PATH}"
+          git commit -m 'Record compact Video Factory live status'
+          git push origin HEAD:agent/video-factory-live-status
