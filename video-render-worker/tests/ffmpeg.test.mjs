@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildOverlayFilter, escapeDrawtext } from '../src/ffmpeg.mjs';
+import { buildOverlayFilter, escapeDrawtext, segmentVideoFilter } from '../src/ffmpeg.mjs';
 
 test('drawtext escaping protects filter separators', () => {
   assert.equal(
@@ -64,6 +64,18 @@ test('song identity copy is left-aligned in the lower-left third', () => {
   assert.match(filter, /text='Dub Reggae 01'.*x=w\*0\.05:y=h\*0\.75/);
   assert.match(filter, /text='Stashbox Radio'.*x=w\*0\.05:y=h\*0\.86/);
   assert.doesNotMatch(filter, /\(w-text_w\)\/2/);
+});
+
+test('Ken Burns filter uses subtle zoompan motion only when enabled', () => {
+  const animated = segmentVideoFilter({
+    width: 1920, height: 1080, fps: 30, duration: 3,
+    segment: { type: 'image', motion: { enabled: true, direction: 'left-to-right', zoom_mode: 'in', max_zoom: 1.08 } }
+  });
+  assert.match(animated, /zoompan=/);
+  assert.match(animated, /1\+0\.0800\*on\/89/);
+  assert.match(animated, /iw-iw\/zoom/);
+  const staticFilter = segmentVideoFilter({ width: 1920, height: 1080, fps: 30, duration: 3, segment: { type: 'image', motion: null } });
+  assert.doesNotMatch(staticFilter, /zoompan=/);
 });
 
 test('overlay filter respects disabled identity blocks', () => {

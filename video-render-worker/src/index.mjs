@@ -128,14 +128,21 @@ async function loadVisualSettings(context, job) {
       `/radio/songs/${encodeURIComponent(job.song_key)}/visual-settings`,
       { method: 'GET' }
     );
+    const assets = Array.isArray(body.assets) ? body.assets : [];
+    const embeddedSettings = assets.find(asset => asset?.renderer_render_settings)?.renderer_render_settings || {};
+    const renderSettings = body.renderer_render_settings || embeddedSettings;
     return {
       orderMode: stringValue(body.order_mode) || 'random',
-      assets: Array.isArray(body.assets) ? body.assets : [],
-      fallback: body.fallback || {}
+      assets,
+      fallback: body.fallback || {},
+      renderSettings: {
+        still_image_duration_seconds: Number(renderSettings?.still_image_duration_seconds) > 0 ? Number(renderSettings.still_image_duration_seconds) : 3,
+        ken_burns_enabled: renderSettings?.ken_burns_enabled !== false
+      }
     };
   } catch (error) {
     console.warn('[Video Factory Worker] VEC visual settings unavailable. Using artwork fallback.', error.message);
-    return { orderMode: 'random', assets: [], fallback: { uses_artwork: true } };
+    return { orderMode: 'random', assets: [], fallback: { uses_artwork: true }, renderSettings: { still_image_duration_seconds: 3, ken_burns_enabled: true } };
   }
 }
 
@@ -211,6 +218,8 @@ async function main() {
       : buildRenderTimeline({
           total_duration_seconds: requestedDuration,
           segment_duration_seconds: Number(activeRecipe?.visuals?.segment_duration_seconds || 8),
+          image_duration_seconds: Number(visualSettings.renderSettings?.still_image_duration_seconds || 3),
+          ken_burns_enabled: visualSettings.renderSettings?.ken_burns_enabled !== false,
           order_mode: visualSettings.orderMode,
           seed: activeRecipe.seed,
           assets: visualSettings.assets,
@@ -227,6 +236,8 @@ async function main() {
         order_mode: visualSettings.orderMode,
         eligible_asset_count: visualSettings.assets.length,
         segment_duration_seconds: Number(activeRecipe?.visuals?.segment_duration_seconds || 8),
+        still_image_duration_seconds: Number(visualSettings.renderSettings?.still_image_duration_seconds || 3),
+        ken_burns_enabled: visualSettings.renderSettings?.ken_burns_enabled !== false,
         frozen_at: new Date().toISOString()
       },
       timeline

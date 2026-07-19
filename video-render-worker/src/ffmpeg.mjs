@@ -52,18 +52,55 @@ export async function probeDuration(filePath) {
   return duration;
 }
 
-function segmentVideoFilter({ width, height, fps, duration }) {
+function clamp(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function kenBurnsPosition(direction, axis, progress, range) {
+  const forwardX = new Set(['left-to-right', 'top-left-to-bottom-right', 'bottom-left-to-top-right']);
+  const reverseX = new Set(['right-to-left', 'bottom-right-to-top-left', 'top-right-to-bottom-left']);
+  const forwardY = new Set(['top-to-bottom', 'top-left-to-bottom-right', 'top-right-to-bottom-left']);
+  const reverseY = new Set(['bottom-to-top', 'bottom-right-to-top-left', 'bottom-left-to-top-right']);
+  if (axis === 'x') {
+    if (forwardX.has(direction)) return `${range}*${progress}`;
+    if (reverseX.has(direction)) return `${range}*(1-${progress})`;
+  } else {
+    if (forwardY.has(direction)) return `${range}*${progress}`;
+    if (reverseY.has(direction)) return `${range}*(1-${progress})`;
+  }
+  return `${range}/2`;
+}
+
+export function segmentVideoFilter({ width, height, fps, duration, segment = {} }) {
   const fadeDuration = Math.min(0.3, Math.max(0.08, duration / 8));
   const fadeOutStart = Math.max(0, duration - fadeDuration);
-  return [
+  const filters = [
     `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    `fps=${fps}`,
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`
+  ];
+  const motion = segment?.motion || {};
+  if (segment.type === 'image' && motion.enabled) {
+    const frames = Math.max(2, Math.round(duration * fps));
+    const denominator = Math.max(1, frames - 1);
+    const progress = `on/${denominator}`;
+    const maxZoom = clamp(Number(motion.max_zoom || 1.075), 1.02, 1.1);
+    const delta = maxZoom - 1;
+    const zoom = motion.zoom_mode === 'out'
+      ? `${maxZoom.toFixed(4)}-${delta.toFixed(4)}*${progress}`
+      : `1+${delta.toFixed(4)}*${progress}`;
+    const x = kenBurnsPosition(motion.direction, 'x', progress, '(iw-iw/zoom)');
+    const y = kenBurnsPosition(motion.direction, 'y', progress, '(ih-ih/zoom)');
+    filters.push(`zoompan=z='${zoom}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps}`);
+  } else {
+    filters.push(`fps=${fps}`);
+  }
+  filters.push(
     'setsar=1',
     'format=yuv420p',
     `fade=t=in:st=0:d=${fadeDuration.toFixed(3)}`,
     `fade=t=out:st=${fadeOutStart.toFixed(3)}:d=${fadeDuration.toFixed(3)}`
-  ].join(',');
+  );
+  return filters.join(',');
 }
 
 export async function renderTimelineSegment(segment, options = {}) {
@@ -72,7 +109,7 @@ export async function renderTimelineSegment(segment, options = {}) {
   const fps = Number(options.fps || 30);
   const duration = Number(segment.duration_seconds);
   const outputPath = options.outputPath;
-  const filter = segmentVideoFilter({ width, height, fps, duration });
+  const filter = segmentVideoFilter({ width, height, fps, duration, segment });
   const commonOutput = [
     '-t', duration.toFixed(3),
     '-vf', filter,

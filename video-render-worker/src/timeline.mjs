@@ -74,6 +74,26 @@ function roundTime(value) {
   return Math.round(value * 1000) / 1000;
 }
 
+const KEN_BURNS_DIRECTIONS = Object.freeze([
+  'left-to-right',
+  'right-to-left',
+  'top-to-bottom',
+  'bottom-to-top',
+  'top-left-to-bottom-right',
+  'bottom-right-to-top-left',
+  'top-right-to-bottom-left',
+  'bottom-left-to-top-right'
+]);
+
+function buildKenBurnsMotion(seed, asset, segmentIndex, enabled) {
+  if (!enabled || asset?.type !== 'image' || asset?.asset_id === 'song-artwork') return null;
+  const random = mulberry32(hashSeed(`${seed}:ken-burns:${asset.asset_id}:${segmentIndex}`));
+  const direction = KEN_BURNS_DIRECTIONS[Math.floor(random() * KEN_BURNS_DIRECTIONS.length)];
+  const zoomMode = random() < 0.5 ? 'in' : 'out';
+  const maxZoom = Math.round((1.06 + random() * 0.03) * 1000) / 1000;
+  return { enabled: true, direction, zoom_mode: zoomMode, max_zoom: maxZoom };
+}
+
 function buildArtworkAnchors(totalDuration, artworkUrl, rules = {}, segmentDuration = 8) {
   if (!artworkUrl) return [];
 
@@ -120,6 +140,8 @@ function buildArtworkAnchors(totalDuration, artworkUrl, rules = {}, segmentDurat
 export function buildRenderTimeline(options = {}) {
   const totalDuration = positiveNumber(options.total_duration_seconds, 30);
   const segmentDuration = positiveNumber(options.segment_duration_seconds, 8);
+  const imageDuration = positiveNumber(options.image_duration_seconds, 3);
+  const kenBurnsEnabled = options.ken_burns_enabled !== false;
   const orderMode = ['random', 'manual', 'newest_first'].includes(String(options.order_mode || '').toLowerCase())
     ? String(options.order_mode).toLowerCase()
     : 'random';
@@ -152,6 +174,7 @@ export function buildRenderTimeline(options = {}) {
 
   function appendSegment(asset, duration, sourceOverride = '') {
     if (duration <= 0.001) return;
+    const motion = buildKenBurnsMotion(seed, asset, timeline.length, kenBurnsEnabled);
     timeline.push({
       index: timeline.length,
       asset_id: asset.asset_id,
@@ -160,7 +183,8 @@ export function buildRenderTimeline(options = {}) {
       source: sourceOverride || asset.source,
       start_seconds: roundTime(currentTime),
       duration_seconds: roundTime(duration),
-      end_seconds: roundTime(currentTime + duration)
+      end_seconds: roundTime(currentTime + duration),
+      motion
     });
     currentTime += duration;
     previousId = asset.asset_id;
@@ -180,7 +204,8 @@ export function buildRenderTimeline(options = {}) {
   function fillContentUntil(targetTime) {
     while (currentTime < targetTime - 0.001) {
       const asset = nextAsset();
-      appendSegment(asset, Math.min(segmentDuration, targetTime - currentTime));
+      const assetDuration = asset.type === 'image' && asset.asset_id !== 'song-artwork' ? imageDuration : segmentDuration;
+      appendSegment(asset, Math.min(assetDuration, targetTime - currentTime));
     }
   }
 

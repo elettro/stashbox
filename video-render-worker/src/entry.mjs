@@ -70,9 +70,9 @@ globalThis.fetch = async function videoFactoryFetch(input, init) {
     if (vec.found) {
       const assets = vec.assets.length
         ? vec.assets.map((asset, index) => index === 0
-          ? { ...asset, renderer_artwork_rules: vec.artworkRules }
+          ? { ...asset, renderer_artwork_rules: vec.artworkRules, renderer_render_settings: vec.renderSettings }
           : asset)
-        : [{ renderer_control: 'artwork-rules', renderer_artwork_rules: vec.artworkRules }];
+        : [{ renderer_control: 'artwork-rules', renderer_artwork_rules: vec.artworkRules, renderer_render_settings: vec.renderSettings }];
       adaptedBody = {
         ...body,
         order_mode: vec.orderMode,
@@ -84,6 +84,7 @@ globalThis.fetch = async function videoFactoryFetch(input, init) {
         },
         renderer_source: vec.source,
         renderer_visual_mode: vec.visualMode,
+        renderer_render_settings: vec.renderSettings,
         renderer_selected_asset_ids: vec.selectedAssetIds,
         renderer_missing_asset_ids: vec.missingAssetIds,
         renderer_vec_recipe: vec.recipe
