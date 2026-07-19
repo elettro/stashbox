@@ -1,6 +1,6 @@
 name: PR Redeploy Video Factory DEV
 
-# Temporary redeploy trigger: VE-10B eligible-assets renderer adapter.
+# Temporary redeploy trigger: live VEC recipe renderer.
 on:
   pull_request:
     paths:
