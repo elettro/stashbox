@@ -13,14 +13,19 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: List recent deployment runs
+      - name: Extract failed deployment verification
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          RUN_ID: '29691446658'
         run: |
-          gh run list \
+          set -euo pipefail
+          echo 'RUN_SUMMARY'
+          gh run view "${RUN_ID}" \
             --repo "${REPOSITORY}" \
-            --workflow deploy-video-factory-renderer-dev.yml \
-            --limit 5 \
-            --json databaseId,status,conclusion,event,createdAt,updatedAt,headSha,url \
-            --jq '.'
+            --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs \
+            --jq '{databaseId,status,conclusion,createdAt,updatedAt,url,jobs:[.jobs[]|{name,conclusion,steps:[.steps[]|select(.conclusion=="failure")]}]}'
+          echo 'FAILED_LOG_TAIL'
+          gh run view "${RUN_ID}" \
+            --repo "${REPOSITORY}" \
+            --log-failed | tail -n 180
