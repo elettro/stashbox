@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS radio.visuals_folders (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
 
-  CONSTRAINT visuals_folders_folder_type_check CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand')),
+  CONSTRAINT visuals_folders_folder_type_check CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location')),
   CONSTRAINT visuals_folders_status_check CHECK (status IN ('active', 'hidden')),
   CONSTRAINT visuals_folders_priority_check CHECK (priority IN ('high', 'medium', 'low'))
 );
