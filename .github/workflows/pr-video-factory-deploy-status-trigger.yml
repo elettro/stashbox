@@ -6,21 +6,66 @@ on:
       - '.github/workflows/pr-video-factory-deploy-status-trigger.yml'
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
   status:
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
-      - name: Extract compact failed verification
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: '29691446658'
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect endpoint network and Lambda timeout
         run: |
           set -euo pipefail
-          gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed \
-            | sed 's/\x1b\[[0-9;]*m//g' \
-            | grep -E 'stashbox-video-factory-renderer-dev|Internal Server Error|Video Factory infrastructure endpoint returned|INFRA_STATUS|curl:|AccessDenied|Task timed out|Timeout|timed out|statusCode|configured|cluster_status|output_bucket|\{"message"|\{"success"|Process completed with exit code' \
-            | tail -n 60
+
+          LAMBDA_JSON=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json)
+          VPC_ID=$(printf '%s' "${LAMBDA_JSON}" | jq -r '.VpcConfig.VpcId')
+          LAMBDA_SG=$(printf '%s' "${LAMBDA_JSON}" | jq -r '.VpcConfig.SecurityGroupIds[0]')
+          ECS_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEcsEndpointId'].OutputValue" --output text)
+          S3_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaS3EndpointId'].OutputValue" --output text)
+          ENDPOINT_SG=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEndpointSecurityGroupId'].OutputValue" --output text)
+
+          echo 'LAMBDA'
+          printf '%s' "${LAMBDA_JSON}" | jq '{Timeout,VpcConfig,VideoFactoryEnv:{Cluster:.Environment.Variables.VIDEO_FACTORY_ECS_CLUSTER,Task:.Environment.Variables.VIDEO_FACTORY_ECS_TASK_DEFINITION,Bucket:.Environment.Variables.VIDEO_FACTORY_RENDER_BUCKET}}'
+
+          echo 'VPC_DNS'
+          aws ec2 describe-vpc-attribute --vpc-id "${VPC_ID}" --attribute enableDnsSupport --output json
+          aws ec2 describe-vpc-attribute --vpc-id "${VPC_ID}" --attribute enableDnsHostnames --output json
+
+          echo 'ENDPOINTS'
+          aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "${ECS_ENDPOINT}" "${S3_ENDPOINT}" --query 'VpcEndpoints[].{Id:VpcEndpointId,Type:VpcEndpointType,State:State,Service:ServiceName,PrivateDns:PrivateDnsEnabled,Subnets:SubnetIds,RouteTables:RouteTableIds,Groups:Groups}' --output json
+
+          echo 'LAMBDA_SG_EGRESS'
+          aws ec2 describe-security-groups --group-ids "${LAMBDA_SG}" --query 'SecurityGroups[0].IpPermissionsEgress' --output json
+
+          echo 'ENDPOINT_SG_INGRESS'
+          aws ec2 describe-security-groups --group-ids "${ENDPOINT_SG}" --query 'SecurityGroups[0].IpPermissions' --output json
+
+          echo 'API_CALL'
+          curl --max-time 20 --silent --show-error \
+            -H 'accept: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -w '\nHTTP_STATUS=%{http_code}\n' \
+            "${API_BASE}/admin/video-factory/infrastructure" || true
+
+          sleep 3
+          echo 'RECENT_LAMBDA_ERRORS'
+          START_MS=$(( $(date +%s) * 1000 - 900000 ))
+          aws logs filter-log-events \
+            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
+            --start-time "${START_MS}" \
+            --query 'events[].message' \
+            --output text \
+            | tr '\t' '\n' \
+            | grep -E 'Task timed out|ERROR|Error|ETIMEDOUT|ENOTFOUND|AccessDenied|Timeout|socket|connect|Video Factory' \
+            | tail -n 100 || true
