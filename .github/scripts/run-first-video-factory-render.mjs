@@ -45,18 +45,48 @@ if (!infra.configured || infra.cluster_status !== 'ACTIVE') {
 
 const songsBody = await request('/admin/songs');
 const songs = Array.isArray(songsBody?.songs) ? songsBody.songs : Array.isArray(songsBody) ? songsBody : [];
-const song = songs.find(item => /space\s*jam/i.test(`${item.song_key || ''} ${item.display_title || ''} ${item.song_name || ''}`));
+const song = songs.find(item => /dub\s*reggae\s*0?1/i.test(`${item.song_key || ''} ${item.display_title || ''} ${item.song_name || ''}`));
 if (!song) {
-  console.log('AVAILABLE_SONGS=' + JSON.stringify(songs.slice(0, 50).map(item => ({
+  console.log('AVAILABLE_SONGS=' + JSON.stringify(songs.slice(0, 100).map(item => ({
     song_key: item.song_key,
     title: item.display_title || item.song_name,
     artist: item.artist
   }))));
-  throw new Error('Space Jam was not found in TRUE DEV songs.');
+  throw new Error('DUB REGGAE 01 was not found in TRUE DEV songs.');
 }
-console.log('SELECTED_SONG=' + JSON.stringify({ song_key: song.song_key, title: song.display_title || song.song_name, artist: song.artist }));
+console.log('SELECTED_SONG=' + JSON.stringify({
+  song_key: song.song_key,
+  title: song.display_title || song.song_name,
+  artist: song.artist
+}));
 
-const batchName = 'Space Jam First Full-Song Render';
+const vecSettings = await request(`/radio/songs/${encodeURIComponent(song.song_key)}/visual-settings`);
+const eligibleAssets = Array.isArray(vecSettings?.eligible_assets)
+  ? vecSettings.eligible_assets
+  : Array.isArray(vecSettings?.assets)
+    ? vecSettings.assets
+    : [];
+const clipAssets = eligibleAssets.filter(asset => ['clip', 'video'].includes(String(asset?.type || asset?.asset_type || asset?.media_type || '').toLowerCase()));
+console.log('VEC_SETTINGS=' + JSON.stringify({
+  order_mode: vecSettings?.order_mode,
+  eligible_asset_count: eligibleAssets.length,
+  clip_asset_count: clipAssets.length,
+  fallback: vecSettings?.fallback,
+  sample_assets: eligibleAssets.slice(0, 5).map(asset => ({
+    id: asset.id || asset.asset_id,
+    type: asset.type || asset.asset_type || asset.media_type,
+    source: asset.source || asset.folder_name || asset.folder_id,
+    url: asset.url || asset.public_url || asset.src
+  }))
+}));
+if (eligibleAssets.length < 2) {
+  throw new Error(`DUB REGGAE 01 returned only ${eligibleAssets.length} eligible VEC assets; montage render was not launched.`);
+}
+if (!clipAssets.length) {
+  throw new Error('DUB REGGAE 01 returned no eligible video clips; montage render was not launched.');
+}
+
+const batchName = 'DUB REGGAE 01 VEC Montage Validation';
 let jobsBody = await request('/admin/video-factory/jobs?limit=250');
 let jobs = Array.isArray(jobsBody?.jobs) ? jobsBody.jobs : [];
 let job = jobs.find(item => item.batch_name === batchName && item.song_key === song.song_key);
@@ -67,12 +97,13 @@ if (!job) {
     body: JSON.stringify({
       song_key: song.song_key,
       client_name: 'Stashbox',
-      project_name: 'Video Factory First Render',
+      project_name: 'VEC Montage Validation',
       batch_name: batchName,
       duration_mode: 'full',
       duration_seconds: null,
       aspect_ratio: '16:9',
       fps: 30,
+      variation: 2,
       intro_enabled: true,
       outro_enabled: true,
       corner_bug_enabled: true,
@@ -110,9 +141,10 @@ if (job.status === 'draft') {
 
 const terminal = new Set(['completed', 'failed', 'cancelled']);
 const startedAt = Date.now();
-const timeoutMs = 42 * 60 * 1000;
+const timeoutMs = 50 * 60 * 1000;
 let lastStatus = '';
 let lastProgress = -1;
+let timelineVerified = false;
 
 while (Date.now() - startedAt < timeoutMs) {
   jobsBody = await request('/admin/video-factory/jobs?limit=250');
@@ -122,6 +154,31 @@ while (Date.now() - startedAt < timeoutMs) {
 
   const runtime = job.render_recipe?.runtime || {};
   const progress = Number(runtime.progress_percent ?? 0);
+  const timeline = Array.isArray(job.render_recipe?.timeline) ? job.render_recipe.timeline : [];
+  const timelineClips = timeline.filter(item => item.type === 'clip');
+  const distinctTimelineAssets = new Set(timeline.map(item => item.asset_id).filter(Boolean));
+  const frozenEligibleCount = Number(job.render_recipe?.visuals?.eligible_asset_count || 0);
+
+  if (!timelineVerified && timeline.length) {
+    console.log('FROZEN_VEC_TIMELINE=' + JSON.stringify({
+      eligible_asset_count: frozenEligibleCount,
+      timeline_segment_count: timeline.length,
+      clip_segment_count: timelineClips.length,
+      distinct_asset_count: distinctTimelineAssets.size,
+      first_segments: timeline.slice(0, 8).map(item => ({
+        asset_id: item.asset_id,
+        type: item.type,
+        source: item.source,
+        start_seconds: item.start_seconds,
+        duration_seconds: item.duration_seconds
+      }))
+    }));
+    if (frozenEligibleCount < 2 || timelineClips.length < 2 || distinctTimelineAssets.size < 2) {
+      throw new Error('The new render did not freeze a multi-clip VEC montage timeline.');
+    }
+    timelineVerified = true;
+  }
+
   if (job.status !== lastStatus || progress !== lastProgress) {
     console.log('RENDER_STATUS=' + JSON.stringify({
       id: job.id,
@@ -129,6 +186,9 @@ while (Date.now() - startedAt < timeoutMs) {
       progress_percent: progress,
       message: runtime.status_message || '',
       error_message: job.error_message || '',
+      eligible_asset_count: frozenEligibleCount,
+      timeline_segments: timeline.length,
+      distinct_timeline_assets: distinctTimelineAssets.size,
       updated_at: job.updated_at
     }));
     lastStatus = job.status;
@@ -145,6 +205,9 @@ if (!terminal.has(job.status)) {
 if (job.status !== 'completed') {
   throw new Error(`Render ended with status ${job.status}: ${job.error_message || 'No error message returned.'}`);
 }
+if (!timelineVerified) {
+  throw new Error('Completed render never exposed a verified multi-clip VEC timeline.');
+}
 
 const preview = await request(`/admin/video-factory/jobs/${encodeURIComponent(job.id)}/preview`);
 const thumbnail = await request(`/admin/video-factory/jobs/${encodeURIComponent(job.id)}/thumbnail`);
@@ -156,14 +219,17 @@ if (![200, 206].includes(rangeResponse.status)) {
   throw new Error(`Signed MP4 verification returned HTTP ${rangeResponse.status}.`);
 }
 
-console.log('FIRST_RENDER_COMPLETED=' + JSON.stringify({
+const finalTimeline = Array.isArray(job.render_recipe?.timeline) ? job.render_recipe.timeline : [];
+console.log('DUB_VEC_RENDER_COMPLETED=' + JSON.stringify({
   job_id: job.id,
   song_key: job.song_key,
   artist: job.artist,
   song_title: job.song_title,
   output_filename: job.output_filename,
-  output_url: job.output_url,
-  thumbnail_url: job.thumbnail_url,
+  eligible_asset_count: job.render_recipe?.visuals?.eligible_asset_count,
+  timeline_segment_count: finalTimeline.length,
+  distinct_asset_count: new Set(finalTimeline.map(item => item.asset_id).filter(Boolean)).size,
+  clip_segment_count: finalTimeline.filter(item => item.type === 'clip').length,
   width: job.width,
   height: job.height,
   fps: job.fps,
