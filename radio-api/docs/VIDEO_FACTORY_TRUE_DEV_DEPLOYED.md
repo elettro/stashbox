@@ -1,6 +1,6 @@
 # Video Factory TRUE DEV Deployment
 
-Status: failure
-Commit: cbcb389b2546c73c81b449d9ce2dfbee8f7aed13
-Recorded: 2026-07-19 11:55:43 UTC
+Status: success
+Commit: 461bdb5abb9c7721aee9aa09c4b99f5440d924d5
+Recorded: 2026-07-19 11:57:13 UTC
 Target: stashbox-radio-api-dev-v2
