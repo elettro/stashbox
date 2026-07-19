@@ -33,22 +33,72 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Validate deployment target and secrets
+      - name: Validate deployment target and discover Lambda network
         run: |
           set -euo pipefail
           test -n "${ADMIN_TOKEN}" || { echo "STASHBOX_DEV_ADMIN_TOKEN is missing." >&2; exit 1; }
-          ACTUAL_FUNCTION=$(aws lambda get-function-configuration \
+
+          LAMBDA_CONFIG=$(aws lambda get-function-configuration \
             --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
-            --query FunctionName \
-            --output text)
+            --output json)
+          ACTUAL_FUNCTION=$(printf '%s' "${LAMBDA_CONFIG}" | jq -r '.FunctionName')
           test "${ACTUAL_FUNCTION}" = "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" || { echo "Unexpected Lambda target." >&2; exit 1; }
-          ROLE_ARN=$(aws lambda get-function-configuration \
-            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
-            --query Role \
-            --output text)
+
+          ROLE_ARN=$(printf '%s' "${LAMBDA_CONFIG}" | jq -r '.Role')
           ROLE_NAME="${ROLE_ARN##*/}"
+          VPC_ID=$(printf '%s' "${LAMBDA_CONFIG}" | jq -r '.VpcConfig.VpcId // empty')
+          LAMBDA_SECURITY_GROUP=$(printf '%s' "${LAMBDA_CONFIG}" | jq -r '.VpcConfig.SecurityGroupIds[0] // empty')
+          mapfile -t LAMBDA_SUBNETS < <(printf '%s' "${LAMBDA_CONFIG}" | jq -r '.VpcConfig.SubnetIds[]?')
+
+          test -n "${VPC_ID}" || { echo "TRUE DEV Lambda is not attached to a VPC." >&2; exit 1; }
+          test -n "${LAMBDA_SECURITY_GROUP}" || { echo "TRUE DEV Lambda security group was not found." >&2; exit 1; }
+          test "${#LAMBDA_SUBNETS[@]}" -gt 0 || { echo "TRUE DEV Lambda subnets were not found." >&2; exit 1; }
+
+          SUBNET_ROWS=$(aws ec2 describe-subnets \
+            --subnet-ids "${LAMBDA_SUBNETS[@]}" \
+            --query 'sort_by(Subnets,&AvailabilityZone)[].[SubnetId,AvailabilityZone]' \
+            --output text)
+          ENDPOINT_SUBNETS=""
+          SEEN_AZS="|"
+          ENDPOINT_COUNT=0
+          while read -r SUBNET_ID AZ; do
+            [ -n "${SUBNET_ID}" ] || continue
+            if [[ "${SEEN_AZS}" != *"|${AZ}|"* ]]; then
+              ENDPOINT_SUBNETS="${ENDPOINT_SUBNETS:+${ENDPOINT_SUBNETS},}${SUBNET_ID}"
+              SEEN_AZS="${SEEN_AZS}${AZ}|"
+              ENDPOINT_COUNT=$((ENDPOINT_COUNT + 1))
+            fi
+            [ "${ENDPOINT_COUNT}" -ge 2 ] && break
+          done <<< "${SUBNET_ROWS}"
+          test "${ENDPOINT_COUNT}" -ge 2 || { echo "Two distinct Lambda subnet Availability Zones are required." >&2; exit 1; }
+
+          ROUTE_TABLE_IDS=""
+          for SUBNET_ID in "${LAMBDA_SUBNETS[@]}"; do
+            ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
+              --filters "Name=association.subnet-id,Values=${SUBNET_ID}" \
+              --query 'RouteTables[0].RouteTableId' \
+              --output text)
+            if [ -z "${ROUTE_TABLE_ID}" ] || [ "${ROUTE_TABLE_ID}" = "None" ]; then
+              ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
+                --filters "Name=vpc-id,Values=${VPC_ID}" "Name=association.main,Values=true" \
+                --query 'RouteTables[0].RouteTableId' \
+                --output text)
+            fi
+            test -n "${ROUTE_TABLE_ID}" && test "${ROUTE_TABLE_ID}" != "None" || { echo "Route table missing for ${SUBNET_ID}." >&2; exit 1; }
+            if [[ ",${ROUTE_TABLE_IDS}," != *",${ROUTE_TABLE_ID},"* ]]; then
+              ROUTE_TABLE_IDS="${ROUTE_TABLE_IDS:+${ROUTE_TABLE_IDS},}${ROUTE_TABLE_ID}"
+            fi
+          done
+
           echo "API_LAMBDA_ROLE_NAME=${ROLE_NAME}" >> "${GITHUB_ENV}"
+          echo "API_LAMBDA_VPC_ID=${VPC_ID}" >> "${GITHUB_ENV}"
+          echo "API_LAMBDA_SECURITY_GROUP_ID=${LAMBDA_SECURITY_GROUP}" >> "${GITHUB_ENV}"
+          echo "API_LAMBDA_ENDPOINT_SUBNETS=${ENDPOINT_SUBNETS}" >> "${GITHUB_ENV}"
+          echo "API_LAMBDA_ROUTE_TABLE_IDS=${ROUTE_TABLE_IDS}" >> "${GITHUB_ENV}"
           echo "Validated TRUE DEV Lambda: ${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+          echo "Private endpoint VPC: ${VPC_ID}"
+          echo "Private endpoint subnets: ${ENDPOINT_SUBNETS}"
+          echo "S3 gateway route tables: ${ROUTE_TABLE_IDS}"
 
       - name: Check source syntax and unit tests
         run: |
@@ -78,6 +128,10 @@ jobs:
               --parameter-overrides \
                 ImageUri=public.ecr.aws/docker/library/node:22-bookworm-slim \
                 ApiLambdaRoleName="${API_LAMBDA_ROLE_NAME}" \
+                ApiLambdaVpcId="${API_LAMBDA_VPC_ID}" \
+                ApiLambdaSecurityGroupId="${API_LAMBDA_SECURITY_GROUP_ID}" \
+                ApiLambdaEndpointSubnetIds="${API_LAMBDA_ENDPOINT_SUBNETS}" \
+                ApiLambdaRouteTableIds="${API_LAMBDA_ROUTE_TABLE_IDS}" \
                 ApiBase="${TRUE_DEV_API_BASE}"
           fi
 
@@ -111,6 +165,10 @@ jobs:
             --parameter-overrides \
               ImageUri="${IMAGE_URI}" \
               ApiLambdaRoleName="${API_LAMBDA_ROLE_NAME}" \
+              ApiLambdaVpcId="${API_LAMBDA_VPC_ID}" \
+              ApiLambdaSecurityGroupId="${API_LAMBDA_SECURITY_GROUP_ID}" \
+              ApiLambdaEndpointSubnetIds="${API_LAMBDA_ENDPOINT_SUBNETS}" \
+              ApiLambdaRouteTableIds="${API_LAMBDA_ROUTE_TABLE_IDS}" \
               ApiBase="${TRUE_DEV_API_BASE}"
 
       - name: Store worker admin token in Secrets Manager
@@ -142,6 +200,8 @@ jobs:
           echo "VF_ECS_TASK_DEFINITION=$(output RenderTaskDefinitionArn)" >> "${GITHUB_ENV}"
           echo "VF_ECS_SUBNETS=$(output RenderSubnetIds)" >> "${GITHUB_ENV}"
           echo "VF_ECS_SECURITY_GROUPS=$(output RenderSecurityGroupIds)" >> "${GITHUB_ENV}"
+          echo "VF_LAMBDA_ECS_ENDPOINT=$(output ApiLambdaEcsEndpointId)" >> "${GITHUB_ENV}"
+          echo "VF_LAMBDA_S3_ENDPOINT=$(output ApiLambdaS3EndpointId)" >> "${GITHUB_ENV}"
 
       - name: Configure TRUE DEV Lambda render environment
         run: |
@@ -207,6 +267,18 @@ jobs:
             --task-definition "${VF_ECS_TASK_DEFINITION}" \
             --query 'taskDefinition.family' \
             --output text
+
+          INFRA_BODY=$(mktemp)
+          INFRA_STATUS=$(curl --max-time 20 --silent --show-error \
+            -H 'accept: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o "${INFRA_BODY}" -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/admin/video-factory/infrastructure")
+          cat "${INFRA_BODY}"
+          test "${INFRA_STATUS}" = "200" || { echo "Video Factory infrastructure endpoint returned ${INFRA_STATUS}." >&2; exit 1; }
+          jq -e '.success == true and .configured == true' "${INFRA_BODY}" >/dev/null
+          rm -f "${INFRA_BODY}"
+
           ADMIN_TOKEN="${ADMIN_TOKEN}" TRUE_DEV_API_BASE="${TRUE_DEV_API_BASE}" \
             node radio-api/scripts/smoke-test-true-dev.mjs
 
@@ -219,5 +291,7 @@ jobs:
             echo "- ECS cluster: \`${VF_ECS_CLUSTER}\`"
             echo "- Task definition: \`${VF_ECS_TASK_DEFINITION}\`"
             echo "- Private bucket: \`${VF_RENDER_BUCKET}\`"
+            echo "- Lambda ECS endpoint: \`${VF_LAMBDA_ECS_ENDPOINT}\`"
+            echo "- Lambda S3 endpoint: \`${VF_LAMBDA_S3_ENDPOINT}\`"
             echo "- Image: \`${IMAGE_URI}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
