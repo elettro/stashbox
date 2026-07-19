@@ -59,3 +59,47 @@ test('black branded fallback is available when artwork is also missing', () => {
   assert.equal(timeline[0].type, 'color');
   assert.equal(timeline[0].source, 'fallback');
 });
+
+test('VEC artwork rules anchor the start, recurring interval, and end', () => {
+  const artworkRules = {
+    start_with_artwork: true,
+    start_duration_seconds: 3,
+    end_with_artwork: true,
+    end_duration_seconds: 4,
+    re_present_artwork: true,
+    repeat_every_seconds: 60
+  };
+  const timeline = buildRenderTimeline({
+    total_duration_seconds: 130,
+    segment_duration_seconds: 8,
+    artwork_url: 'https://example.com/artwork.jpg',
+    assets: [
+      { id: 'clip-a', type: 'clip', url: 'https://example.com/a.mp4', renderer_artwork_rules: artworkRules },
+      { id: 'clip-b', type: 'clip', url: 'https://example.com/b.mp4' }
+    ]
+  });
+
+  const artwork = timeline.filter(item => item.asset_id === 'song-artwork');
+  assert.deepEqual(artwork.map(item => [item.start_seconds, item.duration_seconds]), [
+    [0, 3],
+    [60, 3],
+    [120, 3],
+    [126, 4]
+  ]);
+  assert.equal(timeline.at(-1).end_seconds, 130);
+  assert.ok(timeline.some(item => item.type === 'clip'));
+});
+
+test('artwork control records without URLs do not become render assets', () => {
+  const timeline = buildRenderTimeline({
+    total_duration_seconds: 10,
+    artwork_url: 'https://example.com/artwork.jpg',
+    assets: [{
+      renderer_control: 'artwork-rules',
+      renderer_artwork_rules: { start_with_artwork: true, start_duration_seconds: 3 }
+    }]
+  });
+
+  assert.equal(timeline[0].asset_id, 'song-artwork');
+  assert.equal(timeline.at(-1).end_seconds, 10);
+});
