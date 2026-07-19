@@ -1,4 +1,4 @@
-name: PR Run First Video Factory Render
+name: PR Run Video Factory Ken Burns Verification
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  run-first-render:
+  verify-ken-burns-render:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -42,10 +42,10 @@ jobs:
             exit "${CODE}"
           fi
 
-      - name: Fetch first-render runner
+      - name: Fetch live verification runner
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: curl --fail --silent --show-error --location "https://raw.githubusercontent.com/elettro/stashbox/${HEAD_SHA}/.github/scripts/run-first-video-factory-render.mjs" --output /tmp/run-first-video-factory-render.mjs
 
-      - name: Create, launch, and verify first Space Jam render
+      - name: Create and verify 3-second Ken Burns render
         run: node /tmp/run-first-video-factory-render.mjs
