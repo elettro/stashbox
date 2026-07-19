@@ -55,7 +55,12 @@ jobs:
 
       - name: Install production dependencies
         working-directory: radio-api
-        run: npm ci --omit=dev
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          else
+            npm install --omit=dev
+          fi
 
       - name: Build TRUE DEV Lambda ZIP
         working-directory: radio-api
