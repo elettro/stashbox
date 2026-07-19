@@ -17,6 +17,7 @@ jobs:
     steps:
       - name: Read live Video Factory jobs
         run: |
+          # Snapshot refresh 2
           node <<'NODE'
           const api = String(process.env.API_BASE).replace(/\/+$/, '');
           const token = String(process.env.ADMIN_TOKEN || '').trim();
