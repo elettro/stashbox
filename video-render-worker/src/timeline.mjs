@@ -125,9 +125,10 @@ export function buildRenderTimeline(options = {}) {
     : 'random';
   const seed = stringValue(options.seed) || 'stashbox-video-factory';
   const artworkUrl = stringValue(options.artwork_url);
-  const assets = (Array.isArray(options.assets) ? options.assets : [])
-    .map(normalizeRenderAsset)
-    .filter(Boolean);
+  const rawAssets = Array.isArray(options.assets) ? options.assets : [];
+  const embeddedArtworkRules = rawAssets.find(asset => asset?.renderer_artwork_rules)?.renderer_artwork_rules || {};
+  const artworkRules = options.artwork_rules || embeddedArtworkRules;
+  const assets = rawAssets.map(normalizeRenderAsset).filter(Boolean);
 
   if (!assets.length) {
     assets.push({
@@ -141,12 +142,7 @@ export function buildRenderTimeline(options = {}) {
     });
   }
 
-  const artworkAnchors = buildArtworkAnchors(
-    totalDuration,
-    artworkUrl,
-    options.artwork_rules || {},
-    segmentDuration
-  );
+  const artworkAnchors = buildArtworkAnchors(totalDuration, artworkUrl, artworkRules, segmentDuration);
   const timeline = [];
   let currentTime = 0;
   let cycle = 0;
