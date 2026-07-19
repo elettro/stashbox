@@ -1,1 +1,1 @@
-Trigger the private Video Factory DEV renderer deployment for the Manual VEC drag-and-drop sequence merged in PR 744 on 2026-07-19.
+Trigger the private Video Factory DEV renderer deployment for Manual VEC drag-and-drop sequence support. Merged-PR dispatch 2026-07-19, PR 744 implementation.
