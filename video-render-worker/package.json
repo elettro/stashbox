@@ -9,7 +9,7 @@
     "@aws-sdk/client-s3": "^3.864.0"
   },
   "scripts": {
-    "check": "node --check src/entry.mjs && node --check src/index.mjs && node --check src/visual-settings.mjs && node --check src/ffmpeg.mjs && node --check src/timeline.mjs",
+    "check": "node --check src/entry.mjs && node --check src/index.mjs && node --check src/visual-settings.mjs && node --check src/vec-recipe.mjs && node --check src/ffmpeg.mjs && node --check src/timeline.mjs",
     "test": "node --test tests/*.test.mjs",
     "start": "node src/entry.mjs"
   }
