@@ -3107,9 +3107,28 @@ function uploadFolderForPurpose(purpose, artist, songKey) {
   return `songs/${artistSlug}/tracks/${cleanSongKey}/${getUploadPurposeFolder(purpose)}`;
 }
 
-const VISUALS_FOLDER_TYPES = new Set(['general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand']);
+const VISUALS_FOLDER_TYPES = new Set(['general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location']);
 const VISUALS_FOLDER_STATUSES = new Set(['active', 'hidden']);
 const VISUALS_FOLDER_PRIORITIES = new Set(['high', 'medium', 'low']);
+
+async function ensureVisualsFolderTypeConstraint() {
+  const result = await client.query(
+    `SELECT pg_get_constraintdef(c.oid) AS definition
+     FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = $1
+       AND t.relname = 'visuals_folders'
+       AND c.conname = 'visuals_folders_folder_type_check'
+     LIMIT 1`,
+    [getDbSchema()]
+  );
+  const definition = String(result.rows[0]?.definition || '').toLowerCase();
+  if (definition.includes("'location'")) return;
+
+  await client.query(`ALTER TABLE ${qname('visuals_folders')} DROP CONSTRAINT IF EXISTS visuals_folders_folder_type_check`);
+  await client.query(`ALTER TABLE ${qname('visuals_folders')} ADD CONSTRAINT visuals_folders_folder_type_check CHECK (folder_type IN ('general', 'artist', 'song', 'genre', 'mood', 'global', 'campaign', 'brand', 'location'))`);
+}
 
 function slugify(value) {
   return String(value || '')
@@ -3153,7 +3172,7 @@ function validateVisualsFolderPayload(body = {}) {
   const relevantSongs = normalizeVisualsSongs(body.relevant_songs ?? body.relevantSongs);
 
   if (!folderName) return { error: 'folder_name is required.' };
-  if (!VISUALS_FOLDER_TYPES.has(folderType)) return { error: 'folder_type must be one of: general, artist, song, genre, mood, global, campaign, brand.' };
+  if (!VISUALS_FOLDER_TYPES.has(folderType)) return { error: 'folder_type must be one of: general, artist, song, genre, mood, global, campaign, brand, location.' };
   if (!VISUALS_FOLDER_STATUSES.has(status)) return { error: 'status must be one of: active, hidden.' };
   if (!VISUALS_FOLDER_PRIORITIES.has(priority)) return { error: 'priority must be one of: high, medium, low.' };
   if (relevantArtists === null) return { error: 'relevant_artists must be an array.' };
@@ -3265,6 +3284,7 @@ async function getVisualsFolderById(id) {
 async function handleAdminVisualsFoldersRoute(event) {
   await requireAdmin(event);
   const method = getMethod(event).toUpperCase();
+  if (method === 'POST' || method === 'PUT') await ensureVisualsFolderTypeConstraint();
   const segments = getRouteSegments(event);
   const foldersIndex = segments.lastIndexOf('folders');
   const id = event.pathParameters?.id || (foldersIndex >= 0 ? segments[foldersIndex + 1] || '' : '');
