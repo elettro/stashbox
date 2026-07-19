@@ -1,0 +1,66 @@
+name: PR Video Factory Render Snapshot
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-video-factory-render-snapshot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+    steps:
+      - name: Read live Video Factory jobs
+        run: |
+          node <<'NODE'
+          const api = String(process.env.API_BASE).replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
+          async function get(pathname) {
+            const response = await fetch(`${api}${pathname}`, {
+              headers: { accept: 'application/json', 'x-admin-token': token }
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(`${pathname} returned ${response.status}: ${JSON.stringify(body)}`);
+            return body;
+          }
+          const infra = await get('/admin/video-factory/infrastructure');
+          const jobsBody = await get('/admin/video-factory/jobs?limit=250');
+          const jobs = Array.isArray(jobsBody.jobs) ? jobsBody.jobs : [];
+          const spaceJam = jobs.filter(job => /space\s*jam/i.test(`${job.batch_name || ''} ${job.song_title || ''} ${job.song_key || ''}`));
+          const stranded = jobs.filter(job => job.status === 'pending' && !job.render_recipe?.runtime?.ecs_task_arn);
+          const active = jobs.filter(job => ['pending','preparing','rendering','uploading'].includes(job.status));
+          console.log('INFRA=' + JSON.stringify({
+            configured: infra.configured,
+            cluster_status: infra.cluster_status,
+            running_tasks: infra.running_tasks,
+            pending_tasks: infra.pending_tasks,
+            task_definition_arn: infra.task_definition_arn,
+            output_bucket: infra.output_bucket
+          }));
+          console.log('SPACE_JAM=' + JSON.stringify(spaceJam.map(job => ({
+            id: job.id,
+            batch_name: job.batch_name,
+            song_key: job.song_key,
+            song_title: job.song_title,
+            artist: job.artist,
+            status: job.status,
+            progress_percent: job.render_recipe?.runtime?.progress_percent ?? 0,
+            status_message: job.render_recipe?.runtime?.status_message || '',
+            ecs_task_arn: job.render_recipe?.runtime?.ecs_task_arn || '',
+            error_message: job.error_message || '',
+            output_filename: job.output_filename || '',
+            output_url: job.output_url || '',
+            thumbnail_url: job.thumbnail_url || '',
+            created_at: job.created_at,
+            updated_at: job.updated_at,
+            completed_at: job.completed_at
+          }))));
+          console.log('ACTIVE=' + JSON.stringify(active.map(job => ({id:job.id,status:job.status,batch_name:job.batch_name,song_key:job.song_key,ecs_task_arn:job.render_recipe?.runtime?.ecs_task_arn || ''}))));
+          console.log('STRANDED=' + JSON.stringify(stranded.map(job => ({id:job.id,status:job.status,batch_name:job.batch_name,song_key:job.song_key,created_at:job.created_at,updated_at:job.updated_at}))));
+          NODE
