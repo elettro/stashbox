@@ -167,6 +167,7 @@ await checkRadioSongs(results);
 await checkDashboardSummary(results);
 await checkAdminRoute(results, '/admin/ads');
 await checkAdminRoute(results, '/admin/visuals/folders');
+await checkAdminRoute(results, '/admin/video-factory/summary');
 
 printResults(results);
 
