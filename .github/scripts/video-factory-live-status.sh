@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Read-only refresh for the active DUB REGGAE 01 VEC montage render.
 : "${API_BASE:=https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev}"
 : "${ADMIN_TOKEN:?ADMIN_TOKEN is required}"
 
