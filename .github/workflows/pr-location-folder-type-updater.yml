@@ -1,4 +1,5 @@
 name: Temporary Location Folder Type Updater
+# Trigger the trusted updater for PR 742.
 
 on:
   pull_request_target:
