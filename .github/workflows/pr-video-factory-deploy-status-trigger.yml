@@ -1,0 +1,26 @@
+name: PR Video Factory Deployment Status Trigger
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-video-factory-deploy-status-trigger.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List recent deployment runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh run list \
+            --repo "${REPOSITORY}" \
+            --workflow deploy-video-factory-renderer-dev.yml \
+            --limit 5 \
+            --json databaseId,status,conclusion,event,createdAt,updatedAt,headSha,url \
+            --jq '.'
