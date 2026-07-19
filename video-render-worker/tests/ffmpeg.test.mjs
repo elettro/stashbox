@@ -66,16 +66,25 @@ test('song identity copy is left-aligned in the lower-left third', () => {
   assert.doesNotMatch(filter, /\(w-text_w\)\/2/);
 });
 
-test('Ken Burns filter uses subtle zoompan motion only when enabled', () => {
+test('Ken Burns filter uses smooth eased oversampled motion only when enabled', () => {
   const animated = segmentVideoFilter({
     width: 1920, height: 1080, fps: 30, duration: 3,
     segment: { type: 'image', motion: { enabled: true, direction: 'left-to-right', zoom_mode: 'in', max_zoom: 1.08 } }
   });
+  assert.match(animated, /scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos/);
   assert.match(animated, /zoompan=/);
-  assert.match(animated, /1\+0\.0800\*on\/89/);
+  assert.match(animated, /min\(1,on\/89\)/);
+  assert.match(animated, /3-2\*\(min\(1,on\/89\)\)/);
+  assert.match(animated, /s=3840x2160:fps=30/);
+  assert.match(animated, /scale=1920:1080:flags=lanczos/);
   assert.match(animated, /iw-iw\/zoom/);
-  const staticFilter = segmentVideoFilter({ width: 1920, height: 1080, fps: 30, duration: 3, segment: { type: 'image', motion: null } });
+
+  const staticFilter = segmentVideoFilter({
+    width: 1920, height: 1080, fps: 30, duration: 3,
+    segment: { type: 'image', motion: null }
+  });
   assert.doesNotMatch(staticFilter, /zoompan=/);
+  assert.doesNotMatch(staticFilter, /scale=3840:2160/);
 });
 
 test('overlay filter respects disabled identity blocks', () => {
