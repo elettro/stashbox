@@ -24,48 +24,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Inspect endpoint network and Lambda timeout
-        run: |
-          set -euo pipefail
-
-          LAMBDA_JSON=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json)
-          VPC_ID=$(printf '%s' "${LAMBDA_JSON}" | jq -r '.VpcConfig.VpcId')
-          LAMBDA_SG=$(printf '%s' "${LAMBDA_JSON}" | jq -r '.VpcConfig.SecurityGroupIds[0]')
-          ECS_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEcsEndpointId'].OutputValue" --output text)
-          S3_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaS3EndpointId'].OutputValue" --output text)
-          ENDPOINT_SG=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEndpointSecurityGroupId'].OutputValue" --output text)
-
-          echo 'LAMBDA'
-          printf '%s' "${LAMBDA_JSON}" | jq '{Timeout,VpcConfig,VideoFactoryEnv:{Cluster:.Environment.Variables.VIDEO_FACTORY_ECS_CLUSTER,Task:.Environment.Variables.VIDEO_FACTORY_ECS_TASK_DEFINITION,Bucket:.Environment.Variables.VIDEO_FACTORY_RENDER_BUCKET}}'
-
-          echo 'VPC_DNS'
-          aws ec2 describe-vpc-attribute --vpc-id "${VPC_ID}" --attribute enableDnsSupport --output json
-          aws ec2 describe-vpc-attribute --vpc-id "${VPC_ID}" --attribute enableDnsHostnames --output json
-
-          echo 'ENDPOINTS'
-          aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "${ECS_ENDPOINT}" "${S3_ENDPOINT}" --query 'VpcEndpoints[].{Id:VpcEndpointId,Type:VpcEndpointType,State:State,Service:ServiceName,PrivateDns:PrivateDnsEnabled,Subnets:SubnetIds,RouteTables:RouteTableIds,Groups:Groups}' --output json
-
-          echo 'LAMBDA_SG_EGRESS'
-          aws ec2 describe-security-groups --group-ids "${LAMBDA_SG}" --query 'SecurityGroups[0].IpPermissionsEgress' --output json
-
-          echo 'ENDPOINT_SG_INGRESS'
-          aws ec2 describe-security-groups --group-ids "${ENDPOINT_SG}" --query 'SecurityGroups[0].IpPermissions' --output json
-
-          echo 'API_CALL'
-          curl --max-time 20 --silent --show-error \
-            -H 'accept: application/json' \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -w '\nHTTP_STATUS=%{http_code}\n' \
-            "${API_BASE}/admin/video-factory/infrastructure" || true
-
-          sleep 3
-          echo 'RECENT_LAMBDA_ERRORS'
-          START_MS=$(( $(date +%s) * 1000 - 900000 ))
-          aws logs filter-log-events \
-            --log-group-name "/aws/lambda/${LAMBDA_NAME}" \
-            --start-time "${START_MS}" \
-            --query 'events[].message' \
-            --output text \
-            | tr '\t' '\n' \
-            | grep -E 'Task timed out|ERROR|Error|ETIMEDOUT|ENOTFOUND|AccessDenied|Timeout|socket|connect|Video Factory' \
-            | tail -n 100 || true
+      - name: Print compact diagnostics
+        run: >-
+          set -euo pipefail;
+          L=$(aws lambda get-function-configuration --function-name "${LAMBDA_NAME}" --output json);
+          V=$(printf '%s' "$L" | jq -r '.VpcConfig.VpcId');
+          LS=$(printf '%s' "$L" | jq -r '.VpcConfig.SecurityGroupIds[0]');
+          E=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEcsEndpointId'].OutputValue" --output text);
+          S=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaS3EndpointId'].OutputValue" --output text);
+          ES=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='ApiLambdaEndpointSecurityGroupId'].OutputValue" --output text);
+          printf 'LAMBDA='; printf '%s' "$L" | jq -c '{Timeout,VpcId:.VpcConfig.VpcId,Subnets:.VpcConfig.SubnetIds,SecurityGroups:.VpcConfig.SecurityGroupIds}';
+          printf 'DNS_SUPPORT='; aws ec2 describe-vpc-attribute --vpc-id "$V" --attribute enableDnsSupport --query 'EnableDnsSupport.Value' --output text;
+          printf 'DNS_HOSTNAMES='; aws ec2 describe-vpc-attribute --vpc-id "$V" --attribute enableDnsHostnames --query 'EnableDnsHostnames.Value' --output text;
+          printf 'ENDPOINTS='; aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$E" "$S" --query 'VpcEndpoints[].{Id:VpcEndpointId,Type:VpcEndpointType,State:State,Service:ServiceName,PrivateDns:PrivateDnsEnabled,Subnets:SubnetIds,RouteTables:RouteTableIds,Groups:Groups[].GroupId}' --output json | jq -c '.';
+          printf 'LAMBDA_EGRESS='; aws ec2 describe-security-groups --group-ids "$LS" --query 'SecurityGroups[0].IpPermissionsEgress' --output json | jq -c '.';
+          printf 'ENDPOINT_INGRESS='; aws ec2 describe-security-groups --group-ids "$ES" --query 'SecurityGroups[0].IpPermissions' --output json | jq -c '.';
+          printf 'API='; curl --max-time 20 --silent --show-error -H 'accept: application/json' -H "x-admin-token: ${ADMIN_TOKEN}" -w '|HTTP=%{http_code}\n' "${API_BASE}/admin/video-factory/infrastructure" || true;
+          sleep 2;
+          START=$(( $(date +%s) * 1000 - 600000 ));
+          printf 'LAMBDA_ERRORS='; aws logs filter-log-events --log-group-name "/aws/lambda/${LAMBDA_NAME}" --start-time "$START" --query 'events[].message' --output text | tr '\t' '\n' | grep -E 'Task timed out|ETIMEDOUT|ENOTFOUND|AccessDenied|Timeout|connect' | tail -n 20 | tr '\n' '|' || true;
+          echo
