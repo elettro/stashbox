@@ -2,10 +2,10 @@
     'render manual sequence panel'
 )
 
-replace_once(
+insert_before(
     VEC,
-    "      const selectedFolders = getSelectedFolders(state);\n      const activeAssets = [...getActiveSongAssets(state), ...getActiveBorrowedSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];\n      const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };\n      const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);\n",
-    "      const selectedFolders = getSelectedFolders(state);\n      const activeAssets = [...getActiveSongAssets(state), ...getActiveBorrowedSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];\n      const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };\n      if (shuffleRules.orderMode === 'manual') {\n        ensureManualSequence(state);\n        const manualVisuals = resolveManualSequence(state).map((item) => item.visual).filter(Boolean);\n        if (manualVisuals.length) return manualVisuals;\n      }\n      const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);\n",
+    "      const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);\n",
+    "      if (shuffleRules.orderMode === 'manual') {\n        ensureManualSequence(state);\n        const manualVisuals = resolveManualSequence(state).map((item) => item.visual).filter(Boolean);\n        if (manualVisuals.length) return manualVisuals;\n      }\n",
     'use manual sequence in preview'
 )
 
