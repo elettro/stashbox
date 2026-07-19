@@ -1,7 +1,9 @@
 name: One-Time Add Location Visual Folder Type
 
 on:
-  pull_request:
+  push:
+    branches:
+      - 'agent/add-location-visual-folder-type'
     paths:
       - '.github/workflows/video-factory-validate.yml'
 
@@ -15,7 +17,7 @@ jobs:
       - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
           token: ${{ github.token }}
 
@@ -134,4 +136,4 @@ function slugify(value)"""
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add radio/visual-experience/dev/index.html radio-api/index.mjs radio-admin/dev/ads/migrations/create_visuals_folders.sql radio-admin/ads/migrations/create_visuals_folders.sql .github/workflows/video-factory-validate.yml
           git commit -m 'Add Location visual folder type'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin HEAD:${{ github.ref_name }}
