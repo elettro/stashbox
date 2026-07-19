@@ -1,0 +1,67 @@
+name: One-Time Video Factory Stack Diagnostics
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-video-factory-stack-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Capture stack status and failed events
+        run: |
+          set -euo pipefail
+          mkdir -p radio-api/docs
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || printf 'STACK_NOT_FOUND')
+          EVENTS=$(aws cloudformation describe-stack-events \
+            --stack-name "${STACK_NAME}" \
+            --query "StackEvents[?contains(ResourceStatus, 'FAILED')].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]" \
+            --output text 2>/dev/null || true)
+          {
+            echo '# Video Factory CloudFormation Diagnostics'
+            echo
+            echo "Stack status: ${STATUS}"
+            echo
+            echo 'Failed events:'
+            echo '```text'
+            if [ -n "${EVENTS}" ]; then
+              printf '%s\n' "${EVENTS}"
+            else
+              echo 'No failed stack events were returned.'
+            fi
+            echo '```'
+          } > radio-api/docs/VIDEO_FACTORY_CLOUDFORMATION_DIAGNOSTICS.md
+
+      - name: Commit diagnostics
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-api/docs/VIDEO_FACTORY_CLOUDFORMATION_DIAGNOSTICS.md
+          git commit -m 'Record Video Factory CloudFormation diagnostics'
+          git push origin HEAD:main
