@@ -1,0 +1,21 @@
+name: One-Time Trigger Video Factory DEV Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-trigger-video-factory-deploy.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch existing Video Factory DEV deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-video-factory-renderer-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
