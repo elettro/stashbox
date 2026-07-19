@@ -1,6 +1,6 @@
 name: PR Redeploy Video Factory DEV
 
-# Temporary redeploy trigger: Render History archive and restore controls.
+# Temporary redeploy trigger: VEC still image duration and Ken Burns controls.
 on:
   pull_request:
     paths:
