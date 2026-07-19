@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { buildOverlayFilter, escapeDrawtext } from '../src/ffmpeg.mjs';
 
 test('drawtext escaping protects filter separators', () => {
-  assert.equal(escapeDrawtext("Dean's: Song, 100%"), "Dean\\'s\\: Song\\, 100\\%");
+  assert.equal(escapeDrawtext("Dean's: Song, 100%"), "Dean\'s\: Song\, 100\%");
 });
 
-test('overlay filter contains intro, outro, and persistent Stashbox branding', () => {
+test('overlay filter contains valid drawtext syntax, intro, outro, and branding', () => {
   const filter = buildOverlayFilter({
     width: 1920,
     height: 1080,
@@ -30,6 +30,8 @@ test('overlay filter contains intro, outro, and persistent Stashbox branding', (
     }
   }, 180);
 
+  assert.match(filter, /^drawtext=fontfile=/);
+  assert.doesNotMatch(filter, /drawtext:fontfile/);
   assert.match(filter, /Space Jam/);
   assert.match(filter, /Stashbox/);
   assert.match(filter, /Cosmic Vibes/);
@@ -46,6 +48,6 @@ test('overlay filter respects disabled identity blocks', () => {
       corner_bug_enabled: true
     }
   }, 30);
-  assert.equal((filter.match(/drawtext/g) || []).length, 1);
+  assert.equal((filter.match(/drawtext=/g) || []).length, 1);
   assert.match(filter, /STASHBOX RADIO/);
 });
