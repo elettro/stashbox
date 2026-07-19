@@ -1,41 +1,16 @@
-name: Validate Video Factory
+name: Temporary Location Folder Type Rollout
 
 on:
   push:
     branches:
-      - 'agent/video-factory-*'
+      - agent/video-factory-location-folder-type
       - main
     paths:
-      - 'radio-api/video-factory/**'
-      - 'radio-api/tests/video-factory-*.test.mjs'
-      - 'radio-api/package.json'
-      - 'radio-admin/dev/video-factory/**'
-      - 'video-render-worker/**'
-      - 'infra/video-factory/**'
+      - '.github/workflows/video-factory-validate.yml'
       - 'radio/visual-experience/dev/index.html'
       - 'radio-api/index.mjs'
       - 'radio-admin/dev/ads/migrations/create_visuals_folders.sql'
       - 'radio-admin/ads/migrations/create_visuals_folders.sql'
-      - '.github/workflows/pr-location-folder-type-updater.yml'
-      - '.github/workflows/deploy-true-dev-lambda.yml'
-      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
-      - '.github/workflows/video-factory-validate.yml'
-  pull_request:
-    paths:
-      - 'radio-api/video-factory/**'
-      - 'radio-api/tests/video-factory-*.test.mjs'
-      - 'radio-api/package.json'
-      - 'radio-admin/dev/video-factory/**'
-      - 'video-render-worker/**'
-      - 'infra/video-factory/**'
-      - 'radio/visual-experience/dev/index.html'
-      - 'radio-api/index.mjs'
-      - 'radio-admin/dev/ads/migrations/create_visuals_folders.sql'
-      - 'radio-admin/ads/migrations/create_visuals_folders.sql'
-      - '.github/workflows/pr-location-folder-type-updater.yml'
-      - '.github/workflows/deploy-true-dev-lambda.yml'
-      - '.github/workflows/deploy-video-factory-renderer-dev.yml'
-      - '.github/workflows/video-factory-validate.yml'
 
 permissions:
   actions: write
@@ -43,13 +18,13 @@ permissions:
 
 jobs:
   apply-location-folder-type:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/location-visual-folder-type-v2'
+    if: github.ref == 'refs/heads/agent/video-factory-location-folder-type'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Location feature branch
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: agent/video-factory-location-folder-type
           fetch-depth: 0
           token: ${{ github.token }}
 
@@ -164,84 +139,24 @@ function slugify(value)"""
           node --check radio-api/index.mjs
           git diff --check
 
-      - name: Restore trigger file and commit feature changes
+      - name: Restore rollout workflow and commit feature files
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
-          git checkout origin/main -- .github/workflows/pr-location-folder-type-updater.yml
+          git checkout origin/main -- .github/workflows/video-factory-validate.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add radio/visual-experience/dev/index.html radio-api/index.mjs radio-admin/dev/ads/migrations/create_visuals_folders.sql radio-admin/ads/migrations/create_visuals_folders.sql .github/workflows/pr-location-folder-type-updater.yml
+          git add radio/visual-experience/dev/index.html radio-api/index.mjs radio-admin/dev/ads/migrations/create_visuals_folders.sql radio-admin/ads/migrations/create_visuals_folders.sql .github/workflows/video-factory-validate.yml
           if git diff --cached --quiet; then
             echo 'Location folder type patch is already applied.'
             exit 0
           fi
           git commit -m 'Add Location visual folder type'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
-  validate-video-factory:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          show-progress: false
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install API and worker dependencies
-        run: |
-          npm --prefix radio-api install --omit=dev --no-audit --no-fund --silent
-          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund --silent
-
-      - name: Check JavaScript syntax
-        run: |
-          node --check radio-api/video-factory/entry.mjs
-          node --check radio-api/video-factory/routes.mjs
-          node --check radio-api/video-factory/recipe.mjs
-          node --check radio-api/video-factory/render-router.mjs
-          node --check radio-api/video-factory/render-control.mjs
-          node --check radio-admin/dev/video-factory/video-factory.js
-          npm --prefix video-render-worker run check --silent
-
-      - name: Run Video Factory API tests
-        run: node --test --test-reporter=spec radio-api/tests/video-factory-foundation.test.mjs radio-api/tests/video-factory-render-control.test.mjs
-
-      - name: Run FFmpeg helper tests
-        run: node --test --test-reporter=spec video-render-worker/tests/ffmpeg.test.mjs
-
-      - name: Run timeline and VEC recipe tests
-        run: node --test --test-reporter=spec video-render-worker/tests/timeline.test.mjs video-render-worker/tests/vec-recipe.test.mjs video-render-worker/tests/visual-settings.test.mjs
-
-      - name: Lint Video Factory CloudFormation
-        run: |
-          python -m pip install --quiet cfn-lint
-          cfn-lint infra/video-factory/dev-stack.yml
-
-      - name: Build FFmpeg worker container
-        run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
-
-      - name: Run FFmpeg container smoke render
-        id: smoke_render
-        run: |
-          set -o pipefail
-          docker run --rm --entrypoint node stashbox-video-factory-renderer:test scripts/smoke-render.mjs 2>&1 | tee video-factory-smoke-render.log
-
-      - name: Upload FFmpeg smoke diagnostics
-        if: failure() && steps.smoke_render.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: video-factory-smoke-render-log
-          path: video-factory-smoke-render.log
-          if-no-files-found: error
-          retention-days: 3
+          git push origin HEAD:agent/video-factory-location-folder-type
 
   deploy-location-folder-type-dev:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'Restore Video Factory validation workflow')
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'Restore Video Factory validation workflow')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
