@@ -184,26 +184,27 @@ export function buildOverlayFilter(
   const filters = [];
   const titleSize = Math.max(34, height * 0.058);
   const secondarySize = Math.max(24, height * 0.034);
+  const identityX = 'w*0.05';
 
   const addIdentityBlock = (start, end) => {
     const enable = between(start, end);
-    if (overlays.include_song !== false && title) {
-      filters.push(drawText({
-        fontFile,
-        text: title,
-        size: titleSize,
-        x: '(w-text_w)/2',
-        y: 'h*0.40',
-        enable
-      }));
-    }
     if (overlays.include_artist !== false && artist) {
       filters.push(drawText({
         fontFile,
         text: artist,
         size: secondarySize,
-        x: '(w-text_w)/2',
-        y: 'h*0.52',
+        x: identityX,
+        y: 'h*0.67',
+        enable
+      }));
+    }
+    if (overlays.include_song !== false && title) {
+      filters.push(drawText({
+        fontFile,
+        text: title,
+        size: titleSize,
+        x: identityX,
+        y: 'h*0.75',
         enable
       }));
     }
@@ -212,8 +213,8 @@ export function buildOverlayFilter(
         fontFile,
         text: album,
         size: secondarySize * 0.82,
-        x: '(w-text_w)/2',
-        y: 'h*0.60',
+        x: identityX,
+        y: 'h*0.86',
         enable
       }));
     }

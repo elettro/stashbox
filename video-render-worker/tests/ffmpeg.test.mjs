@@ -43,6 +43,29 @@ test('overlay filter contains valid drawtext syntax, intro, outro, and branding'
   assert.match(filter, /between\(t\\,175\.000\\,180\.000\)/);
 });
 
+test('song identity copy is left-aligned in the lower-left third', () => {
+  const filter = buildOverlayFilter({
+    width: 1920,
+    height: 1080,
+    metadata: {
+      title: 'Dub Reggae 01',
+      artist: 'Stashbox',
+      album: 'Stashbox Radio'
+    },
+    overlays: {
+      intro_enabled: true,
+      outro_enabled: false,
+      corner_bug_enabled: false
+    }
+  }, 60);
+
+  assert.equal((filter.match(/x=w\*0\.05/g) || []).length, 3);
+  assert.match(filter, /text='Stashbox'.*x=w\*0\.05:y=h\*0\.67/);
+  assert.match(filter, /text='Dub Reggae 01'.*x=w\*0\.05:y=h\*0\.75/);
+  assert.match(filter, /text='Stashbox Radio'.*x=w\*0\.05:y=h\*0\.86/);
+  assert.doesNotMatch(filter, /\(w-text_w\)\/2/);
+});
+
 test('overlay filter respects disabled identity blocks', () => {
   const filter = buildOverlayFilter({
     overlays: {
