@@ -53,7 +53,7 @@ test('duration normalization supports full and timed renders', () => {
 });
 
 test('filename tokens create safe predictable mp4 names', () => {
-  assert.equal(sanitizeFilenameToken("Stashbox & Friends"), 'stashbox-and-friends');
+  assert.equal(sanitizeFilenameToken('Stashbox & Friends'), 'stashbox-and-friends');
   assert.equal(buildOutputFilename(
     '{artist}_{song}_{duration}_{aspect}_v{variation}',
     {
@@ -66,7 +66,7 @@ test('filename tokens create safe predictable mp4 names', () => {
       height: 1920,
       variation: 1
     }
-  ), 'stashbox-space-jam-30s-9x16-v01.mp4');
+  ), 'stashbox_space-jam_30s_9x16_v01.mp4');
 });
 
 test('initial recipe includes output, overlays, metadata, and an empty timeline', () => {
