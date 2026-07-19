@@ -85,6 +85,7 @@ globalThis.fetch = async function videoFactoryFetch(input, init) {
         renderer_source: vec.source,
         renderer_visual_mode: vec.visualMode,
         renderer_render_settings: vec.renderSettings,
+        renderer_manual_sequence: vec.manualSequence || [],
         renderer_selected_asset_ids: vec.selectedAssetIds,
         renderer_missing_asset_ids: vec.missingAssetIds,
         renderer_vec_recipe: vec.recipe

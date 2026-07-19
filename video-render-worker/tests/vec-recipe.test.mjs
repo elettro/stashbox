@@ -108,3 +108,32 @@ test('missing recipe allows the renderer to use the secondary Song CMS source', 
   assert.deepEqual(result.assets, []);
   assert.deepEqual(result.renderSettings, { still_image_duration_seconds: 3, ken_burns_enabled: true });
 });
+
+test('manual VEC recipe exposes its exact saved sequence for Video Factory', async () => {
+  const responses = new Map([
+    ['/admin/vec/recipe?song_key=manual-song', {
+      found: true,
+      recipe: {
+        visual_mode: 'custom',
+        shuffle: { order_mode: 'manual' },
+        song_assets: { active_image_ids: ['image-a'] },
+        folders: [{ enabled: true, folder_id: 'folder-a', active_clip_ids: ['clip-a'] }],
+        manual_sequence: [
+          { entry_id: 'entry-1', asset_id: 'clip-a', source_kind: 'folder', asset_type: 'clip', duration_seconds: 6 },
+          { entry_id: 'entry-2', asset_id: 'image-a', source_kind: 'song', asset_type: 'image', duration_seconds: 8 },
+          { entry_id: 'entry-3', asset_id: 'clip-a', source_kind: 'folder', asset_type: 'clip', duration_seconds: 6 },
+          { entry_id: 'entry-4', asset_id: 'official-artwork', source_kind: 'artwork', asset_type: 'artwork', duration_seconds: 4 }
+        ]
+      }
+    }],
+    ['/admin/vec/song-assets?song_key=manual-song', { assets: [asset('image-a', 'image', 'https://example.com/a.jpg')] }],
+    ['/radio/visuals/folders/folder-a/assets', { assets: [asset('clip-a', 'clip', 'https://example.com/a.mp4')] }]
+  ]);
+  const result = await resolveVecRecipeVisuals({
+    songKey: 'manual-song',
+    request: async pathname => responses.get(pathname)
+  });
+  assert.equal(result.orderMode, 'manual');
+  assert.deepEqual(result.assets.map(item => item.id), ['image-a', 'clip-a']);
+  assert.deepEqual(result.manualSequence.map(item => item.entry_id), ['entry-1', 'entry-2', 'entry-3', 'entry-4']);
+});

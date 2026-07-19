@@ -138,11 +138,12 @@ async function loadVisualSettings(context, job) {
       renderSettings: {
         still_image_duration_seconds: Number(renderSettings?.still_image_duration_seconds) > 0 ? Number(renderSettings.still_image_duration_seconds) : 3,
         ken_burns_enabled: renderSettings?.ken_burns_enabled !== false
-      }
+      },
+      manualSequence: Array.isArray(body.renderer_manual_sequence) ? body.renderer_manual_sequence : []
     };
   } catch (error) {
     console.warn('[Video Factory Worker] VEC visual settings unavailable. Using artwork fallback.', error.message);
-    return { orderMode: 'random', assets: [], fallback: { uses_artwork: true }, renderSettings: { still_image_duration_seconds: 3, ken_burns_enabled: true } };
+    return { orderMode: 'random', assets: [], fallback: { uses_artwork: true }, renderSettings: { still_image_duration_seconds: 3, ken_burns_enabled: true }, manualSequence: [] };
   }
 }
 
@@ -223,6 +224,7 @@ async function main() {
           order_mode: visualSettings.orderMode,
           seed: activeRecipe.seed,
           assets: visualSettings.assets,
+          manual_sequence: visualSettings.manualSequence,
           artwork_url: artworkUrl
         });
 

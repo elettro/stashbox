@@ -60,6 +60,8 @@
   };
 
   const STILL_IMAGE_DURATION_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12];
+  const MANUAL_SEQUENCE_DURATION_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+  const MANUAL_SEQUENCE_VERSION = 1;
   const DURATION_OPTIONS = [2, 3, 4, 5, 8, 10];
   const REPEAT_OPTIONS = [30, 45, 60, 90, 120];
   const VISUAL_MODE_CUSTOM = 'custom';
@@ -546,6 +548,203 @@
     return visuals;
   }
 
+
+  function createManualEntryId() {
+    return window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `manual-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function normalizeManualSequenceEntry(entry = {}, index = 0) {
+    const assetId = clean(entry.asset_id || entry.assetId || entry.asset_key || entry.assetKey);
+    const sourceKind = clean(entry.source_kind || entry.sourceKind || (assetId === 'official-artwork' ? 'artwork' : 'asset')).toLowerCase();
+    const assetType = clean(entry.asset_type || entry.assetType || (sourceKind === 'artwork' ? 'artwork' : 'image')).toLowerCase();
+    return {
+      entry_id: clean(entry.entry_id || entry.entryId) || `manual-saved-${index + 1}-${assetId || 'missing'}`,
+      asset_id: assetId,
+      source_kind: sourceKind || 'asset',
+      source_id: clean(entry.source_id || entry.sourceId),
+      asset_type: ['clip', 'image', 'artwork'].includes(assetType) ? assetType : 'image',
+      label: clean(entry.label) || (assetId === 'official-artwork' ? 'Official artwork' : 'Visual asset'),
+      duration_seconds: Math.max(1, Number(entry.duration_seconds ?? entry.durationSeconds) || 4),
+      artwork_role: clean(entry.artwork_role || entry.artworkRole),
+      version: Number(entry.version) || MANUAL_SEQUENCE_VERSION,
+    };
+  }
+
+  function manualSourceInfo(visual, state) {
+    if (visual?.type === 'artwork' || visual?.assetId === 'official-artwork') {
+      return { kind: 'artwork', id: state.songKey || '' };
+    }
+    const folderId = clean(visual?.folderId);
+    if (folderId.startsWith('song:')) return { kind: 'song', id: folderId.slice(5) || state.songKey || '' };
+    if (folderId.startsWith('borrowed:')) return { kind: 'borrowed', id: folderId.slice(9) };
+    return { kind: 'folder', id: folderId };
+  }
+
+  function createManualSequenceEntry(visual, state, overrides = {}) {
+    const source = manualSourceInfo(visual, state);
+    const isArtwork = visual?.type === 'artwork' || visual?.assetId === 'official-artwork';
+    const assetId = isArtwork ? 'official-artwork' : clean(visual?.assetId || visual?.id || visual?.key || visual?.url);
+    const type = isArtwork ? 'artwork' : (visual?.type === 'clip' ? 'clip' : 'image');
+    return normalizeManualSequenceEntry({
+      entry_id: createManualEntryId(),
+      asset_id: assetId,
+      source_kind: source.kind,
+      source_id: source.id,
+      asset_type: type,
+      label: clean(overrides.label || visual?.label || visual?.alt) || (isArtwork ? 'Official artwork' : 'Visual asset'),
+      duration_seconds: Number(overrides.duration_seconds || visual?.durationSeconds) || (type === 'clip' ? 6 : 4),
+      artwork_role: clean(overrides.artwork_role),
+      version: MANUAL_SEQUENCE_VERSION,
+      ...overrides,
+    });
+  }
+
+  function getManualArtworkVisual(state, role = '') {
+    const artworkUrl = getArtworkUrl(state.songContext);
+    if (!artworkUrl) return null;
+    const roleLabels = { opening: 'Opening artwork', repeated: 'Repeated artwork', ending: 'Ending artwork' };
+    return {
+      type: 'artwork',
+      folderId: 'artwork',
+      assetId: 'official-artwork',
+      folderName: 'Official artwork',
+      label: roleLabels[role] || 'Official artwork',
+      url: artworkUrl,
+      alt: `${state.songContext?.display_title || state.songContext?.song_name || 'Song'} official artwork`,
+      durationSeconds: role === 'ending'
+        ? (Number(state.artworkRules.endDurationSeconds) || 4)
+        : (Number(state.artworkRules.startDurationSeconds) || 4),
+    };
+  }
+
+  function getManualContentVisuals(state) {
+    return [
+      ...getActiveSongAssets(state),
+      ...getActiveBorrowedSongAssets(state),
+      ...getActiveFolderAssets(state, getSelectedFolders(state)),
+    ];
+  }
+
+  function buildDefaultManualSequence(state) {
+    const contentEntries = getManualContentVisuals(state).map((visual) => createManualSequenceEntry(visual, state));
+    const sequence = [];
+    const openingArtwork = state.artworkRules.startWithArtwork ? getManualArtworkVisual(state, 'opening') : null;
+    const repeatedArtwork = state.artworkRules.rePresentArtwork ? getManualArtworkVisual(state, 'repeated') : null;
+    const endingArtwork = state.artworkRules.endWithArtwork ? getManualArtworkVisual(state, 'ending') : null;
+    if (openingArtwork) sequence.push(createManualSequenceEntry(openingArtwork, state, { artwork_role: 'opening' }));
+    const midpoint = Math.ceil(contentEntries.length / 2);
+    sequence.push(...contentEntries.slice(0, midpoint));
+    if (repeatedArtwork && contentEntries.length > 1) sequence.push(createManualSequenceEntry(repeatedArtwork, state, { artwork_role: 'repeated' }));
+    sequence.push(...contentEntries.slice(midpoint));
+    if (endingArtwork) sequence.push(createManualSequenceEntry(endingArtwork, state, { artwork_role: 'ending' }));
+    if (!sequence.length) {
+      const artwork = getManualArtworkVisual(state);
+      if (artwork) sequence.push(createManualSequenceEntry(artwork, state));
+    }
+    return sequence;
+  }
+
+  function ensureManualSequence(state) {
+    if (state.shuffleRules?.orderMode !== 'manual') return;
+    if (!Array.isArray(state.manualSequence)) state.manualSequence = [];
+    if (!state.manualSequence.length) state.manualSequence = buildDefaultManualSequence(state);
+  }
+
+  function getManualAssetMap(state) {
+    const map = new Map();
+    const artwork = getManualArtworkVisual(state);
+    if (artwork) map.set('official-artwork', artwork);
+    getManualContentVisuals(state).forEach((visual) => {
+      const assetId = clean(visual?.assetId || visual?.id || visual?.key || visual?.url);
+      if (assetId && !map.has(assetId)) map.set(assetId, visual);
+    });
+    return map;
+  }
+
+  function resolveManualSequence(state, { includeMissing = false } = {}) {
+    const available = getManualAssetMap(state);
+    return (state.manualSequence || []).map((rawEntry, index) => {
+      const entry = normalizeManualSequenceEntry(rawEntry, index);
+      const visual = available.get(entry.asset_id);
+      if (!visual) return includeMissing ? { entry, visual: null, missing: true } : null;
+      const isArtwork = entry.source_kind === 'artwork' || entry.asset_id === 'official-artwork';
+      return {
+        entry,
+        missing: false,
+        visual: {
+          ...visual,
+          type: isArtwork ? 'artwork' : visual.type,
+          id: entry.entry_id,
+          key: entry.entry_id,
+          manualEntryId: entry.entry_id,
+          manualAssetId: entry.asset_id,
+          label: entry.label || visual.label,
+          durationSeconds: entry.asset_type === 'clip'
+            ? (Number(visual.durationSeconds) || 6)
+            : Math.max(1, Number(entry.duration_seconds) || Number(visual.durationSeconds) || 4),
+        },
+      };
+    }).filter(Boolean);
+  }
+
+  function addMissingManualAssets(state) {
+    const existing = new Set((state.manualSequence || []).map((entry) => clean(entry.asset_id)).filter(Boolean));
+    const missing = getManualContentVisuals(state).filter((visual) => {
+      const assetId = clean(visual?.assetId || visual?.id || visual?.key || visual?.url);
+      return assetId && !existing.has(assetId);
+    });
+    state.manualSequence.push(...missing.map((visual) => createManualSequenceEntry(visual, state)));
+    return missing.length;
+  }
+
+  function manualDurationOptions(selectedValue) {
+    const selected = Math.max(1, Number(selectedValue) || 4);
+    const values = MANUAL_SEQUENCE_DURATION_OPTIONS.includes(selected)
+      ? MANUAL_SEQUENCE_DURATION_OPTIONS
+      : [...MANUAL_SEQUENCE_DURATION_OPTIONS, selected].sort((a, b) => a - b);
+    return values.map((value) => `<option value="${value}"${value === selected ? ' selected' : ''}>${value} seconds</option>`).join('');
+  }
+
+  function renderManualSequencePanel(state) {
+    if (state.shuffleRules?.orderMode !== 'manual') return '';
+    ensureManualSequence(state);
+    const resolved = resolveManualSequence(state, { includeMissing: true });
+    const activeIds = new Set(getManualContentVisuals(state).map((visual) => clean(visual?.assetId || visual?.id || visual?.key || visual?.url)).filter(Boolean));
+    const sequencedIds = new Set((state.manualSequence || []).map((entry) => clean(entry.asset_id)).filter((id) => id && id !== 'official-artwork'));
+    const unsequencedCount = [...activeIds].filter((id) => !sequencedIds.has(id)).length;
+    const missingCount = resolved.filter((item) => item.missing).length;
+    const estimatedSeconds = resolved.reduce((total, item) => total + (item.missing ? 0 : Math.max(1, Number(item.visual?.durationSeconds) || 4)), 0);
+    const cards = resolved.map((item, index) => {
+      const { entry, visual, missing } = item;
+      const type = entry.asset_type === 'artwork' ? 'artwork' : (entry.asset_type === 'clip' ? 'clip' : 'image');
+      const sourceLabel = entry.source_kind === 'artwork'
+        ? 'Official artwork'
+        : (entry.source_kind === 'song' ? 'Song-only asset' : (entry.source_kind === 'borrowed' ? `Borrowed: ${entry.source_id || 'song'}` : `Folder: ${entry.source_id || 'unknown'}`));
+      const media = missing || !visual?.url
+        ? '<span class="vec-manual-missing-thumb">Missing</span>'
+        : (type === 'clip'
+          ? `<video src="${escapeHtml(visual.url)}" muted playsinline preload="metadata"></video>`
+          : `<img src="${escapeHtml(visual.url)}" alt="${escapeHtml(visual.alt || entry.label)}" />`);
+      const duration = type === 'clip'
+        ? `<span class="vec-manual-duration-static">Full clip</span>`
+        : `<label class="vec-manual-duration"><span>Duration</span><select data-vec-manual-duration="${escapeHtml(entry.entry_id)}">${manualDurationOptions(entry.duration_seconds)}</select></label>`;
+      return `<article class="vec-manual-card ${missing ? 'is-missing' : ''}" draggable="true" data-vec-manual-entry="${escapeHtml(entry.entry_id)}">
+        <div class="vec-manual-drag-handle" aria-label="Drag sequence item">⋮⋮</div>
+        <div class="vec-manual-number">${index + 1}</div>
+        <div class="vec-manual-thumb">${media}</div>
+        <div class="vec-manual-meta"><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(sourceLabel)} · ${escapeHtml(type === 'clip' ? 'Video clip' : (type === 'artwork' ? 'Artwork' : 'Image'))}</span>${missing ? '<em>This source asset is missing or inactive. Playback skips it until restored.</em>' : ''}</div>
+        <div class="vec-manual-duration-cell">${duration}</div>
+        <div class="vec-manual-actions"><button type="button" data-vec-manual-action="up" data-entry-id="${escapeHtml(entry.entry_id)}" aria-label="Move up">↑</button><button type="button" data-vec-manual-action="down" data-entry-id="${escapeHtml(entry.entry_id)}" aria-label="Move down">↓</button><button type="button" data-vec-manual-action="duplicate" data-entry-id="${escapeHtml(entry.entry_id)}">Duplicate</button><button type="button" data-vec-manual-action="remove" data-entry-id="${escapeHtml(entry.entry_id)}">Remove</button></div>
+      </article>`;
+    }).join('');
+    return `<div class="vec-manual-summary"><strong>${resolved.length} sequence item${resolved.length === 1 ? '' : 's'}</strong><span>Estimated cycle: ${estimatedSeconds} seconds</span><span>${missingCount} missing</span><span>${unsequencedCount} active visual${unsequencedCount === 1 ? '' : 's'} not yet placed</span></div>
+      <div class="vec-manual-toolbar"><button type="button" data-vec-manual-reset>Rebuild From Active Visuals</button><button type="button" data-vec-manual-add-missing ${unsequencedCount ? '' : 'disabled'}>Add Missing Active Visuals${unsequencedCount ? ` (${unsequencedCount})` : ''}</button></div>
+      <p class="vec-microcopy">Drag cards into the exact playback order. Duplicate a card to reuse the same visual. Image and artwork durations save per sequence item. Video clips use their full clip duration.</p>
+      <div class="vec-manual-list" data-vec-manual-list>${cards || '<p class="vec-empty-state">No manual sequence items. Rebuild from the currently active visuals.</p>'}</div>`;
+  }
+
   function getPreviewSequenceCounts(sequence = []) {
     return sequence.reduce((counts, visual) => {
       if (visual.type === 'artwork') counts.artwork += 1;
@@ -628,6 +827,11 @@
     const selectedFolders = getSelectedFolders(state);
     const activeAssets = [...getActiveSongAssets(state), ...getActiveBorrowedSongAssets(state), ...getActiveFolderAssets(state, selectedFolders)];
     const shuffleRules = { ...DEFAULT_SHUFFLE_RULES, ...(state.shuffleRules || {}) };
+    if (shuffleRules.orderMode === 'manual') {
+      ensureManualSequence(state);
+      const manualVisuals = resolveManualSequence(state).map((item) => item.visual).filter(Boolean);
+      if (manualVisuals.length) return manualVisuals;
+    }
     const orderedAssets = orderActiveAssets(activeAssets, shuffleRules);
     const sequence = [];
 
@@ -982,7 +1186,7 @@
   function initVecController(container, options = {}) {
     if (!container) return null;
     const initialSongContext = options.songContext ? createSongContext(options.songContext) : null;
-    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, renderSettings: { ...DEFAULT_RENDER_SETTINGS, ...(options.renderSettings || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
+    const state = { mode: options.mode || 'lab', visualMode: options.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM, songKey: options.songKey || initialSongContext?.song_key || '', songs: [], songContext: initialSongContext, artworkRules: { ...DEFAULT_ARTWORK_RULES, ...(options.artworkRules || {}) }, renderSettings: { ...DEFAULT_RENDER_SETTINGS, ...(options.renderSettings || {}) }, shuffleRules: { ...DEFAULT_SHUFFLE_RULES, ...(options.shuffleRules || {}) }, manualSequence: (options.manualSequence || []).map(normalizeManualSequenceEntry), manualDragEntryId: '', localPreviewVisuals: options.localPreviewVisuals || [], visualFolders: normalizeFoldersResponse(options.visualFolders || []), visualFoldersLoading: false, visualFoldersError: '', selectedFolderIds: new Set((options.selectedFolderIds || []).map(String)), expandedFolderIds: new Set(), folderAssets: new Map(), songAssets: [], songAssetsLoading: false, songAssetsError: '', songAssetUploading: false, songAssetUploadMessage: '', songAssetInclusion: new Map(), borrowedSourceSongKey: '', borrowedSourceSongKeys: new Set(), borrowedSourceSongSelect: '', borrowedSourceSongMessage: '', borrowedSourceSongMessageIsError: false, borrowedAssetsBySource: new Map(), borrowedAssetInclusionBySource: new Map(), borrowedSourceEnabledBySource: new Map(), assetInclusionByFolder: new Map(), previewModalAsset: null, folderSearch: '', folderTypeFilter: 'all', folderActiveFilter: 'all', savedRecipe: null, savedRecipeUpdatedAt: '', dirty: false, recipeLoading: false, recipeStatus: '' };
     const previewState = {
       sequence: buildPreviewSequence(state),
       index: 0,
@@ -1013,6 +1217,7 @@
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
       <section class="card vec-section" aria-labelledby="renderImageSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Rendered Video</p><h2 id="renderImageSettingsHeading">Still Image Motion</h2><p class="vec-copy">Controls still-image timing and subtle Ken Burns movement in Video Factory renders. These settings do not change video clip length.</p></div></div><div class="vec-control-grid" role="group" aria-label="Rendered video still image settings"><label class="vec-field"><span>Still image duration</span><select class="vec-select" data-vec-still-image-duration>${optionMarkup(STILL_IMAGE_DURATION_OPTIONS, state.renderSettings.stillImageDurationSeconds)}</select></label><label class="vec-field vec-toggle-field"><span>Ken Burns effect</span><button class="vec-toggle ${state.renderSettings.kenBurnsEnabled ? 'is-on' : 'is-off'}" type="button" data-vec-ken-burns-toggle aria-pressed="${state.renderSettings.kenBurnsEnabled}">${onOffLabel(state.renderSettings.kenBurnsEnabled)}</button></label></div><p class="vec-microcopy">Ken Burns uses slow, subtle, seeded random movement and a restrained zoom. Each render remains repeatable from its saved recipe.</p></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
+      <section class="card vec-section hidden" data-vec-manual-sequence-section aria-labelledby="manualSequenceHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Manual Sequence</p><h2 id="manualSequenceHeading">Manual Visual Sequence</h2><p class="vec-copy">Drag visuals into the exact order used by VEC Preview, DEV Radio, and Video Factory.</p></div></div><div data-vec-manual-sequence></div></section>
       <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
     const elements = {
@@ -1038,6 +1243,8 @@
       maxSameFolder: container.querySelector('[data-vec-max-same-folder]'),
       maxFolderAssets: container.querySelector('[data-vec-max-folder-assets]'),
       avoidRepeats: container.querySelector('[data-vec-avoid-repeats]'),
+      manualSequenceSection: container.querySelector('[data-vec-manual-sequence-section]'),
+      manualSequence: container.querySelector('[data-vec-manual-sequence]'),
       artworkOnlyToggle: container.querySelector('[data-vec-artwork-only-toggle]'),
       artworkOnlyNote: container.querySelector('[data-vec-artwork-only-note]'),
       stillImageDuration: container.querySelector('[data-vec-still-image-duration]'),
@@ -1094,6 +1301,11 @@
     }
 
     function syncPreviewArtworkOverride() {
+      if (state.shuffleRules?.orderMode === 'manual' && state.manualSequence?.length) {
+        previewState.artworkOverride = null;
+        previewState.endArtworkActive = false;
+        return;
+      }
       const artworkUrl = getArtworkUrl(state.songContext);
       const duration = Number.isFinite(previewAudio.duration) ? previewAudio.duration : 0;
       const currentTime = Number.isFinite(previewAudio.currentTime) ? previewAudio.currentTime : 0;
@@ -1723,6 +1935,7 @@
         version: 1,
         song_key: state.songKey,
         visual_mode: state.visualMode === VISUAL_MODE_ARTWORK_ONLY ? VISUAL_MODE_ARTWORK_ONLY : VISUAL_MODE_CUSTOM,
+        manual_sequence: (state.manualSequence || []).map((entry, index) => normalizeManualSequenceEntry(entry, index)),
         artwork: {
           start_with_artwork: Boolean(state.artworkRules.startWithArtwork),
           start_duration_seconds: Number(state.artworkRules.startDurationSeconds) || 4,
@@ -1752,6 +1965,8 @@
       state.artworkRules = { ...DEFAULT_ARTWORK_RULES };
       state.renderSettings = { ...DEFAULT_RENDER_SETTINGS };
       state.shuffleRules = { ...DEFAULT_SHUFFLE_RULES };
+      state.manualSequence = [];
+      state.manualDragEntryId = '';
       state.visualMode = VISUAL_MODE_CUSTOM;
       state.selectedFolderIds = new Set();
       state.expandedFolderIds = new Set();
@@ -1799,6 +2014,8 @@
           maxAssetsPerFolder: String(shuffle.max_assets_per_folder_per_play || DEFAULT_SHUFFLE_RULES.maxAssetsPerFolder),
           avoidRepeats: shuffle.avoid_repeating_same_asset !== false,
         };
+        state.manualSequence = (Array.isArray(recipe.manual_sequence) ? recipe.manual_sequence : []).map(normalizeManualSequenceEntry);
+        if (state.shuffleRules.orderMode === 'manual' && !state.manualSequence.length) state.manualSequence = buildDefaultManualSequence(state);
         const songAssetsRecipe = recipe.song_assets || {};
         [...(songAssetsRecipe.active_image_ids || []), ...(songAssetsRecipe.active_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), true));
         [...(songAssetsRecipe.excluded_image_ids || []), ...(songAssetsRecipe.excluded_clip_ids || [])].forEach((id) => getSongAssetInclusionMap(state).set(String(id), false));
@@ -1895,6 +2112,7 @@
     }
 
     function renderDynamic() {
+      if (state.shuffleRules.orderMode === 'manual') ensureManualSequence(state);
       previewState.sequence = buildPreviewSequence(state);
       if (previewState.index >= previewState.sequence.length) previewState.index = 0;
       syncPreviewArtworkOverride();
@@ -1909,6 +2127,8 @@
       syncRenderSettingsControls();
       syncVisualModeControls();
       syncShuffleControls();
+      if (elements.manualSequenceSection) elements.manualSequenceSection.classList.toggle('hidden', state.shuffleRules.orderMode !== 'manual');
+      if (elements.manualSequence) elements.manualSequence.innerHTML = renderManualSequencePanel(state);
       elements.summary.innerHTML = renderSummary(state.songContext, state.artworkRules, state.shuffleRules, selectedFolders, getSelectedActiveAssetCounts(state, selectedFolders), previewState.sequence, previewState.sequence[previewState.index], { dirty: state.dirty, status: state.recipeStatus, updatedAt: state.savedRecipeUpdatedAt }, getActiveBorrowedAssetCounts(state), state.visualMode);
       if (elements.saveRecipe) elements.saveRecipe.disabled = !state.songContext || state.recipeLoading;
       if (elements.resetRecipe) elements.resetRecipe.disabled = !state.songContext || state.recipeLoading;
@@ -2481,9 +2701,101 @@
 
     elements.orderMode.addEventListener('change', () => {
       state.shuffleRules.orderMode = elements.orderMode.value;
+      if (state.shuffleRules.orderMode === 'manual') ensureManualSequence(state);
+      previewState.index = 0;
       markDirty();
       renderDynamic();
     });
+
+    elements.manualSequence?.addEventListener('click', (event) => {
+      const resetButton = event.target.closest('[data-vec-manual-reset]');
+      if (resetButton) {
+        state.manualSequence = buildDefaultManualSequence(state);
+        previewState.index = 0;
+        markDirty();
+        renderDynamic();
+        return;
+      }
+      const addMissingButton = event.target.closest('[data-vec-manual-add-missing]');
+      if (addMissingButton) {
+        const added = addMissingManualAssets(state);
+        if (added) markDirty();
+        renderDynamic();
+        return;
+      }
+      const actionButton = event.target.closest('[data-vec-manual-action]');
+      if (!actionButton) return;
+      const entryId = clean(actionButton.dataset.entryId);
+      const index = state.manualSequence.findIndex((entry) => clean(entry.entry_id) === entryId);
+      if (index < 0) return;
+      const action = actionButton.dataset.vecManualAction;
+      if (action === 'remove') state.manualSequence.splice(index, 1);
+      if (action === 'duplicate') {
+        const duplicate = normalizeManualSequenceEntry({ ...state.manualSequence[index], entry_id: createManualEntryId() });
+        state.manualSequence.splice(index + 1, 0, duplicate);
+      }
+      if (action === 'up' && index > 0) [state.manualSequence[index - 1], state.manualSequence[index]] = [state.manualSequence[index], state.manualSequence[index - 1]];
+      if (action === 'down' && index < state.manualSequence.length - 1) [state.manualSequence[index], state.manualSequence[index + 1]] = [state.manualSequence[index + 1], state.manualSequence[index]];
+      previewState.index = 0;
+      markDirty();
+      renderDynamic();
+    });
+
+    elements.manualSequence?.addEventListener('change', (event) => {
+      const durationSelect = event.target.closest('[data-vec-manual-duration]');
+      if (!durationSelect) return;
+      const entry = state.manualSequence.find((item) => clean(item.entry_id) === clean(durationSelect.dataset.vecManualDuration));
+      if (!entry) return;
+      entry.duration_seconds = Math.max(1, Number(durationSelect.value) || 4);
+      previewState.index = 0;
+      markDirty();
+      renderDynamic();
+    });
+
+    elements.manualSequence?.addEventListener('dragstart', (event) => {
+      const card = event.target.closest('[data-vec-manual-entry]');
+      if (!card) return;
+      state.manualDragEntryId = clean(card.dataset.vecManualEntry);
+      card.classList.add('is-dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', state.manualDragEntryId);
+      }
+    });
+
+    elements.manualSequence?.addEventListener('dragover', (event) => {
+      const card = event.target.closest('[data-vec-manual-entry]');
+      if (!card || !state.manualDragEntryId) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+
+    elements.manualSequence?.addEventListener('drop', (event) => {
+      const card = event.target.closest('[data-vec-manual-entry]');
+      if (!card) return;
+      event.preventDefault();
+      const draggedId = state.manualDragEntryId || clean(event.dataTransfer?.getData('text/plain'));
+      const targetId = clean(card.dataset.vecManualEntry);
+      if (!draggedId || !targetId || draggedId === targetId) return;
+      const fromIndex = state.manualSequence.findIndex((entry) => clean(entry.entry_id) === draggedId);
+      const targetIndex = state.manualSequence.findIndex((entry) => clean(entry.entry_id) === targetId);
+      if (fromIndex < 0 || targetIndex < 0) return;
+      const [moved] = state.manualSequence.splice(fromIndex, 1);
+      const adjustedTarget = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      const rect = card.getBoundingClientRect();
+      const insertAfter = event.clientY > rect.top + rect.height / 2;
+      state.manualSequence.splice(adjustedTarget + (insertAfter ? 1 : 0), 0, moved);
+      state.manualDragEntryId = '';
+      previewState.index = 0;
+      markDirty();
+      renderDynamic();
+    });
+
+    elements.manualSequence?.addEventListener('dragend', () => {
+      state.manualDragEntryId = '';
+      elements.manualSequence.querySelectorAll('.is-dragging').forEach((card) => card.classList.remove('is-dragging'));
+    });
+
     elements.maxSameFolder.addEventListener('change', () => {
       state.shuffleRules.maxSameFolderInRow = elements.maxSameFolder.value;
       markDirty();

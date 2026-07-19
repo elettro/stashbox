@@ -71,6 +71,19 @@ function normalizeArtworkRules(recipe = {}) {
   };
 }
 
+function normalizeManualSequence(recipe = {}) {
+  return (Array.isArray(recipe.manual_sequence) ? recipe.manual_sequence : []).map((entry, index) => ({
+    entry_id: stringValue(entry?.entry_id || entry?.entryId) || `manual-${index + 1}`,
+    asset_id: stringValue(entry?.asset_id || entry?.assetId || entry?.asset_key || entry?.assetKey),
+    source_kind: stringValue(entry?.source_kind || entry?.sourceKind).toLowerCase(),
+    source_id: stringValue(entry?.source_id || entry?.sourceId),
+    asset_type: stringValue(entry?.asset_type || entry?.assetType).toLowerCase(),
+    label: stringValue(entry?.label),
+    duration_seconds: Math.max(1, Number(entry?.duration_seconds ?? entry?.durationSeconds) || 4),
+    artwork_role: stringValue(entry?.artwork_role || entry?.artworkRole)
+  })).filter(entry => entry.asset_id);
+}
+
 function normalizeRenderSettings(recipe = {}) {
   const settings = recipe.render_settings || recipe.renderSettings || {};
   const duration = Number(settings.still_image_duration_seconds ?? settings.stillImageDurationSeconds);
@@ -102,6 +115,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
       assets: [],
       artworkRules: normalizeArtworkRules(),
       renderSettings: normalizeRenderSettings(),
+      manualSequence: [],
       recipe: null,
       missingAssetIds: []
     };
@@ -112,6 +126,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
   const orderMode = normalizeOrderMode(recipe.shuffle?.order_mode || recipe.order_mode);
   const artworkRules = normalizeArtworkRules(recipe);
   const renderSettings = normalizeRenderSettings(recipe);
+  const manualSequence = normalizeManualSequence(recipe);
 
   if (visualMode === 'artwork_only') {
     return {
@@ -122,6 +137,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
       assets: [],
       artworkRules,
       renderSettings,
+      manualSequence,
       recipe,
       selectedAssetIds: [],
       missingAssetIds: []
@@ -185,6 +201,7 @@ export async function resolveVecRecipeVisuals({ songKey, request } = {}) {
     assets: dedupedAssets,
     artworkRules,
     renderSettings,
+    manualSequence,
     recipe,
     selectedAssetIds: expectedIds,
     missingAssetIds
