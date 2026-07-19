@@ -1,0 +1,11 @@
+LAMBDA timeout=15s vpc=vpc-0f336fe5f1d929d36 sg=sg-069f30e65e65b6b07
+VIDEO_FACTORY cluster=arn:aws:ecs:us-east-1:656260749296:cluster/stashbox-video-factory-dev bucket=stashbox-radio-video-factory-dev-656260749296-us-east-1
+SUBNET subnet-0d72163f2329cb9de route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+SUBNET subnet-065ac13129062f85d route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+SUBNET subnet-0e2b4207279f79c3f route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+SUBNET subnet-08e50d69ee12acab4 route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+SUBNET subnet-02af641e04dd09091 route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+SUBNET subnet-077df0efdee7fa00c route_table=rtb-01cbac51dfa0b5be7 default_route=[]
+RECENT_LAMBDA_TIMEOUTS
+API /admin/video-factory/infrastructure status=500 elapsed_ms=15826 body={"message":"Internal Server Error"}
+API /admin/video-factory/jobs?limit=250 status=200 elapsed_ms=1650 body={"success":true,"count":1,"jobs":[{"id":"463c63f4-e15c-4576-a048-fe39c776c842","batch_id":"2c209a5e-b1b6-412c-8eeb-374ab61d9150","batch_name":"Dub Reggae 01 Video Factory","client_name":"","project_name":"","campaign_name":"","song_key":"dub-reggae-01a-ras-claat-stashbox","song_title":"Dub Reggae 01","artist":"Stashbox","album_name":"","output_type":"music_video","duration_mode":"full","duration_seconds":null,"aspect_ratio":"16:9","width":1920,"height":1080,"fps":30,"variation":1,"status":"pending","filename_template":"{artist}_{song}_{duration}_{aspect}_v{variation}","output_filename":"stashb
