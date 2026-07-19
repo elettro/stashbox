@@ -51,7 +51,16 @@ jobs:
           node --check video-render-worker/src/timeline.mjs
 
       - name: Run Video Factory tests
-        run: node --test video-render-worker/tests/vec-recipe.test.mjs video-render-worker/tests/timeline.test.mjs
+        run: |
+          set -o pipefail
+          node --test video-render-worker/tests/vec-recipe.test.mjs video-render-worker/tests/timeline.test.mjs 2>&1 | tee /tmp/manual-sequence-tests.log
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-sequence-test-diagnostics
+          path: /tmp/manual-sequence-tests.log
 
       - name: Commit completed implementation
         run: |
