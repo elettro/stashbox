@@ -1,0 +1,41 @@
+name: Validate Video Factory
+
+on:
+  push:
+    branches:
+      - agent/video-factory-mvp
+    paths:
+      - 'radio-api/video-factory/**'
+      - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-admin/dev/video-factory/**'
+      - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/video-factory-validate.yml'
+  pull_request:
+    paths:
+      - 'radio-api/video-factory/**'
+      - 'radio-api/tests/video-factory-*.test.mjs'
+      - 'radio-admin/dev/video-factory/**'
+      - '.github/workflows/deploy-true-dev-lambda.yml'
+      - '.github/workflows/video-factory-validate.yml'
+
+jobs:
+  validate-video-factory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio-admin/dev/video-factory/video-factory.js
+
+      - name: Run Video Factory tests
+        run: node --test radio-api/tests/video-factory-foundation.test.mjs

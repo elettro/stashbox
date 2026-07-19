@@ -35,8 +35,15 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda syntax
-        run: node --check radio-api/index.mjs
+      - name: Check Lambda and Video Factory syntax
+        run: |
+          node --check radio-api/index.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --check radio-api/video-factory/recipe.mjs
+
+      - name: Run Video Factory foundation tests
+        run: node --test radio-api/tests/video-factory-foundation.test.mjs
 
       - name: Install production dependencies
         working-directory: radio-api
@@ -56,6 +63,14 @@ jobs:
         run: |
           rm -rf dist
           mkdir -p dist
+
+          # Keep the existing radio API intact and wrap only private Video Factory routes.
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+
+          node --check index.mjs
+          node --check radio-main.mjs
+
           zip -r dist/true-dev-lambda.zip . \
             -x "dist/*" \
             -x ".git/*" \

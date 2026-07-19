@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Video Factory · Dev</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="./video-factory.css" />
+</head>
+<body class="video-factory-page">
+  <header class="topbar">
+    <a class="topbar-title-link" href="/radio-admin/dev/" aria-label="Return to Stashbox Radio dev admin">
+      <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
+      <div class="radio-title-row">
+        <h1>Video Factory</h1>
+        <span class="dev-admin-badge">DEV</span>
+      </div>
+      <p class="radio-admin-meta">Private MP4 production and render history</p>
+    </a>
+    <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
+      <a href="/radio-admin/songs/dev/">Songs</a>
+      <a href="/radio/visual-experience/dev/">Video Library</a>
+      <a href="/radio-admin/dev/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/" aria-current="page">Video Factory</a>
+      <a href="/radio-admin/ads/dev/">Ads</a>
+      <a href="/radio/dashboard/dev/">Dashboard</a>
+      <a href="/radio/dev/">Radio Dev</a>
+      <a href="/radio/">Radio Live</a>
+    </nav>
+  </header>
+
+  <main class="shell vf-shell">
+    <section class="card vf-hero" aria-labelledby="videoFactoryTitle">
+      <div>
+        <p class="eyebrow">Private backend CMS tool</p>
+        <h2 id="videoFactoryTitle">Create one finished video at a time</h2>
+        <p class="vf-hero-copy">Choose a song and one output format. Video Factory saves a permanent render record with its recipe, overlays, metadata, filename, status, and completed output.</p>
+      </div>
+      <span class="vf-stage-pill">Sprint 1 · Foundation</span>
+    </section>
+
+    <section class="vf-grid" aria-label="Video Factory workspace">
+      <article class="card vf-panel" aria-labelledby="newRenderHeading">
+        <div class="vf-panel-header">
+          <div>
+            <p class="eyebrow">New render</p>
+            <h2 id="newRenderHeading">Create Render Draft</h2>
+          </div>
+          <span id="songStatus" class="vf-help">Loading songs…</span>
+        </div>
+
+        <div id="message" class="vf-message hidden" role="status"></div>
+
+        <div class="vf-token-panel">
+          <label>Admin Token
+            <input id="adminToken" class="vf-token-input" type="password" autocomplete="off" placeholder="Paste DEV admin token" />
+          </label>
+          <button id="saveToken" class="button" type="button">Save token</button>
+          <button id="clearToken" class="vf-small-button" type="button">Clear</button>
+        </div>
+
+        <form id="renderForm" class="vf-form">
+          <label class="full">Song
+            <select id="songKey" required>
+              <option value="">Select a song…</option>
+            </select>
+          </label>
+
+          <label>Client
+            <input id="clientName" type="text" placeholder="Stashbox or client name" />
+          </label>
+
+          <label>Project
+            <input id="projectName" type="text" placeholder="Release or campaign project" />
+          </label>
+
+          <label class="full">Batch Name
+            <input id="batchName" type="text" placeholder="Defaults to Song Name Video Factory" />
+          </label>
+
+          <label>Duration
+            <select id="durationMode">
+              <option value="full" selected>Full Song</option>
+              <option value="promo">30 Second Promo</option>
+              <option value="custom">Custom Duration</option>
+            </select>
+          </label>
+
+          <label id="durationSecondsLabel" class="hidden">Duration Seconds
+            <input id="durationSeconds" type="number" min="1" step="0.1" value="30" />
+          </label>
+
+          <label>Aspect Ratio
+            <select id="aspectRatio">
+              <option value="16:9" selected>16:9 · Widescreen</option>
+              <option value="9:16">9:16 · Vertical</option>
+              <option value="3:4">3:4 · Portrait</option>
+              <option value="1:1">1:1 · Square</option>
+            </select>
+          </label>
+
+          <label>Frame Rate
+            <select id="fps">
+              <option value="24">24 FPS</option>
+              <option value="30" selected>30 FPS</option>
+              <option value="60">60 FPS</option>
+            </select>
+          </label>
+
+          <fieldset class="full" style="border:0;padding:0;margin:0;display:grid;gap:.5rem">
+            <legend style="font-weight:850;margin-bottom:.45rem">Burn-In Package</legend>
+            <div class="vf-checkbox-grid">
+              <label class="vf-check"><input id="introEnabled" type="checkbox" checked /> Intro overlay</label>
+              <label class="vf-check"><input id="outroEnabled" type="checkbox" checked /> Outro overlay</label>
+              <label class="vf-check"><input id="cornerBugEnabled" type="checkbox" checked /> Stashbox corner icon</label>
+              <label class="vf-check"><input id="includeArtist" type="checkbox" checked /> Artist name</label>
+              <label class="vf-check"><input id="includeSong" type="checkbox" checked /> Song name</label>
+              <label class="vf-check"><input id="includeAlbum" type="checkbox" checked /> Album name</label>
+            </div>
+          </fieldset>
+
+          <label class="full">Filename Template
+            <input id="filenameTemplate" type="text" value="{artist}_{song}_{duration}_{aspect}_v{variation}" />
+            <span class="vf-help">Tokens: {artist}, {song}, {album}, {duration}, {aspect}, {resolution}, {variation}, {date}, {jobId}</span>
+          </label>
+
+          <div class="full">
+            <p class="eyebrow">Filename Preview</p>
+            <div id="filenamePreview" class="vf-preview">artist-song-full-song-16x9-v01.mp4</div>
+          </div>
+
+          <div class="form-actions full">
+            <button id="createDraftButton" class="button" type="submit">Create Render Draft</button>
+            <span class="vf-backend-note">This sprint creates the private job record first. ECS and FFmpeg rendering connect next.</span>
+          </div>
+        </form>
+      </article>
+
+      <article class="card vf-panel" aria-labelledby="renderHistoryHeading">
+        <div class="vf-panel-header">
+          <div>
+            <p class="eyebrow">Permanent job library</p>
+            <h2 id="renderHistoryHeading">Render History</h2>
+          </div>
+          <button id="refreshHistory" class="vf-small-button" type="button">Refresh</button>
+        </div>
+
+        <div class="vf-summary-grid" aria-label="Video Factory summary">
+          <div class="vf-summary-tile"><span class="vf-help">Total</span><strong id="totalJobs">0</strong></div>
+          <div class="vf-summary-tile"><span class="vf-help">Drafts</span><strong id="draftJobs">0</strong></div>
+          <div class="vf-summary-tile"><span class="vf-help">Completed</span><strong id="completedJobs">0</strong></div>
+          <div class="vf-summary-tile"><span class="vf-help">Failed</span><strong id="failedJobs">0</strong></div>
+        </div>
+
+        <div class="vf-history-toolbar">
+          <input id="historySearch" class="vf-filter" type="search" placeholder="Search song, artist, client, project, or filename" aria-label="Search Render History" />
+          <select id="historyStatus" class="vf-filter" aria-label="Filter Render History by status">
+            <option value="all">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="pending">Pending</option>
+            <option value="rendering">Rendering</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+
+        <div id="historyList" class="vf-history-list"></div>
+        <p id="historyEmpty" class="vf-empty">No Video Factory jobs exist yet.</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="./video-factory.js"></script>
+</body>
+</html>
