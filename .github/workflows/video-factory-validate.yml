@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -40,8 +42,8 @@ jobs:
 
       - name: Install API and worker dependencies
         run: |
-          npm --prefix radio-api install --omit=dev --no-audit --no-fund
-          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund
+          npm --prefix radio-api install --omit=dev --no-audit --no-fund --silent
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund --silent
 
       - name: Check JavaScript syntax
         run: |
@@ -51,12 +53,13 @@ jobs:
           node --check radio-api/video-factory/render-router.mjs
           node --check radio-api/video-factory/render-control.mjs
           node --check radio-admin/dev/video-factory/video-factory.js
-          npm --prefix video-render-worker run check
+          npm --prefix video-render-worker run check --silent
 
-      - name: Run Video Factory tests
-        run: |
-          npm --prefix radio-api run test:video-factory
-          npm --prefix video-render-worker test
+      - name: Run Video Factory API tests
+        run: node --test --test-reporter=spec radio-api/tests/video-factory-foundation.test.mjs radio-api/tests/video-factory-render-control.test.mjs
+
+      - name: Run Video Factory worker tests
+        run: node --test --test-reporter=spec video-render-worker/tests/ffmpeg.test.mjs video-render-worker/tests/timeline.test.mjs
 
       - name: Build FFmpeg worker container
-        run: docker build --tag stashbox-video-factory-renderer:test video-render-worker
+        run: docker build --quiet --tag stashbox-video-factory-renderer:test video-render-worker
