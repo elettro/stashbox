@@ -1,0 +1,98 @@
+  const orderMode = clean(recipe?.shuffle?.order_mode || recipe?.order_mode).toLowerCase();
+  const entries = normalizeManualVecEntries(recipe);
+  if (orderMode !== 'manual' || !entries.length) return [];
+  const assetsById = new Map();
+  rawAssets.forEach(asset => getVecAssetIdentityValues(asset).forEach(value => {
+    if (!assetsById.has(value)) assetsById.set(value, asset);
+  }));
+  return entries.map((entry, index) => {
+    const isArtwork = entry.sourceKind === 'artwork' || entry.assetId === 'official-artwork';
+    const sourceAsset = isArtwork ? artwork : assetsById.get(entry.assetId);
+    if (!sourceAsset?.url) {
+      vecPlayerLog('manual sequence asset missing', { entry_id: entry.entryId, asset_id: entry.assetId, position: index + 1 });
+      return null;
+    }
+    return {
+      ...sourceAsset,
+      id: `manual:${entry.entryId}`,
+      key: `manual:${entry.entryId}`,
+      sourceAssetId: entry.assetId,
+      manualEntryId: entry.entryId,
+      label: entry.label || sourceAsset.label || sourceAsset.caption || sourceAsset.alt,
+      durationSeconds: sourceAsset.type === 'clip'
+        ? (Number(sourceAsset.durationSeconds) || 6)
+        : entry.durationSeconds
+    };
+  }).filter(Boolean);
+}
+
+'''
+insert_before(RADIO, 'function buildVecSequence(song, recipe, pools) {\n', radio_manual_helpers, 'insert DEV Radio manual sequence helpers')
+
+replace_once(
+    RADIO,
+    "  const rawAssets = [\n    ...includeRecipeAssets(pools.songAssets || [], recipe?.song_assets || {}),\n    ...(pools.folderAssets || []),\n    ...(pools.borrowedAssets || [])\n  ];\n  const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');\n",
+    "  const rawAssets = [\n    ...includeRecipeAssets(pools.songAssets || [], recipe?.song_assets || {}),\n    ...(pools.folderAssets || []),\n    ...(pools.borrowedAssets || [])\n  ];\n  const manualSequence = buildManualVecSequence(rawAssets, artwork, recipe);\n  if (clean(recipe?.shuffle?.order_mode || recipe?.order_mode).toLowerCase() === 'manual' && Array.isArray(recipe?.manual_sequence) && recipe.manual_sequence.length) {\n    vecPlayerLog('manual sequence resolved', { requested: recipe.manual_sequence.length, playable: manualSequence.length, order: manualSequence.map(asset => asset.sourceAssetId || asset.id) });\n    return manualSequence.length ? manualSequence : (artwork ? [artwork] : []);\n  }\n  const videoAssets = dedupeVecAssets(rawAssets).filter(asset => asset.type === 'clip');\n",
+    'honor manual order in DEV Radio'
+)
+
+# ---------------------------------------------------------------------------
+# Video Factory recipe resolver and pipeline
+# ---------------------------------------------------------------------------
+replace_once(
+    VEC_RECIPE,
+    "function normalizeRenderSettings(recipe = {}) {\n",
+    "function normalizeManualSequence(recipe = {}) {\n"
+    "  return (Array.isArray(recipe.manual_sequence) ? recipe.manual_sequence : []).map((entry, index) => ({\n"
+    "    entry_id: stringValue(entry?.entry_id || entry?.entryId) || `manual-${index + 1}`,\n"
+    "    asset_id: stringValue(entry?.asset_id || entry?.assetId || entry?.asset_key || entry?.assetKey),\n"
+    "    source_kind: stringValue(entry?.source_kind || entry?.sourceKind).toLowerCase(),\n"
+    "    source_id: stringValue(entry?.source_id || entry?.sourceId),\n"
+    "    asset_type: stringValue(entry?.asset_type || entry?.assetType).toLowerCase(),\n"
+    "    label: stringValue(entry?.label),\n"
+    "    duration_seconds: Math.max(1, Number(entry?.duration_seconds ?? entry?.durationSeconds) || 4),\n"
+    "    artwork_role: stringValue(entry?.artwork_role || entry?.artworkRole)\n"
+    "  })).filter(entry => entry.asset_id);\n"
+    "}\n\n"
+    "function normalizeRenderSettings(recipe = {}) {\n",
+    'normalize renderer manual sequence'
+)
+
+replace_once(
+    VEC_RECIPE,
+    "      renderSettings: normalizeRenderSettings(),\n      recipe: null,\n",
+    "      renderSettings: normalizeRenderSettings(),\n      manualSequence: [],\n      recipe: null,\n",
+    'return empty manual sequence when recipe is missing'
+)
+
+replace_once(
+    VEC_RECIPE,
+    "  const renderSettings = normalizeRenderSettings(recipe);\n",
+    "  const renderSettings = normalizeRenderSettings(recipe);\n  const manualSequence = normalizeManualSequence(recipe);\n",
+    'read renderer manual sequence'
+)
+
+replace_once(
+    VEC_RECIPE,
+    "      renderSettings,\n      recipe,\n      selectedAssetIds: [],\n",
+    "      renderSettings,\n      manualSequence,\n      recipe,\n      selectedAssetIds: [],\n",
+    'return manual sequence for artwork-only response'
+)
+
+replace_once(
+    VEC_RECIPE,
+    "    renderSettings,\n    recipe,\n    selectedAssetIds: expectedIds,\n",
+    "    renderSettings,\n    manualSequence,\n    recipe,\n    selectedAssetIds: expectedIds,\n",
+    'return manual sequence for custom response'
+)
+
+replace_once(
+    ENTRY,
+    "        renderer_render_settings: vec.renderSettings,\n        renderer_selected_asset_ids: vec.selectedAssetIds,\n",
+    "        renderer_render_settings: vec.renderSettings,\n        renderer_manual_sequence: vec.manualSequence || [],\n        renderer_selected_asset_ids: vec.selectedAssetIds,\n",
+    'expose manual sequence to renderer'
+)
+
+replace_once(
+    INDEX,
+    "      renderSettings: {\n        still_image_duration_seconds: Number(renderSettings?.still_image_duration_seconds) > 0 ? Number(renderSettings.still_image_duration_seconds) : 3,\n        ken_burns_enabled: renderSettings?.ken_burns_enabled !== false\n      }\n",
