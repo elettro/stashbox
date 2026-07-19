@@ -6,6 +6,7 @@ if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
 const headers = { accept: 'application/json', 'x-admin-token': token };
 const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const TEST_PROJECT = 'Ken Burns DEV Verification';
 const MOTION_DIRECTIONS = new Set([
   'left-to-right',
   'right-to-left',
@@ -47,6 +48,11 @@ function clean(value) {
   return String(value || '').trim();
 }
 
+async function loadJobs() {
+  const body = await request('/admin/video-factory/jobs?limit=250');
+  return Array.isArray(body?.jobs) ? body.jobs : [];
+}
+
 function activeIds(section = {}, type = 'image') {
   const activeField = type === 'clip' ? 'active_clip_ids' : 'active_image_ids';
   const excludedField = type === 'clip' ? 'excluded_clip_ids' : 'excluded_image_ids';
@@ -60,7 +66,6 @@ function activeIds(section = {}, type = 'image') {
 function recipeAssetCounts(recipe = {}) {
   let imageCount = activeIds(recipe.song_assets, 'image').length;
   let clipCount = activeIds(recipe.song_assets, 'clip').length;
-
   for (const folder of Array.isArray(recipe.folders) ? recipe.folders : []) {
     if (!folder?.enabled) continue;
     imageCount += activeIds(folder, 'image').length;
@@ -78,8 +83,7 @@ async function waitForJob(jobId, predicate, timeoutMs = 8 * 60 * 1000) {
   const startedAt = Date.now();
   let lastState = '';
   while (Date.now() - startedAt < timeoutMs) {
-    const jobsBody = await request('/admin/video-factory/jobs?limit=250');
-    const jobs = Array.isArray(jobsBody?.jobs) ? jobsBody.jobs : [];
+    const jobs = await loadJobs();
     const job = jobs.find(item => item.id === jobId);
     if (!job) throw new Error(`Video Factory job ${jobId} disappeared.`);
     const runtime = job.render_recipe?.runtime || {};
@@ -101,6 +105,35 @@ async function waitForJob(jobId, predicate, timeoutMs = 8 * 60 * 1000) {
   throw new Error(`Timed out waiting for Video Factory job ${jobId}.`);
 }
 
+async function waitForRenderSlot(timeoutMs = 25 * 60 * 1000) {
+  const startedAt = Date.now();
+  let lastActiveId = '';
+  while (Date.now() - startedAt < timeoutMs) {
+    const jobs = await loadJobs();
+    const active = jobs.find(job => ACTIVE_STATUSES.has(job.status));
+    if (!active) return;
+    if (active.id !== lastActiveId) {
+      console.log('WAITING_FOR_ACTIVE_RENDER=' + JSON.stringify({
+        id: active.id,
+        song_key: active.song_key,
+        status: active.status,
+        project_name: active.project_name || ''
+      }));
+      lastActiveId = active.id;
+    }
+    await sleep(10000);
+  }
+  throw new Error('Timed out waiting for the existing active render to finish. It was not cancelled.');
+}
+
+async function archiveJob(job) {
+  if (!job || job.status === 'archived' || ACTIVE_STATUSES.has(job.status)) return;
+  await request(`/admin/video-factory/jobs/${encodeURIComponent(job.id)}/archive`, {
+    method: 'POST',
+    body: {}
+  }).catch(() => null);
+}
+
 async function cancelAndArchive(job) {
   let latest = job;
   if (ACTIVE_STATUSES.has(latest.status)) {
@@ -110,12 +143,28 @@ async function cancelAndArchive(job) {
     }).catch(() => null);
     latest = await waitForJob(latest.id, item => TERMINAL_STATUSES.has(item.status), 2 * 60 * 1000);
   }
-  if (latest.status !== 'archived' && !ACTIVE_STATUSES.has(latest.status)) {
-    await request(`/admin/video-factory/jobs/${encodeURIComponent(latest.id)}/archive`, {
-      method: 'POST',
-      body: {}
-    }).catch(() => null);
+  await archiveJob(latest);
+}
+
+async function launchWhenAvailable(job) {
+  const deadline = Date.now() + 25 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await waitForRenderSlot(Math.max(1000, deadline - Date.now()));
+    try {
+      return await request(`/admin/video-factory/jobs/${encodeURIComponent(job.id)}/render`, {
+        method: 'POST',
+        body: {}
+      });
+    } catch (error) {
+      if (error.status !== 409 || !error.body?.active_job_id) throw error;
+      console.log('RENDER_SLOT_RACE=' + JSON.stringify({
+        draft_id: job.id,
+        active_job_id: error.body.active_job_id
+      }));
+      await sleep(10000);
+    }
   }
+  throw new Error(`Timed out launching verification draft ${job.id}. No active render was cancelled.`);
 }
 
 const infra = await request('/admin/video-factory/infrastructure');
@@ -128,11 +177,11 @@ console.log('INFRA=' + JSON.stringify({
   task_definition_arn: infra.task_definition_arn
 }));
 
-const existingJobsBody = await request('/admin/video-factory/jobs?limit=250');
-const existingJobs = Array.isArray(existingJobsBody?.jobs) ? existingJobsBody.jobs : [];
-const unrelatedActive = existingJobs.find(job => ACTIVE_STATUSES.has(job.status));
-if (unrelatedActive) {
-  throw new Error(`A render is already active (${unrelatedActive.id}). Live Ken Burns verification was not started.`);
+for (const job of await loadJobs()) {
+  if (job.project_name === TEST_PROJECT && job.status === 'draft') {
+    await archiveJob(job);
+    console.log('ARCHIVED_UNUSED_TEST_DRAFT=' + JSON.stringify({ id: job.id }));
+  }
 }
 
 const songsBody = await request('/admin/songs');
@@ -189,7 +238,7 @@ for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     body: {
       song_key: candidate.song.song_key,
       client_name: 'Stashbox',
-      project_name: 'Ken Burns DEV Verification',
+      project_name: TEST_PROJECT,
       batch_name: `Ken Burns 3 Second Still Verification ${timestamp}`,
       duration_mode: 'custom',
       duration_seconds: 12,
@@ -213,11 +262,7 @@ for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     output_filename: job.output_filename
   }));
 
-  await request(`/admin/video-factory/jobs/${encodeURIComponent(job.id)}/render`, {
-    method: 'POST',
-    body: {}
-  });
-
+  await launchWhenAvailable(job);
   job = await waitForJob(job.id, item => {
     const timeline = Array.isArray(item.render_recipe?.timeline) ? item.render_recipe.timeline : [];
     return timeline.length > 0 || TERMINAL_STATUSES.has(item.status);
