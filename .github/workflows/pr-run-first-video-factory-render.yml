@@ -18,8 +18,9 @@ jobs:
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          show-progress: false
+      - name: Fetch first-render runner
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: curl --fail --silent --show-error --location "https://raw.githubusercontent.com/elettro/stashbox/${HEAD_SHA}/.github/scripts/run-first-video-factory-render.mjs" --output /tmp/run-first-video-factory-render.mjs
       - name: Create, launch, and verify first Space Jam render
-        run: node .github/scripts/run-first-video-factory-render.mjs
+        run: node /tmp/run-first-video-factory-render.mjs
