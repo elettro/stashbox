@@ -1,0 +1,65 @@
+name: PR Video Factory Live Status
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-video-factory-live-status.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-status:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+    steps:
+      - name: Read Video Factory infrastructure and jobs
+        run: |
+          node <<'NODE'
+          const api = String(process.env.API_BASE).replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
+
+          async function get(pathname) {
+            const response = await fetch(`${api}${pathname}`, {
+              headers: { accept: 'application/json', 'x-admin-token': token }
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(`${pathname} returned ${response.status}: ${body.error || 'Unknown error'}`);
+            return body;
+          }
+
+          const infra = await get('/admin/video-factory/infrastructure');
+          const jobsBody = await get('/admin/video-factory/jobs?limit=250');
+          const jobs = Array.isArray(jobsBody.jobs) ? jobsBody.jobs : [];
+          const job = jobs.find(item => String(item.batch_name || '').includes('Space Jam First Full-Song Render'))
+            || jobs.find(item => /space jam/i.test(`${item.song_title || ''} ${item.song_key || ''}`));
+
+          console.log('VIDEO_FACTORY_INFRA=' + JSON.stringify({
+            configured: infra.configured,
+            cluster_status: infra.cluster_status,
+            running_tasks: infra.running_tasks,
+            pending_tasks: infra.pending_tasks,
+            output_bucket: infra.output_bucket,
+            task_definition_arn: infra.task_definition_arn
+          }));
+
+          if (!job) {
+            console.log('SPACE_JAM_JOB=NOT_FOUND');
+          } else {
+            const runtime = job.render_recipe?.runtime || {};
+            console.log('SPACE_JAM_JOB=' + JSON.stringify({
+              id: job.id,
+              batch_id: job.batch_id,
+              status: job.status,
+              progress_percent: runtime.progress_percent ?? 0,
+              status_message: runtime.status_message || '',
+              error_message: job.error_message || '',
+              output_filename: job.output_filename || '',
+              created_at: job.created_at,
+              updated_at: job.updated_at
+            }));
+          }
+          NODE
