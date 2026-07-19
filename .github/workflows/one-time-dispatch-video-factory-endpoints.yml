@@ -1,0 +1,91 @@
+name: One-Time Dispatch Video Factory Endpoint Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-dispatch-video-factory-endpoints.yml'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  dispatch-and-report:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_ENDPOINT_DEPLOYMENT_STATUS.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Dispatch permanent deployment workflow
+        id: deploy
+        shell: bash
+        run: |
+          set +e
+          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run deploy-video-factory-renderer-dev.yml --ref main
+          DISPATCH_CODE=$?
+          if [ "${DISPATCH_CODE}" -ne 0 ]; then
+            echo "outcome=failure" >> "${GITHUB_OUTPUT}"
+            echo "details=Could not dispatch the permanent deployment workflow." >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --workflow deploy-video-factory-renderer-dev.yml \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${STARTED_AT}\")) | sort_by(.createdAt) | last | .databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+
+          if [ -z "${RUN_ID}" ]; then
+            echo "outcome=failure" >> "${GITHUB_OUTPUT}"
+            echo "details=Deployment workflow was dispatched but its run could not be located." >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+          gh run watch "${RUN_ID}" --exit-status
+          WATCH_CODE=$?
+          if [ "${WATCH_CODE}" -eq 0 ]; then
+            echo "outcome=success" >> "${GITHUB_OUTPUT}"
+            echo "details=Permanent Video Factory DEV deployment completed successfully." >> "${GITHUB_OUTPUT}"
+          else
+            echo "outcome=failure" >> "${GITHUB_OUTPUT}"
+            echo "details=Permanent Video Factory DEV deployment failed. Run ID ${RUN_ID}." >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Commit deployment result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${RESULT_PATH}")"
+          {
+            echo '# Video Factory Endpoint Deployment Status'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "- Outcome: ${{ steps.deploy.outputs.outcome || 'failure' }}"
+            echo "- Details: ${{ steps.deploy.outputs.details || 'Deployment reporter did not receive a result.' }}"
+            echo "- Workflow run ID: ${{ steps.deploy.outputs.run_id || 'not available' }}"
+          } > "${RESULT_PATH}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${RESULT_PATH}"
+          git commit -m 'Record Video Factory endpoint deployment status'
+          git push origin HEAD:main
