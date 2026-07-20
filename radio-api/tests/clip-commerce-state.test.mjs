@@ -4,6 +4,7 @@ import {
   CLIP_PRODUCT_HOLD_MS,
   createClipCommerceState,
   normalizeCommerceProductUrls,
+  overlayClipProducts,
   resolveClipCommerceState
 } from '../../radio/dev/clip-commerce.mjs';
 
@@ -33,6 +34,48 @@ test('normalizes, validates, and deduplicates product URLs', () => {
     ]),
     [`${PRODUCT_A}`, `${PRODUCT_B}`]
   );
+});
+
+test('one clip product replaces only the first baseline slot', () => {
+  const baseline = [
+    { id: 'baseline-a', handle: 'baseline-a' },
+    { id: 'baseline-b', handle: 'baseline-b' },
+    { id: 'baseline-c', handle: 'baseline-c' },
+    { id: 'baseline-d', handle: 'baseline-d' }
+  ];
+  const clip = [{ id: 'clip-a', handle: 'clip-a' }];
+
+  assert.deepEqual(
+    overlayClipProducts(clip, baseline, 4).map(product => product.id),
+    ['clip-a', 'baseline-b', 'baseline-c', 'baseline-d']
+  );
+});
+
+test('multiple clip products replace the same number of baseline slots', () => {
+  const baseline = [
+    { id: 'baseline-a', handle: 'baseline-a' },
+    { id: 'baseline-b', handle: 'baseline-b' },
+    { id: 'baseline-c', handle: 'baseline-c' },
+    { id: 'baseline-d', handle: 'baseline-d' }
+  ];
+  const clip = [
+    { id: 'clip-a', handle: 'clip-a' },
+    { id: 'clip-b', handle: 'clip-b' }
+  ];
+
+  assert.deepEqual(
+    overlayClipProducts(clip, baseline, 4).map(product => product.id),
+    ['clip-a', 'clip-b', 'baseline-c', 'baseline-d']
+  );
+});
+
+test('an empty clip overlay leaves the baseline product list unchanged', () => {
+  const baseline = [
+    { id: 'baseline-a', handle: 'baseline-a' },
+    { id: 'baseline-b', handle: 'baseline-b' }
+  ];
+
+  assert.deepEqual(overlayClipProducts([], baseline, 4), baseline);
 });
 
 test('a clip product overrides the current commerce source immediately', () => {

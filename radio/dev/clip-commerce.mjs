@@ -32,6 +32,54 @@ export function normalizeCommerceProductUrls(value) {
   return urls;
 }
 
+function commerceProductKey(product) {
+  const handle = String(product?.handle || '').trim().toLowerCase();
+  if (handle) return `handle:${handle}`;
+
+  for (const value of [product?.url, product?.onlineStoreUrl]) {
+    const candidate = String(value || '').trim();
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      const pathname = parsed.pathname.replace(/\/+$/, '').toLowerCase();
+      return `url:${parsed.origin.toLowerCase()}${pathname}`;
+    } catch {
+      return `url:${candidate.toLowerCase()}`;
+    }
+  }
+
+  const id = String(product?.id || '').trim();
+  return id ? `id:${id}` : '';
+}
+
+export function overlayClipProducts(clipProducts, baselineProducts, limit = Number.POSITIVE_INFINITY) {
+  const clip = Array.isArray(clipProducts) ? clipProducts.filter(Boolean) : [];
+  const baseline = Array.isArray(baselineProducts) ? baselineProducts.filter(Boolean) : [];
+  const numericLimit = Number(limit);
+  const maxItems = Number.isFinite(numericLimit)
+    ? Math.max(0, Math.floor(numericLimit))
+    : Number.POSITIVE_INFINITY;
+
+  if (!clip.length) return baseline.slice(0, maxItems);
+
+  const result = [];
+  const seen = new Set();
+  const append = product => {
+    if (!product || result.length >= maxItems) return;
+    const key = commerceProductKey(product);
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    result.push(product);
+  };
+
+  clip.forEach(append);
+
+  const replacedSlots = Math.min(clip.length, baseline.length);
+  baseline.slice(replacedSlots).forEach(append);
+
+  return result;
+}
+
 export function createClipCommerceState(songKey = '') {
   return {
     activeSongKey: String(songKey || ''),

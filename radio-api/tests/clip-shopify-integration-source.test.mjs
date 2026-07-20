@@ -24,7 +24,9 @@ test('DEV player isolates clip commerce from media playback', () => {
   assert.match(player, /from '\.\/clip-commerce\.mjs'/);
   assert.match(player, /onActiveVisualChange/);
   assert.match(player, /clipCommerceState/);
-  assert.match(player, /product_source: clipCommerceState\.productSource/);
+  assert.match(player, /overlayClipProducts/);
+  assert.match(player, /commerceSource/);
+  assert.match(player, /product_source: productSource/);
   assert.doesNotMatch(player, /handleActiveVisualChange[\s\S]{0,600}(audioRef|setMediaMode|setVisualIndex|pause\(|play\()/);
 });
 
