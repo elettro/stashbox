@@ -6,8 +6,9 @@ on:
       - agent/vec-clip-shopify-products
     paths:
       - '.github/workflows/vec-clip-shopify-integration.yml'
-      - 'radio-api/scripts/inspect-clip-commerce-targets.mjs'
-      - 'radio-api/scripts/apply-clip-shopify-integration.mjs'
+      - 'radio-api/scripts/apply_clip_shopify_api.py'
+      - 'radio-api/scripts/apply_clip_shopify_cms.py'
+      - 'radio-api/scripts/apply_clip_shopify_player.py'
       - 'radio/dev/clip-commerce.mjs'
       - 'radio-api/tests/clip-commerce-state.test.mjs'
   pull_request:
@@ -20,7 +21,7 @@ permissions:
   contents: write
 
 jobs:
-  inspect:
+  integrate:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -30,20 +31,42 @@ jobs:
           ref: agent/vec-clip-shopify-products
           fetch-depth: 0
 
-      - name: Capture integration anchors
-        run: node radio-api/scripts/inspect-clip-commerce-targets.mjs > radio-api/scripts/vec-clip-shopify-inspection.txt
+      - name: Install API dependencies
+        run: npm ci --prefix radio-api
 
-      - name: Run clip commerce unit tests
-        run: node --test radio-api/tests/clip-commerce-state.test.mjs
+      - name: Apply API and schema integration
+        run: python radio-api/scripts/apply_clip_shopify_api.py
 
-      - name: Commit inspection output
+      - name: Apply VEC CMS integration
+        run: python radio-api/scripts/apply_clip_shopify_cms.py
+
+      - name: Apply DEV player integration
+        run: python radio-api/scripts/apply_clip_shopify_player.py
+
+      - name: Validate whitespace and syntax
+        run: |
+          git diff --check
+          node --check radio-api/index.mjs
+          node --check radio/dev/app.js
+          python -m py_compile radio-api/scripts/apply_clip_shopify_api.py radio-api/scripts/apply_clip_shopify_cms.py radio-api/scripts/apply_clip_shopify_player.py
+
+      - name: Run clip commerce and routing tests
+        run: node --test radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs radio-api/tests/visual-folder-assets-routing.test.mjs
+
+      - name: Commit integrated DEV feature
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add radio-api/scripts/vec-clip-shopify-inspection.txt
+          git add \
+            radio-api/index.mjs \
+            radio-admin/dev/ads/migrations/create_visuals_folder_assets.sql \
+            radio-api/db/dev/CREATE_RADIO_DEV_SCHEMA.sql \
+            radio/visual-experience/dev/index.html \
+            radio/dev/app.js \
+            radio-api/tests/clip-shopify-integration-source.test.mjs
           if git diff --cached --quiet; then
-            echo "Inspection output unchanged."
+            echo "Feature integration is already current."
           else
-            git commit -m "Capture VEC clip commerce integration anchors [skip ci]"
+            git commit -m "Wire VEC clip Shopify products in DEV [skip ci]"
             git push origin HEAD:agent/vec-clip-shopify-products
           fi
