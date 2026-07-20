@@ -26,9 +26,23 @@ jobs:
 
       - name: Validate cart badge behavior
         run: |
-          git diff --check
-          node --check radio-admin/dev/vec/vec-controller.js
-          node --test radio-api/tests/vec-lab-product-cart-badges.test.mjs
+          set +e
+          {
+            git diff --check
+            node --check radio-admin/dev/vec/vec-controller.js
+            node --test radio-api/tests/vec-lab-product-cart-badges.test.mjs
+          } > vec-lab-badge-validation.log 2>&1
+          STATUS=$?
+          cat vec-lab-badge-validation.log
+          exit ${STATUS}
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vec-lab-badge-validation
+          path: vec-lab-badge-validation.log
+          if-no-files-found: ignore
 
       - name: Commit tested VEC Lab enhancement
         run: |
