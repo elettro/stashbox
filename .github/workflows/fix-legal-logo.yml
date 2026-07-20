@@ -1,0 +1,74 @@
+name: Fix Legal Page Logos
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/fix-legal-logo.yml'
+      - '.github/triggers/fix-legal-logo.txt'
+      - '.github/triggers/fix-legal-logo-status.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Repair all legal page logo paths
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          old = '/images/branding/stashbox-logo-transparent-rasta-colors.png'
+          new = '/images/branding/stashbox-logo-transparent-rastacolors.png'
+          asset = Path('images/branding/stashbox-logo-transparent-rastacolors.png')
+          pages = sorted(Path('legal').glob('*/index.html'))
+
+          if not asset.exists():
+              raise SystemExit(f'Missing expected logo asset: {asset}')
+
+          replacements = 0
+          changed = []
+          for page in pages:
+              text = page.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count:
+                  page.write_text(text.replace(old, new), encoding='utf-8')
+                  replacements += count
+                  changed.append(f'{page}: {count}')
+
+          if len(pages) != 5:
+              raise SystemExit(f'Expected 5 legal pages, found {len(pages)}')
+          if replacements != 10:
+              raise SystemExit(f'Expected 10 logo replacements, found {replacements}')
+
+          remaining = [str(page) for page in pages if old in page.read_text(encoding='utf-8')]
+          if remaining:
+              raise SystemExit(f'Broken logo path still present in: {remaining}')
+
+          print('Updated legal logos:')
+          print('\n'.join(changed))
+          PY
+
+      - name: Remove temporary repair files
+        run: |
+          rm -f .github/triggers/fix-legal-logo.txt
+          rm -f .github/triggers/fix-legal-logo-status.txt
+          rm -f .github/workflows/fix-legal-logo.yml
+
+      - name: Commit verified repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add legal .github
+          git diff --cached --check
+          git commit -m "Fix legal page Stashbox logo paths"
+          git push origin HEAD:main
