@@ -2228,6 +2228,8 @@ function normalizeVisualsFolderAsset(row) {
     caption: row.caption || '',
     alt_text: row.alt_text || '',
     notes: row.notes || '',
+    shopify_product_urls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],
+    shopifyProductUrls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],
     created_at: row.created_at || '',
     updated_at: row.updated_at || ''
   };
@@ -2280,13 +2282,60 @@ async function getVisualsFolderAssets(folderId) {
 // Cherry-picked safely from abandoned Lambda: admin CRUD for existing visuals_folder_assets rows only.
 async function ensureVisualsFolderAssetsSchema() {
   const columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
-  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
+  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status', 'shopify_product_urls'];
   if (!requiredColumns.every((column) => columns.has(column))) {
     const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
     error.statusCode = 501;
     throw error;
   }
   return columns;
+}
+
+function normalizeClipShopifyProductUrls(value, { strict = false } = {}) {
+  let raw = [];
+  if (Array.isArray(value)) {
+    raw = value;
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        raw = Array.isArray(parsed) ? parsed : trimmed.split(/\r?\n|,/);
+      } catch (_) {
+        raw = trimmed.split(/\r?\n|,/);
+      }
+    }
+  } else if (value !== null && value !== undefined) {
+    raw = [value];
+  }
+
+  const seen = new Set();
+  const urls = [];
+  const invalid = [];
+  for (const item of raw) {
+    const candidate = String(item || '').trim();
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        invalid.push(candidate);
+        continue;
+      }
+      const normalized = parsed.toString();
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      urls.push(normalized);
+    } catch (_) {
+      invalid.push(candidate);
+    }
+  }
+
+  return {
+    urls,
+    error: strict && invalid.length
+      ? `Shopify Product URLs must contain valid HTTP or HTTPS URLs. Invalid value: ${invalid[0]}`
+      : ''
+  };
 }
 
 function normalizeFolderAssetPayload(body, folder) {
@@ -2300,6 +2349,10 @@ function normalizeFolderAssetPayload(body, folder) {
   if (assetType === 'image' && !imageExtensions.has(extension)) return { error: 'Visual Library folder images must be JPG, JPEG, PNG, or WEBP.' };
   if (assetType === 'clip' && extension !== 'mp4') return { error: 'Visual Library folder clips must be MP4 files.' };
   if (!publicUrl || !s3Key) return { error: 'public_url and s3_key are required.' };
+  const productUrlsValidation = assetType === 'clip'
+    ? normalizeClipShopifyProductUrls(body.shopify_product_urls ?? body.shopifyProductUrls ?? body.shopify_product_url ?? body.shopifyProductUrl, { strict: true })
+    : { urls: [], error: '' };
+  if (productUrlsValidation.error) return { error: productUrlsValidation.error };
   return { payload: {
     id: String(body.id || crypto.randomUUID()),
     folder_id: folder.id,
@@ -2314,6 +2367,7 @@ function normalizeFolderAssetPayload(body, folder) {
     width: Number.isFinite(Number(body.width)) ? Number(body.width) : null,
     height: Number.isFinite(Number(body.height)) ? Number(body.height) : null,
     ratio_label: String(body.ratio_label || body.ratioLabel || ''),
+    shopify_product_urls: JSON.stringify(productUrlsValidation.urls),
     caption: String(body.caption || ''),
     alt_text: String(body.alt_text || body.altText || ''),
     notes: String(body.notes || '')
@@ -2327,10 +2381,11 @@ async function createVisualsFolderAsset(folderId, body) {
   const validation = normalizeFolderAssetPayload(body, folderResult.rows[0]);
   if (validation.error) return { statusCode: 400, body: { success: false, error: validation.error } };
   const payload = validation.payload;
-  const insertFields = ['id', 'folder_id', 'folder_slug', 'asset_type', 'file_name', 's3_key', 'public_url', 'thumbnail_url', 'content_type', 'size_bytes', 'width', 'height', 'ratio_label', 'status', 'caption', 'alt_text', 'notes'].filter((field) => columns.has(field));
+  const insertFields = ['id', 'folder_id', 'folder_slug', 'asset_type', 'file_name', 's3_key', 'public_url', 'thumbnail_url', 'content_type', 'size_bytes', 'width', 'height', 'ratio_label', 'status', 'caption', 'alt_text', 'notes', 'shopify_product_urls'].filter((field) => columns.has(field));
   const values = insertFields.map((field) => field === 'status' ? 'active' : payload[field]);
+  const insertPlaceholders = insertFields.map((field, index) => field === 'shopify_product_urls' ? `$${index + 1}::jsonb` : `$${index + 1}`);
   const result = await client.query(
-    `INSERT INTO ${qname('visuals_folder_assets')} (${insertFields.join(', ')}) VALUES (${insertFields.map((_, index) => `$${index + 1}`).join(', ')}) RETURNING *`,
+    `INSERT INTO ${qname('visuals_folder_assets')} (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')}) RETURNING *`,
     values
   );
   return { statusCode: 200, body: { success: true, folder_id: folderId, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
@@ -2339,12 +2394,29 @@ async function createVisualsFolderAsset(folderId, body) {
 async function updateVisualsFolderAsset(folderId, assetId, body) {
   await ensureVisualsFolderAssetsSchema();
   const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
+  const hasShopifyProductUrls = Object.prototype.hasOwnProperty.call(body, 'shopify_product_urls') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrls') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopify_product_url') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrl');
+  const productUrlsValidation = hasShopifyProductUrls
+    ? normalizeClipShopifyProductUrls(body.shopify_product_urls ?? body.shopifyProductUrls ?? body.shopify_product_url ?? body.shopifyProductUrl, { strict: true })
+    : { urls: [], error: '' };
+  if (productUrlsValidation.error) return { statusCode: 400, body: { success: false, error: productUrlsValidation.error } };
+  const productUrlsJson = hasShopifyProductUrls ? JSON.stringify(productUrlsValidation.urls) : null;
   const result = await client.query(
     `UPDATE ${qname('visuals_folder_assets')}
-     SET status = COALESCE($3, status), caption = COALESCE($4, caption), alt_text = COALESCE($5, alt_text), notes = COALESCE($6, notes), updated_at = now()
+     SET status = COALESCE($3, status),
+         caption = COALESCE($4, caption),
+         alt_text = COALESCE($5, alt_text),
+         notes = COALESCE($6, notes),
+         shopify_product_urls = CASE
+           WHEN asset_type = 'clip' THEN COALESCE($7::jsonb, shopify_product_urls)
+           ELSE '[]'::jsonb
+         END,
+         updated_at = now()
      WHERE folder_id = $1 AND id = $2
      RETURNING *`,
-    [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null]
+    [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null, productUrlsJson]
   );
   if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
   return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
@@ -2467,6 +2539,9 @@ async function trackSongEvent(client, event) {
     seconds_played: body.seconds_played ?? body.secondsPlayed ?? null,
     completion_percent: body.completion_percent ?? body.completionPercent ?? null,
     product_url: body.product_url || body.productUrl || '',
+    product_source: body.product_source || body.productSource || '',
+    visual_asset_id: body.visual_asset_id || body.visualAssetId || '',
+    visual_folder_id: body.visual_folder_id || body.visualFolderId || '',
     share_url: body.share_url || body.shareUrl || '',
     display_title: body.display_title || body.displayTitle || '',
     song_name: body.song_name || body.songName || '',

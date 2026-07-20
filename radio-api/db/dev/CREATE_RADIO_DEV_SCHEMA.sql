@@ -54,6 +54,11 @@ BEGIN
   END LOOP;
 END $$;
 
+-- DEV extension: clip-linked Shopify products for reusable VEC folder assets.
+-- This runs after the production-like table clone above and remains isolated to radio_dev.
+ALTER TABLE IF EXISTS radio_dev.visuals_folder_assets
+  ADD COLUMN IF NOT EXISTS shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 -- Fallback only: ensure a DEV ad settings table can exist even if the production
 -- ad_settings table was absent when cloning. This writes only to radio_dev.
 CREATE TABLE IF NOT EXISTS radio_dev.ad_settings (
