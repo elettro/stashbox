@@ -1,4 +1,4 @@
 Trigger the one-time Notifications DEV completion workflow.
 Requested: 2026-07-20
 Scope: DEV dashboard navigation and stashbox-radio-api-dev-v2 only.
-Attempt: commit dashboard link and PASS report without workflow self-deletion.
+Attempt: push verified dashboard and report to a mergeable temporary branch.
