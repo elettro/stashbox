@@ -9,6 +9,7 @@
   });
 
   loadScript('./account.js')
+    .then(() => loadScript('./account-password-policy.js'))
     .catch((error) => console.error('[accounts] DEV account bootstrap failed', error))
     .finally(() => Promise.all([
       loadScript('./notification-account-sync.js'),
