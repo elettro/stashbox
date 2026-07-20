@@ -1,1 +1,0 @@
-Promote each new VEC clip product batch to the far-left of the merchandise rail, shift all existing products right, preserve prior clip and baseline products, deduplicate, and reset the visible carousel to the first card.

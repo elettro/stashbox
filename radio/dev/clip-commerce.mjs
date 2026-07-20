@@ -74,8 +74,7 @@ export function overlayClipProducts(clipProducts, baselineProducts, limit = Numb
 
   clip.forEach(append);
 
-  const replacedSlots = Math.min(clip.length, baseline.length);
-  baseline.slice(replacedSlots).forEach(append);
+  baseline.forEach(append);
 
   return result;
 }

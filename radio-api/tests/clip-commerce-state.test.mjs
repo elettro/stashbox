@@ -36,7 +36,7 @@ test('normalizes, validates, and deduplicates product URLs', () => {
   );
 });
 
-test('one clip product replaces only the first baseline slot', () => {
+test('one clip product moves to pole position and shifts every baseline product right', () => {
   const baseline = [
     { id: 'baseline-a', handle: 'baseline-a' },
     { id: 'baseline-b', handle: 'baseline-b' },
@@ -46,12 +46,12 @@ test('one clip product replaces only the first baseline slot', () => {
   const clip = [{ id: 'clip-a', handle: 'clip-a' }];
 
   assert.deepEqual(
-    overlayClipProducts(clip, baseline, 4).map(product => product.id),
-    ['clip-a', 'baseline-b', 'baseline-c', 'baseline-d']
+    overlayClipProducts(clip, baseline, 5).map(product => product.id),
+    ['clip-a', 'baseline-a', 'baseline-b', 'baseline-c', 'baseline-d']
   );
 });
 
-test('multiple clip products replace the same number of baseline slots', () => {
+test('multiple clip products take the first positions and preserve baseline order behind them', () => {
   const baseline = [
     { id: 'baseline-a', handle: 'baseline-a' },
     { id: 'baseline-b', handle: 'baseline-b' },
@@ -64,8 +64,37 @@ test('multiple clip products replace the same number of baseline slots', () => {
   ];
 
   assert.deepEqual(
-    overlayClipProducts(clip, baseline, 4).map(product => product.id),
-    ['clip-a', 'clip-b', 'baseline-c', 'baseline-d']
+    overlayClipProducts(clip, baseline, 6).map(product => product.id),
+    ['clip-a', 'clip-b', 'baseline-a', 'baseline-b', 'baseline-c', 'baseline-d']
+  );
+});
+
+test('each later clip batch is prepended while prior clip products shift right', () => {
+  const baseline = [
+    { id: 'song-a', handle: 'song-a' },
+    { id: 'song-b', handle: 'song-b' }
+  ];
+  const first = overlayClipProducts([{ id: 'clip-a', handle: 'clip-a' }], baseline, 10);
+  const second = overlayClipProducts([
+    { id: 'clip-b', handle: 'clip-b' },
+    { id: 'clip-c', handle: 'clip-c' }
+  ], first, 10);
+
+  assert.deepEqual(
+    second.map(product => product.id),
+    ['clip-b', 'clip-c', 'clip-a', 'song-a', 'song-b']
+  );
+});
+
+test('a repeated product moves to the front without creating a duplicate card', () => {
+  const current = [
+    { id: 'clip-a', handle: 'clip-a' },
+    { id: 'song-a', handle: 'song-a' }
+  ];
+
+  assert.deepEqual(
+    overlayClipProducts([{ id: 'song-a', handle: 'song-a' }], current, 10).map(product => product.id),
+    ['song-a', 'clip-a']
   );
 });
 
