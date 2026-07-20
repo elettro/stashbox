@@ -1,0 +1,258 @@
+name: Deploy VEC Clip Shopify Products to TRUE DEV Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-vec-clip-shopify-dev-once.yml'
+      - 'radio-api/index.mjs'
+      - 'radio-api/db/dev/migrations/20260719_add_clip_shopify_product_urls.sql'
+      - 'radio-api/tests/clip-commerce-state.test.mjs'
+      - 'radio-api/tests/clip-shopify-integration-source.test.mjs'
+      - 'radio/dev/app.js'
+      - 'radio/dev/clip-commerce.mjs'
+      - 'radio/visual-experience/dev/index.html'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-test-deploy:
+    name: Finalize, test, and deploy TRUE DEV
+    runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install production dependencies
+        working-directory: radio-api
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          else
+            npm install --omit=dev --no-audit --no-fund
+          fi
+
+      - name: Make clip product schema migration DEV-only and production-compatible
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('radio-api/index.mjs')
+          source = path.read_text(encoding='utf-8')
+
+          old_ensure = '''async function ensureVisualsFolderAssetsSchema() {
+            const columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+            const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status', 'shopify_product_urls'];
+            if (!requiredColumns.every((column) => columns.has(column))) {
+              const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
+              error.statusCode = 501;
+              throw error;
+            }
+            return columns;
+          }'''.replace(/^          /gm, '')
+
+          new_ensure = '''async function ensureVisualsFolderAssetsSchema() {
+            let columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+            const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
+            if (!requiredColumns.every((column) => columns.has(column))) {
+              const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
+              error.statusCode = 501;
+              throw error;
+            }
+
+            const isDevRuntime = ['dev', 'development'].includes(getRuntimeEnv());
+            if (isDevRuntime && !columns.has('shopify_product_urls')) {
+              await client.query(`ALTER TABLE ${qname('visuals_folder_assets')} ADD COLUMN IF NOT EXISTS shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb`);
+              columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+            }
+
+            return columns;
+          }'''.replace(/^          /gm, '')
+
+          if old_ensure not in source:
+              raise SystemExit('Folder asset schema function did not match the reviewed feature source.')
+          source = source.replace(old_ensure, new_ensure, 1)
+
+          get_anchor = "async function getVisualsFolderAssets(folderId) {\n  let assets = [];"
+          get_replacement = "async function getVisualsFolderAssets(folderId) {\n  await ensureVisualsFolderAssetsSchema();\n  let assets = [];"
+          if get_anchor not in source:
+              raise SystemExit('Folder asset GET anchor was not found.')
+          source = source.replace(get_anchor, get_replacement, 1)
+
+          update_pattern = r"async function updateVisualsFolderAsset\(folderId, assetId, body\) \{.*?\n\}\n\nasync function hideVisualsFolderAsset"
+          update_replacement = '''async function updateVisualsFolderAsset(folderId, assetId, body) {
+            const columns = await ensureVisualsFolderAssetsSchema();
+            const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
+            const hasShopifyProductUrls = Object.prototype.hasOwnProperty.call(body, 'shopify_product_urls') ||
+              Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrls') ||
+              Object.prototype.hasOwnProperty.call(body, 'shopify_product_url') ||
+              Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrl');
+            const productUrlsValidation = hasShopifyProductUrls
+              ? normalizeClipShopifyProductUrls(body.shopify_product_urls ?? body.shopifyProductUrls ?? body.shopify_product_url ?? body.shopifyProductUrl, { strict: true })
+              : { urls: [], error: '' };
+            if (productUrlsValidation.error) return { statusCode: 400, body: { success: false, error: productUrlsValidation.error } };
+
+            const baseValues = [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null];
+            const supportsClipProducts = columns.has('shopify_product_urls');
+            const productUrlsJson = supportsClipProducts && hasShopifyProductUrls ? JSON.stringify(productUrlsValidation.urls) : null;
+            const productUpdateSql = supportsClipProducts
+              ? `, shopify_product_urls = CASE WHEN asset_type = 'clip' THEN COALESCE($7::jsonb, shopify_product_urls) ELSE '[]'::jsonb END`
+              : '';
+            const values = supportsClipProducts ? [...baseValues, productUrlsJson] : baseValues;
+            const result = await client.query(
+              `UPDATE ${qname('visuals_folder_assets')}
+               SET status = COALESCE($3, status),
+                   caption = COALESCE($4, caption),
+                   alt_text = COALESCE($5, alt_text),
+                   notes = COALESCE($6, notes)
+                   ${productUpdateSql},
+                   updated_at = now()
+               WHERE folder_id = $1 AND id = $2
+               RETURNING *`,
+              values
+            );
+            if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+            return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+          }
+
+          async function hideVisualsFolderAsset'''.replace(/^          /gm, '')
+
+          source, count = re.subn(update_pattern, update_replacement, source, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'Folder asset update replacement count was {count}.')
+
+          path.write_text(source, encoding='utf-8')
+
+          test_path = Path('radio-api/tests/clip-shopify-integration-source.test.mjs')
+          tests = test_path.read_text(encoding='utf-8')
+          marker = "test('clip product schema auto-migration is DEV-only and production remains compatible'"
+          if marker not in tests:
+              tests += '''
+
+test('clip product schema auto-migration is DEV-only and production remains compatible', () => {
+  assert.match(api, /\['dev', 'development'\]\.includes\(getRuntimeEnv\(\)\)/);
+  assert.match(api, /ADD COLUMN IF NOT EXISTS shopify_product_urls/);
+  assert.match(api, /columns\.has\('shopify_product_urls'\)/);
+  assert.match(api, /const productUpdateSql = supportsClipProducts/);
+});
+'''
+              test_path.write_text(tests, encoding='utf-8')
+          PY
+
+      - name: Validate reviewed feature
+        run: |
+          git diff --check
+          node --check radio-api/index.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio/dev/app.js
+          node --test \
+            radio-api/tests/clip-commerce-state.test.mjs \
+            radio-api/tests/clip-shopify-integration-source.test.mjs \
+            radio-api/tests/visual-folder-assets-routing.test.mjs \
+            radio-api/tests/video-factory-foundation.test.mjs
+
+      - name: Commit final production-safe source and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio-api/index.mjs radio-api/tests/clip-shopify-integration-source.test.mjs
+          git rm .github/workflows/deploy-vec-clip-shopify-dev-once.yml
+          git commit -m "Finalize DEV clip Shopify release [skip ci]"
+          git push origin HEAD:main
+
+      - name: Validate TRUE DEV deployment target
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          if [ "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" != "${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}" ]; then
+            echo "Refusing to deploy: TRUE_DEV_LAMBDA_FUNCTION_NAME must exactly equal ${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}." >&2
+            exit 1
+          fi
+          if [ "${AWS_REGION}" != "us-east-1" ]; then
+            echo "Refusing to deploy: AWS_REGION must exactly equal us-east-1." >&2
+            exit 1
+          fi
+
+      - name: Build TRUE DEV Lambda ZIP
+        working-directory: radio-api
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -r dist/true-dev-lambda.zip . \
+            -x "dist/*" \
+            -x ".git/*" \
+            -x "*.zip"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy TRUE DEV Lambda code
+        env:
+          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip
+          aws lambda wait function-updated \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+
+      - name: Run existing TRUE DEV smoke test
+        run: node radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Trigger and verify DEV clip-product schema migration
+        run: |
+          node <<'NODE'
+          const base = process.env.TRUE_DEV_API_BASE.replace(/\/+$/, '');
+          const token = process.env.ADMIN_TOKEN;
+          if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is unavailable.');
+
+          const headers = { 'x-admin-token': token };
+          const foldersResponse = await fetch(`${base}/admin/visuals/folders`, { headers, cache: 'no-store' });
+          const foldersText = await foldersResponse.text();
+          let foldersData = null;
+          try { foldersData = foldersText ? JSON.parse(foldersText) : null; } catch {}
+          if (!foldersResponse.ok) throw new Error(`Visual folders request failed: ${foldersResponse.status} ${foldersText}`);
+          const folders = Array.isArray(foldersData?.folders) ? foldersData.folders : [];
+          if (!folders.length) throw new Error('No DEV Visuals Folder exists to verify the asset schema migration.');
+
+          const folderId = folders[0].id;
+          const assetsResponse = await fetch(`${base}/admin/visuals/folders/${encodeURIComponent(folderId)}/assets`, { headers, cache: 'no-store' });
+          const assetsText = await assetsResponse.text();
+          let assetsData = null;
+          try { assetsData = assetsText ? JSON.parse(assetsText) : null; } catch {}
+          if (!assetsResponse.ok) throw new Error(`Folder assets request failed: ${assetsResponse.status} ${assetsText}`);
+          const assets = Array.isArray(assetsData?.assets) ? assetsData.assets : [];
+          for (const asset of assets) {
+            if (!Array.isArray(asset.shopify_product_urls)) {
+              throw new Error(`Asset ${asset.id || '(unknown)'} did not return shopify_product_urls as an array.`);
+            }
+          }
+          console.log(`DEV clip-product schema verified through folder ${folderId}; ${assets.length} asset(s) checked.`);
+          NODE
