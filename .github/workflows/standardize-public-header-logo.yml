@@ -60,10 +60,9 @@ jobs:
 
           for page in pages:
               original = page.read_text(encoding='utf-8')
-              found_header_logo = False
+              found_header_logo = [False]
 
               def replace_tag(match):
-                  nonlocal found_header_logo
                   tag = match.group(0)
                   class_match = class_pattern.search(tag)
                   if not class_match:
@@ -72,7 +71,7 @@ jobs:
                   if 'nav__logo-img' not in classes:
                       return tag
 
-                  found_header_logo = True
+                  found_header_logo[0] = True
                   src_match = src_pattern.search(tag)
                   if not src_match:
                       return tag
@@ -83,7 +82,7 @@ jobs:
                   return src_pattern.sub(f'src={quote}{target}{quote}', tag, count=1)
 
               updated = image_tag_pattern.sub(replace_tag, original)
-              if found_header_logo:
+              if found_header_logo[0]:
                   pages_with_header_logo.append(page)
               if updated != original:
                   page.write_text(updated, encoding='utf-8')
