@@ -30,8 +30,20 @@ jobs:
           ref: agent/vec-clip-shopify-products
           fetch-depth: 0
 
-      - name: Inspect integration anchors
-        run: node radio-api/scripts/inspect-clip-commerce-targets.mjs
+      - name: Capture integration anchors
+        run: node radio-api/scripts/inspect-clip-commerce-targets.mjs > radio-api/scripts/vec-clip-shopify-inspection.txt
 
       - name: Run clip commerce unit tests
         run: node --test radio-api/tests/clip-commerce-state.test.mjs
+
+      - name: Commit inspection output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio-api/scripts/vec-clip-shopify-inspection.txt
+          if git diff --cached --quiet; then
+            echo "Inspection output unchanged."
+          else
+            git commit -m "Capture VEC clip commerce integration anchors [skip ci]"
+            git push origin HEAD:agent/vec-clip-shopify-products
+          fi
