@@ -18,6 +18,7 @@ jobs:
       LAMBDA_NAME: stashbox-radio-api-dev-v2
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: radio-api/docs/NOTIFICATIONS_DEV_DEPLOYMENT_REPORT.md
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +29,8 @@ jobs:
           node-version: '22'
 
       - name: Validate notification code
+        id: validate
+        continue-on-error: true
         run: |
           set -euo pipefail
           node --check radio-api/index.mjs
@@ -38,6 +41,9 @@ jobs:
           node --test radio-api/tests/notifications.test.mjs
 
       - name: Install Lambda dependencies
+        id: install
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
         working-directory: radio-api
         run: |
           set -euo pipefail
@@ -48,6 +54,9 @@ jobs:
           fi
 
       - name: Build TRUE DEV Lambda ZIP
+        id: build
+        if: steps.validate.outcome == 'success' && steps.install.outcome == 'success'
+        continue-on-error: true
         working-directory: radio-api
         run: |
           set -euo pipefail
@@ -59,13 +68,20 @@ jobs:
           node --check radio-main.mjs
           zip -r dist/true-dev-lambda.zip . -x 'dist/*' '.git/*' '*.zip'
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        id: aws
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
       - name: Deploy only TRUE DEV Lambda
+        id: deploy
+        if: steps.aws.outcome == 'success'
+        continue-on-error: true
         run: |
           set -euo pipefail
           aws lambda update-function-code \
@@ -74,9 +90,13 @@ jobs:
           aws lambda wait function-updated --function-name "${LAMBDA_NAME}"
 
       - name: Smoke test DEV notifications
+        id: smoke
+        if: steps.deploy.outcome == 'success'
+        continue-on-error: true
         run: |
           set -euo pipefail
           PUBLIC_STATUS=$(curl --silent --show-error --max-time 30 -o /tmp/public.json -w '%{http_code}' "${API_BASE}/radio/notifications")
+          echo "public_status=${PUBLIC_STATUS}" >> "$GITHUB_OUTPUT"
           test "${PUBLIC_STATUS}" = '200'
           jq -e '.success == true and (.notifications | type == "array")' /tmp/public.json
 
@@ -84,16 +104,57 @@ jobs:
             -H "x-admin-token: ${ADMIN_TOKEN}" \
             -o /tmp/admin.json -w '%{http_code}' \
             "${API_BASE}/admin/notifications")
+          echo "admin_status=${ADMIN_STATUS}" >> "$GITHUB_OUTPUT"
           test "${ADMIN_STATUS}" = '200'
           jq -e '.success == true and (.notifications | type == "array")' /tmp/admin.json
 
-      - name: Remove one-time workflow
-        if: success()
+      - name: Record deployment result and remove workflow
+        if: always()
         run: |
           set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          {
+            echo '# Notifications DEV Deployment Report'
+            echo
+            echo "- Recorded: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '- Target: `stashbox-radio-api-dev-v2`'
+            echo '- Region: `us-east-1`'
+            echo '- Production Lambda touched: No'
+            echo '- Merge commit: `c038e87ccbf3998884380d8cd85d65adc7cccde3`'
+            echo "- Validation: ${{ steps.validate.outcome }}"
+            echo "- Dependency install: ${{ steps.install.outcome }}"
+            echo "- Package build: ${{ steps.build.outcome }}"
+            echo "- AWS authentication: ${{ steps.aws.outcome }}"
+            echo "- DEV Lambda deployment: ${{ steps.deploy.outcome }}"
+            echo "- DEV smoke tests: ${{ steps.smoke.outcome }}"
+            echo "- Public notifications HTTP: ${{ steps.smoke.outputs.public_status || 'not-run' }}"
+            echo "- Admin notifications HTTP: ${{ steps.smoke.outputs.admin_status || 'not-run' }}"
+            if [ -f /tmp/public.json ]; then
+              echo
+              echo '## Public endpoint response'
+              echo '```json'
+              cat /tmp/public.json
+              echo
+              echo '```'
+            fi
+            if [ -f /tmp/admin.json ]; then
+              echo
+              echo '## Admin endpoint response'
+              echo '```json'
+              cat /tmp/admin.json
+              echo
+              echo '```'
+            fi
+          } > "${REPORT_PATH}"
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git pull --rebase origin main
+          git add "${REPORT_PATH}"
           git rm .github/workflows/one-time-deploy-notifications-dev.yml
-          git commit -m 'Remove one-time notification DEV deploy workflow'
+          git commit -m 'Record notification DEV deployment result'
           git push origin HEAD:main
+
+      - name: Fail when deployment did not complete
+        if: always() && (steps.validate.outcome != 'success' || steps.install.outcome != 'success' || steps.build.outcome != 'success' || steps.aws.outcome != 'success' || steps.deploy.outcome != 'success' || steps.smoke.outcome != 'success')
+        run: exit 1
