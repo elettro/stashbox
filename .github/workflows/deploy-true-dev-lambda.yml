@@ -2,6 +2,14 @@ name: Deploy TRUE DEV Lambda
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'radio-api/notifications.mjs'
+      - 'radio-api/notification-activity-feed.mjs'
+      - 'radio-api/tests/notifications.test.mjs'
+      - 'radio-api/tests/notification-activity-feed.test.mjs'
 
 jobs:
   deploy-true-dev-lambda:
@@ -35,12 +43,19 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda and Video Factory syntax
+      - name: Check Lambda and notification syntax
         run: |
           node --check radio-api/index.mjs
+          node --check radio-api/notifications.mjs
+          node --check radio-api/notification-activity-feed.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio-api/video-factory/routes.mjs
           node --check radio-api/video-factory/recipe.mjs
+
+      - name: Run notification tests
+        run: |
+          node --test radio-api/tests/notifications.test.mjs
+          node --test radio-api/tests/notification-activity-feed.test.mjs
 
       - name: Run Video Factory foundation tests
         run: node --test radio-api/tests/video-factory-foundation.test.mjs
@@ -111,3 +126,20 @@ jobs:
 
       - name: Run TRUE DEV smoke test
         run: node radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Run notification activity smoke test
+        run: |
+          PUBLIC_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/notifications-public.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/notifications?limit=100")
+          test "${PUBLIC_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array") and (.activity_sync | type == "object")' /tmp/notifications-public.json
+
+          ADMIN_STATUS=$(curl --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/notifications-admin.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/admin/notifications")
+          test "${ADMIN_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array") and (.activity_sync | type == "object")' /tmp/notifications-admin.json
