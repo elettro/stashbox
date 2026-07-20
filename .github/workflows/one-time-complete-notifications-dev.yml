@@ -130,7 +130,7 @@ jobs:
           printf '%s' "${PUBLIC_STATUS}" > /tmp/public-status.txt
           printf '%s' "${ADMIN_STATUS}" > /tmp/admin-status.txt
 
-      - name: Record success and clean up one-time workflows
+      - name: Record successful DEV completion
         run: |
           set -euo pipefail
           PUBLIC_STATUS=$(cat /tmp/public-status.txt)
@@ -164,10 +164,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add radio/dashboard/dev/index.html "${REPORT_PATH}"
-          git rm -f .github/workflows/one-time-complete-notifications-dev.yml
-          if [ -f .github/workflows/one-time-deploy-notifications-dev.yml ]; then
-            git rm -f .github/workflows/one-time-deploy-notifications-dev.yml
-          fi
           git commit -m 'Complete notifications deployment on DEV'
           git pull --rebase origin main
           git push origin HEAD:main
