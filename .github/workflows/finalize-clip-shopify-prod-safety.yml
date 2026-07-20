@@ -1,0 +1,145 @@
+name: Finalize Clip Shopify Production Safety
+
+on:
+  pull_request:
+    branches:
+      - agent/vec-clip-shopify-products
+    paths:
+      - 'radio-api/scripts/vec-clip-shopify-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/vec-clip-shopify-products
+          fetch-depth: 0
+
+      - name: Install API dependencies
+        run: npm install --prefix radio-api --no-audit --no-fund
+
+      - name: Make DEV migration automatic and production-safe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('radio-api/index.mjs')
+          source = path.read_text(encoding='utf-8')
+
+          old_ensure = '''async function ensureVisualsFolderAssetsSchema() {
+  const columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status', 'shopify_product_urls'];
+  if (!requiredColumns.every((column) => columns.has(column))) {
+    const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
+    error.statusCode = 501;
+    throw error;
+  }
+  return columns;
+}'''
+          new_ensure = '''async function ensureVisualsFolderAssetsSchema() {
+  let columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
+  if (!requiredColumns.every((column) => columns.has(column))) {
+    const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
+    error.statusCode = 501;
+    throw error;
+  }
+
+  const isDevRuntime = ['dev', 'development'].includes(getRuntimeEnv());
+  if (isDevRuntime && !columns.has('shopify_product_urls')) {
+    await client.query(`ALTER TABLE ${qname('visuals_folder_assets')} ADD COLUMN IF NOT EXISTS shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb`);
+    columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+  }
+
+  return columns;
+}'''
+          if old_ensure not in source:
+              raise SystemExit('Current folder asset schema function did not match expected source.')
+          source = source.replace(old_ensure, new_ensure, 1)
+
+          get_anchor = '''async function getVisualsFolderAssets(folderId) {
+  let assets = [];'''
+          get_replacement = '''async function getVisualsFolderAssets(folderId) {
+  await ensureVisualsFolderAssetsSchema();
+  let assets = [];'''
+          if get_anchor not in source:
+              raise SystemExit('Folder asset GET anchor was not found.')
+          source = source.replace(get_anchor, get_replacement, 1)
+
+          pattern = r'''async function updateVisualsFolderAsset\(folderId, assetId, body\) \{.*?\n\}\n\nasync function hideVisualsFolderAsset'''
+          replacement = '''async function updateVisualsFolderAsset(folderId, assetId, body) {
+  const columns = await ensureVisualsFolderAssetsSchema();
+  const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
+  const hasShopifyProductUrls = Object.prototype.hasOwnProperty.call(body, 'shopify_product_urls') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrls') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopify_product_url') ||
+    Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrl');
+  const productUrlsValidation = hasShopifyProductUrls
+    ? normalizeClipShopifyProductUrls(body.shopify_product_urls ?? body.shopifyProductUrls ?? body.shopify_product_url ?? body.shopifyProductUrl, { strict: true })
+    : { urls: [], error: '' };
+  if (productUrlsValidation.error) return { statusCode: 400, body: { success: false, error: productUrlsValidation.error } };
+
+  const baseValues = [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null];
+  const supportsClipProducts = columns.has('shopify_product_urls');
+  const productUrlsJson = supportsClipProducts && hasShopifyProductUrls ? JSON.stringify(productUrlsValidation.urls) : null;
+  const productUpdateSql = supportsClipProducts
+    ? `, shopify_product_urls = CASE WHEN asset_type = 'clip' THEN COALESCE($7::jsonb, shopify_product_urls) ELSE '[]'::jsonb END`
+    : '';
+  const values = supportsClipProducts ? [...baseValues, productUrlsJson] : baseValues;
+  const result = await client.query(
+    `UPDATE ${qname('visuals_folder_assets')}
+     SET status = COALESCE($3, status),
+         caption = COALESCE($4, caption),
+         alt_text = COALESCE($5, alt_text),
+         notes = COALESCE($6, notes)
+         ${productUpdateSql},
+         updated_at = now()
+     WHERE folder_id = $1 AND id = $2
+     RETURNING *`,
+    values
+  );
+  if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
+  return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };
+}
+
+async function hideVisualsFolderAsset'''
+          source, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'Folder asset update function replacement count was {count}.')
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Add production-safety source tests
+        run: |
+          cat >> radio-api/tests/clip-shopify-integration-source.test.mjs <<'EOF'
+
+          test('clip product schema auto-migration is DEV-only and production remains compatible', () => {
+            assert.match(api, /\['dev', 'development'\]\.includes\(getRuntimeEnv\(\)\)/);
+            assert.match(api, /ADD COLUMN IF NOT EXISTS shopify_product_urls/);
+            assert.match(api, /columns\.has\('shopify_product_urls'\)/);
+            assert.match(api, /const productUpdateSql = supportsClipProducts/);
+          });
+          EOF
+
+      - name: Validate Lambda and tests
+        run: |
+          git diff --check
+          node --check radio-api/index.mjs
+          node --check radio/dev/app.js
+          node --test radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs radio-api/tests/visual-folder-assets-routing.test.mjs
+
+      - name: Commit production-safe DEV migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio-api/index.mjs radio-api/tests/clip-shopify-integration-source.test.mjs
+          git commit -m "Keep clip Shopify schema migration DEV-only [skip ci]"
+          git push origin HEAD:agent/vec-clip-shopify-products
