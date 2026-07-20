@@ -1,0 +1,318 @@
+.radio-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.radio-account-button,
+.radio-account-menu button,
+.radio-account-modal button,
+.radio-playlist-inject {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 10, 10, 0.9);
+  color: #fff;
+  border-radius: 999px;
+  min-height: 38px;
+  padding: 8px 14px;
+  font: 700 13px/1.1 Karla, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.radio-account-button:hover,
+.radio-account-menu button:hover,
+.radio-account-modal button:hover,
+.radio-playlist-inject:hover {
+  border-color: #f0a500;
+}
+
+.radio-account-button.primary,
+.radio-account-modal button.primary {
+  color: #111;
+  background: #f0a500;
+  border-color: #f0a500;
+}
+
+.radio-account-button:disabled,
+.radio-account-modal button:disabled,
+.radio-playlist-inject:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.radio-account-user-button {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radio-account-menu {
+  position: absolute;
+  z-index: 10020;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(290px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: #111;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.55);
+  display: grid;
+  gap: 6px;
+}
+
+.radio-account-menu[hidden] {
+  display: none;
+}
+
+.radio-account-menu button {
+  width: 100%;
+  text-align: left;
+  border-radius: 9px;
+  background: transparent;
+}
+
+.radio-account-overlay {
+  position: fixed;
+  z-index: 10010;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.radio-account-overlay[hidden] {
+  display: none;
+}
+
+.radio-account-modal {
+  width: min(760px, 100%);
+  max-height: min(820px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  background: #151515;
+  color: #fff;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.7);
+}
+
+.radio-account-modal-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: #151515;
+}
+
+.radio-account-modal-header h2 {
+  margin: 0;
+  font: 700 28px/1 Bebas Neue, Impact, sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.radio-account-close {
+  width: 40px;
+  padding: 0 !important;
+  font-size: 22px !important;
+}
+
+.radio-account-body {
+  padding: 20px;
+}
+
+.radio-account-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 18px;
+}
+
+.radio-account-tabs button.active {
+  color: #111;
+  background: #f0a500;
+  border-color: #f0a500;
+}
+
+.radio-account-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.radio-account-panel[hidden] {
+  display: none;
+}
+
+.radio-account-form {
+  display: grid;
+  gap: 13px;
+}
+
+.radio-account-form label {
+  display: grid;
+  gap: 6px;
+  font: 700 13px/1.2 Karla, Arial, sans-serif;
+}
+
+.radio-account-form input,
+.radio-account-form textarea,
+.radio-account-form select {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: #080808;
+  color: #fff;
+  padding: 10px 12px;
+  font: 500 15px/1.25 Karla, Arial, sans-serif;
+}
+
+.radio-account-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.radio-account-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.radio-account-message {
+  min-height: 20px;
+  margin: 0;
+  color: #f4cf77;
+  font: 600 14px/1.4 Karla, Arial, sans-serif;
+}
+
+.radio-account-message.error {
+  color: #ff8b8b;
+}
+
+.radio-account-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.radio-account-stat,
+.radio-account-list-item {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 13px;
+}
+
+.radio-account-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 24px;
+}
+
+.radio-account-list {
+  display: grid;
+  gap: 8px;
+}
+
+.radio-account-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.radio-account-list-copy {
+  min-width: 0;
+}
+
+.radio-account-list-copy strong,
+.radio-account-list-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radio-account-list-copy span {
+  margin-top: 3px;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.radio-account-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.radio-account-empty {
+  margin: 0;
+  color: #aaa;
+}
+
+.radio-account-section-title {
+  margin: 8px 0 0;
+  font: 700 20px/1.1 Karla, Arial, sans-serif;
+}
+
+.radio-account-dev-note {
+  padding: 10px 12px;
+  border-left: 3px solid #f0a500;
+  background: rgba(240, 165, 0, 0.08);
+  color: #ddd;
+  font-size: 13px;
+}
+
+.radio-playlist-inject {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .radio-account-actions {
+    width: 100%;
+    order: 20;
+    justify-content: flex-end;
+  }
+
+  .radio-account-button {
+    min-height: 36px;
+    padding: 7px 11px;
+  }
+}
+
+@media (max-width: 620px) {
+  .radio-account-overlay {
+    padding: 0;
+    align-items: end;
+  }
+
+  .radio-account-modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .radio-account-body,
+  .radio-account-modal-header {
+    padding: 15px;
+  }
+
+  .radio-account-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .radio-account-list-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
