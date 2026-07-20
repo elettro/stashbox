@@ -25,6 +25,10 @@ test('DEV player isolates clip commerce from media playback', () => {
   assert.match(player, /onActiveVisualChange/);
   assert.match(player, /clipCommerceState/);
   assert.match(player, /overlayClipProducts/);
+  assert.match(player, /activeProductSongKeyRef/);
+  assert.match(player, /currentForSong\.length \? currentForSong : result\.baselineProducts/);
+  assert.match(player, /clipProductShownAt/);
+  assert.match(player, /carousel\.scrollTo\(\{ left: 0, behavior: 'smooth' \}\)/);
   assert.match(player, /commerceSource/);
   assert.match(player, /product_source: productSource/);
   assert.doesNotMatch(player, /handleActiveVisualChange[\s\S]{0,600}(audioRef|setMediaMode|setVisualIndex|pause\(|play\()/);

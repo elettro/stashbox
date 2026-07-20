@@ -1339,6 +1339,7 @@ function dedupeProductList(products) {
 
 function useProducts(selected, commerceState = null) {
   const [products, setProducts] = useState([]);
+  const activeProductSongKeyRef = useRef('');
   const productSource = clean(commerceState?.productSource || 'song') || 'song';
   const requestedProductUrls = normalizeCommerceProductUrls(
     commerceState && Array.isArray(commerceState.productUrls)
@@ -1346,7 +1347,8 @@ function useProducts(selected, commerceState = null) {
       : selected?.specificProductUrls || []
   );
   const songProductUrls = normalizeCommerceProductUrls(selected?.specificProductUrls || []);
-  const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}|song:${songProductUrls.join('|')}`;
+  const clipFocusKey = `${commerceState?.lastClipId || ''}:${commerceState?.clipProductShownAt || 0}`;
+  const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}|song:${songProductUrls.join('|')}|clip:${clipFocusKey}`;
   useEffect(() => {
     let alive = true;
 
@@ -1373,7 +1375,7 @@ function useProducts(selected, commerceState = null) {
     }
 
     async function loadProducts() {
-      if (!selected) return [];
+      if (!selected) return { mode: 'replace', products: [] };
       let fallback = [];
       try {
         fallback = rotateBySeed(await fetchFallbackProducts(), selected?.title).slice(0, PRODUCT_POOL_LIMIT);
@@ -1387,13 +1389,28 @@ function useProducts(selected, commerceState = null) {
 
       if (productSource === 'clip') {
         const clipProducts = await resolveSpecificProducts(requestedProductUrls, fallback, 'clip');
-        return overlayClipProducts(clipProducts, baselineProducts, PRODUCT_POOL_LIMIT);
+        return { mode: 'promote', products: clipProducts, baselineProducts };
       }
-      if (productSource === 'song') return songProducts.slice(0, PRODUCT_POOL_LIMIT);
-      return randomProducts.slice(0, PRODUCT_POOL_LIMIT);
+      if (productSource === 'song') {
+        return { mode: 'promote', products: songProducts, baselineProducts: songProducts };
+      }
+      return { mode: 'replace', products: randomProducts };
     }
 
-    loadProducts().then(next => { if (alive) setProducts(next); });
+    loadProducts().then(result => {
+      if (!alive) return;
+      const selectedKey = clean(selected?.idx || selected?.songKey || selected?.song_key);
+      setProducts(current => {
+        const sameSong = activeProductSongKeyRef.current === selectedKey;
+        activeProductSongKeyRef.current = selectedKey;
+        const currentForSong = sameSong ? current : [];
+        if (result.mode === 'promote') {
+          const baseline = currentForSong.length ? currentForSong : result.baselineProducts;
+          return overlayClipProducts(result.products, baseline, PRODUCT_POOL_LIMIT);
+        }
+        return result.products.slice(0, PRODUCT_POOL_LIMIT);
+      });
+    });
     return () => { alive = false; };
   }, [productRequestKey]);
   return products;
@@ -4385,6 +4402,14 @@ function ProductRecommendations({ products, onProductClick }) {
       window.cancelAnimationFrame(stateFrame);
     };
   }, [updateScrollState, visibleProducts.length]);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel || !visibleProducts.length) return undefined;
+    carousel.scrollTo({ left: 0, behavior: 'smooth' });
+    const focusFrame = window.requestAnimationFrame(updateScrollState);
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [products, updateScrollState, visibleProducts.length]);
 
   const scrollProducts = useCallback(direction => {
     const carousel = carouselRef.current;
