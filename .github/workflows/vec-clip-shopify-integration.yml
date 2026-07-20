@@ -10,6 +10,11 @@ on:
       - 'radio-api/scripts/apply-clip-shopify-integration.mjs'
       - 'radio/dev/clip-commerce.mjs'
       - 'radio-api/tests/clip-commerce-state.test.mjs'
+  pull_request:
+    branches:
+      - agent/vec-clip-shopify-products
+    paths:
+      - 'radio-api/scripts/vec-clip-shopify-trigger.txt'
 
 permissions:
   contents: write
@@ -19,7 +24,7 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out branch
+      - name: Check out integration branch
         uses: actions/checkout@v4
         with:
           ref: agent/vec-clip-shopify-products
