@@ -55,7 +55,7 @@ jobs:
               api = api[:block_start] + asset_block + api[block_end:]
 
           api = api.replace('''
-          updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+          updated, count = re.subn(pattern, lambda _: replacement, source, count=1, flags=re.S)
           if count != 1:
               raise SystemExit(f'API patch anchor hotfix expected 1 match, found {count}')
           path.write_text(updated, encoding='utf-8')
