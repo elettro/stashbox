@@ -11,6 +11,7 @@ on:
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio/dev/account.js'
+      - 'radio/dev/account-password-policy.js'
       - 'radio/dev/account.css'
       - 'radio/dev/notifications.js'
       - 'radio/dev/notifications-core.js'
@@ -47,6 +48,7 @@ jobs:
           node --check radio-api/account-routes.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio/dev/account.js
+          node --check radio/dev/account-password-policy.js
           node --check radio/dev/notifications.js
           node --check radio/dev/notifications-core.js
 
