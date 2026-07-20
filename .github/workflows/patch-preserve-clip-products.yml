@@ -1,0 +1,141 @@
+name: Preserve Existing Products During Clip Swaps
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/preserve-existing-products-during-clip-swaps.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Patch DEV product overlay behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path = Path('radio/dev/app.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          old_import = "import { createClipCommerceState, normalizeCommerceProductUrls, resolveClipCommerceState } from './clip-commerce.mjs';"
+          new_import = "import { createClipCommerceState, normalizeCommerceProductUrls, overlayClipProducts, resolveClipCommerceState } from './clip-commerce.mjs';"
+          if old_import not in app:
+              raise SystemExit('Clip commerce import anchor was not found.')
+          app = app.replace(old_import, new_import, 1)
+
+          pattern = r"function useProducts\(selected, commerceState = null\) \{.*?\n\}\n\nfunction formatPlayCount"
+          replacement = r'''function useProducts(selected, commerceState = null) {
+            const [products, setProducts] = useState([]);
+            const productSource = clean(commerceState?.productSource || 'song') || 'song';
+            const requestedProductUrls = normalizeCommerceProductUrls(
+              commerceState && Array.isArray(commerceState.productUrls)
+                ? commerceState.productUrls
+                : selected?.specificProductUrls || []
+            );
+            const songProductUrls = normalizeCommerceProductUrls(selected?.specificProductUrls || []);
+            const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}|song:${songProductUrls.join('|')}`;
+            useEffect(() => {
+              let alive = true;
+
+              async function resolveSpecificProducts(urls, fallback, source) {
+                const specific = [];
+                for (const [index, url] of urls.entries()) {
+                  console.log('Specific product URL:', url, 'source:', source);
+                  const handle = productUrlHandle(url);
+                  const matchedProduct = findProductInPoolByHandle(fallback, handle)
+                    || fallback.find(product => normalizeProductUrl(product.url) === normalizeProductUrl(url) || normalizeProductUrl(product.onlineStoreUrl) === normalizeProductUrl(url));
+                  if (matchedProduct) {
+                    specific.push({ ...productFromUrl(url, index, matchedProduct), commerceSource: source });
+                    continue;
+                  }
+                  try {
+                    const fetched = handle ? await fetchSpecificProduct(url, index, handle) : null;
+                    specific.push({ ...(fetched || productFromUrl(url, index)), commerceSource: source });
+                  } catch (error) {
+                    console.log('Specific product resolved from Shopify .js:', null);
+                    specific.push({ ...productFromUrl(url, index), commerceSource: source });
+                  }
+                }
+                return dedupeProductList(specific).slice(0, PRODUCT_POOL_LIMIT);
+              }
+
+              async function loadProducts() {
+                if (!selected) return [];
+                let fallback = [];
+                try {
+                  fallback = rotateBySeed(await fetchFallbackProducts(), selected?.title).slice(0, PRODUCT_POOL_LIMIT);
+                } catch (error) {
+                  console.warn('Unable to load fallback products.', error.message || error);
+                }
+
+                const randomProducts = fallback.map(product => ({ ...product, commerceSource: 'random' }));
+                const songProducts = await resolveSpecificProducts(songProductUrls, fallback, 'song');
+                const baselineProducts = songProducts.length ? songProducts : randomProducts;
+
+                if (productSource === 'clip') {
+                  const clipProducts = await resolveSpecificProducts(requestedProductUrls, fallback, 'clip');
+                  return overlayClipProducts(clipProducts, baselineProducts, PRODUCT_POOL_LIMIT);
+                }
+                if (productSource === 'song') return songProducts.slice(0, PRODUCT_POOL_LIMIT);
+                return randomProducts.slice(0, PRODUCT_POOL_LIMIT);
+              }
+
+              loadProducts().then(next => { if (alive) setProducts(next); });
+              return () => { alive = false; };
+            }, [productRequestKey]);
+            return products;
+          }
+
+          function formatPlayCount'''
+          app, count = re.subn(pattern, replacement, app, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'useProducts replacement count was {count}.')
+
+          old_click = "  function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '', product_source: clipCommerceState.productSource || 'random', visual_asset_id: clipCommerceState.productSource === 'clip' ? (clipCommerceState.lastClipId || '') : '', visual_folder_id: clipCommerceState.productSource === 'clip' ? (activeVisualCommerceRef.current?.folderId || '') : '' }); }"
+          new_click = "  function handleProductClick(product) { const productSource = clean(product?.commerceSource || clipCommerceState.productSource || 'random') || 'random'; const isClipProduct = productSource === 'clip'; sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '', product_source: productSource, visual_asset_id: isClipProduct ? (clipCommerceState.lastClipId || '') : '', visual_folder_id: isClipProduct ? (activeVisualCommerceRef.current?.folderId || '') : '' }); }"
+          if old_click not in app:
+              raise SystemExit('Product click tracking anchor was not found.')
+          app = app.replace(old_click, new_click, 1)
+          app_path.write_text(app, encoding='utf-8')
+
+          test_path = Path('radio-api/tests/clip-shopify-integration-source.test.mjs')
+          tests = test_path.read_text(encoding='utf-8')
+          tests = tests.replace(
+              "  assert.match(player, /product_source: clipCommerceState\\.productSource/);",
+              "  assert.match(player, /overlayClipProducts/);\n  assert.match(player, /commerceSource/);\n  assert.match(player, /product_source: productSource/);",
+              1
+          )
+          test_path.write_text(tests, encoding='utf-8')
+          PY
+
+      - name: Validate product preservation behavior
+        run: |
+          git diff --check
+          node --check radio/dev/app.js
+          node --check radio/dev/clip-commerce.mjs
+          node --test radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs
+
+      - name: Commit tested player fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio/dev/app.js radio/dev/clip-commerce.mjs radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs
+          if git diff --cached --quiet; then
+            echo "Player fix is already current."
+          else
+            git commit -m "Keep unaffected products visible during clip swaps [skip ci]"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
