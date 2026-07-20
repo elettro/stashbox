@@ -1,0 +1,28 @@
+name: PR Trigger VEC Clip Shopify DEV Finalizer
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/pr-run-finalize-vec-clip-shopify-dev.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch reviewed finalizer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run finalize-vec-clip-shopify-dev.yml \
+            --repo "${REPOSITORY}" \
+            --ref main
+          echo 'VEC clip Shopify DEV finalizer dispatched from same-repository PR.'
