@@ -1,6 +1,11 @@
 name: VEC Clip Shopify Finalize
 
 on:
+  push:
+    branches:
+      - agent/vec-clip-shopify-products
+    paths:
+      - '.github/workflows/vec-clip-shopify-integration.yml'
   pull_request:
     branches:
       - agent/vec-clip-shopify-products
