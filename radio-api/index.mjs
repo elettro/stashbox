@@ -2236,6 +2236,7 @@ function normalizeVisualsFolderAsset(row) {
 }
 
 async function getVisualsFolderAssets(folderId) {
+  await ensureVisualsFolderAssetsSchema();
   let assets = [];
   let folder = null;
   try {
@@ -2281,13 +2282,20 @@ async function getVisualsFolderAssets(folderId) {
 
 // Cherry-picked safely from abandoned Lambda: admin CRUD for existing visuals_folder_assets rows only.
 async function ensureVisualsFolderAssetsSchema() {
-  const columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
-  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status', 'shopify_product_urls'];
+  let columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+  const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];
   if (!requiredColumns.every((column) => columns.has(column))) {
     const error = new Error(`${qname('visuals_folder_assets')} schema is missing required columns.`);
     error.statusCode = 501;
     throw error;
   }
+
+  const isDevRuntime = ['dev', 'development'].includes(getRuntimeEnv());
+  if (isDevRuntime && !columns.has('shopify_product_urls')) {
+    await client.query(`ALTER TABLE ${qname('visuals_folder_assets')} ADD COLUMN IF NOT EXISTS shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb`);
+    columns = await getTableColumns(getDbSchema(), 'visuals_folder_assets');
+  }
+
   return columns;
 }
 
@@ -2392,7 +2400,7 @@ async function createVisualsFolderAsset(folderId, body) {
 }
 
 async function updateVisualsFolderAsset(folderId, assetId, body) {
-  await ensureVisualsFolderAssetsSchema();
+  const columns = await ensureVisualsFolderAssetsSchema();
   const status = body.status === 'active' ? 'active' : body.status === 'hidden' ? 'hidden' : null;
   const hasShopifyProductUrls = Object.prototype.hasOwnProperty.call(body, 'shopify_product_urls') ||
     Object.prototype.hasOwnProperty.call(body, 'shopifyProductUrls') ||
@@ -2402,21 +2410,25 @@ async function updateVisualsFolderAsset(folderId, assetId, body) {
     ? normalizeClipShopifyProductUrls(body.shopify_product_urls ?? body.shopifyProductUrls ?? body.shopify_product_url ?? body.shopifyProductUrl, { strict: true })
     : { urls: [], error: '' };
   if (productUrlsValidation.error) return { statusCode: 400, body: { success: false, error: productUrlsValidation.error } };
-  const productUrlsJson = hasShopifyProductUrls ? JSON.stringify(productUrlsValidation.urls) : null;
+
+  const baseValues = [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null];
+  const supportsClipProducts = columns.has('shopify_product_urls');
+  const productUrlsJson = supportsClipProducts && hasShopifyProductUrls ? JSON.stringify(productUrlsValidation.urls) : null;
+  const productUpdateSql = supportsClipProducts
+    ? `, shopify_product_urls = CASE WHEN asset_type = 'clip' THEN COALESCE($7::jsonb, shopify_product_urls) ELSE '[]'::jsonb END`
+    : '';
+  const values = supportsClipProducts ? [...baseValues, productUrlsJson] : baseValues;
   const result = await client.query(
     `UPDATE ${qname('visuals_folder_assets')}
      SET status = COALESCE($3, status),
          caption = COALESCE($4, caption),
          alt_text = COALESCE($5, alt_text),
-         notes = COALESCE($6, notes),
-         shopify_product_urls = CASE
-           WHEN asset_type = 'clip' THEN COALESCE($7::jsonb, shopify_product_urls)
-           ELSE '[]'::jsonb
-         END,
+         notes = COALESCE($6, notes)
+         ${productUpdateSql},
          updated_at = now()
      WHERE folder_id = $1 AND id = $2
      RETURNING *`,
-    [folderId, assetId, status, body.caption ?? null, body.alt_text ?? body.altText ?? null, body.notes ?? null, productUrlsJson]
+    values
   );
   if (!result.rowCount) return { statusCode: 404, body: { success: false, error: 'Folder asset not found for that exact folder and asset ID.' } };
   return { statusCode: 200, body: { success: true, asset: normalizeVisualsFolderAsset(result.rows[0]) } };

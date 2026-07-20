@@ -27,3 +27,11 @@ test('DEV player isolates clip commerce from media playback', () => {
   assert.match(player, /product_source: clipCommerceState\.productSource/);
   assert.doesNotMatch(player, /handleActiveVisualChange[\s\S]{0,600}(audioRef|setMediaMode|setVisualIndex|pause\(|play\()/);
 });
+
+
+test('clip product schema auto-migration is DEV-only and production remains compatible', () => {
+  assert.match(api, /\['dev', 'development'\]\.includes\(getRuntimeEnv\(\)\)/);
+  assert.match(api, /ADD COLUMN IF NOT EXISTS shopify_product_urls/);
+  assert.match(api, /columns\.has\('shopify_product_urls'\)/);
+  assert.match(api, /const productUpdateSql = supportsClipProducts/);
+});

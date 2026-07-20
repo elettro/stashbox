@@ -148,6 +148,47 @@ async function checkAdminRoute(results, endpoint) {
   });
 }
 
+async function checkVisualFolderAssetSchema(results) {
+  const foldersEndpoint = '/admin/visuals/folders';
+  if (!ADMIN_TOKEN) {
+    addResult(results, {
+      name: 'visual folder clip-product schema', endpoint: foldersEndpoint,
+      status: null, pass: true, required: false, skipped: true,
+      reason: 'ADMIN_TOKEN is not set.'
+    });
+    return;
+  }
+
+  const foldersResult = await fetchJson(foldersEndpoint, { admin: true });
+  const folders = Array.isArray(foldersResult.body?.folders) ? foldersResult.body.folders : [];
+  if (foldersResult.status !== 200 || !folders.length) {
+    addResult(results, {
+      name: 'visual folder clip-product schema', endpoint: foldersEndpoint,
+      status: foldersResult.status, pass: false,
+      reason: foldersResult.status !== 200
+        ? `Expected HTTP 200, got ${statusText(foldersResult.status)}.`
+        : 'Expected at least one DEV Visuals Folder.'
+    });
+    return;
+  }
+
+  const folderId = folders[0].id;
+  const assetsEndpoint = `/admin/visuals/folders/${encodeURIComponent(folderId)}/assets`;
+  const assetsResult = await fetchJson(assetsEndpoint, { admin: true });
+  const assets = Array.isArray(assetsResult.body?.assets) ? assetsResult.body.assets : [];
+  const arraysValid = assets.every((asset) => Array.isArray(asset.shopify_product_urls));
+  addResult(results, {
+    name: 'visual folder clip-product schema', endpoint: assetsEndpoint,
+    status: assetsResult.status,
+    pass: assetsResult.status === 200 && arraysValid,
+    reason: assetsResult.status !== 200
+      ? `Expected HTTP 200, got ${statusText(assetsResult.status)}.`
+      : arraysValid
+        ? `Verified shopify_product_urls arrays on ${assets.length} asset(s).`
+        : 'Expected every asset to return shopify_product_urls as an array.'
+  });
+}
+
 function printResults(results) {
   console.log('TRUE DEV smoke test checklist');
   console.log(`API base: ${TRUE_DEV_API_BASE}`);
@@ -167,6 +208,7 @@ await checkRadioSongs(results);
 await checkDashboardSummary(results);
 await checkAdminRoute(results, '/admin/ads');
 await checkAdminRoute(results, '/admin/visuals/folders');
+await checkVisualFolderAssetSchema(results);
 await checkAdminRoute(results, '/admin/video-factory/summary');
 
 printResults(results);
