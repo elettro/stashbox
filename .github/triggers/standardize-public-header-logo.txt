@@ -1,0 +1,1 @@
+Apply the verified Stashbox logo to the upper-left header on the homepage and all public subpages. Exclude the entire radio/ directory and development, archive, and admin areas. Do not change footer logos or unrelated content. Remove this trigger and its workflow after the verified update is committed.
