@@ -1,0 +1,173 @@
+name: One-Time Complete Notifications DEV
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'radio-api/deploy/notifications-dev-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  complete-notifications-dev:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: radio-api/docs/NOTIFICATIONS_DEV_DEPLOYMENT_REPORT.md
+
+    steps:
+      - name: Checkout main safely
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Add Notifications to real DEV dashboard navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('radio/dashboard/dev/index.html')
+          text = path.read_text()
+          link = '          <a href="/radio-admin/notifications/dev/">Notifications</a>\n'
+          anchor = '          <a href="/radio-admin/ads/dev/">Ads</a>\n'
+          if link not in text:
+              if anchor not in text:
+                  raise SystemExit('Could not locate Ads navigation link in DEV dashboard.')
+              text = text.replace(anchor, anchor + link, 1)
+              path.write_text(text)
+          PY
+
+      - name: Validate notification code
+        run: |
+          set -euo pipefail
+          node --check radio-api/index.mjs
+          node --check radio-api/notifications.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-admin/notifications/dev/app.js
+          node --check radio/dev/notifications.js
+          node --test radio-api/tests/notifications.test.mjs
+          grep -q '/radio-admin/notifications/dev/' radio/dashboard/dev/index.html
+
+      - name: Install Lambda production dependencies
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          else
+            npm install --omit=dev
+          fi
+
+      - name: Build TRUE DEV Lambda package
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -r dist/true-dev-lambda.zip . \
+            -x 'dist/*' \
+            -x '.git/*' \
+            -x '*.zip'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Verify exact DEV Lambda target
+        run: |
+          set -euo pipefail
+          test "${LAMBDA_NAME}" = 'stashbox-radio-api-dev-v2'
+          aws lambda get-function-configuration \
+            --function-name "${LAMBDA_NAME}" \
+            --query '{FunctionName:FunctionName,Runtime:Runtime,LastModified:LastModified}' \
+            --output json
+
+      - name: Deploy only TRUE DEV Lambda
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip
+          aws lambda wait function-updated \
+            --function-name "${LAMBDA_NAME}"
+
+      - name: Smoke test DEV notification endpoints
+        run: |
+          set -euo pipefail
+          PUBLIC_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/notifications-public.json \
+            -w '%{http_code}' \
+            "${API_BASE}/radio/notifications")
+          test "${PUBLIC_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array")' /tmp/notifications-public.json
+
+          ADMIN_STATUS=$(curl --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/notifications-admin.json \
+            -w '%{http_code}' \
+            "${API_BASE}/admin/notifications")
+          test "${ADMIN_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array")' /tmp/notifications-admin.json
+
+          printf '%s' "${PUBLIC_STATUS}" > /tmp/public-status.txt
+          printf '%s' "${ADMIN_STATUS}" > /tmp/admin-status.txt
+
+      - name: Record success and clean up one-time workflows
+        run: |
+          set -euo pipefail
+          PUBLIC_STATUS=$(cat /tmp/public-status.txt)
+          ADMIN_STATUS=$(cat /tmp/admin-status.txt)
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          {
+            echo '# Notifications DEV Deployment Report'
+            echo
+            echo "- Completed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '- Result: PASS'
+            echo '- Target Lambda: `stashbox-radio-api-dev-v2`'
+            echo '- AWS region: `us-east-1`'
+            echo '- Production Lambda touched: No'
+            echo "- Public notifications endpoint: HTTP ${PUBLIC_STATUS}"
+            echo "- Admin notifications endpoint: HTTP ${ADMIN_STATUS}"
+            echo '- DEV dashboard Notifications navigation: Added'
+            echo
+            echo '## Public response'
+            echo '```json'
+            cat /tmp/notifications-public.json
+            echo
+            echo '```'
+            echo
+            echo '## Admin response'
+            echo '```json'
+            cat /tmp/notifications-admin.json
+            echo
+            echo '```'
+          } > "${REPORT_PATH}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/dashboard/dev/index.html "${REPORT_PATH}"
+          git rm -f .github/workflows/one-time-complete-notifications-dev.yml
+          if [ -f .github/workflows/one-time-deploy-notifications-dev.yml ]; then
+            git rm -f .github/workflows/one-time-deploy-notifications-dev.yml
+          fi
+          git commit -m 'Complete notifications deployment on DEV'
+          git push origin HEAD:main
