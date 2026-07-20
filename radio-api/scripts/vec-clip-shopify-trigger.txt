@@ -1,2 +1,2 @@
 Run the VEC clip Shopify integration against agent/vec-clip-shopify-products.
-Run number: 7
+Run number: 8
