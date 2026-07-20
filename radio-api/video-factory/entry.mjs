@@ -4,21 +4,31 @@ import {
   getVideoFactoryRouteMatch,
   handleAdminVideoFactoryRoute
 } from './video-factory/render-router.mjs';
+import {
+  handleAccountRequest,
+  handleNotificationEventRequest,
+  isAccountRequest,
+  isNotificationEventRequest
+} from './account-routes.mjs';
+import {
+  getPublicAuthConfig,
+  verifyCognitoIdentity
+} from './auth.mjs';
 
 const { Client } = pg;
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,x-admin-token,Authorization',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  'Access-Control-Allow-Headers': 'Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
 };
 
-function response(statusCode, body) {
+function response(statusCode, body, headers = {}) {
   return {
     statusCode,
-    headers: JSON_HEADERS,
-    body: JSON.stringify(body)
+    headers: { ...JSON_HEADERS, ...headers },
+    body: statusCode === 204 ? '' : JSON.stringify(body)
   };
 }
 
@@ -27,7 +37,18 @@ function parseBody(event) {
   const bodyText = event.isBase64Encoded
     ? Buffer.from(event.body, 'base64').toString('utf8')
     : event.body;
-  return JSON.parse(bodyText);
+  try {
+    return JSON.parse(bodyText);
+  } catch (_) {
+    const error = new Error('Request body must be valid JSON.');
+    error.statusCode = 400;
+    error.code = 'INVALID_JSON';
+    throw error;
+  }
+}
+
+function getMethod(event) {
+  return String(event?.requestContext?.http?.method || event?.httpMethod || 'GET').toUpperCase();
 }
 
 function getPath(event) {
@@ -107,21 +128,59 @@ function buildErrorBody(error) {
     success: false,
     error: statusCode < 500 ? String(error?.message || 'Request failed.') : 'Internal Server Error'
   };
+  if (error?.code) body.code = String(error.code).slice(0, 100);
+  if (error?.scope) body.rate_limit_scope = String(error.scope).slice(0, 120);
 
   if (isDevRuntime() && statusCode >= 500) {
-    body.detail = String(error?.message || 'Unknown Video Factory error.').slice(0, 1000);
-    if (error?.code) body.code = String(error.code).slice(0, 100);
+    body.detail = String(error?.message || 'Unknown DEV API error.').slice(0, 1000);
   }
   return body;
 }
 
+function accountDeps(client) {
+  return {
+    client,
+    qname,
+    response,
+    parseBody,
+    getMethod,
+    getRouteSegments,
+    verifyIdentity: verifyCognitoIdentity,
+    getAuthConfig: getPublicAuthConfig
+  };
+}
+
 export const handler = async event => {
-  if (!isVideoFactoryRequest(event)) return radioHandler(event);
+  const safeEvent = event || {};
+  const method = getMethod(safeEvent);
+  const segments = getRouteSegments(safeEvent);
+  const accountRequest = isAccountRequest(segments);
+  const notificationEventRequest = isNotificationEventRequest(segments);
+  const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
+
+  if (!accountRequest && !notificationEventRequest && !videoFactoryRequest) {
+    return radioHandler(safeEvent);
+  }
+
+  if (method === 'OPTIONS') return response(204, {});
+
+  if (accountRequest && segments[1] === 'auth' && segments[2] === 'config' && method === 'GET') {
+    return handleAccountRequest(safeEvent, accountDeps(null));
+  }
 
   const client = getClient();
   try {
     await client.connect();
-    return await handleAdminVideoFactoryRoute(event || {}, {
+
+    if (accountRequest) {
+      return await handleAccountRequest(safeEvent, accountDeps(client));
+    }
+
+    if (notificationEventRequest) {
+      return await handleNotificationEventRequest(safeEvent, accountDeps(client));
+    }
+
+    return await handleAdminVideoFactoryRoute(safeEvent, {
       client,
       qname,
       response,
@@ -130,17 +189,17 @@ export const handler = async event => {
       requireAdmin
     });
   } catch (error) {
-    console.error('[Video Factory] request failed', {
-      path: getPath(event),
+    console.error('[DEV API wrapper] request failed', {
+      path: getPath(safeEvent),
       statusCode: error?.statusCode,
       message: error?.message,
       code: error?.code,
       stack: error?.stack
     });
-    return response(error?.statusCode || 500, buildErrorBody(error));
+    return response(error?.statusCode || 500, buildErrorBody(error), error?.headers || {});
   } finally {
     await client.end().catch(closeError => {
-      console.error('[Video Factory] PostgreSQL close failed', closeError);
+      console.error('[DEV API wrapper] PostgreSQL close failed', closeError);
     });
   }
 };

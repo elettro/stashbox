@@ -6,8 +6,16 @@ on:
     branches:
       - main
     paths:
+      - 'radio-api/index.mjs'
+      - 'radio-api/package.json'
+      - 'radio-api/auth.mjs'
+      - 'radio-api/rate-limit.mjs'
+      - 'radio-api/account-routes.mjs'
+      - 'radio-api/video-factory/entry.mjs'
+      - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
       - 'radio-api/notifications.mjs'
       - 'radio-api/notification-activity-feed.mjs'
+      - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
 
@@ -49,14 +57,23 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda and notification syntax
+      - name: Check Lambda, account, notification, and player syntax
         run: |
           node --check radio-api/index.mjs
+          node --check radio-api/auth.mjs
+          node --check radio-api/rate-limit.mjs
+          node --check radio-api/account-routes.mjs
           node --check radio-api/notifications.mjs
           node --check radio-api/notification-activity-feed.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio-api/video-factory/routes.mjs
           node --check radio-api/video-factory/recipe.mjs
+          node --check radio/dev/account.js
+          node --check radio/dev/notifications.js
+          node --check radio/dev/notifications-core.js
+
+      - name: Run account foundation tests
+        run: node --test radio-api/tests/user-accounts-foundation.test.mjs
 
       - name: Run notification tests
         run: |
@@ -85,7 +102,7 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          # Keep the existing radio API intact and wrap only private Video Factory routes.
+          # Keep the existing radio API intact and wrap only private Video Factory and listener account routes.
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
 
@@ -133,6 +150,22 @@ jobs:
       - name: Run TRUE DEV smoke test
         run: node radio-api/scripts/smoke-test-true-dev.mjs
 
+      - name: Run account route smoke test
+        run: |
+          AUTH_CONFIG_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/auth-config.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/auth/config")
+          test "${AUTH_CONFIG_STATUS}" = '200'
+          jq -e '.success == true and (.auth | type == "object")' /tmp/auth-config.json
+
+          ME_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/account-me-unauthorized.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/me")
+          test "${ME_STATUS}" = '401'
+          jq -e '.success == false and .code == "AUTH_REQUIRED"' /tmp/account-me-unauthorized.json
+
       - name: Run notification activity smoke test
         id: notification_smoke
         run: |
@@ -175,6 +208,8 @@ jobs:
             echo "- Total active public notifications: ${TOTAL_COUNT}"
             echo "- Active automatic like/share notifications: ${ACTIVITY_COUNT}"
             echo "- Activity sync result: \`${SYNC_RESULT}\`"
+            echo '- Account auth config route HTTP: 200'
+            echo '- Protected account route without token HTTP: 401'
             echo '- Rate limit: 10 automatic activity notifications per clock hour'
             echo '- Duplicate protection: one notification per song and activity type within 30 minutes'
             echo '- Listener identity exposed: No'

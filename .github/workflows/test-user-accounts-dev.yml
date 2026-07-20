@@ -1,0 +1,69 @@
+name: Test DEV User Accounts
+
+on:
+  pull_request:
+    paths:
+      - 'radio-api/auth.mjs'
+      - 'radio-api/rate-limit.mjs'
+      - 'radio-api/account-routes.mjs'
+      - 'radio-api/video-factory/entry.mjs'
+      - 'radio-api/package.json'
+      - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
+      - 'radio-api/tests/user-accounts-foundation.test.mjs'
+      - 'radio/dev/account.js'
+      - 'radio/dev/account-password-policy.js'
+      - 'radio/dev/account.css'
+      - 'radio/dev/notifications.js'
+      - 'radio/dev/notifications-core.js'
+      - 'infra/user-accounts/**'
+      - '.github/workflows/test-user-accounts-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-user-accounts:
+    name: Validate DEV account foundation without deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Lambda production dependencies
+        working-directory: radio-api
+        run: npm install --omit=dev
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check radio-api/auth.mjs
+          node --check radio-api/rate-limit.mjs
+          node --check radio-api/account-routes.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio/dev/account.js
+          node --check radio/dev/account-password-policy.js
+          node --check radio/dev/notifications.js
+          node --check radio/dev/notifications-core.js
+
+      - name: Verify auth module loads
+        working-directory: radio-api
+        run: node -e "import('./auth.mjs').then(() => console.log('auth module loaded'))"
+
+      - name: Run account foundation tests
+        run: node --test radio-api/tests/user-accounts-foundation.test.mjs
+
+      - name: Confirm production paths remain untouched
+        run: |
+          git diff --name-only origin/main...HEAD > /tmp/account-files.txt
+          if grep -E '^(radio/app\.js|radio/index\.html|radio-api/env/prod|infra/.*/prod)' /tmp/account-files.txt; then
+            echo 'Production-facing file changed in DEV account sprint.' >&2
+            exit 1
+          fi
+          echo 'No production-facing player or infrastructure files changed.'
