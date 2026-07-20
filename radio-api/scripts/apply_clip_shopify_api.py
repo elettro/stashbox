@@ -124,12 +124,16 @@ if 'function normalizeClipShopifyProductUrls' not in api:
     )
 
 if 'shopify_product_urls: mediaType ===' not in api:
-    api = replace_once(
-        api,
+    block_start = api.index('function normalizeVisualsFolderAsset(row) {')
+    block_end = api.index('\n}\n\nasync function getVisualsFolderAssets', block_start)
+    asset_block = api[block_start:block_end]
+    asset_block = replace_once(
+        asset_block,
         "    notes: row.notes || '',\n    created_at: row.created_at || '',",
         "    notes: row.notes || '',\n    shopify_product_urls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\n    shopifyProductUrls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\n    created_at: row.created_at || '',",
         'return clip Shopify URLs from asset API',
     )
+    api = api[:block_start] + asset_block + api[block_end:]
 
 api = api.replace(
     "const requiredColumns = ['id', 'folder_id', 'asset_type', 's3_key', 'public_url', 'status'];",

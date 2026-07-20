@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS radio.visuals_folder_assets (
   caption TEXT,
   alt_text TEXT,
   notes TEXT,
+  shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT visuals_folder_assets_type_check CHECK (asset_type IN ('image', 'clip')),

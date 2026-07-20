@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
+import { createClipCommerceState, normalizeCommerceProductUrls, resolveClipCommerceState } from './clip-commerce.mjs';
 
 const API_ROOT_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
@@ -366,6 +367,7 @@ function normalizeVecAsset(asset, source = 'vec') {
   const status = clean(asset.status).toLowerCase();
   if (['hidden', 'deleted', 'archived', 'inactive'].includes(status) || bool(asset.hidden) || bool(asset.deleted)) return null;
   if (!url) return null;
+  const shopifyProductUrls = normalizeCommerceProductUrls(asset.shopify_product_urls ?? asset.shopifyProductUrls ?? asset.shopify_product_url ?? asset.shopifyProductUrl ?? []);
   return {
     type: normalizeVecAssetType(asset),
     url,
@@ -376,7 +378,9 @@ function normalizeVecAsset(asset, source = 'vec') {
     caption: clean(asset.caption),
     durationSeconds: normalizeVisualDuration(asset.duration_seconds || asset.durationSeconds),
     folderId: clean(asset.folder_id || asset.folderId || asset.source_folder_id || asset.sourceFolderId || asset.source),
-    folderName: clean(asset.folder_name || asset.folderName || asset.source_folder_name || asset.sourceFolderName || asset.source)
+    folderName: clean(asset.folder_name || asset.folderName || asset.source_folder_name || asset.sourceFolderName || asset.source),
+    shopifyProductUrls,
+    shopify_product_urls: shopifyProductUrls
   };
 }
 
@@ -1260,13 +1264,16 @@ function findProductInPoolByHandle(pool, handle) {
 }
 
 async function fetchSpecificProduct(url, index, handle) {
-  const cacheKey = productHandleKey(handle);
-  if (!cacheKey) return null;
+  let productOrigin = 'https://stashbox.ai';
+  try { productOrigin = new URL(clean(url)).origin || productOrigin; } catch (_) {}
+  const cacheKey = `${productOrigin.toLowerCase()}|${productHandleKey(handle)}`;
+  if (!productHandleKey(handle)) return null;
   if (!specificProductCache.has(cacheKey)) {
-    specificProductCache.set(cacheKey, fetch(`https://stashbox.ai/products/${encodeURIComponent(handle)}.js`).then(async res => {
+    const productJsonUrl = `${productOrigin}/products/${encodeURIComponent(handle)}.js`;
+    specificProductCache.set(cacheKey, fetch(productJsonUrl).then(async res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const productJson = await res.json();
-      console.log("Specific product resolved from Shopify .js:", productJson);
+      console.log('Specific product resolved from Shopify .js:', productJson);
       const rawImage = productJson.featured_image || productJson.images?.[0];
       const image = normalizeShopifyImage(rawImage);
       const price = formatShopifyPrice(productJson.price, { cents: true });
@@ -1286,7 +1293,7 @@ async function fetchSpecificProduct(url, index, handle) {
     }));
   }
   const product = await specificProductCache.get(cacheKey);
-  console.log("Specific product resolved from Shopify .js:", product || null);
+  console.log('Specific product resolved from Shopify .js:', product || null);
   return product ? { ...product, id: `specific-${index}-${product.id || handle || clean(url)}`, url: clean(url) || product.url, specific: true } : null;
 }
 
@@ -1330,8 +1337,15 @@ function dedupeProductList(products) {
   });
 }
 
-function useProducts(selected) {
+function useProducts(selected, commerceState = null) {
   const [products, setProducts] = useState([]);
+  const productSource = clean(commerceState?.productSource || 'song') || 'song';
+  const requestedProductUrls = normalizeCommerceProductUrls(
+    commerceState && Array.isArray(commerceState.productUrls)
+      ? commerceState.productUrls
+      : selected?.specificProductUrls || []
+  );
+  const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}`;
   useEffect(() => {
     let alive = true;
     setProducts([]);
@@ -1343,35 +1357,30 @@ function useProducts(selected) {
       } catch (error) {
         console.warn('Unable to load fallback products.', error.message || error);
       }
+      if (productSource === 'random') return fallback;
       const specific = [];
-      for (const [index, url] of selected.specificProductUrls.entries()) {
-        console.log("Specific product URL:", url);
+      for (const [index, url] of requestedProductUrls.entries()) {
+        console.log('Specific product URL:', url, 'source:', productSource);
         const handle = productUrlHandle(url);
-        console.log("Extracted product handle:", handle);
         const matchedProduct = findProductInPoolByHandle(fallback, handle)
           || fallback.find(product => normalizeProductUrl(product.url) === normalizeProductUrl(url) || normalizeProductUrl(product.onlineStoreUrl) === normalizeProductUrl(url));
         if (matchedProduct) {
-          console.log("Specific product resolved from pool:", matchedProduct);
           specific.push(productFromUrl(url, index, matchedProduct));
           continue;
         }
         try {
           const fetched = handle ? await fetchSpecificProduct(url, index, handle) : null;
-          if (fetched) {
-            specific.push(fetched);
-          } else {
-            specific.push(productFromUrl(url, index));
-          }
+          specific.push(fetched || productFromUrl(url, index));
         } catch (error) {
-          console.log("Specific product resolved from Shopify .js:", null);
+          console.log('Specific product resolved from Shopify .js:', null);
           specific.push(productFromUrl(url, index));
         }
       }
-      return dedupeProductList(specific.concat(fallback)).slice(0, PRODUCT_POOL_LIMIT);
+      return dedupeProductList(specific).slice(0, PRODUCT_POOL_LIMIT);
     }
     loadProducts().then(next => { if (alive) setProducts(next); });
     return () => { alive = false; };
-  }, [selected?.idx]);
+  }, [productRequestKey]);
   return products;
 }
 
@@ -1890,9 +1899,22 @@ function App() {
   const videoCleanupInProgressRef = useRef(false);
   const isAdPlayingRef = useRef(false);
   const handledAdEndRef = useRef(false);
-  const products = useProducts(currentAd ? null : selected);
-
+  const [clipCommerceState, setClipCommerceState] = useState(() => createClipCommerceState(''));
+  const activeVisualCommerceRef = useRef(null);
   const selectedSong = selected || tracks[0] || null;
+  const handleActiveVisualChange = useCallback((asset) => {
+    const clipUrls = normalizeCommerceProductUrls(asset?.shopifyProductUrls ?? asset?.shopify_product_urls ?? []);
+    if (clipUrls.length) activeVisualCommerceRef.current = asset;
+    const songKey = clean(selectedSong?.songKey || selectedSong?.song_key || selectedSong?.idx);
+    setClipCommerceState(state => resolveClipCommerceState({
+      state,
+      songKey,
+      asset,
+      songProductUrls: selectedSong?.specificProductUrls || [],
+      now: Date.now()
+    }));
+  }, [selectedSong?.idx, selectedSong?.songKey]);
+  const products = useProducts(currentAd ? null : selectedSong, currentAd ? null : clipCommerceState);
   useEffect(() => {
     selectedRef.current = selectedSong;
     if (!selectedSong) return;
@@ -1910,6 +1932,34 @@ function App() {
     setPlayCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextPlays) }));
     setShareCounts(prev => ({ ...prev, [selectedSong.songKey]: Math.max(Number(prev[selectedSong.songKey] || 0), nextShares) }));
   }, [selectedSong]);
+
+  useEffect(() => {
+    const songKey = clean(selectedSong?.songKey || selectedSong?.song_key || selectedSong?.idx);
+    activeVisualCommerceRef.current = null;
+    setClipCommerceState(resolveClipCommerceState({
+      state: createClipCommerceState(songKey),
+      songKey,
+      asset: null,
+      songProductUrls: selectedSong?.specificProductUrls || [],
+      now: Date.now()
+    }));
+  }, [selectedSong?.idx, selectedSong?.songKey]); // resetClipCommerceStateForSong
+
+  useEffect(() => {
+    const songProductUrls = normalizeCommerceProductUrls(selectedSong?.specificProductUrls || []);
+    if (clipCommerceState.productSource !== 'clip' || !clipCommerceState.clipProductExpiresAt || !songProductUrls.length) return undefined;
+    const switchToSongProducts = () => {
+      const songKey = clean(selectedSong?.songKey || selectedSong?.song_key || selectedSong?.idx);
+      setClipCommerceState(state => resolveClipCommerceState({ state, songKey, asset: null, songProductUrls, now: Date.now() }));
+    };
+    const remaining = clipCommerceState.clipProductExpiresAt - Date.now();
+    if (remaining <= 0) {
+      switchToSongProducts();
+      return undefined;
+    }
+    const timer = window.setTimeout(switchToSongProducts, remaining);
+    return () => window.clearTimeout(timer);
+  }, [clipCommerceState.productSource, clipCommerceState.clipProductExpiresAt, selectedSong?.idx, selectedSong?.songKey, (selectedSong?.specificProductUrls || []).join('|')]);
 
   useEffect(() => {
     updateMediaSessionMetadata(selectedSong);
@@ -3155,7 +3205,7 @@ function App() {
     }
   }
 
-  function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '' }); }
+  function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '', product_source: clipCommerceState.productSource || 'random', visual_asset_id: clipCommerceState.productSource === 'clip' ? (clipCommerceState.lastClipId || '') : '', visual_folder_id: clipCommerceState.productSource === 'clip' ? (activeVisualCommerceRef.current?.folderId || '') : '' }); }
 
   if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
   if (status === 'error') return h('section', { className: 'error', role: 'alert' },
@@ -3169,7 +3219,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => { playbackStartSourceRef.current = 'manual_previous'; shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo, startSource: 'manual_previous' }); }, onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: startSource => { playbackStartSourceRef.current = startSource || playbackStartSourceRef.current || 'manual_play'; setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onActiveVisualChange: handleActiveVisualChange, onPrevious: () => { playbackStartSourceRef.current = 'manual_previous'; shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo, startSource: 'manual_previous' }); }, onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: startSource => { playbackStartSourceRef.current = startSource || playbackStartSourceRef.current || 'manual_play'; setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
@@ -3564,7 +3614,7 @@ function AdPlayer({ ad, playerRef, adBreakDisplay, adBreakMuted = false, onToggl
   );
 }
 
-function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
+function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage = '', onPrevious, onNext, onShuffle, onProductClick, likeCount, playCount, shareCount, hasLiked, onLike, onShare, shareCopied, onAudioStart, onAudioProgress, onAudioPause, onAudioComplete, onVideoStart, onVideoProgress, onVideoComplete, onYouTubeEnded, onPlaybackStatusChange, autoPlayRequest, onActiveVisualChange, onAdStarted, onAdCompleted, onAdSkipped, onAdCtaClicked, onAdError, onAdDurationKnown }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -3825,6 +3875,10 @@ function Player({ selected, audioRef, playerRef, youtubePlayerRef: externalYoutu
   const activeVisualId = clean(activeVisualAsset?.id || activeVisualAsset?.key || activeVisualAsset?.url);
   const clipIsVisible = activeVisualIsClip && visibleClipKey === activeVisualKey && visualMediaState !== VEC_MEDIA_STATES.FAILED;
   const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
+
+  useEffect(() => {
+    onActiveVisualChange?.(activeVisualIsClip ? activeVisualAsset : null);
+  }, [activeVisualKey, activeVisualIsClip, onActiveVisualChange]);
 
   useEffect(() => { onPlaybackStatusChange?.(isVideoMode ? isVideoPlaying : isPlaying); }, [isPlaying, isVideoPlaying, isVideoMode, onPlaybackStatusChange]);
 
