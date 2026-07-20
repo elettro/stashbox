@@ -65,12 +65,12 @@ export async function enforceRateLimit({
   const hashedSubject = subjectHash(getSubject(event, identity));
 
   const result = await client.query(`
-    INSERT INTO ${qname('api_rate_limit_buckets')} (
+    INSERT INTO ${qname('api_rate_limit_buckets')} AS bucket (
       scope, subject_hash, window_start, request_count, expires_at, updated_at
     ) VALUES ($1, $2, $3, 1, $4, now())
     ON CONFLICT (scope, subject_hash, window_start)
     DO UPDATE SET
-      request_count = ${qname('api_rate_limit_buckets')}.request_count + 1,
+      request_count = bucket.request_count + 1,
       expires_at = EXCLUDED.expires_at,
       updated_at = now()
     RETURNING request_count
