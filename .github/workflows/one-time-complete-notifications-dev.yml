@@ -1,7 +1,7 @@
 name: One-Time Complete Notifications DEV
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
     paths:
       - 'radio-api/deploy/notifications-dev-trigger.txt'
