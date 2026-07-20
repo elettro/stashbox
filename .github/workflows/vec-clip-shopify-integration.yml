@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install API dependencies
-        run: npm ci --prefix radio-api
+        run: npm install --prefix radio-api --no-audit --no-fund
 
       - name: Apply API and schema integration
         run: python radio-api/scripts/apply_clip_shopify_api.py
