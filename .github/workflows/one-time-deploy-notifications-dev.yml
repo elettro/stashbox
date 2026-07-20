@@ -1,0 +1,99 @@
+name: One-Time Deploy Notifications to TRUE DEV
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-deploy-notifications-dev.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-notifications-dev:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate notification code
+        run: |
+          set -euo pipefail
+          node --check radio-api/index.mjs
+          node --check radio-api/notifications.mjs
+          node --check radio-api/video-factory/entry.mjs
+          node --check radio-admin/notifications/dev/app.js
+          node --check radio/dev/notifications.js
+          node --test radio-api/tests/notifications.test.mjs
+
+      - name: Install Lambda dependencies
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          elif [ -f package.json ]; then
+            npm install --omit=dev
+          fi
+
+      - name: Build TRUE DEV Lambda ZIP
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -r dist/true-dev-lambda.zip . -x 'dist/*' '.git/*' '*.zip'
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy only TRUE DEV Lambda
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip
+          aws lambda wait function-updated --function-name "${LAMBDA_NAME}"
+
+      - name: Smoke test DEV notifications
+        run: |
+          set -euo pipefail
+          PUBLIC_STATUS=$(curl --silent --show-error --max-time 30 -o /tmp/public.json -w '%{http_code}' "${API_BASE}/radio/notifications")
+          test "${PUBLIC_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array")' /tmp/public.json
+
+          ADMIN_STATUS=$(curl --silent --show-error --max-time 30 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/admin.json -w '%{http_code}' \
+            "${API_BASE}/admin/notifications")
+          test "${ADMIN_STATUS}" = '200'
+          jq -e '.success == true and (.notifications | type == "array")' /tmp/admin.json
+
+      - name: Remove one-time workflow
+        if: success()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git rm .github/workflows/one-time-deploy-notifications-dev.yml
+          git commit -m 'Remove one-time notification DEV deploy workflow'
+          git push origin HEAD:main
