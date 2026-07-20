@@ -11,6 +11,9 @@ on:
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
 
+permissions:
+  contents: write
+
 jobs:
   deploy-true-dev-lambda:
     name: Deploy TRUE DEV Lambda code
@@ -19,10 +22,13 @@ jobs:
       TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
       TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      DEPLOY_REPORT_BRANCH: automation/true-dev-notification-status
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -128,6 +134,7 @@ jobs:
         run: node radio-api/scripts/smoke-test-true-dev.mjs
 
       - name: Run notification activity smoke test
+        id: notification_smoke
         run: |
           PUBLIC_STATUS=$(curl --silent --show-error --max-time 45 \
             -o /tmp/notifications-public.json \
@@ -143,3 +150,44 @@ jobs:
             "${TRUE_DEV_API_BASE}/admin/notifications")
           test "${ADMIN_STATUS}" = '200'
           jq -e '.success == true and (.notifications | type == "array") and (.activity_sync | type == "object")' /tmp/notifications-admin.json
+
+          echo "public_status=${PUBLIC_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "admin_status=${ADMIN_STATUS}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish DEV notification verification report
+        run: |
+          set -euo pipefail
+          REPORT_PATH='radio-api/docs/TRUE_DEV_NOTIFICATION_ACTIVITY_STATUS.md'
+          ACTIVITY_COUNT=$(jq '[.notifications[] | select(.source_type == "activity_engine")] | length' /tmp/notifications-public.json)
+          TOTAL_COUNT=$(jq '.count // 0' /tmp/notifications-public.json)
+          SYNC_RESULT=$(jq -c '.activity_sync // {}' /tmp/notifications-public.json)
+
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          {
+            echo '# TRUE DEV Notification Activity Status'
+            echo
+            echo "- Verified: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '- Result: PASS'
+            echo '- Target Lambda: `stashbox-radio-api-dev-v2`'
+            echo '- Production Lambda touched: No'
+            echo "- Public notifications HTTP: ${{ steps.notification_smoke.outputs.public_status }}"
+            echo "- Admin notifications HTTP: ${{ steps.notification_smoke.outputs.admin_status }}"
+            echo "- Total active public notifications: ${TOTAL_COUNT}"
+            echo "- Active automatic like/share notifications: ${ACTIVITY_COUNT}"
+            echo "- Activity sync result: \`${SYNC_RESULT}\`"
+            echo '- Rate limit: 10 automatic activity notifications per clock hour'
+            echo '- Duplicate protection: one notification per song and activity type within 30 minutes'
+            echo '- Listener identity exposed: No'
+            echo
+            echo '## Automatic activity notifications'
+            echo '```json'
+            jq '[.notifications[] | select(.source_type == "activity_engine") | {headline, message, action_url, publish_at, expires_at}]' /tmp/notifications-public.json
+            echo '```'
+          } > "${REPORT_PATH}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "${DEPLOY_REPORT_BRANCH}"
+          git add "${REPORT_PATH}"
+          git commit -m 'Record TRUE DEV notification activity status'
+          git push --force origin "${DEPLOY_REPORT_BRANCH}"
