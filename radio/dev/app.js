@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import { flushSync } from 'https://esm.sh/react-dom@18.3.1';
-import { createClipCommerceState, normalizeCommerceProductUrls, resolveClipCommerceState } from './clip-commerce.mjs';
+import { createClipCommerceState, normalizeCommerceProductUrls, overlayClipProducts, resolveClipCommerceState } from './clip-commerce.mjs';
 
 const API_ROOT_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const SONGS_API_URL = `${API_ROOT_URL}/radio/songs`;
@@ -1345,10 +1345,33 @@ function useProducts(selected, commerceState = null) {
       ? commerceState.productUrls
       : selected?.specificProductUrls || []
   );
-  const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}`;
+  const songProductUrls = normalizeCommerceProductUrls(selected?.specificProductUrls || []);
+  const productRequestKey = `${selected?.idx || ''}|${productSource}|${requestedProductUrls.join('|')}|song:${songProductUrls.join('|')}`;
   useEffect(() => {
     let alive = true;
-    setProducts([]);
+
+    async function resolveSpecificProducts(urls, fallback, source) {
+      const specific = [];
+      for (const [index, url] of urls.entries()) {
+        console.log('Specific product URL:', url, 'source:', source);
+        const handle = productUrlHandle(url);
+        const matchedProduct = findProductInPoolByHandle(fallback, handle)
+          || fallback.find(product => normalizeProductUrl(product.url) === normalizeProductUrl(url) || normalizeProductUrl(product.onlineStoreUrl) === normalizeProductUrl(url));
+        if (matchedProduct) {
+          specific.push({ ...productFromUrl(url, index, matchedProduct), commerceSource: source });
+          continue;
+        }
+        try {
+          const fetched = handle ? await fetchSpecificProduct(url, index, handle) : null;
+          specific.push({ ...(fetched || productFromUrl(url, index)), commerceSource: source });
+        } catch (error) {
+          console.log('Specific product resolved from Shopify .js:', null);
+          specific.push({ ...productFromUrl(url, index), commerceSource: source });
+        }
+      }
+      return dedupeProductList(specific).slice(0, PRODUCT_POOL_LIMIT);
+    }
+
     async function loadProducts() {
       if (!selected) return [];
       let fallback = [];
@@ -1357,27 +1380,19 @@ function useProducts(selected, commerceState = null) {
       } catch (error) {
         console.warn('Unable to load fallback products.', error.message || error);
       }
-      if (productSource === 'random') return fallback;
-      const specific = [];
-      for (const [index, url] of requestedProductUrls.entries()) {
-        console.log('Specific product URL:', url, 'source:', productSource);
-        const handle = productUrlHandle(url);
-        const matchedProduct = findProductInPoolByHandle(fallback, handle)
-          || fallback.find(product => normalizeProductUrl(product.url) === normalizeProductUrl(url) || normalizeProductUrl(product.onlineStoreUrl) === normalizeProductUrl(url));
-        if (matchedProduct) {
-          specific.push(productFromUrl(url, index, matchedProduct));
-          continue;
-        }
-        try {
-          const fetched = handle ? await fetchSpecificProduct(url, index, handle) : null;
-          specific.push(fetched || productFromUrl(url, index));
-        } catch (error) {
-          console.log('Specific product resolved from Shopify .js:', null);
-          specific.push(productFromUrl(url, index));
-        }
+
+      const randomProducts = fallback.map(product => ({ ...product, commerceSource: 'random' }));
+      const songProducts = await resolveSpecificProducts(songProductUrls, fallback, 'song');
+      const baselineProducts = songProducts.length ? songProducts : randomProducts;
+
+      if (productSource === 'clip') {
+        const clipProducts = await resolveSpecificProducts(requestedProductUrls, fallback, 'clip');
+        return overlayClipProducts(clipProducts, baselineProducts, PRODUCT_POOL_LIMIT);
       }
-      return dedupeProductList(specific).slice(0, PRODUCT_POOL_LIMIT);
+      if (productSource === 'song') return songProducts.slice(0, PRODUCT_POOL_LIMIT);
+      return randomProducts.slice(0, PRODUCT_POOL_LIMIT);
     }
+
     loadProducts().then(next => { if (alive) setProducts(next); });
     return () => { alive = false; };
   }, [productRequestKey]);
@@ -3205,7 +3220,7 @@ function App() {
     }
   }
 
-  function handleProductClick(product) { sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '', product_source: clipCommerceState.productSource || 'random', visual_asset_id: clipCommerceState.productSource === 'clip' ? (clipCommerceState.lastClipId || '') : '', visual_folder_id: clipCommerceState.productSource === 'clip' ? (activeVisualCommerceRef.current?.folderId || '') : '' }); }
+  function handleProductClick(product) { const productSource = clean(product?.commerceSource || clipCommerceState.productSource || 'random') || 'random'; const isClipProduct = productSource === 'clip'; sendTrackingEvent(selectedSong, 'product_click', sessionId, { product_url: product?.url || '', product_source: productSource, visual_asset_id: isClipProduct ? (clipCommerceState.lastClipId || '') : '', visual_folder_id: isClipProduct ? (activeVisualCommerceRef.current?.folderId || '') : '' }); }
 
   if (status === 'loading') return h('div', { className: 'radio-app' }, h(RadioControlBar, { trackCount: tracks.length, isLoading: true, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: true, disableShuffle: true }), h('section', { className: 'loading-shell', 'aria-live': 'polite' }, h('img', { src: '/images/branding/stashbox-logo-transparent-rastacolors.png', alt: 'Stashbox', className: 'loading-logo' }), h('p', null, 'Loading songs from the AWS RDS API…')));
   if (status === 'error') return h('section', { className: 'error', role: 'alert' },
