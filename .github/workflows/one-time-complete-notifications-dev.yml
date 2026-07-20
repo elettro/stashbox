@@ -19,6 +19,7 @@ jobs:
       API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
       REPORT_PATH: radio-api/docs/NOTIFICATIONS_DEV_DEPLOYMENT_REPORT.md
+      OUTPUT_BRANCH: automation/notifications-dev-complete-20260720
 
     steps:
       - name: Checkout main safely
@@ -130,7 +131,7 @@ jobs:
           printf '%s' "${PUBLIC_STATUS}" > /tmp/public-status.txt
           printf '%s' "${ADMIN_STATUS}" > /tmp/admin-status.txt
 
-      - name: Record successful DEV completion
+      - name: Record successful DEV completion on mergeable branch
         run: |
           set -euo pipefail
           PUBLIC_STATUS=$(cat /tmp/public-status.txt)
@@ -163,7 +164,7 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "${OUTPUT_BRANCH}"
           git add radio/dashboard/dev/index.html "${REPORT_PATH}"
           git commit -m 'Complete notifications deployment on DEV'
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git push origin "${OUTPUT_BRANCH}"
