@@ -1,1 +1,2 @@
 Add upper-left shopping cart indicators to VEC Lab clip thumbnails using the existing Shopify product URL count.
+Validation run: 2
