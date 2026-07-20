@@ -1,5 +1,6 @@
 -- DEV only: allow reusable VEC folder clips to carry Shopify product URLs.
 -- Apply against the schema selected by the DEV Lambda PGSCHEMA value.
+-- Release trigger: guarded TRUE DEV deployment workflow.
 
 ALTER TABLE radio_dev.visuals_folder_assets
   ADD COLUMN IF NOT EXISTS shopify_product_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
