@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+// DEV feed policy: recent likes and shares only, capped and deduplicated.
+
 const ACTIVITY_SOURCE_TYPE = 'activity_engine';
 const ACTIVITY_EVENT_TYPES = new Set(['like', 'share']);
 const ACTIVITY_MAX_PER_HOUR = 10;
