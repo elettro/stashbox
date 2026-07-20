@@ -1,0 +1,53 @@
+name: Apply DEV Account API Throttling
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply-dev-throttling:
+    name: Protect TRUE DEV API Gateway stage
+    runs-on: ubuntu-latest
+    env:
+      API_ID: d21fbe6u80
+      STAGE_NAME: dev
+      AWS_REGION: us-east-1
+      DEFAULT_RATE: '250'
+      DEFAULT_BURST: '500'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate DEV-only target
+        run: |
+          set -euo pipefail
+          test "${API_ID}" = 'd21fbe6u80'
+          test "${STAGE_NAME}" = 'dev'
+          test "${AWS_REGION}" = 'us-east-1'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Apply DEV API throttling
+        run: bash infra/user-accounts/apply-dev-api-throttling.sh
+
+      - name: Verify DEV API throttling
+        run: |
+          set -euo pipefail
+          aws apigatewayv2 get-stage \
+            --api-id "${API_ID}" \
+            --stage-name "${STAGE_NAME}" \
+            --region "${AWS_REGION}" \
+            --query '{StageName:StageName,Rate:DefaultRouteSettings.ThrottlingRateLimit,Burst:DefaultRouteSettings.ThrottlingBurstLimit}' \
+            --output json > /tmp/dev-stage-throttling.json
+          cat /tmp/dev-stage-throttling.json
+          test "$(jq -r '.StageName' /tmp/dev-stage-throttling.json)" = 'dev'
+          test "$(jq -r '.Rate' /tmp/dev-stage-throttling.json)" = '250.0'
+          test "$(jq -r '.Burst' /tmp/dev-stage-throttling.json)" = '500'
