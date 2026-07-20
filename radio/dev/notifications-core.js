@@ -208,6 +208,16 @@
     renderList();
   }
 
+  function applyAccountState(detail = {}) {
+    const accountReadIds = Array.isArray(detail.readIds) ? detail.readIds : [];
+    const accountDismissedIds = Array.isArray(detail.dismissedIds) ? detail.dismissedIds : [];
+    accountReadIds.forEach((id) => readIds.add(String(id)));
+    accountDismissedIds.forEach((id) => dismissedIds.add(String(id)));
+    saveSet(READ_STORAGE_KEY, readIds);
+    saveSet(DISMISSED_STORAGE_KEY, dismissedIds);
+    renderList();
+  }
+
   function setDrawerOpen(open) {
     state.open = open;
     ui.drawer.hidden = !open;
@@ -238,6 +248,7 @@
     }
   }
 
+  window.addEventListener('stashbox-notification-account-state', (event) => applyAccountState(event.detail));
   ui.bell.addEventListener('click', () => setDrawerOpen(!state.open));
   ui.close.addEventListener('click', () => setDrawerOpen(false));
   ui.markAllRead.addEventListener('click', () => markRead(activeNotifications().map((notification) => notification.id)));
