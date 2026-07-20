@@ -1,16 +1,6 @@
-name: VEC Clip Shopify Integration
+name: VEC Clip Shopify Finalize
 
 on:
-  push:
-    branches:
-      - agent/vec-clip-shopify-products
-    paths:
-      - '.github/workflows/vec-clip-shopify-integration.yml'
-      - 'radio-api/scripts/apply_clip_shopify_api.py'
-      - 'radio-api/scripts/apply_clip_shopify_cms.py'
-      - 'radio-api/scripts/apply_clip_shopify_player.py'
-      - 'radio/dev/clip-commerce.mjs'
-      - 'radio-api/tests/clip-commerce-state.test.mjs'
   pull_request:
     branches:
       - agent/vec-clip-shopify-products
@@ -21,11 +11,11 @@ permissions:
   contents: write
 
 jobs:
-  integrate:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out integration branch
+      - name: Check out feature branch
         uses: actions/checkout@v4
         with:
           ref: agent/vec-clip-shopify-products
@@ -34,81 +24,122 @@ jobs:
       - name: Install API dependencies
         run: npm install --prefix radio-api --no-audit --no-fund
 
-      - name: Scope API patch to folder assets
+      - name: Optimize clip product loading and CMS errors
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
-          path = Path('radio-api/scripts/apply_clip_shopify_api.py')
-          source = path.read_text(encoding='utf-8')
-          pattern = r"if 'shopify_product_urls: mediaType ===' not in api:\n.*?\n\napi = api\.replace\("
-          replacement = '''if 'shopify_product_urls: mediaType ===' not in api:
-              block_start = api.index('function normalizeVisualsFolderAsset(row) {')
-              block_end = api.index('\\n}\\n\\nasync function getVisualsFolderAssets', block_start)
-              asset_block = api[block_start:block_end]
-              asset_block = replace_once(
-                  asset_block,
-                  "    notes: row.notes || '',\\n    created_at: row.created_at || '',",
-                  "    notes: row.notes || '',\\n    shopify_product_urls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\\n    shopifyProductUrls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\\n    created_at: row.created_at || '',",
-                  'return clip Shopify URLs from asset API',
-              )
-              api = api[:block_start] + asset_block + api[block_end:]
 
-          api = api.replace('''
-          updated, count = re.subn(pattern, lambda _: replacement, source, count=1, flags=re.S)
-          if count != 1:
-              raise SystemExit(f'API patch anchor hotfix expected 1 match, found {count}')
-          path.write_text(updated, encoding='utf-8')
+          player_path = Path('radio/dev/app.js')
+          player = player_path.read_text(encoding='utf-8')
+
+          if 'function preloadSpecificProductUrls' not in player:
+              anchor = "\nasync function fetchFallbackProducts() {"
+              helper = '''
+function preloadSpecificProductUrls(value) {
+  normalizeCommerceProductUrls(value).forEach((url, index) => {
+    const handle = productUrlHandle(url);
+    if (!handle) return;
+    fetchSpecificProduct(url, index, handle).catch(error => {
+      console.warn('[Stashbox Radio Dev] clip product preload failed', { url, error: error?.message || error });
+    });
+  });
+}
+'''
+              if player.count(anchor) != 1:
+                  raise SystemExit('Specific product preload anchor was not unique.')
+              player = player.replace(anchor, helper + anchor, 1)
+
+          old_start = """    let alive = true;
+    setProducts([]);
+    async function loadProducts() {"""
+          new_start = """    let alive = true;
+    const immediateProducts = productSource === 'random'
+      ? []
+      : requestedProductUrls.map((url, index) => productFromUrl(url, index));
+    setProducts(dedupeProductList(immediateProducts).slice(0, PRODUCT_POOL_LIMIT));
+    async function loadProducts() {"""
+          if old_start in player:
+              player = player.replace(old_start, new_start, 1)
+
+          old_fallback = """      let fallback = [];
+      try {
+        fallback = rotateBySeed(await fetchFallbackProducts(), selected?.title).slice(0, PRODUCT_POOL_LIMIT);
+      } catch (error) {
+        console.warn('Unable to load fallback products.', error.message || error);
+      }
+      if (productSource === 'random') return fallback;"""
+          new_fallback = """      let fallback = Array.isArray(cachedStoreProducts)
+        ? rotateBySeed(cachedStoreProducts, selected?.title).slice(0, PRODUCT_POOL_LIMIT)
+        : [];
+      if (productSource === 'random') {
+        if (!fallback.length) {
+          try {
+            fallback = rotateBySeed(await fetchFallbackProducts(), selected?.title).slice(0, PRODUCT_POOL_LIMIT);
+          } catch (error) {
+            console.warn('Unable to load fallback products.', error.message || error);
+          }
+        }
+        return fallback;
+      }"""
+          if old_fallback in player:
+              player = player.replace(old_fallback, new_fallback, 1)
+
+          preload_anchor = """  const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
+
+  useEffect(() => {
+    onActiveVisualChange?.(activeVisualIsClip ? activeVisualAsset : null);"""
+          preload_effect = """  const playbackStartMs = useMemo(() => Date.now(), [selected?.idx, mediaMode, activeVideoEmbedUrl]);
+
+  useEffect(() => {
+    const productUrls = (visualSequenceState.assets || []).flatMap(asset => asset?.shopifyProductUrls || asset?.shopify_product_urls || []);
+    preloadSpecificProductUrls(productUrls);
+  }, [visualSequenceState.songKey, visualSequenceState.assets]);
+
+  useEffect(() => {
+    onActiveVisualChange?.(activeVisualIsClip ? activeVisualAsset : null);"""
+          if preload_anchor in player:
+              player = player.replace(preload_anchor, preload_effect, 1)
+
+          player_path.write_text(player, encoding='utf-8')
+
+          cms_path = Path('radio/visual-experience/dev/index.html')
+          cms = cms_path.read_text(encoding='utf-8')
+          cms = cms.replace(
+              "catch(error){console.error(error);mediaMessage('Could not save asset details.','error')}",
+              "catch(error){console.error(error);mediaMessage(error.message||'Could not save asset details.','error')}",
+              1,
+          )
+          cms_path.write_text(cms, encoding='utf-8')
+
+          test_path = Path('radio-api/tests/clip-shopify-integration-source.test.mjs')
+          test_source = test_path.read_text(encoding='utf-8')
+          if 'preloadSpecificProductUrls' not in test_source:
+              test_source = test_source.replace(
+                  "  assert.match(player, /clipCommerceState/);",
+                  "  assert.match(player, /clipCommerceState/);\n  assert.match(player, /preloadSpecificProductUrls/);\n  assert.doesNotMatch(player, /specific\\.concat\\(fallback\\)/);",
+                  1,
+              )
+          test_path.write_text(test_source, encoding='utf-8')
           PY
 
-      - name: Apply API and schema integration
-        id: api_patch
-        continue-on-error: true
-        run: python radio-api/scripts/apply_clip_shopify_api.py > radio-api/scripts/clip-shopify-api-patch.log 2>&1
-
-      - name: Publish API patch diagnostics
-        if: steps.api_patch.outcome == 'failure'
-        run: |
-          cat radio-api/scripts/clip-shopify-api-patch.log
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add radio-api/scripts/clip-shopify-api-patch.log
-          git commit -m "Capture clip Shopify API patch failure [skip ci]"
-          git push origin HEAD:agent/vec-clip-shopify-products
-          exit 1
-
-      - name: Apply VEC CMS integration
-        run: python radio-api/scripts/apply_clip_shopify_cms.py
-
-      - name: Apply DEV player integration
-        run: python radio-api/scripts/apply_clip_shopify_player.py
-
-      - name: Validate whitespace and syntax
+      - name: Validate final feature
         run: |
           git diff --check
           node --check radio-api/index.mjs
           node --check radio/dev/app.js
-          python -m py_compile radio-api/scripts/apply_clip_shopify_api.py radio-api/scripts/apply_clip_shopify_cms.py radio-api/scripts/apply_clip_shopify_player.py
+          node --test radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs radio-api/tests/visual-folder-assets-routing.test.mjs
 
-      - name: Run clip commerce and routing tests
-        run: node --test radio-api/tests/clip-commerce-state.test.mjs radio-api/tests/clip-shopify-integration-source.test.mjs radio-api/tests/visual-folder-assets-routing.test.mjs
-
-      - name: Commit integrated DEV feature
+      - name: Remove temporary integration tooling and commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
+          git add radio/dev/app.js radio/visual-experience/dev/index.html radio-api/tests/clip-shopify-integration-source.test.mjs
+          git rm -f \
+            .github/workflows/vec-clip-shopify-integration.yml \
             radio-api/scripts/apply_clip_shopify_api.py \
-            radio-api/index.mjs \
-            radio-admin/dev/ads/migrations/create_visuals_folder_assets.sql \
-            radio-api/db/dev/CREATE_RADIO_DEV_SCHEMA.sql \
-            radio/visual-experience/dev/index.html \
-            radio/dev/app.js \
-            radio-api/tests/clip-shopify-integration-source.test.mjs
-          git rm -f --ignore-unmatch radio-api/scripts/clip-shopify-api-patch.log
-          if git diff --cached --quiet; then
-            echo "Feature integration is already current."
-          else
-            git commit -m "Wire VEC clip Shopify products in DEV [skip ci]"
-            git push origin HEAD:agent/vec-clip-shopify-products
-          fi
+            radio-api/scripts/apply_clip_shopify_cms.py \
+            radio-api/scripts/apply_clip_shopify_player.py \
+            radio-api/scripts/inspect-clip-commerce-targets.mjs \
+            radio-api/scripts/vec-clip-shopify-inspection.txt
+          git commit -m "Finalize VEC clip Shopify products in DEV [skip ci]"
+          git push origin HEAD:agent/vec-clip-shopify-products
