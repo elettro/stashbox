@@ -1,0 +1,32 @@
+name: VEC Clip Shopify Integration
+
+on:
+  push:
+    branches:
+      - agent/vec-clip-shopify-products
+    paths:
+      - '.github/workflows/vec-clip-shopify-integration.yml'
+      - 'radio-api/scripts/inspect-clip-commerce-targets.mjs'
+      - 'radio-api/scripts/apply-clip-shopify-integration.mjs'
+      - 'radio/dev/clip-commerce.mjs'
+      - 'radio-api/tests/clip-commerce-state.test.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/vec-clip-shopify-products
+          fetch-depth: 0
+
+      - name: Inspect integration anchors
+        run: node radio-api/scripts/inspect-clip-commerce-targets.mjs
+
+      - name: Run clip commerce unit tests
+        run: node --test radio-api/tests/clip-commerce-state.test.mjs
