@@ -62,7 +62,20 @@ jobs:
           PY
 
       - name: Apply API and schema integration
-        run: python radio-api/scripts/apply_clip_shopify_api.py
+        id: api_patch
+        continue-on-error: true
+        run: python radio-api/scripts/apply_clip_shopify_api.py > radio-api/scripts/clip-shopify-api-patch.log 2>&1
+
+      - name: Publish API patch diagnostics
+        if: steps.api_patch.outcome == 'failure'
+        run: |
+          cat radio-api/scripts/clip-shopify-api-patch.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio-api/scripts/clip-shopify-api-patch.log
+          git commit -m "Capture clip Shopify API patch failure [skip ci]"
+          git push origin HEAD:agent/vec-clip-shopify-products
+          exit 1
 
       - name: Apply VEC CMS integration
         run: python radio-api/scripts/apply_clip_shopify_cms.py
@@ -92,6 +105,7 @@ jobs:
             radio/visual-experience/dev/index.html \
             radio/dev/app.js \
             radio-api/tests/clip-shopify-integration-source.test.mjs
+          git rm -f --ignore-unmatch radio-api/scripts/clip-shopify-api-patch.log
           if git diff --cached --quiet; then
             echo "Feature integration is already current."
           else
