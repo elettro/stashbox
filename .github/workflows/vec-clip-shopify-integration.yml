@@ -34,6 +34,33 @@ jobs:
       - name: Install API dependencies
         run: npm install --prefix radio-api --no-audit --no-fund
 
+      - name: Scope API patch to folder assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('radio-api/scripts/apply_clip_shopify_api.py')
+          source = path.read_text(encoding='utf-8')
+          pattern = r"if 'shopify_product_urls: mediaType ===' not in api:\n.*?\n\napi = api\.replace\("
+          replacement = '''if 'shopify_product_urls: mediaType ===' not in api:
+              block_start = api.index('function normalizeVisualsFolderAsset(row) {')
+              block_end = api.index('\\n}\\n\\nasync function getVisualsFolderAssets', block_start)
+              asset_block = api[block_start:block_end]
+              asset_block = replace_once(
+                  asset_block,
+                  "    notes: row.notes || '',\\n    created_at: row.created_at || '',",
+                  "    notes: row.notes || '',\\n    shopify_product_urls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\\n    shopifyProductUrls: mediaType === 'clip' ? normalizeClipShopifyProductUrls(row.shopify_product_urls).urls : [],\\n    created_at: row.created_at || '',",
+                  'return clip Shopify URLs from asset API',
+              )
+              api = api[:block_start] + asset_block + api[block_end:]
+
+          api = api.replace('''
+          updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'API patch anchor hotfix expected 1 match, found {count}')
+          path.write_text(updated, encoding='utf-8')
+          PY
+
       - name: Apply API and schema integration
         run: python radio-api/scripts/apply_clip_shopify_api.py
 
@@ -58,6 +85,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
+            radio-api/scripts/apply_clip_shopify_api.py \
             radio-api/index.mjs \
             radio-admin/dev/ads/migrations/create_visuals_folder_assets.sql \
             radio-api/db/dev/CREATE_RADIO_DEV_SCHEMA.sql \
