@@ -1,4 +1,8 @@
 import crypto from 'node:crypto';
+import {
+  ensureNotificationActivityColumns,
+  safelySyncRecentSongActivityNotifications
+} from './notification-activity-feed.mjs';
 
 const NOTIFICATION_STATUSES = new Set(['draft', 'published', 'archived']);
 const NOTIFICATION_AUDIENCES = new Set([
@@ -165,6 +169,8 @@ async function ensureNotificationTables({ client, qname }) {
     )
   `);
 
+  await ensureNotificationActivityColumns({ client, qname });
+
   await client.query(`
     CREATE TABLE IF NOT EXISTS ${qname('notification_events')} (
       id BIGSERIAL PRIMARY KEY,
@@ -231,6 +237,8 @@ function notificationSelect(qname) {
     n.publish_at,
     n.expires_at,
     n.created_by,
+    n.source_type,
+    n.source_key,
     n.created_at,
     n.updated_at,
     COALESCE(e.view_count, 0)::int AS view_count,
@@ -252,6 +260,7 @@ function notificationSelect(qname) {
 async function listPublicNotifications(event, deps) {
   const { client, qname, response } = deps;
   await ensureNotificationTables(deps);
+  const activitySync = await safelySyncRecentSongActivityNotifications(deps);
   const rawLimit = Number(event.queryStringParameters?.limit || 50);
   const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(100, Math.round(rawLimit))) : 50;
   const result = await client.query(`
@@ -268,6 +277,7 @@ async function listPublicNotifications(event, deps) {
       dismissible,
       publish_at,
       expires_at,
+      source_type,
       created_at
     FROM ${qname('notifications')}
     WHERE status = 'published'
@@ -277,7 +287,12 @@ async function listPublicNotifications(event, deps) {
     ORDER BY pinned DESC, priority DESC, publish_at DESC NULLS LAST, created_at DESC
     LIMIT $1
   `, [limit]);
-  return response(200, { success: true, notifications: result.rows, count: result.rowCount });
+  return response(200, {
+    success: true,
+    notifications: result.rows,
+    count: result.rowCount,
+    activity_sync: activitySync
+  });
 }
 
 async function recordNotificationEvent(event, deps) {
@@ -303,6 +318,7 @@ async function recordNotificationEvent(event, deps) {
 async function listAdminNotifications(deps) {
   const { client, qname, response } = deps;
   await ensureNotificationTables(deps);
+  const activitySync = await safelySyncRecentSongActivityNotifications(deps);
   const result = await client.query(`
     SELECT ${notificationSelect(qname)}
     ORDER BY
@@ -312,7 +328,12 @@ async function listAdminNotifications(deps) {
       n.publish_at DESC NULLS LAST,
       n.created_at DESC
   `);
-  return response(200, { success: true, notifications: result.rows, count: result.rowCount });
+  return response(200, {
+    success: true,
+    notifications: result.rows,
+    count: result.rowCount,
+    activity_sync: activitySync
+  });
 }
 
 async function getAdminNotification(notificationId, deps) {
