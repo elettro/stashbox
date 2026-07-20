@@ -10,6 +10,8 @@
 
   loadScript('./account.js')
     .catch((error) => console.error('[accounts] DEV account bootstrap failed', error))
-    .finally(() => loadScript('./notifications-core.js')
-      .catch((error) => console.error('[notifications] DEV notification client failed', error)));
+    .finally(() => Promise.all([
+      loadScript('./notification-account-sync.js'),
+      loadScript('./notifications-core.js')
+    ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
