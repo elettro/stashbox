@@ -1,0 +1,55 @@
+name: One-Time Integrate Public Notifications PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-integrate-public-notifications-pr.yml'
+      - 'radio-api/scripts/integrate-public-notifications.py'
+      - 'radio-api/notifications.mjs'
+      - 'radio-api/tests/notifications.test.mjs'
+      - 'radio-admin/notifications/dev/**'
+      - 'radio/dev/notifications.*'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.pull_request.head.ref == 'agent/public-notifications-foundation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/public-notifications-foundation
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Apply notification integration patches
+        run: python3 radio-api/scripts/integrate-public-notifications.py
+
+      - name: Validate notification implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check radio-api/index.mjs
+          node --check radio-api/notifications.mjs
+          node --check radio-admin/notifications/dev/app.js
+          node --check radio/dev/notifications.js
+          node --test radio-api/tests/notifications.test.mjs
+
+      - name: Commit integrated notification foundation
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-time-integrate-public-notifications.yml
+          git rm .github/workflows/one-time-integrate-public-notifications-pr.yml
+          git rm radio-api/scripts/integrate-public-notifications.py
+          git add radio-api/index.mjs radio-api/notifications.mjs radio-admin radio/dev/index.html
+          git commit -m 'Integrate public notification foundation'
+          git push origin HEAD:${HEAD_BRANCH}
