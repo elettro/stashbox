@@ -1,0 +1,1 @@
+Run the reviewed clip-linked Shopify product finalizer and TRUE DEV deployment.
