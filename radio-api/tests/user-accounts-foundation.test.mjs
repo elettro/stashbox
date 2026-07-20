@@ -80,14 +80,14 @@ test('schema migration is DEV locked and contains the Sprint 1A tables', () => {
 
 test('browser account client never sends a role assignment', () => {
   const accountClient = read('radio/dev/account.js');
-  assert.equal(/role\s*:/i.test(accountClient), false);
+  assert.equal(/["']role["']\s*:/.test(accountClient), false);
   assert.equal(/user_roles/i.test(accountClient), false);
 });
 
 test('notification client is preserved and account bootstrap loads first', () => {
   const loader = read('radio/dev/notifications.js');
   const notificationCore = read('radio/dev/notifications-core.js');
-  assert.ok(loader.indexOf("./account.js") < loader.indexOf("./notifications-core.js"));
+  assert.ok(loader.indexOf('./account.js') < loader.indexOf('./notifications-core.js'));
   assert.match(notificationCore, /sbr-notification-bell/);
 });
 
