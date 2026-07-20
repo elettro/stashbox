@@ -284,7 +284,7 @@ function renderStats() {
     totals.clicks += Number(notification.click_count || 0);
     if (notification.status === 'draft') totals.draft += 1;
     if (notification.status === 'archived') totals.archived += 1;
-    if (notification.status === 'published') {
+    if (notification.status === 'published' && notification.audience_type === 'public') {
       const publishTime = notification.publish_at ? new Date(notification.publish_at).getTime() : 0;
       const expiresTime = notification.expires_at ? new Date(notification.expires_at).getTime() : Infinity;
       if (publishTime > now) totals.scheduled += 1;

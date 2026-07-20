@@ -70,37 +70,46 @@ function isEventsRoute(event) {
 
 function normalizeNotificationInput(input = {}, { partial = false } = {}) {
   const output = {};
-  const assign = (field, value) => {
-    if (!partial || value !== undefined) output[field] = value;
+  const hasAny = (...keys) => keys.some((key) => Object.prototype.hasOwnProperty.call(input, key));
+  const assign = (field, keys, factory) => {
+    if (partial && !hasAny(...keys)) return;
+    output[field] = factory();
   };
 
-  assign('internal_title', cleanText(input.internal_title ?? input.internalTitle, 250));
-  assign('headline', cleanText(input.headline ?? input.title, 250));
-  assign('message', cleanText(input.message ?? input.description, 5000));
-  assign('category', NOTIFICATION_CATEGORIES.has(cleanText(input.category, 80)) ? cleanText(input.category, 80) : 'stashbox_news');
-  assign('image_url', cleanText(input.image_url ?? input.imageUrl, 2000) || null);
-  assign('action_label', cleanText(input.action_label ?? input.actionLabel, 80) || null);
-  assign('action_url', cleanText(input.action_url ?? input.actionUrl, 2000) || null);
-
-  const status = cleanText(input.status, 40).toLowerCase();
-  assign('status', NOTIFICATION_STATUSES.has(status) ? status : 'draft');
-
-  const audience = cleanText(input.audience_type ?? input.audienceType, 80).toLowerCase();
-  assign('audience_type', NOTIFICATION_AUDIENCES.has(audience) ? audience : 'public');
-
-  const rawPriority = Number(input.priority);
-  assign('priority', Number.isFinite(rawPriority) ? Math.max(0, Math.min(100, Math.round(rawPriority))) : 50);
-  assign('pinned', normalizeBoolean(input.pinned, false));
-  assign('dismissible', normalizeBoolean(input.dismissible, true));
-  assign('artist_keys', cleanStringArray(input.artist_keys ?? input.artistKeys));
-  assign('target_user_ids', cleanStringArray(input.target_user_ids ?? input.targetUserIds, 1000));
-
-  const requestedChannels = cleanStringArray(input.delivery_channels ?? input.deliveryChannels, 10)
-    .filter((channel) => DELIVERY_CHANNELS.has(channel));
-  assign('delivery_channels', requestedChannels.length ? requestedChannels : ['in_app']);
-  assign('publish_at', normalizeTimestamp(input.publish_at ?? input.publishAt));
-  assign('expires_at', normalizeTimestamp(input.expires_at ?? input.expiresAt));
-  assign('created_by', cleanText(input.created_by ?? input.createdBy, 200) || 'admin');
+  assign('internal_title', ['internal_title', 'internalTitle'], () => cleanText(input.internal_title ?? input.internalTitle, 250));
+  assign('headline', ['headline', 'title'], () => cleanText(input.headline ?? input.title, 250));
+  assign('message', ['message', 'description'], () => cleanText(input.message ?? input.description, 5000));
+  assign('category', ['category'], () => {
+    const category = cleanText(input.category, 80);
+    return NOTIFICATION_CATEGORIES.has(category) ? category : 'stashbox_news';
+  });
+  assign('image_url', ['image_url', 'imageUrl'], () => cleanText(input.image_url ?? input.imageUrl, 2000) || null);
+  assign('action_label', ['action_label', 'actionLabel'], () => cleanText(input.action_label ?? input.actionLabel, 80) || null);
+  assign('action_url', ['action_url', 'actionUrl'], () => cleanText(input.action_url ?? input.actionUrl, 2000) || null);
+  assign('status', ['status'], () => {
+    const status = cleanText(input.status, 40).toLowerCase();
+    return NOTIFICATION_STATUSES.has(status) ? status : 'draft';
+  });
+  assign('audience_type', ['audience_type', 'audienceType'], () => {
+    const audience = cleanText(input.audience_type ?? input.audienceType, 80).toLowerCase();
+    return NOTIFICATION_AUDIENCES.has(audience) ? audience : 'public';
+  });
+  assign('priority', ['priority'], () => {
+    const rawPriority = Number(input.priority);
+    return Number.isFinite(rawPriority) ? Math.max(0, Math.min(100, Math.round(rawPriority))) : 50;
+  });
+  assign('pinned', ['pinned'], () => normalizeBoolean(input.pinned, false));
+  assign('dismissible', ['dismissible'], () => normalizeBoolean(input.dismissible, true));
+  assign('artist_keys', ['artist_keys', 'artistKeys'], () => cleanStringArray(input.artist_keys ?? input.artistKeys));
+  assign('target_user_ids', ['target_user_ids', 'targetUserIds'], () => cleanStringArray(input.target_user_ids ?? input.targetUserIds, 1000));
+  assign('delivery_channels', ['delivery_channels', 'deliveryChannels'], () => {
+    const requestedChannels = cleanStringArray(input.delivery_channels ?? input.deliveryChannels, 10)
+      .filter((channel) => DELIVERY_CHANNELS.has(channel));
+    return requestedChannels.length ? requestedChannels : ['in_app'];
+  });
+  assign('publish_at', ['publish_at', 'publishAt'], () => normalizeTimestamp(input.publish_at ?? input.publishAt));
+  assign('expires_at', ['expires_at', 'expiresAt'], () => normalizeTimestamp(input.expires_at ?? input.expiresAt));
+  assign('created_by', ['created_by', 'createdBy'], () => cleanText(input.created_by ?? input.createdBy, 200) || 'admin');
 
   return output;
 }
@@ -246,12 +255,26 @@ async function listPublicNotifications(event, deps) {
   const rawLimit = Number(event.queryStringParameters?.limit || 50);
   const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(100, Math.round(rawLimit))) : 50;
   const result = await client.query(`
-    SELECT ${notificationSelect(qname)}
-    WHERE n.status = 'published'
-      AND n.audience_type = 'public'
-      AND (n.publish_at IS NULL OR n.publish_at <= now())
-      AND (n.expires_at IS NULL OR n.expires_at > now())
-    ORDER BY n.pinned DESC, n.priority DESC, n.publish_at DESC NULLS LAST, n.created_at DESC
+    SELECT
+      id,
+      headline,
+      message,
+      category,
+      image_url,
+      action_label,
+      action_url,
+      priority,
+      pinned,
+      dismissible,
+      publish_at,
+      expires_at,
+      created_at
+    FROM ${qname('notifications')}
+    WHERE status = 'published'
+      AND audience_type = 'public'
+      AND (publish_at IS NULL OR publish_at <= now())
+      AND (expires_at IS NULL OR expires_at > now())
+    ORDER BY pinned DESC, priority DESC, publish_at DESC NULLS LAST, created_at DESC
     LIMIT $1
   `, [limit]);
   return response(200, { success: true, notifications: result.rows, count: result.rowCount });
@@ -348,7 +371,7 @@ async function updateAdminNotification(event, notificationId, deps) {
   const payload = normalizeNotificationInput(parseBody(event), { partial: true });
   const validationError = validateNotification(payload, { partial: true });
   if (validationError) return response(400, { success: false, error: validationError });
-  const entries = Object.entries(payload).filter(([, value]) => value !== undefined && !['created_by'].includes(value));
+  const entries = Object.entries(payload).filter(([field, value]) => value !== undefined && field !== 'created_by');
   if (!entries.length) return response(400, { success: false, error: 'No notification fields were supplied.' });
   const jsonFields = new Set(['artist_keys', 'target_user_ids', 'delivery_channels']);
   const assignments = entries.map(([field], index) => `${field} = $${index + 1}${jsonFields.has(field) ? '::jsonb' : ''}`);

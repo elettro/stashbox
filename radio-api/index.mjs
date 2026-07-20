@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
+import { handleAdminNotificationsRoute, handlePublicNotificationsRoute } from './notifications.mjs';
 
 const { Client } = pg;
 
@@ -3589,6 +3590,15 @@ async function dispatch(event) {
 
   if ((method === 'POST') && (routeStartsWith(segments, ['radio', 'track']) || routeStartsWith(segments, ['track']))) {
     return handleTrackRoute(client, event, trackSongEvent);
+  }
+
+
+  if (routeStartsWith(segments, ['radio', 'notifications']) || routeStartsWith(segments, ['notifications'])) {
+    return handlePublicNotificationsRoute(event, { client, qname, getMethod, getPath, parseBody, response });
+  }
+
+  if (routeStartsWith(segments, ['admin', 'notifications'])) {
+    return handleAdminNotificationsRoute(event, { client, qname, getMethod, getPath, parseBody, response, requireAdmin });
   }
 
   if (matchesRoute(route, ['radio/ad-settings', '/radio/ad-settings', 'ad-settings', '/ad-settings'])) {
