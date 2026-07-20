@@ -1,0 +1,138 @@
+name: Standardize Public Header Logo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/standardize-public-header-logo.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  update-public-header-logos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update public site header logos
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          target = '/images/branding/stashbox-logo-transparent-rastacolors.png'
+          asset = Path('images/branding/stashbox-logo-transparent-rastacolors.png')
+          excluded_parts = {
+              'dev',
+              'alt2',
+              'promotion-backups',
+              'radio-admin',
+              '.github',
+              'node_modules',
+          }
+
+          if not asset.exists():
+              raise SystemExit(f'Missing verified logo asset: {asset}')
+
+          image_tag_pattern = re.compile(r'<img\b[^>]*>', re.IGNORECASE | re.DOTALL)
+          class_pattern = re.compile(r'\bclass=(["\'])(.*?)\1', re.IGNORECASE | re.DOTALL)
+          src_pattern = re.compile(r'\bsrc=(["\'])(.*?)\1', re.IGNORECASE | re.DOTALL)
+
+          def is_excluded(path: Path) -> bool:
+              parts = path.parts
+              if parts and parts[0] == 'radio':
+                  return True
+              return any(part in excluded_parts for part in parts)
+
+          pages = [
+              path for path in sorted(Path('.').rglob('index.html'))
+              if not is_excluded(path)
+          ]
+
+          changed_pages = []
+          pages_with_header_logo = []
+
+          for page in pages:
+              original = page.read_text(encoding='utf-8')
+              found_header_logo = False
+
+              def replace_tag(match):
+                  nonlocal found_header_logo
+                  tag = match.group(0)
+                  class_match = class_pattern.search(tag)
+                  if not class_match:
+                      return tag
+                  classes = class_match.group(2).split()
+                  if 'nav__logo-img' not in classes:
+                      return tag
+
+                  found_header_logo = True
+                  src_match = src_pattern.search(tag)
+                  if not src_match:
+                      return tag
+                  if src_match.group(2) == target:
+                      return tag
+
+                  quote = src_match.group(1)
+                  return src_pattern.sub(f'src={quote}{target}{quote}', tag, count=1)
+
+              updated = image_tag_pattern.sub(replace_tag, original)
+              if found_header_logo:
+                  pages_with_header_logo.append(page)
+              if updated != original:
+                  page.write_text(updated, encoding='utf-8')
+                  changed_pages.append(page)
+
+          if Path('index.html') not in pages_with_header_logo:
+              raise SystemExit('Homepage header logo was not found.')
+          if not changed_pages:
+              raise SystemExit('No public header logos required updating.')
+
+          broken = []
+          for page in pages_with_header_logo:
+              text = page.read_text(encoding='utf-8')
+              for tag_match in image_tag_pattern.finditer(text):
+                  tag = tag_match.group(0)
+                  class_match = class_pattern.search(tag)
+                  if not class_match or 'nav__logo-img' not in class_match.group(2).split():
+                      continue
+                  src_match = src_pattern.search(tag)
+                  if not src_match or src_match.group(2) != target:
+                      broken.append(str(page))
+
+          if broken:
+              raise SystemExit(f'Header logo validation failed: {sorted(set(broken))}')
+
+          print(f'Updated {len(changed_pages)} public page header logos:')
+          for page in changed_pages:
+              print(page)
+          print('The entire radio/ directory was excluded.')
+          PY
+
+      - name: Confirm Radio was untouched
+        run: |
+          if git diff --name-only | grep -q '^radio/'; then
+            echo 'A radio file was unexpectedly changed.'
+            git diff --name-only
+            exit 1
+          fi
+
+      - name: Remove temporary workflow files
+        run: |
+          rm -f .github/triggers/standardize-public-header-logo.txt
+          rm -f .github/workflows/standardize-public-header-logo.yml
+
+      - name: Commit verified public header logo update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Use verified Stashbox logo across public site headers"
+          git push origin HEAD:main
