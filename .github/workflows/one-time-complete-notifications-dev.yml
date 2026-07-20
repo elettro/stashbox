@@ -163,11 +163,11 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin main
           git add radio/dashboard/dev/index.html "${REPORT_PATH}"
           git rm -f .github/workflows/one-time-complete-notifications-dev.yml
           if [ -f .github/workflows/one-time-deploy-notifications-dev.yml ]; then
             git rm -f .github/workflows/one-time-deploy-notifications-dev.yml
           fi
           git commit -m 'Complete notifications deployment on DEV'
+          git pull --rebase origin main
           git push origin HEAD:main
