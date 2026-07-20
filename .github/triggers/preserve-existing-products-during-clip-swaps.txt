@@ -1,1 +1,0 @@
-Preserve all unaffected product cards when a VEC clip overlays one or more clip-linked Shopify products.
