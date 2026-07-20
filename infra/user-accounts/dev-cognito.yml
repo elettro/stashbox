@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stashbox Radio DEV listener authentication. This template creates DEV resources only.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+
+Resources:
+  StashboxRadioDevUserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: stashbox-radio-listeners-dev
+      DeletionProtection: ACTIVE
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: 'OFF'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+      UserAttributeUpdateSettings:
+        AttributesRequireVerificationBeforeUpdate:
+          - email
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Verify your Stashbox Radio account
+        EmailMessage: 'Your Stashbox Radio verification code is {####}.'
+      EmailVerificationSubject: Verify your Stashbox Radio account
+      EmailVerificationMessage: 'Your Stashbox Radio verification code is {####}.'
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: preferred_username
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      UserPoolTags:
+        Application: stashbox-radio
+        Environment: dev
+        ManagedBy: cloudformation
+
+  StashboxRadioDevWebClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: stashbox-radio-web-dev
+      UserPoolId: !Ref StashboxRadioDevUserPool
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      AccessTokenValidity: 15
+      IdTokenValidity: 15
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      AuthSessionValidity: 3
+      ReadAttributes:
+        - email
+        - email_verified
+        - preferred_username
+      WriteAttributes:
+        - email
+        - preferred_username
+
+Outputs:
+  UserPoolId:
+    Description: Add this value to the DEV Lambda as COGNITO_USER_POOL_ID.
+    Value: !Ref StashboxRadioDevUserPool
+  AppClientId:
+    Description: Add this value to the DEV Lambda as COGNITO_APP_CLIENT_ID.
+    Value: !Ref StashboxRadioDevWebClient
+  CognitoRegion:
+    Description: Add this value to the DEV Lambda as COGNITO_REGION.
+    Value: !Ref AWS::Region
