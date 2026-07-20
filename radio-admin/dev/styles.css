@@ -2104,3 +2104,50 @@ textarea {
 @media (max-width: 420px) {
   .visual-folder-grid .vec-folder-asset-grid { grid-template-columns: 1fr; }
 }
+
+/* VEC Lab clip-linked Shopify product cart badges. */
+.vec-lab-page .vec-folder-asset-thumb,
+#vecControllerMount .vec-folder-asset-thumb {
+  position: relative;
+}
+
+.vec-lab-page .vec-product-link-badge,
+#vecControllerMount .vec-product-link-badge {
+  position: absolute;
+  top: 0.42rem;
+  left: 0.42rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border: 1px solid rgba(255, 217, 121, 0.88);
+  border-radius: 999px;
+  background: rgba(8, 12, 9, 0.9);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.48);
+  color: #ffd979;
+  padding: 0.28rem 0.45rem;
+  pointer-events: none;
+}
+
+.vec-lab-page .vec-product-link-badge svg,
+#vecControllerMount .vec-product-link-badge svg {
+  width: 0.96rem;
+  height: 0.96rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vec-lab-page .vec-product-link-badge strong,
+#vecControllerMount .vec-product-link-badge strong {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+

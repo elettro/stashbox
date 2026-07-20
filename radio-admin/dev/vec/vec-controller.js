@@ -218,6 +218,39 @@
     return (asset?.asset_type || asset?.type || '').toLowerCase() === 'clip' ? 'clip' : 'image';
   }
 
+  function normalizeAssetProductUrls(value) {
+    const raw = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(/\r?\n|,/)
+        : [];
+    const seen = new Set();
+    return raw.map(clean).filter((url) => {
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
+  }
+
+  function getAssetProductLinkCount(asset) {
+    if (normalizeAssetType(asset) !== 'clip') return 0;
+    return normalizeAssetProductUrls(
+      asset?.shopify_product_urls ??
+      asset?.shopifyProductUrls ??
+      asset?.shopify_product_url ??
+      asset?.shopifyProductUrl ??
+      []
+    ).length;
+  }
+
+  function renderAssetProductLinkBadge(asset) {
+    const productCount = getAssetProductLinkCount(asset);
+    if (!productCount) return '';
+    const label = productCount === 1 ? '1 linked product' : `${productCount} linked products`;
+    const countMarkup = productCount > 1 ? `<strong aria-hidden="true">${productCount}</strong>` : '';
+    return `<span class="vec-product-link-badge" role="img" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 9.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 7H7"/><circle cx="10" cy="19" r="1.4"/><circle cx="18" cy="19" r="1.4"/></svg>${countMarkup}</span>`;
+  }
+
   function normalizeAsset(asset) {
     if (!asset || typeof asset !== 'object') return null;
     const id = getFirstString(asset, ['id', 'asset_id', 's3_key', 'public_url', 'file_name']);
@@ -237,6 +270,13 @@
       created_at: asset.created_at || asset.createdAt || '',
       updated_at: asset.updated_at || asset.updatedAt || '',
       uploaded_at: asset.uploaded_at || asset.uploadedAt || asset.upload_timestamp || asset.uploadTimestamp || '',
+      shopify_product_urls: normalizeAssetProductUrls(
+        asset.shopify_product_urls ??
+        asset.shopifyProductUrls ??
+        asset.shopify_product_url ??
+        asset.shopifyProductUrl ??
+        []
+      ),
     };
   }
 
@@ -446,8 +486,9 @@
     const url = clean(asset.public_url);
     const included = isBorrowedAssetIncluded(state, sourceSongKey, asset);
     const media = !url ? `<span>${type === 'clip' ? 'CLIP' : 'IMG'}</span>` : (type === 'clip' ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>` : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
+    const productLinkBadge = renderAssetProductLinkBadge(asset);
     return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-borrow-preview-asset="${escapeHtml(sourceSongKey)}:${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
-      <span class="vec-folder-asset-thumb">${media}</span>
+      <span class="vec-folder-asset-thumb">${productLinkBadge}${media}</span>
       <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-borrow-asset-toggle="${escapeHtml(sourceSongKey)}:${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${included ? 'Exclude this borrowed visual' : 'Include this borrowed visual'}"><span class="sr-only">${included ? 'Included' : 'Excluded'}</span></button>
       <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
     </div>`;
@@ -1050,8 +1091,9 @@
       : (type === 'clip'
         ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
         : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
+    const productLinkBadge = renderAssetProductLinkBadge(asset);
     return `<div class="vec-folder-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-preview-asset="${escapeHtml(folderId)}:${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
-      <span class="vec-folder-asset-thumb">${media}</span>
+      <span class="vec-folder-asset-thumb">${productLinkBadge}${media}</span>
       <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-asset-toggle="${escapeHtml(folderId)}:${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${toggleLabel}" title="${toggleLabel}"><span class="sr-only">${toggleLabel}</span></button>
       <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
     </div>`;
@@ -1091,8 +1133,9 @@
     const url = clean(asset.public_url);
     const included = isSongAssetIncluded(state, asset);
     const media = !url ? `<span>${type === 'clip' ? 'CLIP' : 'IMG'}</span>` : (type === 'clip' ? `<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>` : `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.alt_text || title)}" />`);
+    const productLinkBadge = renderAssetProductLinkBadge(asset);
     return `<div class="vec-folder-asset-card vec-song-asset-card ${type === 'clip' ? 'is-clip' : 'is-image'} ${included ? 'is-included' : 'is-excluded'} ${url ? '' : 'is-disabled'}" data-vec-song-preview-asset="${escapeHtml(asset.id)}" role="button" tabindex="${url ? '0' : '-1'}" aria-label="Preview ${escapeHtml(title)}" aria-disabled="${url ? 'false' : 'true'}">
-      <span class="vec-folder-asset-thumb">${media}</span>
+      <span class="vec-folder-asset-thumb">${productLinkBadge}${media}</span>
       <button type="button" class="vec-asset-status-light ${included ? 'is-on' : 'is-off'}" data-vec-song-asset-toggle="${escapeHtml(asset.id)}" aria-pressed="${included}" aria-label="${included ? 'Exclude this song-only visual' : 'Include this song-only visual'}"><span class="sr-only">${included ? 'Included' : 'Excluded'}</span></button>
       <span class="vec-folder-asset-meta"><strong>${escapeHtml(title)}</strong><small>${type === 'clip' ? 'Video clip' : 'Image'}${asset.status === 'hidden' ? ' · hidden' : ''}</small></span>
       <button type="button" class="vec-song-asset-delete" data-vec-song-asset-delete="${escapeHtml(asset.id)}">Delete</button>
