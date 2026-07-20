@@ -1,0 +1,27 @@
+name: Trigger VEC Clip Shopify DEV Finalizer
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/triggers/run-finalize-vec-clip-shopify-dev.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch reviewed finalizer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run finalize-vec-clip-shopify-dev.yml \
+            --repo "${REPOSITORY}" \
+            --ref main
+          echo 'VEC clip Shopify DEV finalizer dispatched.'
