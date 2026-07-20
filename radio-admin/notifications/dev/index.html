@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Notifications · Dev</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand-link" href="/radio/dev/" aria-label="Open Stashbox Radio Dev">
+      <p class="eyebrow">Stashbox Radio · Dev Admin</p>
+      <h1>Notification CMS</h1>
+    </a>
+    <nav class="admin-nav" aria-label="Stashbox Radio admin tools">
+      <a href="/radio-admin/songs/dev/">Songs</a>
+      <a href="/radio/visual-experience/dev/">Video Library</a>
+      <a href="/radio-admin/dev/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/">Video Factory</a>
+      <a href="/radio-admin/ads/dev/">Ads</a>
+      <a href="/radio-admin/notifications/dev/" aria-current="page">Notifications</a>
+      <a href="/radio/dashboard/dev/">Dashboard</a>
+      <a href="/radio/dev/">Radio Dev</a>
+      <a href="/radio/">Radio Live</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section class="card" aria-labelledby="tokenHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Private Access</p>
+          <h2 id="tokenHeading">Admin Token</h2>
+          <p id="tokenStatus" class="status-line">Checking browser storage…</p>
+        </div>
+      </div>
+      <div class="token-grid">
+        <label>Dev x-admin-token
+          <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the dev admin token" />
+        </label>
+        <button id="saveTokenButton" class="button" type="button">Save Token</button>
+        <button id="clearTokenButton" class="button-ghost" type="button">Clear Token</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="overviewHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Notification Control</p>
+          <h2 id="overviewHeading">Public Feed Overview</h2>
+          <p class="copy">Create public notification alerts now. The same records support user accounts, followed artists, premium audiences, email, and browser push later.</p>
+        </div>
+        <button id="newNotificationButton" class="button" type="button">New Notification</button>
+      </div>
+      <div id="statsGrid" class="stats-grid"></div>
+      <p class="future-note">Account-ready foundation: audience type, artist keys, target user IDs, delivery channels, notification preferences, and cross-device user read state are already represented in the data model.</p>
+    </section>
+
+    <section id="editorCard" class="card hidden" aria-labelledby="editorHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Notification Editor</p>
+          <h2 id="editorHeading">New Notification</h2>
+          <p class="copy">Public notifications appear in the Radio Dev notification drawer after their publish time.</p>
+        </div>
+      </div>
+
+      <form id="notificationForm" novalidate>
+        <div class="form-grid">
+          <label>Internal Title
+            <input id="internalTitle" type="text" maxlength="250" placeholder="Internal campaign name" />
+          </label>
+          <label>Category
+            <select id="category">
+              <option value="new_music">New Music</option>
+              <option value="new_video">New Video</option>
+              <option value="artist_update">Artist Update</option>
+              <option value="merchandise">Merchandise</option>
+              <option value="event">Event</option>
+              <option value="livestream">Livestream</option>
+              <option value="stashbox_news" selected>Stashbox News</option>
+              <option value="system">System</option>
+              <option value="promotion">Promotion</option>
+            </select>
+          </label>
+
+          <label class="full">Public Headline *
+            <input id="headline" type="text" maxlength="250" required placeholder="New Stashbox single available now" />
+          </label>
+          <label class="full">Public Message *
+            <textarea id="notificationMessage" required placeholder="Tell listeners what changed and where to go next."></textarea>
+          </label>
+          <label class="full">Image URL
+            <input id="imageUrl" type="url" placeholder="https://..." />
+          </label>
+          <label>Action Button Label
+            <input id="actionLabel" type="text" maxlength="80" placeholder="Listen Now" />
+          </label>
+          <label>Action URL
+            <input id="actionUrl" type="url" placeholder="https://stashbox.com/radio/dev/?song=..." />
+          </label>
+
+          <label>Status
+            <select id="status">
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+          <label>Priority
+            <input id="priority" type="number" min="0" max="100" step="1" value="50" />
+          </label>
+          <label>Publish Date and Time
+            <input id="publishAt" type="datetime-local" />
+          </label>
+          <label>Expiration Date and Time
+            <input id="expiresAt" type="datetime-local" />
+          </label>
+          <label class="checkbox-row"><input id="pinned" type="checkbox" /> Pin to top</label>
+          <label class="checkbox-row"><input id="dismissible" type="checkbox" checked /> Listener can dismiss</label>
+
+          <label>Audience Type
+            <select id="audienceType">
+              <option value="public" selected>Public Visitors</option>
+              <option value="all_registered_users">All Registered Users</option>
+              <option value="artist_followers">Followers of Selected Artists</option>
+              <option value="specific_users">Specific Users</option>
+              <option value="premium_members">Premium Members</option>
+            </select>
+            <span class="helper">Only Public Visitors are delivered in Phase 1. The other options are stored for the user-account phase.</span>
+          </label>
+          <label>Delivery Channels
+            <select id="deliveryChannels" multiple size="3">
+              <option value="in_app" selected>In-app Feed</option>
+              <option value="browser_push">Browser Push</option>
+              <option value="email">Email</option>
+            </select>
+          </label>
+          <label class="full">Artist Keys
+            <input id="artistKeys" type="text" placeholder="stashbox, katchafire, inner-circle" />
+            <span class="helper">Comma-separated stable artist keys. Used when audience type is Followers of Selected Artists.</span>
+          </label>
+          <label class="full">Target User IDs
+            <textarea id="targetUserIds" placeholder="One user ID per line or comma-separated"></textarea>
+            <span class="helper">Reserved for account-based delivery. No email addresses belong in this field.</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button id="saveButton" class="button" type="submit">Save Notification</button>
+          <button id="savePublishButton" class="button-secondary" type="button">Save and Publish</button>
+          <button id="cancelButton" class="button-ghost" type="button">Cancel</button>
+          <button id="archiveButton" class="button-danger hidden" type="button">Archive</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="listHeading">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Notification Library</p>
+          <h2 id="listHeading">Drafts, Scheduled, Live, and Archived</h2>
+        </div>
+        <button id="refreshButton" class="button-ghost" type="button">Refresh</button>
+      </div>
+
+      <div class="filters">
+        <label>Status Filter
+          <select id="statusFilter">
+            <option value="all">All Statuses</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label>Audience Filter
+          <select id="audienceFilter">
+            <option value="all">All Audiences</option>
+            <option value="public">Public Visitors</option>
+            <option value="all_registered_users">Registered Users</option>
+            <option value="artist_followers">Artist Followers</option>
+            <option value="specific_users">Specific Users</option>
+            <option value="premium_members">Premium Members</option>
+          </select>
+        </label>
+        <label>Search
+          <input id="searchInput" type="search" placeholder="Headline, message, category, artist" />
+        </label>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Notification</th>
+              <th>Status</th>
+              <th>Audience</th>
+              <th>Schedule</th>
+              <th>Priority</th>
+              <th>Views</th>
+              <th>Opens</th>
+              <th>Clicks</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="notificationTableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty hidden">No matching notifications.</div>
+    </section>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
