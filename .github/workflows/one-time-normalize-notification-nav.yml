@@ -6,12 +6,17 @@ on:
       - main
     paths:
       - '.github/workflows/one-time-normalize-notification-nav.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'radio-api/deploy/normalize-notification-nav-trigger.txt'
 
 permissions:
   contents: write
 
 jobs:
   normalize-notification-nav:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
       OUTPUT_BRANCH: automation/normalize-notification-nav
