@@ -1,0 +1,1 @@
+Run the VEC clip Shopify integration inspection against agent/vec-clip-shopify-products.
