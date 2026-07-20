@@ -1,0 +1,2 @@
+Trigger global CMS Notifications navigation normalization.
+Requested: 2026-07-20
