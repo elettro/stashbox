@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stashbox Radio Artist CMS · Dev</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio/dev/"><span>Stashbox Radio · Dev Admin</span><strong>Artist CMS</strong></a>
+    <nav aria-label="Stashbox Radio admin tools">
+      <a href="/radio-admin/songs/dev/">Songs</a>
+      <a href="/radio-admin/artists/dev/" aria-current="page">Artists</a>
+      <a href="/radio/visual-experience/dev/">Video Library</a>
+      <a href="/radio-admin/dev/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/">Video Factory</a>
+      <a href="/radio-admin/ads/dev/">Ads</a>
+      <a href="/radio-admin/notifications/dev/">Notifications</a>
+      <a href="/radio/dashboard/dev/">Dashboard</a>
+      <a href="/radio/dev/">Radio Dev</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section class="card access-card">
+      <div>
+        <p class="eyebrow">Secure Access</p>
+        <h1>Artist Profiles, Follows, and Permissions</h1>
+        <p class="copy">Stashbox administrators can manage every artist. Approved artists, managers, and label staff will see only their assigned profiles.</p>
+      </div>
+      <div class="token-controls">
+        <label>DEV admin token
+          <input id="adminToken" type="password" autocomplete="off" placeholder="Admin token or use your signed-in account">
+        </label>
+        <button id="saveToken" class="button" type="button">Save Token</button>
+        <button id="clearToken" class="button ghost" type="button">Use Account Access</button>
+      </div>
+    </section>
+
+    <section class="stats" id="stats"></section>
+
+    <section class="workspace">
+      <aside class="card library">
+        <div class="panel-head">
+          <div><p class="eyebrow">Artist Library</p><h2>Artists</h2></div>
+          <button id="newArtist" class="button" type="button">New Artist</button>
+        </div>
+        <label class="search">Search<input id="search" type="search" placeholder="Artist name or key"></label>
+        <div id="artistList" class="artist-list"></div>
+      </aside>
+
+      <section class="card editor">
+        <div class="panel-head">
+          <div><p class="eyebrow">Profile Editor</p><h2 id="editorTitle">Select an Artist</h2></div>
+          <a id="publicProfileLink" class="button ghost hidden" target="_blank" rel="noopener">Public Profile</a>
+        </div>
+
+        <form id="artistForm" class="hidden">
+          <input id="artistId" type="hidden">
+          <div class="form-grid">
+            <label>Artist name *<input id="name" maxlength="220" required></label>
+            <label>Artist key<input id="artistKey" maxlength="160" placeholder="stashbox"></label>
+            <label>Public slug<input id="slug" maxlength="160" placeholder="stashbox"></label>
+            <label>Sort name<input id="sortName" maxlength="220"></label>
+            <label>Status<select id="status"><option value="draft">Draft</option><option value="published">Published</option><option value="hidden">Hidden</option></select></label>
+            <label>Location<input id="location" maxlength="300"></label>
+            <label class="full">Profile image URL<input id="profileImageUrl" type="url" placeholder="https://..."></label>
+            <label class="full">Banner image URL<input id="bannerImageUrl" type="url" placeholder="https://..."></label>
+            <label class="full">Biography<textarea id="bio" rows="7"></textarea></label>
+            <label>Website<input id="websiteUrl" type="url"></label>
+            <label>Merch store<input id="merchUrl" type="url"></label>
+            <label>Spotify<input id="spotifyUrl" type="url"></label>
+            <label>Apple Music<input id="appleMusicUrl" type="url"></label>
+            <label>YouTube<input id="youtubeUrl" type="url"></label>
+            <label>Instagram<input id="instagramUrl" type="url"></label>
+            <label>X / Twitter<input id="xUrl" type="url"></label>
+            <label>Facebook<input id="facebookUrl" type="url"></label>
+            <label class="toggle"><input id="verified" type="checkbox"><span>Verified artist</span></label>
+            <label class="toggle"><input id="featured" type="checkbox"><span>Featured artist</span></label>
+            <label class="full">Internal notes<textarea id="notes" rows="4"></textarea></label>
+          </div>
+          <div class="actions"><button class="button" type="submit">Save Artist</button><button id="cancelEdit" class="button ghost" type="button">Cancel</button></div>
+        </form>
+
+        <div id="artistTools" class="tools hidden">
+          <section class="subcard">
+            <div class="subhead"><div><p class="eyebrow">Audience</p><h3>Followers</h3></div><strong id="followerCount" class="big-count">0</strong></div>
+            <p class="copy">Follower totals are calculated by the backend. Notification CMS campaigns can target this artist’s followers using the stable artist key.</p>
+          </section>
+
+          <section class="subcard">
+            <div class="subhead"><div><p class="eyebrow">Catalog</p><h3>Assigned Songs</h3></div><span id="songCount">0 songs</span></div>
+            <label>Song keys, one per line<textarea id="songKeys" rows="8" placeholder="help-jamaica-now-stashbox"></textarea></label>
+            <button id="saveSongs" class="button" type="button">Replace Song Assignments</button>
+          </section>
+
+          <section class="subcard">
+            <div class="subhead"><div><p class="eyebrow">Role-Based Access</p><h3>Artist, Manager, or Label Access</h3></div></div>
+            <div id="accessList" class="access-list"></div>
+            <div class="grant-grid">
+              <label>Account email<input id="accessEmail" type="email" placeholder="artist@example.com"></label>
+              <label>Role<select id="accessRole"><option value="artist">Artist</option><option value="band_manager">Band Manager</option><option value="label_staff">Label Staff</option></select></label>
+              <label>Access level<select id="accessLevel"><option value="viewer">Viewer</option><option value="editor" selected>Editor</option><option value="manager">Manager</option><option value="owner">Owner</option></select></label>
+              <button id="grantAccess" class="button" type="button">Grant Access</button>
+            </div>
+            <p class="copy">The account must already exist. Assignments are verified by the backend on every artist write.</p>
+          </section>
+        </div>
+
+        <div id="emptyEditor" class="empty">Select an artist from the library or create a new one.</div>
+      </section>
+    </section>
+  </main>
+  <script src="./app.js" defer></script>
+</body>
+</html>
