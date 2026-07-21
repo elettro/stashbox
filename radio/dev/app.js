@@ -29,6 +29,7 @@ const TRACKING_DEDUPE_MS = 2000;
 const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
 const DEV_RADIO_SHARE_URL = 'https://stashbox.com/radio/dev/';
+const STASHBOX_PLAYLIST_PLAY_EVENT = 'stashbox:playlist-play';
 const devUrlParams = new URLSearchParams(window.location.search);
 const songKeyFromUrl = devUrlParams.get('song') || '';
 const ALLOWED_VISUAL_MODES = new Set([
@@ -2110,7 +2111,7 @@ function App() {
   const playbackList = useMemo(() => isShuffleQueueActive ? activeShuffleQueue : playableFiltered, [activeShuffleQueue, isShuffleQueueActive, playableFiltered]);
 
   useEffect(() => {
-    if (!isShuffleQueueActive || !activeShuffleSourceKey || activeShuffleSourceKey === shuffleSourceKey) return;
+    if (!isShuffleQueueActive || !activeShuffleSourceKey || activeShuffleSourceKey === shuffleSourceKey || activeShuffleSourceKey.startsWith('playlist:')) return;
     setActiveShuffleQueue([]);
     setActiveShuffleIndex(0);
     setActiveShuffleSourceKey('');
@@ -2726,6 +2727,93 @@ function App() {
     playbackStartSourceRef.current = 'song_select';
     playSelectedSongAudioFromCardTap(track);
   }
+
+
+  useEffect(() => {
+    const handlePlaylistPlayback = event => {
+      const detail = event?.detail || {};
+      const requestedItems = Array.isArray(detail.items) ? detail.items : [];
+      const requestedMode = clean(detail.mode).toLowerCase() === 'shuffle' ? 'shuffle' : 'ordered';
+      const playlistId = clean(detail.playlistId || detail.playlist_id || detail.id || 'playlist');
+      const playlistName = clean(detail.playlistName || detail.playlist_name || detail.name || 'Playlist');
+      const keyMap = new Map();
+
+      tracks.forEach(track => {
+        [
+          track?.songKey,
+          track?.song_key,
+          track?.id,
+          track?.idx,
+          track?.raw?.song_key,
+          track?.raw?.song_id,
+          track?.raw?.id
+        ].map(value => clean(value).toLowerCase()).filter(Boolean).forEach(key => keyMap.set(key, track));
+      });
+
+      const requestedQueue = requestedItems.map(item => {
+        const itemKeys = [
+          item?.song_key,
+          item?.songKey,
+          item?.song_id,
+          item?.songId,
+          item?.id
+        ].map(value => clean(value).toLowerCase()).filter(Boolean);
+        const keyMatch = itemKeys.map(key => keyMap.get(key)).find(Boolean);
+        if (keyMatch) return keyMatch;
+
+        const requestedTitle = clean(item?.display_title || item?.title || item?.song_name).toLowerCase();
+        const requestedArtist = clean(item?.artist || item?.artist_name).toLowerCase();
+        return tracks.find(track => {
+          const titleMatches = requestedTitle && getSongTitle(track).toLowerCase() === requestedTitle;
+          const artistMatches = !requestedArtist || getSongArtist(track).toLowerCase() === requestedArtist;
+          return titleMatches && artistMatches;
+        }) || null;
+      }).filter(Boolean).filter(canPlayTrack);
+
+      const seen = new Set();
+      const dedupedQueue = requestedQueue.filter(track => {
+        const key = clean(track?.songKey || track?.song_key || track?.idx || track?.id);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const queue = requestedMode === 'shuffle' ? shuffleTracks(dedupedQueue) : dedupedQueue;
+
+      if (!queue.length) {
+        setPlayerMessage(`${playlistName} does not contain any currently playable songs.`);
+        return;
+      }
+
+      const firstTrack = queue[0];
+      finishPlayback('play_partial');
+      setCurrentAd(null);
+      setIsAdPlaying(false);
+      pendingAdNextSongRef.current = null;
+      setActiveShuffleQueue(queue);
+      setActiveShuffleIndex(0);
+      setActiveShuffleSourceKey(`playlist:${playlistId}:${requestedMode}`);
+      setIsShuffleQueueActive(true);
+      setShuffleNotice(`${playlistName} · ${queue.length} song${queue.length === 1 ? '' : 's'} · ${requestedMode === 'shuffle' ? 'Shuffled playlist' : 'Playlist order'}`);
+      setPlayerMessage(`Playing “${playlistName}” ${requestedMode === 'shuffle' ? 'in shuffle mode' : 'in playlist order'}. The list will repeat.`);
+      console.log('[playlist playback] queue started', {
+        playlist_id: playlistId,
+        playlist_name: playlistName,
+        mode: requestedMode,
+        song_keys: queue.map(track => track.songKey || track.song_key)
+      });
+      selectTrack(firstTrack, {
+        autoStart: true,
+        preferVideo: isVideoOnlyTrack(firstTrack) || !firstTrack.hasAudio,
+        startSource: requestedMode === 'shuffle' ? 'playlist_shuffle' : 'playlist_play'
+      });
+      window.dispatchEvent(new CustomEvent('stashbox:playlist-player-started', {
+        detail: { playlistId, playlistName, mode: requestedMode, count: queue.length }
+      }));
+    };
+
+    window.addEventListener(STASHBOX_PLAYLIST_PLAY_EVENT, handlePlaylistPlayback);
+    return () => window.removeEventListener(STASHBOX_PLAYLIST_PLAY_EVENT, handlePlaylistPlayback);
+  }, [tracks, finishPlayback, mediaMode]);
 
   function resolveAdjacentPlayableSong(direction, song = selectedSong, { allowWrap = true } = {}) {
     if (!playbackList.length) return null;

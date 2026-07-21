@@ -12,6 +12,8 @@
   const NOTIFICATION_DISMISSED_KEY = 'stashbox_notification_dismissed_ids_dev';
   const NOTIFICATION_VISITOR_KEY = 'stashbox_notification_visitor_id_dev';
   const ACCOUNT_CSS_URL = './account.css';
+  const PLAYLIST_PLAY_EVENT = 'stashbox:playlist-play';
+  const PLAYLIST_FALLBACK_ARTWORK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const nativeFetch = window.fetch.bind(window);
 
   const state = {
@@ -29,7 +31,8 @@
     message: '',
     error: '',
     menuOpen: false,
-    currentPlaylistSong: null
+    currentPlaylistSong: null,
+    playlistDetails: {}
   };
 
   let ui = null;
@@ -107,6 +110,7 @@
     state.playlists = [];
     state.history = [];
     state.preferences = null;
+    state.playlistDetails = {};
     try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (_) {}
   }
 
@@ -606,6 +610,10 @@
     if (favoriteKey) return removeFavorite(favoriteKey);
     const addPlaylistId = event.target.closest('[data-add-to-playlist]')?.dataset.addToPlaylist;
     if (addPlaylistId) return addCurrentSongToPlaylist(addPlaylistId);
+    const playPlaylistId = event.target.closest('[data-play-playlist]')?.dataset.playPlaylist;
+    if (playPlaylistId) return startPlaylistPlayback(playPlaylistId, 'ordered');
+    const shufflePlaylistId = event.target.closest('[data-shuffle-playlist]')?.dataset.shufflePlaylist;
+    if (shufflePlaylistId) return startPlaylistPlayback(shufflePlaylistId, 'shuffle');
     const openPlaylistId = event.target.closest('[data-open-playlist]')?.dataset.openPlaylist;
     if (openPlaylistId) return showPlaylist(openPlaylistId);
     const deletePlaylistId = event.target.closest('[data-delete-playlist]')?.dataset.deletePlaylist;
@@ -767,13 +775,20 @@
     }
   }
 
+  function normalizeArtworkUrl(value) {
+    const url = String(value || '').trim();
+    if (!url) return '';
+    return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '');
+  }
+
   function normalizeSong(row) {
     return {
       song_key: String(row?.song_key || row?.songKey || row?.id || '').trim(),
       song_id: String(row?.song_id || row?.songId || row?.id || '').trim(),
       display_title: String(row?.display_title || row?.title || row?.song_name || '').trim(),
       artist: String(row?.artist || row?.artist_name || 'Stashbox').trim(),
-      genre: String(row?.genre || row?.primary_genre || '').trim()
+      genre: String(row?.genre || row?.primary_genre || '').trim(),
+      artwork_url: normalizeArtworkUrl(row?.resolved_artwork_url || row?.song_artwork_url || row?.artwork_url || row?.cover_art_url || row?.image_url || '')
     };
   }
 
@@ -848,14 +863,99 @@
     }
   }
 
+  function resolvePlaylistSong(item) {
+    const normalizedSongs = state.songs.map(normalizeSong);
+    const itemKeys = [item?.song_key, item?.songKey, item?.song_id, item?.songId, item?.id]
+      .map(value => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+    const keyMatch = normalizedSongs.find(song => [song.song_key, song.song_id]
+      .map(value => String(value || '').trim().toLowerCase())
+      .some(value => value && itemKeys.includes(value)));
+    if (keyMatch) return keyMatch;
+    const title = String(item?.display_title || item?.title || item?.song_name || '').trim().toLowerCase();
+    const artist = String(item?.artist || item?.artist_name || '').trim().toLowerCase();
+    return normalizedSongs.find(song => song.display_title.toLowerCase() === title && (!artist || song.artist.toLowerCase() === artist)) || null;
+  }
+
+  function renderPlaylistDetail(playlist, target) {
+    if (!target || !playlist) return;
+    const items = Array.isArray(playlist.items) ? playlist.items : [];
+    const playlistId = escapeHtml(playlist.id || '');
+    const tracksMarkup = items.length ? `
+      <div class="radio-playlist-track-list">
+        ${items.map((item, index) => {
+          const song = resolvePlaylistSong(item);
+          const title = item.display_title || item.title || item.song_name || item.song_key || 'Untitled song';
+          const artist = item.artist || item.artist_name || song?.artist || 'Stashbox';
+          const artwork = song?.artwork_url || PLAYLIST_FALLBACK_ARTWORK;
+          return `
+            <article class="radio-playlist-track" data-playlist-song-key="${escapeHtml(item.song_key || song?.song_key || '')}">
+              <div class="radio-playlist-track-artwork">
+                <img src="${escapeHtml(artwork)}" alt="${escapeHtml(title)} artwork" loading="lazy">
+                <span aria-hidden="true">${index + 1}</span>
+              </div>
+              <div class="radio-playlist-track-copy">
+                <strong>${escapeHtml(title)}</strong>
+                <span>${escapeHtml(artist)}</span>
+              </div>
+            </article>`;
+        }).join('')}
+      </div>` : '<p class="radio-account-empty">This playlist is empty.</p>';
+
+    target.innerHTML = `
+      <section class="radio-playlist-detail" data-playlist-detail-id="${playlistId}">
+        <header class="radio-playlist-detail-header">
+          <div>
+            <p class="radio-playlist-detail-kicker">Personal Playlist</p>
+            <h3 class="radio-account-section-title">${escapeHtml(playlist.name || 'Playlist')}</h3>
+            <span class="radio-playlist-detail-count">${items.length} song${items.length === 1 ? '' : 's'}</span>
+          </div>
+          <div class="radio-playlist-playback-actions" aria-label="Playlist playback controls">
+            <button class="primary radio-playlist-start-button" type="button" data-play-playlist="${playlistId}" ${items.length ? '' : 'disabled'}>
+              <span aria-hidden="true">▶</span> Play
+            </button>
+            <button class="radio-playlist-shuffle-button" type="button" data-shuffle-playlist="${playlistId}" ${items.length ? '' : 'disabled'}>
+              <span aria-hidden="true">⇄</span> Shuffle
+            </button>
+          </div>
+        </header>
+        ${tracksMarkup}
+      </section>`;
+  }
+
+  function startPlaylistPlayback(playlistId, mode = 'ordered') {
+    const playlist = state.playlistDetails?.[playlistId];
+    if (!playlist) return setFeedback('', 'Open the playlist before starting playback.');
+    const items = (Array.isArray(playlist.items) ? playlist.items : []).map(item => {
+      const song = resolvePlaylistSong(item);
+      return {
+        song_key: item.song_key || item.songKey || song?.song_key || '',
+        song_id: item.song_id || item.songId || song?.song_id || '',
+        display_title: item.display_title || item.title || item.song_name || song?.display_title || '',
+        artist: item.artist || item.artist_name || song?.artist || ''
+      };
+    }).filter(item => item.song_key || item.display_title);
+    if (!items.length) return setFeedback('', 'This playlist does not contain any playable songs.');
+
+    closeModal();
+    window.dispatchEvent(new CustomEvent(PLAYLIST_PLAY_EVENT, {
+      detail: {
+        playlistId,
+        playlistName: playlist.name || 'Playlist',
+        mode: mode === 'shuffle' ? 'shuffle' : 'ordered',
+        items
+      }
+    }));
+  }
+
   async function showPlaylist(playlistId) {
     setBusy(true);
     try {
       const result = await apiFetch(`${ME_URL}/playlists/${encodeURIComponent(playlistId)}`);
+      const playlist = result.playlist || null;
+      if (playlist) state.playlistDetails[playlistId] = playlist;
       const target = ui.content.querySelector('[data-playlist-detail]');
-      if (target) {
-        target.innerHTML = `<h3 class="radio-account-section-title">${escapeHtml(result.playlist.name)}</h3>${listMarkup(result.playlist.items || [], 'This playlist is empty.', item => `<article class="radio-account-list-item"><div class="radio-account-list-copy"><strong>${escapeHtml(item.display_title || item.song_key)}</strong><span>${escapeHtml(item.artist || '')}</span></div></article>`)}`;
-      }
+      renderPlaylistDetail(playlist, target);
     } catch (error) {
       setFeedback('', friendlyError(error));
     } finally {

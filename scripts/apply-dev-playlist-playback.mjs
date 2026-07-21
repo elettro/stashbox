@@ -112,7 +112,7 @@ if (!app.includes('[playlist playback] queue started')) {
       const queue = requestedMode === 'shuffle' ? shuffleTracks(dedupedQueue) : dedupedQueue;
 
       if (!queue.length) {
-        setPlayerMessage('__DL__playlistName__BT__ does not contain any currently playable songs.');
+        setPlayerMessage(__BT____DL__playlistName} does not contain any currently playable songs.__BT__);
         return;
       }
 
@@ -123,10 +123,10 @@ if (!app.includes('[playlist playback] queue started')) {
       pendingAdNextSongRef.current = null;
       setActiveShuffleQueue(queue);
       setActiveShuffleIndex(0);
-      setActiveShuffleSourceKey(__BT__playlist:__DL__playlistId:__DL__requestedMode__BT__);
+      setActiveShuffleSourceKey(__BT__playlist:__DL__playlistId}:__DL__requestedMode}__BT__);
       setIsShuffleQueueActive(true);
-      setShuffleNotice(__BT____DL__playlistName · __DL__queue.length song__DL__queue.length === 1 ? '' : 's' · __DL__requestedMode === 'shuffle' ? 'Shuffled playlist' : 'Playlist order'__BT__);
-      setPlayerMessage(__BT__Playing “__DL__playlistName” __DL__requestedMode === 'shuffle' ? 'in shuffle mode' : 'in playlist order'. The list will repeat.__BT__);
+      setShuffleNotice(__BT____DL__playlistName} · __DL__queue.length} song__DL__queue.length === 1 ? '' : 's'} · __DL__requestedMode === 'shuffle' ? 'Shuffled playlist' : 'Playlist order'}__BT__);
+      setPlayerMessage(__BT__Playing “__DL__playlistName}” __DL__requestedMode === 'shuffle' ? 'in shuffle mode' : 'in playlist order'}. The list will repeat.__BT__);
       console.log('[playlist playback] queue started', {
         playlist_id: playlistId,
         playlist_name: playlistName,
@@ -245,32 +245,32 @@ if (!account.includes('function renderPlaylistDetail(playlist, target)')) {
           const artist = item.artist || item.artist_name || song?.artist || 'Stashbox';
           const artwork = song?.artwork_url || PLAYLIST_FALLBACK_ARTWORK;
           return __BT__
-            <article class="radio-playlist-track" data-playlist-song-key="__DL__escapeHtml(item.song_key || song?.song_key || '')">
+            <article class="radio-playlist-track" data-playlist-song-key="__DL__escapeHtml(item.song_key || song?.song_key || '')}">
               <div class="radio-playlist-track-artwork">
-                <img src="__DL__escapeHtml(artwork)" alt="__DL__escapeHtml(title) artwork" loading="lazy">
-                <span aria-hidden="true">__DL__index + 1</span>
+                <img src="__DL__escapeHtml(artwork)}" alt="__DL__escapeHtml(title)} artwork" loading="lazy">
+                <span aria-hidden="true">__DL__index + 1}</span>
               </div>
               <div class="radio-playlist-track-copy">
-                <strong>__DL__escapeHtml(title)</strong>
-                <span>__DL__escapeHtml(artist)</span>
+                <strong>__DL__escapeHtml(title)}</strong>
+                <span>__DL__escapeHtml(artist)}</span>
               </div>
             </article>__BT__;
         }).join('')}
       </div>__BT__ : '<p class="radio-account-empty">This playlist is empty.</p>';
 
     target.innerHTML = __BT__
-      <section class="radio-playlist-detail" data-playlist-detail-id="__DL__playlistId">
+      <section class="radio-playlist-detail" data-playlist-detail-id="__DL__playlistId}">
         <header class="radio-playlist-detail-header">
           <div>
             <p class="radio-playlist-detail-kicker">Personal Playlist</p>
-            <h3 class="radio-account-section-title">__DL__escapeHtml(playlist.name || 'Playlist')</h3>
+            <h3 class="radio-account-section-title">__DL__escapeHtml(playlist.name || 'Playlist')}</h3>
             <span class="radio-playlist-detail-count">__DL__items.length} song__DL__items.length === 1 ? '' : 's'}</span>
           </div>
           <div class="radio-playlist-playback-actions" aria-label="Playlist playback controls">
-            <button class="primary radio-playlist-start-button" type="button" data-play-playlist="__DL__playlistId" __DL__items.length ? '' : 'disabled'}>
+            <button class="primary radio-playlist-start-button" type="button" data-play-playlist="__DL__playlistId}" __DL__items.length ? '' : 'disabled'}>
               <span aria-hidden="true">▶</span> Play
             </button>
-            <button class="radio-playlist-shuffle-button" type="button" data-shuffle-playlist="__DL__playlistId" __DL__items.length ? '' : 'disabled'}>
+            <button class="radio-playlist-shuffle-button" type="button" data-shuffle-playlist="__DL__playlistId}" __DL__items.length ? '' : 'disabled'}>
               <span aria-hidden="true">⇄</span> Shuffle
             </button>
           </div>
