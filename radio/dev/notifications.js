@@ -45,8 +45,8 @@
       console.error('[accounts] DEV account bootstrap failed', error);
     })
     .finally(() => Promise.all([
-      loadStyle('./notifications-compact.css?v=20260721-compact2'),
+      loadStyle('./notifications-compact.css?v=20260721-compact3'),
       loadScript('./notification-account-sync.js'),
-      loadScript('./notifications-core.js?v=20260721-compact2')
+      loadScript('./notifications-core.js?v=20260721-compact3')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
