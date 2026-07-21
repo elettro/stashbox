@@ -130,10 +130,12 @@
     document.querySelectorAll('.radio-account-user-button').forEach(button => {
       const fullName = accountDisplayName(button);
       const initials = initialsFor(fullName);
-      button.dataset.accountFullName = fullName;
+      if (button.dataset.accountFullName !== fullName) button.dataset.accountFullName = fullName;
       if (button.textContent !== initials) button.textContent = initials;
-      button.setAttribute('aria-label', `Open account menu for ${fullName}`);
-      button.setAttribute('title', `My Account: ${fullName}`);
+      const label = `Open account menu for ${fullName}`;
+      const title = `My Account: ${fullName}`;
+      if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
+      if (button.getAttribute('title') !== title) button.setAttribute('title', title);
     });
   }
 
@@ -141,7 +143,7 @@
     const overlay = document.querySelector('.radio-account-overlay');
     if (!overlay) return;
     overlay.hidden = true;
-    overlay.setAttribute('hidden', '');
+    if (!overlay.hasAttribute('hidden')) overlay.setAttribute('hidden', '');
     overlay.inert = true;
     overlay.style.pointerEvents = 'none';
     document.body.style.overflow = '';
@@ -217,8 +219,7 @@
 
     card.click();
     window.setTimeout(() => {
-      const player = document.querySelector('.player');
-      player?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      document.querySelector('.player')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }, 60);
   }
 
@@ -256,7 +257,7 @@
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['hidden', 'class', 'aria-expanded', 'title']
+    attributeFilter: ['hidden', 'class', 'aria-expanded']
   });
 
   window.setInterval(scan, 500);
