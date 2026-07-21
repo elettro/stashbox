@@ -16,6 +16,10 @@ import {
   isAccountLifecycleRequest
 } from './account-lifecycle.mjs';
 import {
+  handleDedicatedArtistFollowRequest,
+  isDedicatedArtistFollowRequest
+} from './artist-follow-routes.mjs';
+import {
   handleArtistRequest,
   isArtistRequest
 } from './artist-routes.mjs';
@@ -168,6 +172,7 @@ export const handler = async event => {
   const segments = getRouteSegments(safeEvent);
   const accountRequest = isAccountRequest(segments);
   const accountLifecycleRequest = isAccountLifecycleRequest(segments);
+  const dedicatedArtistFollowRequest = isDedicatedArtistFollowRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
@@ -189,6 +194,14 @@ export const handler = async event => {
 
     if (accountLifecycleRequest) {
       return await handleAccountLifecycleRequest(safeEvent, deps);
+    }
+
+    // /radio/me/follows is both an account-shaped route and an artist route.
+    // It must be handled before the general /radio/me router, otherwise the
+    // account router returns 405 before artist follow logic can execute.
+    if (dedicatedArtistFollowRequest) {
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
+      return await handleDedicatedArtistFollowRequest(safeEvent, deps);
     }
 
     if (accountRequest) {
