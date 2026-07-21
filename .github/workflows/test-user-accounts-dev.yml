@@ -6,7 +6,9 @@ on:
       - 'radio-api/auth.mjs'
       - 'radio-api/rate-limit.mjs'
       - 'radio-api/account-routes.mjs'
+      - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
+      - 'radio-api/artist-follow-routes.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/package.json'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
@@ -17,6 +19,7 @@ on:
       - 'radio/dev/account.js'
       - 'radio/dev/account-password-policy.js'
       - 'radio/dev/account-dashboard-ui.js'
+      - 'radio/dev/account-following-stat.js'
       - 'radio/dev/account.css'
       - 'radio/dev/notifications.js'
       - 'radio/dev/notifications-core.js'
@@ -41,11 +44,15 @@ on:
     branches:
       - main
     paths:
+      - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
+      - 'radio-api/artist-follow-routes.mjs'
+      - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
       - 'radio/dev/account-dashboard-ui.js'
+      - 'radio/dev/account-following-stat.js'
       - 'radio/dev/artist-follow.js'
       - 'radio/dev/artist-metadata-layout.js'
       - 'radio/dev/artist-queue-handoff.js'
@@ -92,11 +99,14 @@ jobs:
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
           node --check radio-api/account-routes.mjs
+          node --check radio-api/account-lifecycle.mjs
           node --check radio-api/artist-routes.mjs
+          node --check radio-api/artist-follow-routes.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio/dev/account.js
           node --check radio/dev/account-password-policy.js
           node --check radio/dev/account-dashboard-ui.js
+          node --check radio/dev/account-following-stat.js
           node --check radio/dev/notifications.js
           node --check radio/dev/notifications-core.js
           node --check radio/dev/artist-follow.js
@@ -104,6 +114,7 @@ jobs:
           node --check radio/dev/artist-queue-handoff.js
           node --check radio-admin/artists/dev/app.js
           node --check radio/artists/dev/app.js
+          node --check radio/artists/dev/follow-session-fix.js
           node --check radio-admin/dev/shared-admin-header.js
 
       - name: Verify auth module loads
