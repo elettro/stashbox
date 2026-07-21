@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - '.github/workflows/deploy-true-dev-lambda.yml'
       - 'radio-api/index.mjs'
       - 'radio-api/package.json'
       - 'radio-api/auth.mjs'
@@ -29,6 +30,8 @@ jobs:
     env:
       TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
       TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_COGNITO_REGION: us-east-1
+      TRUE_DEV_COGNITO_USER_POOL_ID: us-east-1_okL8XCVT6
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
       DEPLOY_REPORT_BRANCH: automation/true-dev-notification-status
 
@@ -54,6 +57,14 @@ jobs:
           fi
           if [ "${AWS_REGION}" != "us-east-1" ]; then
             echo "Refusing to deploy: AWS_REGION must exactly equal us-east-1." >&2
+            exit 1
+          fi
+          if [ "${TRUE_DEV_COGNITO_REGION}" != "us-east-1" ]; then
+            echo "Refusing to deploy: TRUE_DEV_COGNITO_REGION must exactly equal us-east-1." >&2
+            exit 1
+          fi
+          if [ "${TRUE_DEV_COGNITO_USER_POOL_ID}" != "us-east-1_okL8XCVT6" ]; then
+            echo "Refusing to deploy: unexpected DEV Cognito user pool." >&2
             exit 1
           fi
 
@@ -96,6 +107,25 @@ jobs:
             echo "radio-api/package.json not found; skipping dependency install."
           fi
 
+      - name: Download DEV Cognito public signing keys
+        run: |
+          set -euo pipefail
+          JWKS_URL="https://cognito-idp.${TRUE_DEV_COGNITO_REGION}.amazonaws.com/${TRUE_DEV_COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            "${JWKS_URL}" \
+            --output radio-api/cognito-jwks-dev.json
+          jq -e '
+            (.keys | type == "array") and
+            (.keys | length >= 2) and
+            all(.keys[];
+              .kty == "RSA" and
+              (.kid | type == "string" and length > 0) and
+              (.n | type == "string" and length > 0) and
+              (.e | type == "string" and length > 0)
+            )
+          ' radio-api/cognito-jwks-dev.json >/dev/null
+          echo "Validated $(jq '.keys | length' radio-api/cognito-jwks-dev.json) Cognito public signing keys."
+
       - name: Build TRUE DEV Lambda ZIP
         working-directory: radio-api
         run: |
@@ -108,11 +138,14 @@ jobs:
 
           node --check index.mjs
           node --check radio-main.mjs
+          test -s cognito-jwks-dev.json
 
           zip -r dist/true-dev-lambda.zip . \
             -x "dist/*" \
             -x ".git/*" \
             -x "*.zip"
+
+          unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -210,6 +243,7 @@ jobs:
             echo "- Activity sync result: \`${SYNC_RESULT}\`"
             echo '- Account auth config route HTTP: 200'
             echo '- Protected account route without token HTTP: 401'
+            echo '- Cognito JWT signing keys bundled for private-VPC verification: Yes'
             echo '- Rate limit: 10 automatic activity notifications per clock hour'
             echo '- Duplicate protection: one notification per song and activity type within 30 minutes'
             echo '- Listener identity exposed: No'
