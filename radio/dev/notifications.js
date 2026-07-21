@@ -50,6 +50,5 @@
       loadScript('./notifications-core.js?v=20260721-compact3'),
       loadScript('./mobile-ux-phase2.js?v=20260721-phase2b'),
       loadScript('./mobile-notification-peek.js?v=20260721-peek2')
-    ]).then(() => loadScript('./mobile-functional-repair.js?v=20260721-repair2'))
-      .catch((error) => console.error('[notifications] DEV notification client failed', error)));
+    ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
