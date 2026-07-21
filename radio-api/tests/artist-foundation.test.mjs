@@ -118,6 +118,49 @@ test('Song CMS is the artist catalog source of truth and public catalog requests
   assert.match(publicProfile, /normalizeArtistName\(song\.artist\) === target/);
 });
 
+test('public artist page prioritizes music and removes the About biography column', () => {
+  const publicProfile = read('radio/artists/dev/app.js');
+  const styles = read('radio/artists/dev/styles.css');
+  assert.match(publicProfile, /social-links-overlay/);
+  assert.match(publicProfile, /Top Tracks/);
+  assert.match(publicProfile, /See 5 More/);
+  assert.match(publicProfile, /All Tracks/);
+  assert.match(publicProfile, /Play All/);
+  assert.match(publicProfile, /Shuffle All/);
+  assert.match(publicProfile, /data-track-view="artwork"/);
+  assert.match(publicProfile, /data-track-view="list"/);
+  assert.doesNotMatch(publicProfile, /<h2>About<\/h2>/);
+  assert.doesNotMatch(publicProfile, /Artist biography coming soon/);
+  assert.match(styles, /\.social-links-overlay/);
+  assert.match(styles, /\.all-tracks\.artwork-view/);
+  assert.match(styles, /\.all-tracks\.list-view/);
+});
+
+test('artist track lists show play and share counts and top tracks use listening data', () => {
+  const publicProfile = read('radio/artists/dev/app.js');
+  assert.match(publicProfile, /function playCount\(song\)/);
+  assert.match(publicProfile, /function shareCount\(song\)/);
+  assert.match(publicProfile, /function listeningSeconds\(song\)/);
+  assert.match(publicProfile, /trackStats\(song\)/);
+  assert.match(publicProfile, /listeningSeconds\(b\) - listeningSeconds\(a\)/);
+  assert.match(publicProfile, /topVisible: 5/);
+  assert.match(publicProfile, /state\.topVisible \+= 5/);
+});
+
+test('artist Play All and Shuffle All use the existing DEV playlist queue event', () => {
+  const publicProfile = read('radio/artists/dev/app.js');
+  const bridge = read('radio/dev/artist-queue-handoff.js');
+  const loader = read('radio/dev/notifications.js');
+  assert.match(publicProfile, /stashbox_radio_dev_artist_queue_handoff/);
+  assert.match(publicProfile, /sessionStorage\.setItem\(QUEUE_STORAGE_KEY/);
+  assert.match(publicProfile, /startQueue\(sortedAllSongs\(\), 'ordered'\)/);
+  assert.match(publicProfile, /startQueue\(sortedAllSongs\(\), 'shuffle'\)/);
+  assert.match(bridge, /stashbox:playlist-play/);
+  assert.match(bridge, /stashbox:playlist-player-started/);
+  assert.match(bridge, /new CustomEvent\(PLAY_EVENT/);
+  assert.match(loader, /artist-queue-handoff\.js\?v=20260721-artistqueue1/);
+});
+
 test('production player files are excluded from the artist sprint', () => {
   const status = read('radio-api/docs/ARTIST_FOUNDATION_SPRINT_1A.md');
   assert.match(status, /Scope: DEV only/);
