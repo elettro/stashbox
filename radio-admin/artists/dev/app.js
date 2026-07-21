@@ -1,10 +1,13 @@
 (() => {
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const ARTISTS_URL = `${API_ROOT}/radio/admin/artists`;
+  const SONG_STATS_URL = `${API_ROOT}/admin/stats/songs?limit=500`;
+  const UPLOAD_PRESIGN_URL = `${API_ROOT}/admin/uploads/presign`;
   const ADMIN_TOKEN_KEY = 'stashbox-radio-admin-token-dev';
   const ACCOUNT_TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';
-  const state = { artists: [], selected: null, songs: [], access: [], mode: '', search: '' };
+  const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+  const state = { artists: [], selected: null, access: [], mode: '', search: '', performance: new Map() };
   const el = id => document.getElementById(id);
 
   function accountTokens() { try { return JSON.parse(localStorage.getItem(ACCOUNT_TOKEN_KEY) || 'null') || {}; } catch (_) { return {}; } }
@@ -29,15 +32,66 @@
   function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
   function fill(id, value = '') { el(id).value = value ?? ''; }
   function checked(id, value) { el(id).checked = Boolean(value); }
+  function number(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : 0; }
+  function normalizeArtistName(value) { return String(value || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+  function slugify(value) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'artist'; }
+  function formatDuration(totalSeconds) {
+    const seconds = Math.max(0, Math.round(number(totalSeconds)));
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+    if (seconds >= 60) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  }
+
+  function performanceForArtist(artist) {
+    return state.performance.get(normalizeArtistName(artist?.name)) || { total_likes: 0, total_shares: 0, total_listening_seconds: 0 };
+  }
+
+  function aggregatePerformance(rows) {
+    const map = new Map();
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const key = normalizeArtistName(row.artist);
+      if (!key) return;
+      const current = map.get(key) || { total_likes: 0, total_shares: 0, total_listening_seconds: 0 };
+      current.total_likes += number(row.likes ?? row.total_likes ?? row.like_count);
+      current.total_shares += number(row.shares ?? row.total_shares ?? row.share_count);
+      current.total_listening_seconds += number(row.total_seconds_played ?? row.total_seconds);
+      map.set(key, current);
+    });
+    return map;
+  }
+
+  async function loadPerformanceStats() {
+    try {
+      const data = await api(SONG_STATS_URL);
+      state.performance = aggregatePerformance(data.songs || []);
+    } catch (error) {
+      console.warn('[Artist CMS] performance stats unavailable', error);
+      state.performance = new Map();
+    }
+  }
 
   function renderStats() {
-    const totalFollowers = state.artists.reduce((sum, artist) => sum + Number(artist.follower_count || 0), 0);
-    const totalSongs = state.artists.reduce((sum, artist) => sum + Number(artist.song_count || 0), 0);
     const published = state.artists.filter(artist => artist.status === 'published').length;
-    el('stats').innerHTML = [
-      ['Accessible Artists', state.artists.length], ['Published', published], ['Total Followers', totalFollowers], ['Assigned Songs', totalSongs]
-    ].map(([label, value]) => `<div class="stat">${escapeHtml(label)}<strong>${Number(value).toLocaleString()}</strong></div>`).join('');
+    const totals = state.artists.reduce((summary, artist) => {
+      const performance = performanceForArtist(artist);
+      summary.followers += number(artist.follower_count);
+      summary.likes += number(performance.total_likes);
+      summary.shares += number(performance.total_shares);
+      summary.seconds += number(performance.total_listening_seconds);
+      return summary;
+    }, { followers: 0, likes: 0, shares: 0, seconds: 0 });
+    const cards = [
+      ['Accessible Artists', state.artists.length],
+      ['Published', published],
+      ['Total Followers', totals.followers],
+      ['Total Likes', totals.likes],
+      ['Total Shares', totals.shares],
+      ['Total Listening Time', formatDuration(totals.seconds), true]
+    ];
+    el('stats').innerHTML = cards.map(([label, value, formatted]) => `<div class="stat">${escapeHtml(label)}<strong>${formatted ? escapeHtml(value) : Number(value).toLocaleString()}</strong></div>`).join('');
   }
+
   function renderList() {
     const query = state.search.toLowerCase();
     const rows = state.artists.filter(a => !query || `${a.name} ${a.artist_key} ${a.slug}`.toLowerCase().includes(query));
@@ -48,11 +102,37 @@
         <span class="count-pill">${Number(artist.follower_count || 0).toLocaleString()} followers</span>
       </button>`).join('') : '<div class="empty">No artists match this search.</div>';
   }
+
   function setEditorVisible(visible) {
     el('artistForm').classList.toggle('hidden', !visible);
     el('emptyEditor').classList.toggle('hidden', visible);
     el('artistTools').classList.toggle('hidden', !visible || !state.selected?.id);
   }
+
+  function setUploadStatus(kind, message = '', error = false) {
+    const status = el(`${kind}ImageStatus`);
+    status.textContent = message;
+    status.classList.toggle('error', error);
+  }
+
+  function renderImagePreview(kind, url = '', dimensions = null) {
+    const preview = el(`${kind}ImagePreview`);
+    const dimension = el(`${kind}ImageDimensions`);
+    preview.innerHTML = '';
+    if (!url) {
+      preview.innerHTML = `<span>No ${kind} image</span>`;
+      dimension.textContent = '';
+      return;
+    }
+    const image = new Image();
+    image.alt = `${kind === 'profile' ? 'Profile' : 'Banner'} preview`;
+    image.src = url;
+    image.onload = () => { dimension.textContent = `${image.naturalWidth} × ${image.naturalHeight} px`; };
+    image.onerror = () => { preview.innerHTML = '<span>Image preview unavailable</span>'; dimension.textContent = ''; };
+    preview.appendChild(image);
+    if (dimensions) dimension.textContent = `${dimensions.width} × ${dimensions.height} px`;
+  }
+
   function populateForm(artist = {}) {
     state.selected = artist.id ? artist : null;
     el('editorTitle').textContent = artist.id ? artist.name : 'New Artist';
@@ -61,12 +141,19 @@
     fill('bio', artist.bio); fill('websiteUrl', artist.website_url); fill('merchUrl', artist.merch_url); fill('spotifyUrl', artist.spotify_url); fill('appleMusicUrl', artist.apple_music_url);
     fill('youtubeUrl', artist.youtube_url); fill('instagramUrl', artist.instagram_url); fill('xUrl', artist.x_url); fill('facebookUrl', artist.facebook_url); fill('notes', artist.notes);
     checked('verified', artist.verified); checked('featured', artist.featured);
+    renderImagePreview('profile', artist.profile_image_url || '');
+    renderImagePreview('banner', artist.banner_image_url || '');
+    setUploadStatus('profile'); setUploadStatus('banner');
+    const performance = performanceForArtist(artist);
     el('followerCount').textContent = Number(artist.follower_count || 0).toLocaleString();
-    el('songCount').textContent = `${Number(artist.song_count || 0)} songs`;
+    el('artistLikes').textContent = number(performance.total_likes).toLocaleString();
+    el('artistShares').textContent = number(performance.total_shares).toLocaleString();
+    el('artistListeningTime').textContent = formatDuration(performance.total_listening_seconds);
     const publicLink = el('publicProfileLink');
     if (artist.slug) { publicLink.href = `/radio/artists/dev/?artist=${encodeURIComponent(artist.slug)}`; publicLink.classList.remove('hidden'); } else publicLink.classList.add('hidden');
     setEditorVisible(true); renderList();
   }
+
   function payload() {
     return {
       name: el('name').value, artist_key: el('artistKey').value, slug: el('slug').value, sort_name: el('sortName').value,
@@ -76,9 +163,84 @@
       x_url: el('xUrl').value, facebook_url: el('facebookUrl').value, notes: el('notes').value, verified: el('verified').checked, featured: el('featured').checked
     };
   }
+
+  async function readImageDimensions(file) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = () => reject(new Error('The selected image could not be read.'));
+        image.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  function validateImage(file) {
+    if (!file) return 'Choose an image first.';
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Use a JPG, PNG, or WEBP image.';
+    if (file.size > MAX_IMAGE_BYTES) return 'Image must be 10 MB or smaller.';
+    return '';
+  }
+
+  async function uploadArtistImage(kind, file) {
+    const error = validateImage(file);
+    if (error) { setUploadStatus(kind, error, true); return; }
+    const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+    if (!adminToken) { setUploadStatus(kind, 'Image uploads currently require the DEV admin token.', true); return; }
+    const artistName = el('name').value.trim();
+    const artistKey = slugify(el('artistKey').value || el('slug').value || artistName);
+    if (!artistName) { setUploadStatus(kind, 'Enter the artist name before uploading.', true); return; }
+    const dimensions = await readImageDimensions(file);
+    const recommended = kind === 'profile' ? { width: 1200, height: 1200 } : { width: 2400, height: 800 };
+    const isBelowRecommendation = dimensions.width < recommended.width || dimensions.height < recommended.height;
+    setUploadStatus(kind, 'Preparing secure upload…');
+    const presign = await api(UPLOAD_PRESIGN_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        song_key: `artist-${artistKey}-${kind}`,
+        song_name: `${artistName} ${kind} image`,
+        artist: artistName,
+        purpose: 'artwork',
+        filename: file.name,
+        content_type: file.type
+      })
+    });
+    const uploadUrl = presign.upload_url;
+    const publicUrl = presign.public_url;
+    if (!uploadUrl || !publicUrl) throw new Error('Upload service did not return the required URLs.');
+    setUploadStatus(kind, 'Uploading image…');
+    const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+    if (!response.ok) throw new Error(`S3 upload failed with status ${response.status}.`);
+    fill(`${kind}ImageUrl`, publicUrl);
+    renderImagePreview(kind, publicUrl, dimensions);
+    const warning = isBelowRecommendation ? ' Uploaded successfully, but the image is smaller than the recommended dimensions.' : ' Uploaded successfully.';
+    setUploadStatus(kind, `${dimensions.width} × ${dimensions.height} px.${warning} Click Save Artist.`);
+  }
+
+  function clearArtistImage(kind) {
+    fill(`${kind}ImageUrl`, '');
+    el(`${kind}ImageFile`).value = '';
+    renderImagePreview(kind, '');
+    setUploadStatus(kind, 'Image removed from the profile form. Click Save Artist to confirm.');
+  }
+
+  function bindImageControls(kind) {
+    const fileInput = el(`${kind}ImageFile`);
+    el(`upload${kind[0].toUpperCase()}${kind.slice(1)}Image`).addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      uploadArtistImage(kind, file).catch(error => setUploadStatus(kind, error.message, true));
+    });
+    el(`delete${kind[0].toUpperCase()}${kind.slice(1)}Image`).addEventListener('click', () => clearArtistImage(kind));
+  }
+
   async function loadArtists() {
     show('Loading artists…');
-    const data = await api(ARTISTS_URL);
+    const [data] = await Promise.all([api(ARTISTS_URL), loadPerformanceStats()]);
     state.artists = data.artists || []; state.mode = data.mode || '';
     show(`Loaded ${state.artists.length} artist profiles using ${state.mode === 'platform_admin' ? 'administrator' : 'assigned artist'} access.`);
     renderStats(); renderList();
@@ -87,15 +249,16 @@
       if (matching) await selectArtist(matching.artist_key);
     }
   }
+
   async function selectArtist(key) {
     show('Loading artist profile…');
     const data = await api(`${ARTISTS_URL}/${encodeURIComponent(key)}`);
-    state.selected = data.artist; state.songs = data.songs || [];
+    state.selected = data.artist;
     populateForm(data.artist);
-    el('songKeys').value = state.songs.map(song => song.song_key).join('\n');
     await loadAccess();
-    show(`Editing ${data.artist.name}.`);
+    show(`Editing ${data.artist.name}. Catalog and performance are controlled by Song CMS.`);
   }
+
   async function loadAccess() {
     if (!state.selected) return;
     try {
@@ -110,7 +273,7 @@
   el('adminToken').value = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
   el('saveToken').addEventListener('click', () => { localStorage.setItem(ADMIN_TOKEN_KEY, el('adminToken').value.trim()); loadArtists().catch(error => show(error.message, true)); });
   el('clearToken').addEventListener('click', () => { localStorage.removeItem(ADMIN_TOKEN_KEY); el('adminToken').value = ''; loadArtists().catch(error => show(error.message, true)); });
-  el('newArtist').addEventListener('click', () => { state.songs = []; state.access = []; populateForm({ status: 'draft' }); el('songKeys').value = ''; el('accessList').innerHTML = ''; });
+  el('newArtist').addEventListener('click', () => { state.access = []; populateForm({ status: 'draft' }); el('accessList').innerHTML = ''; });
   el('cancelEdit').addEventListener('click', () => { state.selected = null; setEditorVisible(false); el('editorTitle').textContent = 'Select an Artist'; renderList(); });
   el('search').addEventListener('input', event => { state.search = event.target.value; renderList(); });
   el('artistList').addEventListener('click', event => { const button = event.target.closest('[data-artist]'); if (button) selectArtist(button.dataset.artist).catch(error => show(error.message, true)); });
@@ -122,14 +285,6 @@
       state.selected = data.artist; await loadArtists(); await selectArtist(data.artist.artist_key); show(`${data.artist.name} saved.`);
     } catch (error) { show(error.message, true); }
   });
-  el('saveSongs').addEventListener('click', async () => {
-    if (!state.selected) return; show('Saving song assignments…');
-    try {
-      const songKeys = el('songKeys').value.split(/[,\n]/).map(v => v.trim()).filter(Boolean);
-      const data = await api(`${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}/songs`, { method: 'PUT', body: JSON.stringify({ song_keys: songKeys, replace: true, artist_role: 'primary' }) });
-      state.songs = data.songs || []; state.selected.song_count = state.songs.length; el('songCount').textContent = `${state.songs.length} songs`; show('Song assignments saved.');
-    } catch (error) { show(error.message, true); }
-  });
   el('grantAccess').addEventListener('click', async () => {
     if (!state.selected) return; show('Granting artist access…');
     try {
@@ -138,6 +293,8 @@
     } catch (error) { show(error.message, true); }
   });
 
+  bindImageControls('profile');
+  bindImageControls('banner');
   setEditorVisible(false);
   loadArtists().catch(error => show(`${error.message} Save the DEV admin token or sign in with an assigned account.`, true));
 })();
