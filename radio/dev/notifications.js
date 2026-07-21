@@ -52,7 +52,7 @@
       loadScript('./mobile-ux-phase2.js?v=20260721-phase2b'),
       loadScript('./mobile-notification-peek.js?v=20260721-peek2'),
       loadScript('./mobile-critical-fixes.js?v=20260721-critical4'),
-      loadScript('./mobile-transport-controls.js?v=20260721-transport1'),
-      loadScript('./mobile-account-flow-fix.js?v=20260721-accountflow1')
+      loadScript('./mobile-account-flow-fix.js?v=20260721-accountflow1'),
+      loadScript('./mobile-player-control-surface.js?v=20260721-controls1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
