@@ -17,6 +17,7 @@
     .then(() => loadScript('./password-visibility.js?v=20260720-eye2'))
     .then(() => loadScript('./account-preferences-ui.js?v=20260720-toggle1'))
     .then(() => loadScript('./account-playlist-ui.js?v=20260720-playlist1'))
+    .then(() => loadScript('./artist-queue-handoff.js?v=20260721-artistqueue1'))
     .then(() => loadScript('./account-song-lists.js?v=20260720-songlists2'))
     .then(() => loadScript('./artist-follow.js?v=20260721-follow2'))
     .then(() => loadScript('./artist-metadata-layout.js?v=20260721-layout2'))
