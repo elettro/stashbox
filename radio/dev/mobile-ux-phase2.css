@@ -1,5 +1,6 @@
 html.sbr-mobile-ux {
   --sbr-mobile-drawer-width: min(88vw, 390px);
+  --sbr-notification-tab-top: 44%;
 }
 
 html.sbr-mobile-ux:has(.sbr-notification-drawer:not([hidden])) {
@@ -248,7 +249,7 @@ html.sbr-mobile-ux .sbr-notification-root:has(.sbr-notification-drawer:not([hidd
     --sbr-mobile-drawer-width: min(88vw, 390px);
     position: fixed !important;
     inset: auto 0 auto auto !important;
-    top: 44% !important;
+    top: var(--sbr-notification-tab-top, 44%) !important;
     right: 0 !important;
     z-index: 10000 !important;
     width: 0 !important;
@@ -257,7 +258,7 @@ html.sbr-mobile-ux .sbr-notification-root:has(.sbr-notification-drawer:not([hidd
 
   html.sbr-mobile-ux .sbr-notification-bell {
     position: fixed !important;
-    top: 44% !important;
+    top: var(--sbr-notification-tab-top, 44%) !important;
     right: 0 !important;
     z-index: 10003 !important;
     display: grid !important;
@@ -273,8 +274,16 @@ html.sbr-mobile-ux .sbr-notification-root:has(.sbr-notification-drawer:not([hidd
     border-radius: 14px 0 0 14px !important;
     opacity: 1 !important;
     pointer-events: auto !important;
+    touch-action: none !important;
+    user-select: none !important;
+    cursor: ns-resize !important;
     transform: translateY(-50%);
     transition: right 220ms ease, background 160ms ease, border-color 160ms ease !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell.is-dragging {
+    cursor: grabbing !important;
+    transition: none !important;
   }
 
   html.sbr-mobile-ux .sbr-notification-bell svg,
@@ -391,7 +400,6 @@ html.sbr-mobile-ux .sbr-notification-root:has(.sbr-notification-drawer:not([hidd
   }
 
   html.sbr-mobile-ux .sbr-notification-bell {
-    top: 50% !important;
     height: 62px !important;
     min-height: 62px !important;
   }
