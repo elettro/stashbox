@@ -9,6 +9,7 @@ on:
       - 'scripts/apply-dev-playlist-playback.mjs'
       - 'scripts/fix-dev-playlist-patch-source.mjs'
       - 'scripts/apply-dev-account-song-lists.mjs'
+      - 'scripts/trigger-dev-account-song-lists.txt'
       - '.github/workflows/apply-dev-playlist-playback.yml'
 
 permissions:
