@@ -6,7 +6,42 @@
   const mobileUserAgent = /android|iphone|ipad|ipod|mobile|blackberry|iemobile|opera mini/i.test(navigator.userAgent || '');
   if (!mobileQuery.matches && !mobileUserAgent) return;
 
+  const STYLE_ID = 'stashbox-mobile-critical-fixes-style';
   let scanFrame = 0;
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      @media (max-width: 900px), (hover: none), (pointer: coarse) {
+        .radio-account-user-button,
+        [data-account-menu-toggle] {
+          font-size: 0 !important;
+          color: transparent !important;
+          text-shadow: none !important;
+          overflow: visible !important;
+        }
+
+        .radio-account-user-button::before,
+        [data-account-menu-toggle]::before {
+          content: attr(data-account-initials) !important;
+          display: block !important;
+          color: #fff !important;
+          font: 950 14px/1 Karla, Arial, sans-serif !important;
+          letter-spacing: .055em !important;
+          text-align: center !important;
+        }
+
+        .song-card .song-artwork {
+          pointer-events: auto !important;
+          touch-action: manipulation !important;
+          cursor: pointer !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   function initialsFor(value) {
     const words = String(value || '').trim().split(/\s+/).filter(Boolean);
@@ -37,6 +72,7 @@
       const fullName = resolveFullName(button);
       const initials = initialsFor(fullName);
       button.dataset.accountFullName = fullName;
+      button.dataset.accountInitials = initials;
       if (String(button.textContent || '').trim() !== initials) button.textContent = initials;
       button.setAttribute('aria-label', `Open account menu for ${fullName}`);
       button.setAttribute('title', `My Account: ${fullName}`);
@@ -48,20 +84,27 @@
     player?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   }
 
-  function handleArtworkClick(event) {
-    const artwork = event.target?.closest?.('.song-card .song-artwork');
-    if (!artwork) return;
+  function artworkCardFromEvent(event) {
+    return event.target?.closest?.('.song-card .song-artwork')?.closest?.('.song-card') || null;
+  }
 
-    const card = artwork.closest('.song-card');
+  function handleArtworkPointerUp(event) {
+    const card = artworkCardFromEvent(event);
     if (!card) return;
 
     window.setTimeout(() => {
       if (!card.classList.contains('active')) card.click();
-      window.setTimeout(scrollPlayerIntoView, 50);
-    }, 40);
+      window.setTimeout(scrollPlayerIntoView, 70);
+    }, 140);
+  }
+
+  function handleArtworkClick(event) {
+    if (!artworkCardFromEvent(event)) return;
+    window.setTimeout(scrollPlayerIntoView, 90);
   }
 
   function scan() {
+    injectStyles();
     forceInitials();
   }
 
@@ -73,6 +116,7 @@
     });
   }
 
+  document.addEventListener('pointerup', handleArtworkPointerUp, false);
   document.addEventListener('click', handleArtworkClick, false);
 
   scan();
@@ -84,5 +128,5 @@
     attributeFilter: ['class', 'title', 'aria-label', 'aria-expanded']
   });
 
-  window.setInterval(forceInitials, 250);
+  window.setInterval(forceInitials, 200);
 })();
