@@ -30,6 +30,7 @@ const UNTITLED_STASHBOX_TRACK = 'Untitled Stashbox Track';
 const MEDIA_SESSION_DEFAULT_ALBUM = 'Stashbox Radio';
 const DEV_RADIO_SHARE_URL = 'https://stashbox.com/radio/dev/';
 const STASHBOX_PLAYLIST_PLAY_EVENT = 'stashbox:playlist-play';
+const STASHBOX_ACCOUNT_SONG_PLAY_EVENT = 'stashbox:account-song-play';
 const devUrlParams = new URLSearchParams(window.location.search);
 const songKeyFromUrl = devUrlParams.get('song') || '';
 const ALLOWED_VISUAL_MODES = new Set([
@@ -2814,6 +2815,67 @@ function App() {
     window.addEventListener(STASHBOX_PLAYLIST_PLAY_EVENT, handlePlaylistPlayback);
     return () => window.removeEventListener(STASHBOX_PLAYLIST_PLAY_EVENT, handlePlaylistPlayback);
   }, [tracks, finishPlayback, mediaMode]);
+
+
+  useEffect(() => {
+    const handleAccountSongPlay = event => {
+      const detail = event?.detail || {};
+      const requestedKeys = [
+        detail.song_key,
+        detail.songKey,
+        detail.song_id,
+        detail.songId,
+        detail.id
+      ].map(value => clean(value).toLowerCase()).filter(Boolean);
+      const requestedTitle = clean(detail.display_title || detail.title || detail.song_name).toLowerCase();
+      const requestedArtist = clean(detail.artist || detail.artist_name).toLowerCase();
+
+      const track = tracks.find(candidate => {
+        const candidateKeys = [
+          candidate?.songKey,
+          candidate?.song_key,
+          candidate?.id,
+          candidate?.idx,
+          candidate?.raw?.song_key,
+          candidate?.raw?.song_id,
+          candidate?.raw?.id
+        ].map(value => clean(value).toLowerCase()).filter(Boolean);
+        if (requestedKeys.some(key => candidateKeys.includes(key))) return true;
+        const titleMatches = requestedTitle && getSongTitle(candidate).toLowerCase() === requestedTitle;
+        const artistMatches = !requestedArtist || getSongArtist(candidate).toLowerCase() === requestedArtist;
+        return titleMatches && artistMatches;
+      });
+
+      if (!track || !canPlayTrack(track)) {
+        setPlayerMessage('That saved song is not currently available for playback.');
+        return;
+      }
+
+      finishPlayback('play_partial');
+      setCurrentAd(null);
+      setIsAdPlaying(false);
+      pendingAdNextSongRef.current = null;
+      setActiveShuffleQueue([]);
+      setActiveShuffleIndex(0);
+      setActiveShuffleSourceKey('');
+      setIsShuffleQueueActive(false);
+      setShuffleNotice('');
+      setPlayerMessage('Playing "' + getSongTitle(track) + '" from ' + (detail.source === 'history' ? 'Listening History' : 'Favorites') + '.');
+      console.log('[account song playback] started', {
+        source: detail.source || 'account',
+        song_key: track.songKey || track.song_key,
+        title: getSongTitle(track)
+      });
+      selectTrack(track, {
+        autoStart: true,
+        preferVideo: isVideoOnlyTrack(track) || !track.hasAudio,
+        startSource: detail.source === 'history' ? 'account_history' : 'account_favorite'
+      });
+    };
+
+    window.addEventListener(STASHBOX_ACCOUNT_SONG_PLAY_EVENT, handleAccountSongPlay);
+    return () => window.removeEventListener(STASHBOX_ACCOUNT_SONG_PLAY_EVENT, handleAccountSongPlay);
+  }, [tracks, finishPlayback]);
 
   function resolveAdjacentPlayableSong(direction, song = selectedSong, { allowWrap = true } = {}) {
     if (!playbackList.length) return null;

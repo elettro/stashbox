@@ -17,6 +17,7 @@
     .then(() => loadScript('./password-visibility.js?v=20260720-eye2'))
     .then(() => loadScript('./account-preferences-ui.js?v=20260720-toggle1'))
     .then(() => loadScript('./account-playlist-ui.js?v=20260720-playlist1'))
+    .then(() => loadScript('./account-song-lists.js?v=20260720-songlists2'))
     .then(() => loadScript('./account-name-launcher.js?v=20260720-account1'))
     .then(() => loadScript('./header-action-alignment.js?v=20260720-header1'))
     .catch((error) => {
