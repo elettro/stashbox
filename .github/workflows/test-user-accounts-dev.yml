@@ -16,6 +16,7 @@ on:
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
       - 'radio/dev/account.js'
       - 'radio/dev/account-password-policy.js'
+      - 'radio/dev/account-dashboard-ui.js'
       - 'radio/dev/account.css'
       - 'radio/dev/notifications.js'
       - 'radio/dev/notifications-core.js'
@@ -41,8 +42,10 @@ on:
       - main
     paths:
       - 'radio-api/artist-routes.mjs'
+      - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
+      - 'radio/dev/account-dashboard-ui.js'
       - 'radio/dev/artist-follow.js'
       - 'radio/dev/artist-metadata-layout.js'
       - 'radio/dev/artist-queue-handoff.js'
@@ -93,6 +96,7 @@ jobs:
           node --check radio-api/video-factory/entry.mjs
           node --check radio/dev/account.js
           node --check radio/dev/account-password-policy.js
+          node --check radio/dev/account-dashboard-ui.js
           node --check radio/dev/notifications.js
           node --check radio/dev/notifications-core.js
           node --check radio/dev/artist-follow.js
