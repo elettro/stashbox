@@ -72,7 +72,7 @@ test('Artist CMS supports profile and banner upload, replacement, deletion, and 
   const cmsHtml = read('radio-admin/artists/dev/index.html');
   const cmsApp = read('radio-admin/artists/dev/app.js');
   assert.match(cmsHtml, /Recommended: 1200 × 1200 px/);
-  assert.match(cmsHtml, /Recommended: 2400 × 800 px/);
+  assert.match(cmsHtml, /Recommended: 1920 × 1080 px/);
   assert.match(cmsHtml, /Upload \/ Replace/);
   assert.match(cmsHtml, /Delete Image/);
   assert.match(cmsApp, /UPLOAD_PRESIGN_URL/);

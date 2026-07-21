@@ -194,7 +194,7 @@
     const artistKey = slugify(el('artistKey').value || el('slug').value || artistName);
     if (!artistName) { setUploadStatus(kind, 'Enter the artist name before uploading.', true); return; }
     const dimensions = await readImageDimensions(file);
-    const recommended = kind === 'profile' ? { width: 1200, height: 1200 } : { width: 2400, height: 800 };
+    const recommended = kind === 'profile' ? { width: 1200, height: 1200 } : { width: 1920, height: 1080 };
     const isBelowRecommendation = dimensions.width < recommended.width || dimensions.height < recommended.height;
     setUploadStatus(kind, 'Preparing secure upload…');
     const presign = await api(UPLOAD_PRESIGN_URL, {
