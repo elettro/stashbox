@@ -1,5 +1,6 @@
 (() => {
   const API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/notifications';
+  const TOKEN_STORAGE_KEY = 'stashbox_radio_dev_cognito_tokens';
   const READ_STORAGE_KEY = 'stashbox_notification_read_ids_dev';
   const DISMISSED_STORAGE_KEY = 'stashbox_notification_dismissed_ids_dev';
   const VISITOR_STORAGE_KEY = 'stashbox_notification_visitor_id_dev';
@@ -9,8 +10,23 @@
   const state = {
     notifications: [],
     open: false,
-    loading: false
+    loading: false,
+    personalized: false
   };
+
+  function readJson(key, fallback = null) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }
+    catch (_) { return fallback; }
+  }
+
+  function authHeaders(extra = {}) {
+    const token = readJson(TOKEN_STORAGE_KEY, {}) || {};
+    return {
+      ...extra,
+      ...(token.accessToken ? { Authorization: `Bearer ${token.accessToken}` } : {}),
+      ...(token.idToken ? { 'X-Cognito-Id-Token': token.idToken } : {})
+    };
+  }
 
   function parseStoredSet(key, storage = localStorage) {
     try {
@@ -175,7 +191,7 @@
   function postEvent(notificationId, eventType, metadata = {}) {
     fetch(`${API_URL}/${encodeURIComponent(notificationId)}/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         event_type: eventType,
         anonymous_visitor_id: visitorId,
@@ -223,6 +239,7 @@
     ui.drawer.hidden = !open;
     ui.bell.setAttribute('aria-expanded', String(open));
     if (open) {
+      loadNotifications(true);
       recordViews();
       markRead(activeNotifications().map((notification) => notification.id));
       ui.close.focus({ preventScroll: true });
@@ -231,14 +248,26 @@
     }
   }
 
-  async function loadNotifications() {
-    if (state.loading) return;
+  async function requestNotifications(useAuthentication = true) {
+    const headers = useAuthentication
+      ? authHeaders({ Accept: 'application/json' })
+      : { Accept: 'application/json' };
+    const response = await fetch(`${API_URL}?limit=100`, { headers, cache: 'no-store', credentials: 'omit' });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && useAuthentication && headers.Authorization) {
+      return requestNotifications(false);
+    }
+    if (!response.ok) throw new Error(payload.error || 'Notifications are unavailable.');
+    return payload;
+  }
+
+  async function loadNotifications(force = false) {
+    if (state.loading && !force) return;
     state.loading = true;
     try {
-      const response = await fetch(`${API_URL}?limit=100`, { headers: { Accept: 'application/json' } });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Notifications are unavailable.');
+      const payload = await requestNotifications(true);
       state.notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+      state.personalized = Boolean(payload.personalized);
       renderList();
       recordViews();
     } catch (error) {
@@ -248,7 +277,14 @@
     }
   }
 
-  window.addEventListener('stashbox-notification-account-state', (event) => applyAccountState(event.detail));
+  window.addEventListener('stashbox-notification-account-state', (event) => {
+    applyAccountState(event.detail);
+    loadNotifications(true);
+  });
+  window.addEventListener('stashbox:artist-follow-changed', () => loadNotifications(true));
+  window.addEventListener('storage', event => {
+    if (event.key === TOKEN_STORAGE_KEY) loadNotifications(true);
+  });
   ui.bell.addEventListener('click', () => setDrawerOpen(!state.open));
   ui.close.addEventListener('click', () => setDrawerOpen(false));
   ui.markAllRead.addEventListener('click', () => markRead(activeNotifications().map((notification) => notification.id)));
