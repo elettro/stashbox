@@ -1,0 +1,1 @@
+Trigger the guarded DEV Favorites and Listening History thumbnail and playback patch.
