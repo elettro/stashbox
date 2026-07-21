@@ -1,0 +1,1 @@
+Temporary no-op file used only to run the DEV Artist CMS syntax and regression suite against the current main implementation.
