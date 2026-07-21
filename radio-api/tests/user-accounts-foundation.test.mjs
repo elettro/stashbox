@@ -112,7 +112,7 @@ test('Following Artists stat opens a thumbnail list with database-backed unfollo
   const followingUi = read('radio/dev/account-following-stat.js');
   assert.doesNotThrow(() => new Function(followingUi));
   assert.match(loader, /account-following-stat\.js\?v=20260721-following-list1/);
-  assert.match(followingUi, /data\.followingArtistsOpen = 'true'/);
+  assert.match(followingUi, /dataset\.followingArtistsOpen = 'true'/);
   assert.match(followingUi, /data-following-artists-panel/);
   assert.match(followingUi, /radio-following-artist-thumb/);
   assert.match(followingUi, /profile_image_url/);
