@@ -3,38 +3,93 @@
   const ARTISTS_URL = `${API_ROOT}/radio/admin/artists`;
   const SONG_STATS_URL = `${API_ROOT}/admin/stats/songs?limit=500`;
   const UPLOAD_PRESIGN_URL = `${API_ROOT}/admin/uploads/presign`;
-  const ADMIN_TOKEN_KEY = 'stashbox-radio-admin-token-dev';
+  const STANDARD_ADMIN_TOKEN_KEY = 'stashbox_admin_token_dev';
+  const LEGACY_ADMIN_TOKEN_KEY = 'stashbox-radio-admin-token-dev';
   const ACCOUNT_TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   const state = { artists: [], selected: null, access: [], mode: '', search: '', performance: new Map() };
   const el = id => document.getElementById(id);
 
-  function accountTokens() { try { return JSON.parse(localStorage.getItem(ACCOUNT_TOKEN_KEY) || 'null') || {}; } catch (_) { return {}; } }
+  function accountTokens() {
+    try { return JSON.parse(localStorage.getItem(ACCOUNT_TOKEN_KEY) || 'null') || {}; }
+    catch (_) { return {}; }
+  }
+
+  function adminToken() {
+    return localStorage.getItem(STANDARD_ADMIN_TOKEN_KEY)
+      || localStorage.getItem(LEGACY_ADMIN_TOKEN_KEY)
+      || '';
+  }
+
+  function saveAdminToken(value) {
+    const token = String(value || '').trim();
+    if (!token) return;
+    localStorage.setItem(STANDARD_ADMIN_TOKEN_KEY, token);
+    localStorage.setItem(LEGACY_ADMIN_TOKEN_KEY, token);
+  }
+
+  function clearAdminToken() {
+    localStorage.removeItem(STANDARD_ADMIN_TOKEN_KEY);
+    localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  }
+
   function headers(json = false) {
     const result = {};
-    const admin = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
-    const tokens = accountTokens();
-    if (admin) result['x-admin-token'] = admin;
-    if (tokens.accessToken) result.Authorization = `Bearer ${tokens.accessToken}`;
-    if (tokens.idToken) result['X-Cognito-Id-Token'] = tokens.idToken;
+    const admin = adminToken();
+    if (admin) {
+      result['x-admin-token'] = admin;
+    } else {
+      const tokens = accountTokens();
+      if (tokens.accessToken) result.Authorization = `Bearer ${tokens.accessToken}`;
+      if (tokens.idToken) result['X-Cognito-Id-Token'] = tokens.idToken;
+    }
     if (json) result['Content-Type'] = 'application/json';
     return result;
   }
+
   async function api(url, options = {}) {
-    const response = await fetch(url, { cache: 'no-store', ...options, headers: { ...headers(Boolean(options.body)), ...(options.headers || {}) } });
+    let response;
+    try {
+      response = await fetch(url, {
+        cache: 'no-store',
+        credentials: 'omit',
+        ...options,
+        headers: {
+          ...headers(Boolean(options.body)),
+          ...(options.headers || {})
+        }
+      });
+    } catch (_) {
+      throw new Error('Could not reach the Stashbox Radio DEV API from this browser.');
+    }
     const text = await response.text();
-    let body = {}; try { body = text ? JSON.parse(text) : {}; } catch (_) { body = { error: text }; }
+    let body = {};
+    try { body = text ? JSON.parse(text) : {}; }
+    catch (_) { body = { error: text }; }
     if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
     return body;
   }
-  function show(message, error = false) { const box = el('message'); box.textContent = message; box.classList.toggle('hidden', !message); box.classList.toggle('error', error); }
-  function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+
+  function show(message, error = false) {
+    const box = el('message');
+    box.textContent = message;
+    box.classList.toggle('hidden', !message);
+    box.classList.toggle('error', error);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+    }[c]));
+  }
+
   function fill(id, value = '') { el(id).value = value ?? ''; }
   function checked(id, value) { el(id).checked = Boolean(value); }
   function number(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : 0; }
   function normalizeArtistName(value) { return String(value || '').trim().toLowerCase().replace(/\s+/g, ' '); }
   function slugify(value) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'artist'; }
+
   function formatDuration(totalSeconds) {
     const seconds = Math.max(0, Math.round(number(totalSeconds)));
     if (seconds >= 86400) return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
@@ -150,8 +205,14 @@
     el('artistShares').textContent = number(performance.total_shares).toLocaleString();
     el('artistListeningTime').textContent = formatDuration(performance.total_listening_seconds);
     const publicLink = el('publicProfileLink');
-    if (artist.slug) { publicLink.href = `/radio/artists/dev/?artist=${encodeURIComponent(artist.slug)}`; publicLink.classList.remove('hidden'); } else publicLink.classList.add('hidden');
-    setEditorVisible(true); renderList();
+    if (artist.slug) {
+      publicLink.href = `/radio/artists/dev/?artist=${encodeURIComponent(artist.slug)}`;
+      publicLink.classList.remove('hidden');
+    } else {
+      publicLink.classList.add('hidden');
+    }
+    setEditorVisible(true);
+    renderList();
   }
 
   function payload() {
@@ -186,37 +247,69 @@
   }
 
   async function uploadArtistImage(kind, file) {
-    const error = validateImage(file);
-    if (error) { setUploadStatus(kind, error, true); return; }
-    const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
-    if (!adminToken) { setUploadStatus(kind, 'Image uploads currently require the DEV admin token.', true); return; }
+    const validationError = validateImage(file);
+    if (validationError) {
+      setUploadStatus(kind, validationError, true);
+      return;
+    }
+    if (!adminToken()) {
+      setUploadStatus(kind, 'Image uploads require the saved DEV admin token.', true);
+      return;
+    }
     const artistName = el('name').value.trim();
     const artistKey = slugify(el('artistKey').value || el('slug').value || artistName);
-    if (!artistName) { setUploadStatus(kind, 'Enter the artist name before uploading.', true); return; }
+    if (!artistName) {
+      setUploadStatus(kind, 'Enter the artist name before uploading.', true);
+      return;
+    }
     const dimensions = await readImageDimensions(file);
-    const recommended = kind === 'profile' ? { width: 1200, height: 1200 } : { width: 1920, height: 1080 };
+    const recommended = kind === 'profile'
+      ? { width: 1200, height: 1200 }
+      : { width: 1920, height: 1080 };
     const isBelowRecommendation = dimensions.width < recommended.width || dimensions.height < recommended.height;
-    setUploadStatus(kind, 'Preparing secure upload…');
-    const presign = await api(UPLOAD_PRESIGN_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        song_key: `artist-${artistKey}-${kind}`,
-        song_name: `${artistName} ${kind} image`,
-        artist: artistName,
-        purpose: 'artwork',
-        filename: file.name,
-        content_type: file.type
-      })
-    });
+
+    setUploadStatus(kind, 'Requesting secure upload URL…');
+    let presign;
+    try {
+      presign = await api(UPLOAD_PRESIGN_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          song_key: `artist-${artistKey}-${kind}`,
+          song_name: `${artistName} ${kind} image`,
+          artist: artistName,
+          purpose: 'artwork',
+          filename: file.name,
+          content_type: file.type
+        })
+      });
+    } catch (error) {
+      throw new Error(`Upload authorization failed: ${error.message}`);
+    }
+
     const uploadUrl = presign.upload_url;
     const publicUrl = presign.public_url;
-    if (!uploadUrl || !publicUrl) throw new Error('Upload service did not return the required URLs.');
-    setUploadStatus(kind, 'Uploading image…');
-    const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-    if (!response.ok) throw new Error(`S3 upload failed with status ${response.status}.`);
+    if (!uploadUrl || !publicUrl) throw new Error('Upload authorization did not return the required URLs.');
+
+    setUploadStatus(kind, 'Uploading image to DEV storage…');
+    let uploadResponse;
+    try {
+      uploadResponse = await fetch(uploadUrl, {
+        method: presign.method || 'PUT',
+        mode: 'cors',
+        credentials: 'omit',
+        headers: presign.headers || { 'Content-Type': file.type },
+        body: file
+      });
+    } catch (_) {
+      throw new Error('The DEV storage upload was blocked before the file reached S3.');
+    }
+    if (!uploadResponse.ok) throw new Error(`DEV storage upload failed with status ${uploadResponse.status}.`);
+
     fill(`${kind}ImageUrl`, publicUrl);
     renderImagePreview(kind, publicUrl, dimensions);
-    const warning = isBelowRecommendation ? ' Uploaded successfully, but the image is smaller than the recommended dimensions.' : ' Uploaded successfully.';
+    const warning = isBelowRecommendation
+      ? ' Uploaded successfully, but the image is smaller than the recommended dimensions.'
+      : ' Uploaded successfully.';
     setUploadStatus(kind, `${dimensions.width} × ${dimensions.height} px.${warning} Click Save Artist.`);
   }
 
@@ -241,9 +334,11 @@
   async function loadArtists() {
     show('Loading artists…');
     const [data] = await Promise.all([api(ARTISTS_URL), loadPerformanceStats()]);
-    state.artists = data.artists || []; state.mode = data.mode || '';
+    state.artists = data.artists || [];
+    state.mode = data.mode || '';
     show(`Loaded ${state.artists.length} artist profiles using ${state.mode === 'platform_admin' ? 'administrator' : 'assigned artist'} access.`);
-    renderStats(); renderList();
+    renderStats();
+    renderList();
     if (state.selected?.artist_key) {
       const matching = state.artists.find(a => a.artist_key === state.selected.artist_key);
       if (matching) await selectArtist(matching.artist_key);
@@ -264,33 +359,82 @@
     try {
       const data = await api(`${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}/access`);
       state.access = data.access || [];
-      el('accessList').innerHTML = state.access.length ? state.access.map(row => `<div class="access-row"><div><strong>${escapeHtml(row.display_name || row.email || row.user_id)}</strong><span>${escapeHtml(row.email || '')}</span></div><div><strong>${escapeHtml(row.access_level)}</strong><span>${escapeHtml(row.status)}</span></div></div>`).join('') : '<p class="copy">No delegated access assignments yet.</p>';
+      el('accessList').innerHTML = state.access.length
+        ? state.access.map(row => `<div class="access-row"><div><strong>${escapeHtml(row.display_name || row.email || row.user_id)}</strong><span>${escapeHtml(row.email || '')}</span></div><div><strong>${escapeHtml(row.access_level)}</strong><span>${escapeHtml(row.status)}</span></div></div>`).join('')
+        : '<p class="copy">No delegated access assignments yet.</p>';
     } catch (error) {
-      state.access = []; el('accessList').innerHTML = `<p class="copy">Access assignments are visible only to Stashbox administrators. ${escapeHtml(error.message)}</p>`;
+      state.access = [];
+      el('accessList').innerHTML = `<p class="copy">Access assignments are visible only to Stashbox administrators. ${escapeHtml(error.message)}</p>`;
     }
   }
 
-  el('adminToken').value = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
-  el('saveToken').addEventListener('click', () => { localStorage.setItem(ADMIN_TOKEN_KEY, el('adminToken').value.trim()); loadArtists().catch(error => show(error.message, true)); });
-  el('clearToken').addEventListener('click', () => { localStorage.removeItem(ADMIN_TOKEN_KEY); el('adminToken').value = ''; loadArtists().catch(error => show(error.message, true)); });
-  el('newArtist').addEventListener('click', () => { state.access = []; populateForm({ status: 'draft' }); el('accessList').innerHTML = ''; });
-  el('cancelEdit').addEventListener('click', () => { state.selected = null; setEditorVisible(false); el('editorTitle').textContent = 'Select an Artist'; renderList(); });
-  el('search').addEventListener('input', event => { state.search = event.target.value; renderList(); });
-  el('artistList').addEventListener('click', event => { const button = event.target.closest('[data-artist]'); if (button) selectArtist(button.dataset.artist).catch(error => show(error.message, true)); });
+  el('adminToken').value = adminToken();
+  el('saveToken').addEventListener('click', () => {
+    saveAdminToken(el('adminToken').value);
+    loadArtists().catch(error => show(error.message, true));
+  });
+  el('clearToken').addEventListener('click', () => {
+    clearAdminToken();
+    el('adminToken').value = '';
+    loadArtists().catch(error => show(error.message, true));
+  });
+  el('newArtist').addEventListener('click', () => {
+    state.access = [];
+    populateForm({ status: 'draft' });
+    el('accessList').innerHTML = '';
+  });
+  el('cancelEdit').addEventListener('click', () => {
+    state.selected = null;
+    setEditorVisible(false);
+    el('editorTitle').textContent = 'Select an Artist';
+    renderList();
+  });
+  el('search').addEventListener('input', event => {
+    state.search = event.target.value;
+    renderList();
+  });
+  el('artistList').addEventListener('click', event => {
+    const button = event.target.closest('[data-artist]');
+    if (button) selectArtist(button.dataset.artist).catch(error => show(error.message, true));
+  });
   el('artistForm').addEventListener('submit', async event => {
-    event.preventDefault(); show('Saving artist…');
+    event.preventDefault();
+    show('Saving artist…');
     try {
-      const url = state.selected?.artist_key ? `${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}` : ARTISTS_URL;
-      const data = await api(url, { method: state.selected ? 'PATCH' : 'POST', body: JSON.stringify(payload()) });
-      state.selected = data.artist; await loadArtists(); await selectArtist(data.artist.artist_key); show(`${data.artist.name} saved.`);
-    } catch (error) { show(error.message, true); }
+      const url = state.selected?.artist_key
+        ? `${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}`
+        : ARTISTS_URL;
+      const data = await api(url, {
+        method: state.selected ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload())
+      });
+      state.selected = data.artist;
+      await loadArtists();
+      await selectArtist(data.artist.artist_key);
+      show(`${data.artist.name} saved.`);
+    } catch (error) {
+      show(error.message, true);
+    }
   });
   el('grantAccess').addEventListener('click', async () => {
-    if (!state.selected) return; show('Granting artist access…');
+    if (!state.selected) return;
+    show('Granting artist access…');
     try {
-      await api(`${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}/access`, { method: 'POST', body: JSON.stringify({ email: el('accessEmail').value, role: el('accessRole').value, access_level: el('accessLevel').value, status: 'approved' }) });
-      el('accessEmail').value = ''; await loadAccess(); show('Artist access granted.');
-    } catch (error) { show(error.message, true); }
+      await api(`${ARTISTS_URL}/${encodeURIComponent(state.selected.artist_key)}/access`, {
+        method: 'POST',
+        body: JSON.stringify({
+          email: el('accessEmail').value,
+          role: el('accessRole').value,
+          access_level: el('accessLevel').value,
+          status: 'approved'
+        })
+      });
+      el('accessEmail').value = '';
+      await loadAccess();
+      show('Artist access granted.');
+    } catch (error) {
+      show(error.message, true);
+    }
   });
 
   bindImageControls('profile');
