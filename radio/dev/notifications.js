@@ -8,11 +8,9 @@
     document.head.appendChild(script);
   });
 
-  loadScript('./account.js')
-    .then(() => loadScript('./account-password-policy.js'))
-    .catch((error) => console.error('[accounts] DEV account bootstrap failed', error))
-    .finally(() => Promise.all([
-      loadScript('./notification-account-sync.js'),
-      loadScript('./notifications-core.js')
-    ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
+  // DEV safety rollback: keep the radio and notification drawer available while
+  // the account header observer is repaired. Production is not affected.
+  Promise.all([
+    loadScript('./notifications-core.js')
+  ]).catch((error) => console.error('[notifications] DEV notification client failed', error));
 })();
