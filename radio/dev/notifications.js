@@ -23,6 +23,9 @@
     document.head.appendChild(link);
   });
 
+  loadScript('./mobile-account-initials-direct.js?v=20260721-initials1')
+    .catch((error) => console.error('[accounts] mobile initials bootstrap failed', error));
+
   loadScript('./account-config-ready.js?v=20260721-configready1')
     .then(() => loadScript('./account-observer-guard.js'))
     .then(() => loadScript('./account.js'))
