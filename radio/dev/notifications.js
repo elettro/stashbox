@@ -31,6 +31,6 @@
     })
     .finally(() => Promise.all([
       loadScript('./notification-account-sync.js'),
-      loadScript('./notifications-core.js')
+      loadScript('./notifications-core.js?v=20260721-personalized1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
