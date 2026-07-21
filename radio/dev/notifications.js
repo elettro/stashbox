@@ -49,6 +49,7 @@
       loadStyle('./notifications-compact.css?v=20260721-compact3'),
       loadScript('./notification-account-sync.js'),
       loadScript('./notifications-core.js?v=20260721-compact3'),
-      loadScript('./mobile-ux-phase2.js?v=20260721-phase2b')
+      loadScript('./mobile-ux-phase2.js?v=20260721-phase2b'),
+      loadScript('./mobile-notification-peek.js?v=20260721-peek1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
