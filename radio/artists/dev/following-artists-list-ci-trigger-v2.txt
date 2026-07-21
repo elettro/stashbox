@@ -1,0 +1,1 @@
+Temporary no-op trigger for corrected DEV Following Artists account-list validation.
