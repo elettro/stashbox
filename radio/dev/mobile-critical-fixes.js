@@ -8,6 +8,7 @@
 
   const STYLE_ID = 'stashbox-mobile-critical-fixes-style';
   let scanFrame = 0;
+  let topSnapTimer = 0;
 
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -79,13 +80,35 @@
     });
   }
 
-  function scrollPlayerIntoView() {
-    const player = document.querySelector('.radio-interface .player, .player');
-    player?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  function scrollPageToAbsoluteTop() {
+    if (topSnapTimer) window.clearTimeout(topSnapTimer);
+
+    const scrollTarget = document.scrollingElement || document.documentElement;
+    try {
+      scrollTarget?.scrollTo?.({ top: 0, left: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    } catch (_) {
+      window.scrollTo(0, 0);
+    }
+
+    topSnapTimer = window.setTimeout(() => {
+      window.scrollTo(0, 0);
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      topSnapTimer = 0;
+    }, 520);
   }
 
   function artworkCardFromEvent(event) {
     return event.target?.closest?.('.song-card .song-artwork')?.closest?.('.song-card') || null;
+  }
+
+  function selectableSongCardFromEvent(event) {
+    const card = event.target?.closest?.('.song-card');
+    if (!card) return null;
+    if (event.target?.closest?.('.like-button, .share-button, .song-actions')) return null;
+    return card;
   }
 
   function handleArtworkPointerUp(event) {
@@ -94,13 +117,13 @@
 
     window.setTimeout(() => {
       if (!card.classList.contains('active')) card.click();
-      window.setTimeout(scrollPlayerIntoView, 70);
+      window.setTimeout(scrollPageToAbsoluteTop, 70);
     }, 140);
   }
 
-  function handleArtworkClick(event) {
-    if (!artworkCardFromEvent(event)) return;
-    window.setTimeout(scrollPlayerIntoView, 90);
+  function handleSongCardClick(event) {
+    if (!selectableSongCardFromEvent(event)) return;
+    window.setTimeout(scrollPageToAbsoluteTop, 90);
   }
 
   function scan() {
@@ -117,7 +140,7 @@
   }
 
   document.addEventListener('pointerup', handleArtworkPointerUp, false);
-  document.addEventListener('click', handleArtworkClick, false);
+  document.addEventListener('click', handleSongCardClick, false);
 
   scan();
   new MutationObserver(queueScan).observe(document.body, {
