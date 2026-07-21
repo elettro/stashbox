@@ -68,6 +68,21 @@ test('follow UI refreshes expired Cognito sessions and exposes failures', () => 
   assert.match(followUi, /Follow failed/);
 });
 
+test('public artist profile follow controller refreshes and retries expired sessions', () => {
+  const controller = read('radio/artists/dev/follow-session-fix.js');
+  const html = read('radio/artists/dev/index.html');
+  assert.doesNotThrow(() => new Function(controller));
+  assert.match(controller, /REFRESH_TOKEN_AUTH/);
+  assert.match(controller, /tokenExpiresSoon/);
+  assert.match(controller, /response\.status === 401 && retry/);
+  assert.match(controller, /return protectedApi\(url, options, false\)/);
+  assert.match(controller, /setFollowerCount\(previousCount \+ \(shouldFollow \? 1 : -1\)\)/);
+  assert.match(controller, /setFollowerCount\(previousCount\)/);
+  assert.match(controller, /stopImmediatePropagation/);
+  assert.match(controller, /stashbox:artist-follow-changed/);
+  assert.match(html, /follow-session-fix\.js\?v=20260721-followfix1/);
+});
+
 test('Artist CMS supports profile and banner upload, replacement, deletion, and dimension guidance', () => {
   const cmsHtml = read('radio-admin/artists/dev/index.html');
   const cmsApp = read('radio-admin/artists/dev/app.js');
