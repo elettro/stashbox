@@ -11,6 +11,11 @@ import {
   isNotificationEventRequest
 } from './account-routes.mjs';
 import {
+  assertAccountIdentityAvailable,
+  handleAccountLifecycleRequest,
+  isAccountLifecycleRequest
+} from './account-lifecycle.mjs';
+import {
   handleArtistRequest,
   isArtistRequest
 } from './artist-routes.mjs';
@@ -145,6 +150,7 @@ function accountDeps(client) {
   return {
     client,
     qname,
+    schema: getDbSchema(),
     response,
     parseBody,
     getMethod,
@@ -161,6 +167,7 @@ export const handler = async event => {
   const method = getMethod(safeEvent);
   const segments = getRouteSegments(safeEvent);
   const accountRequest = isAccountRequest(segments);
+  const accountLifecycleRequest = isAccountLifecycleRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
@@ -178,17 +185,27 @@ export const handler = async event => {
   const client = getClient();
   try {
     await client.connect();
+    const deps = accountDeps(client);
+
+    if (accountLifecycleRequest) {
+      return await handleAccountLifecycleRequest(safeEvent, deps);
+    }
 
     if (accountRequest) {
-      return await handleAccountRequest(safeEvent, accountDeps(client));
+      if (segments[1] === 'me') {
+        await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
+      }
+      return await handleAccountRequest(safeEvent, deps);
     }
 
     if (artistRequest) {
-      return await handleArtistRequest(safeEvent, accountDeps(client));
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: false });
+      return await handleArtistRequest(safeEvent, deps);
     }
 
     if (notificationEventRequest) {
-      return await handleNotificationEventRequest(safeEvent, accountDeps(client));
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: false });
+      return await handleNotificationEventRequest(safeEvent, deps);
     }
 
     return await handleAdminVideoFactoryRoute(safeEvent, {
