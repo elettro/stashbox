@@ -91,6 +91,23 @@ test('notification client is preserved and account bootstrap loads first', () =>
   assert.match(notificationCore, /sbr-notification-bell/);
 });
 
+test('playlist summary cards expose Play and Shuffle and reuse the existing queue controls', () => {
+  const playlistUi = read('radio/dev/account-playlist-ui.js');
+  const accountClient = read('radio/dev/account.js');
+  const loader = read('radio/dev/notifications.js');
+  assert.match(playlistUi, /radio-playlist-list-playback-actions/);
+  assert.match(playlistUi, /radio-playlist-summary-play/);
+  assert.match(playlistUi, /radio-playlist-summary-shuffle/);
+  assert.match(playlistUi, /data-summary-playlist/);
+  assert.match(playlistUi, /waitForDetailControl/);
+  assert.match(playlistUi, /detailControl\.click\(\)/);
+  assert.match(playlistUi, /scrollIntoView/);
+  assert.match(accountClient, /stashbox:playlist-play/);
+  assert.match(accountClient, /data-play-playlist/);
+  assert.match(accountClient, /data-shuffle-playlist/);
+  assert.match(loader, /account-playlist-ui\.js\?v=20260721-playlist-summary1/);
+});
+
 test('DEV deployment wrapper delegates unrelated routes to the original radio handler', () => {
   const wrapper = read('radio-api/video-factory/entry.mjs');
   assert.match(wrapper, /const accountRequest = isAccountRequest\(segments\)/);
