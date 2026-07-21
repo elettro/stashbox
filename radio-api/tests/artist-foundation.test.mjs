@@ -85,19 +85,21 @@ test('public artist profile follow controller persists and hydrates saved follow
   assert.match(controller, /response\.status === 401 && retry/);
   assert.match(controller, /stopImmediatePropagation/);
   assert.match(controller, /stashbox:artist-follow-changed/);
-  assert.match(html, /follow-session-fix\.js\?v=20260721-follow-persist1/);
+  assert.match(html, /follow-session-fix\.js\?v=20260721-follow-route2/);
 });
 
-test('account overview presents a database-backed Following Artists stat', () => {
+test('account overview presents a database-backed Following Artists stat and list', () => {
   const statClient = read('radio/dev/account-following-stat.js');
   const loader = read('radio/dev/notifications.js');
   assert.doesNotThrow(() => new Function(statClient));
   assert.match(statClient, /Following Artists<strong>0<\/strong>/);
   assert.match(statClient, /\/radio\/me\/follows/);
   assert.match(statClient, /FOLLOW_CACHE_KEY/);
+  assert.match(statClient, /radio-following-artist-thumb/);
+  assert.match(statClient, /data-unfollow-artist/);
   assert.match(statClient, /stashbox:artist-follow-changed/);
   assert.match(statClient, /stashbox:artist-follows-loaded/);
-  assert.match(loader, /account-following-stat\.js\?v=20260721-follow-persist1/);
+  assert.match(loader, /account-following-stat\.js\?v=20260721-following-list1/);
 });
 
 test('Artist CMS supports profile and banner upload, replacement, deletion, and dimension guidance', () => {
