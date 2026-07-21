@@ -40,6 +40,7 @@
     .then(() => loadScript('./artist-metadata-layout.js?v=20260721-layout2'))
     .then(() => loadScript('./account-name-launcher.js?v=20260720-account1'))
     .then(() => loadScript('./header-action-alignment.js?v=20260720-header1'))
+    .then(() => loadScript('./account-logout-redirect.js?v=20260721-logout1'))
     .catch((error) => {
       window.__restoreStashboxMutationObserver?.();
       console.error('[accounts] DEV account bootstrap failed', error);
