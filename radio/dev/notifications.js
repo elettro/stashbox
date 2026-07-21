@@ -14,7 +14,7 @@
       window.__restoreStashboxMutationObserver?.();
       return loadScript('./account-password-policy.js');
     })
-    .then(() => loadScript('./password-visibility.js'))
+    .then(() => loadScript('./password-visibility.js?v=20260720-eye2'))
     .catch((error) => {
       window.__restoreStashboxMutationObserver?.();
       console.error('[accounts] DEV account bootstrap failed', error);
