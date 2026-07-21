@@ -9,12 +9,18 @@ on:
       - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
       - 'radio-api/artist-follow-routes.mjs'
+      - 'radio-api/notifications.mjs'
+      - 'radio-api/notification-activity-feed.mjs'
+      - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/package.json'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
       - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
+      - 'radio-api/tests/notifications.test.mjs'
+      - 'radio-api/tests/notification-activity-feed.test.mjs'
+      - 'radio-api/tests/personalized-notifications.test.mjs'
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
       - 'radio/dev/account.js'
       - 'radio/dev/account-password-policy.js'
@@ -47,9 +53,15 @@ on:
       - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
       - 'radio-api/artist-follow-routes.mjs'
+      - 'radio-api/notifications.mjs'
+      - 'radio-api/notification-activity-feed.mjs'
+      - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
+      - 'radio-api/tests/notifications.test.mjs'
+      - 'radio-api/tests/notification-activity-feed.test.mjs'
+      - 'radio-api/tests/personalized-notifications.test.mjs'
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
       - 'radio/dev/account-dashboard-ui.js'
       - 'radio/dev/account-following-stat.js'
@@ -57,6 +69,7 @@ on:
       - 'radio/dev/artist-metadata-layout.js'
       - 'radio/dev/artist-queue-handoff.js'
       - 'radio/dev/notifications.js'
+      - 'radio/dev/notifications-core.js'
       - 'radio-admin/dev/shared-admin-header.js'
       - 'radio-admin/dev/index.html'
       - 'radio-admin/songs/dev/index.html'
@@ -77,7 +90,7 @@ permissions:
 
 jobs:
   test-user-accounts:
-    name: Validate DEV accounts, artists, and shared admin UI without deployment
+    name: Validate DEV accounts, artists, notifications, and shared admin UI without deployment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -102,6 +115,9 @@ jobs:
           node --check radio-api/account-lifecycle.mjs
           node --check radio-api/artist-routes.mjs
           node --check radio-api/artist-follow-routes.mjs
+          node --check radio-api/notifications.mjs
+          node --check radio-api/notification-activity-feed.mjs
+          node --check radio-api/personalized-notifications.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio/dev/account.js
           node --check radio/dev/account-password-policy.js
@@ -127,6 +143,12 @@ jobs:
       - name: Run artist foundation tests
         run: node --test radio-api/tests/artist-foundation.test.mjs
 
+      - name: Run notification tests
+        run: |
+          node --test radio-api/tests/notifications.test.mjs
+          node --test radio-api/tests/notification-activity-feed.test.mjs
+          node --test radio-api/tests/personalized-notifications.test.mjs
+
       - name: Run shared DEV admin header tests
         run: node --test radio-api/tests/shared-dev-admin-header.test.mjs
 
@@ -138,7 +160,7 @@ jobs:
             git diff --name-only HEAD^...HEAD > /tmp/account-files.txt
           fi
           if grep -E '^(radio/app\.js|radio/index\.html|radio-api/env/prod|infra/.*/prod)' /tmp/account-files.txt; then
-            echo 'Production-facing file changed in DEV account, artist, or admin UI work.' >&2
+            echo 'Production-facing file changed in DEV account, artist, or notification work.' >&2
             exit 1
           fi
           echo 'No production-facing player or infrastructure files changed.'
