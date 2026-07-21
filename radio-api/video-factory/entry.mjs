@@ -24,6 +24,10 @@ import {
   isArtistRequest
 } from './artist-routes.mjs';
 import {
+  handlePersonalizedNotificationFeedRequest,
+  isPersonalizedNotificationFeedRequest
+} from './personalized-notifications.mjs';
+import {
   getPublicAuthConfig,
   verifyCognitoIdentity
 } from './auth.mjs';
@@ -174,10 +178,11 @@ export const handler = async event => {
   const accountLifecycleRequest = isAccountLifecycleRequest(segments);
   const dedicatedArtistFollowRequest = isDedicatedArtistFollowRequest(segments);
   const artistRequest = isArtistRequest(segments);
+  const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -194,6 +199,11 @@ export const handler = async event => {
 
     if (accountLifecycleRequest) {
       return await handleAccountLifecycleRequest(safeEvent, deps);
+    }
+
+    if (personalizedNotificationFeedRequest) {
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: false });
+      return await handlePersonalizedNotificationFeedRequest(safeEvent, deps);
     }
 
     // /radio/me/follows is both an account-shaped route and an artist route.
