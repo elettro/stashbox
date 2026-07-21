@@ -50,6 +50,24 @@ test('follow UI uses Cognito tokens and the authenticated follow endpoint', () =
   assert.match(followUi, /pending_artist_follow/);
 });
 
+test('follow UI updates the displayed count immediately and reconciles server state', () => {
+  const followUi = read('radio/dev/artist-follow.js');
+  assert.match(followUi, /follower_count: Math\.max\(0, previous\.follower_count \+ \(shouldFollow \? 1 : -1\)\)/);
+  assert.match(followUi, /const optimisticControl = renderControl\(meta, optimistic\)/);
+  assert.match(followUi, /const confirmed = await loadArtistDetail\(data\.artist\)/);
+  assert.match(followUi, /catalogPromise = null/);
+  assert.match(followUi, /stashbox:artist-follow-changed/);
+});
+
+test('follow UI refreshes expired Cognito sessions and exposes failures', () => {
+  const followUi = read('radio/dev/artist-follow.js');
+  assert.match(followUi, /REFRESH_TOKEN_AUTH/);
+  assert.match(followUi, /tokenExpiresSoon/);
+  assert.match(followUi, /response\.status === 401/);
+  assert.match(followUi, /Log in again/);
+  assert.match(followUi, /Follow failed/);
+});
+
 test('production player files are excluded from the artist sprint', () => {
   const status = read('radio-api/docs/ARTIST_FOUNDATION_SPRINT_1A.md');
   assert.match(status, /Scope: DEV only/);
