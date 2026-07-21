@@ -6,16 +6,34 @@ on:
       - 'radio-api/auth.mjs'
       - 'radio-api/rate-limit.mjs'
       - 'radio-api/account-routes.mjs'
+      - 'radio-api/artist-routes.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/package.json'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
+      - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
+      - 'radio-api/tests/artist-foundation.test.mjs'
       - 'radio/dev/account.js'
       - 'radio/dev/account-password-policy.js'
       - 'radio/dev/account.css'
       - 'radio/dev/notifications.js'
       - 'radio/dev/notifications-core.js'
+      - 'radio/dev/artist-follow.js'
+      - 'radio/dev/artist-metadata-layout.js'
+      - 'radio-admin/artists/dev/**'
+      - 'radio/artists/dev/**'
       - 'infra/user-accounts/**'
+      - '.github/workflows/test-user-accounts-dev.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'radio-api/artist-routes.mjs'
+      - 'radio-api/tests/artist-foundation.test.mjs'
+      - 'radio/dev/artist-follow.js'
+      - 'radio/dev/artist-metadata-layout.js'
+      - 'radio-admin/artists/dev/**'
+      - 'radio/artists/dev/**'
       - '.github/workflows/test-user-accounts-dev.yml'
   workflow_dispatch:
 
@@ -24,7 +42,7 @@ permissions:
 
 jobs:
   test-user-accounts:
-    name: Validate DEV account foundation without deployment
+    name: Validate DEV account and artist foundations without deployment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -46,11 +64,16 @@ jobs:
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
           node --check radio-api/account-routes.mjs
+          node --check radio-api/artist-routes.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio/dev/account.js
           node --check radio/dev/account-password-policy.js
           node --check radio/dev/notifications.js
           node --check radio/dev/notifications-core.js
+          node --check radio/dev/artist-follow.js
+          node --check radio/dev/artist-metadata-layout.js
+          node --check radio-admin/artists/dev/app.js
+          node --check radio/artists/dev/app.js
 
       - name: Verify auth module loads
         working-directory: radio-api
@@ -59,11 +82,18 @@ jobs:
       - name: Run account foundation tests
         run: node --test radio-api/tests/user-accounts-foundation.test.mjs
 
+      - name: Run artist foundation tests
+        run: node --test radio-api/tests/artist-foundation.test.mjs
+
       - name: Confirm production paths remain untouched
         run: |
-          git diff --name-only origin/main...HEAD > /tmp/account-files.txt
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --name-only origin/main...HEAD > /tmp/account-files.txt
+          else
+            git diff --name-only HEAD^...HEAD > /tmp/account-files.txt
+          fi
           if grep -E '^(radio/app\.js|radio/index\.html|radio-api/env/prod|infra/.*/prod)' /tmp/account-files.txt; then
-            echo 'Production-facing file changed in DEV account sprint.' >&2
+            echo 'Production-facing file changed in DEV account or artist sprint.' >&2
             exit 1
           fi
           echo 'No production-facing player or infrastructure files changed.'
