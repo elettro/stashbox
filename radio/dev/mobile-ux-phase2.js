@@ -3,13 +3,15 @@
   const mobileUserAgent = /android|iphone|ipad|ipod|mobile|blackberry|iemobile|opera mini/i.test(navigator.userAgent || '');
   if (!mobileQuery.matches && !mobileUserAgent) return;
 
-  const STYLE_HREF = './mobile-ux-phase2.css?v=20260721-phase2a';
+  const STYLE_HREF = './mobile-ux-phase2.css?v=20260721-phase2b';
   const STYLE_SELECTOR = 'link[data-stashbox-mobile-ux-phase2]';
   const TOOL_SELECTOR = '.mobile-song-tools';
+  const NOTIFICATION_TAB_POSITION_KEY = 'stashbox_mobile_notification_tab_position_v1';
   let filterPanelOpen = false;
   let syncFrame = 0;
   let filterSignature = '';
   let syncing = false;
+  let notificationTabRatio = readNotificationTabRatio();
 
   document.documentElement.classList.add('sbr-mobile-ux');
 
@@ -22,6 +24,104 @@
       link.dataset.stashboxMobileUxPhase2 = 'true';
     }
     if (document.head.lastElementChild !== link) document.head.appendChild(link);
+  }
+
+  function clamp(value, minimum, maximum) {
+    return Math.min(maximum, Math.max(minimum, value));
+  }
+
+  function readNotificationTabRatio() {
+    try {
+      const stored = Number(localStorage.getItem(NOTIFICATION_TAB_POSITION_KEY));
+      return Number.isFinite(stored) ? clamp(stored, 0, 1) : 0.44;
+    } catch (_) {
+      return 0.44;
+    }
+  }
+
+  function saveNotificationTabRatio(ratio) {
+    notificationTabRatio = clamp(Number(ratio) || 0, 0, 1);
+    try { localStorage.setItem(NOTIFICATION_TAB_POSITION_KEY, String(notificationTabRatio)); } catch (_) {}
+  }
+
+  function notificationTabBounds(bell) {
+    const height = Math.max(56, Number(bell?.offsetHeight) || 72);
+    const edgeGap = 8;
+    const minimum = edgeGap + (height / 2);
+    const maximum = Math.max(minimum, window.innerHeight - edgeGap - (height / 2));
+    return { minimum, maximum };
+  }
+
+  function notificationRatioToY(bell, ratio = notificationTabRatio) {
+    const { minimum, maximum } = notificationTabBounds(bell);
+    return minimum + ((maximum - minimum) * clamp(ratio, 0, 1));
+  }
+
+  function notificationYToRatio(bell, clientY) {
+    const { minimum, maximum } = notificationTabBounds(bell);
+    if (maximum <= minimum) return 0.5;
+    return clamp((clamp(clientY, minimum, maximum) - minimum) / (maximum - minimum), 0, 1);
+  }
+
+  function applyNotificationTabPosition(bell = document.querySelector('.sbr-notification-bell')) {
+    if (!bell) return;
+    const y = notificationRatioToY(bell);
+    document.documentElement.style.setProperty('--sbr-notification-tab-top', `${Math.round(y)}px`);
+  }
+
+  function attachNotificationTabDrag(bell) {
+    if (!bell || bell.dataset.notificationVerticalDrag === 'true') return;
+    bell.dataset.notificationVerticalDrag = 'true';
+    let drag = null;
+    let suppressNextClick = false;
+
+    const finishDrag = (event, cancelled = false) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const moved = drag.moved;
+      if (!cancelled) {
+        const ratio = notificationYToRatio(bell, event.clientY);
+        applyNotificationTabPosition(bell);
+        saveNotificationTabRatio(ratio);
+        applyNotificationTabPosition(bell);
+      }
+      try { bell.releasePointerCapture(event.pointerId); } catch (_) {}
+      bell.classList.remove('is-dragging');
+      drag = null;
+      if (moved) suppressNextClick = true;
+    };
+
+    bell.addEventListener('pointerdown', (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      drag = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        moved: false
+      };
+      bell.classList.add('is-dragging');
+      try { bell.setPointerCapture(event.pointerId); } catch (_) {}
+    });
+
+    bell.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (Math.abs(event.clientY - drag.startY) >= 5) drag.moved = true;
+      if (!drag.moved) return;
+      event.preventDefault();
+      notificationTabRatio = notificationYToRatio(bell, event.clientY);
+      applyNotificationTabPosition(bell);
+    });
+
+    bell.addEventListener('pointerup', (event) => finishDrag(event, false));
+    bell.addEventListener('pointercancel', (event) => finishDrag(event, true));
+
+    bell.addEventListener('click', (event) => {
+      if (!suppressNextClick) return;
+      suppressNextClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }, true);
+
+    applyNotificationTabPosition(bell);
   }
 
   function initialsFor(value) {
@@ -51,14 +151,10 @@
   function findOriginalFilterButton(label, text) {
     const normalizedLabel = String(label || '').trim().toLowerCase();
     const normalizedText = String(text || '').trim().toLowerCase();
-    return [...document.querySelectorAll('.stashbox-radio-header .stashbox-filter-row')]
-      .find((row) => String(row.querySelector('b')?.textContent || '').trim().toLowerCase() === normalizedLabel)
-      ?.querySelectorAll('.stashbox-filter-pill')
-      ? [...([...document.querySelectorAll('.stashbox-radio-header .stashbox-filter-row')]
-        .find((row) => String(row.querySelector('b')?.textContent || '').trim().toLowerCase() === normalizedLabel)
-        ?.querySelectorAll('.stashbox-filter-pill') || [])]
-        .find((button) => String(button.textContent || '').trim().toLowerCase() === normalizedText)
-      : null;
+    const row = [...document.querySelectorAll('.stashbox-radio-header .stashbox-filter-row')]
+      .find((candidate) => String(candidate.querySelector('b')?.textContent || '').trim().toLowerCase() === normalizedLabel);
+    return [...(row?.querySelectorAll('.stashbox-filter-pill') || [])]
+      .find((button) => String(button.textContent || '').trim().toLowerCase() === normalizedText) || null;
   }
 
   function filterStateSignature() {
@@ -169,7 +265,10 @@
   function syncNotificationTab() {
     const bell = document.querySelector('.sbr-notification-bell');
     if (!bell) return;
-    bell.setAttribute('title', bell.getAttribute('aria-expanded') === 'true' ? 'Tuck notifications away' : 'Open notifications');
+    attachNotificationTabDrag(bell);
+    applyNotificationTabPosition(bell);
+    const isOpen = bell.getAttribute('aria-expanded') === 'true';
+    bell.setAttribute('title', isOpen ? 'Tuck notifications away. Drag up or down to reposition.' : 'Open notifications. Drag up or down to reposition.');
   }
 
   function syncAll() {
@@ -209,5 +308,8 @@
   });
   headObserver.observe(document.head, { childList: true });
 
-  window.addEventListener('resize', scheduleSync, { passive: true });
+  window.addEventListener('resize', () => {
+    applyNotificationTabPosition();
+    scheduleSync();
+  }, { passive: true });
 })();
