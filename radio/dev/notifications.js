@@ -23,7 +23,8 @@
     document.head.appendChild(link);
   });
 
-  loadScript('./account-observer-guard.js')
+  loadScript('./account-config-ready.js?v=20260721-configready1')
+    .then(() => loadScript('./account-observer-guard.js'))
     .then(() => loadScript('./account.js'))
     .then(() => {
       window.__restoreStashboxMutationObserver?.();
