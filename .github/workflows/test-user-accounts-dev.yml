@@ -21,6 +21,7 @@ on:
       - 'radio/dev/notifications-core.js'
       - 'radio/dev/artist-follow.js'
       - 'radio/dev/artist-metadata-layout.js'
+      - 'radio/dev/artist-queue-handoff.js'
       - 'radio-admin/dev/shared-admin-header.js'
       - 'radio-admin/dev/index.html'
       - 'radio-admin/songs/dev/index.html'
@@ -44,6 +45,8 @@ on:
       - 'radio-api/tests/shared-dev-admin-header.test.mjs'
       - 'radio/dev/artist-follow.js'
       - 'radio/dev/artist-metadata-layout.js'
+      - 'radio/dev/artist-queue-handoff.js'
+      - 'radio/dev/notifications.js'
       - 'radio-admin/dev/shared-admin-header.js'
       - 'radio-admin/dev/index.html'
       - 'radio-admin/songs/dev/index.html'
@@ -94,6 +97,7 @@ jobs:
           node --check radio/dev/notifications-core.js
           node --check radio/dev/artist-follow.js
           node --check radio/dev/artist-metadata-layout.js
+          node --check radio/dev/artist-queue-handoff.js
           node --check radio-admin/artists/dev/app.js
           node --check radio/artists/dev/app.js
           node --check radio-admin/dev/shared-admin-header.js
