@@ -78,7 +78,18 @@ test('Artist CMS supports profile and banner upload, replacement, deletion, and 
   assert.match(cmsApp, /UPLOAD_PRESIGN_URL/);
   assert.match(cmsApp, /purpose: 'artwork'/);
   assert.match(cmsApp, /readImageDimensions/);
+  assert.match(cmsApp, /presign\.headers/);
   assert.match(cmsApp, /Click Save Artist/);
+});
+
+test('Artist CMS uses one authentication mode at a time', () => {
+  const cmsApp = read('radio-admin/artists/dev/app.js');
+  assert.match(cmsApp, /STANDARD_ADMIN_TOKEN_KEY = 'stashbox_admin_token_dev'/);
+  assert.match(cmsApp, /LEGACY_ADMIN_TOKEN_KEY = 'stashbox-radio-admin-token-dev'/);
+  assert.match(cmsApp, /if \(admin\) \{\s*result\['x-admin-token'\] = admin;\s*\} else \{/s);
+  assert.match(cmsApp, /Could not reach the Stashbox Radio DEV API from this browser/);
+  assert.match(cmsApp, /Upload authorization failed/);
+  assert.match(cmsApp, /DEV storage upload was blocked/);
 });
 
 test('Artist CMS aggregates likes, shares, and listening time from song analytics', () => {
@@ -92,7 +103,7 @@ test('Artist CMS aggregates likes, shares, and listening time from song analytic
   assert.match(cmsApp, /total_seconds_played/);
 });
 
-test('Song CMS is the artist catalog source of truth and manual assignments are removed', () => {
+test('Song CMS is the artist catalog source of truth and public catalog requests stay unauthenticated', () => {
   const cmsHtml = read('radio-admin/artists/dev/index.html');
   const cmsApp = read('radio-admin/artists/dev/app.js');
   const publicProfile = read('radio/artists/dev/app.js');
@@ -100,7 +111,9 @@ test('Song CMS is the artist catalog source of truth and manual assignments are 
   assert.doesNotMatch(cmsHtml, /id="songKeys"/);
   assert.doesNotMatch(cmsApp, /saveSongs/);
   assert.match(cmsHtml, /Song CMS Controls Artist Music/);
-  assert.match(publicProfile, /api\(`\$\{API_ROOT\}\/radio\/songs`\)/);
+  assert.match(publicProfile, /publicApi\(`\$\{API_ROOT\}\/radio\/songs`\)/);
+  assert.match(publicProfile, /credentials: 'omit'/);
+  assert.match(publicProfile, /Promise\.allSettled/);
   assert.match(publicProfile, /songsForArtist/);
   assert.match(publicProfile, /normalizeArtistName\(song\.artist\) === target/);
 });
