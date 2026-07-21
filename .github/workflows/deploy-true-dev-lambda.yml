@@ -12,11 +12,16 @@ on:
       - 'radio-api/auth.mjs'
       - 'radio-api/rate-limit.mjs'
       - 'radio-api/account-routes.mjs'
+      - 'radio-api/account-lifecycle.mjs'
+      - 'radio-api/artist-routes.mjs'
+      - 'radio-api/artist-follow-routes.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
+      - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
       - 'radio-api/notifications.mjs'
       - 'radio-api/notification-activity-feed.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
+      - 'radio-api/tests/artist-foundation.test.mjs'
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
 
@@ -68,12 +73,15 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda, account, notification, and player syntax
+      - name: Check Lambda, account, artist, notification, and player syntax
         run: |
           node --check radio-api/index.mjs
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
           node --check radio-api/account-routes.mjs
+          node --check radio-api/account-lifecycle.mjs
+          node --check radio-api/artist-routes.mjs
+          node --check radio-api/artist-follow-routes.mjs
           node --check radio-api/notifications.mjs
           node --check radio-api/notification-activity-feed.mjs
           node --check radio-api/video-factory/entry.mjs
@@ -82,9 +90,14 @@ jobs:
           node --check radio/dev/account.js
           node --check radio/dev/notifications.js
           node --check radio/dev/notifications-core.js
+          node --check radio/dev/artist-follow.js
+          node --check radio/artists/dev/follow-session-fix.js
 
       - name: Run account foundation tests
         run: node --test radio-api/tests/user-accounts-foundation.test.mjs
+
+      - name: Run artist foundation tests
+        run: node --test radio-api/tests/artist-foundation.test.mjs
 
       - name: Run notification tests
         run: |
@@ -139,6 +152,7 @@ jobs:
           node --check index.mjs
           node --check radio-main.mjs
           test -s cognito-jwks-dev.json
+          test -s artist-follow-routes.mjs
 
           zip -r dist/true-dev-lambda.zip . \
             -x "dist/*" \
@@ -146,6 +160,7 @@ jobs:
             -x "*.zip"
 
           unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'artist-follow-routes.mjs'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -183,7 +198,7 @@ jobs:
       - name: Run TRUE DEV smoke test
         run: node radio-api/scripts/smoke-test-true-dev.mjs
 
-      - name: Run account route smoke test
+      - name: Run account and artist-follow route smoke tests
         run: |
           AUTH_CONFIG_STATUS=$(curl --silent --show-error --max-time 45 \
             -o /tmp/auth-config.json \
@@ -198,6 +213,13 @@ jobs:
             "${TRUE_DEV_API_BASE}/radio/me")
           test "${ME_STATUS}" = '401'
           jq -e '.success == false and .code == "AUTH_REQUIRED"' /tmp/account-me-unauthorized.json
+
+          FOLLOWS_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/artist-follows-unauthorized.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/me/follows")
+          test "${FOLLOWS_STATUS}" = '401'
+          jq -e '.success == false and (.code == "AUTH_REQUIRED" or .code == "UNAUTHORIZED")' /tmp/artist-follows-unauthorized.json
 
       - name: Run notification activity smoke test
         id: notification_smoke
@@ -243,6 +265,7 @@ jobs:
             echo "- Activity sync result: \`${SYNC_RESULT}\`"
             echo '- Account auth config route HTTP: 200'
             echo '- Protected account route without token HTTP: 401'
+            echo '- Protected artist follows route without token HTTP: 401'
             echo '- Cognito JWT signing keys bundled for private-VPC verification: Yes'
             echo '- Rate limit: 10 automatic activity notifications per clock hour'
             echo '- Duplicate protection: one notification per song and activity type within 30 minutes'
@@ -258,5 +281,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -B "${DEPLOY_REPORT_BRANCH}"
           git add "${REPORT_PATH}"
-          git commit -m 'Record TRUE DEV notification activity status'
+          git commit -m 'Update TRUE DEV notification activity status' || exit 0
           git push --force origin "${DEPLOY_REPORT_BRANCH}"
