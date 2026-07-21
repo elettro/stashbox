@@ -156,17 +156,28 @@
     document.head.appendChild(style);
   }
 
-  function directLegacyHeader() {
-    return Array.from(document.body.children).find(element =>
-      element.tagName === 'HEADER' && element.id !== HEADER_ID
-    ) || null;
+  function isLegacyNavigationHeader(element) {
+    if (element.tagName !== 'HEADER' || element.id === HEADER_ID) return false;
+    if (element.matches('.topbar, .admin-header, .visuals-admin-header, .radio-admin-macro-header, .stashbox-site-header')) return true;
+    return Boolean(element.querySelector(
+      'nav.radio-admin-private-nav, nav.radio-admin-macro-nav, nav.admin-nav, nav[aria-label*="admin" i]'
+    ));
   }
 
-  function preserveFunctionalControls(legacyHeader, compatContainer) {
-    if (!legacyHeader) return;
-    ['tokenStatus', 'clearTokenButton'].forEach(id => {
-      const node = legacyHeader.querySelector(`#${id}`);
-      if (node) compatContainer.appendChild(node);
+  function legacyNavigationHeaders() {
+    return Array.from(document.body.children).filter(isLegacyNavigationHeader);
+  }
+
+  function preserveFunctionalControls(legacyHeaders, compatContainer) {
+    const preservedIds = new Set();
+    legacyHeaders.forEach(legacyHeader => {
+      ['tokenStatus', 'clearTokenButton'].forEach(id => {
+        if (preservedIds.has(id)) return;
+        const node = legacyHeader.querySelector(`#${id}`);
+        if (!node) return;
+        preservedIds.add(id);
+        compatContainer.appendChild(node);
+      });
     });
   }
 
@@ -215,10 +226,10 @@
     if (!configuration) return;
 
     installStyles();
-    const legacyHeader = directLegacyHeader();
+    const legacyHeaders = legacyNavigationHeaders();
     const { header, compat } = buildHeader(configuration);
-    preserveFunctionalControls(legacyHeader, compat);
-    legacyHeader?.remove();
+    preserveFunctionalControls(legacyHeaders, compat);
+    legacyHeaders.forEach(legacyHeader => legacyHeader.remove());
     document.body.insertBefore(header, document.body.firstChild);
     document.body.setAttribute('data-stashbox-dev-admin-header', configuration.key);
   }
