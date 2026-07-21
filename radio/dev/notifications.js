@@ -39,7 +39,7 @@
     .then(() => loadScript('./account-song-lists.js?v=20260720-songlists2'))
     .then(() => loadScript('./artist-follow.js?v=20260721-follow2'))
     .then(() => loadScript('./artist-metadata-layout.js?v=20260721-layout2'))
-    .then(() => loadScript('./account-name-launcher.js?v=20260720-account1'))
+    .then(() => loadScript('./account-name-launcher.js?v=20260721-account2'))
     .then(() => loadScript('./header-action-alignment.js?v=20260720-header1'))
     .catch((error) => {
       window.__restoreStashboxMutationObserver?.();
