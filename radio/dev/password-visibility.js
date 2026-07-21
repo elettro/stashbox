@@ -2,18 +2,12 @@
   const STYLE_ID = 'stashbox-password-visibility-styles';
   const DECORATED_ATTRIBUTE = 'data-password-visibility';
 
-  function eyeIcon(visible) {
-    if (visible) {
-      return `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 3l18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 4.3A10.8 10.8 0 0 1 12 4c5.5 0 9.5 5.3 9.5 8 0 1.1-.7 2.5-1.9 3.9M6.6 6.6C4.1 8.3 2.5 10.8 2.5 12c0 2.7 4 8 9.5 8 1.7 0 3.3-.5 4.7-1.3"/>
-        </svg>`;
-    }
-
+  function eyeIcon(passwordVisible) {
     return `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M2.5 12S6.1 5 12 5s9.5 7 9.5 7-3.6 7-9.5 7S2.5 12 2.5 12Z"/>
-        <circle cx="12" cy="12" r="3"/>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path class="radio-password-eye-outline" d="M3.4 12s3.15-4.55 8.6-4.55S20.6 12 20.6 12 17.45 16.55 12 16.55 3.4 12 3.4 12Z" />
+        <circle class="radio-password-eye-pupil" cx="12" cy="12" r="2.15" />
+        ${passwordVisible ? '<path class="radio-password-eye-slash" d="M5.1 18.9 18.9 5.1" />' : ''}
       </svg>`;
   }
 
@@ -31,7 +25,7 @@
 
       .radio-password-field > input {
         width: 100%;
-        padding-right: 46px !important;
+        padding-right: 52px !important;
       }
 
       .radio-password-toggle {
@@ -42,38 +36,77 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 34px;
-        height: 34px;
+        width: 36px;
+        height: 32px;
         padding: 0;
-        border: 0;
+        border: 2px solid #67d7d8;
         border-radius: 8px;
-        background: transparent;
-        color: currentColor;
+        background: #12282c;
+        color: #f3ffff;
         cursor: pointer;
-        opacity: .72;
-        z-index: 2;
-      }
-
-      .radio-password-toggle:hover,
-      .radio-password-toggle:focus-visible {
         opacity: 1;
-        background: rgba(255, 255, 255, .1);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, .08),
+          0 1px 3px rgba(0, 0, 0, .32);
+        z-index: 2;
+        transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease, transform .15s ease;
+      }
+
+      .radio-password-toggle:hover {
+        border-color: #98ffff;
+        background: #17363b;
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, .12),
+          0 0 0 2px rgba(103, 215, 216, .16),
+          0 2px 5px rgba(0, 0, 0, .34);
+      }
+
+      .radio-password-toggle:active {
+        transform: translateY(-50%) scale(.96);
       }
 
       .radio-password-toggle:focus-visible {
-        outline: 2px solid currentColor;
-        outline-offset: 1px;
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+      }
+
+      .radio-password-toggle[aria-pressed="true"] {
+        background: #19383e;
+        border-color: #8ef4f5;
       }
 
       .radio-password-toggle svg {
-        width: 20px;
-        height: 20px;
+        display: block;
+        width: 21px;
+        height: 21px;
+        overflow: visible;
         fill: none;
         stroke: currentColor;
-        stroke-width: 1.8;
+        stroke-width: 1.9;
         stroke-linecap: round;
         stroke-linejoin: round;
         pointer-events: none;
+      }
+
+      .radio-password-eye-pupil {
+        fill: none;
+      }
+
+      .radio-password-eye-slash {
+        stroke: #9fffff;
+        stroke-width: 2.15;
+      }
+
+      @media (max-width: 600px) {
+        .radio-password-field > input {
+          padding-right: 50px !important;
+        }
+
+        .radio-password-toggle {
+          right: 6px;
+          width: 35px;
+          height: 31px;
+        }
       }
     `;
     document.head.appendChild(style);
