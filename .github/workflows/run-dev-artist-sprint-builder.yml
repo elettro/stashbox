@@ -75,7 +75,7 @@ jobs:
             echo 'Refusing to modify the production radio player.' >&2
             exit 1
           fi
-          unexpected="$(git status --short | awk '{print $2}' | grep -Ev '^(.github/workflows/test-artist-foundation-dev\.yml|radio-api/artist-routes\.mjs|radio-api/migrations/20260721_artist_foundation_follow_system_dev\.sql|radio-api/tests/artist-foundation\.test\.mjs|radio-api/docs/ARTIST_FOUNDATION_SPRINT_1A\.md|radio-api/video-factory/entry\.mjs|radio-api/package\.json|radio-admin/artists/dev/.*|radio/artists/dev/.*|radio/dev/artist-follow\.js|radio/dev/notifications\.js)$' || true)"
+          unexpected="$(git status --short --untracked-files=all | awk '{print $2}' | grep -Ev '^(.github/workflows/test-artist-foundation-dev\.yml|radio-api/artist-routes\.mjs|radio-api/migrations/20260721_artist_foundation_follow_system_dev\.sql|radio-api/tests/artist-foundation\.test\.mjs|radio-api/docs/ARTIST_FOUNDATION_SPRINT_1A\.md|radio-api/video-factory/entry\.mjs|radio-api/package\.json|radio-admin/artists/dev/.*|radio/artists/dev/.*|radio/dev/artist-follow\.js|radio/dev/notifications\.js)$' || true)"
           if [ -n "${unexpected}" ]; then
             echo 'Refusing unexpected generated files:' >&2
             echo "${unexpected}" >&2
