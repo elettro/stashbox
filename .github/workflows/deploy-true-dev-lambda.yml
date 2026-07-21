@@ -20,10 +20,12 @@ on:
       - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
       - 'radio-api/notifications.mjs'
       - 'radio-api/notification-activity-feed.mjs'
+      - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
+      - 'radio-api/tests/personalized-notifications.test.mjs'
 
 permissions:
   contents: write
@@ -84,6 +86,7 @@ jobs:
           node --check radio-api/artist-follow-routes.mjs
           node --check radio-api/notifications.mjs
           node --check radio-api/notification-activity-feed.mjs
+          node --check radio-api/personalized-notifications.mjs
           node --check radio-api/video-factory/entry.mjs
           node --check radio-api/video-factory/routes.mjs
           node --check radio-api/video-factory/recipe.mjs
@@ -103,6 +106,7 @@ jobs:
         run: |
           node --test radio-api/tests/notifications.test.mjs
           node --test radio-api/tests/notification-activity-feed.test.mjs
+          node --test radio-api/tests/personalized-notifications.test.mjs
 
       - name: Run Video Factory foundation tests
         run: node --test radio-api/tests/video-factory-foundation.test.mjs
@@ -145,7 +149,7 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          # Keep the existing radio API intact and wrap only private Video Factory and listener account routes.
+          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, and personalized notification routes.
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
 
@@ -153,6 +157,7 @@ jobs:
           node --check radio-main.mjs
           test -s cognito-jwks-dev.json
           test -s artist-follow-routes.mjs
+          test -s personalized-notifications.mjs
 
           zip -r dist/true-dev-lambda.zip . \
             -x "dist/*" \
@@ -161,6 +166,7 @@ jobs:
 
           unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
           unzip -l dist/true-dev-lambda.zip | grep -q 'artist-follow-routes.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'personalized-notifications.mjs'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -221,7 +227,7 @@ jobs:
           test "${FOLLOWS_STATUS}" = '401'
           jq -e '.success == false and (.code == "AUTH_REQUIRED" or .code == "UNAUTHORIZED")' /tmp/artist-follows-unauthorized.json
 
-      - name: Run notification activity smoke test
+      - name: Run notification personalization smoke test
         id: notification_smoke
         run: |
           PUBLIC_STATUS=$(curl --silent --show-error --max-time 45 \
@@ -229,7 +235,7 @@ jobs:
             -w '%{http_code}' \
             "${TRUE_DEV_API_BASE}/radio/notifications?limit=100")
           test "${PUBLIC_STATUS}" = '200'
-          jq -e '.success == true and (.notifications | type == "array") and (.activity_sync | type == "object")' /tmp/notifications-public.json
+          jq -e '.success == true and (.notifications | type == "array") and .personalized == false and (.personalization_sync | type == "object")' /tmp/notifications-public.json
 
           ADMIN_STATUS=$(curl --silent --show-error --max-time 45 \
             -H "x-admin-token: ${ADMIN_TOKEN}" \
@@ -247,8 +253,9 @@ jobs:
           set -euo pipefail
           REPORT_PATH='radio-api/docs/TRUE_DEV_NOTIFICATION_ACTIVITY_STATUS.md'
           ACTIVITY_COUNT=$(jq '[.notifications[] | select(.source_type == "activity_engine")] | length' /tmp/notifications-public.json)
+          DAILY_COUNT=$(jq '[.notifications[] | select(.source_type == "daily_rankings")] | length' /tmp/notifications-public.json)
           TOTAL_COUNT=$(jq '.count // 0' /tmp/notifications-public.json)
-          SYNC_RESULT=$(jq -c '.activity_sync // {}' /tmp/notifications-public.json)
+          PERSONALIZATION_SYNC=$(jq -c '.personalization_sync // {}' /tmp/notifications-public.json)
 
           mkdir -p "$(dirname "${REPORT_PATH}")"
           {
@@ -262,18 +269,23 @@ jobs:
             echo "- Admin notifications HTTP: ${{ steps.notification_smoke.outputs.admin_status }}"
             echo "- Total active public notifications: ${TOTAL_COUNT}"
             echo "- Active automatic like/share notifications: ${ACTIVITY_COUNT}"
-            echo "- Activity sync result: \`${SYNC_RESULT}\`"
+            echo "- Active daily ranking notifications: ${DAILY_COUNT}"
+            echo "- Public personalization flag: $(jq -r '.personalized' /tmp/notifications-public.json)"
+            echo "- Personalization sync result: \`${PERSONALIZATION_SYNC}\`"
             echo '- Account auth config route HTTP: 200'
             echo '- Protected account route without token HTTP: 401'
             echo '- Protected artist follows route without token HTTP: 401'
             echo '- Cognito JWT signing keys bundled for private-VPC verification: Yes'
-            echo '- Rate limit: 10 automatic activity notifications per clock hour'
-            echo '- Duplicate protection: one notification per song and activity type within 30 minutes'
-            echo '- Listener identity exposed: No'
+            echo '- Followed-artist, registered-user, specific-user, and premium audience query: Enabled for authenticated requests'
+            echo '- Listener and favorite milestones: Deduplicated by stable source key'
+            echo '- Daily top song: Uses existing qualified play_start events; no new analytics table'
+            echo '- Rate limit: 10 automatic public activity notifications per clock hour'
+            echo '- Duplicate protection: one public activity notification per song and activity type within 30 minutes'
+            echo '- Listener identity exposed publicly: No'
             echo
-            echo '## Automatic activity notifications'
+            echo '## Automatic public notifications'
             echo '```json'
-            jq '[.notifications[] | select(.source_type == "activity_engine") | {headline, message, action_url, publish_at, expires_at}]' /tmp/notifications-public.json
+            jq '[.notifications[] | select(.source_type == "activity_engine" or .source_type == "daily_rankings") | {source_type, headline, message, action_url, publish_at, expires_at}]' /tmp/notifications-public.json
             echo '```'
           } > "${REPORT_PATH}"
 
