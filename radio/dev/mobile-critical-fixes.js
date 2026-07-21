@@ -6,9 +6,12 @@
   const mobileUserAgent = /android|iphone|ipad|ipod|mobile|blackberry|iemobile|opera mini/i.test(navigator.userAgent || '');
   if (!mobileQuery.matches && !mobileUserAgent) return;
 
+  const TOKEN_STORAGE_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const DEV_RADIO_PATH = '/radio/dev/';
   const STYLE_ID = 'stashbox-mobile-critical-fixes-style';
   let scanFrame = 0;
   let topSnapTimer = 0;
+  let logoutStarted = false;
 
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -18,20 +21,31 @@
       @media (max-width: 900px), (hover: none), (pointer: coarse) {
         .radio-account-user-button,
         [data-account-menu-toggle] {
-          font-size: 0 !important;
-          color: transparent !important;
-          text-shadow: none !important;
-          overflow: visible !important;
+          display: inline-grid !important;
+          place-items: center !important;
+          width: 52px !important;
+          min-width: 52px !important;
+          max-width: 52px !important;
+          height: 52px !important;
+          min-height: 52px !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          border-radius: 999px !important;
+          font: 950 14px/1 Karla, Arial, sans-serif !important;
+          letter-spacing: .055em !important;
+          color: #fff !important;
+          text-align: center !important;
+          white-space: nowrap !important;
+          pointer-events: auto !important;
+          touch-action: manipulation !important;
         }
 
         .radio-account-user-button::before,
-        [data-account-menu-toggle]::before {
-          content: attr(data-account-initials) !important;
-          display: block !important;
-          color: #fff !important;
-          font: 950 14px/1 Karla, Arial, sans-serif !important;
-          letter-spacing: .055em !important;
-          text-align: center !important;
+        [data-account-menu-toggle]::before,
+        .radio-account-user-button::after,
+        [data-account-menu-toggle]::after {
+          content: none !important;
+          display: none !important;
         }
 
         .song-card .song-artwork {
@@ -58,14 +72,15 @@
     const storedName = String(button.dataset.accountFullName || '').trim();
     if (storedName && storedName.length > 2) return storedName;
 
-    const currentText = String(button.textContent || '').trim();
-    if (currentText.length > 2) return currentText;
-
     const titleName = String(button.getAttribute('title') || '').replace(/^My Account:\s*/i, '').trim();
     if (titleName.length > 2) return titleName;
 
     const ariaName = String(button.getAttribute('aria-label') || '').match(/(?:for|menu for)\s+(.+)$/i)?.[1]?.trim();
-    return ariaName || 'Listener';
+    if (ariaName && ariaName.length > 2) return ariaName;
+
+    const currentText = String(button.textContent || '').trim();
+    if (currentText.length > 2) return currentText;
+    return 'Listener';
   }
 
   function forceInitials() {
@@ -74,10 +89,67 @@
       const initials = initialsFor(fullName);
       button.dataset.accountFullName = fullName;
       button.dataset.accountInitials = initials;
-      if (String(button.textContent || '').trim() !== initials) button.textContent = initials;
+      button.textContent = initials;
+      button.style.setProperty('font-size', '14px', 'important');
+      button.style.setProperty('color', '#fff', 'important');
+      button.style.setProperty('line-height', '1', 'important');
+      button.style.setProperty('text-indent', '0', 'important');
       button.setAttribute('aria-label', `Open account menu for ${fullName}`);
       button.setAttribute('title', `My Account: ${fullName}`);
     });
+  }
+
+  function clearMobileSession() {
+    try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (_) {}
+    try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch (_) {}
+  }
+
+  function closeAccountUi() {
+    const overlay = document.querySelector('.radio-account-overlay');
+    if (overlay) {
+      overlay.hidden = true;
+      overlay.setAttribute('hidden', '');
+      overlay.style.pointerEvents = 'none';
+    }
+    document.querySelectorAll('.radio-account-menu').forEach(menu => {
+      menu.hidden = true;
+      menu.setAttribute('hidden', '');
+    });
+    document.body.style.overflow = '';
+  }
+
+  function redirectAfterLogout() {
+    const separator = DEV_RADIO_PATH.includes('?') ? '&' : '?';
+    window.location.replace(`${DEV_RADIO_PATH}${separator}logged_out=${Date.now()}`);
+  }
+
+  function handleMobileLogout(event) {
+    const button = event.target?.closest?.('[data-account-logout], [data-action="logout"]');
+    if (!button || logoutStarted) return;
+
+    logoutStarted = true;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    clearMobileSession();
+    closeAccountUi();
+
+    try {
+      const backgroundRequest = window.StashboxRadioAccount?.logout?.();
+      backgroundRequest?.catch?.(() => {});
+    } catch (_) {}
+
+    redirectAfterLogout();
+  }
+
+  function cleanLogoutQuery() {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('logged_out')) return;
+      url.searchParams.delete('logged_out');
+      history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}` || DEV_RADIO_PATH);
+    } catch (_) {}
   }
 
   function scrollPageToAbsoluteTop() {
@@ -139,9 +211,13 @@
     });
   }
 
+  document.addEventListener('pointerdown', handleMobileLogout, true);
+  document.addEventListener('touchend', handleMobileLogout, true);
+  document.addEventListener('click', handleMobileLogout, true);
   document.addEventListener('pointerup', handleArtworkPointerUp, false);
   document.addEventListener('click', handleSongCardClick, false);
 
+  cleanLogoutQuery();
   scan();
   new MutationObserver(queueScan).observe(document.body, {
     childList: true,
@@ -151,5 +227,5 @@
     attributeFilter: ['class', 'title', 'aria-label', 'aria-expanded']
   });
 
-  window.setInterval(forceInitials, 200);
+  window.setInterval(forceInitials, 100);
 })();
