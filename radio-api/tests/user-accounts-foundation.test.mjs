@@ -91,21 +91,20 @@ test('notification client is preserved and account bootstrap loads first', () =>
   assert.match(notificationCore, /sbr-notification-bell/);
 });
 
-test('playlist summary cards expose Play and Shuffle and reuse the existing queue controls', () => {
-  const playlistUi = read('radio/dev/account-playlist-ui.js');
-  const accountClient = read('radio/dev/account.js');
+test('account overview cards navigate and profile editing lives in Preferences', () => {
   const loader = read('radio/dev/notifications.js');
-  assert.match(playlistUi, /radio-playlist-list-playback-actions/);
-  assert.match(playlistUi, /radio-playlist-summary-play/);
-  assert.match(playlistUi, /radio-playlist-summary-shuffle/);
-  assert.match(playlistUi, /data-summary-playlist/);
-  assert.match(playlistUi, /waitForDetailControl/);
-  assert.match(playlistUi, /detailControl\.click\(\)/);
-  assert.match(playlistUi, /scrollIntoView/);
-  assert.match(accountClient, /stashbox:playlist-play/);
-  assert.match(accountClient, /data-play-playlist/);
-  assert.match(accountClient, /data-shuffle-playlist/);
-  assert.match(loader, /account-playlist-ui\.js\?v=20260721-playlist-summary1/);
+  const dashboardUi = read('radio/dev/account-dashboard-ui.js');
+  assert.match(loader, /account-dashboard-ui\.js\?v=20260721-dashboard1/);
+  assert.match(dashboardUi, /\['favorites', 'favorites'\]/);
+  assert.match(dashboardUi, /\['playlists', 'playlists'\]/);
+  assert.match(dashboardUi, /\['history events', 'history'\]/);
+  assert.match(dashboardUi, /panel\.querySelector\('form\[data-form="profile"\]'\)\?\.remove\(\)/);
+  assert.match(dashboardUi, /radio-account-profile-preferences/);
+  assert.match(dashboardUi, /data-form="profile"/);
+  assert.match(dashboardUi, /Save Changes/);
+  assert.match(dashboardUi, /radio-account-overview-actions/);
+  assert.match(dashboardUi, /data-action="logout"/);
+  assert.match(dashboardUi, /justify-content: flex-end/);
 });
 
 test('DEV deployment wrapper delegates unrelated routes to the original radio handler', () => {
