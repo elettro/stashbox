@@ -68,19 +68,36 @@ test('follow UI refreshes expired Cognito sessions and exposes failures', () => 
   assert.match(followUi, /Follow failed/);
 });
 
-test('public artist profile follow controller refreshes and retries expired sessions', () => {
+test('public artist profile follow controller persists and hydrates saved follows', () => {
   const controller = read('radio/artists/dev/follow-session-fix.js');
   const html = read('radio/artists/dev/index.html');
   assert.doesNotThrow(() => new Function(controller));
+  assert.match(controller, /FOLLOW_CACHE_KEY = 'stashbox_radio_dev_followed_artists'/);
+  assert.match(controller, /protectedApi\(`\$\{API_ROOT\}\/radio\/me\/follows`\)/);
+  assert.match(controller, /loadSavedFollows/);
+  assert.match(controller, /hydrateCurrentArtist/);
+  assert.match(controller, /follows\.find\(item => item\.artist_key === artistKey\)/);
+  assert.match(controller, /setButton\(button, Boolean\(saved\)\)/);
+  assert.match(controller, /setFollowerCount\(saved\.follower_count\)/);
+  assert.match(controller, /await loadSavedFollows\(true\)/);
+  assert.match(controller, /stashbox:artist-follows-loaded/);
   assert.match(controller, /REFRESH_TOKEN_AUTH/);
-  assert.match(controller, /tokenExpiresSoon/);
   assert.match(controller, /response\.status === 401 && retry/);
-  assert.match(controller, /return protectedApi\(url, options, false\)/);
-  assert.match(controller, /setFollowerCount\(previousCount \+ \(shouldFollow \? 1 : -1\)\)/);
-  assert.match(controller, /setFollowerCount\(previousCount\)/);
   assert.match(controller, /stopImmediatePropagation/);
   assert.match(controller, /stashbox:artist-follow-changed/);
-  assert.match(html, /follow-session-fix\.js\?v=20260721-followfix1/);
+  assert.match(html, /follow-session-fix\.js\?v=20260721-follow-persist1/);
+});
+
+test('account overview presents a database-backed Following Artists stat', () => {
+  const statClient = read('radio/dev/account-following-stat.js');
+  const loader = read('radio/dev/notifications.js');
+  assert.doesNotThrow(() => new Function(statClient));
+  assert.match(statClient, /Following Artists<strong>0<\/strong>/);
+  assert.match(statClient, /\/radio\/me\/follows/);
+  assert.match(statClient, /FOLLOW_CACHE_KEY/);
+  assert.match(statClient, /stashbox:artist-follow-changed/);
+  assert.match(statClient, /stashbox:artist-follows-loaded/);
+  assert.match(loader, /account-following-stat\.js\?v=20260721-follow-persist1/);
 });
 
 test('Artist CMS supports profile and banner upload, replacement, deletion, and dimension guidance', () => {
