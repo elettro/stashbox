@@ -68,6 +68,43 @@ test('follow UI refreshes expired Cognito sessions and exposes failures', () => 
   assert.match(followUi, /Follow failed/);
 });
 
+test('Artist CMS supports profile and banner upload, replacement, deletion, and dimension guidance', () => {
+  const cmsHtml = read('radio-admin/artists/dev/index.html');
+  const cmsApp = read('radio-admin/artists/dev/app.js');
+  assert.match(cmsHtml, /Recommended: 1200 × 1200 px/);
+  assert.match(cmsHtml, /Recommended: 2400 × 800 px/);
+  assert.match(cmsHtml, /Upload \/ Replace/);
+  assert.match(cmsHtml, /Delete Image/);
+  assert.match(cmsApp, /UPLOAD_PRESIGN_URL/);
+  assert.match(cmsApp, /purpose: 'artwork'/);
+  assert.match(cmsApp, /readImageDimensions/);
+  assert.match(cmsApp, /Click Save Artist/);
+});
+
+test('Artist CMS aggregates likes, shares, and listening time from song analytics', () => {
+  const cmsHtml = read('radio-admin/artists/dev/index.html');
+  const cmsApp = read('radio-admin/artists/dev/app.js');
+  assert.match(cmsHtml, /Total Likes/);
+  assert.match(cmsHtml, /Total Shares/);
+  assert.match(cmsHtml, /Total Listening Time/);
+  assert.match(cmsApp, /admin\/stats\/songs\?limit=500/);
+  assert.match(cmsApp, /total_listening_seconds/);
+  assert.match(cmsApp, /total_seconds_played/);
+});
+
+test('Song CMS is the artist catalog source of truth and manual assignments are removed', () => {
+  const cmsHtml = read('radio-admin/artists/dev/index.html');
+  const cmsApp = read('radio-admin/artists/dev/app.js');
+  const publicProfile = read('radio/artists/dev/app.js');
+  assert.doesNotMatch(cmsHtml, /Replace Song Assignments/);
+  assert.doesNotMatch(cmsHtml, /id="songKeys"/);
+  assert.doesNotMatch(cmsApp, /saveSongs/);
+  assert.match(cmsHtml, /Song CMS Controls Artist Music/);
+  assert.match(publicProfile, /api\(`\$\{API_ROOT\}\/radio\/songs`\)/);
+  assert.match(publicProfile, /songsForArtist/);
+  assert.match(publicProfile, /normalizeArtistName\(song\.artist\) === target/);
+});
+
 test('production player files are excluded from the artist sprint', () => {
   const status = read('radio-api/docs/ARTIST_FOUNDATION_SPRINT_1A.md');
   assert.match(status, /Scope: DEV only/);
