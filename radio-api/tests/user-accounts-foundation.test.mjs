@@ -107,6 +107,23 @@ test('account overview cards navigate and profile editing lives in Preferences',
   assert.match(dashboardUi, /justify-content: flex-end/);
 });
 
+test('Following Artists stat opens a thumbnail list with database-backed unfollow controls', () => {
+  const loader = read('radio/dev/notifications.js');
+  const followingUi = read('radio/dev/account-following-stat.js');
+  assert.doesNotThrow(() => new Function(followingUi));
+  assert.match(loader, /account-following-stat\.js\?v=20260721-following-list1/);
+  assert.match(followingUi, /data\.followingArtistsOpen = 'true'/);
+  assert.match(followingUi, /data-following-artists-panel/);
+  assert.match(followingUi, /radio-following-artist-thumb/);
+  assert.match(followingUi, /profile_image_url/);
+  assert.match(followingUi, /data-unfollow-artist/);
+  assert.match(followingUi, /method: 'DELETE'/);
+  assert.match(followingUi, /\/radio\/me\/follows\/\$\{encodeURIComponent\(artistKey\)\}/);
+  assert.match(followingUi, /Artist unfollowed/);
+  assert.match(followingUi, /stashbox:artist-follow-changed/);
+  assert.match(followingUi, /Back to My Account/);
+});
+
 test('DEV deployment wrapper delegates unrelated routes to the original radio handler', () => {
   const wrapper = read('radio-api/video-factory/entry.mjs');
   assert.match(wrapper, /const accountRequest = isAccountRequest\(segments\)/);
