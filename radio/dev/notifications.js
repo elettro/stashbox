@@ -40,7 +40,6 @@
     .then(() => loadScript('./artist-metadata-layout.js?v=20260721-layout2'))
     .then(() => loadScript('./account-name-launcher.js?v=20260720-account1'))
     .then(() => loadScript('./header-action-alignment.js?v=20260720-header1'))
-    .then(() => loadScript('./account-logout-redirect.js?v=20260721-logout1'))
     .catch((error) => {
       window.__restoreStashboxMutationObserver?.();
       console.error('[accounts] DEV account bootstrap failed', error);
@@ -50,6 +49,7 @@
       loadScript('./notification-account-sync.js'),
       loadScript('./notifications-core.js?v=20260721-compact3'),
       loadScript('./mobile-ux-phase2.js?v=20260721-phase2b'),
-      loadScript('./mobile-notification-peek.js?v=20260721-peek1')
+      loadScript('./mobile-notification-peek.js?v=20260721-peek1'),
+      loadScript('./mobile-account-fixes.js?v=20260721-accountfix1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
