@@ -16,6 +16,7 @@
     })
     .then(() => loadScript('./password-visibility.js?v=20260720-eye2'))
     .then(() => loadScript('./account-preferences-ui.js?v=20260720-toggle1'))
+    .then(() => loadScript('./header-action-alignment.js?v=20260720-header1'))
     .catch((error) => {
       window.__restoreStashboxMutationObserver?.();
       console.error('[accounts] DEV account bootstrap failed', error);
