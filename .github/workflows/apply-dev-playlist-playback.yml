@@ -8,7 +8,7 @@ on:
     paths:
       - 'scripts/apply-dev-playlist-playback.mjs'
       - 'scripts/fix-dev-playlist-patch-source.mjs'
-      - 'scripts/apply-dev-account-song-lists.mjs'
+      - 'scripts/apply-dev-account-song-lists-v2.mjs'
       - 'scripts/trigger-dev-account-song-lists.txt'
       - '.github/workflows/apply-dev-playlist-playback.yml'
 
@@ -38,6 +38,7 @@ jobs:
           test -f radio/dev/app.js
           test -f radio/dev/account.js
           test -f radio/dev/notifications.js
+          test -f radio/dev/account-song-lists.js
           test ! -e radio/app-playlist-patch.js
 
       - name: Correct and validate patch generators
@@ -46,7 +47,7 @@ jobs:
           node --check scripts/fix-dev-playlist-patch-source.mjs
           node scripts/fix-dev-playlist-patch-source.mjs
           node --check scripts/apply-dev-playlist-playback.mjs
-          node --check scripts/apply-dev-account-song-lists.mjs
+          node --check scripts/apply-dev-account-song-lists-v2.mjs
 
       - name: Apply DEV playlist playback patch
         run: |
@@ -56,7 +57,7 @@ jobs:
       - name: Apply DEV favorites and history song lists
         run: |
           set -euo pipefail
-          node scripts/apply-dev-account-song-lists.mjs
+          node scripts/apply-dev-account-song-lists-v2.mjs
 
       - name: Validate generated DEV JavaScript
         run: |
@@ -73,14 +74,14 @@ jobs:
           grep -F "startPlaylistPlayback(shufflePlaylistId, 'shuffle')" radio/dev/account.js
           grep -F "activeShuffleSourceKey.startsWith('playlist:')" radio/dev/app.js
           grep -F "[account song playback] started" radio/dev/app.js
-          grep -F "account-song-lists.js?v=20260720-songlists1" radio/dev/notifications.js
+          grep -F "account-song-lists.js?v=20260720-songlists2" radio/dev/notifications.js
           grep -F "radio-account-song-thumb" radio/dev/account-song-lists.js
 
       - name: Reject unexpected file changes
         run: |
           set -euo pipefail
           git diff --check
-          unexpected="$(git status --short | awk '{print $2}' | grep -Ev '^(scripts/apply-dev-playlist-playback\.mjs|scripts/apply-dev-account-song-lists\.mjs|radio/dev/app\.js|radio/dev/account\.js|radio/dev/notifications\.js|radio/dev/account-playlist-ui\.js|radio/dev/account-song-lists\.js|radio/dev/PLAYLIST_PLAYBACK_STATUS\.md)$' || true)"
+          unexpected="$(git status --short | awk '{print $2}' | grep -Ev '^(scripts/apply-dev-playlist-playback\.mjs|scripts/apply-dev-account-song-lists-v2\.mjs|radio/dev/app\.js|radio/dev/account\.js|radio/dev/notifications\.js|radio/dev/account-playlist-ui\.js|radio/dev/account-song-lists\.js|radio/dev/PLAYLIST_PLAYBACK_STATUS\.md)$' || true)"
           if [ -n "${unexpected}" ]; then
             echo "Refusing to commit unexpected files:" >&2
             echo "${unexpected}" >&2
@@ -98,7 +99,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             scripts/apply-dev-playlist-playback.mjs \
-            scripts/apply-dev-account-song-lists.mjs \
+            scripts/apply-dev-account-song-lists-v2.mjs \
             radio/dev/app.js \
             radio/dev/account.js \
             radio/dev/notifications.js \
