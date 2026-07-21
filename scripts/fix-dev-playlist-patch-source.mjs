@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// This file also acts as the safe push trigger after the workflow exists on main.
 const filePath = 'scripts/apply-dev-playlist-playback.mjs';
 let source = fs.readFileSync(filePath, 'utf8');
 
