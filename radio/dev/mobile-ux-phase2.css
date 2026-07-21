@@ -1,0 +1,398 @@
+html.sbr-mobile-ux {
+  --sbr-mobile-drawer-width: min(88vw, 390px);
+}
+
+html.sbr-mobile-ux:has(.sbr-notification-drawer:not([hidden])) {
+  overflow: auto !important;
+}
+
+html.sbr-mobile-ux .sbr-notification-root:has(.sbr-notification-drawer:not([hidden]))::before {
+  display: none !important;
+  content: none !important;
+}
+
+@media (max-width: 900px) {
+  html.sbr-mobile-ux .stashbox-radio-header {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    overflow: visible !important;
+    border-right: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-compact-top {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-brand-block {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-tagline,
+  html.sbr-mobile-ux .stashbox-radio-word,
+  html.sbr-mobile-ux .stashbox-track-count {
+    display: none !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-brand-block h1 {
+    font-size: clamp(30px, 9vw, 40px) !important;
+    line-height: 0.88 !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-right-stack {
+    display: block !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-action-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    width: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-filter-toggle,
+  html.sbr-mobile-ux .stashbox-video,
+  html.sbr-mobile-ux .stashbox-shuffle,
+  html.sbr-mobile-ux .stashbox-utility,
+  html.sbr-mobile-ux .stashbox-filter-drawer {
+    display: none !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-header-search-area {
+    order: 0 !important;
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    max-width: 40px !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-mobile-search-trigger {
+    display: inline-flex !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    font-size: 18px !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-header-search-area .stashbox-search {
+    position: fixed !important;
+    top: max(8px, env(safe-area-inset-top, 0px)) !important;
+    right: 8px !important;
+    left: 8px !important;
+    z-index: 10020 !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 7px !important;
+    visibility: hidden !important;
+    transform: translateY(-8px) !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-header-search-area.open .stashbox-search {
+    width: auto !important;
+    max-width: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+  }
+
+  html.sbr-mobile-ux .radio-account-actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
+
+  html.sbr-mobile-ux .radio-account-button {
+    min-height: 38px !important;
+    padding: 0 9px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
+  }
+
+  html.sbr-mobile-ux .radio-account-user-button {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tools {
+    display: block;
+    width: 100%;
+    margin: 12px 0 14px;
+    padding: 10px;
+    border: 1px solid rgba(240, 165, 0, 0.25);
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(24, 24, 29, 0.96), rgba(12, 12, 14, 0.96));
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  }
+
+  html.sbr-mobile-ux .mobile-song-tools-buttons {
+    display: grid;
+    grid-template-columns: 0.9fr 1.45fr 1fr;
+    gap: 7px;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tool-button {
+    appearance: none;
+    min-width: 0;
+    min-height: 42px;
+    border: 1px solid rgba(240, 165, 0, 0.42);
+    border-radius: 999px;
+    padding: 0 8px;
+    background: rgba(240, 165, 0, 0.08);
+    color: #ffd978;
+    font: 900 10px/1.05 var(--fb, Karla, sans-serif);
+    letter-spacing: 0.04em;
+    text-align: center;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tool-button.active,
+  html.sbr-mobile-ux .mobile-song-tool-button[aria-expanded="true"] {
+    border-color: rgba(255, 217, 120, 0.92);
+    background: linear-gradient(135deg, #f2bd55, #ffd978);
+    color: #130d04;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tool-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel {
+    display: grid;
+    gap: 8px;
+    max-height: 0;
+    margin-top: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: max-height 220ms ease, opacity 160ms ease, transform 220ms ease, margin-top 220ms ease;
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel.is-open {
+    max-height: 390px;
+    margin-top: 10px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel .stashbox-filter-row {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 0 3px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel .stashbox-filter-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel .stashbox-filter-row b {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    flex: 0 0 58px;
+    min-width: 58px;
+    padding: 7px 6px 7px 0;
+    background: #121114;
+    color: #ffd978;
+    font-size: 10px;
+  }
+
+  html.sbr-mobile-ux .mobile-song-filter-panel .stashbox-filter-pill {
+    flex: 0 0 auto !important;
+    min-height: 30px !important;
+    padding: 5px 9px !important;
+    font-size: 10px !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-root {
+    --sbr-mobile-drawer-width: min(88vw, 390px);
+    position: fixed !important;
+    inset: auto 0 auto auto !important;
+    top: 44% !important;
+    right: 0 !important;
+    z-index: 10000 !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell {
+    position: fixed !important;
+    top: 44% !important;
+    right: 0 !important;
+    z-index: 10003 !important;
+    display: grid !important;
+    grid-template-rows: auto auto !important;
+    place-items: center !important;
+    gap: 2px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    padding: 4px 3px !important;
+    border-right: 0 !important;
+    border-radius: 14px 0 0 14px !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(-50%);
+    transition: right 220ms ease, background 160ms ease, border-color 160ms ease !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell svg,
+  html.sbr-mobile-ux .sbr-notification-bell-label {
+    display: none !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell::before {
+    content: "‹";
+    display: block;
+    color: #ffd978;
+    font: 400 31px/0.9 var(--fh, "Bebas Neue", sans-serif);
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell[aria-expanded="true"] {
+    right: var(--sbr-mobile-drawer-width) !important;
+    border-color: rgba(255, 217, 120, 0.72) !important;
+    background: rgba(16, 23, 19, 0.98) !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell[aria-expanded="true"]::before {
+    content: "›";
+  }
+
+  html.sbr-mobile-ux .sbr-notification-count {
+    min-width: 20px !important;
+    height: 20px !important;
+    padding: 0 4px !important;
+    font-size: 10px !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-drawer {
+    position: fixed !important;
+    inset: 0 0 0 auto !important;
+    z-index: 10002 !important;
+    width: var(--sbr-mobile-drawer-width) !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    border-top: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-radius: 18px 0 0 18px !important;
+    box-shadow: -22px 0 60px rgba(0, 0, 0, 0.52) !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-header {
+    padding-top: max(0.78rem, env(safe-area-inset-top, 0px)) !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-close {
+    display: none !important;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-list {
+    height: calc(100dvh - 58px) !important;
+    max-height: none !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  html.sbr-mobile-ux .stashbox-brand-block h1 {
+    font-size: 29px !important;
+  }
+
+  html.sbr-mobile-ux .radio-account-button {
+    padding: 0 7px !important;
+    font-size: 9px !important;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tools-buttons {
+    grid-template-columns: 0.82fr 1.5fr 1fr;
+    gap: 5px;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tool-button {
+    padding: 0 5px;
+    font-size: 9px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) and (max-width: 1100px) {
+  html.sbr-mobile-ux {
+    --sbr-mobile-drawer-width: min(58vw, 390px);
+  }
+
+  html.sbr-mobile-ux .stashbox-radio-header {
+    padding: 6px 10px !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-brand-block h1 {
+    font-size: 25px !important;
+  }
+
+  html.sbr-mobile-ux .stashbox-mobile-search-trigger,
+  html.sbr-mobile-ux .radio-account-user-button {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  html.sbr-mobile-ux .radio-account-button {
+    min-height: 34px !important;
+  }
+
+  html.sbr-mobile-ux .mobile-song-tools {
+    margin-top: 8px;
+    padding: 8px;
+  }
+
+  html.sbr-mobile-ux .sbr-notification-root {
+    --sbr-mobile-drawer-width: min(58vw, 390px);
+  }
+
+  html.sbr-mobile-ux .sbr-notification-bell {
+    top: 50% !important;
+    height: 62px !important;
+    min-height: 62px !important;
+  }
+}
