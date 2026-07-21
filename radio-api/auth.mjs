@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
 let verifierCache = null;
@@ -36,6 +37,51 @@ function getCognitoConfig() {
   };
 }
 
+function validateJwks(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.keys) || value.keys.length === 0) {
+    throw new Error('Cognito JWKS must contain a non-empty keys array.');
+  }
+  for (const key of value.keys) {
+    if (!key || key.kty !== 'RSA' || !key.kid || !key.n || !key.e) {
+      throw new Error('Cognito JWKS contains an invalid RSA signing key.');
+    }
+  }
+  return value;
+}
+
+function loadBundledJwks() {
+  const inlineJwks = String(process.env.COGNITO_JWKS_JSON || '').trim();
+  if (inlineJwks) {
+    try {
+      return {
+        source: 'environment',
+        jwks: validateJwks(JSON.parse(inlineJwks))
+      };
+    } catch (error) {
+      console.warn('[accounts] COGNITO_JWKS_JSON could not be loaded', {
+        name: error?.name,
+        message: error?.message
+      });
+    }
+  }
+
+  try {
+    const fileUrl = new URL('./cognito-jwks-dev.json', import.meta.url);
+    return {
+      source: 'bundle',
+      jwks: validateJwks(JSON.parse(readFileSync(fileUrl, 'utf8')))
+    };
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[accounts] bundled Cognito JWKS could not be loaded', {
+        name: error?.name,
+        message: error?.message
+      });
+    }
+    return null;
+  }
+}
+
 function getVerifiers() {
   const config = getCognitoConfig();
   if (!config.enabled) {
@@ -44,18 +90,30 @@ function getVerifiers() {
 
   const cacheKey = `${config.userPoolId}:${config.clientId}`;
   if (!verifierCache || verifierCache.cacheKey !== cacheKey) {
+    const access = CognitoJwtVerifier.create({
+      userPoolId: config.userPoolId,
+      tokenUse: 'access',
+      clientId: config.clientId
+    });
+    const id = CognitoJwtVerifier.create({
+      userPoolId: config.userPoolId,
+      tokenUse: 'id',
+      clientId: config.clientId
+    });
+    const bundled = loadBundledJwks();
+    if (bundled) {
+      access.cacheJwks(bundled.jwks);
+      id.cacheJwks(bundled.jwks);
+      console.info('[accounts] Cognito JWKS cache initialized', {
+        source: bundled.source,
+        keyCount: bundled.jwks.keys.length
+      });
+    }
     verifierCache = {
       cacheKey,
-      access: CognitoJwtVerifier.create({
-        userPoolId: config.userPoolId,
-        tokenUse: 'access',
-        clientId: config.clientId
-      }),
-      id: CognitoJwtVerifier.create({
-        userPoolId: config.userPoolId,
-        tokenUse: 'id',
-        clientId: config.clientId
-      })
+      access,
+      id,
+      jwksSource: bundled?.source || 'network'
     };
   }
   return verifierCache;
@@ -126,4 +184,4 @@ export function resetCognitoVerifierCacheForTests() {
   verifierCache = null;
 }
 
-export { getBearerToken, getCognitoConfig, getHeader };
+export { getBearerToken, getCognitoConfig, getHeader, loadBundledJwks, validateJwks };
