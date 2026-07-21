@@ -6,6 +6,7 @@
   const VISITOR_STORAGE_KEY = 'stashbox_notification_visitor_id_dev';
   const SESSION_VIEW_KEY = 'stashbox_notification_viewed_ids_dev';
   const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+  const RELATIVE_TIME_REFRESH_MS = 60 * 1000;
 
   const state = {
     notifications: [],
@@ -79,11 +80,29 @@
       .join(' ');
   }
 
-  function formatDate(value) {
-    if (!value) return '';
+  function parseDate(value) {
+    if (!value) return null;
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function formatRelativeTime(value) {
+    const date = parseDate(value);
+    if (!date) return '';
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+    if (elapsedSeconds < 60 * 60) return `${Math.max(1, Math.floor(elapsedSeconds / 60))}m`;
+    if (elapsedSeconds < 24 * 60 * 60) return `${Math.floor(elapsedSeconds / (60 * 60))}h`;
+    if (elapsedSeconds < 7 * 24 * 60 * 60) return `${Math.floor(elapsedSeconds / (24 * 60 * 60))}d`;
+    if (elapsedSeconds < 30 * 24 * 60 * 60) return `${Math.floor(elapsedSeconds / (7 * 24 * 60 * 60))}w`;
+    if (elapsedSeconds < 365 * 24 * 60 * 60) return `${Math.floor(elapsedSeconds / (30 * 24 * 60 * 60))}mo`;
+    return `${Math.floor(elapsedSeconds / (365 * 24 * 60 * 60))}y`;
+  }
+
+  function formatExactDate(value) {
+    const date = parseDate(value);
+    if (!date) return '';
     return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -150,6 +169,8 @@
   function notificationMarkup(notification) {
     const id = String(notification.id);
     const isUnread = !readIds.has(id);
+    const publishedAt = notification.publish_at || notification.created_at || '';
+    const exactDate = formatExactDate(publishedAt);
     const image = notification.image_url
       ? `<img class="sbr-notification-image" src="${escapeHtml(notification.image_url)}" alt="" loading="lazy" />`
       : '';
@@ -165,7 +186,7 @@
         <div>
           <div class="sbr-notification-meta">
             <span class="sbr-notification-category">${escapeHtml(categoryLabel(notification.category))}</span>
-            <span>${escapeHtml(formatDate(notification.publish_at || notification.created_at))}</span>
+            <time class="sbr-notification-age" datetime="${escapeHtml(publishedAt)}" title="${escapeHtml(exactDate)}" aria-label="Posted ${escapeHtml(exactDate)}">${escapeHtml(formatRelativeTime(publishedAt))}</time>
             ${notification.pinned ? '<span>• Pinned</span>' : ''}
           </div>
           <h3>${escapeHtml(notification.headline)}</h3>
@@ -326,4 +347,7 @@
 
   loadNotifications();
   window.setInterval(loadNotifications, REFRESH_INTERVAL_MS);
+  window.setInterval(() => {
+    if (state.open && state.notifications.length) renderList();
+  }, RELATIVE_TIME_REFRESH_MS);
 })();
