@@ -8,6 +8,21 @@
     document.head.appendChild(script);
   });
 
+  const loadStyle = (href) => new Promise((resolve, reject) => {
+    const existing = [...document.querySelectorAll('link[rel="stylesheet"]')]
+      .find((link) => link.href.includes('notifications-compact.css'));
+    if (existing) {
+      resolve();
+      return;
+    }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.onload = resolve;
+    link.onerror = reject;
+    document.head.appendChild(link);
+  });
+
   loadScript('./account-observer-guard.js')
     .then(() => loadScript('./account.js'))
     .then(() => {
@@ -30,7 +45,8 @@
       console.error('[accounts] DEV account bootstrap failed', error);
     })
     .finally(() => Promise.all([
+      loadStyle('./notifications-compact.css?v=20260721-compact1'),
       loadScript('./notification-account-sync.js'),
-      loadScript('./notifications-core.js?v=20260721-personalized1')
+      loadScript('./notifications-core.js?v=20260721-compact1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
