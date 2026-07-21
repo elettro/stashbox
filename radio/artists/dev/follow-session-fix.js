@@ -70,6 +70,7 @@
       const error = new Error(body.error || body.message || `HTTP ${response.status}`);
       error.status = response.status;
       error.code = body.code || '';
+      error.detail = body.detail || '';
       throw error;
     }
     return body;
@@ -199,7 +200,7 @@
   }
 
   async function hydrateCurrentArtist(button, force = false) {
-    if (!button || busy) return;
+    if (!button) return;
     const artistKey = await resolveArtistKey();
     const cached = readFollowCache();
     const cachedFollow = cached.find(item => item.artist_key === artistKey);
@@ -220,7 +221,6 @@
 
   async function handleFollow(button) {
     if (busy) return;
-    busy = true;
     let artistKey = '';
     try {
       artistKey = await resolveArtistKey();
@@ -230,7 +230,12 @@
         return;
       }
 
+      // Refresh persisted state before locking the button so a stale local label
+      // cannot turn a Follow click into an accidental Unfollow (or vice versa).
       await hydrateCurrentArtist(button, true);
+      if (busy) return;
+      busy = true;
+
       const currentlyFollowing = button.dataset.isFollowing === '1';
       const shouldFollow = !currentlyFollowing;
       const previousCount = followerCount();
@@ -256,7 +261,7 @@
       } catch (error) {
         setButton(button, currentlyFollowing, error.status === 401 ? 'Log in again' : 'Follow failed');
         setFollowerCount(previousCount);
-        button.title = error.message;
+        button.title = [error.message, error.detail].filter(Boolean).join(' — ');
         if (error.status === 401 || /expired|log in/i.test(error.message)) {
           sessionStorage.setItem(PENDING_KEY, artistKey);
           window.setTimeout(() => openLogin(artistKey), 500);
@@ -287,7 +292,7 @@
       busy = false;
       button.disabled = false;
       button.textContent = 'Follow failed';
-      button.title = error.message;
+      button.title = [error.message, error.detail].filter(Boolean).join(' — ');
       console.warn('[artist profile follow] controller failed', error);
     });
   }, true);
