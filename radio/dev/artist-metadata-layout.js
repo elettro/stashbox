@@ -32,6 +32,7 @@
         font-weight:900;
         line-height:1.2;
         border-bottom:1px solid transparent;
+        cursor:pointer;
         transition:color .16s ease,border-color .16s ease;
       }
       .player-artist-name-link:hover,
@@ -58,6 +59,27 @@
     document.head.appendChild(style);
   }
 
+  function bindArtistNavigation(artistNode, profileLink) {
+    if (!artistNode || !profileLink) return;
+    artistNode.classList.add('player-artist-name-link');
+    artistNode.setAttribute('role', 'link');
+    artistNode.tabIndex = 0;
+    artistNode.dataset.artistProfileHref = profileLink.href;
+    artistNode.title = profileLink.title || `Open ${String(artistNode.textContent || '').trim()} artist profile`;
+
+    if (artistNode.dataset.artistNavigationBound === '1') return;
+    artistNode.dataset.artistNavigationBound = '1';
+    const openArtist = event => {
+      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const href = artistNode.dataset.artistProfileHref;
+      if (href) window.location.href = href;
+    };
+    artistNode.addEventListener('click', openArtist);
+    artistNode.addEventListener('keydown', openArtist);
+  }
+
   function organizePlayerMetadata() {
     injectStyle();
     const playerInfo = document.querySelector('.player-info');
@@ -70,25 +92,16 @@
 
     const control = meta.querySelector(':scope > .artist-follow-control');
     const generatedProfileLink = control?.querySelector('.artist-profile-link');
-    let artistLink = meta.querySelector(':scope > .player-artist-name-link');
-    const artistStrong = meta.querySelector(':scope > strong');
+    const artistNode = meta.querySelector(':scope > strong, :scope > .player-artist-name-link');
 
-    if (!artistLink && artistStrong && generatedProfileLink) {
-      artistLink = document.createElement('a');
-      artistLink.className = 'player-artist-name-link';
-      artistLink.textContent = artistStrong.textContent || '';
-      artistLink.href = generatedProfileLink.href;
-      artistLink.title = generatedProfileLink.title || `Open ${artistLink.textContent.trim()} artist profile`;
-      artistStrong.replaceWith(artistLink);
-    } else if (artistLink && generatedProfileLink) {
-      artistLink.href = generatedProfileLink.href;
-      artistLink.title = generatedProfileLink.title || artistLink.title;
+    if (artistNode && generatedProfileLink) {
+      bindArtistNavigation(artistNode, generatedProfileLink);
     }
 
     generatedProfileLink?.remove();
 
-    if (artistLink && control && artistLink.nextElementSibling !== control) {
-      artistLink.after(control);
+    if (artistNode && control && artistNode.nextElementSibling !== control) {
+      artistNode.after(control);
     }
   }
 
