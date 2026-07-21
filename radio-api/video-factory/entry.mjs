@@ -11,6 +11,10 @@ import {
   isNotificationEventRequest
 } from './account-routes.mjs';
 import {
+  handleArtistRequest,
+  isArtistRequest
+} from './artist-routes.mjs';
+import {
   getPublicAuthConfig,
   verifyCognitoIdentity
 } from './auth.mjs';
@@ -145,6 +149,8 @@ function accountDeps(client) {
     parseBody,
     getMethod,
     getRouteSegments,
+    getHeader,
+    requireAdmin,
     verifyIdentity: verifyCognitoIdentity,
     getAuthConfig: getPublicAuthConfig
   };
@@ -155,10 +161,11 @@ export const handler = async event => {
   const method = getMethod(safeEvent);
   const segments = getRouteSegments(safeEvent);
   const accountRequest = isAccountRequest(segments);
+  const artistRequest = isArtistRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -174,6 +181,10 @@ export const handler = async event => {
 
     if (accountRequest) {
       return await handleAccountRequest(safeEvent, accountDeps(client));
+    }
+
+    if (artistRequest) {
+      return await handleArtistRequest(safeEvent, accountDeps(client));
     }
 
     if (notificationEventRequest) {

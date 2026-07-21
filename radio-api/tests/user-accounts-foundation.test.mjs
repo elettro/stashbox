@@ -93,7 +93,10 @@ test('notification client is preserved and account bootstrap loads first', () =>
 
 test('DEV deployment wrapper delegates unrelated routes to the original radio handler', () => {
   const wrapper = read('radio-api/video-factory/entry.mjs');
-  assert.match(wrapper, /if \(!accountRequest && !notificationEventRequest && !videoFactoryRequest\)/);
+  assert.match(wrapper, /const accountRequest = isAccountRequest\(segments\)/);
+  assert.match(wrapper, /const notificationEventRequest = isNotificationEventRequest\(segments\)/);
+  assert.match(wrapper, /const artistRequest = isArtistRequest\(segments\)/);
+  assert.match(wrapper, /const videoFactoryRequest = isVideoFactoryRequest\(safeEvent\)/);
   assert.match(wrapper, /return radioHandler\(safeEvent\)/);
   assert.match(wrapper, /X-Cognito-Id-Token/);
 });
