@@ -79,11 +79,29 @@ test('DEV wrapper intercepts notification feed before the original public handle
 test('notification drawer sends Cognito credentials and reloads after follow changes', () => {
   const loader = read('radio/dev/notifications.js');
   const client = read('radio/dev/notifications-core.js');
-  assert.match(loader, /notifications-core\.js\?v=20260721-personalized1/);
+  assert.match(loader, /notifications-core\.js\?v=20260721-compact1/);
   assert.match(client, /TOKEN_STORAGE_KEY = 'stashbox_radio_dev_cognito_tokens'/);
   assert.match(client, /Authorization: `Bearer \$\{token\.accessToken\}`/);
   assert.match(client, /'X-Cognito-Id-Token'/);
   assert.match(client, /payload\.personalized/);
   assert.match(client, /stashbox:artist-follow-changed/);
   assert.match(client, /requestNotifications\(false\)/);
+});
+
+test('notification drawer uses compact cards and relative age labels', () => {
+  const loader = read('radio/dev/notifications.js');
+  const client = read('radio/dev/notifications-core.js');
+  const compactCss = read('radio/dev/notifications-compact.css');
+  assert.match(loader, /notifications-compact\.css\?v=20260721-compact1/);
+  assert.match(client, /function formatRelativeTime/);
+  assert.match(client, /elapsedSeconds < 60 \* 60/);
+  assert.match(client, /elapsedSeconds < 24 \* 60 \* 60/);
+  assert.match(client, /elapsedSeconds < 7 \* 24 \* 60 \* 60/);
+  assert.match(client, /elapsedSeconds < 30 \* 24 \* 60 \* 60/);
+  assert.match(client, /365 \* 24 \* 60 \* 60/);
+  assert.match(client, /RELATIVE_TIME_REFRESH_MS = 60 \* 1000/);
+  assert.match(client, /class="sbr-notification-age"/);
+  assert.match(compactCss, /grid-template-columns: 58px minmax\(0, 1fr\)/);
+  assert.match(compactCss, /width: 58px/);
+  assert.match(compactCss, /min-height: 1\.9rem/);
 });
