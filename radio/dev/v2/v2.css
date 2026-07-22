@@ -1,0 +1,149 @@
+/*
+ * STASHBOX RADIO DEV V2
+ * ---------------------
+ * This stylesheet loads after the existing DEV styles.
+ * Put all V2 visual and responsive experiments in this file.
+ * Nothing in this file affects /radio/dev/.
+ */
+
+body.radio-dev-v2 {
+  --v2-bg: #0c0c0e;
+  --v2-panel: #151519;
+  --v2-panel-raised: #1d1d23;
+  --v2-border: rgba(255, 255, 255, 0.1);
+  --v2-text: #eeeae3;
+  --v2-muted: #9a9ca4;
+  --v2-accent: #f0a500;
+  --v2-green: #3ecf6e;
+  --v2-radius-sm: 10px;
+  --v2-radius-md: 16px;
+  --v2-radius-lg: 24px;
+  --v2-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+  --v2-page-gutter: clamp(12px, 3vw, 34px);
+  min-height: 100vh;
+}
+
+body.radio-dev-v2::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(240, 165, 0, 0.1), transparent 34%),
+    radial-gradient(circle at 90% 12%, rgba(62, 207, 110, 0.06), transparent 28%),
+    var(--v2-bg);
+}
+
+body.radio-dev-v2 #root {
+  isolation: isolate;
+}
+
+/* V2 identifier and return link */
+.v2-lab-badge {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(240, 165, 0, 0.42);
+  border-radius: 999px;
+  background: rgba(10, 10, 12, 0.9);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34);
+  color: var(--v2-text);
+  font-family: Karla, system-ui, sans-serif;
+  text-decoration: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.v2-lab-badge span {
+  color: var(--v2-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.v2-lab-badge strong {
+  color: var(--v2-accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.v2-lab-badge:hover,
+.v2-lab-badge:focus-visible {
+  border-color: rgba(240, 165, 0, 0.8);
+  background: rgba(25, 22, 16, 0.96);
+  outline: none;
+}
+
+/*
+ * V2 WORK AREA
+ * Add interface overrides below this line.
+ * Scope every rule beneath body.radio-dev-v2 or .radio-dev-v2.
+ */
+
+body.radio-dev-v2 .radio-app {
+  width: 100%;
+}
+
+/* Example component tokens ready for future layouts */
+body.radio-dev-v2 .v2-surface {
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-md);
+  background: var(--v2-panel);
+  box-shadow: var(--v2-shadow);
+}
+
+body.radio-dev-v2 .v2-mobile-only {
+  display: none;
+}
+
+body.radio-dev-v2 .v2-desktop-only {
+  display: initial;
+}
+
+@media (max-width: 900px) {
+  body.radio-dev-v2 {
+    --v2-page-gutter: 12px;
+  }
+
+  body.radio-dev-v2 .v2-mobile-only {
+    display: initial;
+  }
+
+  body.radio-dev-v2 .v2-desktop-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .v2-lab-badge {
+    top: max(6px, env(safe-area-inset-top));
+    right: max(6px, env(safe-area-inset-right));
+    min-height: 30px;
+    padding: 6px 8px;
+  }
+
+  .v2-lab-badge span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.radio-dev-v2 *,
+  body.radio-dev-v2 *::before,
+  body.radio-dev-v2 *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
