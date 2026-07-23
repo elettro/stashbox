@@ -1,0 +1,11 @@
+@media (max-width: 699px) {
+  .v2-notification-sheet {
+    height: 93dvh;
+    max-height: 93dvh;
+  }
+
+  .v2-notification-list {
+    height: calc(93dvh - 83px);
+    max-height: calc(93dvh - 83px);
+  }
+}
