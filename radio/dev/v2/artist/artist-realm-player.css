@@ -1,0 +1,48 @@
+body.artist-realm-open{overflow:hidden!important}
+.artist-hero-vec-launch{position:absolute;z-index:4;left:50%;top:37%;width:92px;height:92px;display:grid;place-items:center;gap:3px;padding:0;border:2px solid rgba(255,255,255,.78);border-radius:50%;background:rgba(4,5,6,.42);color:#fff;cursor:pointer;transform:translate(-50%,-50%);box-shadow:0 16px 55px rgba(0,0,0,.42),0 0 0 10px rgba(255,255,255,.07);backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px);transition:transform .18s ease,background .18s ease,border-color .18s ease}
+.artist-hero-vec-launch:hover{border-color:var(--artist-accent);background:rgba(255,159,10,.88);color:#160e05;transform:translate(-50%,-50%) scale(1.06)}
+.artist-hero-vec-launch svg{width:35px;height:35px;fill:currentColor;stroke:none;margin-left:5px}
+.artist-hero-vec-launch span{position:absolute;top:104px;left:50%;width:max-content;padding:6px 10px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:rgba(4,5,6,.62);color:#fff;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;transform:translateX(-50%);backdrop-filter:blur(10px)}
+.artist-realm-player{position:fixed;inset:0;z-index:10000;overflow:hidden;background:#030405;color:#fff;font-family:var(--artist-body);isolation:isolate}
+.artist-realm-stage{position:absolute;inset:0;overflow:hidden;background:#050607}
+.artist-realm-stage::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;background:linear-gradient(180deg,rgba(2,3,4,.38),transparent 20%,transparent 52%,rgba(2,3,4,.25) 65%,rgba(2,3,4,.94) 100%)}
+.artist-realm-media{position:absolute;inset:0;z-index:1;width:100%;height:100%;display:block;object-fit:contain;opacity:0;transform:scale(1.015);transition:opacity .45s ease,transform .7s ease;background:#050607}
+.artist-realm-media.is-active{opacity:1;transform:scale(1)}
+.artist-realm-header{position:absolute;z-index:8;top:0;left:0;right:0;display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:13px;padding:calc(14px + env(safe-area-inset-top,0px)) clamp(16px,3vw,34px) 12px;background:linear-gradient(180deg,rgba(2,3,4,.68),transparent)}
+.artist-realm-home,.artist-realm-profile,.artist-realm-control{display:grid;place-items:center;border:1px solid rgba(255,255,255,.23);background:rgba(4,5,6,.48);color:#fff;cursor:pointer;backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px)}
+.artist-realm-home{width:48px;height:48px;padding:0;border-radius:50%}
+.artist-realm-home svg{width:25px;height:25px}
+.artist-realm-profile{min-height:42px;padding:0 16px;border-radius:999px;font-size:12px;font-weight:900}
+.artist-realm-brand{min-width:0;display:flex;align-items:center;justify-content:center;gap:10px}
+.artist-realm-brand strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.artist-realm-vec{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(4,5,6,.46);font-size:9px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}
+.artist-realm-vec i{width:7px;height:7px;border-radius:50%;background:#55df83;box-shadow:0 0 0 3px rgba(85,223,131,.15),0 0 10px rgba(85,223,131,.38)}
+.artist-realm-bottom{position:absolute;z-index:8;left:50%;bottom:0;width:min(880px,calc(100% - 34px));padding:24px 24px calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+.artist-realm-meta{display:grid;gap:4px;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.artist-realm-meta small{color:var(--artist-accent);font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+.artist-realm-meta h2{margin:0;overflow:hidden;color:#fff;font-family:var(--artist-display);font-size:clamp(34px,5vw,58px);font-weight:400;line-height:.98;letter-spacing:.02em;text-overflow:ellipsis;white-space:nowrap}
+.artist-realm-meta p{margin:3px 0 0;color:#d2d5d9;font-size:13px}
+.artist-realm-progress-row{display:grid;grid-template-columns:38px minmax(0,1fr) 38px;align-items:center;gap:10px;margin-top:17px;color:#c5c8cd;font-size:10px;font-variant-numeric:tabular-nums}
+.artist-realm-progress{width:100%;height:4px;margin:0;accent-color:var(--artist-accent);cursor:pointer}
+.artist-realm-controls{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:10px}
+.artist-realm-control{width:48px;height:48px;padding:0;border-radius:50%}
+.artist-realm-control.primary{width:66px;height:66px;border-color:var(--artist-accent);background:rgba(4,5,6,.7)}
+.artist-realm-control:hover,.artist-realm-home:hover,.artist-realm-profile:hover{border-color:var(--artist-accent);color:var(--artist-accent)}
+.artist-realm-control svg{width:23px;height:23px}.artist-realm-control.primary svg{width:29px;height:29px;fill:currentColor;stroke:none}
+.artist-realm-status{min-height:16px;margin:8px 0 0;color:#aeb2b8;font-size:10px;text-align:center}
+.artist-realm-loader{position:absolute;z-index:6;inset:0;display:grid;place-content:center;justify-items:center;gap:10px;background:rgba(4,5,6,.52);transition:opacity .3s ease}
+.artist-realm-loader[hidden]{display:none!important}.artist-realm-loader i{width:32px;height:32px;border:3px solid rgba(255,159,10,.22);border-top-color:var(--artist-accent);border-radius:50%;animation:artist-realm-spin .8s linear infinite}.artist-realm-loader span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+@keyframes artist-realm-spin{to{transform:rotate(360deg)}}
+@media (max-width:699px){
+  .artist-hero-vec-launch{top:28%;width:76px;height:76px;box-shadow:0 14px 42px rgba(0,0,0,.42),0 0 0 8px rgba(255,255,255,.07)}
+  .artist-hero-vec-launch svg{width:30px;height:30px}.artist-hero-vec-launch span{top:88px;font-size:9px}
+  .artist-realm-media{object-fit:cover}
+  .artist-realm-header{grid-template-columns:45px minmax(0,1fr) auto;gap:8px;padding:calc(9px + env(safe-area-inset-top,0px)) 12px 8px}
+  .artist-realm-home{width:43px;height:43px}.artist-realm-profile{min-height:37px;padding:0 12px;font-size:10px}
+  .artist-realm-brand{justify-content:flex-start}.artist-realm-brand strong{display:none}
+  .artist-realm-bottom{width:100%;padding:18px 16px max(8px,calc(10px + env(safe-area-inset-bottom,0px)))}
+  .artist-realm-meta{text-align:left}.artist-realm-meta h2{font-size:36px}.artist-realm-meta p{font-size:12px}
+  .artist-realm-progress-row{margin-top:11px}.artist-realm-controls{gap:14px;margin-top:5px}
+  .artist-realm-control{width:43px;height:43px}.artist-realm-control.primary{width:60px;height:60px}
+}
+@media (max-width:390px){.artist-realm-meta h2{font-size:32px}.artist-realm-bottom{padding-left:13px;padding-right:13px}}
