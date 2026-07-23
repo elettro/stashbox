@@ -126,7 +126,12 @@ export async function handleArtistProfileMediaRequest(event, deps) {
   const method = deps.getMethod(event).toUpperCase();
   const isAdmin = segments[1] === 'admin';
   const identifier = decodeURIComponent(isAdmin ? segments[3] : segments[2]);
-  const isPresign = isAdmin && segments[5] === 'presign';
+  // Accept both /media/presign and POST /media. The alias prevents an API
+  // Gateway path-normalization difference from turning a valid upload into 405.
+  const isPresign = isAdmin && (
+    segments[5] === 'presign' ||
+    (segments.length === 5 && method === 'POST')
+  );
 
   if (!isAdmin) {
     if (method !== 'GET') return deps.response(405, { success: false, error: 'Method not allowed.' });
@@ -200,5 +205,11 @@ export async function handleArtistProfileMediaRequest(event, deps) {
     return deps.response(200, { success: true, ...upload });
   }
 
-  return deps.response(405, { success: false, error: 'Method not allowed.' });
+  return deps.response(405, {
+    success: false,
+    error: 'Method not allowed.',
+    method,
+    route: segments.join('/'),
+    allowed: ['GET /media', 'PATCH /media', 'POST /media/presign']
+  });
 }
