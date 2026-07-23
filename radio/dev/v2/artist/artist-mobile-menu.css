@@ -1,0 +1,95 @@
+.artist-social-icon,
+.artist-mobile-shop-link {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .artist-more-menu:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    width: 196px;
+  }
+
+  .artist-more-menu a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 14px;
+  }
+
+  .artist-social-icon {
+    width: 23px;
+    height: 23px;
+    flex: 0 0 23px;
+    display: grid;
+    place-items: center;
+    color: var(--artist-accent);
+  }
+
+  .artist-social-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .artist-more-menu a[data-social-key="website"] { order: 1; }
+  .artist-more-menu a[data-social-key="merch"] { order: 2; }
+  .artist-more-menu a[data-social-key="youtube"] { order: 3; }
+  .artist-more-menu a[data-social-key="facebook"] { order: 4; }
+  .artist-more-menu a[data-social-key="spotify"] { order: 5; }
+  .artist-more-menu a[data-social-key="instagram"] { order: 6; }
+  .artist-more-menu a[data-social-key="x"] { order: 7; }
+  .artist-more-menu a[data-social-key="apple-music"] { order: 8; }
+
+  .artist-link-row {
+    gap: 11px;
+    flex-wrap: nowrap;
+  }
+
+  .artist-mobile-shop-link:not([hidden]) {
+    min-width: 65px;
+    min-height: 31px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 159, 10, .72);
+    border-radius: 999px;
+    background: rgba(255, 159, 10, .08);
+    color: var(--artist-accent);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .artist-mobile-shop-link svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .artist-link-row > a {
+    min-width: 0;
+    max-width: 48%;
+    flex: 0 1 auto;
+  }
+
+  .artist-link-row > a span,
+  .artist-link-row > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
