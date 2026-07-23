@@ -40,11 +40,20 @@ test('shared admin navigation uses the approved button order', () => {
     "label: 'Artists'",
     "label: 'Notifications'",
     "label: 'Dashboard'",
-    "label: 'Radio Dev'"
+    "label: 'Radio Dev'",
+    "label: 'Radio Dev 2.0'"
   ];
   const positions = labels.map(label => source.indexOf(label));
   positions.forEach((position, index) => assert.notEqual(position, -1, `Missing ${labels[index]}`));
   assert.deepEqual(positions, positions.slice().sort((a, b) => a - b));
+});
+
+test('Radio Dev 2.0 is directly after Radio Dev and points to V2', () => {
+  const source = read('radio-admin/dev/shared-admin-header.js');
+  const radio = source.indexOf("label: 'Radio Dev'");
+  const radioV2 = source.indexOf("label: 'Radio Dev 2.0'");
+  assert.ok(radio < radioV2);
+  assert.match(source, /label: 'Radio Dev 2\.0', href: 'https:\/\/stashbox\.com\/radio\/dev\/v2\/'/);
 });
 
 test('Artists is located between Ads and Notifications', () => {
