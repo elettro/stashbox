@@ -3,45 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050607">
   <meta name="robots" content="noindex,nofollow">
-  <title>Stashbox Radio DEV V2 Interface Lab</title>
-  <meta name="description" content="An isolated Stashbox Radio DEV interface playground for testing alternate responsive layouts and visual treatments.">
+  <title>Stashbox Radio DEV V2</title>
+  <meta name="description" content="The mobile-first Stashbox Radio V2 public discovery feed and full-screen player.">
   <link rel="canonical" href="https://stashbox.com/radio/dev/v2/">
 
-  <!-- Keep existing DEV relative assets and notification bootstraps working. -->
   <base href="/radio/dev/">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- Stable shared foundation. Do not edit these files for V2 experiments. -->
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="notifications.css">
-
-  <!-- V2-only interface overrides. Make visual changes here. -->
-  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/radio/dev/notifications-compact.css?v=20260722-v2">
+  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=20260722-home1">
 </head>
-<body class="radio-dev-v2" data-interface-version="v2">
-  <a class="v2-lab-badge" href="/radio/dev/" aria-label="Return to the original DEV interface">
-    <span>Interface Lab</span>
-    <strong>DEV V2</strong>
-  </a>
+<body class="radio-dev-v2">
+  <div id="v2App" class="v2-app" aria-live="polite">
+    <section class="v2-loading" aria-label="Loading Stashbox Radio">
+      <span class="v2-loading-mark">STASH<span>BOX</span></span>
+      <span class="v2-loading-line"></span>
+      <p>Loading live DEV content</p>
+    </section>
+  </div>
 
-  <main>
-    <div id="root">
-      <section class="loading-shell" aria-live="polite">
-        <img src="/images/branding/stashbox-logo-transparent-rastacolors.png" alt="Stashbox" class="loading-logo">
-        <p>Loading Radio DEV V2…</p>
-      </section>
-    </div>
-  </main>
+  <noscript>This version of Stashbox Radio requires JavaScript.</noscript>
 
-  <!-- Stable shared behavior. V2-specific behavior belongs in v2.js. -->
-  <script src="/main.js"></script>
-  <script type="module" src="app.js"></script>
-  <script src="notifications.js" defer></script>
-  <script src="/radio/dev/v2/v2.js?v=1" defer></script>
+  <script src="/radio/dev/v2/v2.js?v=20260722-home1" defer></script>
+  <script src="/radio/dev/account.js?v=20260722-v2" defer></script>
+  <script src="/radio/dev/notifications-core.js?v=20260722-v2" defer></script>
 </body>
 </html>
