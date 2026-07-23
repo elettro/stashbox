@@ -28,6 +28,7 @@ on:
       - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
+      - 'radio-api/tests/artist-profile-media-persistence.test.mjs'
       - 'radio-api/tests/playlist-reorder.test.mjs'
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
@@ -111,14 +112,17 @@ jobs:
           node --check radio/dev/v2/profile/profile-media-upload.js
           node --check radio/dev/v2/artist/artist-vertical-banner.js
           node --check radio-admin/artists/dev/profile-media.js
+          node --check radio-admin/artists/dev/vertical-banner-simple.js
 
       - name: Run account foundation tests
         run: |
           node --test radio-api/tests/user-accounts-foundation.test.mjs
           node --test radio-api/tests/playlist-reorder.test.mjs
 
-      - name: Run artist foundation tests
-        run: node --test radio-api/tests/artist-foundation.test.mjs
+      - name: Run artist foundation and vertical banner persistence tests
+        run: |
+          node --test radio-api/tests/artist-foundation.test.mjs
+          node --test radio-api/tests/artist-profile-media-persistence.test.mjs
 
       - name: Run notification tests
         run: |
@@ -244,3 +248,60 @@ jobs:
             -w '%{http_code}' \
             "${TRUE_DEV_API_BASE}/radio/me")
           test "${ME_STATUS}" = '401'
+
+      - name: Verify Artist vertical banner survives a normal Artist save and reload
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}"
+          ARTIST_URL="${TRUE_DEV_API_BASE}/radio/admin/artists/stashbox"
+          SENTINEL_URL="https://stashbox.com/radio/dev/vertical-banner-persistence-test/${GITHUB_SHA}.jpg"
+
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${ARTIST_URL}?before=${GITHUB_RUN_ID}" > /tmp/artist-before.json
+          OLD_URL=$(jq -r '.artist.vertical_banner_image_url // ""' /tmp/artist-before.json)
+
+          RESTORED=0
+          restore_previous_banner() {
+            if [ "${RESTORED}" = '1' ]; then return; fi
+            jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-restore.json
+            curl --silent --show-error --max-time 45 \
+              -X PATCH \
+              -H "x-admin-token: ${ADMIN_TOKEN}" \
+              -H 'Content-Type: application/json' \
+              --data @/tmp/artist-restore.json \
+              "${ARTIST_URL}" >/tmp/artist-restore-response.json || true
+          }
+          trap restore_previous_banner EXIT
+
+          jq -n --arg url "${SENTINEL_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-patch.json
+          curl --fail --silent --show-error --max-time 45 \
+            -X PATCH \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data @/tmp/artist-patch.json \
+            "${ARTIST_URL}" > /tmp/artist-patched.json
+          jq -e --arg url "${SENTINEL_URL}" '.success == true and .artist.vertical_banner_image_url == $url' /tmp/artist-patched.json >/dev/null
+
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${ARTIST_URL}?verify=${GITHUB_RUN_ID}" > /tmp/artist-reloaded.json
+          jq -e --arg url "${SENTINEL_URL}" '.success == true and .artist.vertical_banner_image_url == $url' /tmp/artist-reloaded.json >/dev/null
+
+          jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-restore.json
+          curl --fail --silent --show-error --max-time 45 \
+            -X PATCH \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data @/tmp/artist-restore.json \
+            "${ARTIST_URL}" > /tmp/artist-restored.json
+          jq -e --arg url "${OLD_URL}" '.artist.vertical_banner_image_url == $url' /tmp/artist-restored.json >/dev/null
+
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${ARTIST_URL}?restored=${GITHUB_RUN_ID}" > /tmp/artist-restored-read.json
+          jq -e --arg url "${OLD_URL}" '.artist.vertical_banner_image_url == $url' /tmp/artist-restored-read.json >/dev/null
+
+          RESTORED=1
+          trap - EXIT
+          echo 'Artist vertical banner normal-route persistence verified and previous value restored.'
