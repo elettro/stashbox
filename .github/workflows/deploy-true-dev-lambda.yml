@@ -16,9 +16,12 @@ on:
       - 'radio-api/artist-routes.mjs'
       - 'radio-api/artist-follow-routes.mjs'
       - 'radio-api/playlist-reorder-routes.mjs'
+      - 'radio-api/profile-media-routes.mjs'
+      - 'radio-api/artist-profile-media-routes.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
       - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
+      - 'radio-api/migrations/20260723_artist_vertical_profile_banner_dev.sql'
       - 'radio-api/notifications.mjs'
       - 'radio-api/notification-activity-feed.mjs'
       - 'radio-api/personalized-notifications.mjs'
@@ -77,7 +80,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda, account, artist, notification, playlist, and player syntax
+      - name: Check Lambda, account, artist, notification, playlist, media, and player syntax
         run: |
           node --check radio-api/index.mjs
           node --check radio-api/auth.mjs
@@ -87,6 +90,8 @@ jobs:
           node --check radio-api/artist-routes.mjs
           node --check radio-api/artist-follow-routes.mjs
           node --check radio-api/playlist-reorder-routes.mjs
+          node --check radio-api/profile-media-routes.mjs
+          node --check radio-api/artist-profile-media-routes.mjs
           node --check radio-api/notifications.mjs
           node --check radio-api/notification-activity-feed.mjs
           node --check radio-api/personalized-notifications.mjs
@@ -100,6 +105,9 @@ jobs:
           node --check radio/artists/dev/follow-session-fix.js
           node --check radio/dev/v2/profile/profile-playlist-reorder.js
           node --check radio/dev/v2/profile/profile-nav-cleanup.js
+          node --check radio/dev/v2/profile/profile-media-upload.js
+          node --check radio/dev/v2/artist/artist-vertical-banner.js
+          node --check radio-admin/artists/dev/profile-media.js
 
       - name: Run account foundation tests
         run: |
@@ -156,7 +164,7 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, playlist, and personalized notification routes.
+          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, playlist, profile-media, and personalized notification routes.
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
 
@@ -165,6 +173,8 @@ jobs:
           test -s cognito-jwks-dev.json
           test -s artist-follow-routes.mjs
           test -s playlist-reorder-routes.mjs
+          test -s profile-media-routes.mjs
+          test -s artist-profile-media-routes.mjs
           test -s personalized-notifications.mjs
 
           zip -r dist/true-dev-lambda.zip . \
@@ -175,6 +185,8 @@ jobs:
           unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
           unzip -l dist/true-dev-lambda.zip | grep -q 'artist-follow-routes.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'playlist-reorder-routes.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'profile-media-routes.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'artist-profile-media-routes.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'personalized-notifications.mjs'
 
       - name: Configure AWS credentials
@@ -220,7 +232,7 @@ jobs:
             -w '%{http_code}' \
             "${TRUE_DEV_API_BASE}/radio/auth/config")
           test "${AUTH_CONFIG_STATUS}" = '200'
-          jq -e '.success == true and (.auth | type == "object")' /tmp/auth-config.json
+          jq -e '.success == true and (.auth | type == "object")' /tmp/auth-config.json >/dev/null
 
           ME_STATUS=$(curl --silent --show-error --max-time 45 \
             -o /tmp/account-me-unauthorized.json \
