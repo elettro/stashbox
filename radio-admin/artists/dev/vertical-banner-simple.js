@@ -85,24 +85,28 @@
     };
     image.onerror = () => {
       preview.innerHTML = '<span>Saved image preview unavailable</span>';
-      setStatus('The vertical-banner URL is saved, but the S3 image could not be displayed.', true);
+      setStatus('The artist record contains the vertical-banner URL, but the S3 image could not be displayed.', true);
     };
     image.src = `${url}${url.includes('?') ? '&' : '?'}preview=${Date.now()}`;
     preview.appendChild(image);
     if (dimensions) dimension.textContent = `${dimensions.width} × ${dimensions.height} px`;
   }
 
+  function verticalFromArtist(body) {
+    return clean(body?.artist?.vertical_banner_image_url ?? body?.artist?.verticalBannerImageUrl);
+  }
+
   async function getStoredVertical(key) {
-    const body = await fetch(`${ARTISTS_URL}/${encodeURIComponent(key)}/media?read=${Date.now()}`, {
+    const body = await fetch(`${ARTISTS_URL}/${encodeURIComponent(key)}?vertical_read=${Date.now()}`, {
       cache: 'no-store',
       credentials: 'omit',
       headers: authHeaders(false)
     }).then(parse);
-    return clean(body.media?.vertical_banner_image_url);
+    return verticalFromArtist(body);
   }
 
   async function persistAndVerify(key, url) {
-    const body = await fetch(`${ARTISTS_URL}/${encodeURIComponent(key)}/media`, {
+    const body = await fetch(`${ARTISTS_URL}/${encodeURIComponent(key)}`, {
       method: 'PATCH',
       cache: 'no-store',
       credentials: 'omit',
@@ -110,14 +114,14 @@
       body: JSON.stringify({ vertical_banner_image_url: url })
     }).then(parse);
 
-    const patched = clean(body.media?.vertical_banner_image_url);
+    const patched = verticalFromArtist(body);
     if (patched !== clean(url)) {
-      throw new Error('Lambda did not return the vertical-banner URL after saving.');
+      throw new Error('The normal Artist Save route did not return the vertical-banner URL.');
     }
 
     const stored = await getStoredVertical(key);
     if (stored !== clean(url)) {
-      throw new Error('The vertical-banner URL did not survive the independent RDS read-back.');
+      throw new Error('The vertical-banner URL did not survive a fresh Artist GET after saving.');
     }
     return stored;
   }
@@ -182,7 +186,7 @@
     if (!put.ok) throw new Error(`S3 upload failed with status ${put.status}.`);
 
     setPreview(presign.public_url, dimensions);
-    setStatus('S3 upload complete. Saving and checking RDS…');
+    setStatus('S3 upload complete. Saving through the normal Artist Save route…');
     await persistAndVerify(artist.key, presign.public_url);
     setPreview(presign.public_url, dimensions);
 
@@ -192,7 +196,7 @@
     const sizeWarning = dimensions.width < 1080 || dimensions.height < 1920
       ? ' Warning: this image is below the recommended 1080 × 1920 size.'
       : '';
-    setStatus(`${dimensions.width} × ${dimensions.height} px uploaded to S3 and verified in RDS.${ratioWarning}${sizeWarning}`);
+    setStatus(`${dimensions.width} × ${dimensions.height} px uploaded to S3 and verified through a fresh Artist GET.${ratioWarning}${sizeWarning}`);
   }
 
   async function loadSelected(force = false) {
@@ -204,12 +208,12 @@
     if (!force && artist.signature === loadedSignature) return;
     loadedSignature = artist.signature;
     const currentRequest = ++requestId;
-    setStatus('Loading the saved vertical banner from RDS…');
+    setStatus('Loading vertical banner from the normal Artist record…');
     try {
       const url = await getStoredVertical(artist.key);
       if (currentRequest !== requestId || selectedArtist()?.signature !== artist.signature) return;
       setPreview(url);
-      setStatus(url ? 'Vertical banner loaded and confirmed from RDS.' : 'No vertical banner is currently saved for this artist.');
+      setStatus(url ? 'Vertical banner loaded from the Artist record.' : 'No vertical banner is currently stored on this Artist record.');
     } catch (error) {
       if (currentRequest !== requestId) return;
       setStatus(`Vertical banner could not be loaded: ${error.message}`, true);
@@ -235,11 +239,11 @@
   el('deleteVerticalBannerImage')?.addEventListener('click', () => {
     const artist = selectedArtist();
     if (!artist) return setStatus('Select an existing artist first.', true);
-    setStatus('Removing vertical banner and checking RDS…');
+    setStatus('Removing vertical banner through the normal Artist Save route…');
     persistAndVerify(artist.key, '')
       .then(() => {
         setPreview('');
-        setStatus('Vertical banner removal verified in RDS.');
+        setStatus('Vertical banner removal verified through a fresh Artist GET.');
       })
       .catch(error => setStatus(error.message, true));
   });
@@ -252,7 +256,7 @@
       const artist = selectedArtist();
       if (!artist) return;
       persistAndVerify(artist.key, pendingUrl)
-        .then(() => setStatus('Artist saved. Vertical banner independently verified in RDS.'))
+        .then(() => setStatus('Artist saved. Vertical banner verified through a fresh Artist GET.'))
         .catch(error => setStatus(`Artist saved, but vertical-banner verification failed: ${error.message}`, true));
     }, 900);
   }, true);
