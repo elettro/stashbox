@@ -1,0 +1,6 @@
+.streak-days span.listened:not(.on){
+  border-color:rgba(255,159,10,.72);
+  background:rgba(255,159,10,.12);
+  color:#c98a34;
+  box-shadow:inset 0 0 0 1px rgba(255,159,10,.08);
+}
