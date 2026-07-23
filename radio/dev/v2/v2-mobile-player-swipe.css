@@ -1,0 +1,85 @@
+@media (max-width: 699px) {
+  .v2-player.is-logged-in-player {
+    overscroll-behavior: none;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-swipe-hint {
+    position: absolute;
+    z-index: 80;
+    left: 50%;
+    top: 43%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 132px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 999px;
+    background: rgba(4,6,8,.7);
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(.92);
+    transition: opacity .16s ease, transform .16s ease;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 14px 40px rgba(0,0,0,.36);
+  }
+
+  .v2-player.is-logged-in-player .v2-player-swipe-hint.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .v2-player.is-logged-in-player .v2-player-swipe-hint i {
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.14);
+    font-style: normal;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-swipe-hint strong {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage] {
+    animation: v2SwipeSongUp .26s ease both;
+  }
+
+  .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-previous [data-mobile-vec-stage] {
+    animation: v2SwipeSongDown .26s ease both;
+  }
+
+  @keyframes v2SwipeSongUp {
+    0% { transform: translateY(0); opacity: 1; }
+    45% { transform: translateY(-18px); opacity: .72; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes v2SwipeSongDown {
+    0% { transform: translateY(0); opacity: 1; }
+    45% { transform: translateY(18px); opacity: .72; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage],
+    .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-previous [data-mobile-vec-stage] {
+      animation: none;
+    }
+  }
+}
