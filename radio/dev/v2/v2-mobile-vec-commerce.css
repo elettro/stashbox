@@ -1,10 +1,94 @@
 @media (max-width: 699px) {
-  .v2-player.is-logged-in-player .v2-player-mark {
+  .v2-player.is-logged-in-player .v2-player-mark,
+  .v2-player.is-logged-in-player .v2-player-head-actions {
     display: none !important;
   }
 
   .v2-player.is-logged-in-player .v2-player-header {
-    grid-template-columns: 46px 1fr auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: calc(58px + env(safe-area-inset-top, 0px));
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 6px;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-header > [data-close-player] {
+    grid-column: 1;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(4, 6, 8, .42);
+    color: #fff;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .v2-player.is-logged-in-player .v2-player-header > [data-close-player] svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-head-actions {
+    grid-column: 3;
+    display: flex !important;
+    align-items: center;
+    justify-self: end;
+    gap: 8px;
+    min-width: max-content;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-head-actions > button,
+  .v2-player.is-logged-in-player .v2-li-player-profile {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 50%;
+    background: rgba(4,6,8,.46);
+    color: #fff;
+    text-decoration: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-head-actions svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-profile {
+    border-color: rgba(255,159,10,.72);
+    color: #ffad2f;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-profile img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
   }
 
   .v2-mobile-vec-stage {
