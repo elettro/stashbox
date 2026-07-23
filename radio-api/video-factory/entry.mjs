@@ -24,6 +24,10 @@ import {
   isPlaylistReorderRequest
 } from './playlist-reorder-routes.mjs';
 import {
+  handleProfileStatsRequest,
+  isProfileStatsRequest
+} from './profile-stats-routes.mjs';
+import {
   handleProfileMediaUploadRequest,
   isProfileMediaUploadRequest
 } from './profile-media-routes.mjs';
@@ -190,6 +194,7 @@ export const handler = async event => {
   const accountLifecycleRequest = isAccountLifecycleRequest(segments);
   const dedicatedArtistFollowRequest = isDedicatedArtistFollowRequest(segments);
   const playlistReorderRequest = isPlaylistReorderRequest(segments);
+  const profileStatsRequest = isProfileStatsRequest(segments);
   const profileMediaUploadRequest = isProfileMediaUploadRequest(segments);
   const artistProfileMediaRequest = isArtistProfileMediaRequest(segments);
   const artistRequest = isArtistRequest(segments);
@@ -197,7 +202,7 @@ export const handler = async event => {
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -219,6 +224,11 @@ export const handler = async event => {
     if (personalizedNotificationFeedRequest) {
       await assertAccountIdentityAvailable(safeEvent, deps, { required: false });
       return await handlePersonalizedNotificationFeedRequest(safeEvent, deps);
+    }
+
+    if (profileStatsRequest) {
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
+      return await handleProfileStatsRequest(safeEvent, deps);
     }
 
     if (profileMediaUploadRequest) {
