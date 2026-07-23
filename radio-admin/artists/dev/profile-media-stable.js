@@ -46,7 +46,7 @@
     const text = await response.text();
     let body = {};
     try { body = text ? JSON.parse(text) : {}; } catch (_) { body = { error:text }; }
-    if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
+    if (!response.ok || body?.success === false) throw new Error(body.error || body.message || `HTTP ${response.status}`);
     return body;
   }
   function key() { return slug(el('artistKey')?.value || el('slug')?.value || el('name')?.value); }
@@ -111,10 +111,38 @@
     return parse(response);
   }
 
-  async function saveVertical(url) {
-    if (!existing()) return;
-    const response = await originalFetch(`${ARTISTS_URL}/${encodeURIComponent(key())}/media`, { method:'PATCH', cache:'no-store', credentials:'omit', headers:headers(true), body:JSON.stringify({ vertical_banner_image_url:url }) });
-    return parse(response);
+  async function readVertical(artistKey) {
+    const response = await originalFetch(`${ARTISTS_URL}/${encodeURIComponent(artistKey)}/media?verify=${Date.now()}`, {
+      cache:'no-store',
+      credentials:'omit',
+      headers:headers(false)
+    });
+    const body = await parse(response);
+    return clean(body.media?.vertical_banner_image_url);
+  }
+
+  async function readVerticalFromArtist(artistKey) {
+    const response = await originalFetch(`${ARTISTS_URL}/${encodeURIComponent(artistKey)}?verify=${Date.now()}`, {
+      cache:'no-store',
+      credentials:'omit',
+      headers:headers(false)
+    });
+    const body = await parse(response);
+    return clean(body.artist?.vertical_banner_image_url || body.artist?.verticalBannerImageUrl || body.artist?.metadata?.vertical_banner_image_url);
+  }
+
+  async function saveVertical(url, artistKeyOverride='') {
+    if (!existing()) return '';
+    const artistKey = slug(artistKeyOverride || key());
+    const requested = clean(url);
+    const response = await originalFetch(`${ARTISTS_URL}/${encodeURIComponent(artistKey)}/media`, { method:'PATCH', cache:'no-store', credentials:'omit', headers:headers(true), body:JSON.stringify({ vertical_banner_image_url:requested }) });
+    const body = await parse(response);
+    const returned = clean(body.media?.vertical_banner_image_url);
+    if (returned !== requested) throw new Error('Lambda responded, but the returned RDS value did not match the vertical banner.');
+
+    const verified = await readVertical(artistKey);
+    if (verified !== requested) throw new Error('Vertical banner verification failed after the RDS write.');
+    return verified;
   }
 
   async function upload(kind, file) {
@@ -131,9 +159,9 @@
     setValue(kind,auth.public_url);
     render(kind,auth.public_url,size);
     if (kind === 'verticalBanner' && existing()) {
-      setStatus(kind,'Image uploaded. Saving vertical banner to artist profile…');
+      setStatus(kind,'Image uploaded. Saving and verifying vertical banner in RDS…');
       await saveVertical(auth.public_url);
-      setStatus(kind,`${size.width} × ${size.height} px uploaded and saved.${warning(config,size)}`);
+      setStatus(kind,`${size.width} × ${size.height} px uploaded to S3 and verified in RDS.${warning(config,size)}`);
     } else {
       setStatus(kind,`${size.width} × ${size.height} px uploaded.${warning(config,size)} Click Save Artist.`);
     }
@@ -142,14 +170,18 @@
   async function loadVertical(artistKey) {
     if (!artistKey) return;
     try {
-      const response = await originalFetch(`${ARTISTS_URL}/${encodeURIComponent(artistKey)}/media`,{cache:'no-store',credentials:'omit',headers:headers(false)});
-      const body = await parse(response);
-      const url = clean(body.media?.vertical_banner_image_url);
+      let url = '';
+      try { url = await readVertical(artistKey); }
+      catch (_) { url = await readVerticalFromArtist(artistKey); }
+      if (!url) {
+        try { url = await readVerticalFromArtist(artistKey); }
+        catch (_) {}
+      }
       setValue('verticalBanner',url);
       render('verticalBanner',url);
-      setStatus('verticalBanner');
+      setStatus('verticalBanner',url ? 'Vertical banner loaded from RDS.' : 'No vertical banner saved.');
     } catch (error) {
-      setStatus('verticalBanner',error.message,true);
+      setStatus('verticalBanner',`Could not reload the saved vertical banner: ${error.message}`,true);
     }
   }
 
@@ -179,9 +211,12 @@
     if (response.ok && isArtistRead(url,method)) {
       response.clone().json().then(body => {
         const artistKey = body.artist?.artist_key;
-        const direct = clean(body.artist?.vertical_banner_image_url);
-        if (direct) { setValue('verticalBanner',direct); render('verticalBanner',direct); }
-        else if (artistKey) loadVertical(artistKey);
+        const direct = clean(body.artist?.vertical_banner_image_url || body.artist?.verticalBannerImageUrl || body.artist?.metadata?.vertical_banner_image_url);
+        if (direct) {
+          setValue('verticalBanner',direct);
+          render('verticalBanner',direct);
+          setStatus('verticalBanner','Vertical banner loaded from RDS.');
+        } else if (artistKey) loadVertical(artistKey);
       }).catch(() => {});
     }
     if (response.ok && isArtistWrite(url,method)) {
@@ -189,8 +224,12 @@
         const artistKey = body.artist?.artist_key;
         const vertical = clean(el('verticalBannerImageUrl')?.value);
         if (artistKey && vertical) {
-          try { await saveVertical(vertical); setStatus('verticalBanner','Vertical banner saved.'); }
-          catch (error) { setStatus('verticalBanner',`Artist saved, but vertical banner save failed: ${error.message}`,true); }
+          try {
+            await saveVertical(vertical,artistKey);
+            setStatus('verticalBanner','Vertical banner saved and verified in RDS.');
+          } catch (error) {
+            setStatus('verticalBanner',`Artist saved, but vertical banner verification failed: ${error.message}`,true);
+          }
         }
       }).catch(() => {});
     }
@@ -206,7 +245,7 @@
     if (removeKind) {
       event.preventDefault(); event.stopImmediatePropagation();
       setValue(removeKind,''); render(removeKind,''); setStatus(removeKind,'Image removed. Click Save Artist to confirm.');
-      if (removeKind === 'verticalBanner' && existing()) saveVertical('').then(() => setStatus(removeKind,'Vertical banner removed.')).catch(error => setStatus(removeKind,error.message,true));
+      if (removeKind === 'verticalBanner' && existing()) saveVertical('').then(() => setStatus(removeKind,'Vertical banner removed and verified.')).catch(error => setStatus(removeKind,error.message,true));
     }
   },true);
 
