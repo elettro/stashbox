@@ -24,6 +24,14 @@ import {
   isPlaylistReorderRequest
 } from './playlist-reorder-routes.mjs';
 import {
+  handleProfileMediaUploadRequest,
+  isProfileMediaUploadRequest
+} from './profile-media-routes.mjs';
+import {
+  handleArtistProfileMediaRequest,
+  isArtistProfileMediaRequest
+} from './artist-profile-media-routes.mjs';
+import {
   handleArtistRequest,
   isArtistRequest
 } from './artist-routes.mjs';
@@ -182,12 +190,14 @@ export const handler = async event => {
   const accountLifecycleRequest = isAccountLifecycleRequest(segments);
   const dedicatedArtistFollowRequest = isDedicatedArtistFollowRequest(segments);
   const playlistReorderRequest = isPlaylistReorderRequest(segments);
+  const profileMediaUploadRequest = isProfileMediaUploadRequest(segments);
+  const artistProfileMediaRequest = isArtistProfileMediaRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -209,6 +219,15 @@ export const handler = async event => {
     if (personalizedNotificationFeedRequest) {
       await assertAccountIdentityAvailable(safeEvent, deps, { required: false });
       return await handlePersonalizedNotificationFeedRequest(safeEvent, deps);
+    }
+
+    if (profileMediaUploadRequest) {
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
+      return await handleProfileMediaUploadRequest(safeEvent, deps);
+    }
+
+    if (artistProfileMediaRequest) {
+      return await handleArtistProfileMediaRequest(safeEvent, deps);
     }
 
     // /radio/me/follows is both an account-shaped route and an artist route.
