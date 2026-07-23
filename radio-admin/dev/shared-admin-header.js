@@ -13,7 +13,8 @@
     { key: 'artists', label: 'Artists', href: '/radio-admin/artists/dev/' },
     { key: 'notifications', label: 'Notifications', href: '/radio-admin/notifications/dev/' },
     { key: 'dashboard', label: 'Dashboard', href: '/radio/dashboard/dev/' },
-    { key: 'radio', label: 'Radio Dev', href: '/radio/dev/' }
+    { key: 'radio', label: 'Radio Dev', href: '/radio/dev/' },
+    { key: 'radio-v2', label: 'Radio Dev 2.0', href: 'https://stashbox.com/radio/dev/v2/' }
   ];
 
   function normalizedPath() {
