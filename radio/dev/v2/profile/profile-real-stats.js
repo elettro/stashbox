@@ -25,6 +25,20 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
+  function localStreakFromDates(activeDates) {
+    if (!activeDates.size) return 0;
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    if (!activeDates.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+
+    let streak = 0;
+    while (activeDates.has(localDateKey(cursor))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
   function setStat(label, value) {
     const buttons = [...app.querySelectorAll('.profile-stat')];
     const button = buttons.find(item => String(item.querySelector('span')?.textContent || '').trim() === label);
@@ -68,7 +82,12 @@
   function applyStreak() {
     const card = app.querySelector('.streak-card');
     if (!card) return;
-    const streak = Math.max(0, Number(stats?.listening_streak_days || 0));
+
+    const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates.filter(Boolean) : []);
+    const apiStreak = Math.max(0, Number(stats?.listening_streak_days || 0));
+    const locallyDerivedStreak = localStreakFromDates(activeDates);
+    const streak = activeDates.size ? locallyDerivedStreak : apiStreak;
+
     const numberNode = card.querySelector('.streak-number strong');
     const label = card.querySelector('.streak-number + b');
     const message = card.querySelector('.streak-days + p');
@@ -76,7 +95,6 @@
     if (label) label.textContent = `day${streak === 1 ? '' : 's'} in a row`;
     if (message) message.textContent = streak ? 'Keep it going!' : 'Play a song today to begin a streak.';
 
-    const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates : []);
     const now = new Date();
     const sunday = new Date(now);
     sunday.setHours(12, 0, 0, 0);
@@ -84,7 +102,9 @@
     [...card.querySelectorAll('.streak-days span')].forEach((node, index) => {
       const date = new Date(sunday);
       date.setDate(sunday.getDate() + index);
-      node.classList.toggle('on', activeDates.has(localDateKey(date)));
+      const key = localDateKey(date);
+      node.classList.toggle('on', activeDates.has(key));
+      node.title = activeDates.has(key) ? `${key}: active` : `${key}: no listening activity`;
     });
   }
 
