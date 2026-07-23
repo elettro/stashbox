@@ -1,3 +1,5 @@
+-- Artist vertical banner is a dedicated persistent RDS field. The Artist CMS
+-- uploads through the proven Song CMS artwork presign flow, then saves this URL.
 BEGIN;
 
 ALTER TABLE radio_dev.artists
