@@ -30,6 +30,114 @@ async function ensureVerticalColumn(deps) {
   verticalColumnEnsured = true;
 }
 
+function isPublicArtistCollection(segments) {
+  return segments[0] === 'radio' && segments[1] === 'artists' && segments.length === 2;
+}
+
+function isAdminArtistCollection(segments) {
+  return segments[0] === 'radio' && segments[1] === 'admin' && segments[2] === 'artists' && segments.length === 3;
+}
+
+function isPublicArtistDetail(segments) {
+  return segments[0] === 'radio' && segments[1] === 'artists' && Boolean(segments[2]) && segments.length === 3;
+}
+
+function isAdminArtistDetail(segments) {
+  return segments[0] === 'radio' && segments[1] === 'admin' && segments[2] === 'artists' && Boolean(segments[3]) && segments.length === 4;
+}
+
+function isCoreArtistRoute(segments) {
+  return isPublicArtistCollection(segments) ||
+    isAdminArtistCollection(segments) ||
+    isPublicArtistDetail(segments) ||
+    isAdminArtistDetail(segments);
+}
+
+function isExactMediaRoute(segments) {
+  const publicRoute = segments[0] === 'radio' &&
+    segments[1] === 'artists' &&
+    Boolean(segments[2]) &&
+    segments[3] === 'media';
+  const adminRoute = segments[0] === 'radio' &&
+    segments[1] === 'admin' &&
+    segments[2] === 'artists' &&
+    Boolean(segments[3]) &&
+    segments[4] === 'media';
+  return publicRoute || adminRoute;
+}
+
+function responseJson(response) {
+  try { return response?.body ? JSON.parse(response.body) : {}; }
+  catch (_) { return {}; }
+}
+
+function attachVertical(artist, verticalUrl = '') {
+  if (!artist || typeof artist !== 'object') return artist;
+  return {
+    ...artist,
+    vertical_banner_image_url: verticalUrl || '',
+    verticalBannerImageUrl: verticalUrl || ''
+  };
+}
+
+async function verticalByArtistIds(artistIds, deps) {
+  const ids = [...new Set((artistIds || []).map(id => cleanText(id, 220)).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const result = await deps.client.query(`
+    SELECT id, COALESCE(vertical_banner_image_url, '') AS vertical_banner_image_url
+    FROM ${deps.qname('artists')}
+    WHERE id = ANY($1::text[])
+  `, [ids]);
+  return new Map(result.rows.map(row => [row.id, cleanText(row.vertical_banner_image_url, 2000)]));
+}
+
+async function hydrateCoreArtistResponse(baseResponse, deps) {
+  if (Number(baseResponse?.statusCode || 500) >= 400) return baseResponse;
+  const body = responseJson(baseResponse);
+  const artistIds = [];
+  if (body.artist?.id) artistIds.push(body.artist.id);
+  if (Array.isArray(body.artists)) body.artists.forEach(artist => artist?.id && artistIds.push(artist.id));
+  const verticals = await verticalByArtistIds(artistIds, deps);
+  if (body.artist?.id) body.artist = attachVertical(body.artist, verticals.get(body.artist.id));
+  if (Array.isArray(body.artists)) {
+    body.artists = body.artists.map(artist => attachVertical(artist, verticals.get(artist?.id)));
+  }
+  return { ...baseResponse, body: JSON.stringify(body) };
+}
+
+async function handleCoreArtistRoute(event, deps) {
+  const method = deps.getMethod(event).toUpperCase();
+  const segments = deps.getRouteSegments(event);
+  const isAdminWrite = (isAdminArtistCollection(segments) || isAdminArtistDetail(segments)) && ['POST', 'PUT', 'PATCH'].includes(method);
+  let requestedVerticalPresent = false;
+  let requestedVertical = '';
+
+  await ensureVerticalColumn(deps);
+
+  if (isAdminWrite) {
+    const body = deps.parseBody(event);
+    requestedVerticalPresent = Object.prototype.hasOwnProperty.call(body, 'vertical_banner_image_url') ||
+      Object.prototype.hasOwnProperty.call(body, 'verticalBannerImageUrl');
+    requestedVertical = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000);
+  }
+
+  const baseResponse = await handleArtistRequest(event, deps);
+  if (Number(baseResponse?.statusCode || 500) >= 400) return baseResponse;
+
+  if (requestedVerticalPresent) {
+    const body = responseJson(baseResponse);
+    const artistId = cleanText(body.artist?.id, 220);
+    if (!artistId) throw routeError(500, 'ARTIST_VERTICAL_SAVE_FAILED', 'Artist save succeeded but no artist id was returned for vertical-banner persistence.');
+    await deps.client.query(`
+      UPDATE ${deps.qname('artists')}
+      SET vertical_banner_image_url = $1, updated_at = now()
+      WHERE id = $2
+    `, [requestedVertical || null, artistId]);
+  }
+
+  return hydrateCoreArtistResponse(baseResponse, deps);
+}
+
 async function resolveArtist(identifier, deps, { includeHidden = false } = {}) {
   const key = cleanText(identifier, 220).toLowerCase();
   if (!key) throw notFound();
@@ -52,91 +160,6 @@ function mediaPayload(artist) {
     horizontal_banner_image_url: artist.banner_image_url || '',
     vertical_banner_image_url: artist.vertical_banner_image_url || '',
     updated_at: artist.updated_at
-  };
-}
-
-function isExactMediaRoute(segments) {
-  const publicRoute = segments[0] === 'radio' &&
-    segments[1] === 'artists' &&
-    Boolean(segments[2]) &&
-    segments[3] === 'media';
-  const adminRoute = segments[0] === 'radio' &&
-    segments[1] === 'admin' &&
-    segments[2] === 'artists' &&
-    Boolean(segments[3]) &&
-    segments[4] === 'media';
-  return publicRoute || adminRoute;
-}
-
-function isCoreArtistDetailRoute(segments) {
-  const publicDetail = segments[0] === 'radio' &&
-    segments[1] === 'artists' &&
-    Boolean(segments[2]) &&
-    segments.length === 3;
-  const adminDetail = segments[0] === 'radio' &&
-    segments[1] === 'admin' &&
-    segments[2] === 'artists' &&
-    Boolean(segments[3]) &&
-    segments.length === 4;
-  return publicDetail || adminDetail;
-}
-
-function responseJson(response) {
-  try { return response?.body ? JSON.parse(response.body) : {}; }
-  catch (_) { return {}; }
-}
-
-async function verticalForArtistId(artistId, deps) {
-  if (!artistId) return '';
-  const result = await deps.client.query(
-    `SELECT vertical_banner_image_url FROM ${deps.qname('artists')} WHERE id = $1 LIMIT 1`,
-    [artistId]
-  );
-  return cleanText(result.rows[0]?.vertical_banner_image_url, 2000);
-}
-
-async function handleCoreArtistDetailBridge(event, deps) {
-  const method = deps.getMethod(event).toUpperCase();
-  const segments = deps.getRouteSegments(event);
-  const isAdmin = segments[1] === 'admin';
-  const isWrite = isAdmin && ['PUT', 'PATCH'].includes(method);
-  let requestedVerticalPresent = false;
-  let requestedVertical = '';
-
-  await ensureVerticalColumn(deps);
-
-  if (isWrite) {
-    const body = deps.parseBody(event);
-    requestedVerticalPresent = Object.prototype.hasOwnProperty.call(body, 'vertical_banner_image_url') ||
-      Object.prototype.hasOwnProperty.call(body, 'verticalBannerImageUrl');
-    requestedVertical = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000);
-  }
-
-  const baseResponse = await handleArtistRequest(event, deps);
-  if (Number(baseResponse?.statusCode || 500) >= 400) return baseResponse;
-
-  const body = responseJson(baseResponse);
-  const artistId = cleanText(body.artist?.id, 220);
-  if (!artistId) return baseResponse;
-
-  if (isWrite && requestedVerticalPresent) {
-    await deps.client.query(`
-      UPDATE ${deps.qname('artists')}
-      SET vertical_banner_image_url = $1, updated_at = now()
-      WHERE id = $2
-    `, [requestedVertical || null, artistId]);
-  }
-
-  const persistedVertical = await verticalForArtistId(artistId, deps);
-  body.artist = {
-    ...body.artist,
-    vertical_banner_image_url: persistedVertical,
-    verticalBannerImageUrl: persistedVertical
-  };
-
-  return {
-    ...baseResponse,
-    body: JSON.stringify(body)
   };
 }
 
@@ -195,21 +218,19 @@ async function authorizeArtistAdmin(event, artist, deps, { write = false } = {})
 }
 
 export function isArtistProfileMediaRequest(segments) {
-  return isExactMediaRoute(segments) || isCoreArtistDetailRoute(segments);
+  return isExactMediaRoute(segments) || isCoreArtistRoute(segments);
 }
 
 export async function handleArtistProfileMediaRequest(event, deps) {
   const segments = deps.getRouteSegments(event);
   const method = deps.getMethod(event).toUpperCase();
 
-  if (!isExactMediaRoute(segments)) {
-    return handleCoreArtistDetailBridge(event, deps);
+  if (isCoreArtistRoute(segments)) {
+    return handleCoreArtistRoute(event, deps);
   }
 
   const isAdmin = segments[1] === 'admin';
   const identifier = decodeURIComponent(isAdmin ? segments[3] : segments[2]);
-  // Accept both /media/presign and POST /media. The alias prevents an API
-  // Gateway path-normalization difference from turning a valid upload into 405.
   const isPresign = isAdmin && (
     segments[5] === 'presign' ||
     (segments.length === 5 && method === 'POST')
@@ -242,10 +263,7 @@ export async function handleArtistProfileMediaRequest(event, deps) {
       });
     }
     const body = deps.parseBody(event);
-    const verticalUrl = cleanText(
-      body.vertical_banner_image_url ?? body.verticalBannerImageUrl,
-      2000
-    ) || null;
+    const verticalUrl = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000) || null;
     const result = await deps.client.query(`
       UPDATE ${deps.qname('artists')}
       SET vertical_banner_image_url = $1, updated_at = now()
@@ -253,11 +271,7 @@ export async function handleArtistProfileMediaRequest(event, deps) {
       RETURNING *
     `, [verticalUrl, artist.id]);
     if (!result.rowCount) throw notFound();
-    return deps.response(200, {
-      success: true,
-      persisted: true,
-      media: mediaPayload(result.rows[0])
-    });
+    return deps.response(200, { success: true, persisted: true, media: mediaPayload(result.rows[0]) });
   }
 
   if (method === 'POST' && isPresign) {
@@ -284,10 +298,7 @@ export async function handleArtistProfileMediaRequest(event, deps) {
       contentType: body.content_type || body.contentType,
       sizeBytes: body.size_bytes || body.sizeBytes,
       subjectPath: `artist-profiles/${artist.artist_key}`,
-      metadata: {
-        artist_key: artist.artist_key,
-        media_purpose: purpose
-      }
+      metadata: { artist_key: artist.artist_key, media_purpose: purpose }
     });
     return deps.response(200, { success: true, ...upload });
   }
