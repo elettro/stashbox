@@ -1,0 +1,41 @@
+@media (max-width: 699px) {
+  /* Keep the full 9:16 visual as exposed as possible by anchoring the entire
+     song-information/control stack closer to the bottom edge. */
+  .v2-player.is-logged-in-player .v2-player-content {
+    bottom: 0 !important;
+    padding-top: 12px !important;
+    padding-bottom: max(3px, calc(var(--safe-bottom) - 14px)) !important;
+    transform: translateY(clamp(16px, 2.5dvh, 24px)) !important;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-labels {
+    margin-bottom: 4px;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-content h2 {
+    margin-bottom: 3px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-meta-chips {
+    margin-top: 6px;
+  }
+
+  .v2-player.is-logged-in-player .v2-timeline {
+    margin-top: 7px;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-controls {
+    margin-top: 4px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-up-next-button {
+    min-height: 31px;
+    margin-top: 3px;
+  }
+}
+
+@media (max-width: 699px) and (max-height: 720px) {
+  .v2-player.is-logged-in-player .v2-player-content {
+    transform: translateY(12px) !important;
+  }
+}
