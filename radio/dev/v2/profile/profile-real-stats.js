@@ -25,18 +25,18 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
-  function localStreakFromDates(activeDates) {
-    if (!activeDates.size) return 0;
+  function currentStreak(activeDates) {
+    const keys = new Set();
+    if (!activeDates.size) return { days: 0, keys };
     const cursor = new Date();
     cursor.setHours(12, 0, 0, 0);
     if (!activeDates.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
 
-    let streak = 0;
     while (activeDates.has(localDateKey(cursor))) {
-      streak += 1;
+      keys.add(localDateKey(cursor));
       cursor.setDate(cursor.getDate() - 1);
     }
-    return streak;
+    return { days: keys.size, keys };
   }
 
   function setStat(label, value) {
@@ -84,28 +84,43 @@
     if (!card) return;
 
     const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates.filter(Boolean) : []);
+    const derived = currentStreak(activeDates);
     const apiStreak = Math.max(0, Number(stats?.listening_streak_days || 0));
-    const locallyDerivedStreak = localStreakFromDates(activeDates);
-    const streak = activeDates.size ? locallyDerivedStreak : apiStreak;
+    const streak = activeDates.size ? derived.days : apiStreak;
 
     const numberNode = card.querySelector('.streak-number strong');
     const label = card.querySelector('.streak-number + b');
     const message = card.querySelector('.streak-days + p');
     if (numberNode) numberNode.textContent = String(streak);
     if (label) label.textContent = `day${streak === 1 ? '' : 's'} in a row`;
-    if (message) message.textContent = streak ? 'Keep it going!' : 'Play a song today to begin a streak.';
 
     const now = new Date();
     const sunday = new Date(now);
     sunday.setHours(12, 0, 0, 0);
     sunday.setDate(now.getDate() - now.getDay());
+    let activeThisWeek = 0;
     [...card.querySelectorAll('.streak-days span')].forEach((node, index) => {
       const date = new Date(sunday);
       date.setDate(sunday.getDate() + index);
       const key = localDateKey(date);
-      node.classList.toggle('on', activeDates.has(key));
-      node.title = activeDates.has(key) ? `${key}: active` : `${key}: no listening activity`;
+      const listened = activeDates.has(key);
+      const inCurrentStreak = derived.keys.has(key);
+      if (listened) activeThisWeek += 1;
+      node.classList.toggle('on', inCurrentStreak);
+      node.classList.toggle('listened', listened && !inCurrentStreak);
+      node.title = inCurrentStreak
+        ? `${key}: current streak day`
+        : listened
+          ? `${key}: listened, but outside the current streak`
+          : `${key}: no listening activity`;
+      node.setAttribute('aria-label', node.title);
     });
+
+    if (message) {
+      if (!streak) message.textContent = 'Play a song today to begin a streak.';
+      else if (activeThisWeek > streak) message.textContent = `${streak}-day current streak · ${activeThisWeek} listening days this week.`;
+      else message.textContent = `${streak}-day current streak · keep it going!`;
+    }
   }
 
   function apply() {
