@@ -20,6 +20,10 @@ import {
   isDedicatedArtistFollowRequest
 } from './artist-follow-routes.mjs';
 import {
+  handlePlaylistReorderRequest,
+  isPlaylistReorderRequest
+} from './playlist-reorder-routes.mjs';
+import {
   handleArtistRequest,
   isArtistRequest
 } from './artist-routes.mjs';
@@ -177,6 +181,7 @@ export const handler = async event => {
   const accountRequest = isAccountRequest(segments);
   const accountLifecycleRequest = isAccountLifecycleRequest(segments);
   const dedicatedArtistFollowRequest = isDedicatedArtistFollowRequest(segments);
+  const playlistReorderRequest = isPlaylistReorderRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
@@ -212,6 +217,13 @@ export const handler = async event => {
     if (dedicatedArtistFollowRequest) {
       await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
       return await handleDedicatedArtistFollowRequest(safeEvent, deps);
+    }
+
+    // Playlist reordering is also account-shaped and must be intercepted before
+    // the general account router handles /radio/me/playlists/:id/items.
+    if (playlistReorderRequest) {
+      await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
+      return await handlePlaylistReorderRequest(safeEvent, deps);
     }
 
     if (accountRequest) {
