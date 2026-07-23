@@ -34,12 +34,12 @@
     const text = await response.text();
     let body = {};
     try { body = text ? JSON.parse(text) : {}; } catch (_) { body = { error:text }; }
-    if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
+    if (!response.ok || body?.success === false) throw new Error(body.error || body.message || `HTTP ${response.status}`);
     return body;
   }
   async function getPreferences(force=false) {
     if (preferences && !force) return preferences;
-    const body = await fetch(`${API}/radio/me/preferences`,{cache:'no-store',credentials:'omit',headers:headers(false)}).then(parse);
+    const body = await fetch(`${API}/radio/me/preferences?media_verify=${Date.now()}`,{cache:'no-store',credentials:'omit',headers:headers(false)}).then(parse);
     preferences = body.preferences || {};
     return preferences;
   }
@@ -136,6 +136,15 @@
     preferences = response.preferences || body;
     return preferences;
   }
+  async function verifySaved(kind, expectedUrl) {
+    const fresh = await getPreferences(true);
+    const actual = clean(fresh?.settings?.[config[kind].input]);
+    if (actual !== clean(expectedUrl)) {
+      throw new Error(`${config[kind].label} was uploaded, but the RDS read-back did not match the saved URL.`);
+    }
+    setValue(kind, actual);
+    return actual;
+  }
   async function upload(kind,file) {
     const error=validate(file);
     if (error) return status(kind,error,true);
@@ -148,15 +157,17 @@
     const put=await fetch(presign.upload_url,{method:presign.method || 'PUT',mode:'cors',credentials:'omit',headers:presign.headers || {'Content-Type':file.type},body:file});
     if (!put.ok) throw new Error(`Image upload failed with status ${put.status}.`);
     setValue(kind,presign.public_url);
-    status(kind,'Image uploaded. Saving to your profile…');
+    status(kind,'Image uploaded to S3. Saving and checking RDS…');
     await saveSettingsPatch({ [config[kind].input]:presign.public_url });
-    status(kind,`${size.width} × ${size.height} px uploaded and saved.${note(kind,size)}`);
+    await verifySaved(kind,presign.public_url);
+    status(kind,`${size.width} × ${size.height} px uploaded to S3 and verified in RDS.${note(kind,size)}`);
   }
   async function clear(kind) {
     setValue(kind,'');
     status(kind,'Removing image from your profile…');
     await saveSettingsPatch({ [config[kind].input]:'' });
-    status(kind,'Image removed.');
+    await verifySaved(kind,'');
+    status(kind,'Image removal verified in RDS.');
   }
   function applyBanner() {
     const hero=document.querySelector('#profileApp .profile-hero');
@@ -180,6 +191,6 @@
   });
   new MutationObserver(queue).observe(document.body,{childList:true,subtree:true});
   if (typeof mobile.addEventListener === 'function') mobile.addEventListener('change',applyBanner);
-  getPreferences().then(() => { queue(); applyBanner(); }).catch(() => queue());
+  getPreferences(true).then(() => { queue(); applyBanner(); }).catch(() => queue());
   queue();
 })();
