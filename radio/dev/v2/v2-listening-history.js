@@ -13,7 +13,6 @@
   let session = null;
   let pendingKey = '';
   let pauseTimer = 0;
-  let attachTimer = 0;
 
   function readTokens() {
     try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {}; }
@@ -71,8 +70,11 @@
   function newSession(row) {
     const key = songKey(row);
     if (!key) return null;
+    const uuid = typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return {
-      id: `v2:${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
+      id: `v2:${uuid}`,
       song: row,
       songKey: key,
       startedAt: new Date().toISOString(),
@@ -83,8 +85,8 @@
     };
   }
 
-  function updatePlayedTime() {
-    if (!session || !audio || audio.paused) return;
+  function updatePlayedTime(force = false) {
+    if (!session || !audio || (!force && audio.paused)) return;
     const current = Number(audio.currentTime || 0);
     const previous = Number(session.lastMediaTime || 0);
     const delta = current - previous;
@@ -136,7 +138,7 @@
   function finalize({ completed = false, keepalive = false } = {}) {
     clearTimeout(pauseTimer);
     if (!session) return;
-    updatePlayedTime();
+    updatePlayedTime(true);
     session.completed = completed || session.completed;
     const current = session;
     session = null;
@@ -155,13 +157,13 @@
   }
 
   function handlePause() {
-    updatePlayedTime();
+    updatePlayedTime(true);
     clearTimeout(pauseTimer);
     pauseTimer = window.setTimeout(() => finalize(), PAUSE_FINALIZE_MS);
   }
 
   function handleEnded() {
-    updatePlayedTime();
+    updatePlayedTime(true);
     if (session) {
       const duration = Number(audio?.duration || 0);
       session.completed = duration > 0
@@ -173,6 +175,7 @@
 
   function handleSourceChange() {
     if (session) finalize();
+    pendingKey = '';
     window.setTimeout(() => {
       const row = findCurrentSong();
       if (row) pendingKey = songKey(row);
@@ -206,6 +209,6 @@
     })
     .catch(() => {});
 
-  attachTimer = window.setInterval(attach, 250);
+  window.setInterval(attach, 250);
   attach();
 })();
