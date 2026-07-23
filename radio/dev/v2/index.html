@@ -8,38 +8,50 @@
   <title>Stashbox Radio DEV V2</title>
   <meta name="description" content="The mobile-first Stashbox Radio V2 public discovery feed and full-screen player.">
   <link rel="canonical" href="https://stashbox.com/radio/dev/v2/">
-
   <base href="/radio/dev/">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/radio/dev/notifications-compact.css?v=20260722-v2">
-  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=20260722-home3">
+  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=20260722-guard1">
 </head>
 <body class="radio-dev-v2">
   <div id="v2App" class="v2-app" aria-live="polite">
-    <section class="v2-loading" aria-label="Loading Stashbox Radio">
-      <span class="v2-loading-mark">STASH<span>BOX</span></span>
-      <span class="v2-loading-line"></span>
-      <p>Loading live DEV content</p>
-    </section>
+    <header class="v2-header">
+      <a class="v2-wordmark" href="/radio/dev/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
+      <div class="stashbox-action-row" aria-label="Account"></div>
+    </header>
+
+    <main class="v2-home">
+      <section class="v2-guest-meter" data-v2-boot-status>
+        <span>Interface loaded</span>
+        <strong>Connecting to the live song catalog…</strong>
+      </section>
+
+      <section class="v2-section v2-featured-section">
+        <div class="v2-section-heading"><h2>Featured Songs</h2></div>
+        <div class="v2-horizontal v2-featured-row">
+          <article class="v2-feature-card"><div class="v2-feature-art"></div><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></article>
+          <article class="v2-feature-card"><div class="v2-feature-art"></div><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></article>
+          <article class="v2-feature-card"><div class="v2-feature-art"></div><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></article>
+        </div>
+      </section>
+
+      <section class="v2-section v2-songs-section">
+        <div class="v2-section-heading"><h2>Songs</h2></div>
+        <div class="v2-song-grid">
+          <article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article>
+          <article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article>
+          <article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article>
+          <article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <noscript>This version of Stashbox Radio requires JavaScript.</noscript>
-
-  <script>
-    (() => {
-      const showBootFailure = (message) => {
-        const app = document.getElementById('v2App');
-        if (!app || !app.querySelector('.v2-loading')) return;
-        app.innerHTML = `<section class="v2-load-error"><span>STASH<span>BOX</span></span><h1>Radio V2 could not load</h1><p>${message}</p><button type="button" onclick="location.reload()">Retry</button></section>`;
-      };
-      window.__stashboxV2BootFailure = showBootFailure;
-      window.setTimeout(() => showBootFailure('The app script did not finish loading. Tap Retry for a fresh copy.'), 15000);
-    })();
-  </script>
-  <script src="/radio/dev/v2/v2-recovery.js?v=20260722-recovery1" defer onerror="window.__stashboxV2BootFailure?.('The V2 app script could not be downloaded.')"></script>
+  <noscript><section class="v2-load-error"><h1>JavaScript is disabled</h1><p>Enable JavaScript to load Stashbox Radio V2.</p></section></noscript>
+  <script src="/radio/dev/v2/v2-boot-guard.js?v=20260722-guard1" defer></script>
+  <script src="/radio/dev/v2/v2-recovery.js?v=20260722-recovery2" defer></script>
   <script src="/radio/dev/account.js?v=20260722-v2" defer></script>
   <script src="/radio/dev/notifications-core.js?v=20260722-v2" defer></script>
 </body>
