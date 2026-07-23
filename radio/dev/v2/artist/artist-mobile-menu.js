@@ -15,7 +15,7 @@
   const state = {
     artist: null,
     hasProducts: false,
-    hasMerch: false,
+    hasMerchLink: false,
     merchUrl: '',
     ready: false
   };
@@ -74,11 +74,18 @@
 
   function ensureMerchMenuLink(menu) {
     let link = menu.querySelector('a[data-social-key="merch"]');
-    if (!state.hasMerch) {
+
+    if (!mobile.matches && link?.dataset.generatedMerch === '1') {
+      link.remove();
+      link = null;
+    }
+
+    if (!state.hasMerchLink) {
       if (link?.dataset.generatedMerch === '1') link.remove();
       return null;
     }
     if (link) return link;
+    if (!mobile.matches) return null;
 
     link = document.createElement('a');
     link.href = state.merchUrl || '#merch';
@@ -142,7 +149,7 @@
       button.innerHTML = `${icons.merch}<span>Shop</span>`;
       row.prepend(button);
     }
-    button.hidden = !state.hasMerch;
+    button.hidden = !state.hasProducts;
   }
 
   function enhance() {
@@ -195,7 +202,7 @@
     const products = shopResult.status === 'fulfilled' && Array.isArray(shopResult.value.products) ? shopResult.value.products : [];
     const terms = termsForArtist(state.artist);
     state.hasProducts = products.some(product => productMatchesArtist(product, terms));
-    state.hasMerch = Boolean(state.merchUrl || state.hasProducts);
+    state.hasMerchLink = Boolean(state.merchUrl || state.hasProducts);
     state.ready = true;
     enhance();
   }).catch(() => enhance());
