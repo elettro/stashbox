@@ -1,0 +1,59 @@
+@media (max-width: 699px) {
+  .v2-player.is-logged-in-player .v2-player-header {
+    position: relative;
+    z-index: 40;
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    width: 100%;
+    min-height: calc(58px + env(safe-area-inset-top, 0px));
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 6px !important;
+    gap: 10px !important;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-header > * {
+    min-width: 0;
+  }
+
+  .v2-player.is-logged-in-player .v2-player-mark,
+  .v2-player.is-logged-in-player .v2-player-head-actions,
+  .v2-player.is-logged-in-player .v2-player-header > .v2-icon-button:not([data-close]):not([data-close-player]) {
+    display: none !important;
+  }
+
+  .v2-player.is-logged-in-player .v2-mobile-player-back {
+    grid-column: 1;
+    width: 40px !important;
+    height: 40px !important;
+    display: grid !important;
+    place-items: center;
+    justify-self: start;
+    padding: 0 !important;
+    border: 1px solid rgba(255,255,255,.18) !important;
+    border-radius: 50% !important;
+    background: rgba(4,6,8,.46) !important;
+    color: #fff !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .v2-player.is-logged-in-player .v2-mobile-player-back svg {
+    width: 25px;
+    height: 25px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-player-head-actions {
+    grid-column: 3 !important;
+    display: flex !important;
+    align-items: center;
+    justify-self: end;
+    gap: 8px;
+    min-width: max-content;
+  }
+}
