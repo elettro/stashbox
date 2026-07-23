@@ -64,6 +64,7 @@ export async function handleProfileStatsRequest(event, deps) {
 
   const userId = userResult.rows[0].id;
   const timezoneOffsetMinutes = cleanInteger(event?.queryStringParameters?.timezone_offset_minutes, 0);
+  const qualifiedPlay = `(seconds_played > 0 OR completed = true OR event_type IN ('play_full', 'video_full'))`;
 
   const [countsResult, datesResult, genresResult] = await Promise.all([
     deps.client.query(`
@@ -71,13 +72,15 @@ export async function handleProfileStatsRequest(event, deps) {
         (SELECT COUNT(*)::int FROM ${deps.qname('playlists')} WHERE user_id = $1) AS playlists,
         (SELECT COUNT(*)::int FROM ${deps.qname('user_favorites')} WHERE user_id = $1) AS favorites,
         (SELECT COUNT(*)::int FROM ${deps.qname('user_follows')} WHERE user_id = $1) AS following,
+        (SELECT COUNT(*)::int
+           FROM ${deps.qname('user_listening_history')}
+          WHERE user_id = $1 AND ${qualifiedPlay}) AS qualified_plays,
         (SELECT COUNT(DISTINCT song_key)::int
            FROM ${deps.qname('user_listening_history')}
-          WHERE user_id = $1
-            AND (seconds_played > 0 OR completed = true OR event_type IN ('play_full', 'video_full'))) AS unique_songs_played,
+          WHERE user_id = $1 AND ${qualifiedPlay}) AS unique_songs_played,
         (SELECT COALESCE(SUM(seconds_played), 0)::numeric
            FROM ${deps.qname('user_listening_history')}
-          WHERE user_id = $1) AS total_seconds_played,
+          WHERE user_id = $1 AND ${qualifiedPlay}) AS total_seconds_played,
         (SELECT COUNT(*)::int
            FROM ${deps.qname('user_listening_history')}
           WHERE user_id = $1) AS history_events
@@ -86,7 +89,7 @@ export async function handleProfileStatsRequest(event, deps) {
       SELECT DISTINCT ((listened_at - ($2::int * interval '1 minute'))::date)::text AS local_date
       FROM ${deps.qname('user_listening_history')}
       WHERE user_id = $1
-        AND (seconds_played > 0 OR completed = true OR event_type IN ('play_full', 'video_full'))
+        AND ${qualifiedPlay}
       ORDER BY local_date DESC
       LIMIT 4000
     `, [userId, timezoneOffsetMinutes]),
@@ -113,6 +116,7 @@ export async function handleProfileStatsRequest(event, deps) {
       playlists: Number(counts.playlists || 0),
       favorites: Number(counts.favorites || 0),
       following: Number(counts.following || 0),
+      qualified_plays: Number(counts.qualified_plays || 0),
       unique_songs_played: Number(counts.unique_songs_played || 0),
       total_seconds_played: Number(counts.total_seconds_played || 0),
       history_events: Number(counts.history_events || 0),
