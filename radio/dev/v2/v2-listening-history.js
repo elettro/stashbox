@@ -70,8 +70,8 @@
   function newSession(row) {
     const key = songKey(row);
     if (!key) return null;
-    const uuid = typeof crypto?.randomUUID === 'function'
-      ? crypto.randomUUID()
+    const uuid = typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return {
       id: `v2:${uuid}`,
@@ -190,8 +190,8 @@
     audio.addEventListener('play', beginOrResume);
     audio.addEventListener('timeupdate', updatePlayedTime);
     audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('loadstart', handleSourceChange);
+    audio.addEventListener('ended', handleEnded, true);
+    audio.addEventListener('loadstart', handleSourceChange, true);
   }
 
   document.addEventListener('click', event => {
