@@ -1,0 +1,148 @@
+name: Verify DEV Artist Vertical Banner Persistence
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/verify-dev-artist-vertical-banner-persistence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-artist-vertical-banner:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ARTIST_KEY: stashbox
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Generate temporary 9x16 PNG
+        run: |
+          python3 - <<'PY'
+          import struct, zlib
+          width, height = 9, 16
+          rows = []
+          for y in range(height):
+              row = bytearray([0])
+              for x in range(width):
+                  row.extend((10, 12, 15, 255))
+              rows.append(bytes(row))
+          raw = b''.join(rows)
+          def chunk(kind, data):
+              return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+          open('/tmp/stashbox-vertical-persistence-test.png', 'wb').write(png)
+          PY
+          file /tmp/stashbox-vertical-persistence-test.png
+          stat -c '%s bytes' /tmp/stashbox-vertical-persistence-test.png
+
+      - name: Request presigned artist upload
+        run: |
+          set -euo pipefail
+          SIZE_BYTES=$(stat -c%s /tmp/stashbox-vertical-persistence-test.png)
+          STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/presign.json \
+            -w '%{http_code}' \
+            -X POST \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data "{\"purpose\":\"vertical_banner\",\"filename\":\"stashbox-vertical-persistence-test.png\",\"content_type\":\"image/png\",\"size_bytes\":${SIZE_BYTES}}" \
+            "${API_BASE}/radio/admin/artists/${ARTIST_KEY}/media/presign")
+          cat /tmp/presign.json
+          test "${STATUS}" = '200'
+          jq -e '.success == true and (.upload_url | type == "string" and length > 0) and (.public_url | type == "string" and length > 0)' /tmp/presign.json >/dev/null
+
+      - name: Upload temporary image to S3
+        run: |
+          set -euo pipefail
+          UPLOAD_URL=$(jq -r '.upload_url' /tmp/presign.json)
+          CONTENT_TYPE=$(jq -r '.headers["Content-Type"] // .headers["content-type"] // "image/png"' /tmp/presign.json)
+          STATUS=$(curl --silent --show-error --max-time 90 \
+            -o /tmp/s3-put.txt \
+            -w '%{http_code}' \
+            -X PUT \
+            -H "Content-Type: ${CONTENT_TYPE}" \
+            --data-binary @/tmp/stashbox-vertical-persistence-test.png \
+            "${UPLOAD_URL}")
+          cat /tmp/s3-put.txt || true
+          test "${STATUS}" = '200'
+
+      - name: Perform live RDS persistence round trip
+        run: |
+          set -euo pipefail
+          MEDIA_URL="${API_BASE}/radio/admin/artists/${ARTIST_KEY}/media"
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${MEDIA_URL}?before=$(date +%s)" > /tmp/media-before.json
+          OLD_URL=$(jq -r '.media.vertical_banner_image_url // ""' /tmp/media-before.json)
+          TEST_URL=$(jq -r '.public_url' /tmp/presign.json)
+          printf '%s' "${OLD_URL}" > /tmp/old-url.txt
+
+          jq -n --arg url "${TEST_URL}" '{vertical_banner_image_url:$url}' > /tmp/test-patch.json
+          PATCH_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/media-patched.json \
+            -w '%{http_code}' \
+            -X PATCH \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data @/tmp/test-patch.json \
+            "${MEDIA_URL}")
+          cat /tmp/media-patched.json
+          test "${PATCH_STATUS}" = '200'
+          jq -e --arg url "${TEST_URL}" '.success == true and .persisted == true and .media.vertical_banner_image_url == $url' /tmp/media-patched.json >/dev/null
+
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${MEDIA_URL}?verify=$(date +%s)" > /tmp/media-verified.json
+          jq -e --arg url "${TEST_URL}" '.media.vertical_banner_image_url == $url' /tmp/media-verified.json >/dev/null
+          echo 'Verified: temporary vertical banner survived an independent RDS read.'
+
+      - name: Restore previous artist banner
+        if: always()
+        run: |
+          set -euo pipefail
+          MEDIA_URL="${API_BASE}/radio/admin/artists/${ARTIST_KEY}/media"
+          OLD_URL=''
+          if [ -f /tmp/old-url.txt ]; then OLD_URL=$(cat /tmp/old-url.txt); fi
+          jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/restore-patch.json
+          curl --fail --silent --show-error --max-time 45 \
+            -X PATCH \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data @/tmp/restore-patch.json \
+            "${MEDIA_URL}" > /tmp/media-restored.json
+          jq -e --arg url "${OLD_URL}" '.media.vertical_banner_image_url == $url' /tmp/media-restored.json >/dev/null
+          curl --fail --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${MEDIA_URL}?restored=$(date +%s)" > /tmp/media-restored-read.json
+          jq -e --arg url "${OLD_URL}" '.media.vertical_banner_image_url == $url' /tmp/media-restored-read.json >/dev/null
+          echo 'Previous artist vertical banner restored and verified.'
+
+      - name: Delete temporary S3 test object
+        if: always()
+        run: |
+          set -euo pipefail
+          TEST_KEY=''
+          if [ -f /tmp/presign.json ]; then TEST_KEY=$(jq -r '.key // .s3_key // ""' /tmp/presign.json); fi
+          BUCKET=$(aws lambda get-function-configuration \
+            --function-name "${LAMBDA_FUNCTION_NAME}" \
+            --query 'Environment.Variables.UPLOAD_BUCKET' \
+            --output text)
+          if [ -n "${TEST_KEY}" ] && [ "${TEST_KEY}" != 'null' ] && [ -n "${BUCKET}" ] && [ "${BUCKET}" != 'None' ]; then
+            aws s3api delete-object --bucket "${BUCKET}" --key "${TEST_KEY}" >/dev/null
+            echo 'Temporary S3 test object deleted.'
+          else
+            echo 'Temporary object cleanup skipped because bucket or key was unavailable.'
+          fi
