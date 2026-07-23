@@ -13,7 +13,7 @@
     "pg": "^8.16.3"
   },
   "scripts": {
-    "check": "node --check index.mjs && node --check auth.mjs && node --check rate-limit.mjs && node --check account-routes.mjs && node --check artist-routes.mjs && node --check video-factory/entry.mjs",
+    "check": "node --check index.mjs && node --check auth.mjs && node --check rate-limit.mjs && node --check account-routes.mjs && node --check artist-routes.mjs && node --check profile-media-routes.mjs && node --check artist-profile-media-routes.mjs && node --check video-factory/entry.mjs",
     "test:accounts": "node --test tests/user-accounts-foundation.test.mjs",
     "test:artists": "node --test tests/artist-foundation.test.mjs",
     "test:video-factory": "node --test tests/video-factory-foundation.test.mjs tests/video-factory-render-control.test.mjs tests/video-factory-archive.test.mjs",
