@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050607">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="stashbox-v2-build" content="stable-redeploy-20260723-1">
+  <meta name="stashbox-v2-build" content="stable-login-link-20260723-1">
   <title>Stashbox Radio DEV V2</title>
   <meta name="description" content="The mobile-first Stashbox Radio V2 public discovery feed and full-screen player.">
   <link rel="canonical" href="https://stashbox.com/radio/dev/v2/">
@@ -13,7 +13,40 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=20260723-stable1">
+  <link rel="stylesheet" href="/radio/dev/v2/v2.css?v=20260723-stable2">
+  <style>
+    .v2-safe-login {
+      position: fixed;
+      top: calc(12px + env(safe-area-inset-top, 0px));
+      right: var(--v2-gutter, 24px);
+      z-index: 95;
+      min-width: 68px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ffb12b, #ff8f12);
+      box-shadow: 0 8px 24px rgba(255, 159, 10, .2);
+      color: #160d04;
+      font-family: "Karla", system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+      text-decoration: none;
+    }
+    .v2-safe-login:hover { filter: brightness(1.06); }
+    .v2-safe-login:active { transform: scale(.98); }
+    @media (max-width: 430px) {
+      .v2-safe-login {
+        min-width: 62px;
+        padding: 0 14px;
+        font-size: 13px;
+      }
+    }
+  </style>
 </head>
 <body class="radio-dev-v2">
   <div id="v2App" class="v2-app" aria-live="polite">
@@ -48,8 +81,10 @@
     </main>
   </div>
 
+  <a class="v2-safe-login" href="/radio/dev/" aria-label="Open the Stashbox Radio listener login">Log In</a>
+
   <noscript><section class="v2-load-error"><h1>JavaScript is disabled</h1><p>Enable JavaScript to load Stashbox Radio V2.</p></section></noscript>
-  <script src="/radio/dev/v2/v2-boot-guard.js?v=20260723-stable1" defer></script>
-  <script src="/radio/dev/v2/v2-recovery.js?v=20260723-stable1" defer></script>
+  <script src="/radio/dev/v2/v2-boot-guard.js?v=20260723-stable2" defer></script>
+  <script src="/radio/dev/v2/v2-recovery.js?v=20260723-stable2" defer></script>
 </body>
 </html>
