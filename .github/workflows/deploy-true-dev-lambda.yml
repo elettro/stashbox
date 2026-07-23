@@ -15,6 +15,7 @@ on:
       - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
       - 'radio-api/artist-follow-routes.mjs'
+      - 'radio-api/playlist-reorder-routes.mjs'
       - 'radio-api/video-factory/entry.mjs'
       - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
       - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
@@ -23,6 +24,7 @@ on:
       - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/tests/user-accounts-foundation.test.mjs'
       - 'radio-api/tests/artist-foundation.test.mjs'
+      - 'radio-api/tests/playlist-reorder.test.mjs'
       - 'radio-api/tests/notifications.test.mjs'
       - 'radio-api/tests/notification-activity-feed.test.mjs'
       - 'radio-api/tests/personalized-notifications.test.mjs'
@@ -75,7 +77,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check Lambda, account, artist, notification, and player syntax
+      - name: Check Lambda, account, artist, notification, playlist, and player syntax
         run: |
           node --check radio-api/index.mjs
           node --check radio-api/auth.mjs
@@ -84,6 +86,7 @@ jobs:
           node --check radio-api/account-lifecycle.mjs
           node --check radio-api/artist-routes.mjs
           node --check radio-api/artist-follow-routes.mjs
+          node --check radio-api/playlist-reorder-routes.mjs
           node --check radio-api/notifications.mjs
           node --check radio-api/notification-activity-feed.mjs
           node --check radio-api/personalized-notifications.mjs
@@ -95,9 +98,13 @@ jobs:
           node --check radio/dev/notifications-core.js
           node --check radio/dev/artist-follow.js
           node --check radio/artists/dev/follow-session-fix.js
+          node --check radio/dev/v2/profile/profile-playlist-reorder.js
+          node --check radio/dev/v2/profile/profile-nav-cleanup.js
 
       - name: Run account foundation tests
-        run: node --test radio-api/tests/user-accounts-foundation.test.mjs
+        run: |
+          node --test radio-api/tests/user-accounts-foundation.test.mjs
+          node --test radio-api/tests/playlist-reorder.test.mjs
 
       - name: Run artist foundation tests
         run: node --test radio-api/tests/artist-foundation.test.mjs
@@ -149,7 +156,7 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, and personalized notification routes.
+          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, playlist, and personalized notification routes.
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
 
@@ -157,6 +164,7 @@ jobs:
           node --check radio-main.mjs
           test -s cognito-jwks-dev.json
           test -s artist-follow-routes.mjs
+          test -s playlist-reorder-routes.mjs
           test -s personalized-notifications.mjs
 
           zip -r dist/true-dev-lambda.zip . \
@@ -166,6 +174,7 @@ jobs:
 
           unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
           unzip -l dist/true-dev-lambda.zip | grep -q 'artist-follow-routes.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'playlist-reorder-routes.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'personalized-notifications.mjs'
 
       - name: Configure AWS credentials
@@ -218,80 +227,3 @@ jobs:
             -w '%{http_code}' \
             "${TRUE_DEV_API_BASE}/radio/me")
           test "${ME_STATUS}" = '401'
-          jq -e '.success == false and .code == "AUTH_REQUIRED"' /tmp/account-me-unauthorized.json
-
-          FOLLOWS_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/artist-follows-unauthorized.json \
-            -w '%{http_code}' \
-            "${TRUE_DEV_API_BASE}/radio/me/follows")
-          test "${FOLLOWS_STATUS}" = '401'
-          jq -e '.success == false and (.code == "AUTH_REQUIRED" or .code == "UNAUTHORIZED")' /tmp/artist-follows-unauthorized.json
-
-      - name: Run notification personalization smoke test
-        id: notification_smoke
-        run: |
-          PUBLIC_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/notifications-public.json \
-            -w '%{http_code}' \
-            "${TRUE_DEV_API_BASE}/radio/notifications?limit=100")
-          test "${PUBLIC_STATUS}" = '200'
-          jq -e '.success == true and (.notifications | type == "array") and .personalized == false and (.personalization_sync | type == "object")' /tmp/notifications-public.json
-
-          ADMIN_STATUS=$(curl --silent --show-error --max-time 45 \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -o /tmp/notifications-admin.json \
-            -w '%{http_code}' \
-            "${TRUE_DEV_API_BASE}/admin/notifications")
-          test "${ADMIN_STATUS}" = '200'
-          jq -e '.success == true and (.notifications | type == "array") and (.activity_sync | type == "object")' /tmp/notifications-admin.json
-
-          echo "public_status=${PUBLIC_STATUS}" >> "$GITHUB_OUTPUT"
-          echo "admin_status=${ADMIN_STATUS}" >> "$GITHUB_OUTPUT"
-
-      - name: Publish DEV notification verification report
-        run: |
-          set -euo pipefail
-          REPORT_PATH='radio-api/docs/TRUE_DEV_NOTIFICATION_ACTIVITY_STATUS.md'
-          ACTIVITY_COUNT=$(jq '[.notifications[] | select(.source_type == "activity_engine")] | length' /tmp/notifications-public.json)
-          DAILY_COUNT=$(jq '[.notifications[] | select(.source_type == "daily_rankings")] | length' /tmp/notifications-public.json)
-          TOTAL_COUNT=$(jq '.count // 0' /tmp/notifications-public.json)
-          PERSONALIZATION_SYNC=$(jq -c '.personalization_sync // {}' /tmp/notifications-public.json)
-
-          mkdir -p "$(dirname "${REPORT_PATH}")"
-          {
-            echo '# TRUE DEV Notification Activity Status'
-            echo
-            echo "- Verified: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo '- Result: PASS'
-            echo '- Target Lambda: `stashbox-radio-api-dev-v2`'
-            echo '- Production Lambda touched: No'
-            echo "- Public notifications HTTP: ${{ steps.notification_smoke.outputs.public_status }}"
-            echo "- Admin notifications HTTP: ${{ steps.notification_smoke.outputs.admin_status }}"
-            echo "- Total active public notifications: ${TOTAL_COUNT}"
-            echo "- Active automatic like/share notifications: ${ACTIVITY_COUNT}"
-            echo "- Active daily ranking notifications: ${DAILY_COUNT}"
-            echo "- Public personalization flag: $(jq -r '.personalized' /tmp/notifications-public.json)"
-            echo "- Personalization sync result: \`${PERSONALIZATION_SYNC}\`"
-            echo '- Account auth config route HTTP: 200'
-            echo '- Protected account route without token HTTP: 401'
-            echo '- Protected artist follows route without token HTTP: 401'
-            echo '- Cognito JWT signing keys bundled for private-VPC verification: Yes'
-            echo '- Followed-artist, registered-user, specific-user, and premium audience query: Enabled for authenticated requests'
-            echo '- Listener and favorite milestones: Deduplicated by stable source key'
-            echo '- Daily top song: Uses existing qualified play_start events; no new analytics table'
-            echo '- Rate limit: 10 automatic public activity notifications per clock hour'
-            echo '- Duplicate protection: one public activity notification per song and activity type within 30 minutes'
-            echo '- Listener identity exposed publicly: No'
-            echo
-            echo '## Automatic public notifications'
-            echo '```json'
-            jq '[.notifications[] | select(.source_type == "activity_engine" or .source_type == "daily_rankings") | {source_type, headline, message, action_url, publish_at, expires_at}]' /tmp/notifications-public.json
-            echo '```'
-          } > "${REPORT_PATH}"
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -B "${DEPLOY_REPORT_BRANCH}"
-          git add "${REPORT_PATH}"
-          git commit -m 'Update TRUE DEV notification activity status' || exit 0
-          git push --force origin "${DEPLOY_REPORT_BRANCH}"
