@@ -24,6 +24,10 @@
     });
   }
 
+  function setText(element, text) {
+    if (element && element.textContent !== text) element.textContent = text;
+  }
+
   function orderFor(list) {
     return [...list.querySelectorAll(':scope > .profile-list-row[data-reorder-item-id]')]
       .map(row => row.dataset.reorderItemId)
@@ -65,15 +69,16 @@
   function updateSaveState(context, message = '') {
     const button = context.overlay.querySelector('[data-save-playlist-order]');
     const status = context.overlay.querySelector('[data-playlist-order-message]');
-    if (!button) return;
+    if (!button || button.dataset.orderSaving === 'true') return;
     const current = orderFor(context.list);
     const baseline = baselines.get(context.playlistId) || current;
     const dirty = !sameOrder(current, baseline);
-    button.disabled = !dirty || current.length < 2;
+    const disabled = !dirty || current.length < 2;
+    if (button.disabled !== disabled) button.disabled = disabled;
     button.classList.toggle('is-dirty', dirty);
-    button.textContent = dirty ? 'Save Order' : 'Order Saved';
+    setText(button, dirty ? 'Save Order' : 'Order Saved');
     if (status && message) {
-      status.textContent = message;
+      setText(status, message);
       status.classList.remove('success', 'error');
     }
   }
@@ -214,22 +219,23 @@
 
   async function saveOrder(button) {
     const context = playlistContext();
-    if (!context || context.playlistId !== button.dataset.savePlaylistOrder) return;
+    if (!context || context.playlistId !== button.dataset.savePlaylistOrder || button.dataset.orderSaving === 'true') return;
     const orderedItemIds = orderFor(context.list);
     const status = context.overlay.querySelector('[data-playlist-order-message]');
     const tokens = readTokens();
     if (!tokens.accessToken) {
       if (status) {
-        status.textContent = 'Your session expired. Log in again before saving.';
+        setText(status, 'Your session expired. Log in again before saving.');
         status.className = 'profile-order-message error';
       }
       return;
     }
 
+    button.dataset.orderSaving = 'true';
     button.disabled = true;
-    button.textContent = 'Saving…';
+    setText(button, 'Saving…');
     if (status) {
-      status.textContent = 'Saving your playlist order…';
+      setText(status, 'Saving your playlist order…');
       status.className = 'profile-order-message';
     }
 
@@ -247,21 +253,23 @@
       const saved = Array.isArray(body.ordered_item_ids) ? body.ordered_item_ids : orderedItemIds;
       savedOrders.set(context.playlistId, saved);
       baselines.set(context.playlistId, saved);
-      button.textContent = 'Saved';
       button.classList.remove('is-dirty');
+      setText(button, 'Saved');
       if (status) {
-        status.textContent = 'Playlist order saved.';
+        setText(status, 'Playlist order saved.');
         status.className = 'profile-order-message success';
       }
       window.setTimeout(() => {
+        delete button.dataset.orderSaving;
         const current = playlistContext();
         if (current?.playlistId === context.playlistId) updateSaveState(current);
       }, 900);
     } catch (error) {
+      delete button.dataset.orderSaving;
       button.disabled = false;
-      button.textContent = 'Save Order';
+      setText(button, 'Save Order');
       if (status) {
-        status.textContent = error.message || 'The playlist order could not be saved.';
+        setText(status, error.message || 'The playlist order could not be saved.');
         status.className = 'profile-order-message error';
       }
     }
