@@ -1,0 +1,31 @@
+.v2-side-action[data-like] {
+  transition: color .2s ease, transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.v2-side-action[data-like].is-liked {
+  color: #ff3b30;
+  border-color: rgba(255, 59, 48, .72);
+  background: rgba(255, 59, 48, .1);
+  box-shadow: 0 0 0 1px rgba(255, 59, 48, .12), 0 10px 28px rgba(255, 59, 48, .14);
+}
+
+.v2-side-action[data-like].is-liked svg,
+.v2-side-action[data-like].is-liked svg path {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.v2-side-action[data-like].is-liked span {
+  color: #ff6259;
+  font-weight: 800;
+}
+
+.v2-side-action[data-like].just-liked {
+  animation: v2-heart-pop .42s cubic-bezier(.18, .89, .32, 1.28);
+}
+
+@keyframes v2-heart-pop {
+  0% { transform: scale(1); }
+  48% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
