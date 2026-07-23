@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stashbox Radio Artist CMS · Dev</title>
-  <link rel="stylesheet" href="./styles.css?v=20260721-banner169">
+  <link rel="stylesheet" href="./styles.css?v=20260723-profilemedia1">
+  <link rel="stylesheet" href="./profile-media.css?v=20260723-profilemedia1">
 </head>
 <body>
   <header class="topbar">
@@ -62,6 +63,7 @@
           <input id="artistId" type="hidden">
           <input id="profileImageUrl" type="hidden">
           <input id="bannerImageUrl" type="hidden">
+          <input id="verticalBannerImageUrl" type="hidden">
           <div class="form-grid">
             <label>Artist name *<input id="name" maxlength="220" required></label>
             <label>Artist key<input id="artistKey" maxlength="160" placeholder="stashbox"></label>
@@ -72,7 +74,7 @@
 
             <section class="media-field full" aria-labelledby="profileImageHeading">
               <div class="media-field-head">
-                <div><span class="field-label" id="profileImageHeading">Profile image</span><span class="field-help">Recommended: 1200 × 1200 px · square JPG, PNG, or WEBP</span></div>
+                <div><span class="field-label" id="profileImageHeading">Profile image</span><span class="field-help">Recommended: 1200 × 1200 px · 1:1 square JPG, PNG, or WEBP</span><span class="media-format-badge">1:1 Profile</span></div>
                 <span id="profileImageDimensions" class="dimension-pill"></span>
               </div>
               <div class="media-field-body">
@@ -86,21 +88,39 @@
               </div>
             </section>
 
-            <section class="media-field full" aria-labelledby="bannerImageHeading">
-              <div class="media-field-head">
-                <div><span class="field-label" id="bannerImageHeading">Banner image</span><span class="field-help">Recommended: 1920 × 1080 px · 16:9 landscape JPG, PNG, or WEBP</span></div>
-                <span id="bannerImageDimensions" class="dimension-pill"></span>
-              </div>
-              <div class="media-field-body banner-media-body">
-                <div id="bannerImagePreview" class="media-preview banner-preview"><span>No banner image</span></div>
-                <div class="media-field-actions">
-                  <input id="bannerImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
-                  <button id="uploadBannerImage" class="button" type="button">Upload / Replace</button>
-                  <button id="deleteBannerImage" class="button ghost danger-ghost" type="button">Delete Image</button>
-                  <p id="bannerImageStatus" class="upload-status" aria-live="polite"></p>
+            <div class="artist-banner-pair full">
+              <section class="media-field" aria-labelledby="bannerImageHeading">
+                <div class="media-field-head">
+                  <div><span class="field-label" id="bannerImageHeading">Horizontal banner image</span><span class="field-help">Recommended: 1920 × 1080 px · 16:9 landscape JPG, PNG, or WEBP</span><span class="media-format-badge">16:9 Desktop</span></div>
+                  <span id="bannerImageDimensions" class="dimension-pill"></span>
                 </div>
-              </div>
-            </section>
+                <div class="media-field-body banner-media-body">
+                  <div id="bannerImagePreview" class="media-preview banner-preview"><span>No horizontal banner</span></div>
+                  <div class="media-field-actions">
+                    <input id="bannerImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+                    <button id="uploadBannerImage" class="button" type="button">Upload / Replace</button>
+                    <button id="deleteBannerImage" class="button ghost danger-ghost" type="button">Delete Image</button>
+                    <p id="bannerImageStatus" class="upload-status" aria-live="polite"></p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="media-field" aria-labelledby="verticalBannerImageHeading">
+                <div class="media-field-head">
+                  <div><span class="field-label" id="verticalBannerImageHeading">Vertical banner image</span><span class="field-help">Recommended: 1080 × 1920 px · 9:16 portrait JPG, PNG, or WEBP</span><span class="media-format-badge">9:16 Mobile</span></div>
+                  <span id="verticalBannerImageDimensions" class="dimension-pill"></span>
+                </div>
+                <div class="vertical-media-body">
+                  <div id="verticalBannerImagePreview" class="media-preview vertical-banner-preview"><span>No vertical banner</span></div>
+                  <div class="media-field-actions">
+                    <input id="verticalBannerImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+                    <button id="uploadVerticalBannerImage" class="button" type="button">Upload / Replace</button>
+                    <button id="deleteVerticalBannerImage" class="button ghost danger-ghost" type="button">Delete Image</button>
+                    <p id="verticalBannerImageStatus" class="upload-status" aria-live="polite"></p>
+                  </div>
+                </div>
+              </section>
+            </div>
 
             <label class="full">Biography<textarea id="bio" rows="7"></textarea></label>
             <label>Website<input id="websiteUrl" type="url"></label>
@@ -153,8 +173,9 @@
       </section>
     </section>
   </main>
-  <script src="./token-compat.js?v=20260721-admin1" defer></script>
-  <script src="./app.js?v=20260721-networkfix1" defer></script>
-  <script src="/radio-admin/dev/shared-admin-header.js?v=20260721-shared-header1" defer></script>
+  <script src="./token-compat.js?v=20260723-profilemedia1" defer></script>
+  <script src="./profile-media.js?v=20260723-profilemedia1" defer></script>
+  <script src="./app.js?v=20260723-profilemedia1" defer></script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260723-profilemedia1" defer></script>
 </body>
 </html>
