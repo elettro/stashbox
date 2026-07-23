@@ -48,6 +48,48 @@
     stroke-linejoin: round;
   }
 
+  .v2-player.is-logged-in-player .v2-vec-header-pill {
+    position: static !important;
+    inset: auto !important;
+    grid-column: 2;
+    justify-self: start;
+    align-self: center;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    max-width: max-content;
+    margin: 0;
+    padding: 6px 9px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px;
+    background: rgba(5,6,7,.52);
+    color: rgba(255,255,255,.82);
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: default;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .v2-player.is-logged-in-player .v2-vec-header-pill i {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #55df83;
+    box-shadow: 0 0 0 3px rgba(85,223,131,.15), 0 0 10px rgba(85,223,131,.38);
+  }
+
+  .v2-player.is-logged-in-player .v2-vec-header-pill b {
+    color: inherit;
+    font: inherit;
+  }
+
   .v2-player.is-logged-in-player .v2-li-player-head-actions {
     grid-column: 3 !important;
     display: flex !important;
