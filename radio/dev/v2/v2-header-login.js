@@ -1,6 +1,13 @@
 (() => {
   'use strict';
 
+  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+
+  const hasSession = () => {
+    try { return Boolean(JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null')?.accessToken); }
+    catch (_) { return false; }
+  };
+
   const installLoginButton = () => {
     document.querySelectorAll('.v2-safe-login').forEach(element => element.remove());
 
@@ -15,12 +22,13 @@
     if (!link) {
       link = document.createElement('a');
       link.className = 'v2-header-login';
-      link.href = '/radio/dev/';
-      link.textContent = 'Log In';
-      link.setAttribute('aria-label', 'Log in to Stashbox Radio');
       actions.appendChild(link);
     }
 
+    link.href = '/radio/dev/v2/?auth=login';
+    link.dataset.v2AuthOpen = 'login';
+    link.textContent = hasSession() ? 'Account' : 'Log In';
+    link.setAttribute('aria-label', hasSession() ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio');
     link.removeAttribute('style');
     return true;
   };
