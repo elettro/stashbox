@@ -12,24 +12,31 @@
 
   .artist-more-menu a {
     min-height: 48px;
-    display: flex;
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
     align-items: center;
-    gap: 11px;
+    column-gap: 11px;
     padding: 11px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-align: left;
   }
 
   .artist-social-icon {
-    width: 23px;
-    height: 23px;
-    flex: 0 0 23px;
+    width: 24px;
+    height: 24px;
     display: grid;
     place-items: center;
+    align-self: center;
     color: var(--artist-accent);
+    line-height: 0;
   }
 
   .artist-social-icon svg {
     width: 20px;
     height: 20px;
+    display: block;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
@@ -73,6 +80,7 @@
   .artist-mobile-shop-link svg {
     width: 16px;
     height: 16px;
+    display: block;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.9;
