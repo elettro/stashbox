@@ -52,9 +52,60 @@
     return currentKey;
   }
 
+  function numberValue(value) {
+    return Math.max(0, Number.parseInt(String(value ?? '0').replace(/[^0-9-]/g, ''), 10) || 0);
+  }
+
+  function setText(node, value) {
+    const text = String(value);
+    if (node && node.textContent !== text) node.textContent = text;
+  }
+
   function scheduleSync(delay = 0) {
     window.clearTimeout(syncTimer);
     syncTimer = window.setTimeout(syncLikeUi, delay);
+  }
+
+  function dispatchLikeUpdate(key, count, liked, source = 'sync', error = '') {
+    window.dispatchEvent(new CustomEvent('stashbox:like-count-updated', {
+      detail: { songKey: key, count, liked, source, error }
+    }));
+  }
+
+  function applyLikeUi({ key, count, liked, animate = false, source = 'sync' }) {
+    const player = document.querySelector('#v2App [data-player]');
+    if (!player || player.hidden) return;
+
+    const primaryButton = player.querySelector('[data-like]');
+    const primaryCount = player.querySelector('[data-likes]');
+    const railButton = player.querySelector('[data-li-favorite]');
+    const railCount = player.querySelector('[data-li-like-count]');
+
+    setText(primaryCount, count);
+    setText(railCount, count);
+
+    if (primaryButton) {
+      primaryButton.classList.toggle('is-liked', liked);
+      if (animate) {
+        primaryButton.classList.add('just-liked');
+        window.setTimeout(() => primaryButton.classList.remove('just-liked'), 430);
+      }
+      primaryButton.setAttribute('aria-pressed', String(liked));
+      primaryButton.setAttribute('aria-label', liked ? 'You liked this song' : 'Like this song');
+      primaryButton.title = liked ? 'Liked' : 'Like this song';
+    }
+
+    if (railButton) {
+      railButton.classList.toggle('is-favorite', liked);
+      railButton.setAttribute('aria-pressed', String(liked));
+      railButton.setAttribute('aria-label', liked ? `Liked. ${count} total likes` : `Like this song. ${count} total likes`);
+      if (animate) {
+        railButton.classList.add('just-liked');
+        window.setTimeout(() => railButton.classList.remove('just-liked'), 430);
+      }
+    }
+
+    dispatchLikeUpdate(key, count, liked, source);
   }
 
   function syncLikeUi() {
@@ -66,8 +117,8 @@
     const key = resolveCurrentKey();
     if (!key) return;
 
-    const rawCount = Math.max(0, Number.parseInt(count.textContent || '0', 10) || 0);
-    const storedCount = Math.max(0, Number.parseInt(likedCounts[key] || '0', 10) || 0);
+    const rawCount = numberValue(count.textContent);
+    const storedCount = numberValue(likedCounts[key]);
     const isLiked = storedCount > 0;
 
     if (button.dataset.likeSongKey !== key) {
@@ -75,17 +126,14 @@
       button.dataset.serverLikeCount = String(rawCount);
     }
 
-    const serverCount = Math.max(0, Number.parseInt(button.dataset.serverLikeCount || String(rawCount), 10) || 0);
-    count.textContent = String(isLiked ? Math.max(serverCount, storedCount) : serverCount);
-    button.classList.toggle('is-liked', isLiked);
-    button.setAttribute('aria-pressed', String(isLiked));
-    button.setAttribute('aria-label', isLiked ? 'You liked this song' : 'Like this song');
-    button.title = isLiked ? 'Liked' : 'Like this song';
+    const serverCount = numberValue(button.dataset.serverLikeCount || rawCount);
+    const resolvedCount = isLiked ? Math.max(serverCount, storedCount) : Math.max(serverCount, rawCount);
+    applyLikeUi({ key, count: resolvedCount, liked: isLiked, source: 'sync' });
   }
 
-  function sendLike(key) {
+  async function sendLike(key) {
     const details = songDetails(key);
-    fetch(TRACK_URL, {
+    const response = await fetch(TRACK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -97,32 +145,61 @@
         source: 'radio_dev_v2'
       }),
       keepalive: true
-    }).catch(() => {});
+    });
+
+    const text = await response.text();
+    let body = {};
+    try { body = text ? JSON.parse(text) : {}; }
+    catch (_) { body = {}; }
+    if (!response.ok || body?.success === false) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
+    return body;
   }
 
-  function handleLike(button) {
+  function authoritativeCount(body, fallback) {
+    const values = [
+      body?.total_likes,
+      body?.like_count,
+      body?.likes,
+      body?.song?.total_likes,
+      body?.song?.like_count,
+      body?.song?.likes,
+      body?.counts?.likes
+    ].map(numberValue).filter(value => value > 0);
+    return values.length ? Math.max(fallback, ...values) : fallback;
+  }
+
+  async function handleLike(button) {
     const count = document.querySelector('#v2App [data-likes]');
     const key = resolveCurrentKey();
-    if (!button || !count || !key) return;
+    if (!button || !count || !key || button.dataset.likeSaving === 'true') return;
 
-    if (Number(likedCounts[key]) > 0) {
+    if (numberValue(likedCounts[key]) > 0) {
       syncLikeUi();
       return;
     }
 
-    const currentCount = Math.max(0, Number.parseInt(count.textContent || '0', 10) || 0);
+    const currentCount = numberValue(count.textContent);
     const likedCount = currentCount + 1;
     likedCounts[key] = likedCount;
     saveLikedCounts();
+    button.dataset.likeSaving = 'true';
+    applyLikeUi({ key, count: likedCount, liked: true, animate: true, source: 'optimistic' });
 
-    count.textContent = String(likedCount);
-    button.classList.add('is-liked', 'just-liked');
-    button.setAttribute('aria-pressed', 'true');
-    button.setAttribute('aria-label', 'You liked this song');
-    button.title = 'Liked';
-    window.setTimeout(() => button.classList.remove('just-liked'), 430);
-
-    sendLike(key);
+    try {
+      const body = await sendLike(key);
+      const confirmedCount = authoritativeCount(body, likedCount);
+      likedCounts[key] = confirmedCount;
+      saveLikedCounts();
+      applyLikeUi({ key, count: confirmedCount, liked: true, source: 'confirmed' });
+    } catch (error) {
+      delete likedCounts[key];
+      saveLikedCounts();
+      applyLikeUi({ key, count: currentCount, liked: false, source: 'rollback' });
+      dispatchLikeUpdate(key, currentCount, false, 'error', error.message || 'Like was not saved.');
+      console.warn('[V2 Like] Like request failed', error);
+    } finally {
+      delete button.dataset.likeSaving;
+    }
   }
 
   document.addEventListener('click', event => {
@@ -145,6 +222,13 @@
     handleLike(likeButton);
   }, true);
 
+  window.addEventListener('stashbox:like-count-updated', event => {
+    const detail = event.detail || {};
+    if (detail.source === 'sync') return;
+    const railCount = document.querySelector('#v2App [data-li-like-count]');
+    if (railCount && Number.isFinite(Number(detail.count))) setText(railCount, Math.max(0, Number(detail.count)));
+  });
+
   function installPlayerObserver() {
     const player = document.querySelector('#v2App [data-player]');
     const title = player?.querySelector('[data-ptitle]');
@@ -157,6 +241,7 @@
     });
     playerObserver.observe(player, { attributes: true, attributeFilter: ['hidden'] });
     playerObserver.observe(title, { childList: true, characterData: true, subtree: true });
+    playerObserver.observe(player, { childList: true, subtree: true });
     scheduleSync();
     return true;
   }
