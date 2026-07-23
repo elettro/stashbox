@@ -1,0 +1,63 @@
+.artist-banner-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr);
+  gap: 13px;
+}
+
+.artist-banner-pair .media-field {
+  min-width: 0;
+}
+
+.artist-banner-pair .banner-media-body {
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.vertical-media-body {
+  display: grid;
+  grid-template-columns: minmax(145px, 205px) minmax(0, 1fr);
+  gap: 15px;
+  align-items: center;
+}
+
+.vertical-banner-preview {
+  width: min(205px, 100%);
+  min-height: 0;
+  aspect-ratio: 9 / 16;
+  justify-self: center;
+}
+
+.media-format-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border: 1px solid rgba(240, 165, 0, .35);
+  border-radius: 999px;
+  color: var(--amber2);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1180px) {
+  .artist-banner-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .vertical-media-body {
+    grid-template-columns: minmax(145px, 205px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .vertical-media-body {
+    grid-template-columns: 1fr;
+  }
+
+  .vertical-banner-preview {
+    width: min(190px, 72vw);
+  }
+}
