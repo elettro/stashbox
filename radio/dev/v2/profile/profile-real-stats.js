@@ -93,7 +93,7 @@
     if (!stats) return;
     setStat('Playlists', Number(stats.playlists || 0).toLocaleString());
     setStat('Favorites', Number(stats.favorites || 0).toLocaleString());
-    setStat('Songs Played', Number(stats.unique_songs_played || 0).toLocaleString());
+    setStat('Songs Played', Number(stats.qualified_plays || 0).toLocaleString());
     setStat('Hours Listened', formatHours(stats.total_seconds_played));
     setStat('Following', Number(stats.following || 0).toLocaleString());
     applyTopGenres();
