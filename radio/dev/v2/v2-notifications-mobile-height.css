@@ -1,11 +1,17 @@
 @media (max-width: 699px) {
+  .v2-notification-overlay {
+    top: var(--v2-notification-mobile-top, calc(68px + env(safe-area-inset-top, 0px)));
+    bottom: 0;
+    height: auto;
+  }
+
   .v2-notification-sheet {
-    height: 93dvh;
-    max-height: 93dvh;
+    height: 100%;
+    max-height: 100%;
   }
 
   .v2-notification-list {
-    height: calc(93dvh - 83px);
-    max-height: calc(93dvh - 83px);
+    height: calc(100% - 83px);
+    max-height: calc(100% - 83px);
   }
 }
