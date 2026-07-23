@@ -1,5 +1,6 @@
 import { createImageUploadPresign } from './profile-media-routes.mjs';
 import { enforceRateLimit } from './rate-limit.mjs';
+import { handleArtistRequest } from './artist-routes.mjs';
 
 const WRITE_LEVELS = new Set(['editor', 'manager', 'owner']);
 let verticalColumnEnsured = false;
@@ -51,6 +52,91 @@ function mediaPayload(artist) {
     horizontal_banner_image_url: artist.banner_image_url || '',
     vertical_banner_image_url: artist.vertical_banner_image_url || '',
     updated_at: artist.updated_at
+  };
+}
+
+function isExactMediaRoute(segments) {
+  const publicRoute = segments[0] === 'radio' &&
+    segments[1] === 'artists' &&
+    Boolean(segments[2]) &&
+    segments[3] === 'media';
+  const adminRoute = segments[0] === 'radio' &&
+    segments[1] === 'admin' &&
+    segments[2] === 'artists' &&
+    Boolean(segments[3]) &&
+    segments[4] === 'media';
+  return publicRoute || adminRoute;
+}
+
+function isCoreArtistDetailRoute(segments) {
+  const publicDetail = segments[0] === 'radio' &&
+    segments[1] === 'artists' &&
+    Boolean(segments[2]) &&
+    segments.length === 3;
+  const adminDetail = segments[0] === 'radio' &&
+    segments[1] === 'admin' &&
+    segments[2] === 'artists' &&
+    Boolean(segments[3]) &&
+    segments.length === 4;
+  return publicDetail || adminDetail;
+}
+
+function responseJson(response) {
+  try { return response?.body ? JSON.parse(response.body) : {}; }
+  catch (_) { return {}; }
+}
+
+async function verticalForArtistId(artistId, deps) {
+  if (!artistId) return '';
+  const result = await deps.client.query(
+    `SELECT vertical_banner_image_url FROM ${deps.qname('artists')} WHERE id = $1 LIMIT 1`,
+    [artistId]
+  );
+  return cleanText(result.rows[0]?.vertical_banner_image_url, 2000);
+}
+
+async function handleCoreArtistDetailBridge(event, deps) {
+  const method = deps.getMethod(event).toUpperCase();
+  const segments = deps.getRouteSegments(event);
+  const isAdmin = segments[1] === 'admin';
+  const isWrite = isAdmin && ['PUT', 'PATCH'].includes(method);
+  let requestedVerticalPresent = false;
+  let requestedVertical = '';
+
+  await ensureVerticalColumn(deps);
+
+  if (isWrite) {
+    const body = deps.parseBody(event);
+    requestedVerticalPresent = Object.prototype.hasOwnProperty.call(body, 'vertical_banner_image_url') ||
+      Object.prototype.hasOwnProperty.call(body, 'verticalBannerImageUrl');
+    requestedVertical = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000);
+  }
+
+  const baseResponse = await handleArtistRequest(event, deps);
+  if (Number(baseResponse?.statusCode || 500) >= 400) return baseResponse;
+
+  const body = responseJson(baseResponse);
+  const artistId = cleanText(body.artist?.id, 220);
+  if (!artistId) return baseResponse;
+
+  if (isWrite && requestedVerticalPresent) {
+    await deps.client.query(`
+      UPDATE ${deps.qname('artists')}
+      SET vertical_banner_image_url = $1, updated_at = now()
+      WHERE id = $2
+    `, [requestedVertical || null, artistId]);
+  }
+
+  const persistedVertical = await verticalForArtistId(artistId, deps);
+  body.artist = {
+    ...body.artist,
+    vertical_banner_image_url: persistedVertical,
+    verticalBannerImageUrl: persistedVertical
+  };
+
+  return {
+    ...baseResponse,
+    body: JSON.stringify(body)
   };
 }
 
@@ -109,21 +195,17 @@ async function authorizeArtistAdmin(event, artist, deps, { write = false } = {})
 }
 
 export function isArtistProfileMediaRequest(segments) {
-  const publicRoute = segments[0] === 'radio' &&
-    segments[1] === 'artists' &&
-    Boolean(segments[2]) &&
-    segments[3] === 'media';
-  const adminRoute = segments[0] === 'radio' &&
-    segments[1] === 'admin' &&
-    segments[2] === 'artists' &&
-    Boolean(segments[3]) &&
-    segments[4] === 'media';
-  return publicRoute || adminRoute;
+  return isExactMediaRoute(segments) || isCoreArtistDetailRoute(segments);
 }
 
 export async function handleArtistProfileMediaRequest(event, deps) {
   const segments = deps.getRouteSegments(event);
   const method = deps.getMethod(event).toUpperCase();
+
+  if (!isExactMediaRoute(segments)) {
+    return handleCoreArtistDetailBridge(event, deps);
+  }
+
   const isAdmin = segments[1] === 'admin';
   const identifier = decodeURIComponent(isAdmin ? segments[3] : segments[2]);
   // Accept both /media/presign and POST /media. The alias prevents an API
@@ -170,7 +252,12 @@ export async function handleArtistProfileMediaRequest(event, deps) {
       WHERE id = $2
       RETURNING *
     `, [verticalUrl, artist.id]);
-    return deps.response(200, { success: true, media: mediaPayload(result.rows[0]) });
+    if (!result.rowCount) throw notFound();
+    return deps.response(200, {
+      success: true,
+      persisted: true,
+      media: mediaPayload(result.rows[0])
+    });
   }
 
   if (method === 'POST' && isPresign) {
