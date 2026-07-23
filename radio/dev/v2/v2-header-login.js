@@ -30,6 +30,21 @@
     link.textContent = hasSession() ? 'Account' : 'Log In';
     link.setAttribute('aria-label', hasSession() ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio');
     link.removeAttribute('style');
+
+    if (link.dataset.v2AuthBound !== 'true') {
+      link.dataset.v2AuthBound = 'true';
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (window.StashboxV2Auth?.open) {
+          window.StashboxV2Auth.open('login');
+          return;
+        }
+        history.replaceState(null, '', '/radio/dev/v2/?auth=login');
+        window.dispatchEvent(new CustomEvent('stashbox:v2-auth-open', { detail: { view: 'login' } }));
+      });
+    }
+
     return true;
   };
 
