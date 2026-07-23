@@ -1,0 +1,30 @@
+name: Test V2 Profile
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/test-v2-profile.yml'
+      - 'radio/dev/v2/profile/**'
+      - 'radio/dev/v2/v2-profile-entry.js'
+      - 'radio/dev/v2/v2-account-preferences.js'
+      - 'radio/dev/v2/index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check V2 profile JavaScript
+        run: |
+          node --check radio/dev/v2/profile/profile.js
+          node --check radio/dev/v2/v2-profile-entry.js
+          node --check radio/dev/v2/v2-account-preferences.js
