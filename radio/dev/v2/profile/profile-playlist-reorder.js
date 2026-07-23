@@ -3,8 +3,8 @@
 
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const baselines = new WeakMap();
   const savedOrders = new Map();
-  const baselines = new Map();
   let scheduled = false;
   let drag = null;
   let autoScrollFrame = 0;
@@ -14,14 +14,22 @@
     catch (_) { return {}; }
   }
 
-  function parseResponse(response) {
-    return response.text().then(text => {
-      let body = {};
-      try { body = text ? JSON.parse(text) : {}; }
-      catch (_) { body = { error: text }; }
-      if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
-      return body;
-    });
+  async function parseResponse(response) {
+    const text = await response.text();
+    let body = {};
+    try { body = text ? JSON.parse(text) : {}; }
+    catch (_) { body = { error: text }; }
+    if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
+    return body;
+  }
+
+  function authHeaders(json = false) {
+    const tokens = readTokens();
+    return {
+      ...(json ? { 'Content-Type': 'application/json' } : {}),
+      ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+      ...(tokens.idToken ? { 'X-Cognito-Id-Token': tokens.idToken } : {})
+    };
   }
 
   function setText(element, text) {
@@ -43,7 +51,8 @@
   }
 
   function playlistContext() {
-    const overlay = document.querySelector('.profile-overlay.open, .profile-overlay');
+    const overlays = [...document.querySelectorAll('.profile-overlay')].reverse();
+    const overlay = overlays.find(node => node.isConnected && node.querySelector('[data-remove-playlist-item][data-playlist-id]'));
     if (!overlay) return null;
     const list = overlay.querySelector('.profile-sheet-body .profile-list');
     if (!list) return null;
@@ -54,32 +63,67 @@
     return { overlay, list, playlistId, itemButtons };
   }
 
-  function applySavedOrder(list, playlistId) {
-    const saved = savedOrders.get(playlistId);
-    if (!saved?.length) return;
+  function applyOrder(list, desired) {
+    if (!Array.isArray(desired) || !desired.length) return;
     const rows = [...list.querySelectorAll(':scope > .profile-list-row[data-reorder-item-id]')];
     const rowMap = new Map(rows.map(row => [row.dataset.reorderItemId, row]));
-    const desired = saved.filter(id => rowMap.has(id));
+    const complete = desired.filter(id => rowMap.has(id));
     rows.forEach(row => {
-      if (!desired.includes(row.dataset.reorderItemId)) desired.push(row.dataset.reorderItemId);
+      if (!complete.includes(row.dataset.reorderItemId)) complete.push(row.dataset.reorderItemId);
     });
-    if (!sameOrder(orderFor(list), desired)) desired.forEach(id => list.appendChild(rowMap.get(id)));
+    if (!sameOrder(orderFor(list), complete)) complete.forEach(id => list.appendChild(rowMap.get(id)));
   }
 
   function updateSaveState(context, message = '') {
     const button = context.overlay.querySelector('[data-save-playlist-order]');
     const status = context.overlay.querySelector('[data-playlist-order-message]');
-    if (!button || button.dataset.orderSaving === 'true') return;
+    if (!button || button.dataset.orderSaving === 'true' || context.list.dataset.orderHydrating === 'true') return;
     const current = orderFor(context.list);
-    const baseline = baselines.get(context.playlistId) || current;
+    const baseline = baselines.get(context.list) || current;
     const dirty = !sameOrder(current, baseline);
-    const disabled = !dirty || current.length < 2;
-    if (button.disabled !== disabled) button.disabled = disabled;
+    button.disabled = !dirty || current.length < 2;
     button.classList.toggle('is-dirty', dirty);
     setText(button, dirty ? 'Save Order' : 'Order Saved');
     if (status && message) {
       setText(status, message);
       status.classList.remove('success', 'error');
+    }
+  }
+
+  async function hydrateSavedOrder(context) {
+    if (context.list.dataset.orderHydrated === 'true' || context.list.dataset.orderHydrating === 'true') return;
+    context.list.dataset.orderHydrating = 'true';
+    const status = context.overlay.querySelector('[data-playlist-order-message]');
+    if (status) setText(status, 'Loading your saved song order…');
+
+    try {
+      const tokens = readTokens();
+      if (!tokens.accessToken) throw new Error('Your session expired. Log in again.');
+      const body = await fetch(`${API_ROOT}/radio/me/playlists/${encodeURIComponent(context.playlistId)}`, {
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: authHeaders()
+      }).then(parseResponse);
+      const ids = Array.isArray(body.playlist?.items) ? body.playlist.items.map(item => String(item.id || '')).filter(Boolean) : [];
+      if (ids.length) {
+        savedOrders.set(context.playlistId, ids);
+        applyOrder(context.list, ids);
+      } else {
+        applyOrder(context.list, savedOrders.get(context.playlistId));
+      }
+      baselines.set(context.list, orderFor(context.list));
+      if (status) setText(status, context.itemButtons.length > 1 ? 'Grab the handle on the left of a song, move it, then save.' : 'Add more songs to rearrange this playlist.');
+    } catch (error) {
+      applyOrder(context.list, savedOrders.get(context.playlistId));
+      baselines.set(context.list, orderFor(context.list));
+      if (status) {
+        setText(status, `Saved order could not be refreshed: ${error.message}`);
+        status.classList.add('error');
+      }
+    } finally {
+      delete context.list.dataset.orderHydrating;
+      context.list.dataset.orderHydrated = 'true';
+      updateSaveState(context);
     }
   }
 
@@ -107,9 +151,6 @@
       }
     });
 
-    applySavedOrder(context.list, context.playlistId);
-    if (!baselines.has(context.playlistId)) baselines.set(context.playlistId, orderFor(context.list));
-
     const toolbar = context.overlay.querySelector('.profile-sheet-body > .profile-form-actions');
     if (toolbar && !toolbar.querySelector('[data-save-playlist-order]')) {
       const save = document.createElement('button');
@@ -124,11 +165,12 @@
       status.className = 'profile-order-message';
       status.dataset.playlistOrderMessage = 'true';
       status.setAttribute('role', 'status');
-      status.textContent = context.itemButtons.length > 1
-        ? 'Grab the handle on the left of a song, move it, then save.'
-        : 'Add more songs to rearrange this playlist.';
+      status.textContent = 'Loading your saved song order…';
       toolbar.insertAdjacentElement('afterend', status);
     }
+
+    if (!baselines.has(context.list)) baselines.set(context.list, orderFor(context.list));
+    hydrateSavedOrder(context);
     updateSaveState(context);
   }
 
@@ -148,13 +190,12 @@
     cancelAnimationFrame(autoScrollFrame);
     const tick = () => {
       if (!drag) return;
-      const scroller = drag.scroller;
-      const rect = scroller.getBoundingClientRect();
+      const rect = drag.scroller.getBoundingClientRect();
       const edge = Math.min(80, rect.height * .2);
       let amount = 0;
       if (drag.clientY < rect.top + edge) amount = -Math.max(4, Math.round((rect.top + edge - drag.clientY) / 5));
       if (drag.clientY > rect.bottom - edge) amount = Math.max(4, Math.round((drag.clientY - (rect.bottom - edge)) / 5));
-      if (amount) scroller.scrollTop += amount;
+      if (amount) drag.scroller.scrollTop += amount;
       autoScrollFrame = requestAnimationFrame(tick);
     };
     autoScrollFrame = requestAnimationFrame(tick);
@@ -164,21 +205,12 @@
     const row = handle.closest('.profile-list-row[data-reorder-item-id]');
     const list = row?.parentElement;
     const scroller = row?.closest('.profile-sheet-body');
-    if (!row || !list || !scroller) return;
+    if (!row || !list || !scroller || list.dataset.orderHydrating === 'true') return;
     event.preventDefault();
-    drag = {
-      pointerId: event.pointerId,
-      handle,
-      row,
-      list,
-      scroller,
-      clientY: event.clientY,
-      moved: false
-    };
+    drag = { pointerId: event.pointerId, handle, row, list, scroller, clientY: event.clientY, moved: false };
     handle.setPointerCapture?.(event.pointerId);
     row.classList.add('is-dragging');
     list.classList.add('is-reordering');
-    row.style.pointerEvents = 'none';
     startAutoScroll();
   }
 
@@ -186,11 +218,13 @@
     if (!drag || event.pointerId !== drag.pointerId) return;
     event.preventDefault();
     drag.clientY = event.clientY;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.profile-list-row[data-reorder-item-id]');
-    if (!target || target === drag.row || target.parentElement !== drag.list) return;
-    const rect = target.getBoundingClientRect();
-    const before = event.clientY < rect.top + rect.height / 2;
-    drag.list.insertBefore(drag.row, before ? target : target.nextSibling);
+    const candidates = [...drag.list.querySelectorAll(':scope > .profile-list-row[data-reorder-item-id]')].filter(row => row !== drag.row);
+    const before = candidates.find(row => {
+      const rect = row.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    });
+    if (before) drag.list.insertBefore(drag.row, before);
+    else drag.list.appendChild(drag.row);
     drag.moved = true;
   }
 
@@ -198,7 +232,6 @@
     if (!drag || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
     cancelAnimationFrame(autoScrollFrame);
     drag.handle.releasePointerCapture?.(drag.pointerId);
-    drag.row.style.pointerEvents = '';
     drag.row.classList.remove('is-dragging');
     drag.list.classList.remove('is-reordering');
     const moved = drag.moved;
@@ -209,7 +242,7 @@
   function keyboardMove(event, handle) {
     if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
     const row = handle.closest('.profile-list-row[data-reorder-item-id]');
-    if (!row) return;
+    if (!row || row.parentElement.dataset.orderHydrating === 'true') return;
     event.preventDefault();
     if (event.key === 'ArrowUp' && row.previousElementSibling) row.parentElement.insertBefore(row, row.previousElementSibling);
     if (event.key === 'ArrowDown' && row.nextElementSibling) row.parentElement.insertBefore(row.nextElementSibling, row);
@@ -222,8 +255,7 @@
     if (!context || context.playlistId !== button.dataset.savePlaylistOrder || button.dataset.orderSaving === 'true') return;
     const orderedItemIds = orderFor(context.list);
     const status = context.overlay.querySelector('[data-playlist-order-message]');
-    const tokens = readTokens();
-    if (!tokens.accessToken) {
+    if (!readTokens().accessToken) {
       if (status) {
         setText(status, 'Your session expired. Log in again before saving.');
         status.className = 'profile-order-message error';
@@ -243,26 +275,23 @@
       const body = await fetch(`${API_ROOT}/radio/me/playlists/${encodeURIComponent(context.playlistId)}/items/reorder`, {
         method: 'PATCH',
         cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${tokens.accessToken}`,
-          ...(tokens.idToken ? { 'X-Cognito-Id-Token': tokens.idToken } : {})
-        },
+        credentials: 'omit',
+        headers: authHeaders(true),
         body: JSON.stringify({ ordered_item_ids: orderedItemIds })
       }).then(parseResponse);
-      const saved = Array.isArray(body.ordered_item_ids) ? body.ordered_item_ids : orderedItemIds;
+      const saved = Array.isArray(body.ordered_item_ids) ? body.ordered_item_ids.map(String) : orderedItemIds;
       savedOrders.set(context.playlistId, saved);
-      baselines.set(context.playlistId, saved);
+      baselines.set(context.list, saved);
       button.classList.remove('is-dirty');
       setText(button, 'Saved');
       if (status) {
-        setText(status, 'Playlist order saved.');
+        setText(status, 'Playlist order saved. You can close and reopen this playlist and rearrange it again.');
         status.className = 'profile-order-message success';
       }
       window.setTimeout(() => {
         delete button.dataset.orderSaving;
         const current = playlistContext();
-        if (current?.playlistId === context.playlistId) updateSaveState(current);
+        if (current?.list === context.list) updateSaveState(current);
       }, 900);
     } catch (error) {
       delete button.dataset.orderSaving;
