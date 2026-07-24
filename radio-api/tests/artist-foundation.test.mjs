@@ -102,28 +102,48 @@ test('account overview presents a database-backed Following Artists stat and lis
   assert.match(loader, /account-following-stat\.js\?v=20260721-following-list1/);
 });
 
-test('Artist CMS supports profile and banner upload, replacement, deletion, and dimension guidance', () => {
+test('Artist CMS uses one immediate-save profile media controller for all three images', () => {
   const cmsHtml = read('radio-admin/artists/dev/index.html');
-  const cmsApp = read('radio-admin/artists/dev/app.js');
+  const controller = read('radio-admin/artists/dev/profile-media-unified.js');
+  const routes = read('radio-api/artist-profile-media-routes.mjs');
+
   assert.match(cmsHtml, /Recommended: 1200 × 1200 px/);
   assert.match(cmsHtml, /Recommended: 1920 × 1080 px/);
+  assert.match(cmsHtml, /Recommended: 1080 × 1920 px/);
+  assert.match(cmsHtml, /profile-media-unified\.js\?v=/);
+  assert.doesNotMatch(cmsHtml, /vertical-banner-simple\.js/);
   assert.match(cmsHtml, /Upload \/ Replace/);
   assert.match(cmsHtml, /Delete Image/);
-  assert.match(cmsApp, /UPLOAD_PRESIGN_URL/);
-  assert.match(cmsApp, /purpose: 'artwork'/);
-  assert.match(cmsApp, /readImageDimensions/);
-  assert.match(cmsApp, /presign\.headers/);
-  assert.match(cmsApp, /Click Save Artist/);
+
+  assert.doesNotThrow(() => new Function(controller));
+  assert.match(controller, /purpose: 'profile_image'/);
+  assert.match(controller, /purpose: 'horizontal_banner'/);
+  assert.match(controller, /purpose: 'vertical_banner'/);
+  assert.match(controller, /\/media\/presign/);
+  assert.match(controller, /method: 'PATCH'/);
+  assert.match(controller, /fresh RDS read-back/);
+  assert.match(controller, /stopImmediatePropagation/);
+  assert.doesNotMatch(controller, /purpose: 'artwork'/);
+  assert.doesNotMatch(controller, /Click Save Artist/);
+
+  assert.match(routes, /profile_image_url = CASE WHEN/);
+  assert.match(routes, /banner_image_url = CASE WHEN/);
+  assert.match(routes, /vertical_banner_image_url = CASE WHEN/);
+  assert.match(routes, /profile_image_url, horizontal_banner_image_url, or vertical_banner_image_url/);
+  assert.match(routes, /user_artist_access/);
+  assert.match(routes, /user_label_access/);
+  assert.match(routes, /WRITE_LEVELS/);
 });
 
 test('Artist CMS uses one authentication mode at a time', () => {
   const cmsApp = read('radio-admin/artists/dev/app.js');
+  const mediaController = read('radio-admin/artists/dev/profile-media-unified.js');
   assert.match(cmsApp, /STANDARD_ADMIN_TOKEN_KEY = 'stashbox_admin_token_dev'/);
   assert.match(cmsApp, /LEGACY_ADMIN_TOKEN_KEY = 'stashbox-radio-admin-token-dev'/);
   assert.match(cmsApp, /if \(admin\) \{\s*result\['x-admin-token'\] = admin;\s*\} else \{/s);
-  assert.match(cmsApp, /Could not reach the Stashbox Radio DEV API from this browser/);
-  assert.match(cmsApp, /Upload authorization failed/);
-  assert.match(cmsApp, /DEV storage upload was blocked/);
+  assert.match(mediaController, /if \(token\) \{\s*result\['x-admin-token'\] = token;\s*return result;\s*\}/s);
+  assert.match(mediaController, /Authorization = `Bearer \$\{tokens\.accessToken\}`/);
+  assert.match(mediaController, /X-Cognito-Id-Token/);
 });
 
 test('Artist CMS aggregates likes, shares, and listening time from song analytics', () => {
