@@ -191,7 +191,9 @@ export async function concatenateSegments(segmentPaths, outputPath, workDir) {
 export function escapeDrawtext(value) {
   return String(value || '')
     .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
+    // The filtergraph parser consumes one escaping layer before drawtext sees text=.
+    // Two literal backslashes are therefore required before an apostrophe.
+    .replace(/'/g, "\\\\'")
     .replace(/:/g, '\\:')
     .replace(/%/g, '\\%')
     .replace(/,/g, '\\,')
