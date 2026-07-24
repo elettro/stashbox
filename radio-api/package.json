@@ -13,9 +13,11 @@
     "pg": "^8.16.3"
   },
   "scripts": {
-    "check": "node --check index.mjs && node --check auth.mjs && node --check rate-limit.mjs && node --check account-routes.mjs && node --check artist-routes.mjs && node --check profile-stats-routes.mjs && node --check profile-media-routes.mjs && node --check artist-profile-media-routes.mjs && node --check video-factory/entry.mjs",
+    "check": "node --check index.mjs && node --check auth.mjs && node --check rate-limit.mjs && node --check account-routes.mjs && node --check artist-routes.mjs && node --check profile-stats-routes.mjs && node --check profile-media-routes.mjs && node --check artist-profile-media-routes.mjs && node --check video-factory/entry.mjs && node --check ../radio-admin/artists/dev/profile-media-unified.js && node --check ../radio/dev/v2/profile/profile-media-stable.js && node --check ../radio/dev/v2/v2-player-fluid-home.js",
     "test:accounts": "node --test tests/user-accounts-foundation.test.mjs",
     "test:artists": "node --test tests/artist-foundation.test.mjs",
+    "test:v2-fluidity": "node --test tests/v2-player-fluidity.test.mjs",
+    "test:profile-media": "node --test tests/user-accounts-foundation.test.mjs tests/artist-foundation.test.mjs tests/v2-player-fluidity.test.mjs",
     "test:video-factory": "node --test tests/video-factory-foundation.test.mjs tests/video-factory-render-control.test.mjs tests/video-factory-archive.test.mjs",
     "package:dev-v2": "bash scripts/package-dev-v2.sh",
     "smoke:true-dev": "node scripts/smoke-test-true-dev.mjs"
