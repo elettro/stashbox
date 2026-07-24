@@ -172,11 +172,30 @@
 
   function syncGenreLink(player) {
     const genre = player?.querySelector('[data-pgenre]');
-    if (!genre || !clean(genre.textContent)) return;
+    if (!genre) return;
+    if (loggedIn() || !clean(genre.textContent)) {
+      genre.classList.remove('v2-player-genre-link');
+      genre.removeAttribute('role');
+      genre.removeAttribute('tabindex');
+      genre.removeAttribute('aria-label');
+      return;
+    }
     genre.classList.add('v2-player-genre-link');
     genre.setAttribute('role', 'button');
     genre.setAttribute('tabindex', '0');
     genre.setAttribute('aria-label', `Open ${clean(genre.textContent)} song catalog`);
+  }
+
+  function ensureArtistShuffleTrigger() {
+    if (!artistApp || artistApp.querySelector('[data-start-radio]')) return;
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.hidden = true;
+    trigger.dataset.startRadio = 'true';
+    trigger.dataset.guestArtistShuffleTrigger = 'true';
+    trigger.setAttribute('aria-hidden', 'true');
+    trigger.tabIndex = -1;
+    artistApp.appendChild(trigger);
   }
 
   function syncPlayers() {
@@ -188,7 +207,10 @@
       bindMainAudio(main.querySelector('[data-audio]'));
     }
     const artist = artistPlayer();
-    if (artist) syncGuestAuth(artist, 'artist');
+    if (artist) {
+      syncGuestAuth(artist, 'artist');
+      ensureArtistShuffleTrigger();
+    }
   }
 
   function currentMainSong(player = mainPlayer()) {
@@ -276,6 +298,7 @@
   }
 
   async function openGenreSheet(player) {
+    if (loggedIn()) return;
     const genre = clean(player.querySelector('[data-pgenre]')?.textContent);
     if (!genre) return;
     const songs = (await loadCatalog())
@@ -336,8 +359,8 @@
 
     if (type === 'artist') {
       if (action === 'shuffle') {
-        const shuffleButton = artistApp?.querySelector('[data-start-radio]');
-        if (shuffleButton) shuffleButton.click();
+        ensureArtistShuffleTrigger();
+        artistApp?.querySelector('[data-start-radio]')?.click();
         return;
       }
       player.querySelector(action === 'previous' ? '[data-realm-prev]' : '[data-realm-next]')?.click();
@@ -434,7 +457,7 @@
     }
 
     const genreLink = event.target.closest('.v2-player-genre-link');
-    if (genreLink && mainPlayer()) {
+    if (genreLink && mainPlayer() && !loggedIn()) {
       event.preventDefault();
       event.stopImmediatePropagation();
       openGenreSheet(mainPlayer());
@@ -502,7 +525,7 @@
       return;
     }
     const genreLink = event.target.closest('.v2-player-genre-link');
-    if (genreLink && mainPlayer()) {
+    if (genreLink && mainPlayer() && !loggedIn()) {
       event.preventDefault();
       openGenreSheet(mainPlayer());
     }
