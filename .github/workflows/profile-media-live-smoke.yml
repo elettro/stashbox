@@ -1,0 +1,96 @@
+name: Profile Media Live Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/profile-media-live-smoke.yml'
+      - 'radio-api/scripts/profile-media-live-smoke.sh'
+      - 'radio-api/profile-media-routes.mjs'
+      - 'radio-api/artist-profile-media-routes.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  profile-media-live-smoke:
+    name: Upload, persist, reload, and clean up profile images
+    runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_COGNITO_REGION: us-east-1
+      TRUE_DEV_COGNITO_USER_POOL_ID: us-east-1_okL8XCVT6
+      TRUE_DEV_UPLOAD_BUCKET: stashbox-radio-media-dev-us-east-1
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      PROFILE_MEDIA_REPORT_PATH: /tmp/profile-media-live-smoke.json
+      REPORT_BRANCH: automation/profile-media-smoke-status
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Validate smoke test syntax
+        run: bash -n radio-api/scripts/profile-media-live-smoke.sh
+
+      - name: Run live profile media smoke test
+        id: smoke
+        continue-on-error: true
+        run: |
+          set +e
+          chmod +x radio-api/scripts/profile-media-live-smoke.sh
+          radio-api/scripts/profile-media-live-smoke.sh
+          EXIT_CODE=$?
+          echo "exit_code=${EXIT_CODE}" >> "${GITHUB_OUTPUT}"
+          if [ -f "${PROFILE_MEDIA_REPORT_PATH}" ]; then
+            cat "${PROFILE_MEDIA_REPORT_PATH}"
+          else
+            jq -n \
+              --arg status failed \
+              --arg tested_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --arg commit "${GITHUB_SHA}" \
+              --arg run_id "${GITHUB_RUN_ID}" \
+              --argjson exit_code "${EXIT_CODE}" \
+              '{status:$status,tested_at:$tested_at,commit:$commit,run_id:$run_id,exit_code:$exit_code,last_step:"report-missing"}' \
+              > "${PROFILE_MEDIA_REPORT_PATH}"
+          fi
+          exit 0
+
+      - name: Publish latest smoke-test report
+        run: |
+          set -euo pipefail
+          cp "${PROFILE_MEDIA_REPORT_PATH}" /tmp/profile-media-live-smoke-report.json
+          git config user.name "stashbox-automation"
+          git config user.email "automation@stashbox.com"
+          git fetch origin "${REPORT_BRANCH}" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/${REPORT_BRANCH}"; then
+            git switch --force-create "${REPORT_BRANCH}" "origin/${REPORT_BRANCH}"
+          else
+            git switch --orphan "${REPORT_BRANCH}"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p reports
+          cp /tmp/profile-media-live-smoke-report.json reports/profile-media-live-smoke.json
+          git add reports/profile-media-live-smoke.json
+          git commit --allow-empty -m "Update profile media live smoke report for ${GITHUB_SHA}"
+          git push origin "HEAD:${REPORT_BRANCH}" --force-with-lease || git push origin "HEAD:${REPORT_BRANCH}" --force
+
+      - name: Enforce smoke-test result
+        if: always()
+        run: |
+          if [ "${{ steps.smoke.outputs.exit_code }}" != "0" ]; then
+            echo "Profile media live smoke test failed."
+            cat "${PROFILE_MEDIA_REPORT_PATH}"
+            exit 1
+          fi
+          echo "Profile media live smoke test passed."
