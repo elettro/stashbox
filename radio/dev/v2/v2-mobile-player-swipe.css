@@ -43,6 +43,11 @@
     font-weight: 900;
   }
 
+  .v2-player.is-logged-in-player .v2-player-swipe-hint.is-shuffle i {
+    background: rgba(85,223,131,.18);
+    color: #69ea95;
+  }
+
   .v2-player.is-logged-in-player .v2-player-swipe-hint strong {
     font-size: 11px;
     line-height: 1;
@@ -52,29 +57,42 @@
     white-space: nowrap;
   }
 
-  .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
-  .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage] {
-    animation: v2SwipeSongUp .26s ease both;
+  .v2-player.is-logged-in-player.is-swipe-shuffle .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-shuffle [data-mobile-vec-stage] {
+    animation: v2SwipeShuffleUp .26s ease both;
   }
 
   .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
   .v2-player.is-logged-in-player.is-swipe-previous [data-mobile-vec-stage] {
-    animation: v2SwipeSongDown .26s ease both;
+    animation: v2SwipeSongLeft .26s ease both;
   }
 
-  @keyframes v2SwipeSongUp {
-    0% { transform: translateY(0); opacity: 1; }
-    45% { transform: translateY(-18px); opacity: .72; }
-    100% { transform: translateY(0); opacity: 1; }
+  .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage] {
+    animation: v2SwipeSongRight .26s ease both;
   }
 
-  @keyframes v2SwipeSongDown {
-    0% { transform: translateY(0); opacity: 1; }
-    45% { transform: translateY(18px); opacity: .72; }
-    100% { transform: translateY(0); opacity: 1; }
+  @keyframes v2SwipeShuffleUp {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    45% { transform: translateY(-20px) scale(.985); opacity: .68; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  @keyframes v2SwipeSongLeft {
+    0% { transform: translateX(0); opacity: 1; }
+    45% { transform: translateX(-20px); opacity: .72; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes v2SwipeSongRight {
+    0% { transform: translateX(0); opacity: 1; }
+    45% { transform: translateX(20px); opacity: .72; }
+    100% { transform: translateX(0); opacity: 1; }
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .v2-player.is-logged-in-player.is-swipe-shuffle .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-shuffle [data-mobile-vec-stage],
     .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
     .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage],
     .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
