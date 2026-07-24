@@ -2,6 +2,7 @@
   'use strict';
 
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  let authOpenQueued = false;
 
   function loggedIn() {
     try {
@@ -13,13 +14,28 @@
   }
 
   function openAuth(view = 'login') {
-    const proxy = document.createElement('button');
-    proxy.type = 'button';
-    proxy.hidden = true;
-    proxy.dataset.v2AuthOpen = view;
-    document.body.appendChild(proxy);
-    proxy.click();
-    proxy.remove();
+    if (authOpenQueued) return;
+    authOpenQueued = true;
+    const requestedView = view === 'signup' ? 'signup' : 'login';
+
+    // Run outside the intercepted player click. This prevents player overlay
+    // listeners from swallowing the synthetic auth request in Safari/mobile.
+    window.setTimeout(() => {
+      authOpenQueued = false;
+      const proxy = document.createElement('button');
+      proxy.type = 'button';
+      proxy.hidden = true;
+      proxy.tabIndex = -1;
+      proxy.dataset.v2AuthOpen = requestedView;
+      document.body.appendChild(proxy);
+      proxy.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window
+      }));
+      proxy.remove();
+    }, 0);
   }
 
   document.addEventListener('click', event => {
