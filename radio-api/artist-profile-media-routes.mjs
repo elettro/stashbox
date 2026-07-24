@@ -9,6 +9,10 @@ function cleanText(value, maxLength = 1000) {
   return String(value ?? '').trim().slice(0, maxLength);
 }
 
+function hasOwn(object, ...keys) {
+  return keys.some(key => Object.prototype.hasOwnProperty.call(object || {}, key));
+}
+
 function routeError(statusCode, code, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -116,8 +120,7 @@ async function handleCoreArtistRoute(event, deps) {
 
   if (isAdminWrite) {
     const body = deps.parseBody(event);
-    requestedVerticalPresent = Object.prototype.hasOwnProperty.call(body, 'vertical_banner_image_url') ||
-      Object.prototype.hasOwnProperty.call(body, 'verticalBannerImageUrl');
+    requestedVerticalPresent = hasOwn(body, 'vertical_banner_image_url', 'verticalBannerImageUrl');
     requestedVertical = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000);
   }
 
@@ -262,14 +265,32 @@ export async function handleArtistProfileMediaRequest(event, deps) {
         windowSeconds: 15 * 60
       });
     }
+
     const body = deps.parseBody(event);
+    const profilePresent = hasOwn(body, 'profile_image_url', 'profileImageUrl');
+    const horizontalPresent = hasOwn(body, 'horizontal_banner_image_url', 'banner_image_url', 'horizontalBannerImageUrl', 'bannerImageUrl');
+    const verticalPresent = hasOwn(body, 'vertical_banner_image_url', 'verticalBannerImageUrl');
+    if (!profilePresent && !horizontalPresent && !verticalPresent) {
+      throw routeError(400, 'MEDIA_FIELDS_REQUIRED', 'Provide profile_image_url, horizontal_banner_image_url, or vertical_banner_image_url.');
+    }
+
+    const profileUrl = cleanText(body.profile_image_url ?? body.profileImageUrl, 2000) || null;
+    const horizontalUrl = cleanText(
+      body.horizontal_banner_image_url ?? body.banner_image_url ?? body.horizontalBannerImageUrl ?? body.bannerImageUrl,
+      2000
+    ) || null;
     const verticalUrl = cleanText(body.vertical_banner_image_url ?? body.verticalBannerImageUrl, 2000) || null;
+
     const result = await deps.client.query(`
       UPDATE ${deps.qname('artists')}
-      SET vertical_banner_image_url = $1, updated_at = now()
-      WHERE id = $2
+      SET
+        profile_image_url = CASE WHEN $1::boolean THEN $2 ELSE profile_image_url END,
+        banner_image_url = CASE WHEN $3::boolean THEN $4 ELSE banner_image_url END,
+        vertical_banner_image_url = CASE WHEN $5::boolean THEN $6 ELSE vertical_banner_image_url END,
+        updated_at = now()
+      WHERE id = $7
       RETURNING *
-    `, [verticalUrl, artist.id]);
+    `, [profilePresent, profileUrl, horizontalPresent, horizontalUrl, verticalPresent, verticalUrl, artist.id]);
     if (!result.rowCount) throw notFound();
     return deps.response(200, { success: true, persisted: true, media: mediaPayload(result.rows[0]) });
   }
