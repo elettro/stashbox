@@ -1,0 +1,126 @@
+.v2-video-focus-toggle {
+  position: absolute;
+  top: calc(62px + env(safe-area-inset-top, 0px));
+  left: 14px;
+  z-index: 84;
+  width: 40px;
+  height: 40px;
+  display: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 50%;
+  background: rgba(5, 6, 7, .74);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  opacity: .82;
+  transition: opacity .2s ease, transform .2s ease, background-color .2s ease, border-color .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.v2-player.is-logged-in-player:not([hidden]) > .v2-video-focus-toggle {
+  display: grid;
+}
+
+.v2-video-focus-toggle:hover,
+.v2-video-focus-toggle:focus-visible {
+  opacity: 1;
+  transform: scale(1.05);
+  border-color: rgba(255, 159, 10, .8);
+  background: rgba(10, 11, 13, .94);
+  outline: none;
+}
+
+.v2-video-focus-toggle svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.v2-video-focus-toggle .v2-focus-restore-icon {
+  display: none;
+}
+
+.v2-player.is-video-focus-mode .v2-video-focus-toggle {
+  opacity: .62;
+  border-color: rgba(255, 159, 10, .62);
+  background: rgba(5, 6, 7, .66);
+  color: #ffad2f;
+}
+
+.v2-player.is-video-focus-mode .v2-video-focus-toggle .v2-focus-enter-icon {
+  display: none;
+}
+
+.v2-player.is-video-focus-mode .v2-video-focus-toggle .v2-focus-restore-icon {
+  display: block;
+}
+
+.v2-player.is-video-focus-mode .v2-player-header > :not([data-close]):not([data-close-player]),
+.v2-player.is-video-focus-mode .v2-player-content,
+.v2-player.is-video-focus-mode .v2-li-player-rail,
+.v2-player.is-video-focus-mode .v2-li-merch-tray,
+.v2-player.is-video-focus-mode .v2-vec-clip-commerce,
+.v2-player.is-video-focus-mode .v2-mobile-vec-status,
+.v2-player.is-video-focus-mode .v2-player-swipe-hint {
+  opacity: .035 !important;
+  pointer-events: none !important;
+  transition: opacity .28s ease !important;
+}
+
+.v2-player.is-video-focus-mode .v2-player-header > [data-close],
+.v2-player.is-video-focus-mode .v2-player-header > [data-close-player] {
+  opacity: .13 !important;
+  transition: opacity .28s ease !important;
+}
+
+.v2-player.is-video-focus-mode .v2-player-header > [data-close]:hover,
+.v2-player.is-video-focus-mode .v2-player-header > [data-close]:focus-visible,
+.v2-player.is-video-focus-mode .v2-player-header > [data-close-player]:hover,
+.v2-player.is-video-focus-mode .v2-player-header > [data-close-player]:focus-visible {
+  opacity: .9 !important;
+}
+
+.v2-player.is-video-focus-mode .v2-player-shade {
+  opacity: .16 !important;
+  transition: opacity .28s ease !important;
+}
+
+.v2-player.is-video-focus-mode .v2-mobile-vec-stage::after {
+  opacity: .08 !important;
+  transition: opacity .28s ease !important;
+}
+
+.v2-player.is-video-focus-mode .v2-player-backdrop {
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+@media (min-width: 700px) {
+  .v2-video-focus-toggle {
+    top: 86px;
+    left: 28px;
+    width: 42px;
+    height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-video-focus-toggle,
+  .v2-player.is-video-focus-mode .v2-player-header > *,
+  .v2-player.is-video-focus-mode .v2-player-content,
+  .v2-player.is-video-focus-mode .v2-li-player-rail,
+  .v2-player.is-video-focus-mode .v2-li-merch-tray,
+  .v2-player.is-video-focus-mode .v2-vec-clip-commerce,
+  .v2-player.is-video-focus-mode .v2-mobile-vec-status,
+  .v2-player.is-video-focus-mode .v2-player-shade,
+  .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after {
+    transition: none !important;
+  }
+}
