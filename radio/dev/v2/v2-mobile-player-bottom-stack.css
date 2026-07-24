@@ -38,9 +38,13 @@
     margin-top: 2px;
   }
 
+  /* Keep Up Next fully visible above Safari/Chrome bottom browser controls and
+     visually tuck it closer to the left-side Shuffle control. */
   .v2-player.is-logged-in-player .v2-li-up-next-button {
-    min-height: 28px;
-    margin-top: 0;
+    min-height: 30px;
+    margin: -10px auto 0 0 !important;
+    padding-left: 8px;
+    transform: translateY(-7px);
   }
 }
 
@@ -48,10 +52,18 @@
   .v2-player.is-logged-in-player .v2-player-content {
     transform: translateY(30px) !important;
   }
+
+  .v2-player.is-logged-in-player .v2-li-up-next-button {
+    transform: translateY(-10px);
+  }
 }
 
 @media (max-width: 699px) and (max-height: 719px) {
   .v2-player.is-logged-in-player .v2-player-content {
     transform: translateY(18px) !important;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-up-next-button {
+    transform: translateY(-12px);
   }
 }
