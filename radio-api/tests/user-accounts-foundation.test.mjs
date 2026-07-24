@@ -8,6 +8,7 @@ import {
   isAccountRequest,
   isNotificationEventRequest
 } from '../account-routes.mjs';
+import { isProfileMediaUploadRequest } from '../profile-media-routes.mjs';
 import { subjectHash } from '../rate-limit.mjs';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +24,13 @@ test('account route detection is limited to radio auth and radio me', () => {
   assert.equal(isAccountRequest(['radio', 'me']), true);
   assert.equal(isAccountRequest(['radio', 'songs']), false);
   assert.equal(isAccountRequest(['admin', 'songs']), false);
+});
+
+test('listener profile media route supports read, write, and presign paths', () => {
+  assert.equal(isProfileMediaUploadRequest(['radio', 'me', 'media']), true);
+  assert.equal(isProfileMediaUploadRequest(['radio', 'me', 'media', 'presign']), true);
+  assert.equal(isProfileMediaUploadRequest(['radio', 'me', 'preferences']), false);
+  assert.equal(isProfileMediaUploadRequest(['radio', 'artists', 'stashbox', 'media']), false);
 });
 
 test('notification event interception matches writes only by route shape', () => {
@@ -107,6 +115,30 @@ test('account overview cards navigate and profile editing lives in Preferences',
   assert.match(dashboardUi, /justify-content: flex-end/);
 });
 
+test('listener profile images use one dedicated immediate-save media contract', () => {
+  const route = read('radio-api/profile-media-routes.mjs');
+  const client = read('radio/dev/v2/profile/profile-media-stable.js');
+  const profileHtml = read('radio/dev/v2/profile/index.html');
+
+  assert.match(route, /GET \/radio\/me\/media/);
+  assert.match(route, /PATCH \/radio\/me\/media/);
+  assert.match(route, /POST \/radio\/me\/media\/presign/);
+  assert.match(route, /profile_image_url/);
+  assert.match(route, /horizontal_banner_image_url/);
+  assert.match(route, /vertical_banner_image_url/);
+  assert.match(route, /avatar_url/);
+  assert.match(route, /banner_url/);
+  assert.match(route, /vertical_banner_url/);
+
+  assert.match(client, /fetch\(`\$\{API\}\/radio\/me\/media\?verify=/);
+  assert.match(client, /fetch\(`\$\{API\}\/radio\/me\/media`,/);
+  assert.match(client, /method: 'PATCH'/);
+  assert.match(client, /\/radio\/me\/media\/presign/);
+  assert.match(client, /fresh RDS read-back/);
+  assert.doesNotMatch(client, /\/radio\/me\/preferences/);
+  assert.match(profileHtml, /profile-media-stable\.js\?v=/);
+});
+
 test('Following Artists stat opens a thumbnail list with database-backed unfollow controls', () => {
   const loader = read('radio/dev/notifications.js');
   const followingUi = read('radio/dev/account-following-stat.js');
@@ -124,9 +156,11 @@ test('Following Artists stat opens a thumbnail list with database-backed unfollo
   assert.match(followingUi, /Back to My Account/);
 });
 
-test('DEV deployment wrapper delegates unrelated routes to the original radio handler', () => {
+test('DEV deployment wrapper delegates unrelated routes and intercepts profile media', () => {
   const wrapper = read('radio-api/video-factory/entry.mjs');
   assert.match(wrapper, /const accountRequest = isAccountRequest\(segments\)/);
+  assert.match(wrapper, /const profileMediaUploadRequest = isProfileMediaUploadRequest\(segments\)/);
+  assert.match(wrapper, /handleProfileMediaUploadRequest\(safeEvent, deps\)/);
   assert.match(wrapper, /const notificationEventRequest = isNotificationEventRequest\(segments\)/);
   assert.match(wrapper, /const artistRequest = isArtistRequest\(segments\)/);
   assert.match(wrapper, /const videoFactoryRequest = isVideoFactoryRequest\(safeEvent\)/);
