@@ -154,7 +154,7 @@
       const velocity = Math.abs(dx) / elapsed;
       if (Math.abs(dx) <= Math.abs(dy) * 1.15) return;
       if (Math.abs(dx) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
-      performAction(current.player, dx < 0 ? 'previous' : 'next');
+      performAction(current.player, dx < 0 ? 'next' : 'previous');
       return;
     }
 
