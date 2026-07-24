@@ -58,31 +58,41 @@
     return hint;
   }
 
-  function showHint(player, direction) {
+  function actionDetails(action) {
+    if (action === 'shuffle') return { icon: '↑', label: 'Shuffle All', className: 'is-shuffle' };
+    if (action === 'previous') return { icon: '←', label: 'Previous Song', className: 'is-previous' };
+    return { icon: '→', label: 'Next Song', className: 'is-next' };
+  }
+
+  function showHint(player, action) {
     const hint = ensureHint(player);
-    const next = direction === 'next';
-    hint.classList.remove('is-next', 'is-previous', 'is-visible');
-    hint.classList.add(next ? 'is-next' : 'is-previous');
-    hint.querySelector('i').textContent = next ? '↑' : '↓';
-    hint.querySelector('strong').textContent = next ? 'Next song' : 'Previous song';
+    const details = actionDetails(action);
+    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-visible');
+    hint.classList.add(details.className);
+    hint.querySelector('i').textContent = details.icon;
+    hint.querySelector('strong').textContent = details.label;
     requestAnimationFrame(() => hint.classList.add('is-visible'));
     clearTimeout(hintTimer);
     hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 520);
   }
 
-  function switchSong(player, direction) {
+  function performAction(player, action) {
     const now = Date.now();
     if (now - lastSwitchAt < COOLDOWN_MS) return;
-    lastSwitchAt = now;
 
-    const selector = direction === 'next' ? '[data-next]' : '[data-prev]';
+    const selector = action === 'shuffle'
+      ? '[data-li-shuffle]'
+      : action === 'previous'
+        ? '[data-prev]'
+        : '[data-next]';
     const control = player.querySelector(selector);
     if (!control) return;
 
-    showHint(player, direction);
-    player.classList.remove('is-swipe-next', 'is-swipe-previous');
-    player.classList.add(direction === 'next' ? 'is-swipe-next' : 'is-swipe-previous');
-    window.setTimeout(() => player.classList.remove('is-swipe-next', 'is-swipe-previous'), 280);
+    lastSwitchAt = now;
+    showHint(player, action);
+    player.classList.remove('is-swipe-next', 'is-swipe-previous', 'is-swipe-shuffle');
+    player.classList.add(`is-swipe-${action}`);
+    window.setTimeout(() => player.classList.remove('is-swipe-next', 'is-swipe-previous', 'is-swipe-shuffle'), 280);
 
     try { navigator.vibrate?.(12); } catch (_) {}
     control.click();
@@ -105,8 +115,7 @@
       lastX: touch.clientX,
       lastY: touch.clientY,
       startedAt: performance.now(),
-      axis: '',
-      cancelled: false
+      axis: ''
     };
   }, { passive: true });
 
@@ -123,17 +132,16 @@
 
     if (!gesture.axis && Math.max(absX, absY) >= AXIS_LOCK_DISTANCE) {
       gesture.axis = absY > absX * 1.15 ? 'vertical' : 'horizontal';
-      if (gesture.axis !== 'vertical') gesture.cancelled = true;
     }
 
-    if (gesture.axis === 'vertical' && !gesture.cancelled) event.preventDefault();
+    if (gesture.axis) event.preventDefault();
   }, { passive: false });
 
   app.addEventListener('touchend', event => {
     if (!gesture) return;
     const current = gesture;
     resetGesture();
-    if (current.cancelled || current.axis !== 'vertical' || activePlayer() !== current.player) return;
+    if (!current.axis || activePlayer() !== current.player) return;
 
     const touch = event.changedTouches?.[0];
     const endY = touch ? touch.clientY : current.lastY;
@@ -141,12 +149,19 @@
     const dy = endY - current.startY;
     const dx = endX - current.startX;
     const elapsed = Math.max(1, performance.now() - current.startedAt);
-    const velocity = Math.abs(dy) / elapsed;
 
+    if (current.axis === 'horizontal') {
+      const velocity = Math.abs(dx) / elapsed;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.15) return;
+      if (Math.abs(dx) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
+      performAction(current.player, dx < 0 ? 'previous' : 'next');
+      return;
+    }
+
+    const velocity = Math.abs(dy) / elapsed;
     if (Math.abs(dy) <= Math.abs(dx) * 1.15) return;
     if (Math.abs(dy) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
-
-    switchSong(current.player, dy < 0 ? 'next' : 'previous');
+    if (dy < 0) performAction(current.player, 'shuffle');
   }, { passive: true });
 
   app.addEventListener('touchcancel', resetGesture, { passive: true });
