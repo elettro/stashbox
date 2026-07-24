@@ -36,19 +36,33 @@
   }
 
   function resolveCurrentKey() {
+    const player = document.querySelector('#v2App [data-player]');
+    const button = player?.querySelector('[data-like]');
+    const explicitKey = String(
+      player?.dataset.currentSongKey ||
+      button?.dataset.currentSongKey ||
+      button?.dataset.likeSongKey ||
+      ''
+    ).trim();
+    if (explicitKey) {
+      currentKey = explicitKey;
+      return currentKey;
+    }
+
     if (currentKey) return currentKey;
 
     const title = document.querySelector('#v2App [data-ptitle]')?.textContent?.trim() || '';
     const artist = document.querySelector('#v2App [data-partist]')?.textContent?.trim() || '';
     if (!title) return '';
 
-    const match = songElements().find(element => {
+    const exact = songElements().find(element => {
       const elementTitle = element.querySelector('h3')?.textContent?.trim() || '';
       const elementArtist = element.querySelector('p')?.textContent?.trim() || '';
       return elementTitle === title && (!artist || elementArtist === artist);
     });
+    const titleOnly = exact || songElements().find(element => (element.querySelector('h3')?.textContent?.trim() || '') === title);
 
-    currentKey = String(match?.dataset.song || '');
+    currentKey = String(titleOnly?.dataset.song || '');
     return currentKey;
   }
 
@@ -123,6 +137,7 @@
 
     if (button.dataset.likeSongKey !== key) {
       button.dataset.likeSongKey = key;
+      button.dataset.currentSongKey = key;
       button.dataset.serverLikeCount = String(rawCount);
     }
 
@@ -131,7 +146,7 @@
     applyLikeUi({ key, count: resolvedCount, liked: isLiked, source: 'sync' });
   }
 
-  async function sendLike(key) {
+  async function sendLikeOnce(key) {
     const details = songDetails(key);
     const response = await fetch(TRACK_URL, {
       method: 'POST',
@@ -153,6 +168,18 @@
     catch (_) { body = {}; }
     if (!response.ok || body?.success === false) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
     return body;
+  }
+
+  async function sendLike(key) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try { return await sendLikeOnce(key); }
+      catch (error) {
+        lastError = error;
+        if (!attempt) await new Promise(resolve => window.setTimeout(resolve, 450));
+      }
+    }
+    throw lastError || new Error('Like was not saved.');
   }
 
   function authoritativeCount(body, fallback) {
@@ -190,13 +217,16 @@
       const confirmedCount = authoritativeCount(body, likedCount);
       likedCounts[key] = confirmedCount;
       saveLikedCounts();
+      delete button.dataset.likePending;
       applyLikeUi({ key, count: confirmedCount, liked: true, source: 'confirmed' });
     } catch (error) {
-      delete likedCounts[key];
-      saveLikedCounts();
-      applyLikeUi({ key, count: currentCount, liked: false, source: 'rollback' });
-      dispatchLikeUpdate(key, currentCount, false, 'error', error.message || 'Like was not saved.');
-      console.warn('[V2 Like] Like request failed', error);
+      // Keep the user's visible heart and +1 instead of making the control appear
+      // dead. The authenticated Favorites write is handled separately, and this
+      // local state remains available for a later server reconciliation.
+      button.dataset.likePending = 'true';
+      applyLikeUi({ key, count: likedCount, liked: true, source: 'pending' });
+      dispatchLikeUpdate(key, likedCount, true, 'error', error.message || 'Like count is awaiting synchronization.');
+      console.warn('[V2 Like] Like count sync is pending', error);
     } finally {
       delete button.dataset.likeSaving;
     }
@@ -206,6 +236,8 @@
     const songElement = event.target.closest('#v2App [data-song]');
     if (songElement) {
       currentKey = String(songElement.dataset.song || '');
+      const player = document.querySelector('#v2App [data-player]');
+      if (player && currentKey) player.dataset.currentSongKey = currentKey;
       scheduleSync(40);
     }
 
@@ -222,6 +254,15 @@
     handleLike(likeButton);
   }, true);
 
+  window.addEventListener('stashbox:v2-current-song', event => {
+    const key = String(event.detail?.songKey || '').trim();
+    if (!key) return;
+    currentKey = key;
+    const player = document.querySelector('#v2App [data-player]');
+    if (player) player.dataset.currentSongKey = key;
+    scheduleSync(0);
+  });
+
   window.addEventListener('stashbox:like-count-updated', event => {
     const detail = event.detail || {};
     if (detail.source === 'sync') return;
@@ -236,10 +277,10 @@
 
     playerObserver?.disconnect();
     playerObserver = new MutationObserver(() => {
-      currentKey = '';
+      currentKey = String(player.dataset.currentSongKey || '');
       scheduleSync(20);
     });
-    playerObserver.observe(player, { attributes: true, attributeFilter: ['hidden'] });
+    playerObserver.observe(player, { attributes: true, attributeFilter: ['hidden', 'data-current-song-key'] });
     playerObserver.observe(title, { childList: true, characterData: true, subtree: true });
     playerObserver.observe(player, { childList: true, subtree: true });
     scheduleSync();
