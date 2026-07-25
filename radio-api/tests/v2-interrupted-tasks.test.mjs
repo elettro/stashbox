@@ -37,11 +37,12 @@ test('artwork remains latched until an image or video is ready', () => {
 });
 
 test('alternate player is a separate route using the same functional engine', () => {
-  assert.match(alt, /alt-player-complete-20260725-80/);
+  assert.match(alt, /alt-vec-badge-idempotent-20260725-81/);
   assert.match(alt, /canonical" href="https:\/\/stashbox\.com\/radio\/dev\/v2\/alt-player\//);
   assert.match(alt, /v2-session-manager\.js\?v=20260725-session80/);
   assert.match(alt, /v2-recovery\.js/);
-  assert.match(alt, /v2-vec-player-controller\.js/);
+  assert.match(alt, /v2-viewer-overlay\.js\?v=20260725-vecbadge81/);
+  assert.match(alt, /v2-vec-player-controller\.js\?v=20260725-vecbadge81/);
   assert.match(alt, /v2-mobile-player-swipe\.js\?v=20260725-flick80/);
   assert.match(alt, /alt-player\.css\?v=20260725-alt80/);
   assert.match(alt, /alt-player\.js\?v=20260725-alt80/);
