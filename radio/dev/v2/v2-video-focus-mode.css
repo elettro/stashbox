@@ -68,11 +68,15 @@
 .v2-player.is-video-focus-mode .v2-li-merch-tray,
 .v2-player.is-video-focus-mode .v2-vec-clip-commerce,
 .v2-player.is-video-focus-mode .v2-mobile-vec-status,
-.v2-player.is-video-focus-mode .v2-player-swipe-hint,
 .v2-player.is-video-focus-mode .v2-swipe-hint {
   opacity: .25 !important;
   pointer-events: none !important;
   transition: opacity .28s ease !important;
+}
+
+.v2-player.is-video-focus-mode .v2-player-swipe-hint.is-visible {
+  opacity: 1 !important;
+  pointer-events: none !important;
 }
 
 .v2-player.is-video-focus-mode .v2-player-shade {
@@ -107,10 +111,11 @@
   .v2-player.is-video-focus-mode .v2-li-merch-tray,
   .v2-player.is-video-focus-mode .v2-vec-clip-commerce,
   .v2-player.is-video-focus-mode .v2-mobile-vec-status,
-  .v2-player.is-video-focus-mode .v2-player-swipe-hint,
   .v2-player.is-video-focus-mode .v2-swipe-hint,
   .v2-player.is-video-focus-mode .v2-player-shade,
-  .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after {
+  .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after,
+  .v2-player .v2-player-swipe-hint,
+  .v2-interface-restore-hint {
     transition: none !important;
   }
 }
