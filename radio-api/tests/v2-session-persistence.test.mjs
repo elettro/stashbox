@@ -17,7 +17,8 @@ test('V2 loads the repaired session manager before interface auth modules', () =
   assert.ok(managerPosition > -1, 'Missing V2 session manager');
   assert.ok(managerPosition < recoveryPosition, 'Session manager must initialize before the player is rendered');
   assert.ok(managerPosition < authPosition, 'Session manager must initialize before authentication UI');
-  assert.match(index, /interrupted-tasks-complete-20260725-79/);
+  assert.match(index, /interrupted-tasks-complete-20260725-80/);
+  assert.match(index, /v2-session-manager\.js\?v=20260725-session80/);
 });
 
 test('session manager renews Cognito tokens and preserves the refresh token', () => {
