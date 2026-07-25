@@ -257,10 +257,6 @@
     logout: () => clearInvalidSession('manual-logout')
   };
 
-  window.addEventListener('stashbox:v2-auth-changed', event => {
-    if (event.detail?.reason === 'session-refresh') return;
-    if (hasSession()) resume('auth-change-refresh');
-  });
   window.addEventListener('storage', event => {
     if (!event.key || event.key === TOKEN_KEY) resume('storage-resume');
   });
