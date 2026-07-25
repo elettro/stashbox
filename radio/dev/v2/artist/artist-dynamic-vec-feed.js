@@ -146,8 +146,12 @@
     if (cached) return inflateCached(cached, songs);
 
     const feed = (await mapWithConcurrency(songs, async song => {
-      const body = await json(`${RECIPE_URL}?song_key=${encodeURIComponent(song.song_key)}`);
-      return { song, vecStamp: recipeTimestamp(body) };
+      let vecStamp = 0;
+      try {
+        const body = await json(`${RECIPE_URL}?song_key=${encodeURIComponent(song.song_key)}`);
+        vecStamp = recipeTimestamp(body);
+      } catch (_) {}
+      return { song, vecStamp };
     })).filter(Boolean);
 
     feed.sort((a, b) =>
@@ -227,6 +231,7 @@
     } catch (error) {
       console.error('[Artist Dynamic VEC Feed]', error);
       trigger.title = error.message || 'The fresh artist feed could not be built.';
+    } finally {
       trigger.innerHTML = original;
       trigger.disabled = false;
       trigger.removeAttribute('aria-busy');
