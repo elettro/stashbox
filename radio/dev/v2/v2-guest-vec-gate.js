@@ -8,7 +8,9 @@
 
   function loggedIn() {
     try {
-      return Boolean(JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null')?.accessToken);
+      if (window.StashboxV2Session?.hasSession) return window.StashboxV2Session.hasSession();
+      const tokens = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {};
+      return Boolean(tokens.accessToken || tokens.refreshToken);
     } catch (_) {
       return false;
     }
@@ -68,7 +70,9 @@
   window.addEventListener('storage', event => {
     if (!event.key || event.key === TOKEN_KEY) sync();
   });
+  window.addEventListener('stashbox:v2-auth-changed', sync);
+  window.addEventListener('stashbox:v2-session-changed', sync);
 
-  window.setInterval(sync, 500);
+  window.setInterval(sync, 1000);
   sync();
 })();
