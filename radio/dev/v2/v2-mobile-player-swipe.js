@@ -26,8 +26,12 @@
 
   function activePlayer() {
     const player = app.querySelector('[data-player]');
-    if (!player || player.hidden || !player.classList.contains('is-logged-in-player')) return null;
+    if (!player || player.hidden) return null;
     return player;
+  }
+
+  function allowsSongNavigation(player) {
+    return Boolean(player?.classList.contains('is-logged-in-player') && loggedIn());
   }
 
   function isInteractiveTarget(target) {
@@ -98,18 +102,28 @@
     control.click();
   }
 
+  function togglePlayerOverlays(player) {
+    if (!player) return;
+    const active = player.classList.toggle('is-video-focus-mode');
+    try { navigator.vibrate?.(active ? [10, 24, 10] : 14); } catch (_) {}
+    window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
+      detail: { active, source: 'flick-down' }
+    }));
+  }
+
   function resetGesture() {
     gesture = null;
   }
 
   app.addEventListener('touchstart', event => {
-    if (!MOBILE.matches || !loggedIn() || event.touches.length !== 1) return resetGesture();
+    if (!MOBILE.matches || event.touches.length !== 1) return resetGesture();
     const player = activePlayer();
     if (!player || !player.contains(event.target) || isInteractiveTarget(event.target)) return resetGesture();
 
     const touch = event.touches[0];
     gesture = {
       player,
+      allowNavigation: allowsSongNavigation(player),
       startX: touch.clientX,
       startY: touch.clientY,
       lastX: touch.clientX,
@@ -151,6 +165,7 @@
     const elapsed = Math.max(1, performance.now() - current.startedAt);
 
     if (current.axis === 'horizontal') {
+      if (!current.allowNavigation) return;
       const velocity = Math.abs(dx) / elapsed;
       if (Math.abs(dx) <= Math.abs(dy) * 1.15) return;
       if (Math.abs(dx) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
@@ -161,8 +176,25 @@
     const velocity = Math.abs(dy) / elapsed;
     if (Math.abs(dy) <= Math.abs(dx) * 1.15) return;
     if (Math.abs(dy) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
-    if (dy < 0) performAction(current.player, 'shuffle');
+
+    if (dy > 0) {
+      togglePlayerOverlays(current.player);
+      return;
+    }
+
+    if (current.allowNavigation) performAction(current.player, 'shuffle');
   }, { passive: true });
 
   app.addEventListener('touchcancel', resetGesture, { passive: true });
+
+  const observer = new MutationObserver(() => {
+    const player = app.querySelector('[data-player]');
+    if (player?.hidden) player.classList.remove('is-video-focus-mode');
+  });
+
+  observer.observe(app, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['hidden']
+  });
 })();
