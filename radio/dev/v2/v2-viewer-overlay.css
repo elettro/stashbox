@@ -1,0 +1,76 @@
+@media (max-width: 699px) {
+  .v2-player .viewer-overlay-left {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 14px;
+    z-index: 44;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    width: max-content;
+    max-width: calc(100% - 96px);
+    pointer-events: none;
+  }
+
+  .v2-player .viewer-overlay-left > * {
+    pointer-events: auto;
+  }
+
+  .v2-player .viewer-overlay-left .v2-mobile-player-back {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 40px;
+    margin: 0 !important;
+  }
+
+  .v2-player #viewer-vec-status {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+    width: auto;
+    max-width: max-content;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .v2-player .viewer-action-rail,
+  .v2-player .v2-li-player-rail.viewer-action-rail {
+    position: absolute !important;
+    top: 29% !important;
+    right: 18px !important;
+    bottom: auto !important;
+    left: auto !important;
+    z-index: 30 !important;
+    transform: none !important;
+  }
+
+  .v2-player .v2-player-header {
+    pointer-events: none;
+  }
+
+  .v2-player .v2-player-header .v2-li-player-head-actions,
+  .v2-player .v2-player-header button,
+  .v2-player .v2-player-header a {
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 699px) and (orientation: landscape) {
+  .v2-player .viewer-overlay-left {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: max(14px, env(safe-area-inset-left, 0px));
+    gap: 9px;
+  }
+
+  .v2-player .viewer-action-rail,
+  .v2-player .v2-li-player-rail.viewer-action-rail {
+    right: max(18px, env(safe-area-inset-right, 0px)) !important;
+  }
+}
