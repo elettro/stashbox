@@ -17,11 +17,14 @@
   let lastModeChangeAt = 0;
   let hintTimer = 0;
   let cinemaPeekTimer = 0;
+  let observedPlayer = null;
+  let playerObserver = null;
 
   function loggedIn() {
     try {
+      if (window.StashboxV2Session?.hasSession) return window.StashboxV2Session.hasSession();
       const tokens = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {};
-      return Boolean(tokens.accessToken);
+      return Boolean(tokens.accessToken || tokens.refreshToken);
     } catch (_) {
       return false;
     }
@@ -34,7 +37,7 @@
   }
 
   function allowsSongNavigation(player) {
-    return Boolean(player?.classList.contains('is-logged-in-player') && loggedIn());
+    return Boolean(player && loggedIn() && player.querySelector('[data-prev]') && player.querySelector('[data-next]'));
   }
 
   function isInteractiveTarget(target) {
@@ -123,6 +126,16 @@
     hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 760);
   }
 
+  function shuffleFallback() {
+    const cards = [...app.querySelectorAll('[data-song]')].filter(card => !card.hidden);
+    if (!cards.length) return false;
+    const currentTitle = String(activePlayer()?.querySelector('[data-ptitle]')?.textContent || '').trim().toLowerCase();
+    const choices = cards.filter(card => String(card.querySelector('h3')?.textContent || '').trim().toLowerCase() !== currentTitle);
+    const pool = choices.length ? choices : cards;
+    pool[Math.floor(Math.random() * pool.length)]?.click();
+    return true;
+  }
+
   function performAction(player, action) {
     const now = Date.now();
     if (now - lastSwitchAt < COOLDOWN_MS) return;
@@ -133,7 +146,8 @@
         ? '[data-prev]'
         : '[data-next]';
     const control = player.querySelector(selector);
-    if (!control) return;
+    if (!control && action !== 'shuffle') return;
+    if (!control && !shuffleFallback()) return;
 
     lastSwitchAt = now;
     showHint(player, action);
@@ -142,7 +156,7 @@
     window.setTimeout(() => player.classList.remove('is-swipe-next', 'is-swipe-previous', 'is-swipe-shuffle'), 280);
 
     try { navigator.vibrate?.(12); } catch (_) {}
-    control.click();
+    control?.click();
   }
 
   function clearCinemaPeek(player) {
@@ -164,11 +178,7 @@
       navigator.vibrate?.(mode === 'focus' ? [10, 22, 10] : mode === 'cinema' ? [9, 18, 9, 18, 9] : 14);
     } catch (_) {}
     window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
-      detail: {
-        active: mode !== 'full',
-        mode,
-        source
-      }
+      detail: { active: mode !== 'full', mode, source }
     }));
     window.dispatchEvent(new CustomEvent('stashbox:player-view-mode-change', {
       detail: { mode, source }
@@ -176,6 +186,7 @@
   }
 
   function cyclePlayerMode(player) {
+    if (Date.now() - lastModeChangeAt < 320) return;
     applyPlayerMode(player, nextMode(currentMode(player)));
   }
 
@@ -192,9 +203,22 @@
     gesture = null;
   }
 
+  function observePlayer(player) {
+    if (!player || player === observedPlayer) return;
+    playerObserver?.disconnect();
+    observedPlayer = player;
+    playerObserver = new MutationObserver(() => {
+      if (player.hidden) applyPlayerMode(player, 'full', { announce: false, source: 'player-close' });
+      syncModeHint(player);
+    });
+    playerObserver.observe(player, { attributes: true, attributeFilter: ['hidden'] });
+    syncModeHint(player);
+  }
+
   app.addEventListener('touchstart', event => {
     if (!MOBILE.matches || event.touches.length !== 1) return resetGesture();
     const player = activePlayer();
+    observePlayer(player);
     if (!player || !player.contains(event.target) || isInteractiveTarget(event.target)) return resetGesture();
 
     const touch = event.touches[0];
@@ -272,17 +296,14 @@
     revealCinemaControls(player);
   });
 
-  const observer = new MutationObserver(() => {
+  window.addEventListener('blur', resetGesture);
+  window.addEventListener('pagehide', resetGesture);
+  window.addEventListener('stashbox:v2-session-changed', () => observePlayer(activePlayer()));
+
+  const installTimer = window.setInterval(() => {
     const player = app.querySelector('[data-player]');
     if (!player) return;
-    if (player.hidden) applyPlayerMode(player, 'full', { announce: false, source: 'player-close' });
-    syncModeHint(player);
-  });
-
-  observer.observe(app, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['hidden']
-  });
+    observePlayer(player);
+    window.clearInterval(installTimer);
+  }, 50);
 })();
