@@ -96,6 +96,51 @@ body.v2-alt-player {
 }
 
 @media (min-width: 700px) {
+  .v2-alt-player .v2-player-header {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .v2-alt-player .v2-player-header > [data-close-player],
+  .v2-alt-player .v2-player-header > [data-close] {
+    order: 1;
+    flex: 0 0 46px;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-alt-desktop-vec-badge,
+  .v2-alt-player .v2-player-header > #viewer-vec-status,
+  .v2-alt-player .v2-player-header > [data-mobile-vec-status] {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    order: 2;
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: max-content !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-player-mark {
+    order: 3;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-player-head-actions {
+    order: 4;
+    margin-left: auto;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-li-player-head-actions {
+    order: 5;
+    margin-left: 0;
+  }
+
   .v2-alt-player .v2-player-backdrop {
     inset: 0 !important;
     left: 0 !important;
