@@ -62,22 +62,43 @@
     return hint;
   }
 
+  function ensureRestoreHint(player) {
+    let hint = player.querySelector('[data-interface-restore-hint]');
+    if (hint) return hint;
+    hint = document.createElement('div');
+    hint.className = 'v2-interface-restore-hint';
+    hint.dataset.interfaceRestoreHint = 'true';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.innerHTML = '<i aria-hidden="true">↓</i><strong>Flick down to restore interface</strong>';
+    player.appendChild(hint);
+    return hint;
+  }
+
+  function syncRestoreHint(player) {
+    const hint = ensureRestoreHint(player);
+    const active = player.classList.contains('is-video-focus-mode');
+    hint.classList.toggle('is-visible', active);
+    hint.setAttribute('aria-hidden', active ? 'false' : 'true');
+  }
+
   function actionDetails(action) {
     if (action === 'shuffle') return { icon: '↑', label: 'Shuffle All', className: 'is-shuffle' };
     if (action === 'previous') return { icon: '←', label: 'Previous Song', className: 'is-previous' };
+    if (action === 'focus-on') return { icon: '↓', label: 'Interface Dimmed', className: 'is-focus-on' };
+    if (action === 'focus-off') return { icon: '↓', label: 'Interface Restored', className: 'is-focus-off' };
     return { icon: '→', label: 'Next Song', className: 'is-next' };
   }
 
   function showHint(player, action) {
     const hint = ensureHint(player);
     const details = actionDetails(action);
-    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-visible');
+    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-focus-off', 'is-visible');
     hint.classList.add(details.className);
     hint.querySelector('i').textContent = details.icon;
     hint.querySelector('strong').textContent = details.label;
     requestAnimationFrame(() => hint.classList.add('is-visible'));
     clearTimeout(hintTimer);
-    hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 520);
+    hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 720);
   }
 
   function performAction(player, action) {
@@ -105,6 +126,8 @@
   function togglePlayerOverlays(player) {
     if (!player) return;
     const active = player.classList.toggle('is-video-focus-mode');
+    syncRestoreHint(player);
+    showHint(player, active ? 'focus-on' : 'focus-off');
     try { navigator.vibrate?.(active ? [10, 24, 10] : 14); } catch (_) {}
     window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
       detail: { active, source: 'flick-down' }
@@ -189,10 +212,13 @@
 
   const observer = new MutationObserver(() => {
     const player = app.querySelector('[data-player]');
-    if (player?.hidden) player.classList.remove('is-video-focus-mode');
+    if (!player) return;
+    if (player.hidden) player.classList.remove('is-video-focus-mode');
+    syncRestoreHint(player);
   });
 
   observer.observe(app, {
+    childList: true,
     subtree: true,
     attributes: true,
     attributeFilter: ['hidden']
