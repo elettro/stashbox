@@ -73,7 +73,7 @@ Resources:
         - COGNITO
       AccessTokenValidity: 15
       IdTokenValidity: 15
-      RefreshTokenValidity: 30
+      RefreshTokenValidity: 365
       TokenValidityUnits:
         AccessToken: minutes
         IdToken: minutes
