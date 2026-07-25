@@ -104,6 +104,11 @@
       </article>`;
   }
 
+  function isVecRow(row) {
+    return [...(row?.querySelectorAll('.v2-feature-label') || [])]
+      .some(label => /^(Fresh VEC|Recently Added)$/i.test(clean(label.textContent)));
+  }
+
   function updateCarousel(section) {
     const shell = section?.querySelector('[data-carousel-shell]');
     const row = shell?.querySelector('[data-carousel-row]');
@@ -128,7 +133,7 @@
   function install() {
     if (installed || app.querySelector('[data-featured-songs-section]')) return true;
 
-    const latestRow = app.querySelector('.v2-featured-row');
+    const latestRow = [...app.querySelectorAll('.v2-featured-row')].find(isVecRow);
     const latestSection = latestRow?.closest('.v2-section');
     const songs = collectSongs();
     if (!latestRow || !latestSection || songs.length < 2) return false;
@@ -172,8 +177,8 @@
   let attempts = 0;
   const timer = window.setInterval(() => {
     attempts += 1;
-    const latestReady = Boolean(app.querySelector('.v2-featured-row .v2-feature-label'));
-    if ((latestReady && install()) || attempts >= 240) window.clearInterval(timer);
+    const vecReady = [...app.querySelectorAll('.v2-featured-row')].some(isVecRow);
+    if ((vecReady && install()) || attempts >= 240) window.clearInterval(timer);
   }, 50);
 
   window.StashboxFeaturedLatestSplit = { install };
