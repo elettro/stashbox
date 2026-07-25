@@ -10,10 +10,13 @@
   const MIN_VELOCITY = 0.28;
   const AXIS_LOCK_DISTANCE = 12;
   const COOLDOWN_MS = 650;
+  const VIEW_MODES = ['full', 'focus', 'cinema'];
 
   let gesture = null;
   let lastSwitchAt = 0;
+  let lastModeChangeAt = 0;
   let hintTimer = 0;
+  let cinemaPeekTimer = 0;
 
   function loggedIn() {
     try {
@@ -62,43 +65,62 @@
     return hint;
   }
 
-  function ensureRestoreHint(player) {
+  function ensureModeHint(player) {
     let hint = player.querySelector('[data-interface-restore-hint]');
     if (hint) return hint;
     hint = document.createElement('div');
     hint.className = 'v2-interface-restore-hint';
     hint.dataset.interfaceRestoreHint = 'true';
     hint.setAttribute('aria-hidden', 'true');
-    hint.innerHTML = '<i aria-hidden="true">↓</i><strong>Flick down to restore interface</strong>';
+    hint.innerHTML = '<i aria-hidden="true">↓</i><strong></strong>';
     player.appendChild(hint);
     return hint;
   }
 
-  function syncRestoreHint(player) {
-    const hint = ensureRestoreHint(player);
-    const active = player.classList.contains('is-video-focus-mode');
-    hint.classList.toggle('is-visible', active);
-    hint.setAttribute('aria-hidden', active ? 'false' : 'true');
+  function currentMode(player) {
+    if (player?.classList.contains('is-video-cinema-mode')) return 'cinema';
+    if (player?.classList.contains('is-video-focus-mode')) return 'focus';
+    return 'full';
+  }
+
+  function nextMode(mode) {
+    const index = VIEW_MODES.indexOf(mode);
+    return VIEW_MODES[(index + 1 + VIEW_MODES.length) % VIEW_MODES.length];
+  }
+
+  function syncModeHint(player) {
+    const hint = ensureModeHint(player);
+    const mode = currentMode(player);
+    const visible = mode !== 'full';
+    const label = mode === 'focus'
+      ? 'Flick down for Cinema Mode'
+      : mode === 'cinema'
+        ? 'Flick down for Full Interface'
+        : '';
+    hint.querySelector('strong').textContent = label;
+    hint.classList.toggle('is-visible', visible);
+    hint.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
 
   function actionDetails(action) {
     if (action === 'shuffle') return { icon: '↑', label: 'Shuffle All', className: 'is-shuffle' };
     if (action === 'previous') return { icon: '←', label: 'Previous Song', className: 'is-previous' };
-    if (action === 'focus-on') return { icon: '↓', label: 'Interface Dimmed', className: 'is-focus-on' };
-    if (action === 'focus-off') return { icon: '↓', label: 'Interface Restored', className: 'is-focus-off' };
+    if (action === 'mode-focus') return { icon: '↓', label: 'Focus Mode', className: 'is-focus-on' };
+    if (action === 'mode-cinema') return { icon: '↓', label: 'Cinema Mode', className: 'is-cinema' };
+    if (action === 'mode-full') return { icon: '↓', label: 'Full Interface', className: 'is-focus-off' };
     return { icon: '→', label: 'Next Song', className: 'is-next' };
   }
 
   function showHint(player, action) {
     const hint = ensureHint(player);
     const details = actionDetails(action);
-    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-focus-off', 'is-visible');
+    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-cinema', 'is-focus-off', 'is-visible');
     hint.classList.add(details.className);
     hint.querySelector('i').textContent = details.icon;
     hint.querySelector('strong').textContent = details.label;
     requestAnimationFrame(() => hint.classList.add('is-visible'));
     clearTimeout(hintTimer);
-    hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 720);
+    hintTimer = window.setTimeout(() => hint.classList.remove('is-visible'), 760);
   }
 
   function performAction(player, action) {
@@ -123,15 +145,47 @@
     control.click();
   }
 
-  function togglePlayerOverlays(player) {
+  function clearCinemaPeek(player) {
+    clearTimeout(cinemaPeekTimer);
+    player?.classList.remove('is-cinema-controls-peek');
+  }
+
+  function applyPlayerMode(player, mode, { announce = true, source = 'flick-down' } = {}) {
     if (!player) return;
-    const active = player.classList.toggle('is-video-focus-mode');
-    syncRestoreHint(player);
-    showHint(player, active ? 'focus-on' : 'focus-off');
-    try { navigator.vibrate?.(active ? [10, 24, 10] : 14); } catch (_) {}
+    clearCinemaPeek(player);
+    player.classList.remove('is-video-focus-mode', 'is-video-cinema-mode');
+    if (mode === 'focus') player.classList.add('is-video-focus-mode');
+    if (mode === 'cinema') player.classList.add('is-video-cinema-mode');
+    player.dataset.playerViewMode = mode;
+    lastModeChangeAt = Date.now();
+    syncModeHint(player);
+    if (announce) showHint(player, `mode-${mode}`);
+    try {
+      navigator.vibrate?.(mode === 'focus' ? [10, 22, 10] : mode === 'cinema' ? [9, 18, 9, 18, 9] : 14);
+    } catch (_) {}
     window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
-      detail: { active, source: 'flick-down' }
+      detail: {
+        active: mode !== 'full',
+        mode,
+        source
+      }
     }));
+    window.dispatchEvent(new CustomEvent('stashbox:player-view-mode-change', {
+      detail: { mode, source }
+    }));
+  }
+
+  function cyclePlayerMode(player) {
+    applyPlayerMode(player, nextMode(currentMode(player)));
+  }
+
+  function revealCinemaControls(player) {
+    if (!player?.classList.contains('is-video-cinema-mode')) return;
+    player.classList.add('is-cinema-controls-peek');
+    clearTimeout(cinemaPeekTimer);
+    cinemaPeekTimer = window.setTimeout(() => {
+      player.classList.remove('is-cinema-controls-peek');
+    }, 2400);
   }
 
   function resetGesture() {
@@ -201,7 +255,7 @@
     if (Math.abs(dy) < MIN_DISTANCE && velocity < MIN_VELOCITY) return;
 
     if (dy > 0) {
-      togglePlayerOverlays(current.player);
+      cyclePlayerMode(current.player);
       return;
     }
 
@@ -210,11 +264,19 @@
 
   app.addEventListener('touchcancel', resetGesture, { passive: true });
 
+  app.addEventListener('click', event => {
+    const player = activePlayer();
+    if (!player || !player.classList.contains('is-video-cinema-mode')) return;
+    if (!player.contains(event.target) || isInteractiveTarget(event.target)) return;
+    if (Date.now() - lastModeChangeAt < 500) return;
+    revealCinemaControls(player);
+  });
+
   const observer = new MutationObserver(() => {
     const player = app.querySelector('[data-player]');
     if (!player) return;
-    if (player.hidden) player.classList.remove('is-video-focus-mode');
-    syncRestoreHint(player);
+    if (player.hidden) applyPlayerMode(player, 'full', { announce: false, source: 'player-close' });
+    syncModeHint(player);
   });
 
   observer.observe(app, {
