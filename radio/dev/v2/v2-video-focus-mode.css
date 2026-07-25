@@ -48,7 +48,7 @@
 }
 
 .v2-player.is-video-focus-mode .v2-video-focus-toggle {
-  opacity: .62;
+  opacity: .15;
   border-color: rgba(255, 159, 10, .62);
   background: rgba(5, 6, 7, .66);
   color: #ffad2f;
@@ -62,38 +62,26 @@
   display: block;
 }
 
-.v2-player.is-video-focus-mode .v2-player-header > :not([data-close]):not([data-close-player]),
+.v2-player.is-video-focus-mode .v2-player-header > *,
 .v2-player.is-video-focus-mode .v2-player-content,
 .v2-player.is-video-focus-mode .v2-li-player-rail,
 .v2-player.is-video-focus-mode .v2-li-merch-tray,
 .v2-player.is-video-focus-mode .v2-vec-clip-commerce,
 .v2-player.is-video-focus-mode .v2-mobile-vec-status,
-.v2-player.is-video-focus-mode .v2-player-swipe-hint {
-  opacity: .035 !important;
+.v2-player.is-video-focus-mode .v2-player-swipe-hint,
+.v2-player.is-video-focus-mode .v2-swipe-hint {
+  opacity: .15 !important;
   pointer-events: none !important;
   transition: opacity .28s ease !important;
 }
 
-.v2-player.is-video-focus-mode .v2-player-header > [data-close],
-.v2-player.is-video-focus-mode .v2-player-header > [data-close-player] {
-  opacity: .13 !important;
-  transition: opacity .28s ease !important;
-}
-
-.v2-player.is-video-focus-mode .v2-player-header > [data-close]:hover,
-.v2-player.is-video-focus-mode .v2-player-header > [data-close]:focus-visible,
-.v2-player.is-video-focus-mode .v2-player-header > [data-close-player]:hover,
-.v2-player.is-video-focus-mode .v2-player-header > [data-close-player]:focus-visible {
-  opacity: .9 !important;
-}
-
 .v2-player.is-video-focus-mode .v2-player-shade {
-  opacity: .16 !important;
+  opacity: .15 !important;
   transition: opacity .28s ease !important;
 }
 
 .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after {
-  opacity: .08 !important;
+  opacity: 0 !important;
   transition: opacity .28s ease !important;
 }
 
@@ -119,6 +107,8 @@
   .v2-player.is-video-focus-mode .v2-li-merch-tray,
   .v2-player.is-video-focus-mode .v2-vec-clip-commerce,
   .v2-player.is-video-focus-mode .v2-mobile-vec-status,
+  .v2-player.is-video-focus-mode .v2-player-swipe-hint,
+  .v2-player.is-video-focus-mode .v2-swipe-hint,
   .v2-player.is-video-focus-mode .v2-player-shade,
   .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after {
     transition: none !important;
