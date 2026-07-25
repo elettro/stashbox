@@ -4,6 +4,7 @@
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   let lastAccessToken = '';
+  let loadedAccessToken = '';
   let accountName = '';
   let accountRequest = null;
 
@@ -29,6 +30,7 @@
   async function loadAccount() {
     const current = await freshTokens();
     if (!current.accessToken) return null;
+    if (current.accessToken === loadedAccessToken && accountName) return { display_name: accountName };
     if (accountRequest && current.accessToken === lastAccessToken) return accountRequest;
     lastAccessToken = current.accessToken;
     accountRequest = fetch(`${API_ROOT}/radio/me`, {
@@ -39,8 +41,10 @@
       }
     }).then(response => response.ok ? response.json() : null)
       .then(body => {
-        accountName = String(body?.user?.display_name || '').trim().split(/\s+/)[0] || 'Profile';
-        return body?.user || null;
+        const user = body?.user || null;
+        accountName = String(user?.display_name || '').trim().split(/\s+/)[0] || 'Profile';
+        loadedAccessToken = current.accessToken;
+        return user;
       })
       .catch(() => null)
       .finally(() => { accountRequest = null; });
@@ -61,6 +65,8 @@
         if (current && loggedIn()) current.textContent = accountName || 'Account';
       });
     } else {
+      loadedAccessToken = '';
+      accountName = '';
       delete button.dataset.v2ProfileEntry;
       if (button.textContent !== 'Log In') button.textContent = 'Log In';
     }
@@ -87,7 +93,7 @@
   const timer = window.setInterval(() => {
     attempts += 1;
     updateButton();
-    if (attempts >= 300) window.clearInterval(timer);
-  }, 1000);
+    if (attempts >= 60) window.clearInterval(timer);
+  }, 2000);
   updateButton();
 })();
