@@ -13,6 +13,12 @@
     pointer-events: none;
   }
 
+  .v2-player.is-logged-in-player .viewer-overlay-left {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
   .v2-player .viewer-overlay-left > * {
     pointer-events: auto;
   }
