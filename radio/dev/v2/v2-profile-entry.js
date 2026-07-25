@@ -13,11 +13,21 @@
   }
 
   function loggedIn() {
-    return Boolean(tokens().accessToken);
+    if (window.StashboxV2Session?.hasSession) return window.StashboxV2Session.hasSession();
+    const current = tokens();
+    return Boolean(current.accessToken || current.refreshToken);
+  }
+
+  async function freshTokens() {
+    if (window.StashboxV2Session?.ensureFresh) {
+      try { return await window.StashboxV2Session.ensureFresh({ reason: 'profile-entry-account' }); }
+      catch (_) {}
+    }
+    return tokens();
   }
 
   async function loadAccount() {
-    const current = tokens();
+    const current = await freshTokens();
     if (!current.accessToken) return null;
     if (accountRequest && current.accessToken === lastAccessToken) return accountRequest;
     lastAccessToken = current.accessToken;
@@ -45,10 +55,10 @@
     button.setAttribute('aria-label', active ? 'Open your Stashbox Radio profile' : 'Log in to Stashbox Radio');
     if (active) {
       button.dataset.v2ProfileEntry = 'true';
-      button.textContent = accountName || 'Profile';
+      button.textContent = accountName || 'Account';
       loadAccount().then(() => {
         const current = document.querySelector('#v2App .v2-header-login');
-        if (current && loggedIn()) current.textContent = accountName || 'Profile';
+        if (current && loggedIn()) current.textContent = accountName || 'Account';
       });
     } else {
       delete button.dataset.v2ProfileEntry;
@@ -66,13 +76,18 @@
   }, true);
 
   window.addEventListener('storage', event => {
-    if (event.key === TOKEN_KEY) updateButton();
+    if (!event.key || event.key === TOKEN_KEY) updateButton();
   });
+  window.addEventListener('stashbox:v2-auth-changed', updateButton);
+  window.addEventListener('stashbox:v2-session-changed', updateButton);
+  window.addEventListener('focus', updateButton);
+  window.addEventListener('pageshow', updateButton);
 
   let attempts = 0;
   const timer = window.setInterval(() => {
     attempts += 1;
     updateButton();
-    if (attempts >= 1200) window.clearInterval(timer);
-  }, 250);
+    if (attempts >= 300) window.clearInterval(timer);
+  }, 1000);
+  updateButton();
 })();
