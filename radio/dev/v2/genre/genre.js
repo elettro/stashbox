@@ -136,6 +136,9 @@
     const prioritized = sortSongs(songs.filter(matchesSourceArtist));
     const remaining = sortSongs(songs.filter(song => !matchesSourceArtist(song)));
     const artistLabel = sourceArtistName || prioritized[0]?.artist || sourceArtist;
+    const generalSection = prioritized.length
+      ? section('More from this genre', `${genre} Songs`, remaining)
+      : section('Complete genre catalog', `${genre} Songs`, remaining);
     document.title = `${genre} · Stashbox Radio V2`;
 
     app.innerHTML = `
@@ -152,7 +155,7 @@
       </section>
       <main class="genre-main">
         ${prioritized.length ? section('Your artist first', `${artistLabel} · ${genre}`, prioritized) : ''}
-        ${section(prioritized.length ? 'More from this genre' : 'Complete genre catalog', `${genre} Songs`, remaining.length ? remaining : prioritized)}
+        ${generalSection}
         ${songs.length ? '' : '<div class="genre-empty">No songs currently match this genre.</div>'}
       </main>`;
 
