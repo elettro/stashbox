@@ -159,6 +159,17 @@
     document.head.appendChild(style);
   }
 
+  function installPageEnhancements(configuration) {
+    if (configuration.key !== 'video-library') return;
+    const scriptId = 'stashboxVideoLibraryDuplicateManager';
+    if (document.getElementById(scriptId)) return;
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = '/radio/visual-experience/dev/duplicate-upload-manager.js?v=20260724-duplicate1';
+    script.async = true;
+    document.head.appendChild(script);
+  }
+
   function isLegacyNavigationHeader(element) {
     if (element.tagName !== 'HEADER' || element.id === HEADER_ID) return false;
     if (element.matches('.topbar, .admin-header, .visuals-admin-header, .radio-admin-macro-header, .stashbox-site-header')) return true;
@@ -235,6 +246,7 @@
     legacyHeaders.forEach(legacyHeader => legacyHeader.remove());
     document.body.insertBefore(header, document.body.firstChild);
     document.body.setAttribute('data-stashbox-dev-admin-header', configuration.key);
+    installPageEnhancements(configuration);
   }
 
   if (document.readyState === 'loading') {
