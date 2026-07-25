@@ -67,6 +67,49 @@
   color: #c3cbc6;
 }
 
+/* Keep both Video Factory columns and every render-history child inside the CMS shell. */
+.video-factory-page,
+.vf-shell,
+.vf-grid,
+.vf-panel,
+.vf-history-list,
+.vf-job-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vf-grid {
+  width: 100%;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.vf-grid > *,
+.vf-job-header > *,
+.vf-progress-meta > * {
+  min-width: 0;
+}
+
+.vf-job-card {
+  overflow: hidden;
+}
+
+.vf-history-toolbar {
+  width: 100%;
+}
+
+.vf-history-toolbar > * {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.vf-job-title,
+.vf-job-meta,
+.vf-job-error,
+.vf-progress-meta span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 760px) {
   .vf-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
