@@ -10,8 +10,9 @@
 
   function loggedIn() {
     try {
+      if (window.StashboxV2Session?.hasSession) return window.StashboxV2Session.hasSession();
       const tokens = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {};
-      return Boolean(tokens.accessToken);
+      return Boolean(tokens.accessToken || tokens.refreshToken);
     } catch (_) {
       return false;
     }
@@ -27,8 +28,8 @@
     }
 
     // The stable player controller watches the hidden attribute. Toggle it
-    // synchronously so the observer re-evaluates authentication without a
-    // visible repaint or interrupting the active audio element.
+    // synchronously so it re-evaluates authentication without replacing the
+    // audio element, changing playback time, or touching player mode classes.
     if (!player.hidden && !player.classList.contains('is-logged-in-player')) {
       player.hidden = true;
       player.hidden = false;
@@ -52,6 +53,7 @@
   window.addEventListener('pageshow', () => synchronize(true));
   window.addEventListener('focus', () => synchronize(true));
   window.addEventListener('stashbox:v2-auth-changed', () => synchronize(true));
+  window.addEventListener('stashbox:v2-session-changed', () => synchronize(true));
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) synchronize(true);
   });
