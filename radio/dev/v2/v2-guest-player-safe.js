@@ -259,7 +259,7 @@
 
   function showHint(player, action) {
     const details = action === 'shuffle'
-      ? { icon: '↓', label: 'Shuffle All' }
+      ? { icon: '↑', label: 'Shuffle All' }
       : action === 'previous'
         ? { icon: '←', label: 'Previous Song' }
         : { icon: '→', label: 'Next Song' };
@@ -395,7 +395,7 @@
       performGesture(current.player, current.type, dx > 0 ? 'next' : 'previous');
       return;
     }
-    if (absY > absX * 1.2 && dy > 0) performGesture(current.player, current.type, 'shuffle');
+    if (absY > absX * 1.2 && dy < 0) performGesture(current.player, current.type, 'shuffle');
   }, { passive: true });
 
   document.addEventListener('touchcancel', () => { gesture = null; }, { passive: true });
