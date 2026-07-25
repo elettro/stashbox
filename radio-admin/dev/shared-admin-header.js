@@ -13,6 +13,7 @@
     { key: 'artists', label: 'Artists', href: '/radio-admin/artists/dev/' },
     { key: 'notifications', label: 'Notifications', href: '/radio-admin/notifications/dev/' },
     { key: 'dashboard', label: 'Dashboard', href: '/radio/dashboard/dev/' },
+    { key: 'system-health', label: 'System Health', href: '/radio-admin/dev/system-health/' },
     { key: 'radio', label: 'Radio Dev', href: '/radio/dev/' },
     { key: 'radio-v2', label: 'Radio Dev 2.0', href: 'https://stashbox.com/radio/dev/v2/' }
   ];
@@ -30,6 +31,7 @@
     if (path.includes('/radio-admin/dev/video-factory/')) return { key: 'video-factory', title: 'Video Factory' };
     if (path.includes('/radio-admin/ads/dev/') || path.includes('/radio-admin/dev/ads/')) return { key: 'ads', title: 'Ads CMS' };
     if (path.includes('/radio-admin/notifications/dev/')) return { key: 'notifications', title: 'Notifications CMS' };
+    if (path.includes('/radio-admin/dev/system-health/')) return { key: 'system-health', title: 'System Health' };
     if (path.includes('/radio/dashboard/dev/') || path === '/radio-admin/dev/') return { key: 'dashboard', title: 'Dashboard' };
     return null;
   }
