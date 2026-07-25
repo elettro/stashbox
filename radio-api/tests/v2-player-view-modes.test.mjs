@@ -51,7 +51,7 @@ test('gesture observer is scoped to the player instead of the whole app subtree'
 });
 
 test('published V2 entry loads the current gesture build', () => {
-  assert.match(html, /interrupted-tasks-complete-20260725-80/);
+  assert.match(html, /vec-badge-idempotent-20260725-81/);
   assert.match(html, /v2-mobile-player-swipe\.js\?v=20260725-flick80/);
   assert.match(html, /v2-mobile-player-swipe\.css\?v=20260725-flick80/);
   assert.match(html, /v2-video-focus-mode\.css\?v=20260725-flick80/);
