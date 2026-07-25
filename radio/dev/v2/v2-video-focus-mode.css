@@ -48,7 +48,7 @@
 }
 
 .v2-player.is-video-focus-mode .v2-video-focus-toggle {
-  opacity: .15;
+  opacity: .25;
   border-color: rgba(255, 159, 10, .62);
   background: rgba(5, 6, 7, .66);
   color: #ffad2f;
@@ -70,13 +70,13 @@
 .v2-player.is-video-focus-mode .v2-mobile-vec-status,
 .v2-player.is-video-focus-mode .v2-player-swipe-hint,
 .v2-player.is-video-focus-mode .v2-swipe-hint {
-  opacity: .15 !important;
+  opacity: .25 !important;
   pointer-events: none !important;
   transition: opacity .28s ease !important;
 }
 
 .v2-player.is-video-focus-mode .v2-player-shade {
-  opacity: .15 !important;
+  opacity: .25 !important;
   transition: opacity .28s ease !important;
 }
 
