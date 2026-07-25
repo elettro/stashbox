@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio System Health · DEV</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="./system-health.css?v=20260724-health1" />
+</head>
+<body class="system-health-page">
+  <header class="topbar">
+    <a class="topbar-title-link" href="/radio-admin/dev/" aria-label="Return to Stashbox Radio DEV admin">
+      <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
+      <div class="radio-title-row">
+        <h1>System Health</h1>
+        <span class="dev-admin-badge">DEV</span>
+      </div>
+      <p class="radio-admin-meta">Live frontend, API, CMS, and media readiness</p>
+    </a>
+    <nav class="radio-admin-macro-nav" aria-label="Stashbox Radio admin tools">
+      <a href="/radio-admin/songs/dev/">Songs</a>
+      <a href="/radio/visual-experience/dev/">Video Library</a>
+      <a href="/radio-admin/dev/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/">Video Factory</a>
+      <a href="/radio-admin/ads/dev/">Ads</a>
+      <a href="/radio-admin/notifications/dev/">Notifications</a>
+      <a href="/radio/dashboard/dev/">Dashboard</a>
+      <a href="/radio-admin/dev/system-health/" aria-current="page">System Health</a>
+      <a href="/radio/dev/">Radio Dev</a>
+      <a href="/radio/dev/v2/">Radio Dev 2.0</a>
+    </nav>
+  </header>
+
+  <main class="shell health-shell">
+    <section class="card health-hero">
+      <div>
+        <p class="eyebrow">Stability control center</p>
+        <h2>Know which layer failed before troubleshooting begins.</h2>
+        <p>The dashboard runs read-only checks against the live V2 interface, core startup files, DEV song catalog, dashboard summary, Ads CMS, VEC, and Video Factory.</p>
+      </div>
+      <div class="health-overall" data-overall="checking">
+        <span class="health-dot"></span>
+        <div>
+          <small>Platform status</small>
+          <strong id="overallStatus">Checking</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="card health-controls" aria-label="System health controls">
+      <div class="health-token-control">
+        <label for="adminToken">DEV Admin Token</label>
+        <input id="adminToken" type="password" autocomplete="off" placeholder="Optional. Needed for protected CMS checks." />
+      </div>
+      <button id="saveToken" class="button" type="button">Save Token</button>
+      <button id="clearToken" class="health-button-secondary" type="button">Clear</button>
+      <button id="runChecks" class="button" type="button">Run All Checks</button>
+      <span id="lastChecked" class="health-last-checked">Not checked yet</span>
+    </section>
+
+    <section class="health-grid" aria-label="Platform health checks">
+      <article class="card health-card" data-check-card="v2-browser">
+        <div class="health-card-header"><div><p class="eyebrow">Listener experience</p><h2>Live V2 Browser</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Loads the real interface and waits for songs, player, and media readiness.</p>
+        <dl class="health-details"><div><dt>Build</dt><dd data-field="build">—</dd></div><div><dt>Songs</dt><dd data-field="songs">—</dd></div><div><dt>Startup</dt><dd data-field="startup">—</dd></div><div><dt>Catalog</dt><dd data-field="catalog">—</dd></div></dl>
+      </article>
+
+      <article class="card health-card" data-check-card="core-files">
+        <div class="health-card-header"><div><p class="eyebrow">Release contract</p><h2>Core Startup Files</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Confirms the boot guard, health signal, and core renderer are published and reachable.</p>
+        <div class="health-file-list" data-file-list></div>
+      </article>
+
+      <article class="card health-card" data-check-card="songs-api">
+        <div class="health-card-header"><div><p class="eyebrow">Public API</p><h2>DEV Song Catalog</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Checks the public DEV song response and visible catalog count.</p>
+        <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Visible songs</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
+      </article>
+
+      <article class="card health-card" data-check-card="dashboard-api">
+        <div class="health-card-header"><div><p class="eyebrow">Analytics API</p><h2>Dashboard Summary</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Checks event totals, event types, and top-song reporting.</p>
+        <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Events</dt><dd data-field="events">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
+      </article>
+
+      <article class="card health-card" data-check-card="ads-api">
+        <div class="health-card-header"><div><p class="eyebrow">Protected CMS</p><h2>Ads CMS</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Checks the protected DEV ads route when an admin token is saved.</p>
+        <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Records</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
+      </article>
+
+      <article class="card health-card" data-check-card="vec-api">
+        <div class="health-card-header"><div><p class="eyebrow">Protected CMS</p><h2>VEC Library</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Checks the protected DEV visuals folder route.</p>
+        <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Folders</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
+      </article>
+
+      <article class="card health-card" data-check-card="video-factory-api">
+        <div class="health-card-header"><div><p class="eyebrow">Protected CMS</p><h2>Video Factory</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Checks Video Factory summary access and job totals.</p>
+        <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Jobs</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
+      </article>
+    </section>
+
+    <section class="card health-notes">
+      <div><p class="eyebrow">Automated monitoring</p><h2>GitHub checks run every 15 minutes</h2></div>
+      <p>The repository monitor validates the V2 script contract, tests the TRUE DEV API and CMS routes, opens the live interface in Chromium, stores failure screenshots, and creates one GitHub incident issue until the platform recovers.</p>
+    </section>
+  </main>
+
+  <iframe id="v2HealthFrame" class="health-probe-frame" title="V2 health probe" aria-hidden="true"></iframe>
+  <script src="./system-health.js?v=20260724-health1"></script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260724-shared-health1" defer></script>
+</body>
+</html>
