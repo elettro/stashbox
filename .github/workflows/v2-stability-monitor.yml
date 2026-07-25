@@ -1,0 +1,160 @@
+name: V2 Stability Monitor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'radio/dev/v2/**'
+      - 'radio-api/scripts/validate-v2-entry.mjs'
+      - 'radio-api/scripts/smoke-test-v2-browser.mjs'
+      - '.github/workflows/v2-stability-monitor.yml'
+  schedule:
+    - cron: '*/15 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: v2-stability-monitor
+  cancel-in-progress: false
+
+jobs:
+  static-contract:
+    name: Validate V2 release contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate entry, required files, order, and syntax
+        run: node radio-api/scripts/validate-v2-entry.mjs
+
+  browser-smoke:
+    name: Test live V2 listener flow
+    needs: static-contract
+    runs-on: ubuntu-latest
+    env:
+      V2_URL: https://stashbox.com/radio/dev/v2/
+      V2_SMOKE_ATTEMPTS: '5'
+      V2_SMOKE_RETRY_DELAY_MS: '20000'
+      V2_SMOKE_TIMEOUT_MS: '30000'
+      REQUIRE_V2_BUILD_MATCH: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --package-lock=false playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Run live browser smoke test
+        run: node radio-api/scripts/smoke-test-v2-browser.mjs
+
+      - name: Upload V2 stability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-stability-${{ github.run_id }}
+          path: artifacts/v2-stability/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report-failure:
+    name: Report V2 monitor failure
+    needs:
+      - static-contract
+      - browser-smoke
+    if: ${{ always() && (needs.static-contract.result != 'success' || needs.browser-smoke.result != 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update stability incident
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '[Monitor] Stashbox Radio V2 stability failure';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              'The automated V2 stability monitor detected a failure.',
+              '',
+              `- Event: ${context.eventName}`,
+              `- Commit: ${context.sha}`,
+              `- Static contract: ${{ needs.static-contract.result }}`,
+              `- Live browser flow: ${{ needs.browser-smoke.result }}`,
+              `- Workflow run: ${runUrl}`,
+              '',
+              'The run artifact contains the browser report and a full-page screenshot when available.'
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find(issue => issue.title === title && !issue.pull_request);
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+            }
+
+  report-recovery:
+    name: Record V2 monitor recovery
+    needs:
+      - static-contract
+      - browser-smoke
+    if: ${{ always() && needs.static-contract.result == 'success' && needs.browser-smoke.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close an open stability incident
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '[Monitor] Stashbox Radio V2 stability failure';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find(issue => issue.title === title && !issue.pull_request);
+            if (!existing) return;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              body: `V2 passed the static contract and live browser flow again. Recovery run: ${runUrl}`
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              state: 'closed'
+            });
