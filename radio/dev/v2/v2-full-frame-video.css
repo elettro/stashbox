@@ -1,0 +1,9 @@
+/* Full-frame V2 player experiment: keep VEC images and video visible to the bottom edge. */
+.v2-player .v2-player-shade {
+  background: none !important;
+}
+
+.v2-player .v2-mobile-vec-stage::after {
+  background: none !important;
+  opacity: 0 !important;
+}
