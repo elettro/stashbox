@@ -50,7 +50,7 @@
   .v2-player .v2-li-player-rail.viewer-action-rail {
     position: absolute !important;
     top: 29% !important;
-    right: 2px !important;
+    right: -4px !important;
     bottom: auto !important;
     left: auto !important;
     z-index: 30 !important;
@@ -77,6 +77,6 @@
 
   .v2-player .viewer-action-rail,
   .v2-player .v2-li-player-rail.viewer-action-rail {
-    right: max(2px, env(safe-area-inset-right, 0px)) !important;
+    right: max(-4px, calc(env(safe-area-inset-right, 0px) - 4px)) !important;
   }
 }
