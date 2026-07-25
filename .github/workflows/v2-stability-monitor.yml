@@ -9,6 +9,7 @@ on:
       - 'radio/dev/v2/**'
       - 'radio-api/scripts/validate-v2-entry.mjs'
       - 'radio-api/scripts/smoke-test-v2-browser.mjs'
+      - 'radio-api/scripts/smoke-test-true-dev.mjs'
       - '.github/workflows/v2-stability-monitor.yml'
   schedule:
     - cron: '*/15 * * * *'
@@ -36,6 +37,25 @@ jobs:
 
       - name: Validate entry, required files, order, and syntax
         run: node radio-api/scripts/validate-v2-entry.mjs
+
+  api-smoke:
+    name: Test TRUE DEV API and CMS routes
+    runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      TRUE_DEV_SMOKE_TIMEOUT_MS: '15000'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run read-only TRUE DEV smoke test
+        run: node radio-api/scripts/smoke-test-true-dev.mjs
 
   browser-smoke:
     name: Test live V2 listener flow
@@ -74,11 +94,12 @@ jobs:
           retention-days: 14
 
   report-failure:
-    name: Report V2 monitor failure
+    name: Report platform monitor failure
     needs:
       - static-contract
+      - api-smoke
       - browser-smoke
-    if: ${{ always() && (needs.static-contract.result != 'success' || needs.browser-smoke.result != 'success') }}
+    if: ${{ always() && (needs.static-contract.result != 'success' || needs.api-smoke.result != 'success' || needs.browser-smoke.result != 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Open or update stability incident
@@ -88,15 +109,16 @@ jobs:
             const title = '[Monitor] Stashbox Radio V2 stability failure';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
-              'The automated V2 stability monitor detected a failure.',
+              'The automated Stashbox Radio stability monitor detected a failure.',
               '',
               `- Event: ${context.eventName}`,
               `- Commit: ${context.sha}`,
-              `- Static contract: ${{ needs.static-contract.result }}`,
-              `- Live browser flow: ${{ needs.browser-smoke.result }}`,
+              `- Static frontend contract: ${{ needs.static-contract.result }}`,
+              `- TRUE DEV API and CMS routes: ${{ needs.api-smoke.result }}`,
+              `- Live listener browser flow: ${{ needs.browser-smoke.result }}`,
               `- Workflow run: ${runUrl}`,
               '',
-              'The run artifact contains the browser report and a full-page screenshot when available.'
+              'The workflow identifies which layer failed. The browser job also stores a JSON report and full-page screenshot when available.'
             ].join('\n');
 
             const { data: issues } = await github.rest.issues.listForRepo({
@@ -124,11 +146,12 @@ jobs:
             }
 
   report-recovery:
-    name: Record V2 monitor recovery
+    name: Record platform recovery
     needs:
       - static-contract
+      - api-smoke
       - browser-smoke
-    if: ${{ always() && needs.static-contract.result == 'success' && needs.browser-smoke.result == 'success' }}
+    if: ${{ always() && needs.static-contract.result == 'success' && needs.api-smoke.result == 'success' && needs.browser-smoke.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Close an open stability incident
@@ -150,7 +173,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: existing.number,
-              body: `V2 passed the static contract and live browser flow again. Recovery run: ${runUrl}`
+              body: `The frontend contract, TRUE DEV API routes, and live listener browser flow all passed again. Recovery run: ${runUrl}`
             });
             await github.rest.issues.update({
               owner: context.repo.owner,
