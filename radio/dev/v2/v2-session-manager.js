@@ -5,24 +5,19 @@
 
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const CONFIG_URL = `${API_ROOT}/radio/auth/config`;
-  const ME_URL = `${API_ROOT}/radio/me`;
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const REFRESH_LEEWAY_MS = 2 * 60 * 1000;
   const BACKGROUND_CHECK_MS = 4 * 60 * 1000;
-  const TOKEN_WATCH_MS = 2000;
   const nativeFetch = window.fetch.bind(window);
 
   let configPromise = null;
   let refreshPromise = null;
-  let accountPromise = null;
-  let account = null;
   let refreshTimer = 0;
-  let lastFingerprint = '';
 
   function readTokens() {
     try {
-      const value = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
-      return value && typeof value === 'object' ? value : {};
+      const parsed = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+      return parsed && typeof parsed === 'object' ? parsed : {};
     } catch (_) {
       return {};
     }
@@ -34,8 +29,7 @@
       if (!encoded) return 0;
       const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
       const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-      const payload = JSON.parse(atob(padded));
-      return Number(payload.exp || 0) * 1000;
+      return Number(JSON.parse(atob(padded)).exp || 0) * 1000;
     } catch (_) {
       return 0;
     }
@@ -52,14 +46,10 @@
   }
 
   function hasSession(tokens = readTokens()) {
-    return Boolean(tokens.refreshToken || accessIsUsable(tokens));
+    return Boolean(tokens.refreshToken || tokens.accessToken);
   }
 
-  function fingerprint(tokens = readTokens()) {
-    return [tokens.accessToken, tokens.idToken, tokens.refreshToken, tokens.expiresAt].map(value => String(value || '')).join('|');
-  }
-
-  function dispatchSessionEvent(reason, extra = {}) {
+  function emit(reason, extra = {}) {
     const detail = {
       reason,
       loggedIn: hasSession(),
@@ -71,29 +61,18 @@
     window.dispatchEvent(new CustomEvent('stashbox:v2-auth-ready', { detail }));
   }
 
-  function writeTokens(authenticationResult, previous = readTokens(), reason = 'refresh') {
-    if (!authenticationResult) return previous;
+  function writeTokens(authenticationResult, previous = readTokens(), reason = 'session-refresh') {
+    const result = authenticationResult || {};
     const next = {
-      accessToken: authenticationResult.AccessToken || authenticationResult.accessToken || previous.accessToken || '',
-      idToken: authenticationResult.IdToken || authenticationResult.idToken || previous.idToken || '',
-      refreshToken: authenticationResult.RefreshToken || authenticationResult.refreshToken || previous.refreshToken || '',
-      expiresAt: Date.now() + Math.max(60, Number(authenticationResult.ExpiresIn || authenticationResult.expiresIn || 3600)) * 1000
+      accessToken: result.AccessToken || result.accessToken || previous.accessToken || '',
+      idToken: result.IdToken || result.idToken || previous.idToken || '',
+      refreshToken: result.RefreshToken || result.refreshToken || previous.refreshToken || '',
+      expiresAt: Date.now() + Math.max(60, Number(result.ExpiresIn || result.expiresIn || 3600)) * 1000
     };
     localStorage.setItem(TOKEN_KEY, JSON.stringify(next));
-    lastFingerprint = fingerprint(next);
-    scheduleRefresh(next);
-    syncAccountUi();
-    dispatchSessionEvent(reason);
+    schedule(next);
+    emit(reason);
     return next;
-  }
-
-  function clearInvalidSession(reason = 'invalid-refresh-token') {
-    try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
-    account = null;
-    lastFingerprint = '';
-    clearTimeout(refreshTimer);
-    syncAccountUi();
-    dispatchSessionEvent(reason, { loggedIn: false });
   }
 
   async function parseResponse(response) {
@@ -110,11 +89,17 @@
     return body;
   }
 
-  function isInvalidRefreshError(error) {
+  function invalidRefresh(error) {
     const code = String(error?.code || '');
     const message = String(error?.message || '');
     return /NotAuthorizedException|InvalidParameterException|UserNotFoundException/i.test(code)
-      || /refresh token.*(expired|invalid)|invalid refresh token/i.test(message);
+      || /refresh token.*(?:expired|invalid)|invalid refresh token/i.test(message);
+  }
+
+  function clearInvalidSession(reason = 'refresh-token-expired') {
+    try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
+    clearTimeout(refreshTimer);
+    emit(reason, { loggedIn: false });
   }
 
   async function loadConfig() {
@@ -136,7 +121,7 @@
     return configPromise;
   }
 
-  async function refreshSession({ force = false, reason = 'automatic-refresh' } = {}) {
+  async function refresh({ force = false, reason = 'automatic-refresh' } = {}) {
     const current = readTokens();
     if (!current.refreshToken) {
       if (accessIsUsable(current)) return current;
@@ -145,7 +130,7 @@
       throw error;
     }
     if (!force && accessIsUsable(current, REFRESH_LEEWAY_MS)) {
-      scheduleRefresh(current);
+      schedule(current);
       return current;
     }
     if (refreshPromise) return refreshPromise;
@@ -167,14 +152,12 @@
         }).then(parseResponse);
         const result = body.AuthenticationResult || {};
         if (!result.AccessToken) throw new Error('Cognito did not return a refreshed access token.');
-        account = null;
-        accountPromise = null;
         return writeTokens(result, current, reason);
       } catch (error) {
-        if (isInvalidRefreshError(error)) clearInvalidSession('refresh-token-expired');
+        if (invalidRefresh(error)) clearInvalidSession('refresh-token-expired');
         else {
           scheduleRetry();
-          dispatchSessionEvent('refresh-deferred', { transient: true, message: error.message || '' });
+          emit('refresh-deferred', { transient: true, message: error.message || '' });
         }
         throw error;
       }
@@ -185,23 +168,23 @@
     return refreshPromise;
   }
 
-  async function ensureFresh(options = {}) {
-    const tokens = readTokens();
-    if (accessIsUsable(tokens, REFRESH_LEEWAY_MS) && !options.force) {
-      scheduleRefresh(tokens);
-      return tokens;
+  function ensureFresh(options = {}) {
+    const current = readTokens();
+    if (!options.force && accessIsUsable(current, REFRESH_LEEWAY_MS)) {
+      schedule(current);
+      return Promise.resolve(current);
     }
-    return refreshSession(options);
+    return refresh(options);
   }
 
   function scheduleRetry() {
     clearTimeout(refreshTimer);
     refreshTimer = window.setTimeout(() => {
-      ensureFresh({ reason: 'retry-refresh' }).catch(() => {});
+      if (hasSession()) ensureFresh({ reason: 'retry-refresh' }).catch(() => {});
     }, 60 * 1000);
   }
 
-  function scheduleRefresh(tokens = readTokens()) {
+  function schedule(tokens = readTokens()) {
     clearTimeout(refreshTimer);
     if (!tokens.refreshToken) return;
     const expiry = accessExpiry(tokens);
@@ -213,105 +196,53 @@
     }, delay);
   }
 
-  function mergedHeaders(input, init = {}) {
+  function requestHeaders(input, init = {}) {
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
     new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
     return headers;
   }
 
-  function fetchTarget(input, init, headers) {
+  function requestTarget(input, init, headers) {
     if (input instanceof Request) return [new Request(input.clone(), { ...init, headers }), undefined];
     return [input, { ...init, headers }];
   }
 
   async function sessionFetch(input, init = {}) {
-    const headers = mergedHeaders(input, init);
+    const headers = requestHeaders(input, init);
     const protectedRequest = /^Bearer\s+/i.test(headers.get('Authorization') || '') || headers.has('X-Cognito-Id-Token');
     if (!protectedRequest) return nativeFetch(input, init);
 
     try {
-      const tokens = await ensureFresh({ reason: 'request-refresh' });
-      if (tokens.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`);
-      if (tokens.idToken) headers.set('X-Cognito-Id-Token', tokens.idToken);
+      const current = await ensureFresh({ reason: 'request-refresh' });
+      if (current.accessToken) headers.set('Authorization', `Bearer ${current.accessToken}`);
+      if (current.idToken) headers.set('X-Cognito-Id-Token', current.idToken);
     } catch (_) {
-      // Keep the stored session on transient failures and allow the original request to report its own result.
+      // A temporary network error does not erase the renewable session.
     }
 
-    let [target, targetInit] = fetchTarget(input, init, headers);
+    let [target, targetInit] = requestTarget(input, init, headers);
     let response = await nativeFetch(target, targetInit);
     if (response.status !== 401 || !readTokens().refreshToken) return response;
 
     try {
-      const tokens = await refreshSession({ force: true, reason: '401-refresh' });
-      if (tokens.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`);
-      if (tokens.idToken) headers.set('X-Cognito-Id-Token', tokens.idToken);
-      [target, targetInit] = fetchTarget(input, init, headers);
+      const current = await refresh({ force: true, reason: '401-refresh' });
+      if (current.accessToken) headers.set('Authorization', `Bearer ${current.accessToken}`);
+      if (current.idToken) headers.set('X-Cognito-Id-Token', current.idToken);
+      [target, targetInit] = requestTarget(input, init, headers);
       response = await nativeFetch(target, targetInit);
     } catch (_) {}
     return response;
   }
 
-  async function loadAccount() {
-    if (!hasSession()) return null;
-    if (account) return account;
-    if (accountPromise) return accountPromise;
-    accountPromise = (async () => {
-      try {
-        const tokens = await ensureFresh({ reason: 'account-refresh' });
-        const response = await nativeFetch(ME_URL, {
-          cache: 'no-store',
-          headers: {
-            Authorization: `Bearer ${tokens.accessToken}`,
-            ...(tokens.idToken ? { 'X-Cognito-Id-Token': tokens.idToken } : {})
-          }
-        });
-        if (response.status === 401 && tokens.refreshToken) {
-          await refreshSession({ force: true, reason: 'account-401-refresh' });
-          accountPromise = null;
-          return loadAccount();
-        }
-        if (!response.ok) return null;
-        const body = await response.json();
-        account = body.user || null;
-        syncAccountUi();
-        return account;
-      } catch (_) {
-        return null;
-      } finally {
-        accountPromise = null;
-      }
-    })();
-    return accountPromise;
-  }
-
-  function syncAccountUi() {
-    const active = hasSession();
-    document.querySelectorAll('#v2App .v2-header-login').forEach(button => {
-      button.classList.toggle('is-profile-entry', active);
-      button.setAttribute('aria-label', active ? 'Open your Stashbox Radio profile' : 'Log in to Stashbox Radio');
-      if (active) {
-        button.dataset.v2ProfileEntry = 'true';
-        const firstName = String(account?.display_name || '').trim().split(/\s+/)[0];
-        if (!firstName && /^(log in|login)$/i.test(button.textContent.trim())) button.textContent = 'Account';
-        else if (firstName) button.textContent = firstName.slice(0, 14);
-      } else {
-        delete button.dataset.v2ProfileEntry;
-        button.textContent = 'Log In';
-      }
-    });
-  }
-
-  async function resumeSession(reason) {
+  function resume(reason) {
     if (!hasSession()) {
-      syncAccountUi();
+      emit(reason, { loggedIn: false });
+      return Promise.resolve(null);
+    }
+    return ensureFresh({ reason }).catch(error => {
+      if (!invalidRefresh(error)) emit('refresh-deferred', { transient: true });
       return null;
-    }
-    try { await ensureFresh({ reason }); }
-    catch (error) {
-      if (isInvalidRefreshError(error)) return null;
-    }
-    syncAccountUi();
-    return loadAccount();
+    });
   }
 
   window.fetch = sessionFetch;
@@ -321,54 +252,29 @@
     hasSession,
     accessIsUsable,
     ensureFresh,
-    refresh: options => refreshSession({ force: true, ...(options || {}) }),
-    loadAccount,
-    syncUi: syncAccountUi,
+    refresh: options => refresh({ force: true, ...(options || {}) }),
     fetch: sessionFetch,
     logout: () => clearInvalidSession('manual-logout')
   };
 
-  document.addEventListener('click', event => {
-    const button = event.target.closest('#v2App .v2-header-login');
-    if (!button || !hasSession()) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    ensureFresh({ reason: 'profile-entry' })
-      .then(() => { location.href = '/radio/dev/v2/profile/'; })
-      .catch(error => {
-        if (isInvalidRefreshError(error)) syncAccountUi();
-      });
-  }, true);
-
-  const observer = new MutationObserver(syncAccountUi);
-  const app = document.getElementById('v2App');
-  if (app) observer.observe(app, { childList: true, subtree: true });
-
+  window.addEventListener('stashbox:v2-auth-changed', event => {
+    if (event.detail?.reason === 'session-refresh') return;
+    if (hasSession()) resume('auth-change-refresh');
+  });
   window.addEventListener('storage', event => {
-    if (!event.key || event.key === TOKEN_KEY) resumeSession('storage-resume');
+    if (!event.key || event.key === TOKEN_KEY) resume('storage-resume');
   });
-  window.addEventListener('pageshow', () => resumeSession('pageshow-resume'));
-  window.addEventListener('focus', () => resumeSession('focus-resume'));
-  window.addEventListener('online', () => resumeSession('online-resume'));
+  window.addEventListener('pageshow', () => resume('pageshow-resume'));
+  window.addEventListener('focus', () => resume('focus-resume'));
+  window.addEventListener('online', () => resume('online-resume'));
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) resumeSession('visibility-resume');
+    if (!document.hidden) resume('visibility-resume');
   });
-
-  window.setInterval(() => {
-    const current = fingerprint();
-    if (current !== lastFingerprint) {
-      lastFingerprint = current;
-      account = null;
-      accountPromise = null;
-      resumeSession('token-change');
-    }
-  }, TOKEN_WATCH_MS);
 
   window.setInterval(() => {
     if (hasSession()) ensureFresh({ reason: 'background-refresh' }).catch(() => {});
   }, BACKGROUND_CHECK_MS);
 
-  lastFingerprint = fingerprint();
-  syncAccountUi();
-  window.StashboxV2Session.ready = resumeSession('initial-resume');
+  schedule();
+  window.StashboxV2Session.ready = resume('initial-resume');
 })();
