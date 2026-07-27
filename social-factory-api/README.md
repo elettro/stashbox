@@ -66,4 +66,6 @@ The workflow `.github/workflows/deploy-social-factory-api-dev.yml` validates and
 
 The workflow verifies the exact IAM boundary, smoke-tests `GET /social/health`, and confirms that the protected YouTube status route reaches Secrets Manager and rejects a request without the Social Factory admin token.
 
+The OAuth route error-boundary fix was validated before this deployment retry.
+
 The database migration is intentionally not applied by this deployment. Apply `migrations/20260727_social_factory_foundation_dev.sql` using a controlled database session with permission to create the `social_factory_dev` schema.
