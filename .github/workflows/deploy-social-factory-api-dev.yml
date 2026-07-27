@@ -10,7 +10,7 @@ on:
       - 'social-factory-api/**'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: deploy-social-factory-api-dev
@@ -137,3 +137,80 @@ jobs:
           ' /tmp/social-health.json >/dev/null
 
           echo "Social Factory health endpoint: ${HEALTH_URL}"
+
+      - name: Record deployment receipt
+        if: always()
+        env:
+          DEPLOYMENT_STATUS: ${{ job.status }}
+        run: |
+          set +e
+
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevFunctionName'].OutputValue" \
+            --output text 2>/dev/null)
+
+          ROLE_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevExecutionRoleArn'].OutputValue" \
+            --output text 2>/dev/null)
+
+          HEALTH_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevUrl'].OutputValue" \
+            --output text 2>/dev/null)
+
+          HEALTH_HTTP_STATUS=""
+          if [ -n "${HEALTH_URL}" ]; then
+            HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/social-health-receipt.json \
+              -w '%{http_code}' \
+              "${HEALTH_URL}" 2>/dev/null)
+          fi
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          jq -n \
+            --arg status "${DEPLOYMENT_STATUS}" \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            --arg region "${AWS_REGION}" \
+            --arg stack_name "${STACK_NAME}" \
+            --arg function_name "${FUNCTION_NAME}" \
+            --arg execution_role_arn "${ROLE_ARN}" \
+            --arg health_url "${HEALTH_URL}" \
+            --arg health_http_status "${HEALTH_HTTP_STATUS}" \
+            '{
+              status: $status,
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              run_id: $run_id,
+              run_url: $run_url,
+              region: $region,
+              stack_name: $stack_name,
+              function_name: $function_name,
+              execution_role_arn: $execution_role_arn,
+              health_url: $health_url,
+              health_http_status: $health_http_status
+            }' > /tmp/social-factory-api-dev-deployment.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-api-dev-deployment.json deployment-reports/social-factory-api-dev.json
+          git add deployment-reports/social-factory-api-dev.json
+
+          if git diff --cached --quiet; then
+            echo 'Deployment receipt already current.'
+            exit 0
+          fi
+
+          git commit -m 'Record Social Factory DEV deployment [skip ci]'
+          git push origin main
