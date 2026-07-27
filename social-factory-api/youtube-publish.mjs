@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { assertAdmin, createAwsSecretStore } from './youtube-oauth.mjs';
+import { createAwsSecretStore } from './youtube-oauth.mjs';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos';
@@ -18,6 +18,29 @@ function serviceError(message, statusCode = 400, details) {
     error.details = details;
   }
   return error;
+}
+
+function getHeader(event, name) {
+  const target = String(name).toLowerCase();
+  for (const [key, value] of Object.entries(event?.headers || {})) {
+    if (String(key).toLowerCase() === target) {
+      return String(value || '');
+    }
+  }
+  return '';
+}
+
+function timingSafeEqualText(left, right) {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function assertAdmin(event, config) {
+  const supplied = getHeader(event, 'x-admin-token');
+  if (!supplied || !timingSafeEqualText(supplied, config.admin_token)) {
+    throw serviceError('unauthorized', 401);
+  }
 }
 
 function parseBody(event = {}) {
