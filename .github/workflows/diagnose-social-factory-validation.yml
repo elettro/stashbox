@@ -1,0 +1,80 @@
+name: Diagnose Social Factory Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/diagnose-social-factory-validation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Run and record validation
+        run: |
+          set +e
+          cd social-factory-api
+
+          npm run check > /tmp/social-factory-check.log 2>&1
+          CHECK_EXIT=$?
+
+          npm test > /tmp/social-factory-tests.log 2>&1
+          TEST_EXIT=$?
+
+          sam validate --template-file infrastructure/template.yaml --lint > /tmp/social-factory-sam-validation.log 2>&1
+          SAM_EXIT=$?
+
+          cd ..
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg check_exit "${CHECK_EXIT}" \
+            --arg test_exit "${TEST_EXIT}" \
+            --arg sam_exit "${SAM_EXIT}" \
+            --arg check_output "$(cat /tmp/social-factory-check.log)" \
+            --arg test_output "$(cat /tmp/social-factory-tests.log)" \
+            --arg sam_output "$(cat /tmp/social-factory-sam-validation.log)" \
+            '{
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              check_exit: $check_exit,
+              test_exit: $test_exit,
+              sam_exit: $sam_exit,
+              check_output: $check_output,
+              test_output: $test_output,
+              sam_output: $sam_output
+            }' > /tmp/social-factory-validation.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-validation.json deployment-reports/social-factory-validation.json
+          git add deployment-reports/social-factory-validation.json
+          git commit -m 'Record Social Factory validation [skip ci]' || true
+          git push origin main
+
+          if [ "${CHECK_EXIT}" -ne 0 ] || [ "${TEST_EXIT}" -ne 0 ] || [ "${SAM_EXIT}" -ne 0 ]; then
+            exit 1
+          fi
