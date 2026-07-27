@@ -30,6 +30,7 @@
         "cloudformation:GetTemplateSummary",
         "cloudformation:ListStacks",
         "logs:DescribeLogGroups",
+        "secretsmanager:GetRandomPassword",
         "sts:GetCallerIdentity"
       ],
       "Resource": "*"
