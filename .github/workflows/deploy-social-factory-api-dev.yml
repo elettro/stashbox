@@ -69,8 +69,14 @@ jobs:
             echo "Existing stack status: ${STACK_STATUS:-STACK_NOT_FOUND}"
 
             case "${STACK_STATUS}" in
-              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS|UPDATE_ROLLBACK_FAILED|UPDATE_ROLLBACK_COMPLETE)
-                echo 'Removing failed Social Factory stack before clean deployment.'
+              UPDATE_ROLLBACK_FAILED)
+                echo 'Continuing rollback so the existing Social Factory stack can be updated in place.'
+                aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
+                aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
+                echo 'Rollback completed. Existing stack, API URL, and OAuth resources were preserved.'
+                ;;
+              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS)
+                echo 'Removing only a non-updateable Social Factory stack before clean deployment.'
 
                 if [ "${STACK_STATUS}" != 'DELETE_IN_PROGRESS' ]; then
                   aws cloudformation delete-stack --stack-name "${STACK_NAME}"
@@ -79,7 +85,7 @@ jobs:
                 aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
                 aws logs delete-log-group \
                   --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
-                echo 'Failed stack removed successfully.'
+                echo 'Non-updateable stack removed successfully.'
                 ;;
               ''|None)
                 echo 'No existing Social Factory stack found.'
