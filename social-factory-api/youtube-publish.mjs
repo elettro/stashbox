@@ -4,6 +4,7 @@ import { createAwsSecretStore } from './youtube-oauth.mjs';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos';
 const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+const DEFAULT_MAX_DIRECT_PUBLISH_BYTES = 25 * 1024 * 1024;
 const PRESIGN_TTL_SECONDS = 15 * 60;
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
@@ -247,7 +248,10 @@ export function createYoutubePublishService({
   randomUUID = () => crypto.randomUUID(),
   configSecretId = process.env.YOUTUBE_OAUTH_CONFIG_SECRET,
   tokenSecretId = process.env.YOUTUBE_OAUTH_TOKEN_SECRET,
-  maxUploadBytes = Number(process.env.SOCIAL_MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES)
+  maxUploadBytes = Number(process.env.SOCIAL_MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES),
+  maxDirectPublishBytes = Number(
+    process.env.SOCIAL_MAX_DIRECT_PUBLISH_BYTES || DEFAULT_MAX_DIRECT_PUBLISH_BYTES
+  )
 } = {}) {
   if (!fetchImpl) {
     throw new Error('fetch_unavailable');
@@ -309,7 +313,8 @@ export function createYoutubePublishService({
           'x-amz-meta-source': 'stashbox-social-factory-dev'
         },
         expires_in_seconds: PRESIGN_TTL_SECONDS,
-        max_upload_bytes: maxUploadBytes
+        max_upload_bytes: maxUploadBytes,
+        max_direct_publish_bytes: maxDirectPublishBytes
       };
     },
 
@@ -322,11 +327,18 @@ export function createYoutubePublishService({
       const object = await stagingStore.head(objectKey);
       const contentType = normalizeContentType(object.ContentType);
       const contentLength = Number(object.ContentLength || 0);
+      const expectedSize = Number(object.Metadata?.expected_size_bytes || contentLength);
 
-      if (!ALLOWED_VIDEO_TYPES.has(contentType) || contentLength <= 0 || contentLength > maxUploadBytes) {
+      if (
+        !ALLOWED_VIDEO_TYPES.has(contentType) ||
+        contentLength <= 0 ||
+        contentLength > maxUploadBytes ||
+        expectedSize !== contentLength
+      ) {
         throw serviceError('invalid_staged_video', 422, {
           content_type: contentType || null,
           content_length: contentLength,
+          expected_size_bytes: expectedSize,
           max_bytes: maxUploadBytes
         });
       }
@@ -340,7 +352,8 @@ export function createYoutubePublishService({
         content_type: contentType,
         content_length: contentLength,
         privacy_status: 'unlisted',
-        title: metadata.title
+        title: metadata.title,
+        max_direct_publish_bytes: maxDirectPublishBytes
       };
 
       if (body.confirm_upload !== true) {
@@ -349,6 +362,14 @@ export function createYoutubePublishService({
           mode: 'validation_only',
           ...validation
         };
+      }
+
+      if (contentLength > maxDirectPublishBytes) {
+        throw serviceError('direct_publish_size_exceeds_safe_limit', 422, {
+          content_length: contentLength,
+          max_direct_publish_bytes: maxDirectPublishBytes,
+          next_step: 'asynchronous_publish_queue_required'
+        });
       }
 
       const initUrl = new URL(YOUTUBE_UPLOAD_URL);
