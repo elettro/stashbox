@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV health API.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth.
 
 Parameters:
   EnvironmentName:
@@ -27,8 +27,42 @@ Resources:
           - x-admin-token
         AllowMethods:
           - GET
+          - POST
           - OPTIONS
         MaxAge: 600
+
+  YoutubeOAuthConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: stashbox/social-factory/dev/youtube-oauth/config
+      Description: Google OAuth client configuration for Stashbox Social Factory DEV.
+      GenerateSecretString:
+        SecretStringTemplate: >-
+          {"client_id":"REPLACE_GOOGLE_CLIENT_ID","client_secret":"REPLACE_GOOGLE_CLIENT_SECRET","success_redirect_uri":"https://stashbox.com"}
+        GenerateStringKey: admin_token
+        PasswordLength: 48
+        ExcludePunctuation: true
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: youtube-oauth-config
+
+  YoutubeOAuthTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: stashbox/social-factory/dev/youtube-oauth/tokens
+      Description: YouTube OAuth refresh token and channel metadata for Stashbox Social Factory DEV.
+      SecretString: '{}'
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: youtube-oauth-tokens
 
   SocialApiDevRole:
     Type: AWS::IAM::Role
@@ -54,6 +88,23 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - PolicyName: SocialApiDevYoutubeOAuthSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadYoutubeOAuthSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref YoutubeOAuthConfigSecret
+                  - !Ref YoutubeOAuthTokenSecret
+              - Sid: WriteYoutubeOAuthTokenSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:PutSecretValue
+                Resource: !Ref YoutubeOAuthTokenSecret
 
   SocialApiDevFunction:
     Type: AWS::Serverless::Function
@@ -66,12 +117,14 @@ Resources:
       Architectures:
         - x86_64
       MemorySize: 256
-      Timeout: 10
+      Timeout: 15
       Role: !GetAtt SocialApiDevRole.Arn
       Environment:
         Variables:
           APP_ENV: !Ref EnvironmentName
           ALLOWED_ORIGIN: !Ref AllowedOrigin
+          YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
+          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
       Events:
         Health:
           Type: HttpApi
@@ -79,6 +132,30 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/health
             Method: GET
+        YoutubeOAuthStart:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/youtube/oauth/start
+            Method: GET
+        YoutubeOAuthCallback:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/youtube/oauth/callback
+            Method: GET
+        YoutubeStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/youtube/status
+            Method: GET
+        YoutubeDisconnect:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/youtube/disconnect
+            Method: POST
 
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup
@@ -93,5 +170,13 @@ Outputs:
     Value: !Ref SocialApiDevFunction
   SocialApiDevUrl:
     Value: !Sub https://${SocialFactoryHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev/social/health
+  SocialApiDevBaseUrl:
+    Value: !Sub https://${SocialFactoryHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev
+  SocialApiDevYoutubeCallbackUrl:
+    Value: !Sub https://${SocialFactoryHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev/social/youtube/oauth/callback
   SocialApiDevExecutionRoleArn:
     Value: !GetAtt SocialApiDevRole.Arn
+  YoutubeOAuthConfigSecretArn:
+    Value: !Ref YoutubeOAuthConfigSecret
+  YoutubeOAuthTokenSecretArn:
+    Value: !Ref YoutubeOAuthTokenSecret

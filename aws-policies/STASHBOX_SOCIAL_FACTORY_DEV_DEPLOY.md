@@ -1,55 +1,52 @@
 # Stashbox Social Factory DEV Deployment Policy
 
-## Current blocker
+## Policy
 
-The GitHub Actions IAM user `stashbox-github-actions-dev` authenticated and reached CloudFormation, but the Social Factory stack failed because the user lacks:
-
-- `lambda:CreateFunction`
-- `lambda:DeleteFunction`
-
-The failed stack is currently `stashbox-social-api-dev` in `ROLLBACK_FAILED`.
-
-## Policy to add
-
-Create a customer-managed AWS IAM policy named:
+The customer-managed policy is named:
 
 `StashboxSocialFactoryDevDeploy`
 
-Use the JSON in:
+Its source of truth is:
 
 `aws-policies/StashboxSocialFactoryDevDeploy.json`
 
-Attach the policy to this IAM user:
+It must remain directly attached to:
 
 `stashbox-github-actions-dev`
 
-Keep the user's existing policies attached. This policy adds only the permissions required to deploy and verify the isolated Social Factory DEV foundation.
+Keep the user's existing policies attached. This policy adds only the permissions required to deploy and verify the isolated Social Factory DEV stack.
 
-## AWS Console steps
+## Updating the policy
 
-1. Open IAM.
-2. Open Policies.
-3. Choose Create policy.
-4. Select JSON.
-5. Paste the complete contents of `StashboxSocialFactoryDevDeploy.json`.
-6. Name it `StashboxSocialFactoryDevDeploy`.
-7. Create the policy.
-8. Open IAM user `stashbox-github-actions-dev`.
-9. Choose Add permissions.
-10. Attach `StashboxSocialFactoryDevDeploy`.
+When the source JSON changes:
 
-## Scope
+1. Open AWS IAM.
+2. Open **Policies**.
+3. Open `StashboxSocialFactoryDevDeploy`.
+4. Choose **Edit**.
+5. Select the JSON editor.
+6. Replace the complete policy with `StashboxSocialFactoryDevDeploy.json`.
+7. Save the changes as the default policy version.
+
+## Current scope
 
 The policy is limited to:
 
 - CloudFormation stack `stashbox-social-api-dev`
 - Lambda `stashbox-social-api-dev`
 - IAM role `stashbox-social-api-dev-role`
-- The Social Factory HTTP API resources in `us-east-1`
+- Social Factory API Gateway resources in `us-east-1`
 - Log group `/aws/lambda/stashbox-social-api-dev`
 - Artifact bucket `stashbox-social-deploy-656260749296-us-east-1`
+- Secret `stashbox/social-factory/dev/youtube-oauth/config`
+- Secret `stashbox/social-factory/dev/youtube-oauth/tokens`
+- Random-password generation used to create the isolated Social Factory admin token
 
-It does not grant access to:
+The two secret permissions are restricted to the named YouTube OAuth secrets. The Lambda execution role receives a narrower policy than the deployment user: it may read both secrets and write only the token secret.
+
+## Excluded resources
+
+The deployment policy does not grant access to:
 
 - `stashbox-radio-api-dev-v2`
 - Production Lambda functions
@@ -60,7 +57,17 @@ It does not grant access to:
 - Notifications
 - Existing VEC playback
 - Radio media buckets
+- Existing radio database resources
 
-## After attachment
+## Deployment verification
 
-The next deployment must delete the failed `stashbox-social-api-dev` stack, wait for deletion, recreate the isolated stack, verify the execution-role boundary, and smoke-test `GET /social/health`.
+The deployment workflow verifies:
+
+- The CloudFormation stack reaches a complete state
+- The expected Social Factory Lambda is deployed
+- No managed policies are attached to its execution role
+- The logs policy contains only the approved CloudWatch actions
+- The OAuth policy reads only the two YouTube secrets
+- Only the token secret can be written by the Lambda
+- `GET /social/health` returns the expected isolated-service state
+- The protected YouTube status route reaches Secrets Manager and returns `401` without the Social Factory admin token
