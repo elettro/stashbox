@@ -127,6 +127,30 @@
       ]
     },
     {
+      "Sid": "SocialFactoryPublishBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:GetBucketLocation",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:GetEncryptionConfiguration",
+        "s3:PutEncryptionConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:PutLifecycleConfiguration",
+        "s3:GetBucketOwnershipControls",
+        "s3:PutBucketOwnershipControls",
+        "s3:GetBucketTagging",
+        "s3:PutBucketTagging",
+        "s3:GetBucketCORS",
+        "s3:PutBucketCORS",
+        "s3:DeleteBucketCORS",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::stashbox-social-publish-656260749296-us-east-1"
+    },
+    {
       "Sid": "SocialFactoryLogGroup",
       "Effect": "Allow",
       "Action": [

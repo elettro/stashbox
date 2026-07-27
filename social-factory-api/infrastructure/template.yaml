@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth and unlisted publishing.
 
 Parameters:
   EnvironmentName:
@@ -64,6 +64,51 @@ Resources:
         - Key: Purpose
           Value: youtube-oauth-tokens
 
+  SocialPublishBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub stashbox-social-publish-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - PUT
+            AllowedOrigins:
+              - !Ref AllowedOrigin
+            ExposedHeaders:
+              - ETag
+            MaxAge: 900
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireSocialPublishStaging
+            Status: Enabled
+            Prefix: incoming/
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: youtube-publish-staging
+
   SocialApiDevRole:
     Type: AWS::IAM::Role
     Properties:
@@ -105,6 +150,16 @@ Resources:
                 Action:
                   - secretsmanager:PutSecretValue
                 Resource: !Ref YoutubeOAuthTokenSecret
+        - PolicyName: SocialApiDevPublishStaging
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadWriteIncomingVideos
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/incoming/*
 
   SocialApiDevFunction:
     Type: AWS::Serverless::Function
@@ -116,8 +171,8 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
-      MemorySize: 256
-      Timeout: 15
+      MemorySize: 1024
+      Timeout: 900
       Role: !GetAtt SocialApiDevRole.Arn
       Environment:
         Variables:
@@ -125,6 +180,9 @@ Resources:
           ALLOWED_ORIGIN: !Ref AllowedOrigin
           YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
+          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
+          SOCIAL_MAX_UPLOAD_BYTES: '536870912'
+          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
       Events:
         Health:
           Type: HttpApi
@@ -156,6 +214,18 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/youtube/disconnect
             Method: POST
+        SocialUploadPresign:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/uploads/presign
+            Method: POST
+        YoutubePublish:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/youtube/publish
+            Method: POST
 
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup
@@ -180,3 +250,7 @@ Outputs:
     Value: !Ref YoutubeOAuthConfigSecret
   YoutubeOAuthTokenSecretArn:
     Value: !Ref YoutubeOAuthTokenSecret
+  SocialPublishBucketName:
+    Value: !Ref SocialPublishBucket
+  SocialPublishBucketArn:
+    Value: !GetAtt SocialPublishBucket.Arn

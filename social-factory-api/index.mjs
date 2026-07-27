@@ -1,7 +1,8 @@
 import { createYoutubeOAuthService } from './youtube-oauth.mjs';
+import { createYoutubePublishService } from './youtube-publish.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.2.0';
+const SERVICE_VERSION = '0.3.0';
 
 function getJsonHeaders() {
   return {
@@ -64,7 +65,19 @@ function errorResponse(error) {
   return json(statusCode, body);
 }
 
-export function createHandler({ youtubeOAuth = createYoutubeOAuthService() } = {}) {
+export function createHandler({
+  youtubeOAuth = createYoutubeOAuthService(),
+  youtubePublish = null
+} = {}) {
+  let resolvedYoutubePublish = youtubePublish;
+
+  function getYoutubePublish() {
+    if (!resolvedYoutubePublish) {
+      resolvedYoutubePublish = createYoutubePublishService();
+    }
+    return resolvedYoutubePublish;
+  }
+
   return async function socialFactoryHandler(event = {}) {
     const method = getRequestMethod(event);
     const path = getRequestPath(event);
@@ -87,12 +100,13 @@ export function createHandler({ youtubeOAuth = createYoutubeOAuthService() } = {
           timestamp: new Date().toISOString(),
           isolation: {
             databaseConfigured: false,
-            s3Configured: false,
+            s3Configured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             queueConfigured: false,
             secretsConfigured: true,
             youtubeOauthConfigured: true,
+            youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             mainRadioApiDependency: false,
-            executionRoleScope: 'cloudwatch-logs-and-youtube-oauth-secrets'
+            executionRoleScope: 'cloudwatch-youtube-oauth-secrets-and-social-publish-bucket'
           }
         });
       }
@@ -116,6 +130,20 @@ export function createHandler({ youtubeOAuth = createYoutubeOAuthService() } = {
         return json(200, {
           ok: true,
           ...(await youtubeOAuth.disconnect(event))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/uploads/presign') {
+        return json(200, {
+          ok: true,
+          ...(await getYoutubePublish().presign(event))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/youtube/publish') {
+        return json(200, {
+          ok: true,
+          ...(await getYoutubePublish().publish(event))
         });
       }
 

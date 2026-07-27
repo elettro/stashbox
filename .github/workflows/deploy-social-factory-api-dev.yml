@@ -26,6 +26,7 @@ jobs:
       EXPECTED_LOG_GROUP: /aws/lambda/stashbox-social-api-dev
       EXPECTED_CONFIG_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/config
       EXPECTED_TOKEN_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/tokens
+      EXPECTED_PUBLISH_BUCKET: stashbox-social-publish-656260749296-us-east-1
 
     steps:
       - name: Checkout repository
@@ -148,29 +149,27 @@ jobs:
           echo "${DEPLOY_EXIT_CODE}" > /tmp/social-factory-sam-deploy.exit
           exit "${DEPLOY_EXIT_CODE}"
 
-      - name: Verify deployed function identity and policy boundary
+      - name: Verify function, role, secrets, and publish bucket boundary
         run: |
           set -euo pipefail
 
-          FUNCTION_NAME=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevFunctionName'].OutputValue" \
-            --output text)
+          stack_output() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
+              --output text
+          }
+
+          FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
+          ROLE_ARN=$(stack_output SocialApiDevExecutionRoleArn)
+          CONFIG_SECRET_ARN=$(stack_output YoutubeOAuthConfigSecretArn)
+          TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
+          PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
+          PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
+
           test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION_NAME}"
-
-          ROLE_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevExecutionRoleArn'].OutputValue" \
-            --output text)
-          CONFIG_SECRET_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" \
-            --output text)
-          TOKEN_SECRET_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthTokenSecretArn'].OutputValue" \
-            --output text)
-
+          test "${PUBLISH_BUCKET}" = "${EXPECTED_PUBLISH_BUCKET}"
+          test "${PUBLISH_BUCKET_ARN}" = "arn:aws:s3:::${EXPECTED_PUBLISH_BUCKET}"
           [[ "${CONFIG_SECRET_ARN}" == *":secret:${EXPECTED_CONFIG_SECRET_NAME}-"* ]]
           [[ "${TOKEN_SECRET_ARN}" == *":secret:${EXPECTED_TOKEN_SECRET_NAME}-"* ]]
 
@@ -192,6 +191,7 @@ jobs:
           ACTUAL_POLICIES=$(tr '\t' '\n' <<<"${INLINE_POLICIES}" | sed '/^$/d' | sort)
           EXPECTED_POLICIES=$(printf '%s\n' \
             SocialApiDevLogsOnly \
+            SocialApiDevPublishStaging \
             SocialApiDevYoutubeOAuthSecrets | sort)
           diff -u <(printf '%s\n' "${EXPECTED_POLICIES}") <(printf '%s\n' "${ACTUAL_POLICIES}")
 
@@ -225,18 +225,70 @@ jobs:
               (($write.Resource | array) == [$token])
             ' >/dev/null
 
-      - name: Smoke test health and protected YouTube route
+          PUBLISH_DOCUMENT=$(aws iam get-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name SocialApiDevPublishStaging \
+            --query 'PolicyDocument' \
+            --output json)
+          echo "${PUBLISH_DOCUMENT}" | jq -e \
+            --arg resource "${PUBLISH_BUCKET_ARN}/incoming/*" '
+              def array: if type == "array" then . else [.] end;
+              ([.Statement[] | select(.Sid == "ReadWriteIncomingVideos")][0]) as $publish |
+              $publish.Effect == "Allow" and
+              (($publish.Action | array | sort) == (["s3:GetObject", "s3:PutObject"] | sort)) and
+              (($publish.Resource | array) == [$resource])
+            ' >/dev/null
+
+          PUBLIC_BLOCK=$(aws s3api get-public-access-block --bucket "${PUBLISH_BUCKET}")
+          echo "${PUBLIC_BLOCK}" | jq -e '
+            .PublicAccessBlockConfiguration.BlockPublicAcls == true and
+            .PublicAccessBlockConfiguration.IgnorePublicAcls == true and
+            .PublicAccessBlockConfiguration.BlockPublicPolicy == true and
+            .PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+          ' >/dev/null
+
+          ENCRYPTION=$(aws s3api get-bucket-encryption --bucket "${PUBLISH_BUCKET}")
+          echo "${ENCRYPTION}" | jq -e '
+            .ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm == "AES256"
+          ' >/dev/null
+
+          OWNERSHIP=$(aws s3api get-bucket-ownership-controls --bucket "${PUBLISH_BUCKET}")
+          echo "${OWNERSHIP}" | jq -e '
+            .OwnershipControls.Rules[0].ObjectOwnership == "BucketOwnerEnforced"
+          ' >/dev/null
+
+          LIFECYCLE=$(aws s3api get-bucket-lifecycle-configuration --bucket "${PUBLISH_BUCKET}")
+          echo "${LIFECYCLE}" | jq -e '
+            any(.Rules[];
+              .ID == "ExpireSocialPublishStaging" and
+              .Status == "Enabled" and
+              .Filter.Prefix == "incoming/" and
+              .Expiration.Days == 7 and
+              .AbortIncompleteMultipartUpload.DaysAfterInitiation == 1
+            )
+          ' >/dev/null
+
+          CORS=$(aws s3api get-bucket-cors --bucket "${PUBLISH_BUCKET}")
+          echo "${CORS}" | jq -e '
+            any(.CORSRules[];
+              (.AllowedMethods | index("PUT")) != null and
+              (.AllowedOrigins | index("https://stashbox.com")) != null
+            )
+          ' >/dev/null
+
+      - name: Smoke test health and protected publishing routes
         run: |
           set -euo pipefail
 
-          HEALTH_URL=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevUrl'].OutputValue" \
-            --output text)
-          BASE_URL=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" \
-            --output text)
+          stack_output() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
+              --output text
+          }
+
+          HEALTH_URL=$(stack_output SocialApiDevUrl)
+          BASE_URL=$(stack_output SocialApiDevBaseUrl)
 
           HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
             -o /tmp/social-health.json \
@@ -246,15 +298,16 @@ jobs:
           jq -e '
             .ok == true and
             .service == "stashbox-social-api" and
-            .version == "0.2.0" and
+            .version == "0.3.0" and
             .environment == "dev" and
             .isolation.databaseConfigured == false and
-            .isolation.s3Configured == false and
+            .isolation.s3Configured == true and
             .isolation.queueConfigured == false and
             .isolation.secretsConfigured == true and
             .isolation.youtubeOauthConfigured == true and
+            .isolation.youtubePublishingConfigured == true and
             .isolation.mainRadioApiDependency == false and
-            .isolation.executionRoleScope == "cloudwatch-logs-and-youtube-oauth-secrets"
+            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"
           ' /tmp/social-health.json >/dev/null
 
           YOUTUBE_STATUS=$(curl --silent --show-error --max-time 45 \
@@ -265,8 +318,31 @@ jobs:
           jq -e '.ok == false and .error == "unauthorized"' \
             /tmp/social-youtube-status.json >/dev/null
 
+          PRESIGN_STATUS=$(curl --silent --show-error --max-time 45 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{}' \
+            -o /tmp/social-presign-status.json \
+            -w '%{http_code}' \
+            "${BASE_URL}/social/uploads/presign")
+          test "${PRESIGN_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' \
+            /tmp/social-presign-status.json >/dev/null
+
+          PUBLISH_STATUS=$(curl --silent --show-error --max-time 45 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{}' \
+            -o /tmp/social-publish-status.json \
+            -w '%{http_code}' \
+            "${BASE_URL}/social/youtube/publish")
+          test "${PUBLISH_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' \
+            /tmp/social-publish-status.json >/dev/null
+
           echo "Social Factory health endpoint: ${HEALTH_URL}"
-          echo "Social Factory YouTube status route: ${BASE_URL}/social/youtube/status"
+          echo "Social Factory upload route: ${BASE_URL}/social/uploads/presign"
+          echo "Social Factory YouTube publish route: ${BASE_URL}/social/youtube/publish"
 
       - name: Record deployment receipt
         if: always()
@@ -289,6 +365,8 @@ jobs:
           CALLBACK_URL=$(stack_output SocialApiDevYoutubeCallbackUrl)
           CONFIG_SECRET_ARN=$(stack_output YoutubeOAuthConfigSecretArn)
           TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
+          PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
+          PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
           STACK_STATUS_AFTER=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].StackStatus' \
@@ -304,17 +382,28 @@ jobs:
           DEPLOY_ERROR_SUMMARY=$(tail -n 60 /tmp/social-factory-sam-deploy.log 2>/dev/null | tail -c 7000)
 
           HEALTH_HTTP_STATUS=""
+          YOUTUBE_STATUS_HTTP_STATUS=""
+          PRESIGN_HTTP_STATUS=""
+          PUBLISH_HTTP_STATUS=""
+
           if [ -n "${HEALTH_URL}" ] && [ "${HEALTH_URL}" != 'None' ]; then
             HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
               -o /tmp/social-health-receipt.json \
               -w '%{http_code}' "${HEALTH_URL}" 2>/dev/null)
           fi
 
-          YOUTUBE_STATUS_HTTP_STATUS=""
           if [ -n "${BASE_URL}" ] && [ "${BASE_URL}" != 'None' ]; then
             YOUTUBE_STATUS_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
               -o /tmp/social-youtube-status-receipt.json \
               -w '%{http_code}' "${BASE_URL}/social/youtube/status" 2>/dev/null)
+            PRESIGN_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              -o /tmp/social-presign-receipt.json \
+              -w '%{http_code}' "${BASE_URL}/social/uploads/presign" 2>/dev/null)
+            PUBLISH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              -o /tmp/social-publish-receipt.json \
+              -w '%{http_code}' "${BASE_URL}/social/youtube/publish" 2>/dev/null)
           fi
 
           STACK_EVENT_SUMMARY=$(aws cloudformation describe-stack-events \
@@ -346,8 +435,12 @@ jobs:
             --arg base_url "${BASE_URL}" \
             --arg youtube_callback_url "${CALLBACK_URL}" \
             --arg youtube_status_http_status "${YOUTUBE_STATUS_HTTP_STATUS}" \
+            --arg upload_presign_http_status "${PRESIGN_HTTP_STATUS}" \
+            --arg youtube_publish_http_status "${PUBLISH_HTTP_STATUS}" \
             --arg youtube_config_secret_arn "${CONFIG_SECRET_ARN}" \
             --arg youtube_token_secret_arn "${TOKEN_SECRET_ARN}" \
+            --arg social_publish_bucket "${PUBLISH_BUCKET}" \
+            --arg social_publish_bucket_arn "${PUBLISH_BUCKET_ARN}" \
             --arg deploy_exit_code "${DEPLOY_EXIT_CODE}" \
             --arg deploy_error_summary "${DEPLOY_ERROR_SUMMARY}" \
             --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
@@ -373,8 +466,12 @@ jobs:
               base_url: $base_url,
               youtube_callback_url: $youtube_callback_url,
               youtube_status_http_status: $youtube_status_http_status,
+              upload_presign_http_status: $upload_presign_http_status,
+              youtube_publish_http_status: $youtube_publish_http_status,
               youtube_config_secret_arn: $youtube_config_secret_arn,
               youtube_token_secret_arn: $youtube_token_secret_arn,
+              social_publish_bucket: $social_publish_bucket,
+              social_publish_bucket_arn: $social_publish_bucket_arn,
               deploy_exit_code: $deploy_exit_code,
               deploy_error_summary: $deploy_error_summary,
               stack_event_summary: $stack_event_summary
