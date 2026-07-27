@@ -98,11 +98,11 @@ export function createHandler({ youtubeOAuth = createYoutubeOAuthService() } = {
       }
 
       if (method === 'GET' && path === '/social/youtube/oauth/start') {
-        return youtubeOAuth.start(event);
+        return await youtubeOAuth.start(event);
       }
 
       if (method === 'GET' && path === '/social/youtube/oauth/callback') {
-        return youtubeOAuth.callback(event);
+        return await youtubeOAuth.callback(event);
       }
 
       if (method === 'GET' && path === '/social/youtube/status') {
