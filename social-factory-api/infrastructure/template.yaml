@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Isolated Stashbox Social Factory DEV health API.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+  AllowedOrigin:
+    Type: String
+    Default: https://stashbox.com
+
+Resources:
+  SocialFactoryHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: stashbox-social-api-dev
+      StageName: dev
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - x-admin-token
+        AllowMethods:
+          - GET
+          - OPTIONS
+        MaxAge: 600
+
+  SocialApiDevRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-social-api-dev-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SocialApiDevLogsOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  SocialApiDevFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: stashbox-social-api-dev
+      Description: Isolated Stashbox Social Factory DEV API.
+      CodeUri: ../
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      MemorySize: 256
+      Timeout: 10
+      Role: !GetAtt SocialApiDevRole.Arn
+      Environment:
+        Variables:
+          APP_ENV: !Ref EnvironmentName
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/health
+            Method: GET
+
+  SocialApiDevLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/lambda/stashbox-social-api-dev
+      RetentionInDays: 30
+
+Outputs:
+  SocialApiDevFunctionName:
+    Value: !Ref SocialApiDevFunction
+  SocialApiDevUrl:
+    Value: !Sub https://${SocialFactoryHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev/social/health
+  SocialApiDevExecutionRoleArn:
+    Value: !GetAtt SocialApiDevRole.Arn
