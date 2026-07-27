@@ -1,0 +1,89 @@
+name: Hotfix Social Factory Stack Recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/hotfix-social-factory-stack-recovery.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Preserve deployable CloudFormation stacks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-social-factory-api-dev.yml')
+          text = path.read_text()
+
+          old = '''            case "${STACK_STATUS}" in
+              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS|UPDATE_ROLLBACK_FAILED|UPDATE_ROLLBACK_COMPLETE)
+                echo 'Removing failed Social Factory stack before clean deployment.'
+
+                if [ "${STACK_STATUS}" != 'DELETE_IN_PROGRESS' ]; then
+                  aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+                fi
+
+                aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
+                aws logs delete-log-group \\
+                  --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
+                echo 'Failed stack removed successfully.'
+                ;;
+              ''|None)
+                echo 'No existing Social Factory stack found.'
+                ;;
+              *)
+                echo "Existing stack is deployable and will be updated in place: ${STACK_STATUS}"
+                ;;
+            esac'''
+
+          new = '''            case "${STACK_STATUS}" in
+              UPDATE_ROLLBACK_FAILED)
+                echo 'Continuing rollback so the existing Social Factory stack can be updated in place.'
+                aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
+                aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
+                echo 'Rollback completed. Existing stack, API URL, and OAuth resources were preserved.'
+                ;;
+              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS)
+                echo 'Removing only a non-updateable Social Factory stack before clean deployment.'
+
+                if [ "${STACK_STATUS}" != 'DELETE_IN_PROGRESS' ]; then
+                  aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+                fi
+
+                aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
+                aws logs delete-log-group \\
+                  --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
+                echo 'Non-updateable stack removed successfully.'
+                ;;
+              ''|None)
+                echo 'No existing Social Factory stack found.'
+                ;;
+              *)
+                echo "Existing stack is deployable and will be updated in place: ${STACK_STATUS}"
+                ;;
+            esac'''
+
+          if old not in text:
+              raise SystemExit('Expected recovery block was not found; refusing to make an unsafe edit.')
+
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit recovery fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-social-factory-api-dev.yml
+          git commit -m 'Preserve Social Factory stack during recoverable rollbacks'
+          git push origin main
