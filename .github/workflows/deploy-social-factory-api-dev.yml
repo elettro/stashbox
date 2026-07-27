@@ -54,15 +54,47 @@ jobs:
         working-directory: social-factory-api
         run: sam build --template-file infrastructure/template.yaml
 
+      - name: Prepare isolated deployment artifact bucket
+        run: |
+          set +e
+          {
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+            echo "${ARTIFACT_BUCKET}" > /tmp/social-factory-artifact-bucket
+
+            if ! aws s3api head-bucket --bucket "${ARTIFACT_BUCKET}" 2>/dev/null; then
+              aws s3api create-bucket \
+                --bucket "${ARTIFACT_BUCKET}" \
+                --region "${AWS_REGION}"
+            fi
+
+            aws s3api put-public-access-block \
+              --bucket "${ARTIFACT_BUCKET}" \
+              --public-access-block-configuration \
+                BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+            aws s3api put-bucket-encryption \
+              --bucket "${ARTIFACT_BUCKET}" \
+              --server-side-encryption-configuration \
+                '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          } 2>&1 | tee /tmp/social-factory-artifact-bucket.log
+
+          ARTIFACT_EXIT_CODE=${PIPESTATUS[0]}
+          echo "${ARTIFACT_EXIT_CODE}" > /tmp/social-factory-artifact-bucket.exit
+          exit "${ARTIFACT_EXIT_CODE}"
+
       - name: Deploy isolated DEV stack
         working-directory: social-factory-api
         run: |
           set +e
+          ARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket)
+
           sam deploy \
             --stack-name "${STACK_NAME}" \
             --region "${AWS_REGION}" \
-            --capabilities CAPABILITY_IAM \
-            --resolve-s3 \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --s3-bucket "${ARTIFACT_BUCKET}" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com \
@@ -166,12 +198,27 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevUrl'].OutputValue" \
             --output text 2>/dev/null)
 
+          ARTIFACT_BUCKET=""
+          if [ -f /tmp/social-factory-artifact-bucket ]; then
+            ARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket)
+          fi
+
           HEALTH_HTTP_STATUS=""
           if [ -n "${HEALTH_URL}" ]; then
             HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
               -o /tmp/social-health-receipt.json \
               -w '%{http_code}' \
               "${HEALTH_URL}" 2>/dev/null)
+          fi
+
+          ARTIFACT_EXIT_CODE=""
+          if [ -f /tmp/social-factory-artifact-bucket.exit ]; then
+            ARTIFACT_EXIT_CODE=$(cat /tmp/social-factory-artifact-bucket.exit)
+          fi
+
+          ARTIFACT_ERROR_SUMMARY=""
+          if [ -s /tmp/social-factory-artifact-bucket.log ]; then
+            ARTIFACT_ERROR_SUMMARY=$(tail -n 40 /tmp/social-factory-artifact-bucket.log | tail -c 5000)
           fi
 
           DEPLOY_EXIT_CODE=""
@@ -200,6 +247,9 @@ jobs:
             --arg run_url "${RUN_URL}" \
             --arg region "${AWS_REGION}" \
             --arg stack_name "${STACK_NAME}" \
+            --arg artifact_bucket "${ARTIFACT_BUCKET}" \
+            --arg artifact_exit_code "${ARTIFACT_EXIT_CODE}" \
+            --arg artifact_error_summary "${ARTIFACT_ERROR_SUMMARY}" \
             --arg function_name "${FUNCTION_NAME}" \
             --arg execution_role_arn "${ROLE_ARN}" \
             --arg health_url "${HEALTH_URL}" \
@@ -215,6 +265,9 @@ jobs:
               run_url: $run_url,
               region: $region,
               stack_name: $stack_name,
+              artifact_bucket: $artifact_bucket,
+              artifact_exit_code: $artifact_exit_code,
+              artifact_error_summary: $artifact_error_summary,
               function_name: $function_name,
               execution_role_arn: $execution_role_arn,
               health_url: $health_url,
