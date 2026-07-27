@@ -18,13 +18,16 @@ test('GET /social/health returns isolated service status', async () => {
   const body = JSON.parse(response.body);
   assert.equal(body.ok, true);
   assert.equal(body.service, 'stashbox-social-api');
+  assert.equal(body.version, '0.2.0');
   assert.equal(body.environment, 'dev');
   assert.deepEqual(body.isolation, {
     databaseConfigured: false,
     s3Configured: false,
     queueConfigured: false,
+    secretsConfigured: true,
+    youtubeOauthConfigured: true,
     mainRadioApiDependency: false,
-    executionRoleScope: 'cloudwatch-logs-only'
+    executionRoleScope: 'cloudwatch-logs-and-youtube-oauth-secrets'
   });
 });
 
@@ -60,15 +63,16 @@ test('unknown route returns 404', async () => {
 
 test('OPTIONS returns CORS response without invoking other systems', async () => {
   const response = await handler({
-    rawPath: '/social/health',
+    rawPath: '/social/youtube/disconnect',
     requestContext: {
       http: {
         method: 'OPTIONS',
-        path: '/social/health'
+        path: '/social/youtube/disconnect'
       }
     }
   });
 
   assert.equal(response.statusCode, 204);
   assert.equal(response.body, '');
+  assert.match(response.headers['Access-Control-Allow-Methods'], /POST/);
 });
