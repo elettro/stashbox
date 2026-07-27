@@ -87,3 +87,5 @@ jobs:
           git add .github/workflows/deploy-social-factory-api-dev.yml
           git commit -m 'Preserve Social Factory stack during recoverable rollbacks'
           git push origin main
+
+# Trigger after initial workflow registration.
