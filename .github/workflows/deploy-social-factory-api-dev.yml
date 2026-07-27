@@ -2,6 +2,12 @@ name: Deploy Social Factory API DEV
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent/social-factory-foundation
+    paths:
+      - '.github/workflows/deploy-social-factory-api-dev.yml'
+      - 'social-factory-api/**'
 
 permissions:
   contents: read
