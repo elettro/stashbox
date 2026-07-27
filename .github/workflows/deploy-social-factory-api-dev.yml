@@ -1,0 +1,133 @@
+name: Deploy Social Factory API DEV
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-social-factory-api-dev
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      EXPECTED_FUNCTION_NAME: stashbox-social-api-dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Validate source
+        working-directory: social-factory-api
+        run: |
+          npm run check
+          npm test
+          sam validate --template-file infrastructure/template.yaml --lint
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build isolated SAM application
+        working-directory: social-factory-api
+        run: sam build --template-file infrastructure/template.yaml
+
+      - name: Deploy isolated DEV stack
+        working-directory: social-factory-api
+        run: |
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+
+      - name: Verify deployed function identity and policy boundary
+        run: |
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevFunctionName'].OutputValue" \
+            --output text)
+
+          test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION_NAME}"
+
+          ROLE_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevExecutionRoleArn'].OutputValue" \
+            --output text)
+
+          ROLE_NAME="${ROLE_ARN##*/}"
+          ATTACHED_POLICIES=$(aws iam list-attached-role-policies \
+            --role-name "${ROLE_NAME}" \
+            --query 'AttachedPolicies[].PolicyName' \
+            --output text)
+
+          if [ -n "${ATTACHED_POLICIES}" ]; then
+            echo "Unexpected managed policies attached to ${ROLE_NAME}: ${ATTACHED_POLICIES}" >&2
+            exit 1
+          fi
+
+          INLINE_POLICIES=$(aws iam list-role-policies \
+            --role-name "${ROLE_NAME}" \
+            --query 'PolicyNames' \
+            --output text)
+
+          test -n "${INLINE_POLICIES}"
+
+          for POLICY_NAME in ${INLINE_POLICIES}; do
+            DOCUMENT=$(aws iam get-role-policy \
+              --role-name "${ROLE_NAME}" \
+              --policy-name "${POLICY_NAME}" \
+              --query 'PolicyDocument' \
+              --output json)
+
+            echo "${DOCUMENT}" | jq -e '
+              [.. | objects | select(has("Action")) | .Action] |
+              flatten |
+              all(. == "logs:CreateLogGroup" or . == "logs:CreateLogStream" or . == "logs:PutLogEvents")
+            ' >/dev/null
+          done
+
+      - name: Smoke test health endpoint
+        run: |
+          HEALTH_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevUrl'].OutputValue" \
+            --output text)
+
+          STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/social-health.json \
+            -w '%{http_code}' \
+            "${HEALTH_URL}")
+
+          test "${STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .service == "stashbox-social-api" and
+            .environment == "dev" and
+            .isolation.databaseConfigured == false and
+            .isolation.s3Configured == false and
+            .isolation.queueConfigured == false and
+            .isolation.mainRadioApiDependency == false and
+            .isolation.executionRoleScope == "cloudwatch-logs-only"
+          ' /tmp/social-health.json >/dev/null
+
+          echo "Social Factory health endpoint: ${HEALTH_URL}"
