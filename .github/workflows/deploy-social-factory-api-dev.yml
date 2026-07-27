@@ -23,6 +23,7 @@ jobs:
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
       EXPECTED_FUNCTION_NAME: stashbox-social-api-dev
+      EXPECTED_LOG_GROUP: /aws/lambda/stashbox-social-api-dev
 
     steps:
       - name: Checkout repository
@@ -50,6 +51,50 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Recover failed Social Factory stack
+        run: |
+          set +e
+          (
+            set -euo pipefail
+
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || true)
+
+            echo "${STACK_STATUS}" > /tmp/social-factory-stack-status-before
+            echo "Existing stack status: ${STACK_STATUS:-STACK_NOT_FOUND}"
+
+            case "${STACK_STATUS}" in
+              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS|UPDATE_ROLLBACK_FAILED|UPDATE_ROLLBACK_COMPLETE)
+                echo "Removing failed Social Factory stack before clean deployment."
+
+                if [ "${STACK_STATUS}" != 'DELETE_IN_PROGRESS' ]; then
+                  aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+                fi
+
+                aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
+
+                # The log group is intentionally retained during normal stack deletion.
+                # Remove only this failed-foundation log group before recreating the stack.
+                aws logs delete-log-group \
+                  --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
+
+                echo 'Failed stack removed successfully.'
+                ;;
+              ''|None)
+                echo 'No existing Social Factory stack found.'
+                ;;
+              *)
+                echo "Existing stack is deployable and will be updated in place: ${STACK_STATUS}"
+                ;;
+            esac
+          ) 2>&1 | tee /tmp/social-factory-stack-recovery.log
+
+          RECOVERY_EXIT_CODE=${PIPESTATUS[0]}
+          echo "${RECOVERY_EXIT_CODE}" > /tmp/social-factory-stack-recovery.exit
+          exit "${RECOVERY_EXIT_CODE}"
+
       - name: Build isolated SAM application
         working-directory: social-factory-api
         run: sam build --template-file infrastructure/template.yaml
@@ -57,7 +102,8 @@ jobs:
       - name: Prepare isolated deployment artifact bucket
         run: |
           set +e
-          {
+          (
+            set -euo pipefail
             ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
             ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
             echo "${ARTIFACT_BUCKET}" > /tmp/social-factory-artifact-bucket
@@ -77,7 +123,7 @@ jobs:
               --bucket "${ARTIFACT_BUCKET}" \
               --server-side-encryption-configuration \
                 '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-          } 2>&1 | tee /tmp/social-factory-artifact-bucket.log
+          ) 2>&1 | tee /tmp/social-factory-artifact-bucket.log
 
           ARTIFACT_EXIT_CODE=${PIPESTATUS[0]}
           echo "${ARTIFACT_EXIT_CODE}" > /tmp/social-factory-artifact-bucket.exit
@@ -198,13 +244,33 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevUrl'].OutputValue" \
             --output text 2>/dev/null)
 
+          STACK_STATUS_AFTER=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null)
+
+          STACK_STATUS_BEFORE=""
+          if [ -f /tmp/social-factory-stack-status-before ]; then
+            STACK_STATUS_BEFORE=$(cat /tmp/social-factory-stack-status-before)
+          fi
+
+          RECOVERY_EXIT_CODE=""
+          if [ -f /tmp/social-factory-stack-recovery.exit ]; then
+            RECOVERY_EXIT_CODE=$(cat /tmp/social-factory-stack-recovery.exit)
+          fi
+
+          RECOVERY_SUMMARY=""
+          if [ -s /tmp/social-factory-stack-recovery.log ]; then
+            RECOVERY_SUMMARY=$(tail -n 40 /tmp/social-factory-stack-recovery.log | tail -c 5000)
+          fi
+
           ARTIFACT_BUCKET=""
           if [ -f /tmp/social-factory-artifact-bucket ]; then
             ARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket)
           fi
 
           HEALTH_HTTP_STATUS=""
-          if [ -n "${HEALTH_URL}" ]; then
+          if [ -n "${HEALTH_URL}" ] && [ "${HEALTH_URL}" != 'None' ]; then
             HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
               -o /tmp/social-health-receipt.json \
               -w '%{http_code}' \
@@ -247,6 +313,10 @@ jobs:
             --arg run_url "${RUN_URL}" \
             --arg region "${AWS_REGION}" \
             --arg stack_name "${STACK_NAME}" \
+            --arg stack_status_before "${STACK_STATUS_BEFORE}" \
+            --arg stack_status_after "${STACK_STATUS_AFTER}" \
+            --arg recovery_exit_code "${RECOVERY_EXIT_CODE}" \
+            --arg recovery_summary "${RECOVERY_SUMMARY}" \
             --arg artifact_bucket "${ARTIFACT_BUCKET}" \
             --arg artifact_exit_code "${ARTIFACT_EXIT_CODE}" \
             --arg artifact_error_summary "${ARTIFACT_ERROR_SUMMARY}" \
@@ -265,6 +335,10 @@ jobs:
               run_url: $run_url,
               region: $region,
               stack_name: $stack_name,
+              stack_status_before: $stack_status_before,
+              stack_status_after: $stack_status_after,
+              recovery_exit_code: $recovery_exit_code,
+              recovery_summary: $recovery_summary,
               artifact_bucket: $artifact_bucket,
               artifact_exit_code: $artifact_exit_code,
               artifact_error_summary: $artifact_error_summary,
