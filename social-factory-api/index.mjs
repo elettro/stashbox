@@ -1,18 +1,25 @@
+import { createYoutubeOAuthService } from './youtube-oauth.mjs';
+
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.1.0';
+const SERVICE_VERSION = '0.2.0';
 
-const JSON_HEADERS = Object.freeze({
-  'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'no-store',
-  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || 'https://stashbox.com',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-admin-token',
-  'Access-Control-Allow-Methods': 'GET,OPTIONS'
-});
+function getJsonHeaders() {
+  return {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || 'https://stashbox.com',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-admin-token',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+  };
+}
 
-function json(statusCode, body) {
+function json(statusCode, body, extraHeaders = {}) {
   return {
     statusCode,
-    headers: JSON_HEADERS,
+    headers: {
+      ...getJsonHeaders(),
+      ...extraHeaders
+    },
     body: JSON.stringify(body)
   };
 }
@@ -36,39 +43,92 @@ function getRequestPath(event = {}) {
   return rawPath;
 }
 
-export async function handler(event = {}) {
-  const method = getRequestMethod(event);
-  const path = getRequestPath(event);
+function errorResponse(error) {
+  const statusCode = Number(error?.statusCode || 500);
+  const body = {
+    ok: false,
+    error: error?.message || 'internal_error'
+  };
 
-  if (method === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: JSON_HEADERS,
-      body: ''
-    };
+  if (error?.details) {
+    body.details = error.details;
   }
 
-  if (method === 'GET' && path === '/social/health') {
-    return json(200, {
-      ok: true,
-      service: SERVICE_NAME,
-      version: SERVICE_VERSION,
-      environment: process.env.APP_ENV || 'dev',
-      timestamp: new Date().toISOString(),
-      isolation: {
-        databaseConfigured: false,
-        s3Configured: false,
-        queueConfigured: false,
-        mainRadioApiDependency: false,
-        executionRoleScope: 'cloudwatch-logs-only'
-      }
+  if (statusCode >= 500) {
+    console.error('Social Factory API error', {
+      error: body.error,
+      stack: error?.stack
     });
   }
 
-  return json(404, {
-    ok: false,
-    error: 'route_not_found',
-    method,
-    path
-  });
+  return json(statusCode, body);
 }
+
+export function createHandler({ youtubeOAuth = createYoutubeOAuthService() } = {}) {
+  return async function socialFactoryHandler(event = {}) {
+    const method = getRequestMethod(event);
+    const path = getRequestPath(event);
+
+    if (method === 'OPTIONS') {
+      return {
+        statusCode: 204,
+        headers: getJsonHeaders(),
+        body: ''
+      };
+    }
+
+    try {
+      if (method === 'GET' && path === '/social/health') {
+        return json(200, {
+          ok: true,
+          service: SERVICE_NAME,
+          version: SERVICE_VERSION,
+          environment: process.env.APP_ENV || 'dev',
+          timestamp: new Date().toISOString(),
+          isolation: {
+            databaseConfigured: false,
+            s3Configured: false,
+            queueConfigured: false,
+            secretsConfigured: true,
+            youtubeOauthConfigured: true,
+            mainRadioApiDependency: false,
+            executionRoleScope: 'cloudwatch-logs-and-youtube-oauth-secrets'
+          }
+        });
+      }
+
+      if (method === 'GET' && path === '/social/youtube/oauth/start') {
+        return youtubeOAuth.start(event);
+      }
+
+      if (method === 'GET' && path === '/social/youtube/oauth/callback') {
+        return youtubeOAuth.callback(event);
+      }
+
+      if (method === 'GET' && path === '/social/youtube/status') {
+        return json(200, {
+          ok: true,
+          ...(await youtubeOAuth.status(event))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/youtube/disconnect') {
+        return json(200, {
+          ok: true,
+          ...(await youtubeOAuth.disconnect(event))
+        });
+      }
+
+      return json(404, {
+        ok: false,
+        error: 'route_not_found',
+        method,
+        path
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  };
+}
+
+export const handler = createHandler();
