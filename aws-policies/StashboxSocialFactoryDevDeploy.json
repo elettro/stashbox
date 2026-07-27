@@ -105,6 +105,27 @@
       ]
     },
     {
+      "Sid": "SocialFactoryYoutubeOAuthSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetResourcePolicy",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:ListSecretVersionIds",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:RestoreSecret",
+        "secretsmanager:TagResource",
+        "secretsmanager:UntagResource",
+        "secretsmanager:UpdateSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:656260749296:secret:stashbox/social-factory/dev/youtube-oauth/config-*",
+        "arn:aws:secretsmanager:us-east-1:656260749296:secret:stashbox/social-factory/dev/youtube-oauth/tokens-*"
+      ]
+    },
+    {
       "Sid": "SocialFactoryLogGroup",
       "Effect": "Allow",
       "Action": [
