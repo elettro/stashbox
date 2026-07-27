@@ -78,3 +78,5 @@ jobs:
           if [ "${CHECK_EXIT}" -ne 0 ] || [ "${TEST_EXIT}" -ne 0 ] || [ "${SAM_EXIT}" -ne 0 ]; then
             exit 1
           fi
+
+# This comment intentionally triggers the validation workflow after it exists on main.
