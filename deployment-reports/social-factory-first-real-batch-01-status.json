@@ -1,0 +1,55 @@
+{
+  "status": "found",
+  "recorded_at": "2026-07-28T12:32:43Z",
+  "campaign_name": "Stashbox Social Factory First Real Batch 01",
+  "jobs_http_status": "200",
+  "reviews_http_status": "200",
+  "counts": {
+    "total": 3,
+    "draft": 2,
+    "active": 1,
+    "completed": 0,
+    "failed": 0,
+    "other": 0
+  },
+  "jobs": [
+    {
+      "id": "0c7dd5a4-45aa-443d-ad35-7a9f58031a96",
+      "song_key": "angel-in-your-bed-live-stashbox",
+      "song_title": "Angel In Your Bed (Live)",
+      "artist": "Stashbox",
+      "status": "pending",
+      "active": true,
+      "ready_for_staging": false,
+      "output_filename": "stashbox_angel-in-your-bed-live_30s_9x16_v01.mp4",
+      "output_url": "",
+      "error_message": ""
+    },
+    {
+      "id": "c657b328-bdfb-4294-ba96-6a9a031ad081",
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "song_title": "Riding Waves (Live)",
+      "artist": "Stashbox",
+      "status": "draft",
+      "active": false,
+      "ready_for_staging": false,
+      "output_filename": "stashbox_riding-waves-live_30s_9x16_v01.mp4",
+      "output_url": "",
+      "error_message": ""
+    },
+    {
+      "id": "dca15a54-37f1-4e06-b1d4-11b3c2991463",
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "song_title": "Hippy Speedball (I'm On My Way)",
+      "artist": "Stashbox",
+      "status": "draft",
+      "active": false,
+      "ready_for_staging": false,
+      "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+      "output_url": "",
+      "error_message": ""
+    }
+  ],
+  "review_item_count": 1,
+  "youtube_published": false
+}
