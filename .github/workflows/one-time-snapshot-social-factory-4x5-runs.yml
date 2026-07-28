@@ -1,0 +1,72 @@
+name: One-Time Snapshot Social Factory 4x5 Runs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-snapshot-social-factory-4x5-runs.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      REPORT_PATH: deployment-reports/social-factory-4x5-current-runs.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Capture current 4:5 workflow runs
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          {
+            echo '# Current Social Factory 4:5 Workflow Runs'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            for WORKFLOW in \
+              one-time-apply-social-factory-4x5-contract.yml \
+              deploy-social-factory-api-dev.yml \
+              one-time-validate-social-factory-4x5-handoff.yml; do
+              echo "## ${WORKFLOW}"
+              RUN=$(gh run list \
+                --repo "${REPOSITORY}" \
+                --workflow "${WORKFLOW}" \
+                --limit 1 \
+                --json databaseId,status,conclusion,createdAt,updatedAt,url,event,headSha \
+                --jq '.[0] // {}')
+              if [ "$(printf '%s' "${RUN}" | jq 'length')" = '0' ]; then
+                echo '- No run found'
+              else
+                echo "- Run ID: $(printf '%s' "${RUN}" | jq -r '.databaseId')"
+                echo "- Status: $(printf '%s' "${RUN}" | jq -r '.status')"
+                echo "- Conclusion: $(printf '%s' "${RUN}" | jq -r '.conclusion // "pending"')"
+                echo "- Event: $(printf '%s' "${RUN}" | jq -r '.event')"
+                echo "- Created: $(printf '%s' "${RUN}" | jq -r '.createdAt')"
+                echo "- Updated: $(printf '%s' "${RUN}" | jq -r '.updatedAt')"
+                echo "- Head SHA: $(printf '%s' "${RUN}" | jq -r '.headSha')"
+                echo "- URL: $(printf '%s' "${RUN}" | jq -r '.url')"
+              fi
+              echo
+            done
+          } > "${REPORT_PATH}"
+
+      - name: Commit snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory 4x5 workflow runs [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
