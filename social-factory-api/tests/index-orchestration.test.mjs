@@ -14,7 +14,7 @@ function request(path, method = 'GET', body) {
   };
 }
 
-function createApi({ orchestrator = {}, review = {}, actions = {} } = {}) {
+function createApi({ orchestrator = {}, batch = {}, review = {}, actions = {} } = {}) {
   return createHandler({
     youtubeOAuth: {
       start: async () => ({}),
@@ -41,6 +41,22 @@ function createApi({ orchestrator = {}, review = {}, actions = {} } = {}) {
       getJob: async (_event, id) => ({ job: { id } }),
       launch: async (_event, id) => ({ launched: true, job: { id, status: 'pending' } }),
       ...orchestrator
+    },
+    batchCampaigns: {
+      plan: async () => ({
+        plan_id: 'plan-12345678',
+        mode: 'proposal_only',
+        selected_song_count: 2,
+        proposed_job_count: 2,
+        approval_required_before_draft_creation: true
+      }),
+      createDrafts: async () => ({
+        created: true,
+        created_job_count: 2,
+        skipped_job_count: 0,
+        renders_launched: false
+      }),
+      ...batch
     },
     reviewWorkflow: {
       stageRender: async (_event, id) => ({
@@ -79,6 +95,25 @@ test('candidate route delegates to the protected orchestrator', async () => {
   const response = await createApi()(request('/social/orchestration/candidates'));
   assert.equal(response.statusCode, 200);
   assert.equal(JSON.parse(response.body).candidates[0].song_key, 'dub-reggae-01');
+});
+
+test('batch planning and draft creation stay behind separate routes', async () => {
+  const api = createApi();
+  const planResponse = await api(request('/social/orchestration/batch-plan', 'POST', {
+    campaign_name: 'Tomorrow Test'
+  }));
+  assert.equal(planResponse.statusCode, 200);
+  const plan = JSON.parse(planResponse.body);
+  assert.equal(plan.mode, 'proposal_only');
+  assert.equal(plan.approval_required_before_draft_creation, true);
+
+  const draftsResponse = await api(request('/social/orchestration/batch-drafts', 'POST', {
+    confirm_create_drafts: true
+  }));
+  assert.equal(draftsResponse.statusCode, 201);
+  const drafts = JSON.parse(draftsResponse.body);
+  assert.equal(drafts.created_job_count, 2);
+  assert.equal(drafts.renders_launched, false);
 });
 
 test('render-job item and launch paths preserve the job ID', async () => {
