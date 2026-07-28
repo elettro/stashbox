@@ -18,7 +18,7 @@ test('GET /social/health returns isolated service status', async () => {
   const body = JSON.parse(response.body);
   assert.equal(body.ok, true);
   assert.equal(body.service, 'stashbox-social-api');
-  assert.equal(body.version, '0.3.0');
+  assert.equal(body.version, '0.4.0');
   assert.equal(body.environment, 'dev');
   assert.deepEqual(body.isolation, {
     databaseConfigured: false,
@@ -29,7 +29,9 @@ test('GET /social/health returns isolated service status', async () => {
     youtubePublishingConfigured: false,
     mainRadioApiDependency: false,
     radioApiBridgeSupported: true,
-    executionRoleScope: 'cloudwatch-youtube-oauth-secrets-and-social-publish-bucket'
+    renderStagingSupported: false,
+    contentReviewSupported: false,
+    executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read'
   });
 });
 
