@@ -1,0 +1,143 @@
+name: Deploy Apostrophe Fix and Retry Social Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-deploy-apostrophe-fix-and-retry-social-render.yml'
+      - 'video-render-worker/src/ffmpeg.mjs'
+      - 'video-render-worker/tests/ffmpeg.test.mjs'
+      - 'video-render-worker/scripts/apostrophe-filter-smoke.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-apostrophe-fix-and-retry-social-render
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-first-orchestrated-render.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate apostrophe-safe renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund
+          npm --prefix video-render-worker run check
+          npm --prefix video-render-worker test
+
+      - name: Build, smoke-test, and push corrected renderer image
+        shell: bash
+        run: |
+          set -euo pipefail
+          ECR_URI=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='EcrRepositoryUri'].OutputValue" \
+            --output text)
+          test -n "${ECR_URI}" || { echo 'Renderer ECR repository output is missing.' >&2; exit 1; }
+
+          IMAGE_URI="${ECR_URI}:${GITHUB_SHA}"
+          REGISTRY="${ECR_URI%%/*}"
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${REGISTRY}"
+          docker build --pull --tag "${IMAGE_URI}" video-render-worker
+          docker run --rm --entrypoint node "${IMAGE_URI}" scripts/apostrophe-filter-smoke.mjs
+          docker push "${IMAGE_URI}"
+
+          echo "ECR_URI=${ECR_URI}" >> "${GITHUB_ENV}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> "${GITHUB_ENV}"
+
+      - name: Point DEV render task to corrected image
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation update-stack \
+            --stack-name "${STACK_NAME}" \
+            --use-previous-template \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=ImageUri,ParameterValue="${IMAGE_URI}" \
+              ParameterKey=ApiLambdaRoleName,UsePreviousValue=true \
+              ParameterKey=ApiLambdaVpcId,UsePreviousValue=true \
+              ParameterKey=ApiLambdaSecurityGroupId,UsePreviousValue=true \
+              ParameterKey=ApiLambdaEndpointSubnetIds,UsePreviousValue=true \
+              ParameterKey=ApiLambdaRouteTableIds,UsePreviousValue=true \
+              ParameterKey=ApiBase,UsePreviousValue=true \
+              ParameterKey=AdminTokenSecretName,UsePreviousValue=true \
+            >/tmp/video-factory-update.json
+
+          aws cloudformation wait stack-update-complete --stack-name "${STACK_NAME}"
+
+          TASK_DEFINITION=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='RenderTaskDefinitionArn'].OutputValue" \
+            --output text)
+          test -n "${TASK_DEFINITION}" || { echo 'Render task definition output is missing.' >&2; exit 1; }
+          echo "TASK_DEFINITION=${TASK_DEFINITION}" >> "${GITHUB_ENV}"
+
+      - name: Run corrected controlled Social Factory render
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check social-factory-api/scripts/run-first-orchestrated-render.mjs
+          node social-factory-api/scripts/run-first-orchestrated-render.mjs
+
+      - name: Commit sanitized render report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "${REPORT_PATH}" || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record corrected Social Factory orchestrated render [skip ci]'
+          git push origin HEAD:main
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Video Factory apostrophe fix'
+            echo ''
+            echo "- Renderer image: \`${IMAGE_URI:-not-built}\`"
+            echo "- Task definition: \`${TASK_DEFINITION:-not-updated}\`"
+            echo '- YouTube publishing was not requested.'
+            if [ -f "${REPORT_PATH}" ]; then
+              echo "- Render status: \`$(jq -r '.status // "unknown"' "${REPORT_PATH}")\`"
+              echo "- Selected song: \`$(jq -r '.selected_song.title // .final_job.song_title // "unknown"' "${REPORT_PATH}")\`"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

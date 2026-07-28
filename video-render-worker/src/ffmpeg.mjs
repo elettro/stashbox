@@ -190,10 +190,11 @@ export async function concatenateSegments(segmentPaths, outputPath, workDir) {
 
 export function escapeDrawtext(value) {
   return String(value || '')
+    .replace(/\r?\n/g, ' ')
     .replace(/\\/g, '\\\\')
-    // The filtergraph parser consumes one escaping layer before drawtext sees text=.
-    // Two literal backslashes are therefore required before an apostrophe.
-    .replace(/'/g, "\\\\'")
+    // A straight apostrophe can terminate FFmpeg's nested text='...' expression.
+    // Use the typographic equivalent for the visual overlay while metadata keeps the original title.
+    .replace(/'/g, '’')
     .replace(/:/g, '\\:')
     .replace(/%/g, '\\%')
     .replace(/,/g, '\\,')
