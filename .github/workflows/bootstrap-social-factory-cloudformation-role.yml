@@ -1,0 +1,225 @@
+name: Bootstrap Social Factory CloudFormation Role
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/bootstrap-social-factory-cloudformation-role.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: bootstrap-social-factory-cloudformation-role
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      ROLE_NAME: stashbox-social-cloudformation-dev-role
+      POLICY_NAME: StashboxSocialCloudFormationDev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create scoped CloudFormation service role
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+          ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+          PUBLISH_BUCKET="stashbox-social-publish-${ACCOUNT_ID}-${AWS_REGION}"
+
+          cat > /tmp/social-cfn-trust.json <<'JSON'
+          {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {"Service": "cloudformation.amazonaws.com"},
+              "Action": "sts:AssumeRole"
+            }]
+          }
+          JSON
+
+          if aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
+            aws iam update-assume-role-policy \
+              --role-name "${ROLE_NAME}" \
+              --policy-document file:///tmp/social-cfn-trust.json
+          else
+            aws iam create-role \
+              --role-name "${ROLE_NAME}" \
+              --description 'Scoped CloudFormation service role for Stashbox Social Factory DEV.' \
+              --assume-role-policy-document file:///tmp/social-cfn-trust.json \
+              --tags Key=Application,Value=stashbox-social-factory Key=Environment,Value=dev
+          fi
+
+          cat > /tmp/social-cfn-policy.json <<JSON
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "ManageSocialFactoryRoles",
+                "Effect": "Allow",
+                "Action": [
+                  "iam:CreateRole",
+                  "iam:DeleteRole",
+                  "iam:GetRole",
+                  "iam:UpdateAssumeRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy",
+                  "iam:GetRolePolicy",
+                  "iam:ListRolePolicies",
+                  "iam:ListAttachedRolePolicies",
+                  "iam:ListRoleTags",
+                  "iam:TagRole",
+                  "iam:UntagRole",
+                  "iam:PassRole"
+                ],
+                "Resource": "arn:aws:iam::${ACCOUNT_ID}:role/stashbox-social-*"
+              },
+              {
+                "Sid": "ManageSocialFactoryFunctions",
+                "Effect": "Allow",
+                "Action": "lambda:*",
+                "Resource": "arn:aws:lambda:${AWS_REGION}:${ACCOUNT_ID}:function:stashbox-social-*"
+              },
+              {
+                "Sid": "ManageSocialFactoryLambdaMappings",
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:CreateEventSourceMapping",
+                  "lambda:GetEventSourceMapping",
+                  "lambda:UpdateEventSourceMapping",
+                  "lambda:DeleteEventSourceMapping",
+                  "lambda:ListEventSourceMappings",
+                  "lambda:TagResource",
+                  "lambda:UntagResource"
+                ],
+                "Resource": "*"
+              },
+              {
+                "Sid": "ManageSocialFactoryLogs",
+                "Effect": "Allow",
+                "Action": "logs:*",
+                "Resource": "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*:*"
+              },
+              {
+                "Sid": "ManageSocialFactoryApiGateway",
+                "Effect": "Allow",
+                "Action": "apigateway:*",
+                "Resource": "arn:aws:apigateway:${AWS_REGION}::/*"
+              },
+              {
+                "Sid": "ManageSocialPublishBucket",
+                "Effect": "Allow",
+                "Action": "s3:*",
+                "Resource": [
+                  "arn:aws:s3:::${PUBLISH_BUCKET}",
+                  "arn:aws:s3:::${PUBLISH_BUCKET}/*"
+                ]
+              },
+              {
+                "Sid": "ReadSocialDeploymentArtifacts",
+                "Effect": "Allow",
+                "Action": [
+                  "s3:GetObject",
+                  "s3:GetObjectVersion",
+                  "s3:GetBucketLocation",
+                  "s3:ListBucket"
+                ],
+                "Resource": [
+                  "arn:aws:s3:::${ARTIFACT_BUCKET}",
+                  "arn:aws:s3:::${ARTIFACT_BUCKET}/*"
+                ]
+              },
+              {
+                "Sid": "ManageSocialFactorySecrets",
+                "Effect": "Allow",
+                "Action": "secretsmanager:*",
+                "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:stashbox/social-factory/dev/*"
+              },
+              {
+                "Sid": "ManageSocialPublishQueues",
+                "Effect": "Allow",
+                "Action": "sqs:*",
+                "Resource": "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:stashbox-social-publish-dev*"
+              },
+              {
+                "Sid": "ManageSocialPublishSchedules",
+                "Effect": "Allow",
+                "Action": "scheduler:*",
+                "Resource": [
+                  "arn:aws:scheduler:${AWS_REGION}:${ACCOUNT_ID}:schedule-group/stashbox-social-publish-dev",
+                  "arn:aws:scheduler:${AWS_REGION}:${ACCOUNT_ID}:schedule/stashbox-social-publish-dev/*"
+                ]
+              },
+              {
+                "Sid": "ReadResourceTags",
+                "Effect": "Allow",
+                "Action": [
+                  "tag:GetResources",
+                  "tag:GetTagKeys",
+                  "tag:GetTagValues"
+                ],
+                "Resource": "*"
+              }
+            ]
+          }
+          JSON
+
+          aws iam put-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name "${POLICY_NAME}" \
+            --policy-document file:///tmp/social-cfn-policy.json
+
+          aws iam wait role-exists --role-name "${ROLE_NAME}"
+          sleep 10
+
+          echo "${ROLE_ARN}" > /tmp/social-cfn-role-arn
+
+      - name: Associate service role with Social Factory stack
+        run: |
+          set -euo pipefail
+
+          ROLE_ARN=$(cat /tmp/social-cfn-role-arn)
+
+          aws cloudformation update-stack \
+            --stack-name "${STACK_NAME}" \
+            --use-previous-template \
+            --role-arn "${ROLE_ARN}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=EnvironmentName,UsePreviousValue=true \
+              ParameterKey=AllowedOrigin,UsePreviousValue=true \
+            --tags \
+              Key=Application,Value=stashbox-social-factory \
+              Key=Environment,Value=dev \
+              Key=CloudFormationServiceRole,Value=stashbox-social-cloudformation-dev
+
+          aws cloudformation wait stack-update-complete --stack-name "${STACK_NAME}"
+
+          ASSOCIATED_ROLE=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].RoleARN' \
+            --output text)
+          test "${ASSOCIATED_ROLE}" = "${ROLE_ARN}"
+
+      - name: Trigger Social Factory deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-social-factory-api-dev.yml --ref main
