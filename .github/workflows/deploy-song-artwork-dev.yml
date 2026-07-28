@@ -9,6 +9,9 @@ on:
       - '.github/workflows/deploy-song-artwork-dev.yml'
       - 'radio-api/song-artwork-routes.mjs'
       - 'radio-api/migrations/20260728_song_artwork_images_dev.sql'
+      - 'radio-admin/songs/dev/song-images.js'
+      - 'radio-admin/songs/dev/song-images-presign-route.js'
+      - 'radio-admin/dev/app.js'
 
 permissions:
   contents: read
@@ -31,7 +34,10 @@ jobs:
         run: |
           node --check radio-api/song-artwork-routes.mjs
           node --check radio-admin/songs/dev/song-images.js
+          node --check radio-admin/songs/dev/song-images-presign-route.js
+          node --check radio-admin/dev/app.js
           grep -q "song-artwork-routes.mjs" radio-api/video-factory/entry.mjs
+          grep -q "song-images-presign-route.js" radio-admin/dev/app.js
           grep -q "song-images.js" radio-admin/dev/app.js
 
       - name: Dispatch established TRUE DEV deployment
