@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPOSITORY: ${{ github.repository }}
-      REPORT_PATH: deployment-reports/social-factory-repair-runs.md
+      REPORT_PATH: deployment-reports/social-factory-repair-runs.json
 
     steps:
       - name: Checkout main
@@ -28,29 +28,37 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Capture repair and deploy runs
+      - name: Capture Actions runs and latest job steps
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "${REPORT_PATH}")"
-          {
-            echo '# Social Factory Repair Workflow Runs'
-            echo
-            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo
-            for WORKFLOW in \
-              one-time-repair-social-scheduled-infra.yml \
-              one-time-repair-social-scheduled-infra-v2.yml \
-              deploy-social-factory-api-dev.yml; do
-              echo "## ${WORKFLOW}"
-              gh run list \
-                --repo "${REPOSITORY}" \
-                --workflow "${WORKFLOW}" \
-                --limit 5 \
-                --json databaseId,status,conclusion,createdAt,updatedAt,url,event,headSha \
-                --jq '.[] | "- Run ID: \(.databaseId) | status=\(.status) | conclusion=\(.conclusion // \"pending\") | event=\(.event) | created=\(.createdAt) | head=\(.headSha) | url=\(.url)"' || true
-              echo
-            done
-          } > "${REPORT_PATH}"
+          gh api "repos/${REPOSITORY}/actions/runs?per_page=100" > /tmp/all-runs.json
+
+          jq '
+            [.workflow_runs[] |
+              select(.path == ".github/workflows/one-time-repair-social-scheduled-infra.yml" or
+                     .path == ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml" or
+                     .path == ".github/workflows/deploy-social-factory-api-dev.yml") |
+              {id, name, path, event, status, conclusion, created_at, updated_at, head_sha, html_url}
+            ]
+          ' /tmp/all-runs.json > /tmp/selected-runs.json
+
+          REPAIR_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml")][0].id // empty' /tmp/selected-runs.json)
+          if [ -n "${REPAIR_RUN_ID}" ]; then
+            gh api "repos/${REPOSITORY}/actions/runs/${REPAIR_RUN_ID}/jobs?per_page=100" > /tmp/repair-jobs.json
+          else
+            printf '%s\n' '{"jobs":[]}' > /tmp/repair-jobs.json
+          fi
+
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --slurpfile runs /tmp/selected-runs.json \
+            --slurpfile jobs /tmp/repair-jobs.json '
+            {
+              recorded_at:$recorded_at,
+              runs:$runs[0],
+              latest_repair_jobs:($jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
+            }' > "${REPORT_PATH}"
 
       - name: Commit snapshot
         run: |
