@@ -1,5 +1,6 @@
 name: Inspect Social Factory V05 Trigger Runs
 # Refresh after the robust smoke-repair attempt.
+# Second inspection pass after repair workflow completion.
 
 on:
   push:
