@@ -1,0 +1,241 @@
+{
+  "recorded_at": "2026-07-28T04:11:06Z",
+  "task_definition_refresh": {
+    "run": {
+      "id": 30327438606,
+      "status": "completed",
+      "conclusion": "failure",
+      "event": "push",
+      "head_sha": "0d47828392eb2cf1488edae641b638a9a72c2876",
+      "created_at": "2026-07-28T03:59:12Z",
+      "updated_at": "2026-07-28T03:59:47Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30327438606"
+    },
+    "jobs": [
+      {
+        "id": 90175644527,
+        "name": "refresh-and-retry",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Checkout repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Setup Node.js 22",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Configure AWS credentials",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4
+          },
+          {
+            "name": "Refresh Lambda with the active renderer task definition",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5
+          },
+          {
+            "name": "Retry controlled Social Factory render",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6
+          },
+          {
+            "name": "Commit sanitized render report",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 7
+          },
+          {
+            "name": "Summary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8
+          },
+          {
+            "name": "Post Configure AWS credentials",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14
+          },
+          {
+            "name": "Post Setup Node.js 22",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 15
+          },
+          {
+            "name": "Post Checkout repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17
+          }
+        ]
+      }
+    ],
+    "sanitized_diagnostic": "2026-07-28T03:59:22.3270269Z  * [new branch]        agent/fix-youtube-oauth-route-errors -> origin/agent/fix-youtube-oauth-route-errors\n2026-07-28T03:59:22.3504790Z  * [new branch]        automation/diagnose-first-render-failure -> origin/automation/diagnose-first-render-failure\n2026-07-28T03:59:22.3901701Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4014640Z  * [new branch]        codex/fix-400-error-for-ad-video-upload -> origin/codex/fix-400-error-for-ad-video-upload\n2026-07-28T03:59:22.4016204Z  * [new branch]        codex/fix-500-error-in-tracksongevent -> origin/codex/fix-500-error-in-tracksongevent\n2026-07-28T03:59:22.4018303Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4020245Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4035165Z  * [new branch]        codex/fix-admin-song-create-flow-error -> origin/codex/fix-admin-song-create-flow-error\n2026-07-28T03:59:22.4038651Z  * [new branch]        codex/fix-admin-song-record-save-error -> origin/codex/fix-admin-song-record-save-error\n2026-07-28T03:59:22.4088688Z  * [new branch]        codex/fix-dashboard-internal-error -> origin/codex/fix-dashboard-internal-error\n2026-07-28T03:59:22.4115187Z  * [new branch]        codex/fix-error-in-/stashbox/radio/-section -> origin/codex/fix-error-in-/stashbox/radio/-section\n2026-07-28T03:59:22.4117003Z  * [new branch]        codex/fix-fetch-error-in-/stashbox/radio/dev -> origin/codex/fix-fetch-error-in-/stashbox/radio/dev\n2026-07-28T03:59:22.4140714Z  * [new branch]        codex/fix-invalid-input-syntax-for-json-error -> origin/codex/fix-invalid-input-syntax-for-json-error\n2026-07-28T03:59:22.4144194Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4146093Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4187724Z  * [new branch]        codex/fix-mobile-error-and-image-display -> origin/codex/fix-mobile-error-and-image-display\n2026-07-28T03:59:22.4250918Z  * [new branch]        codex/fix-post-/songs-create-failure -> origin/codex/fix-post-/songs-create-failure\n2026-07-28T03:59:22.4300176Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4310446Z  * [new branch]        codex/fix-s3-upload-stuck-on-cors-error -> origin/codex/fix-s3-upload-stuck-on-cors-error\n2026-07-28T03:59:22.4340309Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:22.4398734Z  * [new branch]        codex/fix-vec-recipe-save-404-error -> origin/codex/fix-vec-recipe-save-404-error\n2026-07-28T03:59:22.4479894Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T03:59:44.9478695Z error: cannot pull with rebase: You have unstaged changes.\n2026-07-28T03:59:44.9483476Z error: Please commit or stash them.\n2026-07-28T03:59:44.9502602Z ##[error]Process completed with exit code 128."
+  },
+  "render_staging": {
+    "run": {
+      "id": 30327737614,
+      "status": "completed",
+      "conclusion": "failure",
+      "event": "push",
+      "head_sha": "e5b738dc571407b5fb39d7b88ad89d64db7fbc89",
+      "created_at": "2026-07-28T04:05:13Z",
+      "updated_at": "2026-07-28T04:05:40Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30327737614"
+    },
+    "jobs": [
+      {
+        "id": 90176531355,
+        "name": "stage",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Run aws-actions/configure-aws-credentials@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Stage completed render server-to-server",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 4
+          },
+          {
+            "name": "Commit staged review receipt",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5
+          },
+          {
+            "name": "Post Run aws-actions/configure-aws-credentials@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11
+          }
+        ]
+      }
+    ],
+    "sanitized_diagnostic": "2026-07-28T04:05:27.1214342Z  * [new branch]        agent/fix-youtube-oauth-route-errors -> origin/agent/fix-youtube-oauth-route-errors\n2026-07-28T04:05:27.1270677Z  * [new branch]        automation/diagnose-first-render-failure -> origin/automation/diagnose-first-render-failure\n2026-07-28T04:05:27.1542607Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1599339Z  * [new branch]        codex/fix-400-error-for-ad-video-upload -> origin/codex/fix-400-error-for-ad-video-upload\n2026-07-28T04:05:27.1600119Z  * [new branch]        codex/fix-500-error-in-tracksongevent -> origin/codex/fix-500-error-in-tracksongevent\n2026-07-28T04:05:27.1601129Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1602104Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1609854Z  * [new branch]        codex/fix-admin-song-create-flow-error -> origin/codex/fix-admin-song-create-flow-error\n2026-07-28T04:05:27.1611537Z  * [new branch]        codex/fix-admin-song-record-save-error -> origin/codex/fix-admin-song-record-save-error\n2026-07-28T04:05:27.1637364Z  * [new branch]        codex/fix-dashboard-internal-error -> origin/codex/fix-dashboard-internal-error\n2026-07-28T04:05:27.1650742Z  * [new branch]        codex/fix-error-in-/stashbox/radio/-section -> origin/codex/fix-error-in-/stashbox/radio/-section\n2026-07-28T04:05:27.1651554Z  * [new branch]        codex/fix-fetch-error-in-/stashbox/radio/dev -> origin/codex/fix-fetch-error-in-/stashbox/radio/dev\n2026-07-28T04:05:27.1663602Z  * [new branch]        codex/fix-invalid-input-syntax-for-json-error -> origin/codex/fix-invalid-input-syntax-for-json-error\n2026-07-28T04:05:27.1665610Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1666574Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1686164Z  * [new branch]        codex/fix-mobile-error-and-image-display -> origin/codex/fix-mobile-error-and-image-display\n2026-07-28T04:05:27.1710413Z  * [new branch]        codex/fix-post-/songs-create-failure -> origin/codex/fix-post-/songs-create-failure\n2026-07-28T04:05:27.1725473Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1729069Z  * [new branch]        codex/fix-s3-upload-stuck-on-cors-error -> origin/codex/fix-s3-upload-stuck-on-cors-error\n2026-07-28T04:05:27.1739130Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:27.1761240Z  * [new branch]        codex/fix-vec-recipe-save-404-error -> origin/codex/fix-vec-recipe-save-404-error\n2026-07-28T04:05:27.1786541Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T04:05:28.5539104Z \u001b[36;1mSTAGE_STATUS=$(curl --silent --show-error --max-time 300 \\\u001b[0m\n2026-07-28T04:05:28.5550114Z \u001b[36;1mREVIEW_STATUS=$(curl --silent --show-error --max-time 90 \\\u001b[0m\n2026-07-28T04:05:37.0722839Z jq: error (at /tmp/staged-review.json:0): startswith() requires string inputs\n2026-07-28T04:05:37.0739382Z ##[error]Process completed with exit code 5."
+  },
+  "content_review_verification": {
+    "run": {
+      "id": 30321239566,
+      "status": "completed",
+      "conclusion": "failure",
+      "event": "push",
+      "head_sha": "bae1ad85e954c84c4ccc97b2e02cb366c9a51616",
+      "created_at": "2026-07-28T01:46:46Z",
+      "updated_at": "2026-07-28T01:57:14Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30321239566"
+    },
+    "jobs": [
+      {
+        "id": 90157373327,
+        "name": "verify",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Run aws-actions/configure-aws-credentials@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Wait for Social Factory 0.5 and verify Content Review",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 4
+          },
+          {
+            "name": "Commit live verification receipt",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5
+          },
+          {
+            "name": "Post Run aws-actions/configure-aws-credentials@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11
+          }
+        ]
+      }
+    ],
+    "sanitized_diagnostic": "2026-07-28T01:47:00.7044135Z  * [new branch]        agent/fix-youtube-oauth-route-errors -> origin/agent/fix-youtube-oauth-route-errors\n2026-07-28T01:47:00.7104938Z  * [new branch]        automation/diagnose-first-render-failure -> origin/automation/diagnose-first-render-failure\n2026-07-28T01:47:00.7378386Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7436484Z  * [new branch]        codex/fix-400-error-for-ad-video-upload -> origin/codex/fix-400-error-for-ad-video-upload\n2026-07-28T01:47:00.7437280Z  * [new branch]        codex/fix-500-error-in-tracksongevent -> origin/codex/fix-500-error-in-tracksongevent\n2026-07-28T01:47:00.7438135Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7439125Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7447204Z  * [new branch]        codex/fix-admin-song-create-flow-error -> origin/codex/fix-admin-song-create-flow-error\n2026-07-28T01:47:00.7448986Z  * [new branch]        codex/fix-admin-song-record-save-error -> origin/codex/fix-admin-song-record-save-error\n2026-07-28T01:47:00.7474994Z  * [new branch]        codex/fix-dashboard-internal-error -> origin/codex/fix-dashboard-internal-error\n2026-07-28T01:47:00.7488752Z  * [new branch]        codex/fix-error-in-/stashbox/radio/-section -> origin/codex/fix-error-in-/stashbox/radio/-section\n2026-07-28T01:47:00.7489583Z  * [new branch]        codex/fix-fetch-error-in-/stashbox/radio/dev -> origin/codex/fix-fetch-error-in-/stashbox/radio/dev\n2026-07-28T01:47:00.7501903Z  * [new branch]        codex/fix-invalid-input-syntax-for-json-error -> origin/codex/fix-invalid-input-syntax-for-json-error\n2026-07-28T01:47:00.7503943Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7505080Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7524903Z  * [new branch]        codex/fix-mobile-error-and-image-display -> origin/codex/fix-mobile-error-and-image-display\n2026-07-28T01:47:00.7549554Z  * [new branch]        codex/fix-post-/songs-create-failure -> origin/codex/fix-post-/songs-create-failure\n2026-07-28T01:47:00.7564819Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7568503Z  * [new branch]        codex/fix-s3-upload-stuck-on-cors-error -> origin/codex/fix-s3-upload-stuck-on-cors-error\n2026-07-28T01:47:00.7578795Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:00.7601422Z  * [new branch]        codex/fix-vec-recipe-save-404-error -> origin/codex/fix-vec-recipe-save-404-error\n2026-07-28T01:47:00.7627772Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T01:47:01.8443909Z \u001b[36;1m  HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \\\u001b[0m\n2026-07-28T01:47:01.8448933Z \u001b[36;1mLIST_STATUS=$(curl --silent --show-error --max-time 90 \\\u001b[0m\n2026-07-28T01:47:01.8451901Z \u001b[36;1mITEM_STATUS=$(curl --silent --show-error --max-time 90 \\\u001b[0m\n2026-07-28T01:47:01.8455647Z \u001b[36;1mPREVIEW_STATUS=$(curl --silent --show-error --max-time 90 \\\u001b[0m\n2026-07-28T01:47:01.8460650Z \u001b[36;1m  PAGE_STATUS=$(curl --silent --show-error --max-time 45 \\\u001b[0m\n2026-07-28T01:57:10.5245607Z ##[error]Process completed with exit code 1."
+  },
+  "youtube_published": false
+}
