@@ -21,6 +21,12 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
+      - name: Refresh main before editing
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin main
+
       - name: Update deployed health smoke-test contract
         shell: bash
         run: |
@@ -38,20 +44,35 @@ jobs:
 
           for old, new in replacements.items():
               if old not in text:
+                  if new in text:
+                      continue
                   raise SystemExit(f'Expected smoke-test text not found: {old}')
               text = text.replace(old, new, 1)
 
           path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Commit corrected smoke contract
+      - name: Commit corrected smoke contract and trigger deployment
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/workflows/deploy-social-factory-api-dev.yml
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Update Social Factory 0.6 deployment smoke contract [skip ci]'
-          git pull --rebase origin main
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            echo 'Smoke contract is already current.'
+            exit 0
+          fi
+          git commit -m 'Update Social Factory 0.6 deployment smoke contract'
+
+          for attempt in 1 2 3 4; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push attempt ${attempt} failed; refreshing main and retrying."
+            sleep 3
+          done
+
+          echo 'Unable to push corrected smoke contract after four attempts.' >&2
+          exit 1
