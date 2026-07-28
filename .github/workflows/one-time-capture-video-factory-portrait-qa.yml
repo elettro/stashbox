@@ -74,4 +74,5 @@ jobs:
           git push origin HEAD:main
 
       - name: Require completed capture
-        run: grep -q -- '- Status: completed' "${REPORT_PATH}"
+        run: |
+          grep -q -- '- Status: completed' "${REPORT_PATH}"
