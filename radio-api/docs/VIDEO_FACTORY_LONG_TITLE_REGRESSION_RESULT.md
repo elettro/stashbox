@@ -1,8 +1,8 @@
 # Video Factory Long-Title and Regression Validation
 
-Status: failed
-Started: 2026-07-28T19:48:38.068Z
-Completed: 2026-07-28T19:51:22.486Z
+Status: completed
+Started: 2026-07-28T20:13:53.919Z
+Completed: 2026-07-28T20:16:27.628Z
 GitHub Actions run ID: `30393503450`
 
 - Song: Stashbox — Party Spots and Waves (Newport Beach)
@@ -22,32 +22,32 @@ GitHub Actions run ID: `30393503450`
 
 ## 3:4 Render
 
-- Status: failed
-- Job ID: `ed85c085-40d8-425c-90af-3385821a1e34`
-- Batch ID: `71aa41e2-f7f4-4259-81d9-4a1360625eeb`
+- Status: completed
+- Job ID: `764de2bd-259c-4ef6-b4d2-76fc98ba27f1`
+- Batch ID: `37f3c896-4cfb-4dfc-90f6-df3f95dfd072`
 - Draft dimensions: 1080×1440
-- Output-record dimensions: 0×0
-- Probed dimensions: 0×0
-- Duration: 0 seconds
-- Frame rate: 
-- Video streams: 0
-- Audio streams: 0
-- Downloaded bytes: 0
+- Output-record dimensions: 1080×1440
+- Probed dimensions: 1080×1440
+- Duration: 15 seconds
+- Frame rate: 30/1
+- Video streams: 1
+- Audio streams: 1
+- Downloaded bytes: 1555891
 - Output filename: `stashbox_party-spots-and-waves-newport-beach_1080x1440_15s_3x4_v01.mp4`
-- Filename contains ratio: no
-- Filename contains resolution: no
-- Unique recipe media URLs: 0
-- Recipe image URLs: 0
+- Filename contains ratio: yes
+- Filename contains resolution: yes
+- Unique recipe media URLs: 2
+- Recipe image URLs: 1
 - Recipe video URLs: 0
 - Mixed image/video recipe: no
-- Frames: 
-- Error: 3:4 render ended as failed: Render failed.
+- Frames: 0.5s (3x4-0_5s.jpg), 3s (3x4-3s.jpg), 7.5s (3x4-7_5s.jpg), 12s (3x4-12s.jpg), 14.5s (3x4-14_5s.jpg)
+- Error: none
 
 ## 4:5 Render
 
 - Status: completed
-- Job ID: `b31886df-6312-4cc5-a08f-33e192cc1fc3`
-- Batch ID: `d9bc5090-3d49-45ff-8b0b-314709e1d5f4`
+- Job ID: `ffa37250-c393-4859-8b2d-6572a9be62b0`
+- Batch ID: `c04baa9f-9f96-47a7-8bfe-1d3e1a2ceb0c`
 - Draft dimensions: 1080×1350
 - Output-record dimensions: 1080×1350
 - Probed dimensions: 1080×1350
@@ -55,7 +55,7 @@ GitHub Actions run ID: `30393503450`
 - Frame rate: 30/1
 - Video streams: 1
 - Audio streams: 1
-- Downloaded bytes: 1555945
+- Downloaded bytes: 1553573
 - Output filename: `stashbox_party-spots-and-waves-newport-beach_1080x1350_15s_4x5_v01.mp4`
 - Filename contains ratio: yes
 - Filename contains resolution: yes
@@ -69,8 +69,8 @@ GitHub Actions run ID: `30393503450`
 ## 9:16 Render
 
 - Status: completed
-- Job ID: `c694a998-9548-46f3-b2c2-be194aacb2ef`
-- Batch ID: `9e331906-a859-4e2f-8e57-52fee96a6b72`
+- Job ID: `09805081-a31f-4b72-a023-c4a40737a084`
+- Batch ID: `460643a0-c852-428d-ac2c-f5dff751aa7c`
 - Draft dimensions: 1080×1920
 - Output-record dimensions: 1080×1920
 - Probed dimensions: 1080×1920
@@ -78,7 +78,7 @@ GitHub Actions run ID: `30393503450`
 - Frame rate: 30/1
 - Video streams: 1
 - Audio streams: 1
-- Downloaded bytes: 1401354
+- Downloaded bytes: 1466299
 - Output filename: `stashbox_party-spots-and-waves-newport-beach_1080x1920_15s_9x16_v01.mp4`
 - Filename contains ratio: yes
 - Filename contains resolution: yes
@@ -89,5 +89,5 @@ GitHub Actions run ID: `30393503450`
 - Frames: 0.5s (9x16-0_5s.jpg), 3s (9x16-3s.jpg), 7.5s (9x16-7_5s.jpg), 12s (9x16-12s.jpg), 14.5s (9x16-14_5s.jpg)
 - Error: none
 
-Error: One or more format validations failed.
+Error: none
 
