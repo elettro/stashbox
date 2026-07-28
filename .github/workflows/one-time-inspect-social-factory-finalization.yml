@@ -1,0 +1,140 @@
+name: Inspect Social Factory Finalization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-inspect-social-factory-finalization.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    env:
+      REPORT_PATH: deployment-reports/social-factory-finalization-runs.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Inspect render repair, staging, and review verification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          AUTH=(-H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28')
+
+          fetch_target() {
+            local name="$1"
+            local workflow="$2"
+            curl --fail --silent --show-error "${AUTH[@]}" \
+              "${API}/actions/workflows/${workflow}/runs?per_page=5" > "/tmp/${name}-runs.json"
+            local run_id
+            run_id=$(jq -r '.workflow_runs[0].id // empty' "/tmp/${name}-runs.json")
+            if [ -n "${run_id}" ]; then
+              curl --fail --silent --show-error "${AUTH[@]}" \
+                "${API}/actions/runs/${run_id}/jobs?per_page=30" > "/tmp/${name}-jobs.json"
+              local job_id
+              job_id=$(jq -r '.jobs[0].id // empty' "/tmp/${name}-jobs.json")
+              if [ -n "${job_id}" ]; then
+                curl --fail --location --silent --show-error "${AUTH[@]}" \
+                  "${API}/actions/jobs/${job_id}/logs" > "/tmp/${name}-logs.bin" || true
+              fi
+            else
+              printf '{"jobs":[]}' > "/tmp/${name}-jobs.json"
+            fi
+          }
+
+          fetch_target refresh one-time-refresh-video-factory-task-definition-and-retry.yml
+          fetch_target stage one-time-stage-first-social-render-review.yml
+          fetch_target verify one-time-verify-social-factory-content-review.yml
+
+          python <<'PY'
+          import io, re, zipfile
+          from pathlib import Path
+
+          for name in ('refresh', 'stage', 'verify'):
+              source = Path(f'/tmp/{name}-logs.bin')
+              target = Path(f'/tmp/{name}-diagnostic.txt')
+              if not source.exists():
+                  target.write_text('', encoding='utf-8')
+                  continue
+              raw = source.read_bytes()
+              if raw.startswith(b'PK'):
+                  with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                      text = '\n'.join(
+                          archive.read(item).decode('utf-8', errors='replace')
+                          for item in archive.namelist() if not item.endswith('/')
+                      )
+              else:
+                  text = raw.decode('utf-8', errors='replace')
+              pattern = re.compile(r'error|failed|failure|HTTP [45][0-9][0-9]|not found|inactive|denied|timed out|process completed', re.I)
+              lines = [line for line in text.splitlines() if pattern.search(line)]
+              cleaned = '\n'.join(lines[-80:])
+              cleaned = re.sub(r'(?i)(x-admin-token|authorization):?\s+\S+', r'\1: [REDACTED]', cleaned)
+              cleaned = re.sub(r'(?<![A-Za-z0-9])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9])', '[REDACTED]', cleaned)
+              target.write_text(cleaned[:16000], encoding='utf-8')
+          PY
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --slurpfile refresh_runs /tmp/refresh-runs.json \
+            --slurpfile refresh_jobs /tmp/refresh-jobs.json \
+            --rawfile refresh_diagnostic /tmp/refresh-diagnostic.txt \
+            --slurpfile stage_runs /tmp/stage-runs.json \
+            --slurpfile stage_jobs /tmp/stage-jobs.json \
+            --rawfile stage_diagnostic /tmp/stage-diagnostic.txt \
+            --slurpfile verify_runs /tmp/verify-runs.json \
+            --slurpfile verify_jobs /tmp/verify-jobs.json \
+            --rawfile verify_diagnostic /tmp/verify-diagnostic.txt '
+              def normalized($runs; $jobs; $diagnostic):
+                ($runs[0].workflow_runs[0] // null) as $run |
+                {
+                  run: (if $run then {
+                    id: $run.id,
+                    status: $run.status,
+                    conclusion: $run.conclusion,
+                    event: $run.event,
+                    head_sha: $run.head_sha,
+                    created_at: $run.created_at,
+                    updated_at: $run.updated_at,
+                    html_url: $run.html_url
+                  } else null end),
+                  jobs: [($jobs[0].jobs // [])[] | {
+                    id, name, status, conclusion,
+                    steps: [.steps[]? | {name, status, conclusion, number}]
+                  }],
+                  sanitized_diagnostic: $diagnostic
+                };
+              {
+                recorded_at: $recorded_at,
+                task_definition_refresh: normalized($refresh_runs; $refresh_jobs; $refresh_diagnostic),
+                render_staging: normalized($stage_runs; $stage_jobs; $stage_diagnostic),
+                content_review_verification: normalized($verify_runs; $verify_jobs; $verify_diagnostic),
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+      - name: Commit finalization inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Social Factory finalization status [skip ci]'
+          git push origin HEAD:main
