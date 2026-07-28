@@ -1,0 +1,59 @@
+{
+  "recorded_at": "2026-07-28T08:53:48Z",
+  "run": {
+    "id": 30343806090,
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha": "f84ecef5ec24656d778e38d655a7c6c890724820",
+    "created_at": "2026-07-28T08:47:15Z",
+    "updated_at": "2026-07-28T08:47:36Z",
+    "html_url": "https://github.com/elettro/stashbox/actions/runs/30343806090"
+  },
+  "jobs": [
+    {
+      "id": 90225203068,
+      "name": "update-contract",
+      "status": "completed",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Update deployed health smoke-test contract",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Commit corrected smoke contract",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 4
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        }
+      ]
+    }
+  ],
+  "sanitized_diagnostic": "2026-07-28T08:47:28.8824802Z  * [new branch]        agent/fix-youtube-oauth-route-errors -> origin/agent/fix-youtube-oauth-route-errors\n2026-07-28T08:47:28.8900670Z  * [new branch]        automation/diagnose-final-content-review-failure -> origin/automation/diagnose-final-content-review-failure\n2026-07-28T08:47:28.8901727Z  * [new branch]        automation/diagnose-first-render-failure -> origin/automation/diagnose-first-render-failure\n2026-07-28T08:47:28.9257135Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9426234Z  * [new branch]        codex/fix-400-error-for-ad-video-upload -> origin/codex/fix-400-error-for-ad-video-upload\n2026-07-28T08:47:28.9427022Z  * [new branch]        codex/fix-500-error-in-tracksongevent -> origin/codex/fix-500-error-in-tracksongevent\n2026-07-28T08:47:28.9427855Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9429021Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9436740Z  * [new branch]        codex/fix-admin-song-create-flow-error -> origin/codex/fix-admin-song-create-flow-error\n2026-07-28T08:47:28.9438431Z  * [new branch]        codex/fix-admin-song-record-save-error -> origin/codex/fix-admin-song-record-save-error\n2026-07-28T08:47:28.9464612Z  * [new branch]        codex/fix-dashboard-internal-error -> origin/codex/fix-dashboard-internal-error\n2026-07-28T08:47:28.9478313Z  * [new branch]        codex/fix-error-in-/stashbox/radio/-section -> origin/codex/fix-error-in-/stashbox/radio/-section\n2026-07-28T08:47:28.9479379Z  * [new branch]        codex/fix-fetch-error-in-/stashbox/radio/dev -> origin/codex/fix-fetch-error-in-/stashbox/radio/dev\n2026-07-28T08:47:28.9491445Z  * [new branch]        codex/fix-invalid-input-syntax-for-json-error -> origin/codex/fix-invalid-input-syntax-for-json-error\n2026-07-28T08:47:28.9493202Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9494151Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9513775Z  * [new branch]        codex/fix-mobile-error-and-image-display -> origin/codex/fix-mobile-error-and-image-display\n2026-07-28T08:47:28.9537946Z  * [new branch]        codex/fix-post-/songs-create-failure -> origin/codex/fix-post-/songs-create-failure\n2026-07-28T08:47:28.9552889Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9556483Z  * [new branch]        codex/fix-s3-upload-stuck-on-cors-error -> origin/codex/fix-s3-upload-stuck-on-cors-error\n2026-07-28T08:47:28.9566583Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:28.9588688Z  * [new branch]        codex/fix-vec-recipe-save-404-error -> origin/codex/fix-vec-recipe-save-404-error\n2026-07-28T08:47:28.9614297Z  * [new branch]        codex/[REDACTED] -> origin/codex/[REDACTED]\n2026-07-28T08:47:29.7312412Z \u001b[36;1m        raise SystemExit(f'Expected smoke-test text not found: {old}')\u001b[0m\n2026-07-28T08:47:29.7854493Z \u001b[36;1mgit pull --rebase origin main\u001b[0m\n2026-07-28T08:47:32.3821625Z error: failed to push some refs to 'https://github.com/elettro/stashbox'\n2026-07-28T08:47:32.3857580Z ##[error]Process completed with exit code 1."
+}
