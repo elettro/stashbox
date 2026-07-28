@@ -35,9 +35,10 @@ jobs:
 
       - name: Apply FIFO queue conversion
         run: |
-          set -euo pipefail
-
-          python - <<'PY'
+          set +e
+          (
+            set -euo pipefail
+            python - <<'PY'
           from pathlib import Path
 
           def replace_once(path, old, new):
@@ -86,17 +87,94 @@ jobs:
               ".Attributes.SqsManagedSseEnabled == \"true\" and\n              .Attributes.FifoQueue == \"true\" and\n              .Attributes.ContentBasedDeduplication == \"true\" and\n              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq)"
           )
           PY
+          ) 2>&1 | tee /tmp/fifo-apply.log
+          APPLY_EXIT_CODE=${PIPESTATUS[0]}
+          echo "${APPLY_EXIT_CODE}" > /tmp/fifo-apply.exit
+          exit "${APPLY_EXIT_CODE}"
 
       - name: Validate converted source
         working-directory: social-factory-api
         run: |
-          npm run check
-          npm test
-          sam validate --template-file infrastructure/template.yaml --lint
+          set +e
+          (
+            set -euo pipefail
+            npm run check
+            npm test
+            sam validate --template-file infrastructure/template.yaml --lint
+          ) 2>&1 | tee /tmp/fifo-validation.log
+          VALIDATION_EXIT_CODE=${PIPESTATUS[0]}
+          echo "${VALIDATION_EXIT_CODE}" > /tmp/fifo-validation.exit
+          exit "${VALIDATION_EXIT_CODE}"
 
       - name: Commit FIFO queue conversion
         run: |
-          set -euo pipefail
+          set +e
+          (
+            set -euo pipefail
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+
+            git add \
+              social-factory-api/schedule-publish.mjs \
+              social-factory-api/infrastructure/template.yaml \
+              .github/workflows/deploy-social-factory-api-dev.yml
+
+            if git diff --cached --quiet; then
+              echo 'FIFO queue conversion already applied.'
+              exit 0
+            fi
+
+            git commit -m 'Serialize Social Factory scheduled publishing with FIFO [skip ci]'
+            git push origin main
+          ) 2>&1 | tee /tmp/fifo-commit.log
+          COMMIT_EXIT_CODE=${PIPESTATUS[0]}
+          echo "${COMMIT_EXIT_CODE}" > /tmp/fifo-commit.exit
+          exit "${COMMIT_EXIT_CODE}"
+
+      - name: Record FIFO conversion receipt
+        if: always()
+        env:
+          CONVERSION_STATUS: ${{ job.status }}
+        run: |
+          set +e
+
+          APPLY_EXIT_CODE=$(cat /tmp/fifo-apply.exit 2>/dev/null)
+          VALIDATION_EXIT_CODE=$(cat /tmp/fifo-validation.exit 2>/dev/null)
+          COMMIT_EXIT_CODE=$(cat /tmp/fifo-commit.exit 2>/dev/null)
+          APPLY_SUMMARY=$(tail -n 40 /tmp/fifo-apply.log 2>/dev/null | tail -c 5000)
+          VALIDATION_SUMMARY=$(tail -n 80 /tmp/fifo-validation.log 2>/dev/null | tail -c 9000)
+          COMMIT_SUMMARY=$(tail -n 40 /tmp/fifo-commit.log 2>/dev/null | tail -c 5000)
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          jq -n \
+            --arg status "${CONVERSION_STATUS}" \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            --arg apply_exit_code "${APPLY_EXIT_CODE}" \
+            --arg validation_exit_code "${VALIDATION_EXIT_CODE}" \
+            --arg commit_exit_code "${COMMIT_EXIT_CODE}" \
+            --arg apply_summary "${APPLY_SUMMARY}" \
+            --arg validation_summary "${VALIDATION_SUMMARY}" \
+            --arg commit_summary "${COMMIT_SUMMARY}" \
+            '{
+              status: $status,
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              run_id: $run_id,
+              run_url: $run_url,
+              apply_exit_code: $apply_exit_code,
+              validation_exit_code: $validation_exit_code,
+              commit_exit_code: $commit_exit_code,
+              apply_summary: $apply_summary,
+              validation_summary: $validation_summary,
+              commit_summary: $commit_summary
+            }' > /tmp/social-factory-fifo-conversion.json
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -104,15 +182,14 @@ jobs:
           git checkout main
           git pull --ff-only origin main
 
-          git add \
-            social-factory-api/schedule-publish.mjs \
-            social-factory-api/infrastructure/template.yaml \
-            .github/workflows/deploy-social-factory-api-dev.yml
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-fifo-conversion.json deployment-reports/social-factory-fifo-conversion.json
+          git add deployment-reports/social-factory-fifo-conversion.json
 
           if git diff --cached --quiet; then
-            echo 'FIFO queue conversion already applied.'
+            echo 'FIFO conversion receipt already current.'
             exit 0
           fi
 
-          git commit -m 'Serialize Social Factory scheduled publishing with FIFO [skip ci]'
+          git commit -m 'Record Social Factory FIFO conversion [skip ci]'
           git push origin main
