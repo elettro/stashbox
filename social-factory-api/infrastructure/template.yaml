@@ -122,7 +122,9 @@ Resources:
   SocialPublishScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: stashbox-social-publish-dev-dlq
+      QueueName: stashbox-social-publish-dev-dlq.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
       Tags:
@@ -136,7 +138,9 @@ Resources:
   SocialPublishScheduleQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: stashbox-social-publish-dev
+      QueueName: stashbox-social-publish-dev.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
       VisibilityTimeout: 960
       MessageRetentionPeriod: 345600
       SqsManagedSseEnabled: true
@@ -523,7 +527,6 @@ Resources:
         - x86_64
       MemorySize: 1024
       Timeout: 900
-      ReservedConcurrentExecutions: 1
       Role: !GetAtt SocialScheduledPublishWorkerRole.Arn
       Environment:
         Variables:
