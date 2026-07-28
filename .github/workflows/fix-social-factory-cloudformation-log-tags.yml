@@ -1,4 +1,4 @@
-name: Fix Social Factory CloudFormation Log Tags
+name: Fix Social Factory CloudFormation Permissions
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fix-social-factory-cloudformation-log-tags
+  group: fix-social-factory-cloudformation-permissions
   cancel-in-progress: false
 
 jobs:
@@ -36,13 +36,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Add log group tagging permissions to service role
+      - name: Add scoped CloudFormation permissions to service role
         run: |
           set -euo pipefail
 
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           LOG_GROUP_ARN="arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*"
           LOG_STREAM_ARN="${LOG_GROUP_ARN}:*"
+          SAM_TRANSFORM_ARN="arn:aws:cloudformation:${AWS_REGION}:aws:transform/Serverless-2016-10-31"
 
           aws iam get-role-policy \
             --role-name "${ROLE_NAME}" \
@@ -52,11 +53,22 @@ jobs:
 
           jq \
             --arg log_group "${LOG_GROUP_ARN}" \
-            --arg log_stream "${LOG_STREAM_ARN}" '
-              .Statement |= map(
-                if .Sid == "ManageSocialFactoryLogs" then
-                  .Resource = [$log_group, $log_stream]
-                else . end
+            --arg log_stream "${LOG_STREAM_ARN}" \
+            --arg sam_transform "${SAM_TRANSFORM_ARN}" '
+              .Statement |= (
+                map(
+                  if .Sid == "ManageSocialFactoryLogs" then
+                    .Resource = [$log_group, $log_stream]
+                  else . end
+                )
+                | if any(.[]; .Sid == "UseServerlessTransform") then .
+                  else . + [{
+                    Sid: "UseServerlessTransform",
+                    Effect: "Allow",
+                    Action: "cloudformation:CreateChangeSet",
+                    Resource: $sam_transform
+                  }]
+                  end
               )
             ' /tmp/current-social-cfn-policy.json > /tmp/updated-social-cfn-policy.json
 
@@ -67,7 +79,7 @@ jobs:
 
           sleep 10
 
-      - name: Recover failed rollback
+      - name: Recover failed rollback when needed
         run: |
           set -euo pipefail
 
@@ -85,7 +97,10 @@ jobs:
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].StackStatus' \
             --output text)
-          test "${FINAL_STATUS}" = 'UPDATE_ROLLBACK_COMPLETE'
+          case "${FINAL_STATUS}" in
+            UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_COMPLETE) ;;
+            *) echo "Stack is not ready for deployment: ${FINAL_STATUS}" >&2; exit 1 ;;
+          esac
 
       - name: Trigger Social Factory deployment
         env:
