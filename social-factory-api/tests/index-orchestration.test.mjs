@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandler } from '../index.mjs';
 
-function request(path, method = 'GET', body) {
+function request(path, method = 'GET', body, queryStringParameters = null) {
   return {
     rawPath: path,
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: { 'x-admin-token': 'social-admin' },
+    queryStringParameters,
     requestContext: {
       stage: 'dev',
       http: { method, path }
@@ -143,7 +144,12 @@ test('batch planning and draft creation stay behind separate routes', async () =
 test('batch job, launch validation, and stage validation use separate protected routes', async () => {
   const api = createApi();
 
-  const jobsResponse = await api(request('/social/orchestration/batch-jobs?campaign_name=Tomorrow%20Test'));
+  const jobsResponse = await api(request(
+    '/social/orchestration/batch-jobs',
+    'GET',
+    undefined,
+    { campaign_name: 'Tomorrow Test' }
+  ));
   assert.equal(jobsResponse.statusCode, 200);
   assert.equal(JSON.parse(jobsResponse.body).job_count, 2);
 
