@@ -1,0 +1,139 @@
+name: Sync Social Factory DEV Admin Login
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-sync-social-factory-dev-admin-login.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-social-factory-dev-admin-login
+  cancel-in-progress: false
+
+jobs:
+  sync-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: deployment-reports/social-factory-dev-admin-login.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync Social Factory login to existing DEV admin credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ -z "${TRUE_DEV_ADMIN_TOKEN}" ]; then
+            echo 'STASHBOX_DEV_ADMIN_TOKEN is not configured.' >&2
+            exit 1
+          fi
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config-current.json
+
+          jq -e '
+            (.client_id | type == "string" and length > 0) and
+            (.client_secret | type == "string" and length > 0) and
+            (.radio_api_base_url | type == "string" and length > 0)
+          ' /tmp/social-config-current.json >/dev/null
+
+          jq \
+            --arg admin_token "${TRUE_DEV_ADMIN_TOKEN}" \
+            '.admin_token = $admin_token |
+             .radio_api_admin_token = $admin_token' \
+            /tmp/social-config-current.json > /tmp/social-config-updated.json
+
+          aws secretsmanager put-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --secret-string file:///tmp/social-config-updated.json \
+            >/dev/null
+
+          rm -f /tmp/social-config-current.json /tmp/social-config-updated.json
+
+      - name: Verify existing DEV admin credential works on Social Factory
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          HTTP_STATUS=$(curl \
+            --silent \
+            --show-error \
+            --max-time 90 \
+            -H "x-admin-token: ${TRUE_DEV_ADMIN_TOKEN}" \
+            -o /tmp/social-candidates.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/candidates?limit=3")
+
+          test "${HTTP_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "proposal_only" and
+            (.candidates | type == "array")
+          ' /tmp/social-candidates.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          CANDIDATE_COUNT=$(jq '.candidates | length' /tmp/social-candidates.json)
+
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg source_commit "${GITHUB_SHA}" \
+            --arg social_api_base "${SOCIAL_API_BASE}" \
+            --arg http_status "${HTTP_STATUS}" \
+            --argjson candidate_count "${CANDIDATE_COUNT}" '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                source_commit: $source_commit,
+                social_api_base: $social_api_base,
+                existing_dev_admin_credential_synced: true,
+                protected_route_http_status: $http_status,
+                candidate_count: $candidate_count,
+                secret_value_recorded: false,
+                renders_launched: false,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-candidates.json
+          unset TRUE_DEV_ADMIN_TOKEN
+
+      - name: Commit sanitized verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Social Factory DEV admin login sync [skip ci]'
+          git push origin HEAD:main
