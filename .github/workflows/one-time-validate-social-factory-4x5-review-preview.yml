@@ -1,0 +1,202 @@
+name: One-Time Validate Social Factory 4x5 Review Preview
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-social-factory-4x5-review-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-dc255319-039f-4982-b8af-b42402688933
+      JOB_ID: dc255319-039f-4982-b8af-b42402688933
+      REPORT_PATH: deployment-reports/social-factory-4x5-review-preview-validation.json
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FFPROBE_PATH: /usr/bin/ffprobe
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Install FFmpeg tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          test -x "${FFMPEG_PATH}"
+          test -x "${FFPROBE_PATH}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate review listing and secure staged preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          ENCODED_REVIEW_ID=$(jq -rn --arg value "${REVIEW_ID}" '$value | @uri')
+
+          LIST_STATUS=$(curl --silent --show-error --max-time 120 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/list.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          test "${LIST_STATUS}" = '200'
+          jq -e --arg review_id "${REVIEW_ID}" --arg job_id "${JOB_ID}" '
+            .ok == true and
+            .count >= 1 and
+            any(.items[];
+              .id == $review_id and
+              .source.render_job_id == $job_id and
+              .status == "in_review" and
+              .approval_state == "pending" and
+              .publishing_status == "not_published" and
+              .video.aspect_ratio == "4:5" and
+              .video.width == 1080 and
+              .video.height == 1350 and
+              .automation.auto_publish == false
+            )
+          ' /tmp/list.json >/dev/null
+
+          printf '{}\n' > /tmp/preview-body.json
+          PREVIEW_STATUS=$(curl --silent --show-error --max-time 120 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            --data-binary @/tmp/preview-body.json \
+            -o /tmp/preview.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${ENCODED_REVIEW_ID}/preview")
+          test "${PREVIEW_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            (.preview_url | startswith("https://")) and
+            .expires_in_seconds == 900 and
+            .content_type == "video/mp4" and
+            (.file_name | contains("4x5"))
+          ' /tmp/preview.json >/dev/null
+
+          PREVIEW_URL=$(jq -r '.preview_url' /tmp/preview.json)
+          DOWNLOAD_STATUS=$(curl --silent --show-error --location --max-time 240 \
+            -o /tmp/review-preview.mp4 -w '%{http_code}' "${PREVIEW_URL}")
+          test "${DOWNLOAD_STATUS}" = '200'
+          test -s /tmp/review-preview.mp4
+          DOWNLOADED_BYTES=$(stat -c '%s' /tmp/review-preview.mp4)
+          test "${DOWNLOADED_BYTES}" -gt 100000
+
+          "${FFPROBE_PATH}" -v error \
+            -show_entries 'stream=codec_type,width,height,r_frame_rate:format=duration' \
+            -of json /tmp/review-preview.mp4 > /tmp/probe.json
+
+          jq -e '
+            ([.streams[] | select(.codec_type == "video")] | length) == 1 and
+            ([.streams[] | select(.codec_type == "audio")] | length) >= 1 and
+            ([.streams[] | select(.codec_type == "video")][0].width == 1080) and
+            ([.streams[] | select(.codec_type == "video")][0].height == 1350) and
+            ((.format.duration | tonumber) >= 14) and
+            ((.format.duration | tonumber) <= 16)
+          ' /tmp/probe.json >/dev/null
+
+          ITEM_STATUS=$(curl --silent --show-error --max-time 120 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/item-after.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${ENCODED_REVIEW_ID}")
+          test "${ITEM_STATUS}" = '200'
+          jq -e --arg review_id "${REVIEW_ID}" --arg job_id "${JOB_ID}" '
+            .ok == true and
+            .item.id == $review_id and
+            .item.source.render_job_id == $job_id and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .item.automation.auto_publish == false and
+            .item.publish_settings.scheduled_at == null
+          ' /tmp/item-after.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg list_http_status "${LIST_STATUS}" \
+            --arg preview_http_status "${PREVIEW_STATUS}" \
+            --arg download_http_status "${DOWNLOAD_STATUS}" \
+            --arg item_http_status "${ITEM_STATUS}" \
+            --arg downloaded_bytes "${DOWNLOADED_BYTES}" \
+            --slurpfile preview /tmp/preview.json \
+            --slurpfile probe /tmp/probe.json \
+            --slurpfile item /tmp/item-after.json '
+            {
+              status: $status,
+              recorded_at: $recorded_at,
+              review_id: $item[0].item.id,
+              render_job_id: $item[0].item.source.render_job_id,
+              list_visible: true,
+              http_status: {
+                list: $list_http_status,
+                preview: $preview_http_status,
+                download: $download_http_status,
+                item_after_preview: $item_http_status
+              },
+              preview: {
+                secure_url_generated: true,
+                expires_in_seconds: $preview[0].expires_in_seconds,
+                content_type: $preview[0].content_type,
+                file_name: $preview[0].file_name,
+                downloaded_bytes: ($downloaded_bytes | tonumber),
+                width: ([$probe[0].streams[] | select(.codec_type == "video")][0].width),
+                height: ([$probe[0].streams[] | select(.codec_type == "video")][0].height),
+                duration_seconds: ($probe[0].format.duration | tonumber),
+                frame_rate: ([$probe[0].streams[] | select(.codec_type == "video")][0].r_frame_rate),
+                video_streams: ([$probe[0].streams[] | select(.codec_type == "video")] | length),
+                audio_streams: ([$probe[0].streams[] | select(.codec_type == "audio")] | length)
+              },
+              review_state_after_preview: {
+                status: $item[0].item.status,
+                approval_state: $item[0].item.approval_state,
+                publishing_status: $item[0].item.publishing_status,
+                auto_publish: $item[0].item.automation.auto_publish,
+                scheduled_at: $item[0].item.publish_settings.scheduled_at
+              },
+              publishing_triggered: false,
+              schedule_created: false,
+              production_changed: false
+            }
+          ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/list.json /tmp/preview-body.json \
+            /tmp/preview.json /tmp/review-preview.mp4 /tmp/probe.json /tmp/item-after.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized preview validation receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory 4x5 review preview validation [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
