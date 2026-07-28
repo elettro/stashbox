@@ -1,6 +1,7 @@
 name: One-Time Diagnose Social Scheduled Infrastructure
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -8,25 +9,16 @@ on:
       - '.github/workflows/one-time-diagnose-social-scheduled-infra.yml'
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     env:
-      AWS_REGION: us-east-1
-      STACK_NAME: stashbox-social-api-dev
-      REPORT_PATH: deployment-reports/social-factory-scheduled-infra-diagnostics.json
-      WORKER_FUNCTION: stashbox-social-publish-worker-dev
-      WORKER_LOG_GROUP: /aws/lambda/stashbox-social-publish-worker-dev
-      WORKER_ROLE: stashbox-social-publish-worker-dev-role
-      SCHEDULER_ROLE: stashbox-social-scheduler-target-dev-role
-      SCHEDULE_GROUP: stashbox-social-publish-dev
-      QUEUE_NAME: stashbox-social-publish-dev.fifo
-      DLQ_NAME: stashbox-social-publish-dev-dlq.fifo
-      LEGACY_QUEUE_NAME: stashbox-social-publish-dev
-      LEGACY_DLQ_NAME: stashbox-social-publish-dev-dlq
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      REPORT_PATH: deployment-reports/social-factory-repair-runs.md
 
     steps:
       - name: Checkout main
@@ -36,150 +28,36 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Inventory stack and named DEV resources
-        shell: bash
+      - name: Capture repair and deploy runs
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "${REPORT_PATH}")"
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          STACK_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackId' --output text)
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)
-          STACK_ROLE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].RoleARN' --output text)
+          {
+            echo '# Social Factory Repair Workflow Runs'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            for WORKFLOW in \
+              one-time-repair-social-scheduled-infra.yml \
+              one-time-repair-social-scheduled-infra-v2.yml \
+              deploy-social-factory-api-dev.yml; do
+              echo "## ${WORKFLOW}"
+              gh run list \
+                --repo "${REPOSITORY}" \
+                --workflow "${WORKFLOW}" \
+                --limit 5 \
+                --json databaseId,status,conclusion,createdAt,updatedAt,url,event,headSha \
+                --jq '.[] | "- Run ID: \(.databaseId) | status=\(.status) | conclusion=\(.conclusion // \"pending\") | event=\(.event) | created=\(.createdAt) | head=\(.headSha) | url=\(.url)"' || true
+              echo
+            done
+          } > "${REPORT_PATH}"
 
-          aws cloudformation list-stack-resources --stack-name "${STACK_NAME}" > /tmp/stack-resources.json
-          aws cloudformation describe-stack-events --stack-name "${STACK_NAME}" --max-items 40 > /tmp/stack-events.json
-
-          function_json() {
-            local name="$1"
-            if aws lambda get-function --function-name "${name}" >/tmp/function.json 2>/tmp/function.err; then
-              local arn
-              arn=$(jq -r '.Configuration.FunctionArn' /tmp/function.json)
-              local tags
-              tags=$(aws lambda list-tags --resource "${arn}" --query Tags --output json 2>/dev/null || echo '{}')
-              local concurrency
-              concurrency=$(aws lambda get-function-concurrency --function-name "${name}" --output json 2>/dev/null || echo '{}')
-              jq -n --argjson function "$(cat /tmp/function.json)" --argjson tags "${tags}" --argjson concurrency "${concurrency}" '{exists:true, configuration:$function.Configuration, tags:$tags, concurrency:$concurrency}'
-            else
-              jq -n --arg error "$(tail -c 1000 /tmp/function.err 2>/dev/null || true)" '{exists:false,error:$error}'
-            fi
-          }
-
-          role_json() {
-            local name="$1"
-            if aws iam get-role --role-name "${name}" >/tmp/role.json 2>/tmp/role.err; then
-              local tags
-              tags=$(aws iam list-role-tags --role-name "${name}" --query Tags --output json 2>/dev/null || echo '[]')
-              local inline
-              inline=$(aws iam list-role-policies --role-name "${name}" --query PolicyNames --output json 2>/dev/null || echo '[]')
-              jq -n --argjson role "$(cat /tmp/role.json)" --argjson tags "${tags}" --argjson inline "${inline}" '{exists:true,role:$role.Role,tags:$tags,inline_policies:$inline}'
-            else
-              jq -n --arg error "$(tail -c 1000 /tmp/role.err 2>/dev/null || true)" '{exists:false,error:$error}'
-            fi
-          }
-
-          queue_json() {
-            local name="$1"
-            local url
-            url=$(aws sqs get-queue-url --queue-name "${name}" --query QueueUrl --output text 2>/dev/null || true)
-            if [ -n "${url}" ] && [ "${url}" != 'None' ]; then
-              local attributes tags
-              attributes=$(aws sqs get-queue-attributes --queue-url "${url}" --attribute-names All --query Attributes --output json)
-              tags=$(aws sqs list-queue-tags --queue-url "${url}" --query Tags --output json 2>/dev/null || echo '{}')
-              jq -n --arg url "${url}" --argjson attributes "${attributes}" --argjson tags "${tags}" '{exists:true,url:$url,attributes:$attributes,tags:$tags}'
-            else
-              jq -n '{exists:false}'
-            fi
-          }
-
-          schedule_group_json() {
-            if aws scheduler get-schedule-group --name "${SCHEDULE_GROUP}" >/tmp/group.json 2>/tmp/group.err; then
-              local arn tags schedules
-              arn=$(jq -r '.Arn' /tmp/group.json)
-              tags=$(aws scheduler list-tags-for-resource --resource-arn "${arn}" --query Tags --output json 2>/dev/null || echo '[]')
-              schedules=$(aws scheduler list-schedules --group-name "${SCHEDULE_GROUP}" --query 'Schedules[].{Name:Name,State:State,Target:Target.Arn}' --output json 2>/dev/null || echo '[]')
-              jq -n --argjson group "$(cat /tmp/group.json)" --argjson tags "${tags}" --argjson schedules "${schedules}" '{exists:true,group:$group,tags:$tags,schedules:$schedules}'
-            else
-              jq -n --arg error "$(tail -c 1000 /tmp/group.err 2>/dev/null || true)" '{exists:false,error:$error}'
-            fi
-          }
-
-          log_group_json() {
-            local result
-            result=$(aws logs describe-log-groups --log-group-name-prefix "${WORKER_LOG_GROUP}" --query "logGroups[?logGroupName=='${WORKER_LOG_GROUP}'] | [0]" --output json)
-            if [ "${result}" != 'null' ] && [ -n "${result}" ]; then
-              local arn tags
-              arn=$(printf '%s' "${result}" | jq -r '.arn')
-              tags=$(aws logs list-tags-for-resource --resource-arn "${arn}" --query Tags --output json 2>/dev/null || echo '{}')
-              jq -n --argjson group "${result}" --argjson tags "${tags}" '{exists:true,group:$group,tags:$tags}'
-            else
-              jq -n '{exists:false}'
-            fi
-          }
-
-          WORKER=$(function_json "${WORKER_FUNCTION}")
-          WORKER_ROLE_JSON=$(role_json "${WORKER_ROLE}")
-          SCHEDULER_ROLE_JSON=$(role_json "${SCHEDULER_ROLE}")
-          QUEUE=$(queue_json "${QUEUE_NAME}")
-          DLQ=$(queue_json "${DLQ_NAME}")
-          LEGACY_QUEUE=$(queue_json "${LEGACY_QUEUE_NAME}")
-          LEGACY_DLQ=$(queue_json "${LEGACY_DLQ_NAME}")
-          GROUP=$(schedule_group_json)
-          LOG_GROUP=$(log_group_json)
-          EVENT_MAPPINGS=$(aws lambda list-event-source-mappings --function-name "${WORKER_FUNCTION}" --output json 2>/dev/null || echo '{"EventSourceMappings":[]}')
-
-          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          jq -n \
-            --arg recorded_at "${RECORDED_AT}" \
-            --arg account_id "${ACCOUNT_ID}" \
-            --arg stack_name "${STACK_NAME}" \
-            --arg stack_id "${STACK_ID}" \
-            --arg stack_status "${STACK_STATUS}" \
-            --arg stack_role_arn "${STACK_ROLE}" \
-            --argjson stack_resources "$(cat /tmp/stack-resources.json)" \
-            --argjson stack_events "$(cat /tmp/stack-events.json)" \
-            --argjson worker "${WORKER}" \
-            --argjson worker_role "${WORKER_ROLE_JSON}" \
-            --argjson scheduler_role "${SCHEDULER_ROLE_JSON}" \
-            --argjson queue "${QUEUE}" \
-            --argjson dlq "${DLQ}" \
-            --argjson legacy_queue "${LEGACY_QUEUE}" \
-            --argjson legacy_dlq "${LEGACY_DLQ}" \
-            --argjson schedule_group "${GROUP}" \
-            --argjson log_group "${LOG_GROUP}" \
-            --argjson event_mappings "${EVENT_MAPPINGS}" '
-            {
-              recorded_at:$recorded_at,
-              account_id:$account_id,
-              stack:{name:$stack_name,id:$stack_id,status:$stack_status,role_arn:$stack_role_arn},
-              stack_resources:($stack_resources.StackResourceSummaries | map({logical_id:.LogicalResourceId,physical_id:.PhysicalResourceId,type:.ResourceType,status:.ResourceStatus})),
-              recent_failures:($stack_events.StackEvents | map(select(.ResourceStatus | test("FAILED$"))) | .[0:20] | map({timestamp:.Timestamp,logical_id:.LogicalResourceId,type:.ResourceType,status:.ResourceStatus,reason:.ResourceStatusReason})),
-              named_resources:{
-                worker_function:$worker,
-                worker_role:$worker_role,
-                scheduler_role:$scheduler_role,
-                queue:$queue,
-                dead_letter_queue:$dlq,
-                legacy_queue:$legacy_queue,
-                legacy_dead_letter_queue:$legacy_dlq,
-                schedule_group:$schedule_group,
-                worker_log_group:$log_group,
-                event_source_mappings:$event_mappings.EventSourceMappings
-              }
-            }' > "${REPORT_PATH}"
-
-      - name: Commit diagnostic receipt
+      - name: Commit snapshot
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "${REPORT_PATH}"
-          git commit -m 'Record Social Factory scheduled infrastructure diagnostics [skip ci]'
+          git commit -m 'Record Social Factory repair workflow runs [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
