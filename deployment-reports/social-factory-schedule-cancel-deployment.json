@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T21:39:45Z",
+  "stack_status": "UPDATE_COMPLETE",
+  "base_url": "https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev",
+  "health_http_status": "200",
+  "protected_cancel_route_http_status": "401",
+  "schedule_cancel_supported": true,
+  "validation_only_supported": true,
+  "confirmed_cancel_supported": true,
+  "publishing_triggered": false,
+  "production_changed": false
+}
