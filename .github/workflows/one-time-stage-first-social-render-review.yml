@@ -1,5 +1,5 @@
 name: Stage First Social Render Review
-# Trigger server-to-server staging for the completed Hippy Speedball render.
+# Retry server-to-server staging after correcting the review-object assertion.
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
             .review_item.status == "in_review" and
             .review_item.approval_state == "pending" and
             .review_item.publishing_status == "not_published" and
-            .review_item.video.object_key | startswith("incoming/render-jobs/")
+            (.review_item.video.object_key | startswith("incoming/render-jobs/"))
           ' /tmp/staged-review.json >/dev/null
 
           REVIEW_ID=$(jq -r '.review_item.id' /tmp/staged-review.json)
@@ -123,8 +123,8 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin main
           git add "${REPORT_PATH}"
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Record first staged Social Factory review [skip ci]'
+          git pull --rebase origin main
           git push origin HEAD:main
