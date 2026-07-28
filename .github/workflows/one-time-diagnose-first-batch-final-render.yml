@@ -1,0 +1,152 @@
+name: Diagnose First Batch Final Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-first-batch-final-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      JOB_ID: dca15a54-37f1-4e06-b1d4-11b3c2991463
+      REPORT_PATH: deployment-reports/social-factory-first-batch-final-render-diagnostic.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read job and ECS task state
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          JOB_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/job.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs/${JOB_ID}")
+          test "${JOB_STATUS}" = '200'
+
+          TASK_ARN=$(jq -r '.job.render_recipe.runtime.ecs_task_arn // empty' /tmp/job.json)
+          CLUSTER_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='RenderClusterArn'].OutputValue" \
+            --output text)
+          test -n "${CLUSTER_ARN}"
+
+          if [ -n "${TASK_ARN}" ]; then
+            aws ecs describe-tasks \
+              --cluster "${CLUSTER_ARN}" \
+              --tasks "${TASK_ARN}" \
+              --include TAGS \
+              --output json > /tmp/task.json
+          else
+            printf '%s' '{"tasks":[],"failures":[]}' > /tmp/task.json
+          fi
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg job_id "${JOB_ID}" \
+            --arg job_http_status "${JOB_STATUS}" \
+            --arg cluster_arn "${CLUSTER_ARN}" \
+            --arg task_arn "${TASK_ARN}" \
+            --slurpfile job /tmp/job.json \
+            --slurpfile task /tmp/task.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                job_id: $job_id,
+                job_http_status: $job_http_status,
+                job: {
+                  status: $job[0].job.status,
+                  active: $job[0].job.active,
+                  ready_for_staging: $job[0].job.ready_for_staging,
+                  song_key: $job[0].job.song_key,
+                  song_title: $job[0].job.song_title,
+                  output_filename: $job[0].job.output_filename,
+                  output_url: $job[0].job.output_url,
+                  error_message: $job[0].job.error_message,
+                  created_at: $job[0].job.created_at,
+                  started_at: $job[0].job.started_at,
+                  updated_at: $job[0].job.updated_at,
+                  completed_at: $job[0].job.completed_at,
+                  runtime: $job[0].job.render_recipe.runtime
+                },
+                ecs: {
+                  cluster_arn: $cluster_arn,
+                  task_arn: $task_arn,
+                  failures: $task[0].failures,
+                  tasks: [$task[0].tasks[]? | {
+                    taskArn,
+                    lastStatus,
+                    desiredStatus,
+                    healthStatus,
+                    connectivity,
+                    connectivityAt,
+                    createdAt,
+                    startedAt,
+                    stoppingAt,
+                    stoppedAt,
+                    stopCode,
+                    stoppedReason,
+                    pullStartedAt,
+                    pullStoppedAt,
+                    containers: [.containers[]? | {
+                      name,
+                      lastStatus,
+                      exitCode,
+                      reason,
+                      healthStatus,
+                      networkBindings,
+                      networkInterfaces
+                    }]
+                  }]
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/job.json /tmp/task.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record first batch final render diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
