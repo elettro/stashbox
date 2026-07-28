@@ -1,4 +1,5 @@
 name: Inspect Social Factory 0.6 Smoke Update
+# Refresh status after the reliable updater was merged.
 
 on:
   push:
