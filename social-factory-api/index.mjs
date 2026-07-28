@@ -5,9 +5,10 @@ import { createBatchCampaignService } from './batch-campaigns.mjs';
 import { createBatchOperationsService } from './batch-operations.mjs';
 import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
+import { createReviewPublishService } from './review-publish.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.7.0';
+const SERVICE_VERSION = '0.8.0';
 
 function getJsonHeaders() {
   return {
@@ -94,11 +95,13 @@ function reviewRoute(path) {
   const previewMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/preview$/);
   const saveMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/save$/);
   const decisionMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/decision$/);
+  const publishMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/publish$/);
   return {
     reviewId: itemMatch ? decodeURIComponent(itemMatch[1]) : '',
     previewReviewId: previewMatch ? decodeURIComponent(previewMatch[1]) : '',
     saveReviewId: saveMatch ? decodeURIComponent(saveMatch[1]) : '',
-    decisionReviewId: decisionMatch ? decodeURIComponent(decisionMatch[1]) : ''
+    decisionReviewId: decisionMatch ? decodeURIComponent(decisionMatch[1]) : '',
+    publishReviewId: publishMatch ? decodeURIComponent(publishMatch[1]) : ''
   };
 }
 
@@ -109,7 +112,8 @@ export function createHandler({
   batchCampaigns = null,
   batchOperations = null,
   reviewWorkflow = null,
-  reviewActions = null
+  reviewActions = null,
+  reviewPublisher = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
@@ -117,6 +121,7 @@ export function createHandler({
   let resolvedBatchOperations = batchOperations;
   let resolvedReviewWorkflow = reviewWorkflow;
   let resolvedReviewActions = reviewActions;
+  let resolvedReviewPublisher = reviewPublisher;
 
   function getYoutubePublish() {
     if (!resolvedYoutubePublish) resolvedYoutubePublish = createYoutubePublishService();
@@ -153,6 +158,13 @@ export function createHandler({
   function getReviewActions() {
     if (!resolvedReviewActions) resolvedReviewActions = createReviewActionService();
     return resolvedReviewActions;
+  }
+
+  function getReviewPublisher() {
+    if (!resolvedReviewPublisher) {
+      resolvedReviewPublisher = createReviewPublishService({ youtubePublish: getYoutubePublish() });
+    }
+    return resolvedReviewPublisher;
   }
 
   return async function socialFactoryHandler(event = {}) {
@@ -198,6 +210,8 @@ export function createHandler({
             ),
             contentReviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             reviewEditingSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
+            reviewPublishingSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
+            scheduledPublishingConfigured: false,
             securePreviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read'
           }
@@ -299,6 +313,13 @@ export function createHandler({
         return json(200, {
           ok: true,
           ...(await getReviewActions().decision(event, review.decisionReviewId))
+        });
+      }
+
+      if (method === 'POST' && review.publishReviewId) {
+        return json(200, {
+          ok: true,
+          ...(await getReviewPublisher().publish(event, review.publishReviewId))
         });
       }
 
