@@ -1,0 +1,265 @@
+const ARTWORK_FIELDS = Object.freeze({
+  '1x1': 'song_artwork_url',
+  '16x9': 'song_artwork_16x9_url',
+  '9x16': 'song_artwork_9x16_url',
+  '3x4': 'song_artwork_3x4_url',
+  '4x5': 'song_artwork_4x5_url',
+  '21x9': 'song_artwork_21x9_url'
+});
+
+const OPTIONAL_FIELDS = Object.freeze([
+  'song_artwork_16x9_url',
+  'song_artwork_9x16_url',
+  'song_artwork_3x4_url',
+  'song_artwork_4x5_url',
+  'song_artwork_21x9_url'
+]);
+
+const FALLBACK_ORDER = Object.freeze({
+  '1x1': ['1x1'],
+  '16x9': ['16x9', '21x9', '1x1'],
+  '9x16': ['9x16', '4x5', '3x4', '1x1'],
+  '3x4': ['3x4', '4x5', '9x16', '1x1'],
+  '4x5': ['4x5', '3x4', '9x16', '1x1'],
+  '21x9': ['21x9', '16x9', '1x1']
+});
+
+let tableEnsured = false;
+
+function cleanText(value, maxLength = 2048) {
+  return String(value ?? '').trim().slice(0, maxLength);
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object || {}, key);
+}
+
+function routeError(statusCode, code, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+function isSafeImageUrl(value) {
+  if (!value) return true;
+  if (value.startsWith('/')) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch (_) {
+    return false;
+  }
+}
+
+function isPublicRoute(segments) {
+  return segments[0] === 'radio' &&
+    segments[1] === 'songs' &&
+    Boolean(segments[2]) &&
+    segments[3] === 'artwork-images' &&
+    segments.length === 4;
+}
+
+function isAdminRoute(segments) {
+  return segments[0] === 'radio' &&
+    segments[1] === 'admin' &&
+    segments[2] === 'songs' &&
+    Boolean(segments[3]) &&
+    segments[4] === 'artwork-images' &&
+    segments.length === 5;
+}
+
+async function ensureArtworkTable(deps) {
+  if (tableEnsured) return;
+
+  await deps.client.query(`
+    CREATE TABLE IF NOT EXISTS ${deps.qname('song_artwork_images')} (
+      song_key TEXT PRIMARY KEY,
+      song_artwork_16x9_url TEXT,
+      song_artwork_9x16_url TEXT,
+      song_artwork_3x4_url TEXT,
+      song_artwork_4x5_url TEXT,
+      song_artwork_21x9_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+
+  for (const field of OPTIONAL_FIELDS) {
+    await deps.client.query(`ALTER TABLE ${deps.qname('song_artwork_images')} ADD COLUMN IF NOT EXISTS ${field} TEXT`);
+  }
+
+  tableEnsured = true;
+}
+
+async function resolveSong(identifier, deps, { includeHidden = false } = {}) {
+  const key = cleanText(decodeURIComponent(identifier || ''), 300).toLowerCase();
+  if (!key) throw routeError(404, 'SONG_NOT_FOUND', 'Song not found.');
+
+  const result = await deps.client.query(`
+    SELECT song_key, song_name, display_title, artist, song_artwork_url, public_visibility
+    FROM ${deps.qname('songs')}
+    WHERE lower(song_key) = $1
+      ${includeHidden ? '' : "AND COALESCE(public_visibility, 'visible') = 'visible'"}
+    LIMIT 1
+  `, [key]);
+
+  if (!result.rowCount) throw routeError(404, 'SONG_NOT_FOUND', 'Song not found.');
+  return result.rows[0];
+}
+
+async function readOptionalArtwork(songKey, deps) {
+  await ensureArtworkTable(deps);
+  const result = await deps.client.query(`
+    SELECT ${OPTIONAL_FIELDS.join(', ')}, updated_at
+    FROM ${deps.qname('song_artwork_images')}
+    WHERE lower(song_key) = lower($1)
+    LIMIT 1
+  `, [songKey]);
+  return result.rows[0] || {};
+}
+
+function artworkImages(song, stored = {}) {
+  return {
+    '1x1': cleanText(song?.song_artwork_url),
+    '16x9': cleanText(stored.song_artwork_16x9_url),
+    '9x16': cleanText(stored.song_artwork_9x16_url),
+    '3x4': cleanText(stored.song_artwork_3x4_url),
+    '4x5': cleanText(stored.song_artwork_4x5_url),
+    '21x9': cleanText(stored.song_artwork_21x9_url)
+  };
+}
+
+function resolvedArtwork(images) {
+  return Object.fromEntries(Object.entries(FALLBACK_ORDER).map(([requestedRatio, order]) => {
+    const sourceRatio = order.find(ratio => cleanText(images[ratio])) || '';
+    return [requestedRatio, {
+      requested_ratio: requestedRatio,
+      source_ratio: sourceRatio,
+      url: sourceRatio ? images[sourceRatio] : '',
+      fallback_used: Boolean(sourceRatio && sourceRatio !== requestedRatio)
+    }];
+  }));
+}
+
+function mediaPayload(song, stored = {}) {
+  const images = artworkImages(song, stored);
+  const ready = Object.values(images).filter(Boolean).length;
+  return {
+    song_key: song.song_key,
+    song_name: song.song_name || '',
+    display_title: song.display_title || song.song_name || '',
+    artist: song.artist || '',
+    song_artwork_url: images['1x1'],
+    song_artwork_1x1_url: images['1x1'],
+    song_artwork_16x9_url: images['16x9'],
+    song_artwork_9x16_url: images['9x16'],
+    song_artwork_3x4_url: images['3x4'],
+    song_artwork_4x5_url: images['4x5'],
+    song_artwork_21x9_url: images['21x9'],
+    artwork_images: images,
+    resolved_artwork: resolvedArtwork(images),
+    completion: {
+      ready,
+      total: 6,
+      complete: ready === 6,
+      label: ready === 6 ? 'Complete Image Set' : `${ready} of 6 Images Ready`
+    },
+    updated_at: stored.updated_at || null
+  };
+}
+
+function normalizedPatch(body) {
+  const patch = {};
+  Object.values(ARTWORK_FIELDS).forEach(field => {
+    if (!hasOwn(body, field)) return;
+    const value = cleanText(body[field]);
+    if (!isSafeImageUrl(value)) {
+      throw routeError(400, 'INVALID_ARTWORK_URL', `${field} must be an HTTP(S) or site-relative image URL.`);
+    }
+    patch[field] = value || null;
+  });
+  return patch;
+}
+
+async function persistPatch(song, patch, deps) {
+  if (hasOwn(patch, 'song_artwork_url')) {
+    await deps.client.query(`
+      UPDATE ${deps.qname('songs')}
+      SET song_artwork_url = $1, updated_at = now()
+      WHERE lower(song_key) = lower($2)
+    `, [patch.song_artwork_url, song.song_key]);
+  }
+
+  const optionalPresent = OPTIONAL_FIELDS.some(field => hasOwn(patch, field));
+  if (!optionalPresent) return;
+
+  const existing = await readOptionalArtwork(song.song_key, deps);
+  const merged = Object.fromEntries(OPTIONAL_FIELDS.map(field => [
+    field,
+    hasOwn(patch, field) ? patch[field] : (existing[field] || null)
+  ]));
+
+  await deps.client.query(`
+    INSERT INTO ${deps.qname('song_artwork_images')} (
+      song_key,
+      ${OPTIONAL_FIELDS.join(', ')},
+      updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, now())
+    ON CONFLICT (song_key) DO UPDATE SET
+      song_artwork_16x9_url = EXCLUDED.song_artwork_16x9_url,
+      song_artwork_9x16_url = EXCLUDED.song_artwork_9x16_url,
+      song_artwork_3x4_url = EXCLUDED.song_artwork_3x4_url,
+      song_artwork_4x5_url = EXCLUDED.song_artwork_4x5_url,
+      song_artwork_21x9_url = EXCLUDED.song_artwork_21x9_url,
+      updated_at = now()
+  `, [
+    song.song_key,
+    merged.song_artwork_16x9_url,
+    merged.song_artwork_9x16_url,
+    merged.song_artwork_3x4_url,
+    merged.song_artwork_4x5_url,
+    merged.song_artwork_21x9_url
+  ]);
+}
+
+export function isSongArtworkRequest(segments) {
+  return isPublicRoute(segments) || isAdminRoute(segments);
+}
+
+export async function handleSongArtworkRequest(event, deps) {
+  const segments = deps.getRouteSegments(event);
+  const method = deps.getMethod(event).toUpperCase();
+  const admin = isAdminRoute(segments);
+  const identifier = admin ? segments[3] : segments[2];
+
+  if (!admin && method !== 'GET') {
+    return deps.response(405, { success: false, error: 'Method not allowed.' });
+  }
+
+  if (admin) await deps.requireAdmin(event);
+  const song = await resolveSong(identifier, deps, { includeHidden: admin });
+
+  if (method === 'GET') {
+    const stored = await readOptionalArtwork(song.song_key, deps);
+    return deps.response(200, { success: true, media: mediaPayload(song, stored) });
+  }
+
+  if (admin && method === 'PATCH') {
+    const patch = normalizedPatch(deps.parseBody(event));
+    if (!Object.keys(patch).length) {
+      throw routeError(400, 'ARTWORK_FIELDS_REQUIRED', `Provide at least one of: ${Object.values(ARTWORK_FIELDS).join(', ')}.`);
+    }
+
+    await persistPatch(song, patch, deps);
+    const freshSong = await resolveSong(song.song_key, deps, { includeHidden: true });
+    const stored = await readOptionalArtwork(song.song_key, deps);
+    return deps.response(200, {
+      success: true,
+      persisted: true,
+      media: mediaPayload(freshSong, stored)
+    });
+  }
+
+  return deps.response(405, { success: false, error: 'Method not allowed.' });
+}
