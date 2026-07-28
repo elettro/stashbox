@@ -88,6 +88,29 @@ test('song identity copy is left-aligned in the lower-left third', () => {
   assert.doesNotMatch(filter, /\(w-text_w\)\/2/);
 });
 
+test('narrow video formats reduce title and artist sizes to fit the available width', () => {
+  for (const [width, height] of [[1080, 1920], [1080, 1080], [1080, 1440]]) {
+    const filter = buildOverlayFilter({
+      width,
+      height,
+      metadata: {
+        title: 'Riding Waves (Live From Fort Lauderdale Beach)',
+        artist: 'Stashbox and the International All Stars'
+      },
+      overlays: {
+        intro_enabled: true,
+        outro_enabled: false,
+        corner_bug_enabled: false
+      }
+    }, 60);
+
+    const titleSize = Number(filter.match(/text='Riding Waves \(Live From Fort Lauderdale Beach\)'.*?fontsize=(\d+)/)?.[1]);
+    const artistSize = Number(filter.match(/text='Stashbox and the International All Stars'.*?fontsize=(\d+)/)?.[1]);
+    assert.ok(titleSize > 0 && titleSize <= 76, `${width}x${height} title size was ${titleSize}`);
+    assert.ok(artistSize > 0 && artistSize <= 49, `${width}x${height} artist size was ${artistSize}`);
+  }
+});
+
 test('Ken Burns filter uses smooth eased oversampled motion only when enabled', () => {
   const animated = segmentVideoFilter({
     width: 1920, height: 1080, fps: 30, duration: 3,
