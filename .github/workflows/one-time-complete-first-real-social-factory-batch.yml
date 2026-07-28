@@ -1,0 +1,236 @@
+name: Complete First Real Social Factory Batch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-complete-first-real-social-factory-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: complete-first-real-social-factory-batch
+  cancel-in-progress: false
+
+jobs:
+  complete-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CAMPAIGN_NAME: Stashbox Social Factory First Real Batch 01
+      REPORT_PATH: deployment-reports/social-factory-first-real-batch-01-complete.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Finish queued renders and stage all completed videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          ENCODED_NAME=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post_json() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          COMPLETE=false
+          SERIAL_LAUNCHES=0
+
+          for attempt in $(seq 1 180); do
+            JOBS_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=${ENCODED_NAME}" /tmp/batch-jobs.json)
+            test "${JOBS_STATUS}" = '200'
+
+            ACTIVE_COUNT=$(jq '.counts.active' /tmp/batch-jobs.json)
+            DRAFT_COUNT=$(jq '.counts.draft' /tmp/batch-jobs.json)
+
+            if [ "${ACTIVE_COUNT}" -gt 0 ]; then
+              sleep 15
+              continue
+            fi
+
+            if [ "${DRAFT_COUNT}" -gt 0 ]; then
+              NEXT_JOB_ID=$(jq -r '.jobs[] | select(.status == "draft") | .id' /tmp/batch-jobs.json | head -n 1)
+              test -n "${NEXT_JOB_ID}"
+
+              jq -n --arg id "${NEXT_JOB_ID}" '{job_ids: [$id]}' > /tmp/next-launch-validation-body.json
+              VALIDATION_STATUS=$(api_post_json '/social/orchestration/batch-launch' /tmp/next-launch-validation-body.json /tmp/next-launch-validation.json)
+              test "${VALIDATION_STATUS}" = '200'
+              jq -e '
+                .ok == true and
+                .mode == "validation_only" and
+                .approval_required == true and
+                .would_launch_count == 1 and
+                .youtube_published == false
+              ' /tmp/next-launch-validation.json >/dev/null
+
+              jq -n --arg id "${NEXT_JOB_ID}" '{job_ids: [$id], confirm_render_batch: true}' > /tmp/next-launch-body.json
+              LAUNCH_STATUS=$(api_post_json '/social/orchestration/batch-launch' /tmp/next-launch-body.json /tmp/next-launch.json)
+              test "${LAUNCH_STATUS}" = '200'
+              jq -e '
+                .ok == true and
+                .mode == "render_batch_launched" and
+                .launched_job_count == 1 and
+                .publishing_triggered == false and
+                .youtube_published == false
+              ' /tmp/next-launch.json >/dev/null
+
+              SERIAL_LAUNCHES=$((SERIAL_LAUNCHES + 1))
+              sleep 15
+              continue
+            fi
+
+            COMPLETE=true
+            break
+          done
+
+          test "${COMPLETE}" = 'true'
+
+          FINAL_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=${ENCODED_NAME}" /tmp/final-jobs.json)
+          test "${FINAL_STATUS}" = '200'
+
+          TOTAL_COUNT=$(jq '.counts.total' /tmp/final-jobs.json)
+          COMPLETED_COUNT=$(jq '.counts.completed' /tmp/final-jobs.json)
+          FAILED_COUNT=$(jq '.counts.failed' /tmp/final-jobs.json)
+          DRAFT_COUNT=$(jq '.counts.draft' /tmp/final-jobs.json)
+          ACTIVE_COUNT=$(jq '.counts.active' /tmp/final-jobs.json)
+
+          test "${TOTAL_COUNT}" = '3'
+          test "${COMPLETED_COUNT}" = '3'
+          test "${FAILED_COUNT}" = '0'
+          test "${DRAFT_COUNT}" = '0'
+          test "${ACTIVE_COUNT}" = '0'
+
+          jq '[.jobs[] | select(.status == "completed") | .id]' /tmp/final-jobs.json > /tmp/completed-job-ids.json
+
+          jq -n --slurpfile ids /tmp/completed-job-ids.json '{job_ids: $ids[0]}' > /tmp/stage-validation-body.json
+          STAGE_VALIDATION_STATUS=$(api_post_json '/social/orchestration/batch-stage' /tmp/stage-validation-body.json /tmp/stage-validation.json)
+          test "${STAGE_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_stage_count == 3 and
+            .youtube_published == false
+          ' /tmp/stage-validation.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/completed-job-ids.json '{job_ids: $ids[0], confirm_stage_batch: true}' > /tmp/stage-body.json
+          STAGE_STATUS=$(api_post_json '/social/orchestration/batch-stage' /tmp/stage-body.json /tmp/stage.json)
+          test "${STAGE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "completed_renders_staged" and
+            .staged_job_count == 3 and
+            .failed_job_count == 0 and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/stage.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --argjson serial_launches "${SERIAL_LAUNCHES}" \
+            --slurpfile jobs /tmp/final-jobs.json \
+            --slurpfile stage /tmp/stage.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                campaign_name: $campaign_name,
+                format: {
+                  duration_seconds: 30,
+                  aspect_ratio: "9:16",
+                  variations_per_song: 1
+                },
+                serial_render_launches_performed: $serial_launches,
+                counts: $jobs[0].counts,
+                videos: [$jobs[0].jobs[] | {
+                  id,
+                  song_key,
+                  song_title,
+                  artist,
+                  status,
+                  output_filename,
+                  output_url,
+                  error_message
+                }],
+                content_review: {
+                  staged_job_count: $stage[0].staged_job_count,
+                  failed_job_count: $stage[0].failed_job_count,
+                  items: [$stage[0].staged_jobs[] | {
+                    job_id: .job.id,
+                    song_key: .job.song_key,
+                    song_title: .job.song_title,
+                    review_id: .review_item.id,
+                    review_status: .review_item.status,
+                    publishing_status: .review_item.publishing_status
+                  }]
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/batch-jobs.json /tmp/final-jobs.json \
+            /tmp/next-launch-validation-body.json /tmp/next-launch-validation.json \
+            /tmp/next-launch-body.json /tmp/next-launch.json /tmp/completed-job-ids.json \
+            /tmp/stage-validation-body.json /tmp/stage-validation.json \
+            /tmp/stage-body.json /tmp/stage.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized completion receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record completed first real Social Factory batch [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
