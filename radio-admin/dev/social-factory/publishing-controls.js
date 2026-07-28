@@ -3,7 +3,7 @@
 
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
-  const state = { busy: false };
+  const state = { busy: false, resultReviewId: '' };
 
   function byId(id) {
     return document.getElementById(id);
@@ -88,14 +88,14 @@
 
     const reviewId = selectedReviewId();
     const approved = selectedStatus() === 'approved';
-    const published = String(byId('publishStatusPill')?.textContent || '').toLowerCase().includes('published') &&
-      !String(byId('publishStatusPill')?.textContent || '').toLowerCase().includes('not published');
+    const publishLabel = String(byId('publishStatusPill')?.textContent || '').toLowerCase();
+    const published = publishLabel.includes('published') && !publishLabel.includes('not published');
 
     validateButton.disabled = state.busy || !reviewId || !approved || published;
     publishButton.disabled = state.busy || !reviewId || !approved || published || scheduledInFuture();
     publishButton.hidden = published;
     validateButton.hidden = published;
-    if (!published && result) result.hidden = true;
+    if (result) result.hidden = !published || state.resultReviewId !== reviewId;
   }
 
   function setBusy(value) {
@@ -151,9 +151,15 @@
       );
       const result = byId('youtubePublishResult');
       if (result && payload.youtube_url) {
+        state.resultReviewId = reviewId;
         result.href = payload.youtube_url;
         result.textContent = 'Open unlisted YouTube video';
         result.hidden = false;
+      }
+      const publishStatus = byId('publishStatusPill');
+      if (publishStatus) {
+        publishStatus.textContent = 'Published';
+        publishStatus.dataset.status = 'published';
       }
       showMessage('YouTube upload completed and the Social Factory review record was updated.', 'success');
       byId('refreshQueue')?.click();
@@ -202,14 +208,14 @@
     publishButton.addEventListener('click', publishUnlisted);
 
     const observer = new MutationObserver(updateControls);
-    const editor = byId('editorContent');
     const queue = byId('queueList');
     const status = byId('reviewStatusPill');
     const publishStatus = byId('publishStatusPill');
-    [editor, queue, status, publishStatus].filter(Boolean).forEach((target) => {
+    [queue, status, publishStatus].filter(Boolean).forEach((target) => {
       observer.observe(target, { attributes: true, childList: true, subtree: true, characterData: true });
     });
     byId('scheduledAt')?.addEventListener('change', updateControls);
+    byId('scheduledAt')?.addEventListener('input', updateControls);
     updateControls();
   }
 
