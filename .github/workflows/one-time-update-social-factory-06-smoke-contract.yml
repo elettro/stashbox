@@ -1,0 +1,57 @@
+name: Update Social Factory 0.6 Smoke Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-update-social-factory-06-smoke-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Update deployed health smoke-test contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-social-factory-api-dev.yml')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = {
+              '.version == "0.3.0" and': '.version == "0.6.0" and',
+              '.isolation.mainRadioApiDependency == false and\n            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"': '.isolation.mainRadioApiDependency == false and\n            .isolation.radioApiBridgeSupported == true and\n            .isolation.batchCampaignPlanningSupported == true and\n            .isolation.batchDraftCreationSupported == true and\n            .isolation.batchRenderLaunchRequiresSeparateApproval == true and\n            .isolation.contentReviewSupported == true and\n            .isolation.reviewEditingSupported == true and\n            .isolation.securePreviewSupported == true and\n            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Expected smoke-test text not found: {old}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit corrected smoke contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-social-factory-api-dev.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Update Social Factory 0.6 deployment smoke contract [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
