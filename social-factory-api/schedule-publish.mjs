@@ -113,6 +113,7 @@ export function createAwsScheduleStore({
         Target: {
           Arn: queueArn,
           RoleArn: targetRoleArn,
+          SqsParameters: { MessageGroupId: 'scheduled-publish' },
           Input: JSON.stringify({
             schema_version: 1,
             type: 'social_factory_scheduled_publish',
