@@ -1,0 +1,267 @@
+{
+  "recorded_at": "2026-07-28T20:55:09Z",
+  "account_id": "656260749296",
+  "stack": {
+    "name": "stashbox-social-api-dev",
+    "id": "arn:aws:cloudformation:us-east-1:656260749296:stack/stashbox-social-api-dev/7905a3e0-89fd-11f1-9878-0affd705329b",
+    "status": "UPDATE_ROLLBACK_COMPLETE",
+    "role_arn": "arn:aws:iam::656260749296:role/stashbox-social-cloudformation-dev-role"
+  },
+  "stack_resources": [
+    {
+      "logical_id": "SocialApiDevFunction",
+      "physical_id": "stashbox-social-api-dev",
+      "type": "AWS::Lambda::Function",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionHealthPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionHealthPermission-fpYUwNzuWlVe",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationBatchDraftsPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationBatchDraftsPermission-y30dTngYx3BR",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationBatchJobsPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationBatchJobsPermission-QuKgQ14GHYnK",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationBatchLaunchPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationBatchLaunchPermission-7WV71K5oG1Qo",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationBatchPlanPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationBatchPlanPermission-wY8bWnAfoXdq",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationBatchStagePermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationBatchStagePermission-JDO9KDm6OFee",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationCandidatesPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationCandidatesPermission-0PYJ2iQgN0Oc",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationRenderJobGetPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationRenderJobGetPermission-Dvh3aQS70ZQ3",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationRenderJobLaunchPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationRenderJobLaunchPermission-KCDWSqgEa42X",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationRenderJobStagePermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationRenderJobStagePermission-3PwRU9XyRBBf",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationRenderJobsCreatePermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationRenderJobsCreatePermission-mjGYRpekjcNI",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionOrchestrationRenderJobsGetPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionOrchestrationRenderJobsGetPermission-5g5j42SRBbd0",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemDecisionPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemDecisionPermission-nK2Vun1KaU4b",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemGetPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemGetPermission-0WAymd0h6NpL",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemPreviewPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemPreviewPermission-R3ev3FMbqTJ4",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemPublishPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemPublishPermission-R8kLFc2Z4u7J",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemSavePermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemSavePermission-qtLvc0oRLoAY",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionReviewItemsListPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionReviewItemsListPermission-qJFOWwQdSpTz",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionSocialUploadPresignPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionSocialUploadPresignPermission-EPOy9MKv5haL",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionYoutubeDisconnectPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionYoutubeDisconnectPermission-cs9vFztvcb3h",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionYoutubeOAuthCallbackPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionYoutubeOAuthCallbackPermission-wSkQn85GI58z",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionYoutubeOAuthStartPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionYoutubeOAuthStartPermission-A8CbBpCK2rpL",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionYoutubePublishPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionYoutubePublishPermission-GGSJXT1lo1Ts",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevFunctionYoutubeStatusPermission",
+      "physical_id": "stashbox-social-api-dev-SocialApiDevFunctionYoutubeStatusPermission-pvdGPlJJ9uAC",
+      "type": "AWS::Lambda::Permission",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevLogGroup",
+      "physical_id": "/aws/lambda/stashbox-social-api-dev",
+      "type": "AWS::Logs::LogGroup",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialApiDevRole",
+      "physical_id": "stashbox-social-api-dev-role",
+      "type": "AWS::IAM::Role",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialFactoryHttpApi",
+      "physical_id": "tnrca1ff32",
+      "type": "AWS::ApiGatewayV2::Api",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialFactoryHttpApidevStage",
+      "physical_id": "dev",
+      "type": "AWS::ApiGatewayV2::Stage",
+      "status": "CREATE_COMPLETE"
+    },
+    {
+      "logical_id": "SocialPublishBucket",
+      "physical_id": "stashbox-social-publish-656260749296-us-east-1",
+      "type": "AWS::S3::Bucket",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "YoutubeOAuthConfigSecret",
+      "physical_id": "arn:aws:secretsmanager:us-east-1:656260749296:secret:stashbox/social-factory/dev/youtube-oauth/config-7BPrj8",
+      "type": "AWS::SecretsManager::Secret",
+      "status": "UPDATE_COMPLETE"
+    },
+    {
+      "logical_id": "YoutubeOAuthTokenSecret",
+      "physical_id": "arn:aws:secretsmanager:us-east-1:656260749296:secret:stashbox/social-factory/dev/youtube-oauth/tokens-4FUIAH",
+      "type": "AWS::SecretsManager::Secret",
+      "status": "UPDATE_COMPLETE"
+    }
+  ],
+  "recent_failures": [
+    {
+      "timestamp": "2026-07-28T18:36:10.829000+00:00",
+      "logical_id": "SocialApiDevRole",
+      "type": "AWS::IAM::Role",
+      "status": "UPDATE_FAILED",
+      "reason": "Resource update cancelled"
+    },
+    {
+      "timestamp": "2026-07-28T18:36:10.577000+00:00",
+      "logical_id": "SocialScheduledPublishWorkerFunction",
+      "type": "AWS::Lambda::Function",
+      "status": "CREATE_FAILED",
+      "reason": "Resource handler returned message: \"Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10]. (Service: Lambda, Status Code: 400, Request ID: 9592a39c-9c07-40ab-a958-b619009c075f) (SDK Attempt Count: 1)\" (RequestToken: 450c0cae-beca-6287-5ad2-06f286fabdd4, HandlerErrorCode: InvalidRequest)"
+    }
+  ],
+  "named_resources": {
+    "worker_function": {
+      "exists": false,
+      "error": "\naws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the GetFunction operation: Function not found: arn:aws:lambda:us-east-1:656260749296:function:stashbox-social-publish-worker-dev\n\nAdditional error details:\nType: User"
+    },
+    "worker_role": {
+      "exists": false,
+      "error": "\naws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name stashbox-social-publish-worker-dev-role cannot be found."
+    },
+    "scheduler_role": {
+      "exists": false,
+      "error": "\naws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name stashbox-social-scheduler-target-dev-role cannot be found."
+    },
+    "queue": {
+      "exists": false
+    },
+    "dead_letter_queue": {
+      "exists": false
+    },
+    "legacy_queue": {
+      "exists": false
+    },
+    "legacy_dead_letter_queue": {
+      "exists": false
+    },
+    "schedule_group": {
+      "exists": false,
+      "error": "\naws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetScheduleGroup operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: scheduler:GetScheduleGroup on resource: arn:aws:scheduler:us-east-1:656260749296:schedule-group/stashbox-social-publish-dev because no identity-based policy allows the scheduler:GetScheduleGroup action"
+    },
+    "worker_log_group": {
+      "exists": true,
+      "group": {
+        "logGroupName": "/aws/lambda/stashbox-social-publish-worker-dev",
+        "creationTime": 1785263621173,
+        "retentionInDays": 30,
+        "metricFilterCount": 0,
+        "arn": "arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-social-publish-worker-dev:*",
+        "storedBytes": 0,
+        "logGroupClass": "STANDARD",
+        "logGroupArn": "arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-social-publish-worker-dev",
+        "deletionProtectionEnabled": false,
+        "bearerTokenAuthenticationEnabled": false
+      },
+      "tags": {}
+    },
+    "event_source_mappings": []
+  }
+}
