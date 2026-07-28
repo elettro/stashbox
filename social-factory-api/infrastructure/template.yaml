@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, protected Video Factory orchestration, secure review previews, editing, approval, and controlled publishing.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, protected Video Factory orchestration, Content Review, and scheduled queue publishing.
 
 Parameters:
   EnvironmentName:
@@ -109,6 +109,71 @@ Resources:
         - Key: Purpose
           Value: youtube-publish-staging
 
+  SocialPublishScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: stashbox-social-publish-dev
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+
+  SocialPublishScheduleDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: stashbox-social-publish-dev-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: scheduled-publish-dead-letter
+
+  SocialPublishScheduleQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: stashbox-social-publish-dev
+      VisibilityTimeout: 960
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SocialPublishScheduleDeadLetterQueue.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: scheduled-publish-queue
+
+  SocialPublishSchedulerTargetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-social-scheduler-target-dev-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SendScheduledPublishMessages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt SocialPublishScheduleQueue.Arn
+
   SocialApiDevRole:
     Type: AWS::IAM::Role
     Properties:
@@ -180,6 +245,93 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource: !Sub arn:${AWS::Partition}:s3:::stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}/video-factory/*
+        - PolicyName: SocialApiDevScheduling
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ManageSocialPublishSchedules
+                Effect: Allow
+                Action:
+                  - scheduler:CreateSchedule
+                  - scheduler:DeleteSchedule
+                  - scheduler:GetSchedule
+                Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${SocialPublishScheduleGroup}/social-review-*
+              - Sid: PassSchedulerTargetRole
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt SocialPublishSchedulerTargetRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: scheduler.amazonaws.com
+
+  SocialScheduledPublishWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-social-publish-worker-dev-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SocialPublishWorkerLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - PolicyName: SocialPublishWorkerSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadYoutubeOAuthSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref YoutubeOAuthConfigSecret
+                  - !Ref YoutubeOAuthTokenSecret
+              - Sid: WriteYoutubeOAuthTokenSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:PutSecretValue
+                Resource: !Ref YoutubeOAuthTokenSecret
+        - PolicyName: SocialPublishWorkerStorage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadIncomingVideos
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/incoming/*
+              - Sid: ReadWriteReviewDrafts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/drafts/*
+        - PolicyName: SocialPublishWorkerQueue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource: !GetAtt SocialPublishScheduleQueue.Arn
 
   SocialApiDevFunction:
     Type: AWS::Serverless::Function
@@ -202,6 +354,9 @@ Resources:
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
           VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
+          SOCIAL_SCHEDULE_GROUP: !Ref SocialPublishScheduleGroup
+          SOCIAL_SCHEDULE_QUEUE_ARN: !GetAtt SocialPublishScheduleQueue.Arn
+          SOCIAL_SCHEDULER_ROLE_ARN: !GetAtt SocialPublishSchedulerTargetRole.Arn
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
           SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
       Events:
@@ -349,6 +504,43 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/review-items/{reviewId}/publish
             Method: POST
+        ReviewItemSchedule:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}/schedule
+            Method: POST
+
+  SocialScheduledPublishWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: stashbox-social-publish-worker-dev
+      Description: Isolated Social Factory SQS worker for approved scheduled YouTube uploads.
+      CodeUri: ../
+      Handler: scheduled-publish-worker.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Timeout: 900
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt SocialScheduledPublishWorkerRole.Arn
+      Environment:
+        Variables:
+          APP_ENV: !Ref EnvironmentName
+          YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
+          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
+          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
+          SOCIAL_MAX_UPLOAD_BYTES: '536870912'
+          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
+      Events:
+        ScheduledPublishQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SocialPublishScheduleQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup
@@ -356,6 +548,14 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: /aws/lambda/stashbox-social-api-dev
+      RetentionInDays: 30
+
+  SocialScheduledPublishWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/lambda/stashbox-social-publish-worker-dev
       RetentionInDays: 30
 
 Outputs:
@@ -369,6 +569,20 @@ Outputs:
     Value: !Sub https://${SocialFactoryHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev/social/youtube/oauth/callback
   SocialApiDevExecutionRoleArn:
     Value: !GetAtt SocialApiDevRole.Arn
+  SocialScheduledPublishWorkerFunctionName:
+    Value: !Ref SocialScheduledPublishWorkerFunction
+  SocialScheduledPublishWorkerRoleArn:
+    Value: !GetAtt SocialScheduledPublishWorkerRole.Arn
+  SocialPublishScheduleQueueUrl:
+    Value: !Ref SocialPublishScheduleQueue
+  SocialPublishScheduleQueueArn:
+    Value: !GetAtt SocialPublishScheduleQueue.Arn
+  SocialPublishScheduleDeadLetterQueueArn:
+    Value: !GetAtt SocialPublishScheduleDeadLetterQueue.Arn
+  SocialPublishScheduleGroupName:
+    Value: !Ref SocialPublishScheduleGroup
+  SocialPublishSchedulerTargetRoleArn:
+    Value: !GetAtt SocialPublishSchedulerTargetRole.Arn
   YoutubeOAuthConfigSecretArn:
     Value: !Ref YoutubeOAuthConfigSecret
   YoutubeOAuthTokenSecretArn:
