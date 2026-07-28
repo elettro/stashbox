@@ -1,0 +1,118 @@
+name: Convert Social Factory Scheduled Queue to FIFO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/convert-social-factory-scheduled-queue-to-fifo.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: convert-social-factory-scheduled-queue-to-fifo
+  cancel-in-progress: false
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Apply FIFO queue conversion
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old!r}')
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'social-factory-api/schedule-publish.mjs',
+              "          RoleArn: targetRoleArn,\n          Input: JSON.stringify({",
+              "          RoleArn: targetRoleArn,\n          SqsParameters: { MessageGroupId: 'scheduled-publish' },\n          Input: JSON.stringify({"
+          )
+
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "      QueueName: stashbox-social-publish-dev-dlq\n      MessageRetentionPeriod: 1209600",
+              "      QueueName: stashbox-social-publish-dev-dlq.fifo\n      FifoQueue: true\n      ContentBasedDeduplication: true\n      MessageRetentionPeriod: 1209600"
+          )
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "      QueueName: stashbox-social-publish-dev\n      VisibilityTimeout: 960",
+              "      QueueName: stashbox-social-publish-dev.fifo\n      FifoQueue: true\n      ContentBasedDeduplication: true\n      VisibilityTimeout: 960"
+          )
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "      ReservedConcurrentExecutions: 1\n",
+              ""
+          )
+
+          replace_once(
+              '.github/workflows/deploy-social-factory-api-dev.yml',
+              "      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev\n      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq",
+              "      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev.fifo\n      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq.fifo"
+          )
+          replace_once(
+              '.github/workflows/deploy-social-factory-api-dev.yml',
+              "--attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled)",
+              "--attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled FifoQueue ContentBasedDeduplication)"
+          )
+          replace_once(
+              '.github/workflows/deploy-social-factory-api-dev.yml',
+              ".Attributes.SqsManagedSseEnabled == \"true\" and\n              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq)",
+              ".Attributes.SqsManagedSseEnabled == \"true\" and\n              .Attributes.FifoQueue == \"true\" and\n              .Attributes.ContentBasedDeduplication == \"true\" and\n              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq)"
+          )
+          PY
+
+      - name: Validate converted source
+        working-directory: social-factory-api
+        run: |
+          npm run check
+          npm test
+          sam validate --template-file infrastructure/template.yaml --lint
+
+      - name: Commit FIFO queue conversion
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          git add \
+            social-factory-api/schedule-publish.mjs \
+            social-factory-api/infrastructure/template.yaml \
+            .github/workflows/deploy-social-factory-api-dev.yml
+
+          if git diff --cached --quiet; then
+            echo 'FIFO queue conversion already applied.'
+            exit 0
+          fi
+
+          git commit -m 'Serialize Social Factory scheduled publishing with FIFO [skip ci]'
+          git push origin main
