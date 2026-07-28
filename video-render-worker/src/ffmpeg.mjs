@@ -217,9 +217,18 @@ function estimatedTextUnits(value) {
 }
 
 function fitNarrowOverlayText(text, preferredSize, width) {
-  const horizontalPadding = 36;
-  const availableWidth = Math.max(1, width * 0.86 - horizontalPadding);
-  const widthAtOnePixel = Math.max(1, estimatedTextUnits(text));
+  const leftInset = width * 0.05;
+  const rightSafeMargin = width * 0.06;
+  const boxAndShadowAllowance = 44;
+  const glyphWidthSafetyFactor = 1.12;
+  const availableWidth = Math.max(
+    1,
+    width - leftInset - rightSafeMargin - boxAndShadowAllowance
+  );
+  const widthAtOnePixel = Math.max(
+    1,
+    estimatedTextUnits(text) * glyphWidthSafetyFactor
+  );
   return Math.min(preferredSize, availableWidth / widthAtOnePixel);
 }
 

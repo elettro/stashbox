@@ -89,7 +89,7 @@ test('song identity copy is left-aligned in the lower-left third', () => {
 });
 
 test('narrow video formats reduce title and artist sizes to fit the available width', () => {
-  for (const [width, height] of [[1080, 1920], [1080, 1080], [1080, 1440]]) {
+  for (const [width, height] of [[1080, 1920], [1080, 1080], [1080, 1350], [1080, 1440]]) {
     const filter = buildOverlayFilter({
       width,
       height,
@@ -108,6 +108,33 @@ test('narrow video formats reduce title and artist sizes to fit the available wi
     const artistSize = Number(filter.match(/text='Stashbox and the International All Stars'.*?fontsize=(\d+)/)?.[1]);
     assert.ok(titleSize > 0 && titleSize <= 76, `${width}x${height} title size was ${titleSize}`);
     assert.ok(artistSize > 0 && artistSize <= 49, `${width}x${height} artist size was ${artistSize}`);
+  }
+});
+
+test('long portrait titles retain a conservative right-side safe margin', () => {
+  const title = 'Party Spots and Waves (Newport Beach)';
+  for (const [width, height] of [[1080, 1920], [1080, 1440], [1080, 1350]]) {
+    const filter = buildOverlayFilter({
+      width,
+      height,
+      metadata: {
+        title,
+        artist: 'Stashbox'
+      },
+      overlays: {
+        intro_enabled: true,
+        outro_enabled: false,
+        corner_bug_enabled: true
+      }
+    }, 15);
+
+    const titleSize = Number(
+      filter.match(/text='Party Spots and Waves \(Newport Beach\)'.*?fontsize=(\d+)/)?.[1]
+    );
+    assert.ok(
+      titleSize > 0 && titleSize <= 40,
+      String(width) + 'x' + String(height) + ' title size was ' + String(titleSize)
+    );
   }
 });
 
