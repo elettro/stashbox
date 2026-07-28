@@ -1,0 +1,112 @@
+name: Check First Real Social Factory Batch 03
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-check-first-real-social-factory-batch-03.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CAMPAIGN_NAME: Stashbox Social Factory First Real Batch 01
+      REPORT_PATH: deployment-reports/social-factory-first-real-batch-01-status-03.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Record current batch state
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+          ENCODED_NAME=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
+
+          JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/batch-jobs.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-jobs?campaign_name=${ENCODED_NAME}")
+          test "${JOBS_STATUS}" = '200'
+
+          REVIEWS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/review-items.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          test "${REVIEWS_STATUS}" = '200'
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status found \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --slurpfile jobs /tmp/batch-jobs.json \
+            --slurpfile reviews /tmp/review-items.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                campaign_name: $campaign_name,
+                counts: $jobs[0].counts,
+                jobs: [$jobs[0].jobs[] | {
+                  id,
+                  song_key,
+                  song_title,
+                  artist,
+                  status,
+                  active,
+                  ready_for_staging,
+                  output_filename,
+                  output_url,
+                  error_message
+                }],
+                review_items: [$reviews[0].items[] | {
+                  id,
+                  song_key: .song.song_key,
+                  title: .song.title,
+                  status,
+                  publishing_status
+                }],
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/batch-jobs.json /tmp/review-items.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized status receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Refresh first real Social Factory batch status 03 [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
