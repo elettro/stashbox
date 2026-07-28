@@ -253,6 +253,18 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/orchestration/candidates
             Method: GET
+        OrchestrationBatchPlan:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/batch-plan
+            Method: POST
+        OrchestrationBatchDrafts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/batch-drafts
+            Method: POST
         OrchestrationRenderJobsGet:
           Type: HttpApi
           Properties:
