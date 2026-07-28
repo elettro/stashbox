@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T00:56:38Z",
+  "http_status": "200",
+  "job": {
+    "id": "cc50acd7-014d-492f-89ac-682c8894240e",
+    "batch_id": "2a0b380d-a9dc-434f-8802-33ca77f094f5",
+    "batch_name": "Social Factory First Orchestrated Render - Hippy Speedball (I'm On My Way)",
+    "campaign_name": "First Orchestrated Render",
+    "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+    "song_title": "Hippy Speedball (I'm On My Way)",
+    "artist": "Stashbox",
+    "status": "completed",
+    "ready_for_staging": true,
+    "duration_mode": "promo",
+    "duration_seconds": 30,
+    "aspect_ratio": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "output_url": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/hippy-speedball-i-m-on-my-way-original-stashbox/2026-07-28/cc50acd7-014d-492f-89ac-682c8894240e/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "thumbnail_url": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/hippy-speedball-i-m-on-my-way-original-stashbox/2026-07-28/cc50acd7-014d-492f-89ac-682c8894240e/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.jpg",
+    "error_message": "",
+    "created_at": "2026-07-28T00:53:26.402Z",
+    "started_at": "2026-07-28T00:53:26.781Z",
+    "completed_at": "2026-07-28T00:54:56.882Z",
+    "updated_at": "2026-07-28T00:54:56.882Z"
+  },
+  "youtube_published": false
+}
