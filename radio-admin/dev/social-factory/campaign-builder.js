@@ -165,6 +165,13 @@
         `${created} draft job${created === 1 ? '' : 's'} created${skipped ? `, ${skipped} existing job${skipped === 1 ? '' : 's'} reused` : ''}. No renders were launched and nothing was published.`,
         'success'
       );
+      window.dispatchEvent(new CustomEvent('socialfactory:drafts-created', {
+        detail: {
+          campaignName: result.campaign_name || state.payload.campaign_name,
+          createdJobs: Array.isArray(result.created_jobs) ? result.created_jobs : [],
+          skippedJobs: Array.isArray(result.skipped_jobs) ? result.skipped_jobs : []
+        }
+      }));
     } catch (error) {
       showMessage(formatError(error), 'error');
     } finally {
