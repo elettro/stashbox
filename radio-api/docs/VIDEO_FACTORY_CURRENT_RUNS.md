@@ -1,6 +1,6 @@
 # Current Video Factory Workflow Runs
 
-Captured: 2026-07-28T19:17:04Z
+Captured: 2026-07-28T19:21:18Z
 
 ## one-time-dispatch-video-factory-endpoints.yml
 - Run ID: 30377648044
@@ -33,14 +33,14 @@ Captured: 2026-07-28T19:17:04Z
 - URL: https://github.com/elettro/stashbox/actions/runs/30381461384
 
 ## one-time-capture-video-factory-portrait-qa.yml
-- Run ID: 30391244361
+- Run ID: 30391386589
 - Status: completed
 - Conclusion: failure
 - Event: push
-- Created: 2026-07-28T19:16:45Z
-- Updated: 2026-07-28T19:16:45Z
-- Head SHA: c145d8a9ce545871a574044358bc3a858e021528
-- URL: https://github.com/elettro/stashbox/actions/runs/30391244361
+- Created: 2026-07-28T19:18:43Z
+- Updated: 2026-07-28T19:19:05Z
+- Head SHA: c3d67a31d7c0c8a56f9c00e10653a7f69475b03c
+- URL: https://github.com/elettro/stashbox/actions/runs/30391386589
 
 ## monitor-video-factory-deploy-dev.yml
 - Run ID: 30378715500
