@@ -26,17 +26,30 @@ function safeMessage(record = {}) {
 }
 
 export function createScheduledPublishWorker({
-  reviewPublisher = createReviewPublishService(),
-  reviewStore = createAwsReviewPublishStore(),
+  reviewPublisher = null,
+  reviewStore = null,
   now = () => new Date()
 } = {}) {
+  let resolvedReviewPublisher = reviewPublisher;
+  let resolvedReviewStore = reviewStore;
+
+  function getReviewPublisher() {
+    if (!resolvedReviewPublisher) resolvedReviewPublisher = createReviewPublishService();
+    return resolvedReviewPublisher;
+  }
+
+  function getReviewStore() {
+    if (!resolvedReviewStore) resolvedReviewStore = createAwsReviewPublishStore();
+    return resolvedReviewStore;
+  }
+
   async function recordFailure(reviewId, error) {
     if (!reviewId) return;
     try {
-      const item = await reviewStore.getReview(reviewId);
+      const item = await getReviewStore().getReview(reviewId);
       if (!item || item.publishing_status === 'published') return;
       const timestamp = now().toISOString();
-      await reviewStore.putReview(reviewId, {
+      await getReviewStore().putReview(reviewId, {
         ...item,
         publishing_status: 'retrying',
         schedule: {
@@ -64,7 +77,7 @@ export function createScheduledPublishWorker({
       try {
         const message = safeMessage(record);
         reviewId = message.reviewId;
-        const result = await reviewPublisher.publishScheduled(
+        const result = await getReviewPublisher().publishScheduled(
           message.reviewId,
           message.scheduledAt
         );
