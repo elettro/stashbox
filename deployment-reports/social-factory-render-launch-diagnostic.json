@@ -1,0 +1,29 @@
+{
+  "recorded_at": "2026-07-28T02:09:14Z",
+  "infrastructure": {
+    "success": true,
+    "configured": true,
+    "cluster_status": "ACTIVE",
+    "running_tasks": 0,
+    "pending_tasks": 0,
+    "output_bucket": "stashbox-radio-video-factory-dev-656260749296-us-east-1",
+    "task_definition_arn": "arn:aws:ecs:us-east-1:656260749296:task-definition/stashbox-video-factory-renderer-dev:20",
+    "error": ""
+  },
+  "job": {
+    "id": "13b2d78e-d964-4353-bdc2-2b80ba9349af",
+    "status": "failed",
+    "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+    "song_title": "Hippy Speedball (I'm On My Way)",
+    "error_message": "TaskDefinition is inactive",
+    "runtime": {
+      "updated_at": "2026-07-28T00:49:33.910Z",
+      "ecs_task_arn": "",
+      "launch_error": "TaskDefinition is inactive",
+      "status_message": "Render worker launch failed.",
+      "progress_percent": 0,
+      "launch_requested_at": "2026-07-28T00:49:33.582Z"
+    }
+  },
+  "youtube_published": false
+}
