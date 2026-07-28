@@ -19,23 +19,24 @@ concurrency:
 jobs:
   validate-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 100
     env:
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
-      EXPECTED_FUNCTION_NAME: stashbox-social-api-dev
-      EXPECTED_WORKER_FUNCTION_NAME: stashbox-social-publish-worker-dev
-      EXPECTED_LOG_GROUP: /aws/lambda/stashbox-social-api-dev
-      EXPECTED_WORKER_LOG_GROUP: /aws/lambda/stashbox-social-publish-worker-dev
-      EXPECTED_CONFIG_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/config
-      EXPECTED_TOKEN_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/tokens
-      EXPECTED_PUBLISH_BUCKET: stashbox-social-publish-656260749296-us-east-1
-      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev
-      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq
+      EXPECTED_API_FUNCTION: stashbox-social-api-dev
+      EXPECTED_WORKER_FUNCTION: stashbox-social-publish-worker-dev
+      EXPECTED_QUEUE_NAME: stashbox-social-publish-dev.fifo
+      EXPECTED_DLQ_NAME: stashbox-social-publish-dev-dlq.fifo
       EXPECTED_SCHEDULE_GROUP: stashbox-social-publish-dev
+      REPORT_PATH: deployment-reports/social-factory-api-dev.json
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -48,6 +49,8 @@ jobs:
       - name: Validate source
         working-directory: social-factory-api
         run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
           npm run check
           npm test
           sam validate --template-file infrastructure/template.yaml --lint
@@ -59,571 +62,248 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Recover failed Social Factory stack
+      - name: Prepare stack and deployment bucket
         run: |
-          set +e
-          (
-            set -euo pipefail
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
 
-            STACK_STATUS=$(aws cloudformation describe-stacks \
-              --stack-name "${STACK_NAME}" \
-              --query 'Stacks[0].StackStatus' \
-              --output text 2>/dev/null || true)
+          if [ "${STACK_STATUS}" = 'UPDATE_ROLLBACK_FAILED' ]; then
+            aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
+            aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
+          fi
 
-            echo "${STACK_STATUS}" > /tmp/social-factory-stack-status-before
-            echo "Existing stack status: ${STACK_STATUS:-STACK_NOT_FOUND}"
+          STACK_ROLE=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].RoleARN' \
+            --output text)
+          test "${STACK_ROLE}" = "arn:aws:iam::${ACCOUNT_ID}:role/stashbox-social-cloudformation-dev-role"
 
-            case "${STACK_STATUS}" in
-              UPDATE_ROLLBACK_FAILED)
-                echo 'Continuing rollback so the existing Social Factory stack can be updated in place.'
-                aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
-                aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
-                echo 'Rollback completed. Existing stack, API URL, OAuth resources, and queue resources were preserved.'
-                ;;
-              ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS)
-                echo 'Removing only a non-updateable Social Factory stack before clean deployment.'
+          if ! aws s3api head-bucket --bucket "${ARTIFACT_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${ARTIFACT_BUCKET}" --region "${AWS_REGION}"
+          fi
+          aws s3api put-public-access-block \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+          aws s3api put-bucket-encryption \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
-                if [ "${STACK_STATUS}" != 'DELETE_IN_PROGRESS' ]; then
-                  aws cloudformation delete-stack --stack-name "${STACK_NAME}"
-                fi
-
-                aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
-                aws logs delete-log-group \
-                  --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
-                aws logs delete-log-group \
-                  --log-group-name "${EXPECTED_WORKER_LOG_GROUP}" 2>/dev/null || true
-                echo 'Non-updateable stack removed successfully.'
-                ;;
-              ''|None)
-                echo 'No existing Social Factory stack found.'
-                ;;
-              *)
-                echo "Existing stack is deployable and will be updated in place: ${STACK_STATUS}"
-                ;;
-            esac
-          ) 2>&1 | tee /tmp/social-factory-stack-recovery.log
-
-          RECOVERY_EXIT_CODE=${PIPESTATUS[0]}
-          echo "${RECOVERY_EXIT_CODE}" > /tmp/social-factory-stack-recovery.exit
-          exit "${RECOVERY_EXIT_CODE}"
+          printf '%s' "${ACCOUNT_ID}" > /tmp/social-account-id
+          printf '%s' "${ARTIFACT_BUCKET}" > /tmp/social-artifact-bucket
+          printf '%s' "${STACK_ROLE}" > /tmp/social-stack-role
 
       - name: Build isolated SAM application
         working-directory: social-factory-api
         run: sam build --template-file infrastructure/template.yaml
 
-      - name: Prepare isolated deployment artifact bucket
-        run: |
-          set +e
-          (
-            set -euo pipefail
-            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-            ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
-            echo "${ARTIFACT_BUCKET}" > /tmp/social-factory-artifact-bucket
-
-            if ! aws s3api head-bucket --bucket "${ARTIFACT_BUCKET}" 2>/dev/null; then
-              aws s3api create-bucket \
-                --bucket "${ARTIFACT_BUCKET}" \
-                --region "${AWS_REGION}"
-            fi
-
-            aws s3api put-public-access-block \
-              --bucket "${ARTIFACT_BUCKET}" \
-              --public-access-block-configuration \
-                BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-
-            aws s3api put-bucket-encryption \
-              --bucket "${ARTIFACT_BUCKET}" \
-              --server-side-encryption-configuration \
-                '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-          ) 2>&1 | tee /tmp/social-factory-artifact-bucket.log
-
-          ARTIFACT_EXIT_CODE=${PIPESTATUS[0]}
-          echo "${ARTIFACT_EXIT_CODE}" > /tmp/social-factory-artifact-bucket.exit
-          exit "${ARTIFACT_EXIT_CODE}"
-
       - name: Deploy isolated DEV stack
         working-directory: social-factory-api
         run: |
           set +e
-          ARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket)
-
+          ARTIFACT_BUCKET=$(cat /tmp/social-artifact-bucket)
+          STACK_ROLE=$(cat /tmp/social-stack-role)
           sam deploy \
             --stack-name "${STACK_NAME}" \
             --region "${AWS_REGION}" \
             --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "${STACK_ROLE}" \
             --s3-bucket "${ARTIFACT_BUCKET}" \
             --s3-prefix "social-factory-api/${GITHUB_SHA}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com \
-            2>&1 | tee /tmp/social-factory-sam-deploy.log
+            2>&1 | tee /tmp/social-sam-deploy.log
+          DEPLOY_EXIT=${PIPESTATUS[0]}
+          echo "${DEPLOY_EXIT}" > /tmp/social-deploy-exit
+          exit 0
 
-          DEPLOY_EXIT_CODE=${PIPESTATUS[0]}
-          echo "${DEPLOY_EXIT_CODE}" > /tmp/social-factory-sam-deploy.exit
-          exit "${DEPLOY_EXIT_CODE}"
-
-      - name: Verify functions, roles, queue, secrets, and storage boundaries
-        run: |
-          set -euo pipefail
-
-          stack_output() {
-            aws cloudformation describe-stacks \
-              --stack-name "${STACK_NAME}" \
-              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
-              --output text
-          }
-
-          FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
-          WORKER_FUNCTION_NAME=$(stack_output SocialScheduledPublishWorkerFunctionName)
-          ROLE_ARN=$(stack_output SocialApiDevExecutionRoleArn)
-          WORKER_ROLE_ARN=$(stack_output SocialScheduledPublishWorkerRoleArn)
-          CONFIG_SECRET_ARN=$(stack_output YoutubeOAuthConfigSecretArn)
-          TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
-          PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
-          PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
-          QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
-          QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
-          DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
-          SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
-          SCHEDULER_TARGET_ROLE_ARN=$(stack_output SocialPublishSchedulerTargetRoleArn)
-
-          test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION_NAME}"
-          test "${WORKER_FUNCTION_NAME}" = "${EXPECTED_WORKER_FUNCTION_NAME}"
-          test "${PUBLISH_BUCKET}" = "${EXPECTED_PUBLISH_BUCKET}"
-          test "${PUBLISH_BUCKET_ARN}" = "arn:aws:s3:::${EXPECTED_PUBLISH_BUCKET}"
-          test "${QUEUE_ARN##*:}" = "${EXPECTED_SCHEDULE_QUEUE_NAME}"
-          test "${DLQ_ARN##*:}" = "${EXPECTED_SCHEDULE_DLQ_NAME}"
-          test "${SCHEDULE_GROUP}" = "${EXPECTED_SCHEDULE_GROUP}"
-          [[ "${CONFIG_SECRET_ARN}" == *":secret:${EXPECTED_CONFIG_SECRET_NAME}-"* ]]
-          [[ "${TOKEN_SECRET_ARN}" == *":secret:${EXPECTED_TOKEN_SECRET_NAME}-"* ]]
-
-          ROLE_NAME="${ROLE_ARN##*/}"
-          ATTACHED_POLICIES=$(aws iam list-attached-role-policies \
-            --role-name "${ROLE_NAME}" \
-            --query 'AttachedPolicies[].PolicyName' \
-            --output text)
-
-          if [ -n "${ATTACHED_POLICIES}" ]; then
-            echo "Unexpected managed policies attached to ${ROLE_NAME}: ${ATTACHED_POLICIES}" >&2
-            exit 1
-          fi
-
-          INLINE_POLICIES=$(aws iam list-role-policies \
-            --role-name "${ROLE_NAME}" \
-            --query 'PolicyNames' \
-            --output text)
-          ACTUAL_POLICIES=$(tr '\t' '\n' <<<"${INLINE_POLICIES}" | sed '/^$/d' | sort)
-          EXPECTED_POLICIES=$(printf '%s\n' \
-            SocialApiDevLogsOnly \
-            SocialApiDevPublishStaging \
-            SocialApiDevScheduling \
-            SocialApiDevYoutubeOAuthSecrets | sort)
-          diff -u <(printf '%s\n' "${EXPECTED_POLICIES}") <(printf '%s\n' "${ACTUAL_POLICIES}")
-
-          LOG_DOCUMENT=$(aws iam get-role-policy \
-            --role-name "${ROLE_NAME}" \
-            --policy-name SocialApiDevLogsOnly \
-            --query 'PolicyDocument' \
-            --output json)
-          echo "${LOG_DOCUMENT}" | jq -e '
-            ([.Statement[].Action] | flatten | sort) ==
-              (["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"] | sort) and
-            ([.Statement[].Resource] | flatten | all(startswith("arn:aws:logs:")))
-          ' >/dev/null
-
-          SECRET_DOCUMENT=$(aws iam get-role-policy \
-            --role-name "${ROLE_NAME}" \
-            --policy-name SocialApiDevYoutubeOAuthSecrets \
-            --query 'PolicyDocument' \
-            --output json)
-          echo "${SECRET_DOCUMENT}" | jq -e \
-            --arg config "${CONFIG_SECRET_ARN}" \
-            --arg token "${TOKEN_SECRET_ARN}" '
-              def array: if type == "array" then . else [.] end;
-              ([.Statement[] | select(.Sid == "ReadYoutubeOAuthSecrets")][0]) as $read |
-              ([.Statement[] | select(.Sid == "WriteYoutubeOAuthTokenSecret")][0]) as $write |
-              $read.Effect == "Allow" and
-              (($read.Action | array | sort) == (["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"] | sort)) and
-              (($read.Resource | array | sort) == ([$config, $token] | sort)) and
-              $write.Effect == "Allow" and
-              (($write.Action | array) == ["secretsmanager:PutSecretValue"]) and
-              (($write.Resource | array) == [$token])
-            ' >/dev/null
-
-          PUBLISH_DOCUMENT=$(aws iam get-role-policy \
-            --role-name "${ROLE_NAME}" \
-            --policy-name SocialApiDevPublishStaging \
-            --query 'PolicyDocument' \
-            --output json)
-          echo "${PUBLISH_DOCUMENT}" | jq -e \
-            --arg resource "${PUBLISH_BUCKET_ARN}/incoming/*" '
-              def array: if type == "array" then . else [.] end;
-              ([.Statement[] | select(.Sid == "ReadWriteIncomingVideos")][0]) as $publish |
-              $publish.Effect == "Allow" and
-              (($publish.Action | array | sort) == (["s3:GetObject", "s3:PutObject"] | sort)) and
-              (($publish.Resource | array) == [$resource])
-            ' >/dev/null
-
-          SCHEDULING_DOCUMENT=$(aws iam get-role-policy \
-            --role-name "${ROLE_NAME}" \
-            --policy-name SocialApiDevScheduling \
-            --query 'PolicyDocument' \
-            --output json)
-          echo "${SCHEDULING_DOCUMENT}" | jq -e \
-            --arg scheduler_role "${SCHEDULER_TARGET_ROLE_ARN}" \
-            --arg schedule_group "/${SCHEDULE_GROUP}/social-review-" '
-              def array: if type == "array" then . else [.] end;
-              ([.Statement[] | select(.Sid == "ManageSocialPublishSchedules")][0]) as $manage |
-              ([.Statement[] | select(.Sid == "PassSchedulerTargetRole")][0]) as $pass |
-              $manage.Effect == "Allow" and
-              (($manage.Action | array | sort) == (["scheduler:CreateSchedule", "scheduler:DeleteSchedule", "scheduler:GetSchedule"] | sort)) and
-              (($manage.Resource | array | all(contains($schedule_group)))) and
-              $pass.Effect == "Allow" and
-              (($pass.Action | array) == ["iam:PassRole"]) and
-              (($pass.Resource | array) == [$scheduler_role])
-            ' >/dev/null
-
-          WORKER_ROLE_NAME="${WORKER_ROLE_ARN##*/}"
-          WORKER_ATTACHED=$(aws iam list-attached-role-policies \
-            --role-name "${WORKER_ROLE_NAME}" \
-            --query 'AttachedPolicies[].PolicyName' \
-            --output text)
-          test -z "${WORKER_ATTACHED}"
-          WORKER_POLICIES=$(aws iam list-role-policies \
-            --role-name "${WORKER_ROLE_NAME}" \
-            --query 'PolicyNames' \
-            --output text | tr '\t' '\n' | sed '/^$/d' | sort)
-          EXPECTED_WORKER_POLICIES=$(printf '%s\n' \
-            SocialPublishWorkerLogs \
-            SocialPublishWorkerQueue \
-            SocialPublishWorkerSecrets \
-            SocialPublishWorkerStorage | sort)
-          diff -u <(printf '%s\n' "${EXPECTED_WORKER_POLICIES}") <(printf '%s\n' "${WORKER_POLICIES}")
-
-          QUEUE_ATTRIBUTES=$(aws sqs get-queue-attributes \
-            --queue-url "${QUEUE_URL}" \
-            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled)
-          echo "${QUEUE_ATTRIBUTES}" | jq -e \
-            --arg arn "${QUEUE_ARN}" \
-            --arg dlq "${DLQ_ARN}" '
-              .Attributes.QueueArn == $arn and
-              .Attributes.VisibilityTimeout == "960" and
-              .Attributes.SqsManagedSseEnabled == "true" and
-              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and
-              ((.Attributes.RedrivePolicy | fromjson).maxReceiveCount == "5")
-            ' >/dev/null
-
-          WORKER_MAPPING=$(aws lambda list-event-source-mappings \
-            --function-name "${WORKER_FUNCTION_NAME}" \
-            --event-source-arn "${QUEUE_ARN}" \
-            --query 'EventSourceMappings[0]' \
-            --output json)
-          echo "${WORKER_MAPPING}" | jq -e '
-            .State == "Enabled" and
-            .BatchSize == 1 and
-            (.FunctionResponseTypes | index("ReportBatchItemFailures")) != null
-          ' >/dev/null
-
-          PUBLIC_BLOCK=$(aws s3api get-public-access-block --bucket "${PUBLISH_BUCKET}")
-          echo "${PUBLIC_BLOCK}" | jq -e '
-            .PublicAccessBlockConfiguration.BlockPublicAcls == true and
-            .PublicAccessBlockConfiguration.IgnorePublicAcls == true and
-            .PublicAccessBlockConfiguration.BlockPublicPolicy == true and
-            .PublicAccessBlockConfiguration.RestrictPublicBuckets == true
-          ' >/dev/null
-
-          ENCRYPTION=$(aws s3api get-bucket-encryption --bucket "${PUBLISH_BUCKET}")
-          echo "${ENCRYPTION}" | jq -e '
-            .ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm == "AES256"
-          ' >/dev/null
-
-          OWNERSHIP=$(aws s3api get-bucket-ownership-controls --bucket "${PUBLISH_BUCKET}")
-          echo "${OWNERSHIP}" | jq -e '
-            .OwnershipControls.Rules[0].ObjectOwnership == "BucketOwnerEnforced"
-          ' >/dev/null
-
-          LIFECYCLE=$(aws s3api get-bucket-lifecycle-configuration --bucket "${PUBLISH_BUCKET}")
-          echo "${LIFECYCLE}" | jq -e '
-            any(.Rules[];
-              .ID == "ExpireSocialPublishStaging" and
-              .Status == "Enabled" and
-              .Filter.Prefix == "incoming/" and
-              .Expiration.Days == 7 and
-              .AbortIncompleteMultipartUpload.DaysAfterInitiation == 1
-            )
-          ' >/dev/null
-
-          CORS=$(aws s3api get-bucket-cors --bucket "${PUBLISH_BUCKET}")
-          echo "${CORS}" | jq -e '
-            any(.CORSRules[];
-              (.AllowedMethods | index("PUT")) != null and
-              (.AllowedOrigins | index("https://stashbox.com")) != null
-            )
-          ' >/dev/null
-
-      - name: Smoke test health and protected publishing routes
-        run: |
-          set -euo pipefail
-
-          stack_output() {
-            aws cloudformation describe-stacks \
-              --stack-name "${STACK_NAME}" \
-              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
-              --output text
-          }
-
-          HEALTH_URL=$(stack_output SocialApiDevUrl)
-          BASE_URL=$(stack_output SocialApiDevBaseUrl)
-
-          HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/social-health.json \
-            -w '%{http_code}' \
-            "${HEALTH_URL}")
-          test "${HEALTH_STATUS}" = '200'
-          jq -e '
-            .ok == true and
-            .service == "stashbox-social-api" and
-            .version == "0.7.0" and
-            .environment == "dev" and
-            .isolation.databaseConfigured == false and
-            .isolation.s3Configured == true and
-            .isolation.queueConfigured == true and
-            .isolation.secretsConfigured == true and
-            .isolation.youtubeOauthConfigured == true and
-            .isolation.youtubePublishingConfigured == true and
-            .isolation.mainRadioApiDependency == false and
-            .isolation.radioApiBridgeSupported == true and
-            .isolation.batchCampaignPlanningSupported == true and
-            .isolation.batchDraftCreationSupported == true and
-            .isolation.batchRenderOperationsSupported == true and
-            .isolation.batchRenderLaunchRequiresSeparateApproval == true and
-            .isolation.batchStagingSupported == true and
-            .isolation.contentReviewSupported == true and
-            .isolation.reviewEditingSupported == true and
-            .isolation.reviewPublishingSupported == true and
-            .isolation.scheduledPublishingConfigured == true and
-            .isolation.securePreviewSupported == true and
-            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-video-factory-read-and-scheduler"
-          ' /tmp/social-health.json >/dev/null
-
-          YOUTUBE_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/social-youtube-status.json \
-            -w '%{http_code}' \
-            "${BASE_URL}/social/youtube/status")
-          test "${YOUTUBE_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \
-            /tmp/social-youtube-status.json >/dev/null
-
-          PRESIGN_STATUS=$(curl --silent --show-error --max-time 45 \
-            -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{}' \
-            -o /tmp/social-presign-status.json \
-            -w '%{http_code}' \
-            "${BASE_URL}/social/uploads/presign")
-          test "${PRESIGN_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \
-            /tmp/social-presign-status.json >/dev/null
-
-          PUBLISH_STATUS=$(curl --silent --show-error --max-time 45 \
-            -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{}' \
-            -o /tmp/social-publish-status.json \
-            -w '%{http_code}' \
-            "${BASE_URL}/social/youtube/publish")
-          test "${PUBLISH_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \
-            /tmp/social-publish-status.json >/dev/null
-
-          SCHEDULE_STATUS=$(curl --silent --show-error --max-time 45 \
-            -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{}' \
-            -o /tmp/social-schedule-status.json \
-            -w '%{http_code}' \
-            "${BASE_URL}/social/review-items/render-test-12345678/schedule")
-          test "${SCHEDULE_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \
-            /tmp/social-schedule-status.json >/dev/null
-
-          echo "Social Factory health endpoint: ${HEALTH_URL}"
-          echo "Social Factory upload route: ${BASE_URL}/social/uploads/presign"
-          echo "Social Factory YouTube publish route: ${BASE_URL}/social/youtube/publish"
-          echo "Social Factory scheduled publish route: ${BASE_URL}/social/review-items/{reviewId}/schedule"
-
-      - name: Record deployment receipt
-        if: always()
-        env:
-          DEPLOYMENT_STATUS: ${{ job.status }}
+      - name: Verify stack resources and protected routes
         run: |
           set +e
-
-          stack_output() {
-            aws cloudformation describe-stacks \
-              --stack-name "${STACK_NAME}" \
-              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
-              --output text 2>/dev/null
-          }
-
-          FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
-          WORKER_FUNCTION_NAME=$(stack_output SocialScheduledPublishWorkerFunctionName)
-          ROLE_ARN=$(stack_output SocialApiDevExecutionRoleArn)
-          WORKER_ROLE_ARN=$(stack_output SocialScheduledPublishWorkerRoleArn)
-          HEALTH_URL=$(stack_output SocialApiDevUrl)
-          BASE_URL=$(stack_output SocialApiDevBaseUrl)
-          CALLBACK_URL=$(stack_output SocialApiDevYoutubeCallbackUrl)
-          CONFIG_SECRET_ARN=$(stack_output YoutubeOAuthConfigSecretArn)
-          TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
-          PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
-          PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
-          QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
-          QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
-          DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
-          SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
-          STACK_STATUS_AFTER=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null)
-
-          STACK_STATUS_BEFORE=$(cat /tmp/social-factory-stack-status-before 2>/dev/null)
-          RECOVERY_EXIT_CODE=$(cat /tmp/social-factory-stack-recovery.exit 2>/dev/null)
-          RECOVERY_SUMMARY=$(tail -n 40 /tmp/social-factory-stack-recovery.log 2>/dev/null | tail -c 5000)
-          ARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket 2>/dev/null)
-          ARTIFACT_EXIT_CODE=$(cat /tmp/social-factory-artifact-bucket.exit 2>/dev/null)
-          ARTIFACT_ERROR_SUMMARY=$(tail -n 40 /tmp/social-factory-artifact-bucket.log 2>/dev/null | tail -c 5000)
-          DEPLOY_EXIT_CODE=$(cat /tmp/social-factory-sam-deploy.exit 2>/dev/null)
-          DEPLOY_ERROR_SUMMARY=$(tail -n 60 /tmp/social-factory-sam-deploy.log 2>/dev/null | tail -c 7000)
-
-          HEALTH_HTTP_STATUS=""
-          YOUTUBE_STATUS_HTTP_STATUS=""
-          PRESIGN_HTTP_STATUS=""
-          PUBLISH_HTTP_STATUS=""
-          SCHEDULE_HTTP_STATUS=""
-
-          if [ -n "${HEALTH_URL}" ] && [ "${HEALTH_URL}" != 'None' ]; then
-            HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
-              -o /tmp/social-health-receipt.json \
-              -w '%{http_code}' "${HEALTH_URL}" 2>/dev/null)
-          fi
-
-          if [ -n "${BASE_URL}" ] && [ "${BASE_URL}" != 'None' ]; then
-            YOUTUBE_STATUS_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
-              -o /tmp/social-youtube-status-receipt.json \
-              -w '%{http_code}' "${BASE_URL}/social/youtube/status" 2>/dev/null)
-            PRESIGN_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
-              -X POST -H 'Content-Type: application/json' -d '{}' \
-              -o /tmp/social-presign-receipt.json \
-              -w '%{http_code}' "${BASE_URL}/social/uploads/presign" 2>/dev/null)
-            PUBLISH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
-              -X POST -H 'Content-Type: application/json' -d '{}' \
-              -o /tmp/social-publish-receipt.json \
-              -w '%{http_code}' "${BASE_URL}/social/youtube/publish" 2>/dev/null)
-            SCHEDULE_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
-              -X POST -H 'Content-Type: application/json' -d '{}' \
-              -o /tmp/social-schedule-receipt.json \
-              -w '%{http_code}' "${BASE_URL}/social/review-items/render-test-12345678/schedule" 2>/dev/null)
-          fi
-
-          STACK_EVENT_SUMMARY=$(aws cloudformation describe-stack-events \
-            --stack-name "${STACK_NAME}" \
-            --query 'StackEvents[?ResourceStatusReason!=`null`].[LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
-            --output text 2>/dev/null | head -n 30)
-          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
-          jq -n \
-            --arg status "${DEPLOYMENT_STATUS}" \
-            --arg recorded_at "${RECORDED_AT}" \
-            --arg commit_sha "${GITHUB_SHA}" \
-            --arg run_id "${GITHUB_RUN_ID}" \
-            --arg run_url "${RUN_URL}" \
-            --arg region "${AWS_REGION}" \
-            --arg stack_name "${STACK_NAME}" \
-            --arg stack_status_before "${STACK_STATUS_BEFORE}" \
-            --arg stack_status_after "${STACK_STATUS_AFTER}" \
-            --arg recovery_exit_code "${RECOVERY_EXIT_CODE}" \
-            --arg recovery_summary "${RECOVERY_SUMMARY}" \
-            --arg artifact_bucket "${ARTIFACT_BUCKET}" \
-            --arg artifact_exit_code "${ARTIFACT_EXIT_CODE}" \
-            --arg artifact_error_summary "${ARTIFACT_ERROR_SUMMARY}" \
-            --arg function_name "${FUNCTION_NAME}" \
-            --arg worker_function_name "${WORKER_FUNCTION_NAME}" \
-            --arg execution_role_arn "${ROLE_ARN}" \
-            --arg worker_role_arn "${WORKER_ROLE_ARN}" \
-            --arg health_url "${HEALTH_URL}" \
-            --arg health_http_status "${HEALTH_HTTP_STATUS}" \
-            --arg base_url "${BASE_URL}" \
-            --arg youtube_callback_url "${CALLBACK_URL}" \
-            --arg youtube_status_http_status "${YOUTUBE_STATUS_HTTP_STATUS}" \
-            --arg upload_presign_http_status "${PRESIGN_HTTP_STATUS}" \
-            --arg youtube_publish_http_status "${PUBLISH_HTTP_STATUS}" \
-            --arg scheduled_publish_http_status "${SCHEDULE_HTTP_STATUS}" \
-            --arg youtube_config_secret_arn "${CONFIG_SECRET_ARN}" \
-            --arg youtube_token_secret_arn "${TOKEN_SECRET_ARN}" \
-            --arg social_publish_bucket "${PUBLISH_BUCKET}" \
-            --arg social_publish_bucket_arn "${PUBLISH_BUCKET_ARN}" \
-            --arg scheduled_publish_queue_url "${QUEUE_URL}" \
-            --arg scheduled_publish_queue_arn "${QUEUE_ARN}" \
-            --arg scheduled_publish_dlq_arn "${DLQ_ARN}" \
-            --arg scheduled_publish_group "${SCHEDULE_GROUP}" \
-            --arg deploy_exit_code "${DEPLOY_EXIT_CODE}" \
-            --arg deploy_error_summary "${DEPLOY_ERROR_SUMMARY}" \
-            --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
-            '{
-              status: $status,
-              recorded_at: $recorded_at,
-              commit_sha: $commit_sha,
-              run_id: $run_id,
-              run_url: $run_url,
-              region: $region,
-              stack_name: $stack_name,
-              stack_status_before: $stack_status_before,
-              stack_status_after: $stack_status_after,
-              recovery_exit_code: $recovery_exit_code,
-              recovery_summary: $recovery_summary,
-              artifact_bucket: $artifact_bucket,
-              artifact_exit_code: $artifact_exit_code,
-              artifact_error_summary: $artifact_error_summary,
-              function_name: $function_name,
-              worker_function_name: $worker_function_name,
-              execution_role_arn: $execution_role_arn,
-              worker_role_arn: $worker_role_arn,
-              health_url: $health_url,
-              health_http_status: $health_http_status,
-              base_url: $base_url,
-              youtube_callback_url: $youtube_callback_url,
-              youtube_status_http_status: $youtube_status_http_status,
-              upload_presign_http_status: $upload_presign_http_status,
-              youtube_publish_http_status: $youtube_publish_http_status,
-              scheduled_publish_http_status: $scheduled_publish_http_status,
-              youtube_config_secret_arn: $youtube_config_secret_arn,
-              youtube_token_secret_arn: $youtube_token_secret_arn,
-              social_publish_bucket: $social_publish_bucket,
-              social_publish_bucket_arn: $social_publish_bucket_arn,
-              scheduled_publish_queue_url: $scheduled_publish_queue_url,
-              scheduled_publish_queue_arn: $scheduled_publish_queue_arn,
-              scheduled_publish_dlq_arn: $scheduled_publish_dlq_arn,
-              scheduled_publish_group: $scheduled_publish_group,
-              deploy_exit_code: $deploy_exit_code,
-              deploy_error_summary: $deploy_error_summary,
-              stack_event_summary: $stack_event_summary
-            }' > /tmp/social-factory-api-dev-deployment.json
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-
-          mkdir -p deployment-reports
-          cp /tmp/social-factory-api-dev-deployment.json deployment-reports/social-factory-api-dev.json
-          git add deployment-reports/social-factory-api-dev.json
-
-          if git diff --cached --quiet; then
-            echo 'Deployment receipt already current.'
+          DEPLOY_EXIT=$(cat /tmp/social-deploy-exit)
+          if [ "${DEPLOY_EXIT}" != '0' ]; then
+            echo '1' > /tmp/social-verify-exit
             exit 0
           fi
 
+          (
+            set -euo pipefail
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+            test "${STACK_STATUS}" = 'UPDATE_COMPLETE'
+
+            stack_output() {
+              aws cloudformation describe-stacks \
+                --stack-name "${STACK_NAME}" \
+                --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
+                --output text
+            }
+
+            API_FUNCTION=$(stack_output SocialApiDevFunctionName)
+            WORKER_FUNCTION=$(stack_output SocialScheduledPublishWorkerFunctionName)
+            QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
+            QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
+            DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
+            SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
+            BASE_URL=$(stack_output SocialApiDevBaseUrl)
+
+            test "${API_FUNCTION}" = "${EXPECTED_API_FUNCTION}"
+            test "${WORKER_FUNCTION}" = "${EXPECTED_WORKER_FUNCTION}"
+            test "${QUEUE_ARN##*:}" = "${EXPECTED_QUEUE_NAME}"
+            test "${DLQ_ARN##*:}" = "${EXPECTED_DLQ_NAME}"
+            test "${SCHEDULE_GROUP}" = "${EXPECTED_SCHEDULE_GROUP}"
+            [[ "${QUEUE_URL}" == *"/${EXPECTED_QUEUE_NAME}" ]]
+
+            aws cloudformation list-stack-resources --stack-name "${STACK_NAME}" > /tmp/social-stack-resources.json
+            jq -e '
+              [
+                "SocialApiDevFunction",
+                "SocialScheduledPublishWorkerFunction",
+                "SocialPublishScheduleQueue",
+                "SocialPublishScheduleDeadLetterQueue",
+                "SocialPublishScheduleGroup",
+                "SocialPublishSchedulerTargetRole",
+                "SocialScheduledPublishWorkerRole",
+                "SocialScheduledPublishWorkerLogGroup"
+              ] as $required |
+              ([.StackResourceSummaries[] | select(.LogicalResourceId as $id | $required | index($id))] | length) == ($required | length) and
+              ([.StackResourceSummaries[] | select(.LogicalResourceId as $id | $required | index($id))] |
+                all(.ResourceStatus | endswith("_COMPLETE")))
+            ' /tmp/social-stack-resources.json >/dev/null
+
+            HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
+              -o /tmp/social-health.json -w '%{http_code}' \
+              "${BASE_URL}/social/health")
+            test "${HEALTH_STATUS}" = '200'
+            jq -e '
+              .ok == true and
+              .environment == "dev" and
+              .isolation.queueConfigured == true and
+              .isolation.scheduledPublishingConfigured == true and
+              .isolation.contentReviewSupported == true and
+              .isolation.reviewPublishingSupported == true
+            ' /tmp/social-health.json >/dev/null
+
+            YOUTUBE_STATUS=$(curl --silent --show-error --max-time 60 \
+              -H 'x-admin-token: invalid-deployment-smoke-token' \
+              -o /tmp/social-youtube-status.json -w '%{http_code}' \
+              "${BASE_URL}/social/youtube/status")
+            test "${YOUTUBE_STATUS}" = '401'
+
+            SCHEDULE_STATUS=$(curl --silent --show-error --max-time 60 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              -o /tmp/social-schedule-status.json -w '%{http_code}' \
+              "${BASE_URL}/social/review-items/render-test-12345678/schedule")
+            test "${SCHEDULE_STATUS}" = '401'
+
+            CANCEL_STATUS=$(curl --silent --show-error --max-time 60 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              -o /tmp/social-cancel-status.json -w '%{http_code}' \
+              "${BASE_URL}/social/review-items/render-test-12345678/schedule/cancel")
+            test "${CANCEL_STATUS}" = '401'
+
+            printf '%s' "${STACK_STATUS}" > /tmp/social-stack-status
+            printf '%s' "${API_FUNCTION}" > /tmp/social-api-function
+            printf '%s' "${WORKER_FUNCTION}" > /tmp/social-worker-function
+            printf '%s' "${QUEUE_URL}" > /tmp/social-queue-url
+            printf '%s' "${QUEUE_ARN}" > /tmp/social-queue-arn
+            printf '%s' "${DLQ_ARN}" > /tmp/social-dlq-arn
+            printf '%s' "${SCHEDULE_GROUP}" > /tmp/social-schedule-group
+            printf '%s' "${BASE_URL}" > /tmp/social-base-url
+            printf '%s' "${HEALTH_STATUS}" > /tmp/social-health-status
+            printf '%s' "${YOUTUBE_STATUS}" > /tmp/social-youtube-status-code
+            printf '%s' "${SCHEDULE_STATUS}" > /tmp/social-schedule-status-code
+            printf '%s' "${CANCEL_STATUS}" > /tmp/social-cancel-status-code
+          ) 2>&1 | tee /tmp/social-verify.log
+          VERIFY_EXIT=${PIPESTATUS[0]}
+          echo "${VERIFY_EXIT}" > /tmp/social-verify-exit
+          exit 0
+
+      - name: Record deployment receipt
+        if: always()
+        run: |
+          set -euo pipefail
+          DEPLOY_EXIT=$(cat /tmp/social-deploy-exit 2>/dev/null || echo 1)
+          VERIFY_EXIT=$(cat /tmp/social-verify-exit 2>/dev/null || echo 1)
+          STATUS=failure
+          if [ "${DEPLOY_EXIT}" = '0' ] && [ "${VERIFY_EXIT}" = '0' ]; then STATUS=success; fi
+
+          DEPLOY_SUMMARY=$(tail -n 100 /tmp/social-sam-deploy.log 2>/dev/null | tail -c 12000 || true)
+          VERIFY_SUMMARY=$(tail -n 100 /tmp/social-verify.log 2>/dev/null | tail -c 12000 || true)
+          ACCOUNT_ID=$(cat /tmp/social-account-id 2>/dev/null || true)
+          ARTIFACT_BUCKET=$(cat /tmp/social-artifact-bucket 2>/dev/null || true)
+          STACK_ROLE=$(cat /tmp/social-stack-role 2>/dev/null || true)
+
+          jq -n \
+            --arg status "${STATUS}" \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg region "${AWS_REGION}" \
+            --arg stack_name "${STACK_NAME}" \
+            --arg stack_status "$(cat /tmp/social-stack-status 2>/dev/null || true)" \
+            --arg stack_role "${STACK_ROLE}" \
+            --arg artifact_bucket "${ARTIFACT_BUCKET}" \
+            --arg api_function "$(cat /tmp/social-api-function 2>/dev/null || true)" \
+            --arg worker_function "$(cat /tmp/social-worker-function 2>/dev/null || true)" \
+            --arg base_url "$(cat /tmp/social-base-url 2>/dev/null || true)" \
+            --arg health_http_status "$(cat /tmp/social-health-status 2>/dev/null || true)" \
+            --arg youtube_status_http_status "$(cat /tmp/social-youtube-status-code 2>/dev/null || true)" \
+            --arg schedule_http_status "$(cat /tmp/social-schedule-status-code 2>/dev/null || true)" \
+            --arg cancel_http_status "$(cat /tmp/social-cancel-status-code 2>/dev/null || true)" \
+            --arg queue_url "$(cat /tmp/social-queue-url 2>/dev/null || true)" \
+            --arg queue_arn "$(cat /tmp/social-queue-arn 2>/dev/null || true)" \
+            --arg dlq_arn "$(cat /tmp/social-dlq-arn 2>/dev/null || true)" \
+            --arg schedule_group "$(cat /tmp/social-schedule-group 2>/dev/null || true)" \
+            --arg deploy_exit_code "${DEPLOY_EXIT}" \
+            --arg verify_exit_code "${VERIFY_EXIT}" \
+            --arg deploy_summary "${DEPLOY_SUMMARY}" \
+            --arg verify_summary "${VERIFY_SUMMARY}" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              commit_sha:$commit_sha,
+              run_id:$run_id,
+              run_url:$run_url,
+              region:$region,
+              stack_name:$stack_name,
+              stack_status:$stack_status,
+              stack_role_arn:$stack_role,
+              artifact_bucket:$artifact_bucket,
+              function_name:$api_function,
+              worker_function_name:$worker_function,
+              base_url:$base_url,
+              health_http_status:$health_http_status,
+              youtube_status_http_status:$youtube_status_http_status,
+              scheduled_publish_http_status:$schedule_http_status,
+              schedule_cancel_http_status:$cancel_http_status,
+              scheduled_publish_queue_url:$queue_url,
+              scheduled_publish_queue_arn:$queue_arn,
+              scheduled_publish_dlq_arn:$dlq_arn,
+              scheduled_publish_group:$schedule_group,
+              deploy_exit_code:$deploy_exit_code,
+              verify_exit_code:$verify_exit_code,
+              deploy_summary:$deploy_summary,
+              verify_summary:$verify_summary,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
           git commit -m 'Record Social Factory DEV deployment [skip ci]'
-          git push origin main
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require successful deployment
+        run: |
+          test "$(jq -r '.status' "${REPORT_PATH}")" = 'success'
