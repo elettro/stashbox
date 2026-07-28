@@ -1,0 +1,27 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T20:38:37Z",
+  "deployment_mode": "existing_lambda_code_only",
+  "function_name": "stashbox-social-api-dev",
+  "code_sha256": "b/KLTpQ7H/ENyOcxDWxySqKIITu+0TZpDfEGmpF36tQ=",
+  "published_version": "1",
+  "role_preserved": true,
+  "environment_preserved": true,
+  "timeout_preserved": true,
+  "memory_preserved": true,
+  "role": "arn:aws:iam::656260749296:role/stashbox-social-api-dev-role",
+  "state": "Active",
+  "last_update_status": "Successful",
+  "health_http_status": "200",
+  "plan_http_status": "200",
+  "deployed_contract": {
+    "aspect_ratio": "4:5",
+    "duration_seconds": 15,
+    "proposal_only": true,
+    "draft_created": false,
+    "render_launched": false,
+    "publishing_triggered": false
+  },
+  "infrastructure_changed": false,
+  "production_changed": false
+}
