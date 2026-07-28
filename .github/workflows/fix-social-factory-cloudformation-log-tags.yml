@@ -1,0 +1,93 @@
+name: Fix Social Factory CloudFormation Log Tags
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/fix-social-factory-cloudformation-log-tags.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: fix-social-factory-cloudformation-log-tags
+  cancel-in-progress: false
+
+jobs:
+  fix-and-redeploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      ROLE_NAME: stashbox-social-cloudformation-dev-role
+      POLICY_NAME: StashboxSocialCloudFormationDev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Add log group tagging permissions to service role
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          LOG_GROUP_ARN="arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*"
+          LOG_STREAM_ARN="${LOG_GROUP_ARN}:*"
+
+          aws iam get-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name "${POLICY_NAME}" \
+            --query PolicyDocument \
+            --output json > /tmp/current-social-cfn-policy.json
+
+          jq \
+            --arg log_group "${LOG_GROUP_ARN}" \
+            --arg log_stream "${LOG_STREAM_ARN}" '
+              .Statement |= map(
+                if .Sid == "ManageSocialFactoryLogs" then
+                  .Resource = [$log_group, $log_stream]
+                else . end
+              )
+            ' /tmp/current-social-cfn-policy.json > /tmp/updated-social-cfn-policy.json
+
+          aws iam put-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name "${POLICY_NAME}" \
+            --policy-document file:///tmp/updated-social-cfn-policy.json
+
+          sleep 10
+
+      - name: Recover failed rollback
+        run: |
+          set -euo pipefail
+
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+
+          if [ "${STACK_STATUS}" = 'UPDATE_ROLLBACK_FAILED' ]; then
+            aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
+            aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
+          fi
+
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+          test "${FINAL_STATUS}" = 'UPDATE_ROLLBACK_COMPLETE'
+
+      - name: Trigger Social Factory deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-social-factory-api-dev.yml --ref main
