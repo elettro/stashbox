@@ -4,6 +4,7 @@ const RATIO_DIMENSIONS = Object.freeze({
   '16:9': { width: 1920, height: 1080 },
   '9:16': { width: 1080, height: 1920 },
   '3:4': { width: 1080, height: 1440 },
+  '4:5': { width: 1080, height: 1350 },
   '1:1': { width: 1080, height: 1080 }
 });
 
@@ -34,7 +35,7 @@ export function sanitizeFilenameToken(value, fallback = 'stashbox') {
 export function getDimensionsForAspectRatio(aspectRatio, overrides = {}) {
   const normalized = String(aspectRatio || VIDEO_FACTORY_DEFAULTS.aspect_ratio).trim();
   const defaults = RATIO_DIMENSIONS[normalized];
-  if (!defaults) throw new Error('Unsupported aspect ratio. Use 16:9, 9:16, 3:4, or 1:1.');
+  if (!defaults) throw new Error('Unsupported aspect ratio. Use 16:9, 9:16, 3:4, 4:5, or 1:1.');
 
   const width = Number(overrides.width || defaults.width);
   const height = Number(overrides.height || defaults.height);
