@@ -1,4 +1,5 @@
 name: Apply Social Factory V05 Deploy Smoke
+# Trigger after this workflow already exists on the default branch.
 
 on:
   push:
