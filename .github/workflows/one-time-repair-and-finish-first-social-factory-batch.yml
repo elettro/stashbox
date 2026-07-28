@@ -1,0 +1,301 @@
+name: Repair and Finish First Social Factory Batch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-repair-and-finish-first-social-factory-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-and-finish-first-social-factory-batch
+  cancel-in-progress: false
+
+jobs:
+  repair-render-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      AWS_REGION: us-east-1
+      VIDEO_FACTORY_STACK: stashbox-video-factory-dev
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      EXPECTED_RADIO_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      HIPPY_JOB_ID: dca15a54-37f1-4e06-b1d4-11b3c2991463
+      ANGEL_JOB_ID: 0c7dd5a4-45aa-443d-ad35-7a9f58031a96
+      RIDING_JOB_ID: c657b328-bdfb-4294-ba96-6a9a031ad081
+      REPORT_PATH: deployment-reports/social-factory-first-real-batch-01-final.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Repair stopped task, retry render, and stage all three videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/social-config.json)
+          RADIO_ADMIN_TOKEN=$(jq -r '.radio_api_admin_token // empty' /tmp/social-config.json)
+          RADIO_API_BASE=$(jq -r '.radio_api_base_url // empty' /tmp/social-config.json)
+          [ -n "${SOCIAL_ADMIN_TOKEN}" ]
+          [ -n "${RADIO_ADMIN_TOKEN}" ]
+          [ "${RADIO_API_BASE}" = "${EXPECTED_RADIO_API_BASE}" ]
+
+          CLUSTER_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${VIDEO_FACTORY_STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='RenderClusterArn'].OutputValue" \
+            --output text)
+          [ -n "${CLUSTER_ARN}" ]
+
+          social_get_job() {
+            curl --silent --show-error --max-time 90 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o /tmp/hippy-job.json -w '%{http_code}' \
+              "${SOCIAL_API_BASE}/social/orchestration/render-jobs/${HIPPY_JOB_ID}"
+          }
+
+          radio_post() {
+            local path="$1"
+            local body_file="$2"
+            local output_file="$3"
+            curl --silent --show-error --max-time 120 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${RADIO_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output_file}" -w '%{http_code}' \
+              "${RADIO_API_BASE}${path}"
+          }
+
+          social_post() {
+            local path="$1"
+            local body_file="$2"
+            local output_file="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output_file}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          mark_job_failed() {
+            local reason="$1"
+            jq -n --arg reason "${reason}" '{
+              status: "failed",
+              progress_percent: 0,
+              status_message: $reason,
+              error_message: $reason
+            }' > /tmp/mark-failed.json
+            MARK_STATUS=$(radio_post "/admin/video-factory/jobs/${HIPPY_JOB_ID}/status" /tmp/mark-failed.json /tmp/mark-failed-response.json)
+            [ "${MARK_STATUS}" = '200' ]
+          }
+
+          RETRY_COUNT=0
+          TASK_FAILURES=0
+          FINAL_RENDER_STATUS=''
+          LAST_STOP_REASON=''
+
+          INITIAL_STATUS=$(social_get_job)
+          [ "${INITIAL_STATUS}" = '200' ]
+          CURRENT_STATUS=$(jq -r '.job.status // empty' /tmp/hippy-job.json)
+
+          if [ "${CURRENT_STATUS}" != 'completed' ]; then
+            TASK_ARN=$(jq -r '.job.render_recipe.runtime.ecs_task_arn // empty' /tmp/hippy-job.json)
+            if [ -n "${TASK_ARN}" ]; then
+              aws ecs describe-tasks \
+                --cluster "${CLUSTER_ARN}" \
+                --tasks "${TASK_ARN}" \
+                --output json > /tmp/initial-task.json
+              TASK_LAST_STATUS=$(jq -r '.tasks[0].lastStatus // empty' /tmp/initial-task.json)
+              LAST_STOP_REASON=$(jq -r '.tasks[0].stoppedReason // empty' /tmp/initial-task.json)
+              if [ "${TASK_LAST_STATUS}" = 'STOPPED' ]; then
+                mark_job_failed "ECS renderer task stopped before the video worker started. Retrying the approved render."
+                TASK_FAILURES=$((TASK_FAILURES + 1))
+                CURRENT_STATUS='failed'
+              fi
+            fi
+          fi
+
+          for retry_attempt in 1 2; do
+            if [ "${CURRENT_STATUS}" = 'completed' ]; then
+              break
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            printf '%s' '{}' > /tmp/retry-body.json
+            RETRY_HTTP_STATUS=$(radio_post "/admin/video-factory/jobs/${HIPPY_JOB_ID}/retry" /tmp/retry-body.json /tmp/retry-response.json)
+            [ "${RETRY_HTTP_STATUS}" = '202' ]
+
+            ATTEMPT_FINISHED=false
+            for poll_attempt in $(seq 1 60); do
+              sleep 15
+              JOB_HTTP_STATUS=$(social_get_job)
+              [ "${JOB_HTTP_STATUS}" = '200' ]
+              CURRENT_STATUS=$(jq -r '.job.status // empty' /tmp/hippy-job.json)
+
+              if [ "${CURRENT_STATUS}" = 'completed' ]; then
+                ATTEMPT_FINISHED=true
+                break
+              fi
+
+              if [ "${CURRENT_STATUS}" = 'failed' ]; then
+                ATTEMPT_FINISHED=true
+                break
+              fi
+
+              TASK_ARN=$(jq -r '.job.render_recipe.runtime.ecs_task_arn // empty' /tmp/hippy-job.json)
+              if [ -n "${TASK_ARN}" ]; then
+                aws ecs describe-tasks \
+                  --cluster "${CLUSTER_ARN}" \
+                  --tasks "${TASK_ARN}" \
+                  --output json > /tmp/current-task.json
+                TASK_LAST_STATUS=$(jq -r '.tasks[0].lastStatus // empty' /tmp/current-task.json)
+                LAST_STOP_REASON=$(jq -r '.tasks[0].stoppedReason // empty' /tmp/current-task.json)
+                if [ "${TASK_LAST_STATUS}" = 'STOPPED' ] && [ "${CURRENT_STATUS}" != 'completed' ]; then
+                  mark_job_failed "ECS renderer task stopped before completion. Retrying the approved render."
+                  TASK_FAILURES=$((TASK_FAILURES + 1))
+                  CURRENT_STATUS='failed'
+                  ATTEMPT_FINISHED=true
+                  break
+                fi
+              fi
+            done
+
+            [ "${ATTEMPT_FINISHED}" = 'true' ]
+          done
+
+          FINAL_JOB_HTTP_STATUS=$(social_get_job)
+          [ "${FINAL_JOB_HTTP_STATUS}" = '200' ]
+          FINAL_RENDER_STATUS=$(jq -r '.job.status // empty' /tmp/hippy-job.json)
+          [ "${FINAL_RENDER_STATUS}" = 'completed' ]
+          [ -n "$(jq -r '.job.output_url // empty' /tmp/hippy-job.json)" ]
+
+          jq -n \
+            --arg angel "${ANGEL_JOB_ID}" \
+            --arg riding "${RIDING_JOB_ID}" \
+            --arg hippy "${HIPPY_JOB_ID}" '{job_ids: [$angel, $riding, $hippy]}' \
+            > /tmp/stage-validation-body.json
+
+          STAGE_VALIDATION_HTTP=$(social_post '/social/orchestration/batch-stage' /tmp/stage-validation-body.json /tmp/stage-validation.json)
+          [ "${STAGE_VALIDATION_HTTP}" = '200' ]
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_stage_count == 3 and
+            .youtube_published == false
+          ' /tmp/stage-validation.json >/dev/null
+
+          jq '. + {confirm_stage_batch: true}' /tmp/stage-validation-body.json > /tmp/stage-body.json
+          STAGE_HTTP=$(social_post '/social/orchestration/batch-stage' /tmp/stage-body.json /tmp/stage.json)
+          [ "${STAGE_HTTP}" = '200' ]
+          jq -e '
+            .ok == true and
+            .mode == "completed_renders_staged" and
+            .staged_job_count == 3 and
+            .failed_job_count == 0 and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/stage.json >/dev/null
+
+          REVIEWS_HTTP=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/reviews.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          [ "${REVIEWS_HTTP}" = '200' ]
+
+          jq -e \
+            --arg angel "render-${ANGEL_JOB_ID}" \
+            --arg riding "render-${RIDING_JOB_ID}" \
+            --arg hippy "render-${HIPPY_JOB_ID}" '
+              [.items[].id] as $ids |
+              ($ids | index($angel)) != null and
+              ($ids | index($riding)) != null and
+              ($ids | index($hippy)) != null
+            ' /tmp/reviews.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "Stashbox Social Factory First Real Batch 01" \
+            --arg final_render_status "${FINAL_RENDER_STATUS}" \
+            --arg last_task_stop_reason "${LAST_STOP_REASON}" \
+            --argjson retry_count "${RETRY_COUNT}" \
+            --argjson task_failures_detected "${TASK_FAILURES}" \
+            --slurpfile hippy /tmp/hippy-job.json \
+            --slurpfile stage /tmp/stage.json \
+            --slurpfile reviews /tmp/reviews.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                campaign_name: $campaign_name,
+                repair: {
+                  repaired_job_id: $hippy[0].job.id,
+                  song_key: $hippy[0].job.song_key,
+                  song_title: $hippy[0].job.song_title,
+                  retry_count: $retry_count,
+                  stopped_tasks_detected: $task_failures_detected,
+                  prior_task_stop_reason: $last_task_stop_reason,
+                  final_status: $final_render_status,
+                  output_filename: $hippy[0].job.output_filename,
+                  output_url: $hippy[0].job.output_url
+                },
+                content_review: {
+                  staged_job_count: $stage[0].staged_job_count,
+                  failed_job_count: $stage[0].failed_job_count,
+                  items: [$stage[0].staged_jobs[] | {
+                    job_id: .job.id,
+                    song_key: .job.song_key,
+                    song_title: .job.song_title,
+                    review_id: .review_item.id,
+                    review_status: .review_item.status,
+                    publishing_status: .review_item.publishing_status
+                  }],
+                  total_review_items: ($reviews[0].items | length)
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/hippy-job.json /tmp/initial-task.json \
+            /tmp/current-task.json /tmp/mark-failed.json /tmp/mark-failed-response.json \
+            /tmp/retry-body.json /tmp/retry-response.json /tmp/stage-validation-body.json \
+            /tmp/stage-validation.json /tmp/stage-body.json /tmp/stage.json /tmp/reviews.json
+          unset SOCIAL_ADMIN_TOKEN RADIO_ADMIN_TOKEN
+
+      - name: Commit sanitized final receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record finalized first Social Factory batch [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
