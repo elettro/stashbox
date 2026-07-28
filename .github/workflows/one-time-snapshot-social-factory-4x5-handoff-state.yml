@@ -1,0 +1,94 @@
+name: One-Time Snapshot Social Factory 4x5 Handoff State
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-snapshot-social-factory-4x5-handoff-state.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CAMPAIGN_NAME: Stashbox Social Factory 4x5 Handoff 30396445396
+      REPORT_PATH: deployment-reports/social-factory-4x5-handoff-current-state.json
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read current campaign render state
+        run: |
+          set -euo pipefail
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+          ENCODED_CAMPAIGN=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
+          HTTP_STATUS=$(curl --silent --show-error --max-time 120 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-jobs?campaign_name=${ENCODED_CAMPAIGN}")
+          test "${HTTP_STATUS}" = '200'
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --arg http_status "${HTTP_STATUS}" \
+            --slurpfile jobs /tmp/jobs.json '
+            {
+              recorded_at: $recorded_at,
+              campaign_name: $campaign_name,
+              http_status: $http_status,
+              ok: $jobs[0].ok,
+              counts: $jobs[0].counts,
+              youtube_published: $jobs[0].youtube_published,
+              jobs: ($jobs[0].jobs | map({
+                id,
+                status,
+                song_key,
+                song_title,
+                artist,
+                aspect_ratio,
+                width,
+                height,
+                duration_seconds,
+                progress_percent: (.render_recipe.runtime.progress_percent // 0),
+                status_message: (.render_recipe.runtime.status_message // ""),
+                error_message,
+                output_filename,
+                output_url
+              }))
+            }
+          ' > "${REPORT_PATH}"
+          rm -f /tmp/social-config.json /tmp/jobs.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory 4x5 handoff state [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
