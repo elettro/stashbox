@@ -7,11 +7,11 @@ on:
       - main
     paths:
       - '.github/workflows/one-time-repair-social-scheduled-infra-v2.yml'
-      - 'scripts/apply-social-scheduled-fixes.py'
       - 'scripts/repair-social-scheduled-infra.sh'
+      - 'social-factory-api/infrastructure/template.yaml'
+      - 'social-factory-api/schedule-publish.mjs'
 
 permissions:
-  actions: write
   contents: write
 
 concurrency:
@@ -23,14 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:
-      GH_TOKEN: ${{ github.token }}
-      REPOSITORY: ${{ github.repository }}
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
       SERVICE_ROLE_NAME: stashbox-social-cloudformation-dev-role
       SERVICE_POLICY_NAME: StashboxSocialCloudFormationDev
       WORKER_LOG_GROUP: /aws/lambda/stashbox-social-publish-worker-dev
-      DEPLOY_WORKFLOW: deploy-social-factory-api-dev.yml
       REPORT_PATH: deployment-reports/social-factory-scheduled-infra-repair.json
 
     steps:
@@ -40,6 +37,14 @@ jobs:
           ref: main
           fetch-depth: 0
           show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
