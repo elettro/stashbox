@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Social Factory · Content Review</title>
+  <title>Stashbox Social Factory · Campaigns & Content Review</title>
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="./social-factory.css?v=20260728-review1" />
+  <link rel="stylesheet" href="./social-factory.css?v=20260728-batch1" />
 </head>
 <body class="sf-page">
   <header class="topbar">
@@ -15,16 +15,16 @@
         <h1>Social Factory</h1>
         <span class="dev-admin-badge">DEV</span>
       </div>
-      <p class="radio-admin-meta">Private content review and publishing preparation</p>
+      <p class="radio-admin-meta">Private campaign planning, content review, and publishing preparation</p>
     </a>
   </header>
 
   <main class="sf-shell">
     <section class="sf-hero">
       <div>
-        <p class="sf-eyebrow">Content Review</p>
-        <h2>Review finished videos before publishing</h2>
-        <p>Social Factory receives completed Video Factory renders, prepares YouTube copy, and keeps every item private until a publishing step is explicitly approved.</p>
+        <p class="sf-eyebrow">Campaigns & Content Review</p>
+        <h2>Turn eligible songs into organized social campaigns</h2>
+        <p>Social Factory can rank songs, propose Video Factory jobs, prepare draft batches, receive completed renders, and generate YouTube copy while keeping rendering and publishing behind separate approvals.</p>
       </div>
       <div class="sf-status-card">
         <span class="sf-live-dot" aria-hidden="true"></span>
@@ -39,12 +39,84 @@
       <div>
         <p class="sf-eyebrow">Private DEV access</p>
         <strong>Social Factory Admin Token</strong>
-        <span id="tokenStatus">Not saved in this browser</span>
+        <span id="tokenStatus">Not saved in this tab</span>
       </div>
       <div class="sf-token-controls">
         <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" />
-        <button id="saveToken" class="sf-button" type="button">Save Token</button>
+        <button id="saveToken" class="sf-button" type="button">Use Token</button>
         <button id="clearToken" class="sf-button sf-button-secondary" type="button">Clear</button>
+      </div>
+    </section>
+
+    <section class="sf-campaign" aria-labelledby="campaignTitle">
+      <div class="sf-section-head">
+        <div>
+          <p class="sf-eyebrow">Batch Campaign Builder</p>
+          <h2 id="campaignTitle">Plan the next Video Factory batch</h2>
+          <p class="sf-campaign-intro">Generate a ranked proposal first. Creating draft jobs is a separate approval. This section never launches renders or publishes videos.</p>
+        </div>
+        <span class="sf-pill sf-pill-muted">Safe Planning Mode</span>
+      </div>
+
+      <form id="campaignForm" class="sf-campaign-form">
+        <label>Campaign Name
+          <input id="campaignName" maxlength="100" value="Social Factory Test Batch" required />
+        </label>
+        <label>Songs
+          <select id="campaignSongCount">
+            <option value="1">1 song</option>
+            <option value="3" selected>3 songs</option>
+            <option value="5">5 songs</option>
+            <option value="10">10 songs</option>
+          </select>
+        </label>
+        <label>Versions Per Song
+          <select id="campaignVariations">
+            <option value="1" selected>1 version</option>
+            <option value="2">2 versions</option>
+            <option value="3">3 versions</option>
+          </select>
+        </label>
+        <label>Length
+          <select id="campaignDuration">
+            <option value="15">15 seconds</option>
+            <option value="30" selected>30 seconds</option>
+            <option value="45">45 seconds</option>
+            <option value="60">60 seconds</option>
+          </select>
+        </label>
+        <label>Video Size
+          <select id="campaignRatio">
+            <option value="9:16" selected>9:16 Vertical</option>
+            <option value="1:1">1:1 Square</option>
+            <option value="16:9">16:9 Widescreen</option>
+            <option value="3:4">3:4 Portrait</option>
+          </select>
+        </label>
+        <label>Genre Filter
+          <input id="campaignGenre" placeholder="Optional, for example Reggae" />
+        </label>
+        <label>Artist Filter
+          <input id="campaignArtist" placeholder="Optional, for example Stashbox" />
+        </label>
+        <label class="sf-campaign-check"><input id="campaignRequireVisuals" type="checkbox" checked /> Only songs with indicated visuals</label>
+
+        <div class="sf-campaign-actions">
+          <button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button>
+          <button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create Draft Jobs</button>
+        </div>
+      </form>
+
+      <div id="campaignPlan" class="sf-campaign-plan" hidden>
+        <div class="sf-campaign-plan-head">
+          <div>
+            <p class="sf-eyebrow">Proposed Batch</p>
+            <strong id="campaignPlanSummary"></strong>
+          </div>
+          <span id="campaignPlanId" class="sf-mini-pill"></span>
+        </div>
+        <div id="campaignPlanList" class="sf-campaign-plan-list"></div>
+        <p class="sf-private-note">Creating drafts only prepares Video Factory jobs. Every render still requires a separate launch approval.</p>
       </div>
     </section>
 
@@ -171,7 +243,7 @@
 
               <div class="sf-publish-lock sf-full">
                 <strong>YouTube publishing remains locked</strong>
-                <span>This page saves and approves content. A separate confirmed publishing control will be added next.</span>
+                <span>This page saves and approves content. A separate confirmed publishing control will be added later.</span>
               </div>
             </form>
           </div>
@@ -180,7 +252,7 @@
     </section>
   </main>
 
-  <script src="./social-factory.js?v=20260728-review1"></script>
+  <script src="./social-factory.js?v=20260728-batch1"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260728-social-factory1" defer></script>
 </body>
 </html>
