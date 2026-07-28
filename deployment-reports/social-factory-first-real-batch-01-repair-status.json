@@ -1,0 +1,47 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T13:02:30Z",
+  "hippy_render": {
+    "id": "dca15a54-37f1-4e06-b1d4-11b3c2991463",
+    "status": "completed",
+    "active": false,
+    "ready_for_staging": true,
+    "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "output_url": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/hippy-speedball-i-m-on-my-way-original-stashbox/2026-07-28/dca15a54-37f1-4e06-b1d4-11b3c2991463/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "error_message": "",
+    "runtime": {
+      "updated_at": "2026-07-28T13:01:32.432Z",
+      "launched_at": "2026-07-28T12:59:52.262Z",
+      "completed_at": "2026-07-28T13:01:32.432Z",
+      "ecs_task_arn": "arn:aws:ecs:us-east-1:656260749296:task/stashbox-video-factory-dev/754e5a46780c4097a4d1ab3fc95c7ebf",
+      "heartbeat_at": "2026-07-28T13:00:18.182Z",
+      "status_message": "Render completed.",
+      "progress_percent": 100,
+      "launch_requested_at": "2026-07-28T12:59:51.020Z"
+    }
+  },
+  "batch_review_items": [
+    {
+      "id": "render-dca15a54-37f1-4e06-b1d4-11b3c2991463",
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "title": "Hippy Speedball (I'm On My Way)",
+      "status": "in_review",
+      "publishing_status": "not_published"
+    },
+    {
+      "id": "render-c657b328-bdfb-4294-ba96-6a9a031ad081",
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "title": "Riding Waves (Live)",
+      "status": "in_review",
+      "publishing_status": "not_published"
+    },
+    {
+      "id": "render-0c7dd5a4-45aa-443d-ad35-7a9f58031a96",
+      "song_key": "angel-in-your-bed-live-stashbox",
+      "title": "Angel In Your Bed (Live)",
+      "status": "in_review",
+      "publishing_status": "not_published"
+    }
+  ],
+  "youtube_published": false
+}
