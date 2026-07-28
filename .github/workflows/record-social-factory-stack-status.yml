@@ -22,6 +22,7 @@ jobs:
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
       ROLE_NAME: stashbox-social-cloudformation-dev-role
+      SNAPSHOT_VERSION: '2'
 
     steps:
       - name: Checkout repository
@@ -53,6 +54,7 @@ jobs:
           RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           jq -n \
+            --arg snapshot_version "${SNAPSHOT_VERSION}" \
             --arg recorded_at "${RECORDED_AT}" \
             --arg commit_sha "${GITHUB_SHA}" \
             --arg run_id "${GITHUB_RUN_ID}" \
@@ -64,6 +66,7 @@ jobs:
             --arg expected_role_arn "${EXPECTED_ROLE_ARN}" \
             --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
             '{
+              snapshot_version: $snapshot_version,
               recorded_at: $recorded_at,
               commit_sha: $commit_sha,
               run_id: $run_id,
