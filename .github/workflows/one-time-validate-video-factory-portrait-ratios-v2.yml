@@ -34,6 +34,12 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install FFmpeg and ffprobe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          test -x "${FFPROBE_PATH}"
+
       - name: Check validation script syntax
         run: node --check radio-api/scripts/validate-video-factory-portrait-ratios.mjs
 
