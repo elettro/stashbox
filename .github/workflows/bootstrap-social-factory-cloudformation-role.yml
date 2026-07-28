@@ -36,7 +36,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Create scoped CloudFormation service role
+      - name: Prepare scoped CloudFormation service role
         run: |
           set -euo pipefail
 
@@ -57,9 +57,7 @@ jobs:
           JSON
 
           if aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
-            aws iam update-assume-role-policy \
-              --role-name "${ROLE_NAME}" \
-              --policy-document file:///tmp/social-cfn-trust.json
+            echo "Using existing CloudFormation service role: ${ROLE_NAME}"
           else
             aws iam create-role \
               --role-name "${ROLE_NAME}" \
@@ -169,9 +167,18 @@ jobs:
                 ]
               },
               {
-                "Sid": "ReadResourceTags",
+                "Sid": "GlobalReadForCloudFormationStabilization",
                 "Effect": "Allow",
                 "Action": [
+                  "iam:ListRoles",
+                  "lambda:ListFunctions",
+                  "logs:DescribeLogGroups",
+                  "s3:ListAllMyBuckets",
+                  "secretsmanager:ListSecrets",
+                  "secretsmanager:GetRandomPassword",
+                  "sqs:ListQueues",
+                  "scheduler:ListScheduleGroups",
+                  "scheduler:ListSchedules",
                   "tag:GetResources",
                   "tag:GetTagKeys",
                   "tag:GetTagValues"
@@ -189,35 +196,61 @@ jobs:
 
           aws iam wait role-exists --role-name "${ROLE_NAME}"
           sleep 10
-
           echo "${ROLE_ARN}" > /tmp/social-cfn-role-arn
 
-      - name: Associate service role with Social Factory stack
+      - name: Recover and associate Social Factory stack
         run: |
           set -euo pipefail
 
           ROLE_ARN=$(cat /tmp/social-cfn-role-arn)
-
-          aws cloudformation update-stack \
+          STACK_STATUS=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
-            --use-previous-template \
-            --role-arn "${ROLE_ARN}" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameters \
-              ParameterKey=EnvironmentName,UsePreviousValue=true \
-              ParameterKey=AllowedOrigin,UsePreviousValue=true \
-            --tags \
-              Key=Application,Value=stashbox-social-factory \
-              Key=Environment,Value=dev \
-              Key=CloudFormationServiceRole,Value=stashbox-social-cloudformation-dev
+            --query 'Stacks[0].StackStatus' \
+            --output text)
 
-          aws cloudformation wait stack-update-complete --stack-name "${STACK_NAME}"
+          if [ "${STACK_STATUS}" = 'UPDATE_ROLLBACK_FAILED' ]; then
+            aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
+            aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
+          fi
 
           ASSOCIATED_ROLE=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].RoleARN' \
             --output text)
-          test "${ASSOCIATED_ROLE}" = "${ROLE_ARN}"
+
+          if [ "${ASSOCIATED_ROLE}" != "${ROLE_ARN}" ]; then
+            aws cloudformation update-stack \
+              --stack-name "${STACK_NAME}" \
+              --use-previous-template \
+              --role-arn "${ROLE_ARN}" \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameters \
+                ParameterKey=EnvironmentName,UsePreviousValue=true \
+                ParameterKey=AllowedOrigin,UsePreviousValue=true \
+              --tags \
+                Key=Application,Value=stashbox-social-factory \
+                Key=Environment,Value=dev \
+                Key=CloudFormationServiceRole,Value=stashbox-social-cloudformation-dev
+
+            aws cloudformation wait stack-update-complete --stack-name "${STACK_NAME}"
+          else
+            echo 'CloudFormation service role is already associated with the stack.'
+          fi
+
+          FINAL_ROLE=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].RoleARN' \
+            --output text)
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+
+          test "${FINAL_ROLE}" = "${ROLE_ARN}"
+          case "${FINAL_STATUS}" in
+            UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_COMPLETE) ;;
+            *) echo "Stack is not ready for deployment: ${FINAL_STATUS}" >&2; exit 1 ;;
+          esac
 
       - name: Trigger Social Factory deployment
         env:
@@ -236,6 +269,7 @@ jobs:
           ROLE_EXISTS="false"
           STACK_ROLE_ARN=""
           STACK_STATUS=""
+          STACK_EVENT_SUMMARY=""
 
           if [ -n "${ACCOUNT_ID}" ] && [ "${ACCOUNT_ID}" != 'None' ]; then
             ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
@@ -250,6 +284,10 @@ jobs:
               --stack-name "${STACK_NAME}" \
               --query 'Stacks[0].StackStatus' \
               --output text 2>/dev/null)
+            STACK_EVENT_SUMMARY=$(aws cloudformation describe-stack-events \
+              --stack-name "${STACK_NAME}" \
+              --query 'StackEvents[?ResourceStatusReason!=`null`].[LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+              --output text 2>/dev/null | head -n 30)
           fi
 
           RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -268,6 +306,7 @@ jobs:
             --arg role_arn "${ROLE_ARN}" \
             --arg role_exists "${ROLE_EXISTS}" \
             --arg stack_role_arn "${STACK_ROLE_ARN}" \
+            --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
             '{
               status: $status,
               recorded_at: $recorded_at,
@@ -281,7 +320,8 @@ jobs:
               role_arn: $role_arn,
               role_exists: ($role_exists == "true"),
               stack_role_arn: $stack_role_arn,
-              role_associated: ($role_arn != "" and $stack_role_arn == $role_arn)
+              role_associated: ($role_arn != "" and $stack_role_arn == $role_arn),
+              stack_event_summary: $stack_event_summary
             }' > /tmp/social-factory-cloudformation-role.json
 
           git config user.name 'github-actions[bot]'
