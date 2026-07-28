@@ -1,0 +1,54 @@
+{
+  "recorded_at": "2026-07-28T00:52:04Z",
+  "job_id": "13b2d78e-d964-4353-bdc2-2b80ba9349af",
+  "social_http_status": "200",
+  "radio_http_status": "200",
+  "social_job": {
+    "id": "13b2d78e-d964-4353-bdc2-2b80ba9349af",
+    "batch_id": "d71823cc-4616-4ad0-bdb0-993a08ca42cc",
+    "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+    "song_title": "Hippy Speedball (I'm On My Way)",
+    "artist": "Stashbox",
+    "status": "failed",
+    "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "output_url": "",
+    "thumbnail_url": "",
+    "error_message": "TaskDefinition is inactive",
+    "render_runtime": {
+      "updated_at": "2026-07-28T00:49:33.910Z",
+      "ecs_task_arn": "",
+      "launch_error": "TaskDefinition is inactive",
+      "status_message": "Render worker launch failed.",
+      "progress_percent": 0,
+      "launch_requested_at": "2026-07-28T00:49:33.582Z"
+    },
+    "started_at": "2026-07-28T00:49:33.566Z",
+    "completed_at": "2026-07-28T00:49:33.914Z",
+    "updated_at": "2026-07-28T00:49:33.914Z"
+  },
+  "radio_job": {
+    "id": "13b2d78e-d964-4353-bdc2-2b80ba9349af",
+    "batch_id": "d71823cc-4616-4ad0-bdb0-993a08ca42cc",
+    "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+    "song_title": "Hippy Speedball (I'm On My Way)",
+    "artist": "Stashbox",
+    "status": "failed",
+    "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "output_url": "",
+    "thumbnail_url": "",
+    "error_message": "TaskDefinition is inactive",
+    "render_runtime": {
+      "updated_at": "2026-07-28T00:49:33.910Z",
+      "ecs_task_arn": "",
+      "launch_error": "TaskDefinition is inactive",
+      "status_message": "Render worker launch failed.",
+      "progress_percent": 0,
+      "launch_requested_at": "2026-07-28T00:49:33.582Z"
+    },
+    "started_at": "2026-07-28T00:49:33.566Z",
+    "completed_at": "2026-07-28T00:49:33.914Z",
+    "updated_at": "2026-07-28T00:49:33.914Z"
+  },
+  "lambda_events": [],
+  "youtube_published": false
+}
