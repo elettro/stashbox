@@ -1,6 +1,11 @@
 name: Diagnose Social Factory Render Launch
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-social-factory-render-launch.yml'
   workflow_dispatch:
 
 permissions:
