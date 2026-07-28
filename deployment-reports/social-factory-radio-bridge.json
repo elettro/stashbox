@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T00:09:15Z",
+  "source_commit": "7ebfeda1b280f18c79fde637b8e7b15a62581ec3",
+  "social_api_base": "https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev",
+  "radio_api_base": "https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev",
+  "bridge_configured": true,
+  "candidate_http_status": "200",
+  "candidate_count": 10,
+  "eligible_count": 78,
+  "approval_required_before_render": true,
+  "render_created": false,
+  "render_launched": false,
+  "video_published": false
+}
