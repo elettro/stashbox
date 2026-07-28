@@ -1,0 +1,94 @@
+name: One-Time Apply Video Factory Portrait Title Safe Margin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-video-factory-portrait-title-safe-margin.yml'
+      - 'radio-api/scripts/apply-video-factory-portrait-title-safe-margin.mjs'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  apply-test-deploy-rerun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      DEPLOY_WORKFLOW: deploy-video-factory-renderer-dev.yml
+      VALIDATION_RUN_ID: '30393503450'
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply deterministic source and test patch
+        run: node radio-api/scripts/apply-video-factory-portrait-title-safe-margin.mjs
+
+      - name: Validate renderer source and tests
+        working-directory: video-render-worker
+        run: |
+          set -euo pipefail
+          npm run check
+          npm test
+
+      - name: Commit tested safe-margin source
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add video-render-worker/src/ffmpeg.mjs video-render-worker/tests/ffmpeg.test.mjs
+          git commit -m 'Increase portrait title safe margin'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Deploy updated renderer to DEV
+        run: |
+          set -euo pipefail
+          DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "${DEPLOY_WORKFLOW}" --repo "${REPOSITORY}" --ref main
+          RUN_ID=''
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --repo "${REPOSITORY}" \
+              --workflow "${DEPLOY_WORKFLOW}" \
+              --event workflow_dispatch \
+              --limit 5 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${DISPATCHED_AT}\"))[0].databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+          test -n "${RUN_ID}" || { echo 'DEV deployment run was not found.' >&2; exit 1; }
+          echo "DEPLOY_RUN_ID=${RUN_ID}" >> "${GITHUB_ENV}"
+          for attempt in $(seq 1 180); do
+            STATUS=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json status --jq '.status')
+            [ "${STATUS}" = 'completed' ] && break
+            sleep 10
+          done
+          CONCLUSION=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json conclusion --jq '.conclusion')
+          test "${CONCLUSION}" = 'success'
+
+      - name: Rerun long-title portrait validation on deployed renderer
+        run: |
+          set -euo pipefail
+          gh run rerun "${VALIDATION_RUN_ID}" --repo "${REPOSITORY}"
+          for attempt in $(seq 1 240); do
+            STATUS=$(gh run view "${VALIDATION_RUN_ID}" --repo "${REPOSITORY}" --json status --jq '.status')
+            [ "${STATUS}" = 'completed' ] && break
+            sleep 10
+          done
+          CONCLUSION=$(gh run view "${VALIDATION_RUN_ID}" --repo "${REPOSITORY}" --json conclusion --jq '.conclusion')
+          test "${CONCLUSION}" = 'success'
