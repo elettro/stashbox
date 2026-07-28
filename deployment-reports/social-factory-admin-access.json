@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T14:46:33Z",
+  "standard_dev_admin_access_enabled": true,
+  "separate_social_factory_token_required": false,
+  "review_http_status": "200",
+  "batch_http_status": "200",
+  "review_item_count": 4,
+  "batch_job_count": 3,
+  "credentials_exposed": false,
+  "renders_launched": false,
+  "youtube_published": false
+}
