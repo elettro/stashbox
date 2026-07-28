@@ -1,0 +1,68 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T12:54:50Z",
+  "job_id": "dca15a54-37f1-4e06-b1d4-11b3c2991463",
+  "job_http_status": "200",
+  "job": {
+    "status": "pending",
+    "active": true,
+    "ready_for_staging": false,
+    "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+    "song_title": "Hippy Speedball (I'm On My Way)",
+    "output_filename": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+    "output_url": "",
+    "error_message": "",
+    "created_at": "2026-07-28T12:32:36.258Z",
+    "started_at": "2026-07-28T12:38:38.582Z",
+    "updated_at": "2026-07-28T12:38:40.283Z",
+    "completed_at": "",
+    "runtime": {
+      "updated_at": "2026-07-28T12:38:40.283Z",
+      "launched_at": "2026-07-28T12:38:40.283Z",
+      "ecs_task_arn": "arn:aws:ecs:us-east-1:656260749296:task/stashbox-video-factory-dev/678db219207b44678e4cb0e6daec3cb2",
+      "status_message": "Render worker launched.",
+      "progress_percent": 0,
+      "launch_requested_at": "2026-07-28T12:38:38.604Z"
+    }
+  },
+  "ecs": {
+    "cluster_arn": "arn:aws:ecs:us-east-1:656260749296:cluster/stashbox-video-factory-dev",
+    "task_arn": "arn:aws:ecs:us-east-1:656260749296:task/stashbox-video-factory-dev/678db219207b44678e4cb0e6daec3cb2",
+    "failures": [],
+    "tasks": [
+      {
+        "taskArn": "arn:aws:ecs:us-east-1:656260749296:task/stashbox-video-factory-dev/678db219207b44678e4cb0e6daec3cb2",
+        "lastStatus": "STOPPED",
+        "desiredStatus": "STOPPED",
+        "healthStatus": "UNKNOWN",
+        "connectivity": "CONNECTED",
+        "connectivityAt": "2026-07-28T12:38:43.496000+00:00",
+        "createdAt": "2026-07-28T12:38:40.173000+00:00",
+        "startedAt": null,
+        "stoppingAt": "2026-07-28T12:39:30.921000+00:00",
+        "stoppedAt": "2026-07-28T12:39:44.285000+00:00",
+        "stopCode": "TaskFailedToStart",
+        "stoppedReason": "CannotPullContainerError: failed to resolve ref 656260749296.dkr.ecr.us-east-1.amazonaws.com/stashbox-radio-video-factory-renderer-dev:328cdb395878ba8ff6188b195f023dec6dc09f14 for schema1 conversion: failed to do request: Head \"https://656260749296.dkr.ecr.us-east-1.amazonaws.com/v2/stashbox-radio-video-factory-renderer-dev/manifests/328cdb395878ba8ff6188b195f023dec6dc09f14\": dial tcp 44.219.104.119:443: i/o timeout",
+        "pullStartedAt": "2026-07-28T12:38:51.232000+00:00",
+        "pullStoppedAt": "2026-07-28T12:39:21.786000+00:00",
+        "containers": [
+          {
+            "name": "video-factory-renderer",
+            "lastStatus": "STOPPED",
+            "exitCode": null,
+            "reason": null,
+            "healthStatus": "UNKNOWN",
+            "networkBindings": null,
+            "networkInterfaces": [
+              {
+                "attachmentId": "86666dd7-f836-4f1e-b195-6551b2e28706",
+                "privateIpv4Address": "10.77.1.96"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "youtube_published": false
+}
