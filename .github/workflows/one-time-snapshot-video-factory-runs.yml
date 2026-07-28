@@ -37,7 +37,7 @@ jobs:
             for WORKFLOW in \
               one-time-dispatch-video-factory-endpoints.yml \
               deploy-video-factory-renderer-dev.yml \
-              one-time-validate-video-factory-portrait-ratios.yml \
+              one-time-validate-video-factory-portrait-ratios-v2.yml \
               monitor-video-factory-deploy-dev.yml; do
               echo "## ${WORKFLOW}"
               RUN=$(gh run list \
@@ -67,7 +67,9 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin main
           git add "${RESULT_PATH}"
-          git commit -m 'Record current Video Factory workflow runs'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record current Video Factory workflow runs'
+          fi
+          git pull --rebase origin main
           git push origin HEAD:main
