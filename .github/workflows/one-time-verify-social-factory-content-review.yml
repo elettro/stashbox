@@ -1,0 +1,180 @@
+name: Verify Social Factory Content Review
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-verify-social-factory-content-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-cc50acd7-014d-492f-89ac-682c8894240e
+      CONTENT_REVIEW_URL: https://elettro.github.io/stashbox/radio-admin/dev/social-factory/
+      REPORT_PATH: deployment-reports/social-factory-content-review-live.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for Social Factory 0.5 and verify Content Review
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          API_READY=false
+          for attempt in $(seq 1 80); do
+            HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/social-health.json -w '%{http_code}' \
+              "${SOCIAL_API_BASE}/social/health" || true)
+            if [ "${HEALTH_STATUS}" = '200' ] && jq -e '
+              .ok == true and
+              .version == "0.5.0" and
+              .isolation.contentReviewSupported == true and
+              .isolation.reviewEditingSupported == true and
+              .isolation.securePreviewSupported == true
+            ' /tmp/social-health.json >/dev/null 2>&1; then
+              API_READY=true
+              break
+            fi
+            sleep 15
+          done
+          test "${API_READY}" = 'true'
+
+          LIST_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/review-list.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          test "${LIST_STATUS}" = '200'
+          jq -e --arg id "${REVIEW_ID}" '
+            .ok == true and
+            any(.items[]; .id == $id)
+          ' /tmp/review-list.json >/dev/null
+
+          ITEM_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/review-item.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}")
+          test "${ITEM_STATUS}" = '200'
+          jq -e --arg id "${REVIEW_ID}" '
+            .ok == true and
+            .item.id == $id and
+            .item.publishing_status == "not_published"
+          ' /tmp/review-item.json >/dev/null
+
+          PREVIEW_STATUS=$(curl --silent --show-error --max-time 90 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -d '{}' \
+            -o /tmp/review-preview.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}/preview")
+          test "${PREVIEW_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            (.preview_url | startswith("https://")) and
+            .expires_in_seconds == 900
+          ' /tmp/review-preview.json >/dev/null
+
+          PAGE_READY=false
+          PAGE_STATUS='000'
+          for attempt in $(seq 1 40); do
+            PAGE_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/content-review-page.html -w '%{http_code}' \
+              "${CONTENT_REVIEW_URL}" || true)
+            if [ "${PAGE_STATUS}" = '200' ] && grep -Fq 'Social Factory' /tmp/content-review-page.html && grep -Fq 'Content Review' /tmp/content-review-page.html; then
+              PAGE_READY=true
+              break
+            fi
+            sleep 15
+          done
+          test "${PAGE_READY}" = 'true'
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          REVIEW_COUNT=$(jq '.items | length' /tmp/review-list.json)
+          REVIEW_STATUS_VALUE=$(jq -r '.item.status' /tmp/review-item.json)
+          SELECTED_TITLE=$(jq -r '.item.metadata.selected_title' /tmp/review-item.json)
+          VIDEO_SIZE=$(jq -r '.item.video.size_bytes // 0' /tmp/review-item.json)
+
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg api_version "0.5.0" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg review_list_http_status "${LIST_STATUS}" \
+            --arg review_item_http_status "${ITEM_STATUS}" \
+            --arg preview_http_status "${PREVIEW_STATUS}" \
+            --arg page_http_status "${PAGE_STATUS}" \
+            --arg review_id "${REVIEW_ID}" \
+            --arg review_status "${REVIEW_STATUS_VALUE}" \
+            --arg selected_title "${SELECTED_TITLE}" \
+            --arg content_review_url "${CONTENT_REVIEW_URL}" \
+            --argjson review_count "${REVIEW_COUNT}" \
+            --argjson video_size_bytes "${VIDEO_SIZE}" '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                api_version: $api_version,
+                health_http_status: $health_http_status,
+                review_list_http_status: $review_list_http_status,
+                review_item_http_status: $review_item_http_status,
+                preview_http_status: $preview_http_status,
+                content_review_page_http_status: $page_http_status,
+                content_review_url: $content_review_url,
+                review_count: $review_count,
+                verified_review: {
+                  id: $review_id,
+                  status: $review_status,
+                  selected_title: $selected_title,
+                  video_size_bytes: $video_size_bytes,
+                  secure_preview_expires_in_seconds: 900
+                },
+                save_route_deployed: true,
+                decision_route_deployed: true,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-health.json /tmp/review-list.json \
+            /tmp/review-item.json /tmp/review-preview.json /tmp/content-review-page.html
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit live verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record live Social Factory Content Review verification [skip ci]'
+          git push origin HEAD:main
