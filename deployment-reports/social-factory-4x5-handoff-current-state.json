@@ -1,0 +1,33 @@
+{
+  "recorded_at": "2026-07-28T20:41:51Z",
+  "campaign_name": "Stashbox Social Factory 4x5 Handoff 30396445396",
+  "http_status": "200",
+  "ok": true,
+  "counts": {
+    "total": 1,
+    "draft": 0,
+    "active": 0,
+    "completed": 1,
+    "failed": 0,
+    "other": 0
+  },
+  "youtube_published": false,
+  "jobs": [
+    {
+      "id": "dc255319-039f-4982-b8af-b42402688933",
+      "status": "completed",
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "song_title": "Riding Waves (Live)",
+      "artist": "Stashbox",
+      "aspect_ratio": "4:5",
+      "width": 1080,
+      "height": 1350,
+      "duration_seconds": 15,
+      "progress_percent": 0,
+      "status_message": "",
+      "error_message": "",
+      "output_filename": "stashbox_riding-waves-live_15s_4x5_v01.mp4",
+      "output_url": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/riding-waves-014b-jv1-stashbox/2026-07-28/dc255319-039f-4982-b8af-b42402688933/stashbox_riding-waves-live_15s_4x5_v01.mp4"
+    }
+  ]
+}
