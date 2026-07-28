@@ -22,7 +22,7 @@ jobs:
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
       ROLE_NAME: stashbox-social-cloudformation-dev-role
-      SNAPSHOT_VERSION: '2'
+      SNAPSHOT_VERSION: '3'
 
     steps:
       - name: Checkout repository
