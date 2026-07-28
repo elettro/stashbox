@@ -1,5 +1,6 @@
 import { createYoutubeOAuthService } from './youtube-oauth.mjs';
 import { createYoutubePublishService } from './youtube-publish.mjs';
+import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
 const SERVICE_VERSION = '0.3.0';
@@ -65,11 +66,30 @@ function errorResponse(error) {
   return json(statusCode, body);
 }
 
+function publicPresignContract(result = {}) {
+  const contentType = String(result?.required_headers?.['Content-Type'] || '').trim();
+  return {
+    ...result,
+    required_headers: contentType ? { 'Content-Type': contentType } : {}
+  };
+}
+
+function orchestrationRoute(path) {
+  const jobMatch = String(path).match(/^\/social\/orchestration\/render-jobs\/([^/]+)$/);
+  const launchMatch = String(path).match(/^\/social\/orchestration\/render-jobs\/([^/]+)\/launch$/);
+  return {
+    jobId: jobMatch ? decodeURIComponent(jobMatch[1]) : '',
+    launchJobId: launchMatch ? decodeURIComponent(launchMatch[1]) : ''
+  };
+}
+
 export function createHandler({
   youtubeOAuth = createYoutubeOAuthService(),
-  youtubePublish = null
+  youtubePublish = null,
+  videoOrchestrator = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
+  let resolvedVideoOrchestrator = videoOrchestrator;
 
   function getYoutubePublish() {
     if (!resolvedYoutubePublish) {
@@ -78,9 +98,17 @@ export function createHandler({
     return resolvedYoutubePublish;
   }
 
+  function getVideoOrchestrator() {
+    if (!resolvedVideoOrchestrator) {
+      resolvedVideoOrchestrator = createVideoOrchestratorService();
+    }
+    return resolvedVideoOrchestrator;
+  }
+
   return async function socialFactoryHandler(event = {}) {
     const method = getRequestMethod(event);
     const path = getRequestPath(event);
+    const route = orchestrationRoute(path);
 
     if (method === 'OPTIONS') {
       return {
@@ -106,6 +134,7 @@ export function createHandler({
             youtubeOauthConfigured: true,
             youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             mainRadioApiDependency: false,
+            radioApiBridgeSupported: true,
             executionRoleScope: 'cloudwatch-youtube-oauth-secrets-and-social-publish-bucket'
           }
         });
@@ -134,9 +163,10 @@ export function createHandler({
       }
 
       if (method === 'POST' && path === '/social/uploads/presign') {
+        const result = await getYoutubePublish().presign(event);
         return json(200, {
           ok: true,
-          ...(await getYoutubePublish().presign(event))
+          ...publicPresignContract(result)
         });
       }
 
@@ -144,6 +174,41 @@ export function createHandler({
         return json(200, {
           ok: true,
           ...(await getYoutubePublish().publish(event))
+        });
+      }
+
+      if (method === 'GET' && path === '/social/orchestration/candidates') {
+        return json(200, {
+          ok: true,
+          ...(await getVideoOrchestrator().candidates(event))
+        });
+      }
+
+      if (method === 'GET' && path === '/social/orchestration/render-jobs') {
+        return json(200, {
+          ok: true,
+          ...(await getVideoOrchestrator().listJobs(event))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/orchestration/render-jobs') {
+        return json(201, {
+          ok: true,
+          ...(await getVideoOrchestrator().createDraft(event))
+        });
+      }
+
+      if (method === 'GET' && route.jobId) {
+        return json(200, {
+          ok: true,
+          ...(await getVideoOrchestrator().getJob(event, route.jobId))
+        });
+      }
+
+      if (method === 'POST' && route.launchJobId) {
+        return json(200, {
+          ok: true,
+          ...(await getVideoOrchestrator().launch(event, route.launchJobId))
         });
       }
 

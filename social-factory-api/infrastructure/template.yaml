@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth and unlisted publishing.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, and protected Video Factory orchestration.
 
 Parameters:
   EnvironmentName:
@@ -225,6 +225,36 @@ Resources:
           Properties:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/youtube/publish
+            Method: POST
+        OrchestrationCandidates:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/candidates
+            Method: GET
+        OrchestrationRenderJobsGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/render-jobs
+            Method: GET
+        OrchestrationRenderJobsCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/render-jobs
+            Method: POST
+        OrchestrationRenderJobGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/render-jobs/{jobId}
+            Method: GET
+        OrchestrationRenderJobLaunch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/render-jobs/{jobId}/launch
             Method: POST
 
   SocialApiDevLogGroup:

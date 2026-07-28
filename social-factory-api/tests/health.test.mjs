@@ -28,6 +28,7 @@ test('GET /social/health returns isolated service status', async () => {
     youtubeOauthConfigured: true,
     youtubePublishingConfigured: false,
     mainRadioApiDependency: false,
+    radioApiBridgeSupported: true,
     executionRoleScope: 'cloudwatch-youtube-oauth-secrets-and-social-publish-bucket'
   });
 });
