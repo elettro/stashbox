@@ -1,0 +1,56 @@
+name: One-Time Apply Social Factory 4x5 Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-social-factory-4x5-contract.yml'
+      - 'radio-api/scripts/apply-social-factory-4x5-contract.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check patch script syntax
+        run: node --check radio-api/scripts/apply-social-factory-4x5-contract.mjs
+
+      - name: Apply 4:5 contract and focused tests
+        run: node radio-api/scripts/apply-social-factory-4x5-contract.mjs
+
+      - name: Validate Social Factory source and tests
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm run check
+          npm test
+
+      - name: Commit tested Social Factory 4:5 support
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            social-factory-api/batch-campaigns.mjs \
+            social-factory-api/video-orchestrator.mjs \
+            social-factory-api/tests/batch-campaigns.test.mjs \
+            social-factory-api/tests/video-orchestrator.test.mjs
+          git commit -m 'Add 4:5 output to Social Factory contract'
+          git pull --rebase origin main
+          git push origin HEAD:main
