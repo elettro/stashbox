@@ -339,7 +339,7 @@ Resources:
             Effect: Allow
             Action:
               - ecs:RunTask
-            Resource: !Ref RenderTaskDefinition
+            Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stashbox-video-factory-renderer-dev:*
           - Sid: TagVideoFactoryTaskOnLaunch
             Effect: Allow
             Action:
