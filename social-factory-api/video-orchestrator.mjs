@@ -3,7 +3,7 @@ import { createAwsSecretStore } from './youtube-oauth.mjs';
 
 const DEFAULT_RADIO_API_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const EXPECTED_RADIO_API_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
-const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '1:1']);
+const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '4:5', '1:1']);
 const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
 const ACTIVE_RENDER_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 

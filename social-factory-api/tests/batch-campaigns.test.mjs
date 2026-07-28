@@ -80,6 +80,29 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
 });
 
+test('batch plan accepts 4:5 feed portrait output', async () => {
+  const service = createBatchCampaignService({
+    orchestrator: {
+      async candidates() {
+        return { candidates: candidates() };
+      }
+    }
+  });
+
+  const result = await service.plan(event({
+    campaign_name: 'Feed Portrait Test',
+    selected_song_keys: ['strong-reggae-song'],
+    aspect_ratio: '4:5',
+    duration_mode: 'custom',
+    duration_seconds: 15
+  }));
+
+  assert.equal(result.settings.aspect_ratio, '4:5');
+  assert.equal(result.jobs[0].recipe.aspect_ratio, '4:5');
+  assert.equal(result.jobs[0].recipe.duration_seconds, 15);
+  assert.equal(result.proposed_job_count, 1);
+});
+
 test('batch plan excludes visible songs that still need a VEC check by default', async () => {
   const service = createBatchCampaignService({
     orchestrator: {

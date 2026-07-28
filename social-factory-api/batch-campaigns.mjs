@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 
-const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '1:1']);
+const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '4:5', '1:1']);
 const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
 const NON_REUSABLE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
 

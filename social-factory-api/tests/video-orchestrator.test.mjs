@@ -107,6 +107,33 @@ test('create draft defaults to a 30-second vertical social render', async () => 
   assert.equal(calls.length, 1);
 });
 
+test('create draft forwards 4:5 feed portrait output to Video Factory', async () => {
+  const { service, calls } = createService(async (url, options) => {
+    assert.equal(url, 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/video-factory/jobs');
+    const body = JSON.parse(options.body);
+    assert.equal(body.song_key, 'riding-waves-014b-jv1-stashbox');
+    assert.equal(body.aspect_ratio, '4:5');
+    assert.equal(body.duration_seconds, 15);
+    return jsonResponse({
+      job: { id: 'job-feed-portrait-12345678', status: 'draft', aspect_ratio: '4:5', width: 1080, height: 1350 }
+    }, 201);
+  });
+
+  const result = await service.createDraft(event({
+    body: {
+      song_key: 'riding-waves-014b-jv1-stashbox',
+      aspect_ratio: '4:5',
+      duration_mode: 'custom',
+      duration_seconds: 15
+    }
+  }));
+
+  assert.equal(result.created, true);
+  assert.equal(result.requested_recipe.aspect_ratio, '4:5');
+  assert.equal(result.job.aspect_ratio, '4:5');
+  assert.equal(calls.length, 1);
+});
+
 test('launch is validation-only until confirm_render is explicitly true', async () => {
   const { service, calls } = createService(async () => jsonResponse({}));
   const result = await service.launch(event({ body: {} }), 'job-12345678');
