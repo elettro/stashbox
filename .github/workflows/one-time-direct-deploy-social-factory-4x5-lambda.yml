@@ -1,0 +1,208 @@
+name: One-Time Direct Deploy Social Factory 4x5 Lambda
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-direct-deploy-social-factory-4x5-lambda.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-code-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-social-api-dev
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-4x5-direct-lambda-deploy.json
+      SONG_KEY: riding-waves-014b-jv1-stashbox
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install production dependencies and validate source
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Build Lambda code package
+        run: |
+          set -euo pipefail
+          rm -f /tmp/social-factory-api.zip
+          cd social-factory-api
+          zip -q -r /tmp/social-factory-api.zip . \
+            -x 'tests/*' \
+               'infrastructure/*' \
+               '.DS_Store' \
+               '*.log'
+          test -s /tmp/social-factory-api.zip
+          unzip -l /tmp/social-factory-api.zip | grep -q 'index.mjs'
+          unzip -l /tmp/social-factory-api.zip | grep -q 'batch-campaigns.mjs'
+          unzip -l /tmp/social-factory-api.zip | grep -q 'video-orchestrator.mjs'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update only the existing DEV Lambda code
+        run: |
+          set -euo pipefail
+          BEFORE_ROLE=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query Role --output text)
+          BEFORE_ENV=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query 'Environment.Variables' --output json)
+          BEFORE_TIMEOUT=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query Timeout --output text)
+          BEFORE_MEMORY=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query MemorySize --output text)
+
+          aws lambda update-function-code \
+            --function-name "${FUNCTION_NAME}" \
+            --zip-file fileb:///tmp/social-factory-api.zip \
+            --publish > /tmp/lambda-update.json
+
+          aws lambda wait function-updated-v2 --function-name "${FUNCTION_NAME}"
+          aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" > /tmp/lambda-after.json
+
+          test "$(jq -r '.State' /tmp/lambda-after.json)" = 'Active'
+          test "$(jq -r '.LastUpdateStatus' /tmp/lambda-after.json)" = 'Successful'
+          test "$(jq -r '.Role' /tmp/lambda-after.json)" = "${BEFORE_ROLE}"
+          test "$(jq -r '.Timeout' /tmp/lambda-after.json)" = "${BEFORE_TIMEOUT}"
+          test "$(jq -r '.MemorySize' /tmp/lambda-after.json)" = "${BEFORE_MEMORY}"
+          jq -e --argjson before "${BEFORE_ENV}" '.Environment.Variables == $before' /tmp/lambda-after.json >/dev/null
+
+      - name: Verify health and deployed 4:5 proposal contract
+        run: |
+          set -euo pipefail
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/health.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/health")
+          test "${HEALTH_STATUS}" = '200'
+          jq -e '.ok == true and .environment == "dev"' /tmp/health.json >/dev/null
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          CAMPAIGN_NAME="Stashbox Social Factory 4x5 Deploy Probe ${GITHUB_RUN_ID}"
+          jq -n --arg campaign_name "${CAMPAIGN_NAME}" --arg song_key "${SONG_KEY}" '
+            {
+              campaign_name: $campaign_name,
+              selected_song_keys: [$song_key],
+              song_count: 1,
+              variations_per_song: 1,
+              duration_mode: "custom",
+              duration_seconds: 15,
+              aspect_ratio: "4:5",
+              fps: 30,
+              require_visuals: true,
+              intro_enabled: true,
+              outro_enabled: true,
+              corner_bug_enabled: true,
+              include_artist: true,
+              include_song: true,
+              include_album: true
+            }
+          ' > /tmp/plan-probe-body.json
+
+          PLAN_STATUS=$(curl --silent --show-error --max-time 120 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            --data-binary @/tmp/plan-probe-body.json \
+            -o /tmp/plan-probe.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-plan")
+          test "${PLAN_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "proposal_only" and
+            .settings.aspect_ratio == "4:5" and
+            .selected_song_count == 1 and
+            .proposed_job_count == 1 and
+            .approval_required_before_draft_creation == true and
+            .approval_required_before_render_launch == true
+          ' /tmp/plan-probe.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          CODE_SHA=$(jq -r '.CodeSha256' /tmp/lambda-update.json)
+          VERSION=$(jq -r '.Version' /tmp/lambda-update.json)
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg function_name "${FUNCTION_NAME}" \
+            --arg code_sha256 "${CODE_SHA}" \
+            --arg version "${VERSION}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg plan_http_status "${PLAN_STATUS}" \
+            --arg role "$(jq -r '.Role' /tmp/lambda-after.json)" \
+            --arg state "$(jq -r '.State' /tmp/lambda-after.json)" \
+            --arg last_update_status "$(jq -r '.LastUpdateStatus' /tmp/lambda-after.json)" '
+            {
+              status: $status,
+              recorded_at: $recorded_at,
+              deployment_mode: "existing_lambda_code_only",
+              function_name: $function_name,
+              code_sha256: $code_sha256,
+              published_version: $version,
+              role_preserved: true,
+              environment_preserved: true,
+              timeout_preserved: true,
+              memory_preserved: true,
+              role: $role,
+              state: $state,
+              last_update_status: $last_update_status,
+              health_http_status: $health_http_status,
+              plan_http_status: $plan_http_status,
+              deployed_contract: {
+                aspect_ratio: "4:5",
+                duration_seconds: 15,
+                proposal_only: true,
+                draft_created: false,
+                render_launched: false,
+                publishing_triggered: false
+              },
+              infrastructure_changed: false,
+              production_changed: false
+            }
+          ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/plan-probe-body.json /tmp/plan-probe.json \
+            /tmp/health.json /tmp/lambda-update.json /tmp/lambda-after.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit direct deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory 4x5 direct Lambda deployment [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
