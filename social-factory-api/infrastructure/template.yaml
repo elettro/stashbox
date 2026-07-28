@@ -514,6 +514,12 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/review-items/{reviewId}/schedule
             Method: POST
+        ReviewItemScheduleCancel:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}/schedule/cancel
+            Method: POST
 
   SocialScheduledPublishWorkerFunction:
     Type: AWS::Serverless::Function

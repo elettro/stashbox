@@ -116,6 +116,47 @@ test('rescheduling deletes the previous one-time schedule and creates a new name
   assert.equal(base.operations[1].name, second.schedule_name);
 });
 
+test('schedule cancellation validates without deleting the schedule', async () => {
+  const base = fixture();
+  await base.service.schedule(event({ confirm_schedule: true }), base.reviewId);
+  base.operations.length = 0;
+
+  const result = await base.service.cancel(event({ confirm_cancel_schedule: false }), base.reviewId);
+
+  assert.equal(result.cancelled, false);
+  assert.equal(result.mode, 'validation_only');
+  assert.equal(result.approval_required, true);
+  assert.equal(base.operations.length, 0);
+  assert.equal(base.reviews.get(base.reviewId).publishing_status, 'scheduled');
+});
+
+test('confirmed schedule cancellation deletes the one-time schedule and resets publishing state', async () => {
+  const base = fixture();
+  const scheduled = await base.service.schedule(event({ confirm_schedule: true }), base.reviewId);
+  base.operations.length = 0;
+
+  const result = await base.service.cancel(event({ confirm_cancel_schedule: true }), base.reviewId);
+
+  assert.equal(result.cancelled, true);
+  assert.equal(result.mode, 'schedule_cancelled');
+  assert.deepEqual(base.operations, [{ action: 'delete', name: scheduled.schedule_name }]);
+  assert.equal(base.reviews.get(base.reviewId).publishing_status, 'not_published');
+  assert.equal(base.reviews.get(base.reviewId).publish_settings.scheduled_at, null);
+  assert.equal(base.reviews.get(base.reviewId).schedule.status, 'cancelled');
+  assert.equal(result.publishing_triggered, false);
+  assert.equal(result.youtube_published, false);
+});
+
+test('cancelling an unscheduled review is idempotent', async () => {
+  const base = fixture();
+  const result = await base.service.cancel(event({ confirm_cancel_schedule: true }), base.reviewId);
+
+  assert.equal(result.cancelled, false);
+  assert.equal(result.mode, 'not_scheduled');
+  assert.equal(base.operations.length, 0);
+  assert.equal(base.reviews.get(base.reviewId).publishing_status, 'not_published');
+});
+
 test('schedule requires an approved item', async () => {
   const { service, reviewId } = fixture({ status: 'in_review', approval_state: 'pending' });
   await assert.rejects(

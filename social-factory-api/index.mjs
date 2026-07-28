@@ -98,13 +98,15 @@ function reviewRoute(path) {
   const decisionMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/decision$/);
   const publishMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/publish$/);
   const scheduleMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/schedule$/);
+  const cancelScheduleMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/schedule\/cancel$/);
   return {
     reviewId: itemMatch ? decodeURIComponent(itemMatch[1]) : '',
     previewReviewId: previewMatch ? decodeURIComponent(previewMatch[1]) : '',
     saveReviewId: saveMatch ? decodeURIComponent(saveMatch[1]) : '',
     decisionReviewId: decisionMatch ? decodeURIComponent(decisionMatch[1]) : '',
     publishReviewId: publishMatch ? decodeURIComponent(publishMatch[1]) : '',
-    scheduleReviewId: scheduleMatch ? decodeURIComponent(scheduleMatch[1]) : ''
+    scheduleReviewId: scheduleMatch ? decodeURIComponent(scheduleMatch[1]) : '',
+    cancelScheduleReviewId: cancelScheduleMatch ? decodeURIComponent(cancelScheduleMatch[1]) : ''
   };
 }
 
@@ -334,6 +336,13 @@ export function createHandler({
         return json(200, {
           ok: true,
           ...(await getReviewPublisher().publish(event, review.publishReviewId))
+        });
+      }
+
+      if (method === 'POST' && review.cancelScheduleReviewId) {
+        return json(200, {
+          ok: true,
+          ...(await getReviewScheduler().cancel(event, review.cancelScheduleReviewId))
         });
       }
 

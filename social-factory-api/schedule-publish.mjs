@@ -253,6 +253,71 @@ export function createSchedulePublishService({
         scheduled_at: scheduledAt.toISOString(),
         item: updated
       };
+    },
+
+    async cancel(event, reviewId) {
+      const config = await secretStore.read(configSecretId);
+      assertAdmin(event, config);
+      const id = safeReviewId(reviewId);
+      const input = parseBody(event);
+      const item = await getReviewStore().getReview(id);
+      if (!item) throw serviceError('review_item_not_found', 404);
+
+      if (item.publishing_status === 'published' || item.platform_results?.youtube?.video_id) {
+        throw serviceError('review_item_already_published', 409);
+      }
+
+      const existingSchedule = item.schedule || {};
+      const existingName = String(existingSchedule.schedule_name || '').trim();
+      if (!existingName || item.publishing_status !== 'scheduled') {
+        return {
+          cancelled: false,
+          mode: 'not_scheduled',
+          review_id: id,
+          item
+        };
+      }
+
+      if (input.confirm_cancel_schedule !== true) {
+        return {
+          cancelled: false,
+          mode: 'validation_only',
+          approval_required: true,
+          review_id: id,
+          schedule_name: existingName,
+          scheduled_at: String(existingSchedule.scheduled_at || item.publish_settings?.scheduled_at || ''),
+          item
+        };
+      }
+
+      await getScheduleStore().delete(existingName);
+      const timestamp = now().toISOString();
+      const updated = {
+        ...item,
+        publishing_status: 'not_published',
+        publish_settings: {
+          ...item.publish_settings,
+          scheduled_at: null
+        },
+        schedule: {
+          ...existingSchedule,
+          status: 'cancelled',
+          cancelled_at: timestamp,
+          last_error: null
+        },
+        updated_at: timestamp
+      };
+      await getReviewStore().putReview(id, updated);
+
+      return {
+        cancelled: true,
+        mode: 'schedule_cancelled',
+        review_id: id,
+        schedule_name: existingName,
+        item: updated,
+        publishing_triggered: false,
+        youtube_published: false
+      };
     }
   };
 }
