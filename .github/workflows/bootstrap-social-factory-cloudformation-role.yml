@@ -10,7 +10,7 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 concurrency:
   group: bootstrap-social-factory-cloudformation-role
@@ -223,3 +223,81 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run deploy-social-factory-api-dev.yml --ref main
+
+      - name: Record bootstrap receipt
+        if: always()
+        env:
+          BOOTSTRAP_STATUS: ${{ job.status }}
+        run: |
+          set +e
+
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+          ROLE_ARN=""
+          ROLE_EXISTS="false"
+          STACK_ROLE_ARN=""
+          STACK_STATUS=""
+
+          if [ -n "${ACCOUNT_ID}" ] && [ "${ACCOUNT_ID}" != 'None' ]; then
+            ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+            if aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
+              ROLE_EXISTS="true"
+            fi
+            STACK_ROLE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query 'Stacks[0].RoleARN' \
+              --output text 2>/dev/null)
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null)
+          fi
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          jq -n \
+            --arg status "${BOOTSTRAP_STATUS}" \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            --arg region "${AWS_REGION}" \
+            --arg stack_name "${STACK_NAME}" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg role_name "${ROLE_NAME}" \
+            --arg role_arn "${ROLE_ARN}" \
+            --arg role_exists "${ROLE_EXISTS}" \
+            --arg stack_role_arn "${STACK_ROLE_ARN}" \
+            '{
+              status: $status,
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              run_id: $run_id,
+              run_url: $run_url,
+              region: $region,
+              stack_name: $stack_name,
+              stack_status: $stack_status,
+              role_name: $role_name,
+              role_arn: $role_arn,
+              role_exists: ($role_exists == "true"),
+              stack_role_arn: $stack_role_arn,
+              role_associated: ($role_arn != "" and $stack_role_arn == $role_arn)
+            }' > /tmp/social-factory-cloudformation-role.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-cloudformation-role.json deployment-reports/social-factory-cloudformation-role.json
+          git add deployment-reports/social-factory-cloudformation-role.json
+
+          if git diff --cached --quiet; then
+            echo 'CloudFormation role bootstrap receipt already current.'
+            exit 0
+          fi
+
+          git commit -m 'Record Social Factory CloudFormation role bootstrap [skip ci]'
+          git push origin main
