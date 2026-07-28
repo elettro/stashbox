@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Read workflow status
+      - name: Read workflow status and sanitized failure details
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,11 +60,56 @@ jobs:
             printf '{"jobs":[]}' > /tmp/render-workflow-jobs.json
           fi
 
+          LATEST_JOB_ID=$(jq -r '.jobs[0].id // empty' /tmp/render-workflow-jobs.json)
+          : > /tmp/render-workflow-diagnostic.txt
+
+          if [ -n "${LATEST_JOB_ID}" ]; then
+            curl \
+              --fail \
+              --location \
+              --silent \
+              --show-error \
+              -H 'Accept: application/vnd.github+json' \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${LATEST_JOB_ID}/logs" \
+              > /tmp/render-workflow-job-logs.bin
+
+            python <<'PY'
+          import io
+          import re
+          import zipfile
+          from pathlib import Path
+
+          raw = Path('/tmp/render-workflow-job-logs.bin').read_bytes()
+          if raw.startswith(b'PK'):
+              with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                  text = '\n'.join(
+                      archive.read(name).decode('utf-8', errors='replace')
+                      for name in archive.namelist()
+                      if not name.endswith('/')
+                  )
+          else:
+              text = raw.decode('utf-8', errors='replace')
+
+          pattern = re.compile(
+              r'error|failed|failure|HTTP|SyntaxError|ReferenceError|AccessDenied|not configured|missing',
+              re.IGNORECASE
+          )
+          lines = [line for line in text.splitlines() if pattern.search(line)]
+          diagnostic = '\n'.join(lines[-50:])
+          diagnostic = re.sub(r'(?i)(x-admin-token:|authorization:)[^\s]+', r'\1 [REDACTED]', diagnostic)
+          diagnostic = re.sub(r'(?<![A-Za-z0-9])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9])', '[REDACTED]', diagnostic)
+          Path('/tmp/render-workflow-diagnostic.txt').write_text(diagnostic[:12000], encoding='utf-8')
+          PY
+          fi
+
           RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           jq -n \
             --arg recorded_at "${RECORDED_AT}" \
             --slurpfile runs /tmp/render-workflow-runs.json \
-            --slurpfile jobs /tmp/render-workflow-jobs.json '
+            --slurpfile jobs /tmp/render-workflow-jobs.json \
+            --rawfile diagnostic /tmp/render-workflow-diagnostic.txt '
               ($runs[0].workflow_runs[0] // null) as $run |
               {
                 recorded_at: $recorded_at,
@@ -90,7 +135,8 @@ jobs:
                   completed_at,
                   html_url,
                   steps: [.steps[]? | {name, status, conclusion, number}]
-                }]
+                }],
+                sanitized_diagnostic: $diagnostic
               }
             ' > "${REPORT_PATH}"
 
