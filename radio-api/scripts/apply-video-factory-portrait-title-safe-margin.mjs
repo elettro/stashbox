@@ -70,7 +70,10 @@ tests = replaceExactly(
     const titleSize = Number(
       filter.match(/text='Party Spots and Waves \\(Newport Beach\\)'.*?fontsize=(\\d+)/)?.[1]
     );
-    assert.ok(titleSize > 0 && titleSize <= 40, `${width}x${height} title size was ${titleSize}`);
+    assert.ok(
+      titleSize > 0 && titleSize <= 40,
+      String(width) + 'x' + String(height) + ' title size was ' + String(titleSize)
+    );
   }
 });
 
