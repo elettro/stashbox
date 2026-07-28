@@ -36,11 +36,12 @@ jobs:
       - name: Confirm FFmpeg tools
         run: |
           set -euo pipefail
-          ffmpeg -version | head -1
+          ffmpeg -version >/dev/null
           FFPROBE_PATH="$(command -v ffprobe)"
           test -x "${FFPROBE_PATH}"
           echo "FFPROBE_PATH=${FFPROBE_PATH}" >> "${GITHUB_ENV}"
-          "${FFPROBE_PATH}" -version | head -1
+          "${FFPROBE_PATH}" -version >/dev/null
+          echo "Using ffprobe at ${FFPROBE_PATH}"
 
       - name: Check validation script syntax
         run: node --check radio-api/scripts/validate-video-factory-portrait-ratios.mjs
