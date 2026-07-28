@@ -1,15 +1,51 @@
 {
-  "recorded_at": "2026-07-28T21:24:51Z",
+  "recorded_at": "2026-07-28T21:57:21Z",
   "runs": [
+    {
+      "id": 30402540955,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-28T21:54:32Z",
+      "updated_at": "2026-07-28T21:56:42Z",
+      "head_sha": "057062ebc73d29218c58d4b61c4c23d960e5e79a",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30402540955"
+    },
+    {
+      "id": 30402166731,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-28T21:48:49Z",
+      "updated_at": "2026-07-28T21:50:52Z",
+      "head_sha": "75a6f219553705041d1fef70ed7808b7ba670570",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30402166731"
+    },
+    {
+      "id": 30401430241,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-28T21:37:35Z",
+      "updated_at": "2026-07-28T21:38:45Z",
+      "head_sha": "aafd6f303bd0b1505ceeb0022a79e4b816a42c66",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30401430241"
+    },
     {
       "id": 30400391344,
       "name": "One-Time Repair Social Scheduled Infrastructure V2",
       "path": ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml",
       "event": "push",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "failure",
       "created_at": "2026-07-28T21:22:25Z",
-      "updated_at": "2026-07-28T21:22:28Z",
+      "updated_at": "2026-07-28T21:27:31Z",
       "head_sha": "3f0fb5c1feca6eb87cb810f7a96a466826b03af6",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30400391344"
     },
@@ -72,28 +108,16 @@
       "updated_at": "2026-07-28T20:58:22Z",
       "head_sha": "a96d795997beb52edc4ac7e703fa4319b565c422",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30398633162"
-    },
-    {
-      "id": 30396751889,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "workflow_dispatch",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-28T20:32:09Z",
-      "updated_at": "2026-07-28T20:33:59Z",
-      "head_sha": "db0dbf945ced7397e099ec8f07737ce93a0a58fe",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30396751889"
     }
   ],
   "latest_repair_jobs": [
     {
       "id": 90413491722,
       "name": "repair-and-deploy",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "failure",
       "started_at": "2026-07-28T21:22:27Z",
-      "completed_at": null,
+      "completed_at": "2026-07-28T21:27:30Z",
       "steps": [
         {
           "name": "Set up job",
@@ -127,27 +151,141 @@
         },
         {
           "name": "Repair scheduled infrastructure and deploy DEV",
-          "status": "in_progress",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "failure",
           "number": 6
         },
         {
           "name": "Post Configure AWS credentials",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "success",
           "number": 10
         },
         {
           "name": "Post Setup Node.js 22",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "skipped",
           "number": 11
         },
         {
           "name": "Post Checkout main",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "success",
           "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    }
+  ],
+  "latest_deploy_jobs": [
+    {
+      "id": 90420520284,
+      "name": "validate-and-deploy",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-07-28T21:54:35Z",
+      "completed_at": "2026-07-28T21:56:41Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Setup Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Setup AWS SAM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Validate source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Configure AWS credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Prepare stack and deployment bucket",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Build isolated SAM application",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Deploy isolated DEV stack",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Verify stack resources and protected routes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Record deployment receipt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Require successful deployment",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12
+        },
+        {
+          "name": "Post Configure AWS credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22
+        },
+        {
+          "name": "Post Setup Node.js 22",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 23
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25
         }
       ]
     }
