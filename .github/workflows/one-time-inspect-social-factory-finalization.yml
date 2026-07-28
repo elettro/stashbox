@@ -1,4 +1,5 @@
 name: Inspect Social Factory Finalization
+# Refresh diagnostics after the staged review item was created and final verification completed.
 
 on:
   push:
@@ -79,12 +80,12 @@ jobs:
                       )
               else:
                   text = raw.decode('utf-8', errors='replace')
-              pattern = re.compile(r'error|failed|failure|HTTP [45][0-9][0-9]|not found|inactive|denied|timed out|process completed', re.I)
+              pattern = re.compile(r'error|failed|failure|HTTP [45][0-9][0-9]|not found|inactive|denied|timed out|process completed|API_READY|PAGE_READY|LIST_STATUS|ITEM_STATUS|PREVIEW_STATUS', re.I)
               lines = [line for line in text.splitlines() if pattern.search(line)]
-              cleaned = '\n'.join(lines[-80:])
+              cleaned = '\n'.join(lines[-100:])
               cleaned = re.sub(r'(?i)(x-admin-token|authorization):?\s+\S+', r'\1: [REDACTED]', cleaned)
               cleaned = re.sub(r'(?<![A-Za-z0-9])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9])', '[REDACTED]', cleaned)
-              target.write_text(cleaned[:16000], encoding='utf-8')
+              target.write_text(cleaned[:20000], encoding='utf-8')
           PY
 
           RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -133,8 +134,8 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin main
           git add "${REPORT_PATH}"
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Record Social Factory finalization status [skip ci]'
+          git pull --rebase origin main
           git push origin HEAD:main
