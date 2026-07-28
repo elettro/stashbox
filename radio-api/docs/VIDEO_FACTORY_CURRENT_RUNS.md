@@ -1,6 +1,6 @@
 # Current Video Factory Workflow Runs
 
-Captured: 2026-07-28T19:50:33Z
+Captured: 2026-07-28T20:06:39Z
 
 ## one-time-dispatch-video-factory-endpoints.yml
 - Run ID: 30377648044
@@ -44,13 +44,23 @@ Captured: 2026-07-28T19:50:33Z
 
 ## one-time-validate-video-factory-long-title-regression.yml
 - Run ID: 30393503450
-- Status: in_progress
-- Conclusion: 
+- Status: completed
+- Conclusion: failure
 - Event: push
 - Created: 2026-07-28T19:48:04Z
-- Updated: 2026-07-28T19:48:14Z
+- Updated: 2026-07-28T19:51:28Z
 - Head SHA: 5ebd9146839c3552a4d827f0f360c0393c79be63
 - URL: https://github.com/elettro/stashbox/actions/runs/30393503450
+
+## one-time-apply-video-factory-portrait-title-safe-margin.yml
+- Run ID: 30394708283
+- Status: completed
+- Conclusion: failure
+- Event: push
+- Created: 2026-07-28T20:04:18Z
+- Updated: 2026-07-28T20:04:35Z
+- Head SHA: b2d2770e26ec42c1149e2cd226010a76c3649218
+- URL: https://github.com/elettro/stashbox/actions/runs/30394708283
 
 ## monitor-video-factory-deploy-dev.yml
 - Run ID: 30378715500
