@@ -1,0 +1,344 @@
+name: One-Time Validate Social Review Controls
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-social-review-controls.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: validate-social-review-controls
+  cancel-in-progress: false
+
+jobs:
+  validate-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-dc255319-039f-4982-b8af-b42402688933
+      REPORT_PATH: deployment-reports/social-factory-review-controls-validation.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate Save Hold Reopen Approve Schedule and Cancel
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+          ENCODED_REVIEW_ID=$(jq -rn --arg value "${REVIEW_ID}" '$value | @uri')
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          SCHEDULE_CREATED=false
+          RESTORE_READY=false
+          CLEANUP_DONE=false
+
+          cleanup() {
+            local exit_code=$?
+            if [ "${CLEANUP_DONE}" = 'true' ]; then
+              return "${exit_code}"
+            fi
+            set +e
+            if [ "${SCHEDULE_CREATED}" = 'true' ]; then
+              printf '%s\n' '{"confirm_cancel_schedule":true}' > /tmp/emergency-cancel.json
+              api_post \
+                "/social/review-items/${ENCODED_REVIEW_ID}/schedule/cancel" \
+                /tmp/emergency-cancel.json /tmp/emergency-cancel-response.json >/tmp/emergency-cancel-status || true
+            fi
+            if [ "${RESTORE_READY}" = 'true' ]; then
+              api_post \
+                "/social/review-items/${ENCODED_REVIEW_ID}/save" \
+                /tmp/restore-save.json /tmp/emergency-restore-save.json >/tmp/emergency-restore-save-status || true
+              api_post \
+                "/social/review-items/${ENCODED_REVIEW_ID}/decision" \
+                /tmp/restore-decision.json /tmp/emergency-restore-decision.json >/tmp/emergency-restore-decision-status || true
+            fi
+            unset SOCIAL_ADMIN_TOKEN
+            return "${exit_code}"
+          }
+          trap cleanup EXIT
+
+          ORIGINAL_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/original.json)
+          test "${ORIGINAL_STATUS}" = '200'
+          jq -e --arg review_id "${REVIEW_ID}" '
+            .ok == true and
+            .item.id == $review_id and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .item.automation.auto_publish == false and
+            (.item.platform_results.youtube.video_id? // "") == ""
+          ' /tmp/original.json >/dev/null
+
+          jq '
+            .item as $item |
+            {
+              selected_title: $item.metadata.selected_title,
+              description: $item.metadata.description,
+              tags: ($item.metadata.tags // []),
+              hashtags: ($item.metadata.hashtags // []),
+              collaborators: ($item.metadata.collaborators // []),
+              visibility: ($item.publish_settings.visibility // "unlisted"),
+              scheduled_at: $item.publish_settings.scheduled_at,
+              made_for_kids: ($item.publish_settings.made_for_kids // false),
+              notify_subscribers: ($item.publish_settings.notify_subscribers // false)
+            }
+          ' /tmp/original.json > /tmp/restore-save.json
+          jq -n --arg note "$(jq -r '.item.review_decision.note // ""' /tmp/original.json)" \
+            '{decision:"reopen",note:$note}' > /tmp/restore-decision.json
+          RESTORE_READY=true
+
+          SCHEDULED_AT=$(date -u -d '+1 hour' +'%Y-%m-%dT%H:%M:%S.000Z')
+          QA_MARKER="DEV control validation ${GITHUB_RUN_ID}"
+          jq --arg scheduled_at "${SCHEDULED_AT}" --arg marker "${QA_MARKER}" '
+            .item as $item |
+            {
+              selected_title: (($item.metadata.selected_title + " | DEV QA") | .[0:100]),
+              description: (($item.metadata.description // "") + "\n\n" + $marker),
+              tags: (($item.metadata.tags // []) + ["Control Validation"] | unique),
+              hashtags: ($item.metadata.hashtags // []),
+              collaborators: ($item.metadata.collaborators // []),
+              visibility: "unlisted",
+              scheduled_at: $scheduled_at,
+              made_for_kids: false,
+              notify_subscribers: false
+            }
+          ' /tmp/original.json > /tmp/test-save.json
+
+          SAVE_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/save" /tmp/test-save.json /tmp/saved.json)
+          test "${SAVE_STATUS}" = '200'
+          jq -e --arg scheduled_at "${SCHEDULED_AT}" --arg marker "${QA_MARKER}" '
+            .ok == true and
+            (.item.metadata.selected_title | endswith("| DEV QA")) and
+            (.item.metadata.description | contains($marker)) and
+            (.item.metadata.tags | index("Control Validation")) != null and
+            .item.publish_settings.visibility == "unlisted" and
+            .item.publish_settings.scheduled_at == $scheduled_at and
+            .item.publishing_status == "not_published" and
+            .item.automation.auto_publish == false
+          ' /tmp/saved.json >/dev/null
+
+          printf '%s\n' '{"decision":"hold","note":"DEV control validation hold"}' > /tmp/hold.json
+          HOLD_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/decision" /tmp/hold.json /tmp/held.json)
+          test "${HOLD_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .item.status == "held" and
+            .item.approval_state == "held" and
+            .item.publishing_status == "not_published" and
+            .item.automation.auto_publish == false and
+            .publishing_triggered == false
+          ' /tmp/held.json >/dev/null
+
+          printf '%s\n' '{"decision":"reopen","note":"DEV control validation reopen"}' > /tmp/reopen.json
+          REOPEN_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/decision" /tmp/reopen.json /tmp/reopened.json)
+          test "${REOPEN_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .publishing_triggered == false
+          ' /tmp/reopened.json >/dev/null
+
+          printf '%s\n' '{"decision":"approve","note":"DEV control validation approve"}' > /tmp/approve.json
+          APPROVE_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/decision" /tmp/approve.json /tmp/approved.json)
+          test "${APPROVE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .item.status == "approved" and
+            .item.approval_state == "approved" and
+            .item.publishing_status == "not_published" and
+            .item.automation.auto_publish == false and
+            .publishing_triggered == false
+          ' /tmp/approved.json >/dev/null
+
+          jq -n --arg scheduled_at "${SCHEDULED_AT}" \
+            '{scheduled_at:$scheduled_at,confirm_schedule:false}' > /tmp/schedule-validation.json
+          SCHEDULE_VALIDATION_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/schedule" /tmp/schedule-validation.json /tmp/schedule-validation-response.json)
+          test "${SCHEDULE_VALIDATION_STATUS}" = '200'
+          jq -e --arg scheduled_at "${SCHEDULED_AT}" '
+            .ok == true and
+            .scheduled == false and
+            .mode == "validation_only" and
+            .scheduled_at == $scheduled_at and
+            (.queue_arn | endswith("stashbox-social-publish-dev.fifo"))
+          ' /tmp/schedule-validation-response.json >/dev/null
+
+          AFTER_VALIDATION_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/after-schedule-validation.json)
+          test "${AFTER_VALIDATION_STATUS}" = '200'
+          jq -e '.item.publishing_status == "not_published" and (.item.schedule.status? // "") != "scheduled"' \
+            /tmp/after-schedule-validation.json >/dev/null
+
+          jq -n --arg scheduled_at "${SCHEDULED_AT}" \
+            '{scheduled_at:$scheduled_at,confirm_schedule:true}' > /tmp/schedule-confirm.json
+          SCHEDULE_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/schedule" /tmp/schedule-confirm.json /tmp/scheduled.json)
+          test "${SCHEDULE_STATUS}" = '200'
+          jq -e --arg scheduled_at "${SCHEDULED_AT}" '
+            .ok == true and
+            .scheduled == true and
+            .mode == "scheduled_queue" and
+            .scheduled_at == $scheduled_at and
+            .item.publishing_status == "scheduled" and
+            .item.schedule.status == "scheduled" and
+            .item.schedule.schedule_group == "stashbox-social-publish-dev" and
+            (.item.schedule.queue_arn | endswith("stashbox-social-publish-dev.fifo")) and
+            (.item.platform_results.youtube.video_id? // "") == ""
+          ' /tmp/scheduled.json >/dev/null
+          SCHEDULE_CREATED=true
+
+          printf '%s\n' '{"confirm_cancel_schedule":false}' > /tmp/cancel-validation.json
+          CANCEL_VALIDATION_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/schedule/cancel" /tmp/cancel-validation.json /tmp/cancel-validation-response.json)
+          test "${CANCEL_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .cancelled == false and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .item.publishing_status == "scheduled"
+          ' /tmp/cancel-validation-response.json >/dev/null
+
+          printf '%s\n' '{"confirm_cancel_schedule":true}' > /tmp/cancel-confirm.json
+          CANCEL_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/schedule/cancel" /tmp/cancel-confirm.json /tmp/cancelled.json)
+          test "${CANCEL_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .cancelled == true and
+            .mode == "schedule_cancelled" and
+            .item.publishing_status == "not_published" and
+            .item.publish_settings.scheduled_at == null and
+            .item.schedule.status == "cancelled" and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/cancelled.json >/dev/null
+          SCHEDULE_CREATED=false
+
+          RESTORE_SAVE_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/save" /tmp/restore-save.json /tmp/restored-save.json)
+          test "${RESTORE_SAVE_STATUS}" = '200'
+          RESTORE_DECISION_STATUS=$(api_post "/social/review-items/${ENCODED_REVIEW_ID}/decision" /tmp/restore-decision.json /tmp/restored-decision.json)
+          test "${RESTORE_DECISION_STATUS}" = '200'
+
+          FINAL_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/final.json)
+          test "${FINAL_STATUS}" = '200'
+          jq -e --slurpfile original /tmp/original.json '
+            .ok == true and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .item.publish_settings.scheduled_at == null and
+            .item.schedule.status == "cancelled" and
+            .item.metadata.selected_title == $original[0].item.metadata.selected_title and
+            .item.metadata.description == $original[0].item.metadata.description and
+            .item.metadata.tags == $original[0].item.metadata.tags and
+            .item.metadata.hashtags == $original[0].item.metadata.hashtags and
+            .item.metadata.collaborators == $original[0].item.metadata.collaborators and
+            .item.automation.auto_publish == false and
+            (.item.platform_results.youtube.video_id? // "") == ""
+          ' /tmp/final.json >/dev/null
+
+          CLEANUP_DONE=true
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg review_id "${REVIEW_ID}" \
+            --arg scheduled_at "${SCHEDULED_AT}" \
+            --arg save_http_status "${SAVE_STATUS}" \
+            --arg hold_http_status "${HOLD_STATUS}" \
+            --arg reopen_http_status "${REOPEN_STATUS}" \
+            --arg approve_http_status "${APPROVE_STATUS}" \
+            --arg schedule_validation_http_status "${SCHEDULE_VALIDATION_STATUS}" \
+            --arg schedule_http_status "${SCHEDULE_STATUS}" \
+            --arg cancel_validation_http_status "${CANCEL_VALIDATION_STATUS}" \
+            --arg cancel_http_status "${CANCEL_STATUS}" \
+            --arg final_http_status "${FINAL_STATUS}" \
+            --slurpfile scheduled /tmp/scheduled.json \
+            --slurpfile final /tmp/final.json '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              review_id:$review_id,
+              controls:{
+                save:{passed:true,http_status:$save_http_status},
+                hold:{passed:true,http_status:$hold_http_status},
+                reopen:{passed:true,http_status:$reopen_http_status},
+                approve:{passed:true,http_status:$approve_http_status},
+                schedule_validation:{passed:true,http_status:$schedule_validation_http_status},
+                schedule_confirmed:{passed:true,http_status:$schedule_http_status,scheduled_at:$scheduled_at,schedule_name:$scheduled[0].schedule_name},
+                cancel_validation:{passed:true,http_status:$cancel_validation_http_status},
+                cancel_confirmed:{passed:true,http_status:$cancel_http_status}
+              },
+              final_state:{
+                status:$final[0].item.status,
+                approval_state:$final[0].item.approval_state,
+                publishing_status:$final[0].item.publishing_status,
+                scheduled_at:$final[0].item.publish_settings.scheduled_at,
+                schedule_audit_status:$final[0].item.schedule.status,
+                auto_publish:$final[0].item.automation.auto_publish
+              },
+              original_fields_restored:true,
+              schedule_removed:true,
+              publishing_triggered:false,
+              youtube_published:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/*.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized controls validation receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory review controls validation [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
