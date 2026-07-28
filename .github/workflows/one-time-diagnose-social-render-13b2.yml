@@ -1,0 +1,129 @@
+name: Diagnose Social Render 13b2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-social-render-13b2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      JOB_ID: 13b2d78e-d964-4353-bdc2-2b80ba9349af
+      LAMBDA_LOG_GROUP: /aws/lambda/stashbox-radio-api-dev-v2
+      REPORT_PATH: deployment-reports/social-factory-render-13b2-diagnostic.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read exact job and related Lambda errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          RADIO_ADMIN_TOKEN=$(jq -r '.radio_api_admin_token' /tmp/social-config.json)
+          RADIO_API_BASE=$(jq -r '.radio_api_base_url' /tmp/social-config.json)
+
+          SOCIAL_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/social-job.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs/${JOB_ID}")
+
+          RADIO_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${RADIO_ADMIN_TOKEN}" \
+            -o /tmp/radio-job.json -w '%{http_code}' \
+            "${RADIO_API_BASE}/admin/video-factory/jobs/${JOB_ID}")
+
+          START_MS=$(( ($(date +%s) - 7200) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "${LAMBDA_LOG_GROUP}" \
+            --start-time "${START_MS}" \
+            --filter-pattern "${JOB_ID}" \
+            --limit 100 \
+            --output json > /tmp/job-logs.json || printf '{"events":[]}' > /tmp/job-logs.json
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg job_id "${JOB_ID}" \
+            --arg social_http_status "${SOCIAL_STATUS}" \
+            --arg radio_http_status "${RADIO_STATUS}" \
+            --slurpfile social /tmp/social-job.json \
+            --slurpfile radio /tmp/radio-job.json \
+            --slurpfile logs /tmp/job-logs.json '
+              def safe_job($body):
+                ($body.job // $body.downstream.job // null) as $job |
+                if $job then {
+                  id: $job.id,
+                  batch_id: $job.batch_id,
+                  song_key: $job.song_key,
+                  song_title: $job.song_title,
+                  artist: $job.artist,
+                  status: $job.status,
+                  output_filename: $job.output_filename,
+                  output_url: $job.output_url,
+                  thumbnail_url: $job.thumbnail_url,
+                  error_message: $job.error_message,
+                  render_runtime: ($job.render_recipe.runtime // {}),
+                  started_at: $job.started_at,
+                  completed_at: $job.completed_at,
+                  updated_at: $job.updated_at
+                } else null end;
+              {
+                recorded_at: $recorded_at,
+                job_id: $job_id,
+                social_http_status: $social_http_status,
+                radio_http_status: $radio_http_status,
+                social_job: safe_job($social[0]),
+                radio_job: safe_job($radio[0]),
+                lambda_events: [($logs[0].events // [])[] | {
+                  timestamp,
+                  message: (.message
+                    | gsub("(?i)(x-admin-token|authorization)[^, ]*"; "[REDACTED]")
+                    | .[0:3000])
+                }],
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-job.json /tmp/radio-job.json /tmp/job-logs.json
+          unset SOCIAL_ADMIN_TOKEN RADIO_ADMIN_TOKEN
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Social Factory render 13b2 diagnostic [skip ci]'
+          git push origin HEAD:main
