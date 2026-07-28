@@ -9,6 +9,7 @@
     { key: 'video-library', label: 'Video Library', href: '/radio/visual-experience/dev/' },
     { key: 'vec', label: 'VEC Lab', href: '/radio-admin/dev/vec/' },
     { key: 'video-factory', label: 'Video Factory', href: '/radio-admin/dev/video-factory/' },
+    { key: 'social-factory', label: 'Social Factory', href: '/radio-admin/dev/social-factory/' },
     { key: 'ads', label: 'Ads', href: '/radio-admin/ads/dev/' },
     { key: 'artists', label: 'Artists', href: '/radio-admin/artists/dev/' },
     { key: 'notifications', label: 'Notifications', href: '/radio-admin/notifications/dev/' },
@@ -29,6 +30,7 @@
     if (path.includes('/radio/visual-experience/dev/')) return { key: 'video-library', title: 'Video Library' };
     if (path.includes('/radio-admin/dev/vec/')) return { key: 'vec', title: 'VEC Lab' };
     if (path.includes('/radio-admin/dev/video-factory/')) return { key: 'video-factory', title: 'Video Factory' };
+    if (path.includes('/radio-admin/dev/social-factory/')) return { key: 'social-factory', title: 'Social Factory · Content Review' };
     if (path.includes('/radio-admin/ads/dev/') || path.includes('/radio-admin/dev/ads/')) return { key: 'ads', title: 'Ads CMS' };
     if (path.includes('/radio-admin/notifications/dev/')) return { key: 'notifications', title: 'Notifications CMS' };
     if (path.includes('/radio-admin/dev/system-health/')) return { key: 'system-health', title: 'System Health' };

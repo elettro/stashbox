@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, protected Video Factory orchestration, server-side staging, and content review drafts.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, protected Video Factory orchestration, secure review previews, editing, and approval controls.
 
 Parameters:
   EnvironmentName:
@@ -295,6 +295,24 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/review-items/{reviewId}
             Method: GET
+        ReviewItemPreview:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}/preview
+            Method: POST
+        ReviewItemSave:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}/save
+            Method: POST
+        ReviewItemDecision:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}/decision
+            Method: POST
 
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup

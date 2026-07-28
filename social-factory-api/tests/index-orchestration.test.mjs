@@ -14,7 +14,7 @@ function request(path, method = 'GET', body) {
   };
 }
 
-function createApi({ orchestrator = {}, review = {} } = {}) {
+function createApi({ orchestrator = {}, review = {}, actions = {} } = {}) {
   return createHandler({
     youtubeOAuth: {
       start: async () => ({}),
@@ -50,6 +50,19 @@ function createApi({ orchestrator = {}, review = {} } = {}) {
       listReviewItems: async () => ({ count: 1, items: [{ id: 'render-job-12345678' }] }),
       getReviewItem: async (_event, id) => ({ item: { id, status: 'in_review' } }),
       ...review
+    },
+    reviewActions: {
+      preview: async (_event, id) => ({
+        preview_url: `https://preview.example/${id}.mp4`,
+        expires_in_seconds: 900
+      }),
+      save: async (_event, id) => ({ saved: true, item: { id, status: 'in_review' } }),
+      decision: async (_event, id) => ({
+        decision_applied: true,
+        publishing_triggered: false,
+        item: { id, status: 'approved' }
+      }),
+      ...actions
     }
   });
 }
@@ -100,4 +113,31 @@ test('review list and review item routes preserve IDs', async () => {
 
   const itemResponse = await api(request('/social/review-items/render-job-12345678'));
   assert.equal(JSON.parse(itemResponse.body).item.id, 'render-job-12345678');
+});
+
+test('review preview, save, and decision routes preserve review IDs', async () => {
+  const api = createApi();
+
+  const preview = await api(request(
+    '/social/review-items/render-job-12345678/preview',
+    'POST',
+    {}
+  ));
+  assert.match(JSON.parse(preview.body).preview_url, /render-job-12345678/);
+
+  const saved = await api(request(
+    '/social/review-items/render-job-12345678/save',
+    'POST',
+    { selected_title: 'Updated title' }
+  ));
+  assert.equal(JSON.parse(saved.body).item.id, 'render-job-12345678');
+
+  const decision = await api(request(
+    '/social/review-items/render-job-12345678/decision',
+    'POST',
+    { decision: 'approve' }
+  ));
+  const decisionBody = JSON.parse(decision.body);
+  assert.equal(decisionBody.item.status, 'approved');
+  assert.equal(decisionBody.publishing_triggered, false);
 });
