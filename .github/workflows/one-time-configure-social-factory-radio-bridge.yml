@@ -1,0 +1,122 @@
+name: Configure Social Factory Radio Bridge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-configure-social-factory-radio-bridge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configure-social-factory-radio-bridge
+  cancel-in-progress: false
+
+jobs:
+  configure-and-verify:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      RADIO_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Add protected TRUE DEV bridge fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ -z "${TRUE_DEV_ADMIN_TOKEN}" ]; then
+            echo 'STASHBOX_DEV_ADMIN_TOKEN is not configured.' >&2
+            exit 1
+          fi
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config-current.json
+
+          jq -e '
+            (.client_id | type == "string" and length > 0) and
+            (.client_secret | type == "string" and length > 0) and
+            (.admin_token | type == "string" and length >= 32)
+          ' /tmp/social-config-current.json >/dev/null
+
+          jq \
+            --arg radio_api_base_url "${RADIO_API_BASE}" \
+            --arg radio_api_admin_token "${TRUE_DEV_ADMIN_TOKEN}" \
+            '.radio_api_base_url = $radio_api_base_url |
+             .radio_api_admin_token = $radio_api_admin_token' \
+            /tmp/social-config-current.json > /tmp/social-config-updated.json
+
+          aws secretsmanager put-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --secret-string file:///tmp/social-config-updated.json \
+            >/dev/null
+
+          rm -f /tmp/social-config-current.json /tmp/social-config-updated.json
+          unset TRUE_DEV_ADMIN_TOKEN
+
+      - name: Verify bridge and read candidate songs
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config-verify.json
+
+          jq -e \
+            --arg radio_api_base_url "${RADIO_API_BASE}" '
+              .radio_api_base_url == $radio_api_base_url and
+              (.radio_api_admin_token | type == "string" and length > 0) and
+              (.admin_token | type == "string" and length >= 32)
+            ' /tmp/social-config-verify.json >/dev/null
+
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config-verify.json)
+
+          HTTP_STATUS=$(curl \
+            --silent \
+            --show-error \
+            --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/social-candidates.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/candidates?limit=10")
+
+          test "${HTTP_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "proposal_only" and
+            .approval_required_before_render == true and
+            (.candidates | type == "array")
+          ' /tmp/social-candidates.json >/dev/null
+
+          CANDIDATE_COUNT=$(jq '.candidates | length' /tmp/social-candidates.json)
+          {
+            echo '## Social Factory Radio bridge'
+            echo ''
+            echo '- Protected bridge configured successfully'
+            echo '- Candidate-song read succeeded'
+            echo "- Candidate songs returned: ${CANDIDATE_COUNT}"
+            echo '- No render was created or launched'
+            echo '- No video was published'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          rm -f /tmp/social-config-verify.json /tmp/social-candidates.json
+          unset SOCIAL_ADMIN_TOKEN
