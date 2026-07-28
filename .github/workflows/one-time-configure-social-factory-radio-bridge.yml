@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: configure-social-factory-radio-bridge
@@ -26,6 +26,11 @@ jobs:
       TRUE_DEV_ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -70,7 +75,7 @@ jobs:
           rm -f /tmp/social-config-current.json /tmp/social-config-updated.json
           unset TRUE_DEV_ADMIN_TOKEN
 
-      - name: Verify bridge and read candidate songs
+      - name: Verify bridge, read candidates, and record receipt
         shell: bash
         run: |
           set -euo pipefail
@@ -108,6 +113,35 @@ jobs:
           ' /tmp/social-candidates.json >/dev/null
 
           CANDIDATE_COUNT=$(jq '.candidates | length' /tmp/social-candidates.json)
+          ELIGIBLE_COUNT=$(jq '.eligible_count // 0' /tmp/social-candidates.json)
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          mkdir -p deployment-reports
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg source_commit "${GITHUB_SHA}" \
+            --arg social_api_base "${SOCIAL_API_BASE}" \
+            --arg radio_api_base "${RADIO_API_BASE}" \
+            --arg candidate_http_status "${HTTP_STATUS}" \
+            --argjson candidate_count "${CANDIDATE_COUNT}" \
+            --argjson eligible_count "${ELIGIBLE_COUNT}" \
+            '{
+              status: $status,
+              recorded_at: $recorded_at,
+              source_commit: $source_commit,
+              social_api_base: $social_api_base,
+              radio_api_base: $radio_api_base,
+              bridge_configured: true,
+              candidate_http_status: $candidate_http_status,
+              candidate_count: $candidate_count,
+              eligible_count: $eligible_count,
+              approval_required_before_render: true,
+              render_created: false,
+              render_launched: false,
+              video_published: false
+            }' > deployment-reports/social-factory-radio-bridge.json
+
           {
             echo '## Social Factory Radio bridge'
             echo ''
@@ -120,3 +154,13 @@ jobs:
 
           rm -f /tmp/social-config-verify.json /tmp/social-candidates.json
           unset SOCIAL_ADMIN_TOKEN
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add deployment-reports/social-factory-radio-bridge.json
+
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record Social Factory Radio bridge configuration [skip ci]'
+            git push origin HEAD:main
+          fi
