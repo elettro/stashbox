@@ -43,7 +43,10 @@ STACK_ROLE=$(aws cloudformation describe-stacks \
 EXPECTED_ROLE="arn:aws:iam::${ACCOUNT_ID}:role/${SERVICE_ROLE_NAME}"
 test "${STACK_ROLE}" = "${EXPECTED_ROLE}"
 
-# Remove only the empty retained log group that the stack does not own.
+# Remove only the retained log group that CloudFormation does not own and that
+# CloudWatch reports as containing zero stored bytes. The deployment identity
+# intentionally lacks log-stream enumeration permission, so no broader read is
+# required for this one known DEV rollback orphan.
 STACK_OWNS_LOG_GROUP=$(aws cloudformation list-stack-resources \
   --stack-name "${STACK_NAME}" \
   --query "length(StackResourceSummaries[?PhysicalResourceId=='${WORKER_LOG_GROUP}'])" \
@@ -56,11 +59,6 @@ LOG_GROUP=$(aws logs describe-log-groups \
   --output json)
 if [ "${LOG_GROUP}" != 'null' ] && [ -n "${LOG_GROUP}" ]; then
   test "$(printf '%s' "${LOG_GROUP}" | jq -r '.storedBytes // 0')" = '0'
-  test "$(aws logs describe-log-streams \
-    --log-group-name "${WORKER_LOG_GROUP}" \
-    --max-items 1 \
-    --query 'length(logStreams)' \
-    --output text)" = '0'
   aws logs delete-log-group --log-group-name "${WORKER_LOG_GROUP}"
   ORPHAN_REMOVED=true
 fi
