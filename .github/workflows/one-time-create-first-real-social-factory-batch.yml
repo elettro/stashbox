@@ -1,0 +1,322 @@
+name: Create First Real Social Factory Batch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-create-first-real-social-factory-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: create-first-real-social-factory-batch
+  cancel-in-progress: false
+
+jobs:
+  create-render-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CAMPAIGN_NAME: Stashbox Social Factory First Real Batch 01
+      REPORT_PATH: deployment-reports/social-factory-first-real-batch-01.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create, render, and stage approved batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          READY=false
+          for attempt in $(seq 1 60); do
+            HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/social-health.json -w '%{http_code}' \
+              "${SOCIAL_API_BASE}/social/health" || true)
+            if [ "${HEALTH_STATUS}" = '200' ] && jq -e '
+              .ok == true and
+              .version == "0.7.0" and
+              .isolation.batchCampaignPlanningSupported == true and
+              .isolation.batchDraftCreationSupported == true and
+              .isolation.batchRenderOperationsSupported == true and
+              .isolation.batchStagingSupported == true
+            ' /tmp/social-health.json >/dev/null 2>&1; then
+              READY=true
+              break
+            fi
+            sleep 10
+          done
+          test "${READY}" = 'true'
+
+          jq -n \
+            --arg campaign_name "${CAMPAIGN_NAME}" '
+            {
+              campaign_name: $campaign_name,
+              selected_song_keys: [
+                "hippy-speedball-i-m-on-my-way-original-stashbox",
+                "riding-waves-014b-jv1-stashbox",
+                "angel-in-your-bed-live-stashbox"
+              ],
+              song_count: 3,
+              variations_per_song: 1,
+              duration_mode: "promo",
+              duration_seconds: 30,
+              aspect_ratio: "9:16",
+              fps: 30,
+              require_visuals: true,
+              intro_enabled: true,
+              outro_enabled: true,
+              corner_bug_enabled: true,
+              include_artist: true,
+              include_song: true,
+              include_album: true
+            }
+          ' > /tmp/plan-body.json
+
+          PLAN_STATUS=$(api_post '/social/orchestration/batch-plan' /tmp/plan-body.json /tmp/plan.json)
+          test "${PLAN_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "proposal_only" and
+            .selected_song_count == 3 and
+            .proposed_job_count == 3 and
+            .approval_required_before_draft_creation == true and
+            .approval_required_before_render_launch == true
+          ' /tmp/plan.json >/dev/null
+
+          jq '. + {confirm_create_drafts: true}' /tmp/plan-body.json > /tmp/drafts-body.json
+          DRAFTS_STATUS=$(api_post '/social/orchestration/batch-drafts' /tmp/drafts-body.json /tmp/drafts.json)
+          case "${DRAFTS_STATUS}" in
+            200|201) ;;
+            *) echo "Unexpected draft creation status: ${DRAFTS_STATUS}" >&2; exit 1 ;;
+          esac
+          jq -e '
+            .ok == true and
+            .created == true and
+            .renders_launched == false and
+            .approval_required_before_render_launch == true
+          ' /tmp/drafts.json >/dev/null
+
+          jq -r '[.created_jobs[].job.id, .skipped_jobs[].job.id] | map(select(length > 0)) | unique' \
+            /tmp/drafts.json > /tmp/job-ids.json
+          JOB_COUNT=$(jq 'length' /tmp/job-ids.json)
+          test "${JOB_COUNT}" = '3'
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0]}' > /tmp/launch-validation-body.json
+          LAUNCH_VALIDATION_STATUS=$(api_post '/social/orchestration/batch-launch' /tmp/launch-validation-body.json /tmp/launch-validation.json)
+          test "${LAUNCH_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .youtube_published == false
+          ' /tmp/launch-validation.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0], confirm_render_batch: true}' > /tmp/launch-body.json
+          LAUNCH_STATUS=$(api_post '/social/orchestration/batch-launch' /tmp/launch-body.json /tmp/launch.json)
+          test "${LAUNCH_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "render_batch_launched" and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/launch.json >/dev/null
+
+          POLL_COMPLETE=false
+          for attempt in $(seq 1 120); do
+            BATCH_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=$(python3 - <<'PY'
+import os, urllib.parse
+print(urllib.parse.quote(os.environ['CAMPAIGN_NAME']))
+PY
+)" /tmp/batch-status.json)
+            test "${BATCH_STATUS}" = '200'
+
+            ACTIVE_COUNT=$(jq '.counts.active' /tmp/batch-status.json)
+            DRAFT_COUNT=$(jq '.counts.draft' /tmp/batch-status.json)
+            if [ "${ACTIVE_COUNT}" = '0' ] && [ "${DRAFT_COUNT}" = '0' ]; then
+              POLL_COMPLETE=true
+              break
+            fi
+            sleep 15
+          done
+
+          test "${POLL_COMPLETE}" = 'true'
+
+          jq '[.jobs[] | select(.status == "completed") | .id]' /tmp/batch-status.json > /tmp/completed-job-ids.json
+          COMPLETED_COUNT=$(jq 'length' /tmp/completed-job-ids.json)
+          FAILED_COUNT=$(jq '.counts.failed' /tmp/batch-status.json)
+          test "${COMPLETED_COUNT}" -ge 1
+
+          jq -n --slurpfile ids /tmp/completed-job-ids.json '{job_ids: $ids[0]}' > /tmp/stage-validation-body.json
+          STAGE_VALIDATION_STATUS=$(api_post '/social/orchestration/batch-stage' /tmp/stage-validation-body.json /tmp/stage-validation.json)
+          test "${STAGE_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_stage_count >= 1 and
+            .youtube_published == false
+          ' /tmp/stage-validation.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/completed-job-ids.json '{job_ids: $ids[0], confirm_stage_batch: true}' > /tmp/stage-body.json
+          STAGE_STATUS=$(api_post '/social/orchestration/batch-stage' /tmp/stage-body.json /tmp/stage.json)
+          test "${STAGE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "completed_renders_staged" and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/stage.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg plan_http_status "${PLAN_STATUS}" \
+            --arg drafts_http_status "${DRAFTS_STATUS}" \
+            --arg launch_validation_http_status "${LAUNCH_VALIDATION_STATUS}" \
+            --arg launch_http_status "${LAUNCH_STATUS}" \
+            --arg stage_validation_http_status "${STAGE_VALIDATION_STATUS}" \
+            --arg stage_http_status "${STAGE_STATUS}" \
+            --argjson completed_count "${COMPLETED_COUNT}" \
+            --argjson failed_count "${FAILED_COUNT}" \
+            --slurpfile plan /tmp/plan.json \
+            --slurpfile drafts /tmp/drafts.json \
+            --slurpfile launch /tmp/launch.json \
+            --slurpfile final_status /tmp/batch-status.json \
+            --slurpfile stage /tmp/stage.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                api_version: "0.7.0",
+                campaign_name: $campaign_name,
+                format: {
+                  duration_seconds: 30,
+                  aspect_ratio: "9:16",
+                  fps: 30,
+                  variations_per_song: 1
+                },
+                selected_songs: [$plan[0].selected_songs[] | {
+                  song_key,
+                  title,
+                  artist,
+                  genre
+                }],
+                http_status: {
+                  health: $health_http_status,
+                  plan: $plan_http_status,
+                  drafts: $drafts_http_status,
+                  launch_validation: $launch_validation_http_status,
+                  launch: $launch_http_status,
+                  stage_validation: $stage_validation_http_status,
+                  stage: $stage_http_status
+                },
+                draft_jobs: {
+                  proposed: $plan[0].proposed_job_count,
+                  created: $drafts[0].created_job_count,
+                  reused: $drafts[0].skipped_job_count
+                },
+                render_launch: {
+                  launched: $launch[0].launched_job_count,
+                  skipped: $launch[0].skipped_job_count,
+                  failed: $launch[0].failed_job_count
+                },
+                render_completion: {
+                  completed: $completed_count,
+                  failed: $failed_count,
+                  jobs: [$final_status[0].jobs[] | {
+                    id,
+                    song_key,
+                    song_title,
+                    artist,
+                    status,
+                    output_filename,
+                    output_url,
+                    error_message
+                  }]
+                },
+                content_review: {
+                  staged: $stage[0].staged_job_count,
+                  skipped: $stage[0].skipped_job_count,
+                  failed: $stage[0].failed_job_count,
+                  review_items: [$stage[0].staged_jobs[] | {
+                    job_id: .job.id,
+                    review_id: .review_item.id,
+                    review_status: .review_item.status,
+                    publishing_status: .review_item.publishing_status
+                  }]
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-health.json /tmp/plan-body.json \
+            /tmp/plan.json /tmp/drafts-body.json /tmp/drafts.json /tmp/job-ids.json \
+            /tmp/launch-validation-body.json /tmp/launch-validation.json \
+            /tmp/launch-body.json /tmp/launch.json /tmp/batch-status.json \
+            /tmp/completed-job-ids.json /tmp/stage-validation-body.json \
+            /tmp/stage-validation.json /tmp/stage-body.json /tmp/stage.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized batch receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record first real Social Factory batch [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
