@@ -1,0 +1,27 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T09:50:29Z",
+  "api_version": "0.7.0",
+  "completed_job_id": "cc50acd7-014d-492f-89ac-682c8894240e",
+  "health_http_status": "200",
+  "batch_jobs_http_status": "200",
+  "launch_validation_http_status": "200",
+  "stage_validation_http_status": "200",
+  "content_review_page_http_status": "200",
+  "content_review_url": "https://stashbox.com/radio-admin/dev/social-factory/",
+  "render_jobs_before": 23,
+  "render_jobs_after": 23,
+  "review_items_before": 1,
+  "review_items_after": 1,
+  "validation": {
+    "completed_job_loaded": true,
+    "launch_requires_confirmation": true,
+    "completed_job_not_relaunched": true,
+    "completed_job_ready_for_staging": true,
+    "staging_requires_confirmation": true
+  },
+  "draft_jobs_created": false,
+  "renders_launched": false,
+  "files_staged": false,
+  "youtube_published": false
+}
