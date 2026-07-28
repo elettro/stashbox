@@ -127,17 +127,30 @@ jobs:
           set +e
           DEPLOY_EXIT=$(cat /tmp/social-deploy-exit)
           if [ "${DEPLOY_EXIT}" != '0' ]; then
+            echo 'Deployment did not succeed; verification skipped.' | tee /tmp/social-verify.log
             echo '1' > /tmp/social-verify-exit
             exit 0
           fi
 
           (
             set -euo pipefail
+
+            check_equal() {
+              local label="$1"
+              local actual="$2"
+              local expected="$3"
+              echo "${label}: ${actual}"
+              if [ "${actual}" != "${expected}" ]; then
+                echo "Expected ${label} to be ${expected}." >&2
+                exit 1
+              fi
+            }
+
             STACK_STATUS=$(aws cloudformation describe-stacks \
               --stack-name "${STACK_NAME}" \
               --query 'Stacks[0].StackStatus' \
               --output text)
-            test "${STACK_STATUS}" = 'UPDATE_COMPLETE'
+            check_equal 'stack_status' "${STACK_STATUS}" 'UPDATE_COMPLETE'
 
             stack_output() {
               aws cloudformation describe-stacks \
@@ -154,34 +167,42 @@ jobs:
             SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
             BASE_URL=$(stack_output SocialApiDevBaseUrl)
 
-            test "${API_FUNCTION}" = "${EXPECTED_API_FUNCTION}"
-            test "${WORKER_FUNCTION}" = "${EXPECTED_WORKER_FUNCTION}"
-            test "${QUEUE_ARN##*:}" = "${EXPECTED_QUEUE_NAME}"
-            test "${DLQ_ARN##*:}" = "${EXPECTED_DLQ_NAME}"
-            test "${SCHEDULE_GROUP}" = "${EXPECTED_SCHEDULE_GROUP}"
+            check_equal 'api_function' "${API_FUNCTION}" "${EXPECTED_API_FUNCTION}"
+            check_equal 'worker_function' "${WORKER_FUNCTION}" "${EXPECTED_WORKER_FUNCTION}"
+            check_equal 'queue_name' "${QUEUE_ARN##*:}" "${EXPECTED_QUEUE_NAME}"
+            check_equal 'dead_letter_queue_name' "${DLQ_ARN##*:}" "${EXPECTED_DLQ_NAME}"
+            check_equal 'schedule_group' "${SCHEDULE_GROUP}" "${EXPECTED_SCHEDULE_GROUP}"
+            echo "queue_url: ${QUEUE_URL}"
             [[ "${QUEUE_URL}" == *"/${EXPECTED_QUEUE_NAME}" ]]
 
-            aws cloudformation list-stack-resources --stack-name "${STACK_NAME}" > /tmp/social-stack-resources.json
-            jq -e '
-              [
-                "SocialApiDevFunction",
-                "SocialScheduledPublishWorkerFunction",
-                "SocialPublishScheduleQueue",
-                "SocialPublishScheduleDeadLetterQueue",
-                "SocialPublishScheduleGroup",
-                "SocialPublishSchedulerTargetRole",
-                "SocialScheduledPublishWorkerRole",
-                "SocialScheduledPublishWorkerLogGroup"
-              ] as $required |
-              ([.StackResourceSummaries[] | select(.LogicalResourceId as $id | $required | index($id))] | length) == ($required | length) and
-              ([.StackResourceSummaries[] | select(.LogicalResourceId as $id | $required | index($id))] |
-                all(.ResourceStatus | endswith("_COMPLETE")))
-            ' /tmp/social-stack-resources.json >/dev/null
+            for LOGICAL_ID in \
+              SocialApiDevFunction \
+              SocialScheduledPublishWorkerFunction \
+              SocialPublishScheduleQueue \
+              SocialPublishScheduleDeadLetterQueue \
+              SocialPublishScheduleGroup \
+              SocialPublishSchedulerTargetRole \
+              SocialScheduledPublishWorkerRole \
+              SocialScheduledPublishWorkerLogGroup; do
+              RESOURCE_STATUS=$(aws cloudformation describe-stack-resource \
+                --stack-name "${STACK_NAME}" \
+                --logical-resource-id "${LOGICAL_ID}" \
+                --query 'StackResourceDetail.ResourceStatus' \
+                --output text)
+              echo "resource ${LOGICAL_ID}: ${RESOURCE_STATUS}"
+              case "${RESOURCE_STATUS}" in
+                *_COMPLETE) ;;
+                *)
+                  echo "CloudFormation resource ${LOGICAL_ID} is not complete." >&2
+                  exit 1
+                  ;;
+              esac
+            done
 
             HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
               -o /tmp/social-health.json -w '%{http_code}' \
               "${BASE_URL}/social/health")
-            test "${HEALTH_STATUS}" = '200'
+            check_equal 'health_http_status' "${HEALTH_STATUS}" '200'
             jq -e '
               .ok == true and
               .environment == "dev" and
@@ -190,24 +211,25 @@ jobs:
               .isolation.contentReviewSupported == true and
               .isolation.reviewPublishingSupported == true
             ' /tmp/social-health.json >/dev/null
+            echo 'health_contract: passed'
 
             YOUTUBE_STATUS=$(curl --silent --show-error --max-time 60 \
               -H 'x-admin-token: invalid-deployment-smoke-token' \
               -o /tmp/social-youtube-status.json -w '%{http_code}' \
               "${BASE_URL}/social/youtube/status")
-            test "${YOUTUBE_STATUS}" = '401'
+            check_equal 'youtube_protected_http_status' "${YOUTUBE_STATUS}" '401'
 
             SCHEDULE_STATUS=$(curl --silent --show-error --max-time 60 \
               -X POST -H 'Content-Type: application/json' -d '{}' \
               -o /tmp/social-schedule-status.json -w '%{http_code}' \
               "${BASE_URL}/social/review-items/render-test-12345678/schedule")
-            test "${SCHEDULE_STATUS}" = '401'
+            check_equal 'schedule_protected_http_status' "${SCHEDULE_STATUS}" '401'
 
             CANCEL_STATUS=$(curl --silent --show-error --max-time 60 \
               -X POST -H 'Content-Type: application/json' -d '{}' \
               -o /tmp/social-cancel-status.json -w '%{http_code}' \
               "${BASE_URL}/social/review-items/render-test-12345678/schedule/cancel")
-            test "${CANCEL_STATUS}" = '401'
+            check_equal 'schedule_cancel_protected_http_status' "${CANCEL_STATUS}" '401'
 
             printf '%s' "${STACK_STATUS}" > /tmp/social-stack-status
             printf '%s' "${API_FUNCTION}" > /tmp/social-api-function
@@ -221,6 +243,7 @@ jobs:
             printf '%s' "${YOUTUBE_STATUS}" > /tmp/social-youtube-status-code
             printf '%s' "${SCHEDULE_STATUS}" > /tmp/social-schedule-status-code
             printf '%s' "${CANCEL_STATUS}" > /tmp/social-cancel-status-code
+            echo 'deployment_verification: passed'
           ) 2>&1 | tee /tmp/social-verify.log
           VERIFY_EXIT=${PIPESTATUS[0]}
           echo "${VERIFY_EXIT}" > /tmp/social-verify-exit
