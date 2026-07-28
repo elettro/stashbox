@@ -1,6 +1,6 @@
 # Current Social Factory 4:5 Workflow Runs
 
-Captured: 2026-07-28T20:30:19Z
+Captured: 2026-07-28T20:34:56Z
 
 ## one-time-apply-social-factory-4x5-contract.yml
 - Run ID: 30396199574
@@ -12,15 +12,25 @@ Captured: 2026-07-28T20:30:19Z
 - Head SHA: 4e027ca9718f0b00e1867fbc03c379ec95a1eabd
 - URL: https://github.com/elettro/stashbox/actions/runs/30396199574
 
-## deploy-social-factory-api-dev.yml
-- Run ID: 30389724814
+## one-time-dispatch-social-factory-4x5-dev-deploy.yml
+- Run ID: 30396725569
 - Status: completed
 - Conclusion: failure
 - Event: push
-- Created: 2026-07-28T18:56:29Z
-- Updated: 2026-07-28T18:58:12Z
-- Head SHA: b3cb0575709fd54b7caf6b2c1105185b340ff5a1
-- URL: https://github.com/elettro/stashbox/actions/runs/30389724814
+- Created: 2026-07-28T20:31:47Z
+- Updated: 2026-07-28T20:34:16Z
+- Head SHA: db0dbf945ced7397e099ec8f07737ce93a0a58fe
+- URL: https://github.com/elettro/stashbox/actions/runs/30396725569
+
+## deploy-social-factory-api-dev.yml
+- Run ID: 30396751889
+- Status: completed
+- Conclusion: failure
+- Event: workflow_dispatch
+- Created: 2026-07-28T20:32:09Z
+- Updated: 2026-07-28T20:33:59Z
+- Head SHA: db0dbf945ced7397e099ec8f07737ce93a0a58fe
+- URL: https://github.com/elettro/stashbox/actions/runs/30396751889
 
 ## one-time-validate-social-factory-4x5-handoff.yml
 - Run ID: 30396445396
