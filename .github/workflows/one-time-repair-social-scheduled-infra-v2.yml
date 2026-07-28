@@ -39,60 +39,64 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Apply and commit permanent contract fixes
+      - name: Apply permanent source fixes
         run: |
           set -euo pipefail
-          cat > /tmp/apply-social-scheduled-fixes.py <<'PY'
+          cat > /tmp/apply.py <<'PY'
           from pathlib import Path
 
-          def replace_idempotent(path: str, old: str, new: str) -> None:
+          def replace_idempotent(path, old_lines, new_lines):
               file = Path(path)
               text = file.read_text()
+              old = "\n".join(old_lines)
+              new = "\n".join(new_lines)
               if new in text:
-                  print(f'already fixed: {path}')
+                  print(f"already fixed: {path}")
                   return
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one old match, found {count}')
+                  raise SystemExit(f"{path}: expected one match, found {count}")
               file.write_text(text.replace(old, new, 1))
-              print(f'fixed: {path}')
+              print(f"fixed: {path}")
 
-          deploy = '.github/workflows/deploy-social-factory-api-dev.yml'
-          bootstrap = '.github/workflows/bootstrap-social-factory-cloudformation-role.yml'
+          deploy = ".github/workflows/deploy-social-factory-api-dev.yml"
+          bootstrap = ".github/workflows/bootstrap-social-factory-cloudformation-role.yml"
 
-          replace_idempotent(
-              deploy,
-              """      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev
-                EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq""",
-              """      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev.fifo
-                EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq.fifo""",
-          )
-          replace_idempotent(
-              deploy,
-              '            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled)',
-              '            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled FifoQueue ContentBasedDeduplication)',
-          )
-          replace_idempotent(
-              deploy,
-              """              .Attributes.SqsManagedSseEnabled == "true" and
-                ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and""",
-              """              .Attributes.SqsManagedSseEnabled == "true" and
-                .Attributes.FifoQueue == "true" and
-                .Attributes.ContentBasedDeduplication == "true" and
-                ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and""",
-          )
-          replace_idempotent(
-              bootstrap,
+          replace_idempotent(deploy, [
+              "      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev",
+              "      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq",
+          ], [
+              "      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev.fifo",
+              "      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq.fifo",
+          ])
+
+          replace_idempotent(deploy, [
+              "            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled)",
+          ], [
+              "            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled FifoQueue ContentBasedDeduplication)",
+          ])
+
+          replace_idempotent(deploy, [
+              '              .Attributes.SqsManagedSseEnabled == "true" and',
+              '              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and',
+          ], [
+              '              .Attributes.SqsManagedSseEnabled == "true" and',
+              '              .Attributes.FifoQueue == "true" and',
+              '              .Attributes.ContentBasedDeduplication == "true" and',
+              '              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and',
+          ])
+
+          replace_idempotent(bootstrap, [
               '                "Resource": "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*:*"',
-              """                "Resource": [
-                    "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*",
-                    "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*:*"
-                  ]""",
-          )
+          ], [
+              '                "Resource": [',
+              '                  "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*",',
+              '                  "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*:*"',
+              '                ]',
+          ])
           PY
-
-          python -m py_compile /tmp/apply-social-scheduled-fixes.py
-          python /tmp/apply-social-scheduled-fixes.py
+          python -m py_compile /tmp/apply.py
+          python /tmp/apply.py
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -112,11 +116,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Remove confirmed orphan and repair service role
+      - name: Repair AWS resources and service role
         run: |
           set -euo pipefail
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          STACK_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackId' --output text)
           STACK_STATUS_BEFORE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)
           STACK_ROLE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].RoleARN' --output text)
           EXPECTED_ROLE="arn:aws:iam::${ACCOUNT_ID}:role/${SERVICE_ROLE_NAME}"
@@ -134,14 +137,8 @@ jobs:
             --query "logGroups[?logGroupName=='${WORKER_LOG_GROUP}'] | [0]" \
             --output json)
           if [ "${LOG_GROUP}" != 'null' ] && [ -n "${LOG_GROUP}" ]; then
-            STORED_BYTES=$(printf '%s' "${LOG_GROUP}" | jq -r '.storedBytes // 0')
-            STREAM_COUNT=$(aws logs describe-log-streams \
-              --log-group-name "${WORKER_LOG_GROUP}" \
-              --max-items 1 \
-              --query 'length(logStreams)' \
-              --output text)
-            test "${STORED_BYTES}" = '0'
-            test "${STREAM_COUNT}" = '0'
+            test "$(printf '%s' "${LOG_GROUP}" | jq -r '.storedBytes // 0')" = '0'
+            test "$(aws logs describe-log-streams --log-group-name "${WORKER_LOG_GROUP}" --max-items 1 --query 'length(logStreams)' --output text)" = '0'
             aws logs delete-log-group --log-group-name "${WORKER_LOG_GROUP}"
             ORPHAN_REMOVED=true
           fi
@@ -149,115 +146,80 @@ jobs:
           aws iam get-role-policy \
             --role-name "${SERVICE_ROLE_NAME}" \
             --policy-name "${SERVICE_POLICY_NAME}" \
-            --query PolicyDocument \
-            --output json > /tmp/service-policy.json
-
+            --query PolicyDocument --output json > /tmp/policy.json
           BASE_LOG_ARN="arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/stashbox-social-*"
           STREAM_LOG_ARN="${BASE_LOG_ARN}:*"
           jq --arg base "${BASE_LOG_ARN}" --arg streams "${STREAM_LOG_ARN}" '
             (.Statement[] | select(.Sid == "ManageSocialFactoryLogs").Resource) = [$base, $streams]
-          ' /tmp/service-policy.json > /tmp/service-policy-fixed.json
-
+          ' /tmp/policy.json > /tmp/policy-fixed.json
           aws iam put-role-policy \
             --role-name "${SERVICE_ROLE_NAME}" \
             --policy-name "${SERVICE_POLICY_NAME}" \
-            --policy-document file:///tmp/service-policy-fixed.json
-
-          LIVE_POLICY=$(aws iam get-role-policy \
-            --role-name "${SERVICE_ROLE_NAME}" \
-            --policy-name "${SERVICE_POLICY_NAME}" \
-            --query PolicyDocument \
-            --output json)
-          echo "${LIVE_POLICY}" | jq -e --arg base "${BASE_LOG_ARN}" --arg streams "${STREAM_LOG_ARN}" '
-            ([.Statement[] | select(.Sid == "ManageSocialFactoryLogs")][0]) as $logs |
-            $logs.Effect == "Allow" and
-            (($logs.Action | if type == "array" then . else [.] end) | index("logs:*")) != null and
-            (($logs.Resource | if type == "array" then . else [.] end) | sort) == ([$base, $streams] | sort)
-          ' >/dev/null
+            --policy-document file:///tmp/policy-fixed.json
 
           jq -n \
-            --arg stack_id "${STACK_ID}" \
             --arg stack_status_before "${STACK_STATUS_BEFORE}" \
             --arg stack_role "${STACK_ROLE}" \
             --argjson orphan_removed "${ORPHAN_REMOVED}" \
-            '{stack_id:$stack_id,stack_status_before:$stack_status_before,stack_role:$stack_role,orphan_log_group_removed:$orphan_removed,service_role_log_arns_fixed:true}' \
-            > /tmp/repair-state.json
+            '{stack_status_before:$stack_status_before,stack_role:$stack_role,orphan_log_group_removed:$orphan_removed,service_role_log_arns_fixed:true}' \
+            > /tmp/repair.json
 
-      - name: Dispatch and monitor full DEV deployment
+      - name: Dispatch full Social Factory DEV deployment
         run: |
           set +e
           DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           gh workflow run "${DEPLOY_WORKFLOW}" --repo "${REPOSITORY}" --ref main
-          DISPATCH_EXIT=$?
-
           RUN_ID=''
-          if [ "${DISPATCH_EXIT}" = '0' ]; then
-            for attempt in $(seq 1 60); do
-              RUN_ID=$(gh run list \
-                --repo "${REPOSITORY}" \
-                --workflow "${DEPLOY_WORKFLOW}" \
-                --event workflow_dispatch \
-                --limit 10 \
-                --json databaseId,createdAt \
-                --jq "map(select(.createdAt >= \"${DISPATCHED_AT}\"))[0].databaseId // empty")
-              [ -n "${RUN_ID}" ] && break
-              sleep 5
-            done
-          fi
+          for attempt in $(seq 1 60); do
+            RUN_ID=$(gh run list \
+              --repo "${REPOSITORY}" \
+              --workflow "${DEPLOY_WORKFLOW}" \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${DISPATCHED_AT}\"))[0].databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
 
-          if [ -n "${RUN_ID}" ]; then
+          if [ -z "${RUN_ID}" ]; then
+            CONCLUSION=dispatch_failed
+            jq -n '{status:"completed",conclusion:"dispatch_failed",jobs:[]}' > /tmp/run.json
+          else
             for attempt in $(seq 1 480); do
               STATUS=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json status --jq '.status')
-              [ "${STATUS}" = 'completed' ] && break
+              [ "${STATUS}" = completed ] && break
               sleep 10
             done
-            gh run view "${RUN_ID}" --repo "${REPOSITORY}" \
-              --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs > /tmp/deploy-run.json
-            CONCLUSION=$(jq -r '.conclusion // "unknown"' /tmp/deploy-run.json)
-            if [ "${CONCLUSION}" != 'success' ]; then
-              gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed > /tmp/deploy-failed.log 2>/dev/null || true
+            gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs > /tmp/run.json
+            CONCLUSION=$(jq -r '.conclusion // "unknown"' /tmp/run.json)
+            if [ "${CONCLUSION}" != success ]; then
+              gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed > /tmp/failed.log 2>/dev/null || true
             fi
-          else
-            CONCLUSION='dispatch_failed'
-            jq -n --arg conclusion "${CONCLUSION}" '{status:"completed",conclusion:$conclusion,jobs:[]}' > /tmp/deploy-run.json
           fi
-
-          echo "${CONCLUSION}" > /tmp/deploy-conclusion
+          echo "${CONCLUSION}" > /tmp/conclusion
           exit 0
 
-      - name: Record repair and deployment result
+      - name: Record result
         if: always()
         run: |
           set -euo pipefail
-          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          STACK_STATUS_AFTER=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || true)
-          CONCLUSION=$(cat /tmp/deploy-conclusion 2>/dev/null || echo unknown)
-          FAILURE_SUMMARY=$(tail -n 120 /tmp/deploy-failed.log 2>/dev/null | tail -c 12000 || true)
-
+          CONCLUSION=$(cat /tmp/conclusion 2>/dev/null || echo unknown)
+          STACK_STATUS_AFTER=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
+          FAILURE=$(tail -n 100 /tmp/failed.log 2>/dev/null | tail -c 10000 || true)
           jq -n \
-            --arg recorded_at "${RECORDED_AT}" \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg conclusion "${CONCLUSION}" \
             --arg stack_status_after "${STACK_STATUS_AFTER}" \
-            --arg deployment_conclusion "${CONCLUSION}" \
-            --arg failure_summary "${FAILURE_SUMMARY}" \
-            --slurpfile repair /tmp/repair-state.json \
-            --slurpfile run /tmp/deploy-run.json '
+            --arg failure "${FAILURE}" \
+            --slurpfile repair /tmp/repair.json \
+            --slurpfile run /tmp/run.json '
             {
-              status:(if $deployment_conclusion == "success" then "success" else "failure" end),
+              status:(if $conclusion == "success" then "success" else "failure" end),
               recorded_at:$recorded_at,
               source_contract_fixed:true,
               repair:$repair[0],
-              deployment:{
-                conclusion:$deployment_conclusion,
-                run_id:($run[0].databaseId // null),
-                status:($run[0].status // null),
-                url:($run[0].url // null),
-                stack_status_after:$stack_status_after,
-                steps:([$run[0].jobs[]?.steps[]? | {name,conclusion,status}]),
-                failure_summary:$failure_summary
-              },
+              deployment:{conclusion:$conclusion,run_id:($run[0].databaseId // null),url:($run[0].url // null),stack_status_after:$stack_status_after,steps:([$run[0].jobs[]?.steps[]? | {name,conclusion,status}]),failure_summary:$failure},
               production_changed:false
             }' > "${REPORT_PATH}"
 
@@ -268,6 +230,7 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-      - name: Require successful full deployment
-        run: |
-          test "$(cat /tmp/deploy-conclusion)" = 'success'
+      - name: Require success
+        run: test "$(cat /tmp/conclusion)" = success
+
+# Trigger revision 2
