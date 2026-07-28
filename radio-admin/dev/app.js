@@ -9,5 +9,6 @@
 
   if (window.location.pathname.includes('/radio-admin/songs/dev')) {
     document.write('<script src="/radio-admin/songs/dev/vec-disabled.js?v=20260728-songs-vec-disabled1"><\/script>');
+    document.write('<script src="/radio-admin/songs/dev/song-images.js?v=20260728-song-images1"><\/script>');
   }
 })();
