@@ -1,0 +1,178 @@
+name: Create First Social Factory Draft Batch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-create-first-social-factory-draft-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CAMPAIGN_NAME: First Social Factory Batch
+      REPORT_PATH: deployment-reports/first-social-factory-draft-batch.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create confirmed Video Factory draft jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/social-health.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/health")
+          test "${HEALTH_STATUS}" = '200'
+          jq -e '.ok == true and .version == "0.7.0" and .isolation.batchDraftCreationSupported == true' \
+            /tmp/social-health.json >/dev/null
+
+          BEFORE_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-before.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${BEFORE_STATUS}" = '200'
+          BEFORE_COUNT=$(jq '.jobs | length' /tmp/jobs-before.json)
+
+          cat > /tmp/draft-request.json <<'JSON'
+          {
+            "campaign_name": "First Social Factory Batch",
+            "selected_song_keys": [
+              "hippy-speedball-i-m-on-my-way-original-stashbox",
+              "riding-waves-014b-jv1-stashbox",
+              "angel-in-your-bed-live-stashbox"
+            ],
+            "song_count": 3,
+            "variations_per_song": 1,
+            "duration_mode": "promo",
+            "duration_seconds": 30,
+            "aspect_ratio": "9:16",
+            "fps": 30,
+            "require_visuals": true,
+            "intro_enabled": true,
+            "outro_enabled": true,
+            "corner_bug_enabled": true,
+            "include_artist": true,
+            "include_song": true,
+            "include_album": true,
+            "confirm_create_drafts": true
+          }
+          JSON
+
+          CREATE_STATUS=$(curl --silent --show-error --max-time 180 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            --data-binary @/tmp/draft-request.json \
+            -o /tmp/draft-result.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-drafts")
+          test "${CREATE_STATUS}" = '201' -o "${CREATE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .created == true and
+            .mode == "drafts_created" and
+            .campaign_name == "First Social Factory Batch" and
+            .proposed_job_count == 3 and
+            .approval_required_before_render_launch == true and
+            .renders_launched == false
+          ' /tmp/draft-result.json >/dev/null
+
+          AFTER_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-after.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${AFTER_STATUS}" = '200'
+          AFTER_COUNT=$(jq '.jobs | length' /tmp/jobs-after.json)
+
+          CAMPAIGN_JOBS=$(jq '[.jobs[] | select(.campaign_name == "First Social Factory Batch")]' /tmp/jobs-after.json)
+          CAMPAIGN_COUNT=$(jq 'length' <<<"${CAMPAIGN_JOBS}")
+          test "${CAMPAIGN_COUNT}" = '3'
+          jq -e 'all(.[]; .status == "draft")' <<<"${CAMPAIGN_JOBS}" >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg create_http_status "${CREATE_STATUS}" \
+            --argjson render_jobs_before "${BEFORE_COUNT}" \
+            --argjson render_jobs_after "${AFTER_COUNT}" \
+            --slurpfile result /tmp/draft-result.json \
+            --argjson campaign_jobs "${CAMPAIGN_JOBS}" '
+              ($result[0]) as $r |
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                api_version: "0.7.0",
+                campaign_name: $campaign_name,
+                health_http_status: $health_http_status,
+                create_http_status: $create_http_status,
+                proposed_job_count: $r.proposed_job_count,
+                created_job_count: $r.created_job_count,
+                skipped_job_count: $r.skipped_job_count,
+                render_jobs_before: $render_jobs_before,
+                render_jobs_after: $render_jobs_after,
+                jobs: [$campaign_jobs[] | {
+                  id,
+                  song_key,
+                  song_title,
+                  artist,
+                  campaign_name,
+                  status,
+                  duration_seconds,
+                  aspect_ratio,
+                  fps,
+                  batch_name
+                }],
+                approval_required_before_render_launch: true,
+                renders_launched: false,
+                files_staged: false,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-health.json /tmp/jobs-before.json \
+            /tmp/jobs-after.json /tmp/draft-request.json /tmp/draft-result.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized creation receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record first Social Factory draft batch [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
