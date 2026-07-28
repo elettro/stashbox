@@ -1,0 +1,375 @@
+name: One-Time Validate Video Factory Portrait Ratios
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-video-factory-portrait-ratios.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-portrait-ratios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_3X4_4X5_VALIDATION_RESULT.md
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Confirm FFmpeg tools
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Create, render, download, and inspect 3:4 and 4:5 videos
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { spawnSync } = require('node:child_process');
+
+          const apiBase = String(process.env.API_BASE || '').replace(/\/+$/, '');
+          const token = String(process.env.ADMIN_TOKEN || '').trim();
+          const resultPath = process.env.RESULT_PATH;
+          const startedAt = new Date().toISOString();
+          const results = {
+            status: 'failed',
+            started_at: startedAt,
+            completed_at: '',
+            deployment_probe: '',
+            invalid_ratio_rejected: false,
+            song_key: '',
+            song_title: '',
+            artist: '',
+            renders: [],
+            error: ''
+          };
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          const activeStatuses = new Set(['pending', 'preparing', 'rendering', 'uploading']);
+
+          async function request(pathname, options = {}, allowFailure = false) {
+            const response = await fetch(`${apiBase}${pathname}`, {
+              ...options,
+              headers: {
+                accept: 'application/json',
+                'x-admin-token': token,
+                ...(options.body ? { 'content-type': 'application/json' } : {}),
+                ...(options.headers || {})
+              }
+            });
+            const text = await response.text();
+            let body = {};
+            try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text.slice(0, 1000) }; }
+            if (!response.ok && !allowFailure) {
+              throw new Error(`${options.method || 'GET'} ${pathname} returned ${response.status}: ${body.error || body.message || JSON.stringify(body).slice(0, 1000)}`);
+            }
+            return { response, body };
+          }
+
+          function normalize(value) {
+            return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+          }
+
+          function safe(value) {
+            return String(value ?? '').replace(/`/g, '\\`');
+          }
+
+          function markdown(data) {
+            const lines = [
+              '# Video Factory 3:4 and 4:5 DEV Validation',
+              '',
+              `Status: ${safe(data.status)}`,
+              `Started: ${safe(data.started_at)}`,
+              `Completed: ${safe(data.completed_at)}`,
+              '',
+              `- Deployment probe: ${safe(data.deployment_probe)}`,
+              `- Invalid 2:1 ratio rejected: ${data.invalid_ratio_rejected ? 'yes' : 'no'}`,
+              `- Song: ${safe(data.artist)} — ${safe(data.song_title)}`,
+              `- Song key: \`${safe(data.song_key)}\``,
+              ''
+            ];
+            for (const render of data.renders) {
+              lines.push(
+                `## ${safe(render.aspect_ratio)} Render`,
+                '',
+                `- Status: ${safe(render.status)}`,
+                `- Job ID: \`${safe(render.job_id)}\``,
+                `- Batch ID: \`${safe(render.batch_id)}\``,
+                `- Draft dimensions: ${safe(render.draft_width)}×${safe(render.draft_height)}`,
+                `- Probed dimensions: ${safe(render.probed_width)}×${safe(render.probed_height)}`,
+                `- Duration: ${safe(render.duration_seconds)} seconds`,
+                `- Frame rate: ${safe(render.frame_rate)}`,
+                `- Video streams: ${safe(render.video_streams)}`,
+                `- Audio streams: ${safe(render.audio_streams)}`,
+                `- Output filename: \`${safe(render.output_filename)}\``,
+                `- Private bucket: \`${safe(render.output_bucket)}\``,
+                `- Private key: \`${safe(render.output_key)}\``,
+                `- Progress: ${safe(render.progress_percent)}%`,
+                `- Status message: ${safe(render.status_message)}`,
+                render.error ? `- Error: ${safe(render.error)}` : '- Error: none',
+                ''
+              );
+            }
+            lines.push(data.error ? `Error: ${safe(data.error)}` : 'Error: none', '');
+            return lines.join('\n');
+          }
+
+          function runProbe(filePath) {
+            const probe = spawnSync('ffprobe', [
+              '-v', 'error',
+              '-show_entries', 'stream=index,codec_type,width,height,r_frame_rate:format=duration',
+              '-of', 'json',
+              filePath
+            ], { encoding: 'utf8' });
+            if (probe.status !== 0) throw new Error(`ffprobe failed: ${probe.stderr || probe.stdout}`);
+            const parsed = JSON.parse(probe.stdout || '{}');
+            const streams = Array.isArray(parsed.streams) ? parsed.streams : [];
+            const video = streams.find(stream => stream.codec_type === 'video');
+            const audioStreams = streams.filter(stream => stream.codec_type === 'audio');
+            const videoStreams = streams.filter(stream => stream.codec_type === 'video');
+            return {
+              width: Number(video?.width || 0),
+              height: Number(video?.height || 0),
+              frameRate: String(video?.r_frame_rate || ''),
+              duration: Number(parsed.format?.duration || 0),
+              videoStreams: videoStreams.length,
+              audioStreams: audioStreams.length
+            };
+          }
+
+          async function waitForPortraitApi() {
+            const deadline = Date.now() + 40 * 60 * 1000;
+            let last = '';
+            while (Date.now() < deadline) {
+              const { response, body } = await request('/admin/video-factory/jobs', {
+                method: 'POST',
+                body: JSON.stringify({
+                  song_key: '__portrait_ratio_probe__',
+                  duration_mode: 'custom',
+                  duration_seconds: 1,
+                  aspect_ratio: '4:5',
+                  fps: 30
+                })
+              }, true);
+              const marker = `${response.status}:${body.error || body.message || ''}`;
+              if (marker !== last) {
+                console.log(`[portrait API probe] ${marker}`);
+                last = marker;
+              }
+              if (response.status === 404 && /song not found/i.test(String(body.error || body.message || ''))) {
+                results.deployment_probe = '4:5 accepted by DEV API';
+                return;
+              }
+              await sleep(15000);
+            }
+            throw new Error('DEV API did not begin accepting 4:5 within 40 minutes.');
+          }
+
+          async function waitForNoActiveJob() {
+            const deadline = Date.now() + 45 * 60 * 1000;
+            while (Date.now() < deadline) {
+              const { body } = await request('/admin/video-factory/jobs?limit=250');
+              const active = (body.jobs || []).find(job => activeStatuses.has(job.status));
+              if (!active) return;
+              console.log(`[queue] Waiting for active job ${active.id} (${active.status})`);
+              await sleep(15000);
+            }
+            throw new Error('Video Factory remained busy for more than 45 minutes.');
+          }
+
+          async function renderRatio(song, aspectRatio, width, height) {
+            await waitForNoActiveJob();
+            const record = {
+              aspect_ratio: aspectRatio,
+              status: 'failed',
+              job_id: '',
+              batch_id: '',
+              draft_width: 0,
+              draft_height: 0,
+              probed_width: 0,
+              probed_height: 0,
+              duration_seconds: 0,
+              frame_rate: '',
+              video_streams: 0,
+              audio_streams: 0,
+              output_filename: '',
+              output_bucket: '',
+              output_key: '',
+              progress_percent: 0,
+              status_message: '',
+              error: ''
+            };
+            results.renders.push(record);
+            try {
+              const { body: draftBody } = await request('/admin/video-factory/jobs', {
+                method: 'POST',
+                body: JSON.stringify({
+                  song_key: song.song_key,
+                  batch_name: `Portrait Ratio Validation ${aspectRatio}`,
+                  client_name: 'Stashbox Radio',
+                  project_name: 'Video Factory DEV Validation',
+                  campaign_name: '3x4 and 4x5 Validation',
+                  output_type: 'music_video',
+                  duration_mode: 'custom',
+                  duration_seconds: 15,
+                  aspect_ratio: aspectRatio,
+                  fps: 30,
+                  intro_enabled: true,
+                  outro_enabled: true,
+                  corner_bug_enabled: true,
+                  include_artist: true,
+                  include_song: true,
+                  include_album: true,
+                  filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}',
+                  metadata_comment: `Automated DEV validation for ${aspectRatio}.`
+                })
+              });
+              const created = draftBody.job;
+              if (!created?.id) throw new Error('Draft response did not include a job ID.');
+              record.job_id = created.id;
+              record.batch_id = created.batch_id;
+              record.draft_width = Number(created.width || 0);
+              record.draft_height = Number(created.height || 0);
+              record.output_filename = created.output_filename || '';
+              if (created.aspect_ratio !== aspectRatio || record.draft_width !== width || record.draft_height !== height) {
+                throw new Error(`Draft dimensions were ${created.aspect_ratio} ${record.draft_width}x${record.draft_height}; expected ${aspectRatio} ${width}x${height}.`);
+              }
+
+              await request(`/admin/video-factory/jobs/${created.id}/render`, { method: 'POST', body: '{}' });
+              const deadline = Date.now() + 45 * 60 * 1000;
+              let completedJob = null;
+              let lastMarker = '';
+              while (Date.now() < deadline) {
+                const { body } = await request(`/admin/video-factory/jobs/${created.id}`);
+                const job = body.job;
+                const runtime = job.render_recipe?.runtime || {};
+                record.progress_percent = Number(runtime.progress_percent || (job.status === 'completed' ? 100 : 0));
+                record.status_message = runtime.status_message || '';
+                const marker = `${job.status}:${record.progress_percent}:${record.status_message}`;
+                if (marker !== lastMarker) {
+                  console.log(`[${aspectRatio}] ${marker}`);
+                  lastMarker = marker;
+                }
+                if (job.status === 'completed') {
+                  completedJob = job;
+                  break;
+                }
+                if (job.status === 'failed' || job.status === 'cancelled') {
+                  throw new Error(job.error_message || `Render ended with status ${job.status}.`);
+                }
+                await sleep(15000);
+              }
+              if (!completedJob) throw new Error(`Timed out waiting for ${aspectRatio} render.`);
+
+              const output = Array.isArray(completedJob.outputs)
+                ? completedJob.outputs.find(item => item.output_kind === 'master') || completedJob.outputs[0]
+                : null;
+              record.output_bucket = output?.s3_bucket || '';
+              record.output_key = output?.s3_key || '';
+              record.output_filename = completedJob.output_filename || record.output_filename;
+
+              const { body: signed } = await request(`/admin/video-factory/jobs/${created.id}/download`);
+              if (!signed.url) throw new Error('Download endpoint did not return a signed URL.');
+              const target = `/tmp/video-factory-${aspectRatio.replace(':', 'x')}-${created.id}.mp4`;
+              const download = await fetch(signed.url);
+              if (!download.ok) throw new Error(`Signed download returned ${download.status}.`);
+              fs.writeFileSync(target, Buffer.from(await download.arrayBuffer()));
+
+              const probe = runProbe(target);
+              record.probed_width = probe.width;
+              record.probed_height = probe.height;
+              record.duration_seconds = Math.round(probe.duration * 1000) / 1000;
+              record.frame_rate = probe.frameRate;
+              record.video_streams = probe.videoStreams;
+              record.audio_streams = probe.audioStreams;
+              if (probe.width !== width || probe.height !== height) {
+                throw new Error(`Rendered MP4 was ${probe.width}x${probe.height}; expected ${width}x${height}.`);
+              }
+              if (probe.duration < 14 || probe.duration > 16.5) {
+                throw new Error(`Rendered MP4 duration was ${probe.duration}; expected about 15 seconds.`);
+              }
+              if (probe.videoStreams < 1) throw new Error('Rendered MP4 has no video stream.');
+              if (probe.audioStreams < 1) throw new Error('Rendered MP4 has no audio stream.');
+              record.status = 'completed';
+              return record;
+            } catch (error) {
+              record.error = error.message;
+              throw error;
+            }
+          }
+
+          try {
+            if (!token) throw new Error('STASHBOX_DEV_ADMIN_TOKEN is missing.');
+            await waitForPortraitApi();
+
+            const invalid = await request('/admin/video-factory/jobs', {
+              method: 'POST',
+              body: JSON.stringify({
+                song_key: '__invalid_ratio_probe__',
+                duration_mode: 'custom',
+                duration_seconds: 1,
+                aspect_ratio: '2:1',
+                fps: 30
+              })
+            }, true);
+            results.invalid_ratio_rejected = invalid.response.status === 400 && /aspect_ratio/i.test(String(invalid.body.error || invalid.body.message || ''));
+            if (!results.invalid_ratio_rejected) {
+              throw new Error(`Invalid 2:1 ratio was not rejected correctly. Status ${invalid.response.status}.`);
+            }
+
+            const { body: infrastructure } = await request('/admin/video-factory/infrastructure');
+            if (!infrastructure.success || !infrastructure.configured) {
+              throw new Error('Video Factory infrastructure did not return configured=true.');
+            }
+
+            const { body: songsBody } = await request('/admin/songs');
+            const songs = Array.isArray(songsBody.songs) ? songsBody.songs : Array.isArray(songsBody) ? songsBody : [];
+            const song = songs.find(item => {
+              const title = normalize(item.display_title || item.song_name);
+              const key = normalize(item.song_key);
+              return title === 'space jam' || title.includes('space jam') || key.includes('space jam');
+            }) || songs.find(item => String(item.audio_url || '').trim());
+            if (!song) throw new Error('No DEV song with audio was available for portrait validation.');
+            results.song_key = song.song_key;
+            results.song_title = song.display_title || song.song_name || song.song_key;
+            results.artist = song.artist || '';
+
+            await renderRatio(song, '3:4', 1080, 1440);
+            await renderRatio(song, '4:5', 1080, 1350);
+            results.status = 'completed';
+            results.completed_at = new Date().toISOString();
+          } catch (error) {
+            results.status = 'failed';
+            results.completed_at = new Date().toISOString();
+            results.error = error.message;
+            console.error(error.stack || error.message);
+          } finally {
+            fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+            fs.writeFileSync(resultPath, markdown(results));
+          }
+          NODE
+
+      - name: Commit validation result
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${RESULT_PATH}"
+          git commit -m 'Record Video Factory portrait ratio validation' || true
+          git push origin HEAD:main
+
+      - name: Require completed validation
+        run: grep -q '^Status: completed$' "${RESULT_PATH}"
