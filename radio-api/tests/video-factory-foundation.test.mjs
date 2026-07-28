@@ -33,6 +33,7 @@ test('aspect ratio presets return expected dimensions', () => {
   assert.deepEqual(getDimensionsForAspectRatio('16:9'), { width: 1920, height: 1080 });
   assert.deepEqual(getDimensionsForAspectRatio('9:16'), { width: 1080, height: 1920 });
   assert.deepEqual(getDimensionsForAspectRatio('3:4'), { width: 1080, height: 1440 });
+  assert.deepEqual(getDimensionsForAspectRatio('4:5'), { width: 1080, height: 1350 });
   assert.deepEqual(getDimensionsForAspectRatio('1:1'), { width: 1080, height: 1080 });
   assert.throws(() => getDimensionsForAspectRatio('2:1'), /Unsupported aspect ratio/);
 });
