@@ -1,11 +1,12 @@
 import { createYoutubeOAuthService } from './youtube-oauth.mjs';
 import { createYoutubePublishService } from './youtube-publish.mjs';
 import { createVideoOrchestratorService } from './video-orchestrator.mjs';
+import { createBatchCampaignService } from './batch-campaigns.mjs';
 import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.5.0';
+const SERVICE_VERSION = '0.6.0';
 
 function getJsonHeaders() {
   return {
@@ -104,11 +105,13 @@ export function createHandler({
   youtubeOAuth = createYoutubeOAuthService(),
   youtubePublish = null,
   videoOrchestrator = null,
+  batchCampaigns = null,
   reviewWorkflow = null,
   reviewActions = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
+  let resolvedBatchCampaigns = batchCampaigns;
   let resolvedReviewWorkflow = reviewWorkflow;
   let resolvedReviewActions = reviewActions;
 
@@ -120,6 +123,13 @@ export function createHandler({
   function getVideoOrchestrator() {
     if (!resolvedVideoOrchestrator) resolvedVideoOrchestrator = createVideoOrchestratorService();
     return resolvedVideoOrchestrator;
+  }
+
+  function getBatchCampaigns() {
+    if (!resolvedBatchCampaigns) {
+      resolvedBatchCampaigns = createBatchCampaignService({ orchestrator: getVideoOrchestrator() });
+    }
+    return resolvedBatchCampaigns;
   }
 
   function getReviewWorkflow() {
@@ -163,6 +173,9 @@ export function createHandler({
             youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             mainRadioApiDependency: false,
             radioApiBridgeSupported: true,
+            batchCampaignPlanningSupported: true,
+            batchDraftCreationSupported: true,
+            batchRenderLaunchRequiresSeparateApproval: true,
             renderStagingSupported: Boolean(
               process.env.SOCIAL_PUBLISH_BUCKET && process.env.VIDEO_FACTORY_SOURCE_BUCKET
             ),
@@ -201,6 +214,15 @@ export function createHandler({
 
       if (method === 'GET' && path === '/social/orchestration/candidates') {
         return json(200, { ok: true, ...(await getVideoOrchestrator().candidates(event)) });
+      }
+
+      if (method === 'POST' && path === '/social/orchestration/batch-plan') {
+        return json(200, { ok: true, ...(await getBatchCampaigns().plan(event)) });
+      }
+
+      if (method === 'POST' && path === '/social/orchestration/batch-drafts') {
+        const result = await getBatchCampaigns().createDrafts(event);
+        return json(result.created ? 201 : 200, { ok: true, ...result });
       }
 
       if (method === 'GET' && path === '/social/orchestration/render-jobs') {
