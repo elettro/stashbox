@@ -1,0 +1,174 @@
+name: Fix Video Factory RunTask Policy and Retry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-fix-video-factory-runtask-policy-and-retry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-video-factory-runtask-policy-and-retry
+  cancel-in-progress: false
+
+jobs:
+  fix-and-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-video-factory-dev
+      TRUE_DEV_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-first-orchestrated-render.json
+      TEMPLATE_PATH: infra/video-factory/dev-stack.yml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Make RunTask permission revision-safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('infra/video-factory/dev-stack.yml')
+          text = path.read_text(encoding='utf-8')
+          old = '            Resource: !Ref RenderTaskDefinition\n'
+          new = '            Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stashbox-video-factory-renderer-dev:*\n'
+          count = text.count(old)
+          if count == 1:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          elif new in text:
+              print('RunTask policy is already revision-safe.')
+          else:
+              raise SystemExit(f'Expected one exact RunTask resource line, found {count}.')
+          PY
+
+          grep -F 'task-definition/stashbox-video-factory-renderer-dev:*' "${TEMPLATE_PATH}"
+          aws cloudformation validate-template --template-body "file://${TEMPLATE_PATH}" >/dev/null
+
+      - name: Record permanent policy fix in repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- "${TEMPLATE_PATH}"; then
+            echo 'Template already contains the permanent policy fix.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${TEMPLATE_PATH}"
+          git commit -m 'Allow Video Factory RunTask across task revisions [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Deploy revision-safe IAM policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation update-stack \
+            --stack-name "${STACK_NAME}" \
+            --template-body "file://${TEMPLATE_PATH}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=ImageUri,UsePreviousValue=true \
+              ParameterKey=ApiLambdaRoleName,UsePreviousValue=true \
+              ParameterKey=ApiLambdaVpcId,UsePreviousValue=true \
+              ParameterKey=ApiLambdaSecurityGroupId,UsePreviousValue=true \
+              ParameterKey=ApiLambdaEndpointSubnetIds,UsePreviousValue=true \
+              ParameterKey=ApiLambdaRouteTableIds,UsePreviousValue=true \
+              ParameterKey=ApiBase,UsePreviousValue=true \
+              ParameterKey=AdminTokenSecretName,UsePreviousValue=true \
+            >/tmp/video-factory-policy-update.json
+
+          aws cloudformation wait stack-update-complete --stack-name "${STACK_NAME}"
+
+      - name: Verify effective Lambda RunTask policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROLE_ARN=$(aws lambda get-function-configuration \
+            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --query Role \
+            --output text)
+          ROLE_NAME="${ROLE_ARN##*/}"
+
+          aws iam get-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name StashboxVideoFactoryRenderDev \
+            --query PolicyDocument \
+            --output json > /tmp/video-factory-role-policy.json
+
+          jq -e '
+            any(.Statement[];
+              .Sid == "RunVideoFactoryTask" and
+              .Effect == "Allow" and
+              ((.Action == "ecs:RunTask") or (.Action | type == "array" and index("ecs:RunTask") != null)) and
+              (.Resource | type == "string") and
+              (.Resource | endswith("task-definition/stashbox-video-factory-renderer-dev:*"))
+            )
+          ' /tmp/video-factory-role-policy.json >/dev/null
+
+          echo "Verified revision-safe RunTask permission on ${ROLE_NAME}."
+          sleep 20
+
+      - name: Retry controlled Social Factory render
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check social-factory-api/scripts/run-first-orchestrated-render.mjs
+          node social-factory-api/scripts/run-first-orchestrated-render.mjs
+
+      - name: Commit sanitized render report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "${REPORT_PATH}" || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record RunTask-fixed Social Factory render [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Video Factory RunTask policy repair'
+            echo ''
+            echo '- Permanent task-revision wildcard added to the DEV CloudFormation policy.'
+            echo '- YouTube publishing was not requested.'
+            if [ -f "${REPORT_PATH}" ]; then
+              echo "- Render status: \`$(jq -r '.status // "unknown"' "${REPORT_PATH}")\`"
+              echo "- Song: \`$(jq -r '.selected_song.title // .final_job.song_title // "unknown"' "${REPORT_PATH}")\`"
+              echo "- Output: \`$(jq -r '.final_job.output_url // ""' "${REPORT_PATH}")\`"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
