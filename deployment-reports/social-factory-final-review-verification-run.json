@@ -1,20 +1,20 @@
 {
-  "recorded_at": "2026-07-28T04:22:02Z",
+  "recorded_at": "2026-07-28T04:26:38Z",
   "run": {
     "id": 30328266498,
-    "status": "in_progress",
-    "conclusion": null,
+    "status": "completed",
+    "conclusion": "failure",
     "head_sha": "667af690787cd91b81dc2326efac3cb3855f43fa",
     "created_at": "2026-07-28T04:15:59Z",
-    "updated_at": "2026-07-28T04:16:07Z",
+    "updated_at": "2026-07-28T04:26:32Z",
     "html_url": "https://github.com/elettro/stashbox/actions/runs/30328266498"
   },
   "jobs": [
     {
       "id": 90178032872,
       "name": "verify",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "failure",
       "steps": [
         {
           "name": "Set up job",
@@ -36,27 +36,33 @@
         },
         {
           "name": "Wait for Social Factory 0.5 and verify Content Review",
-          "status": "in_progress",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "failure",
           "number": 4
         },
         {
           "name": "Commit live verification receipt",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "skipped",
           "number": 5
         },
         {
           "name": "Post Run aws-actions/configure-aws-credentials@v4",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "success",
           "number": 9
         },
         {
           "name": "Post Run actions/checkout@v4",
-          "status": "pending",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "success",
           "number": 10
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
         }
       ]
     }
