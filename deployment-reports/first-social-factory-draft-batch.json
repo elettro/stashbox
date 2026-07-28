@@ -1,0 +1,55 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T13:40:10Z",
+  "api_version": "0.7.0",
+  "campaign_name": "First Social Factory Batch",
+  "health_http_status": "200",
+  "create_http_status": "201",
+  "proposed_job_count": 3,
+  "created_job_count": 3,
+  "skipped_job_count": 0,
+  "render_jobs_before": 26,
+  "render_jobs_after": 29,
+  "jobs": [
+    {
+      "id": "23b53d23-1260-4c01-9ef3-cd0f0c343dd1",
+      "song_key": "angel-in-your-bed-live-stashbox",
+      "song_title": "Angel In Your Bed (Live)",
+      "artist": "Stashbox",
+      "campaign_name": "First Social Factory Batch",
+      "status": "draft",
+      "duration_seconds": 30,
+      "aspect_ratio": "9:16",
+      "fps": 30,
+      "batch_name": "First Social Factory Batch - Angel In Your Bed (Live) - v01"
+    },
+    {
+      "id": "63683d47-a6fc-49f7-997a-e7118c7b1e36",
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "song_title": "Riding Waves (Live)",
+      "artist": "Stashbox",
+      "campaign_name": "First Social Factory Batch",
+      "status": "draft",
+      "duration_seconds": 30,
+      "aspect_ratio": "9:16",
+      "fps": 30,
+      "batch_name": "First Social Factory Batch - Riding Waves (Live) - v01"
+    },
+    {
+      "id": "c2e4405b-ea2e-47ea-b378-cbf2fb221fb4",
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "song_title": "Hippy Speedball (I'm On My Way)",
+      "artist": "Stashbox",
+      "campaign_name": "First Social Factory Batch",
+      "status": "draft",
+      "duration_seconds": 30,
+      "aspect_ratio": "9:16",
+      "fps": 30,
+      "batch_name": "First Social Factory Batch - Hippy Speedball (I'm On My Way) - v01"
+    }
+  ],
+  "approval_required_before_render_launch": true,
+  "renders_launched": false,
+  "files_staged": false,
+  "youtube_published": false
+}
