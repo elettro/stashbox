@@ -1,4 +1,5 @@
 name: Stage First Social Render Review
+# Trigger server-to-server staging for the completed Hippy Speedball render.
 
 on:
   push:
