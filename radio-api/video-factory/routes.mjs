@@ -20,7 +20,7 @@ export const VIDEO_FACTORY_STATUSES = Object.freeze([
 ]);
 
 const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
-const VALID_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '1:1']);
+const VALID_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '4:5', '1:1']);
 
 function requireDependency(name, value) {
   if (!value) throw new Error(`Video Factory dependency ${name} is required.`);
@@ -127,7 +127,7 @@ function normalizeCreateInput(input = {}) {
   if (!songKey) return { error: 'song_key is required.' };
 
   const aspectRatio = String(input.aspect_ratio || input.aspectRatio || VIDEO_FACTORY_DEFAULTS.aspect_ratio).trim();
-  if (!VALID_ASPECT_RATIOS.has(aspectRatio)) return { error: 'aspect_ratio must be one of: 16:9, 9:16, 3:4, 1:1.' };
+  if (!VALID_ASPECT_RATIOS.has(aspectRatio)) return { error: 'aspect_ratio must be one of: 16:9, 9:16, 3:4, 4:5, 1:1.' };
 
   let duration;
   let dimensions;
