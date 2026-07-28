@@ -1,0 +1,83 @@
+name: One-Time Snapshot Video Factory Queue
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-snapshot-video-factory-queue.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  snapshot-queue:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_QUEUE_SNAPSHOT.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Capture queue and validator state
+        run: |
+          set -euo pipefail
+          JOBS_JSON=$(curl --fail-with-body --silent --show-error \
+            -H 'accept: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${API_BASE}/admin/video-factory/jobs?limit=30")
+          RUN_JSON=$(gh run list \
+            --repo "${REPOSITORY}" \
+            --workflow one-time-validate-video-factory-portrait-ratios-v2.yml \
+            --limit 1 \
+            --json databaseId,status,conclusion,createdAt,updatedAt,url,headSha \
+            --jq '.[0] // {}')
+
+          mkdir -p "$(dirname "${RESULT_PATH}")"
+          {
+            echo '# Video Factory Queue Snapshot'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo '## Portrait validation workflow'
+            echo "- Run ID: $(printf '%s' "${RUN_JSON}" | jq -r '.databaseId // "not found"')"
+            echo "- Status: $(printf '%s' "${RUN_JSON}" | jq -r '.status // "unknown"')"
+            echo "- Conclusion: $(printf '%s' "${RUN_JSON}" | jq -r '.conclusion // "pending"')"
+            echo "- Created: $(printf '%s' "${RUN_JSON}" | jq -r '.createdAt // ""')"
+            echo "- Updated: $(printf '%s' "${RUN_JSON}" | jq -r '.updatedAt // ""')"
+            echo "- Head SHA: $(printf '%s' "${RUN_JSON}" | jq -r '.headSha // ""')"
+            echo "- URL: $(printf '%s' "${RUN_JSON}" | jq -r '.url // ""')"
+            echo
+            echo '## Active jobs'
+            ACTIVE_COUNT=$(printf '%s' "${JOBS_JSON}" | jq '[.jobs[]? | select(.status == "pending" or .status == "preparing" or .status == "rendering" or .status == "uploading")] | length')
+            echo "- Count: ${ACTIVE_COUNT}"
+            printf '%s' "${JOBS_JSON}" | jq -r '
+              .jobs[]?
+              | select(.status == "pending" or .status == "preparing" or .status == "rendering" or .status == "uploading")
+              | "- `\(.id)` | \(.status) | \(.aspect_ratio) | \(.width)x\(.height) | \(.artist) — \(.song_title) | progress \(.render_recipe.runtime.progress_percent // 0)% | \(.render_recipe.runtime.status_message // \"\")"
+            '
+            echo
+            echo '## Recent jobs'
+            printf '%s' "${JOBS_JSON}" | jq -r '
+              .jobs[0:15][]?
+              | "- `\(.id)` | \(.status) | \(.aspect_ratio) | \(.width)x\(.height) | \(.duration_seconds // \"full\")s | \(.artist) — \(.song_title) | \(.created_at)"
+            '
+          } > "${RESULT_PATH}"
+
+      - name: Commit queue snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${RESULT_PATH}"
+          git commit -m 'Record Video Factory queue snapshot'
+          git pull --rebase origin main
+          git push origin HEAD:main
