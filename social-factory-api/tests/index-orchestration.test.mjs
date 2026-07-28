@@ -14,7 +14,7 @@ function request(path, method = 'GET', body) {
   };
 }
 
-function createApi(overrides = {}) {
+function createApi({ orchestrator = {}, review = {} } = {}) {
   return createHandler({
     youtubeOAuth: {
       start: async () => ({}),
@@ -40,7 +40,16 @@ function createApi(overrides = {}) {
       createDraft: async () => ({ created: true, job: { id: 'job-12345678' } }),
       getJob: async (_event, id) => ({ job: { id } }),
       launch: async (_event, id) => ({ launched: true, job: { id, status: 'pending' } }),
-      ...overrides
+      ...orchestrator
+    },
+    reviewWorkflow: {
+      stageRender: async (_event, id) => ({
+        staged: true,
+        review_item: { id: `render-${id}`, status: 'in_review' }
+      }),
+      listReviewItems: async () => ({ count: 1, items: [{ id: 'render-job-12345678' }] }),
+      getReviewItem: async (_event, id) => ({ item: { id, status: 'in_review' } }),
+      ...review
     }
   });
 }
@@ -70,4 +79,25 @@ test('render-job item and launch paths preserve the job ID', async () => {
     { confirm_render: true }
   ));
   assert.equal(JSON.parse(launchResponse.body).job.status, 'pending');
+});
+
+test('completed render staging path delegates to the review workflow', async () => {
+  const response = await createApi()(request(
+    '/social/orchestration/render-jobs/job-12345678/stage',
+    'POST',
+    { confirm_stage: true }
+  ));
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.staged, true);
+  assert.equal(body.review_item.id, 'render-job-12345678');
+});
+
+test('review list and review item routes preserve IDs', async () => {
+  const api = createApi();
+  const listResponse = await api(request('/social/review-items'));
+  assert.equal(JSON.parse(listResponse.body).count, 1);
+
+  const itemResponse = await api(request('/social/review-items/render-job-12345678'));
+  assert.equal(JSON.parse(itemResponse.body).item.id, 'render-job-12345678');
 });
