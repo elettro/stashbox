@@ -1,0 +1,96 @@
+name: Record Social Factory Stack Status
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/record-social-factory-stack-status.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: record-social-factory-stack-status
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      ROLE_NAME: stashbox-social-cloudformation-dev-role
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Record current stack state
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          STACK_JSON=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --output json)
+          STACK_STATUS=$(jq -r '.Stacks[0].StackStatus' <<<"${STACK_JSON}")
+          STACK_ROLE_ARN=$(jq -r '.Stacks[0].RoleARN // ""' <<<"${STACK_JSON}")
+          EXPECTED_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+          STACK_EVENT_SUMMARY=$(aws cloudformation describe-stack-events \
+            --stack-name "${STACK_NAME}" \
+            --query 'StackEvents[?ResourceStatusReason!=`null`].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+            --output text | head -n 40)
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            --arg region "${AWS_REGION}" \
+            --arg stack_name "${STACK_NAME}" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg stack_role_arn "${STACK_ROLE_ARN}" \
+            --arg expected_role_arn "${EXPECTED_ROLE_ARN}" \
+            --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
+            '{
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              run_id: $run_id,
+              run_url: $run_url,
+              region: $region,
+              stack_name: $stack_name,
+              stack_status: $stack_status,
+              stack_role_arn: $stack_role_arn,
+              expected_role_arn: $expected_role_arn,
+              role_associated: ($stack_role_arn == $expected_role_arn),
+              stack_event_summary: $stack_event_summary
+            }' > /tmp/social-factory-stack-status.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-stack-status.json deployment-reports/social-factory-stack-status.json
+          git add deployment-reports/social-factory-stack-status.json
+
+          if git diff --cached --quiet; then
+            echo 'Stack status receipt already current.'
+            exit 0
+          fi
+
+          git commit -m 'Record Social Factory stack status [skip ci]'
+          git push origin main
