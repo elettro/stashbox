@@ -53,7 +53,7 @@
     return detail ? `${error.message}: ${detail}` : String(error.message || error);
   }
 
-  async function api(path, options = {}) {
+  async function api(path, { method = 'GET', body = null, headers = {} } = {}) {
     const token = getToken();
     if (!token) {
       const error = new Error('unauthorized');
@@ -62,12 +62,13 @@
     }
 
     const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
+      method,
       headers: {
         'x-admin-token': token,
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(options.headers || {})
-      }
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...headers
+      },
+      ...(body ? { body: JSON.stringify(body) } : {})
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok === false) {
@@ -120,6 +121,16 @@
     elements.renderActiveCount.textContent = Number(counts.active || 0);
     elements.renderCompletedCount.textContent = Number(counts.completed || 0);
     elements.renderFailedCount.textContent = Number(counts.failed || 0);
+  }
+
+  function currentCounts() {
+    return {
+      total: state.jobs.length,
+      draft: state.jobs.filter((job) => job.status === 'draft').length,
+      active: state.jobs.filter((job) => ACTIVE_STATUSES.has(job.status)).length,
+      completed: state.jobs.filter((job) => job.status === 'completed').length,
+      failed: state.jobs.filter((job) => ['failed', 'cancelled'].includes(job.status)).length
+    };
   }
 
   function createJobCard(job) {
@@ -175,7 +186,7 @@
     state.campaignName = payload.campaign_name || state.campaignName;
     if (state.campaignName) elements.renderCampaignName.value = state.campaignName;
 
-    updateCounts(payload.counts);
+    updateCounts(payload.counts || currentCounts());
     elements.renderJobList.replaceChildren();
     state.jobs.forEach((job) => elements.renderJobList.appendChild(createJobCard(job)));
     elements.renderJobsEmpty.hidden = state.jobs.length > 0;
@@ -230,13 +241,7 @@
     renderJobs({
       campaign_name: state.campaignName,
       jobs: state.jobs,
-      counts: {
-        total: state.jobs.length,
-        draft: state.jobs.filter((job) => job.status === 'draft').length,
-        active: state.jobs.filter((job) => ACTIVE_STATUSES.has(job.status)).length,
-        completed: state.jobs.filter((job) => job.status === 'completed').length,
-        failed: state.jobs.filter((job) => ['failed', 'cancelled'].includes(job.status)).length
-      }
+      counts: currentCounts()
     });
   }
 
@@ -249,8 +254,9 @@
     showMessage('Validating the selected render launch…');
     try {
       const validation = await api('/social/orchestration/batch-launch', {
-        job_ids: ids
-      }, { method: 'POST' });
+        method: 'POST',
+        body: { job_ids: ids }
+      });
       const count = Number(validation.would_launch_count || 0);
       if (!count) {
         showMessage('No selected draft jobs are available to launch.', 'error');
@@ -266,14 +272,18 @@
       }
 
       const result = await api('/social/orchestration/batch-launch', {
-        job_ids: ids,
-        confirm_render_batch: true
-      }, { method: 'POST' });
+        method: 'POST',
+        body: {
+          job_ids: ids,
+          confirm_render_batch: true
+        }
+      });
       state.selected.clear();
       showMessage(
         `${Number(result.launched_job_count || 0)} render${Number(result.launched_job_count || 0) === 1 ? '' : 's'} launched. ${Number(result.failed_job_count || 0)} failed to launch. Nothing was published.`,
         result.failed_job_count ? 'error' : 'success'
       );
+      setBusy(false);
       await loadJobs({ quiet: true });
     } catch (error) {
       showMessage(formatError(error), 'error');
@@ -291,8 +301,9 @@
     showMessage('Validating completed renders for Content Review…');
     try {
       const validation = await api('/social/orchestration/batch-stage', {
-        job_ids: ids
-      }, { method: 'POST' });
+        method: 'POST',
+        body: { job_ids: ids }
+      });
       const count = Number(validation.would_stage_count || 0);
       if (!count) {
         showMessage('No selected completed renders are available for staging.', 'error');
@@ -308,15 +319,19 @@
       }
 
       const result = await api('/social/orchestration/batch-stage', {
-        job_ids: ids,
-        confirm_stage_batch: true
-      }, { method: 'POST' });
+        method: 'POST',
+        body: {
+          job_ids: ids,
+          confirm_stage_batch: true
+        }
+      });
       state.selected.clear();
       const staged = Number(result.staged_job_count || 0);
       showMessage(
         `${staged} render${staged === 1 ? '' : 's'} moved into Content Review. ${Number(result.failed_job_count || 0)} failed to stage. Nothing was published.`,
         result.failed_job_count ? 'error' : 'success'
       );
+      setBusy(false);
       await loadJobs({ quiet: true });
       elements.refreshQueue?.click();
     } catch (error) {
@@ -342,13 +357,7 @@
       renderJobs({
         campaign_name: state.campaignName,
         jobs: state.jobs,
-        counts: {
-          total: state.jobs.length,
-          draft: state.jobs.filter((job) => job.status === 'draft').length,
-          active: state.jobs.filter((job) => ACTIVE_STATUSES.has(job.status)).length,
-          completed: state.jobs.filter((job) => job.status === 'completed').length,
-          failed: state.jobs.filter((job) => ['failed', 'cancelled'].includes(job.status)).length
-        }
+        counts: currentCounts()
       });
     });
     elements.launchSelectedRenders.addEventListener('click', launchSelected);
