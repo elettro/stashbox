@@ -1,0 +1,110 @@
+name: Update Social Factory Deploy Smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-update-social-factory-deploy-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Update deployment smoke contract to Social Factory 0.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-social-factory-api-dev.yml')
+          text = path.read_text(encoding='utf-8')
+
+          old_version = '.version == "0.3.0" and'
+          new_version = '.version == "0.4.0" and'
+          if text.count(old_version) == 1:
+              text = text.replace(old_version, new_version)
+          elif new_version not in text:
+              raise SystemExit('Expected Social Factory health version assertion was not found.')
+
+          old_scope = '.isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"'
+          new_scope = '.isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'
+          if text.count(old_scope) == 1:
+              text = text.replace(old_scope, new_scope)
+          elif new_scope not in text:
+              raise SystemExit('Expected Social Factory execution-role assertion was not found.')
+
+          old_bridge = '''            .isolation.mainRadioApiDependency == false and
+            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'''
+          new_bridge = '''            .isolation.mainRadioApiDependency == false and
+            .isolation.radioApiBridgeSupported == true and
+            .isolation.renderStagingSupported == true and
+            .isolation.contentReviewSupported == true and
+            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'''
+          if old_bridge in text:
+              text = text.replace(old_bridge, new_bridge, 1)
+          elif new_bridge not in text:
+              raise SystemExit('Expected Social Factory bridge assertions were not found.')
+
+          marker = '''          jq -e '.ok == false and .error == "unauthorized"' \\
+            /tmp/social-publish-status.json >/dev/null
+
+          echo "Social Factory health endpoint: ${HEALTH_URL}"'''
+          replacement = '''          jq -e '.ok == false and .error == "unauthorized"' \\
+            /tmp/social-publish-status.json >/dev/null
+
+          STAGE_STATUS=$(curl --silent --show-error --max-time 45 \\
+            -X POST \\
+            -H 'Content-Type: application/json' \\
+            -d '{}' \\
+            -o /tmp/social-stage-status.json \\
+            -w '%{http_code}' \\
+            "${BASE_URL}/social/orchestration/render-jobs/job-12345678/stage")
+          test "${STAGE_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' \\
+            /tmp/social-stage-status.json >/dev/null
+
+          REVIEW_STATUS=$(curl --silent --show-error --max-time 45 \\
+            -o /tmp/social-review-status.json \\
+            -w '%{http_code}' \\
+            "${BASE_URL}/social/review-items")
+          test "${REVIEW_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' \\
+            /tmp/social-review-status.json >/dev/null
+
+          echo "Social Factory health endpoint: ${HEALTH_URL}"'''
+          if marker in text:
+              text = text.replace(marker, replacement, 1)
+          elif 'social-stage-status.json' not in text:
+              raise SystemExit('Expected publishing smoke marker was not found.')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git diff --check
+          grep -F '.version == "0.4.0"' .github/workflows/deploy-social-factory-api-dev.yml
+          grep -F '.isolation.renderStagingSupported == true' .github/workflows/deploy-social-factory-api-dev.yml
+          grep -F 'social-stage-status.json' .github/workflows/deploy-social-factory-api-dev.yml
+
+      - name: Commit updated deployment smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-social-factory-api-dev.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Update Social Factory deployment smoke for staging review [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
