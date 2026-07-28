@@ -1,0 +1,169 @@
+name: One-Time Apply Social Schedule Cancel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-social-schedule-cancel.yml'
+      - 'social-factory-api/scripts/apply-schedule-cancel-control.mjs'
+      - 'social-factory-api/tests/schedule-cancel-route.test.mjs'
+      - 'radio-admin/dev/social-factory/schedule-controls.js'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-social-schedule-cancel
+  cancel-in-progress: false
+
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/social-factory-schedule-cancel-deployment.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Apply schedule cancellation source patch
+        run: |
+          set -euo pipefail
+          node --check social-factory-api/scripts/apply-schedule-cancel-control.mjs
+          node social-factory-api/scripts/apply-schedule-cancel-control.mjs
+          node --check radio-admin/dev/social-factory/schedule-controls.js
+
+      - name: Validate complete Social Factory source and tests
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+          sam validate --template-file infrastructure/template.yaml --lint
+
+      - name: Commit tested cancellation source
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            social-factory-api/schedule-publish.mjs \
+            social-factory-api/index.mjs \
+            social-factory-api/infrastructure/template.yaml \
+            social-factory-api/tests/schedule-publish.test.mjs \
+            radio-admin/dev/social-factory/index.html
+          git commit -m 'Add reversible Social Factory schedule controls [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and deploy isolated DEV stack
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ROLE_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].RoleARN' \
+            --output text)
+          test "${ROLE_ARN}" = "arn:aws:iam::${ACCOUNT_ID}:role/stashbox-social-cloudformation-dev-role"
+          ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+
+          cd social-factory-api
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "${ROLE_ARN}" \
+            --s3-bucket "${ARTIFACT_BUCKET}" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com \
+            2>&1 | tee /tmp/schedule-cancel-deploy.log
+
+      - name: Verify protected cancellation route and service health
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" \
+            --output text)
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+          test "${STACK_STATUS}" = 'UPDATE_COMPLETE'
+
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/schedule-cancel-health.json -w '%{http_code}' \
+            "${BASE_URL}/social/health")
+          test "${HEALTH_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .environment == "dev" and
+            .isolation.queueConfigured == true and
+            .isolation.scheduledPublishingConfigured == true
+          ' /tmp/schedule-cancel-health.json >/dev/null
+
+          CANCEL_STATUS=$(curl --silent --show-error --max-time 60 \
+            -X POST -H 'Content-Type: application/json' \
+            -d '{"confirm_cancel_schedule":false}' \
+            -o /tmp/schedule-cancel-unauthorized.json -w '%{http_code}' \
+            "${BASE_URL}/social/review-items/render-test-12345678/schedule/cancel")
+          test "${CANCEL_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' /tmp/schedule-cancel-unauthorized.json >/dev/null
+
+          jq -n \
+            --arg status success \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg base_url "${BASE_URL}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg cancel_route_http_status "${CANCEL_STATUS}" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              stack_status:$stack_status,
+              base_url:$base_url,
+              health_http_status:$health_http_status,
+              protected_cancel_route_http_status:$cancel_route_http_status,
+              schedule_cancel_supported:true,
+              validation_only_supported:true,
+              confirmed_cancel_supported:true,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+      - name: Commit deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory schedule cancellation deployment [skip ci]'
+          git push origin HEAD:main
