@@ -40,6 +40,7 @@ jobs:
               one-time-validate-video-factory-portrait-ratios-v2.yml \
               one-time-capture-video-factory-portrait-qa.yml \
               one-time-validate-video-factory-long-title-regression.yml \
+              one-time-apply-video-factory-portrait-title-safe-margin.yml \
               monitor-video-factory-deploy-dev.yml; do
               echo "## ${WORKFLOW}"
               RUN=$(gh run list \
@@ -76,4 +77,4 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-# Snapshot revision: 7
+# Snapshot revision: 8
