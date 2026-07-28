@@ -1,0 +1,66 @@
+validate-and-deploy	Deploy isolated DEV stack	﻿2026-07-28T20:33:14.2956212Z ##[group]Run set +e
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2956528Z ^[[36;1mset +e^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2956850Z ^[[36;1mARTIFACT_BUCKET=$(cat /tmp/social-factory-artifact-bucket)^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2957231Z ^[[36;1m^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2957429Z ^[[36;1msam deploy \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2957680Z ^[[36;1m  --stack-name "${STACK_NAME}" \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2957991Z ^[[36;1m  --region "${AWS_REGION}" \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2958299Z ^[[36;1m  --capabilities CAPABILITY_NAMED_IAM \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2958623Z ^[[36;1m  --s3-bucket "${ARTIFACT_BUCKET}" \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2958970Z ^[[36;1m  --s3-prefix "social-factory-api/${GITHUB_SHA}" \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2959306Z ^[[36;1m  --no-confirm-changeset \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2959591Z ^[[36;1m  --no-fail-on-empty-changeset \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2960236Z ^[[36;1m  --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com \^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2960743Z ^[[36;1m  2>&1 | tee /tmp/social-factory-sam-deploy.log^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2961457Z ^[[36;1m^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2961687Z ^[[36;1mDEPLOY_EXIT_CODE=${PIPESTATUS[0]}^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2962073Z ^[[36;1mecho "${DEPLOY_EXIT_CODE}" > /tmp/social-factory-sam-deploy.exit^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.2962458Z ^[[36;1mexit "${DEPLOY_EXIT_CODE}"^[[0m
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3006677Z shell: /usr/bin/bash -e {0}
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3006939Z env:
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3007138Z   AWS_REGION: us-east-1
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3007387Z   STACK_NAME: stashbox-social-api-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3007707Z   EXPECTED_FUNCTION_NAME: stashbox-social-api-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3008114Z   EXPECTED_WORKER_FUNCTION_NAME: stashbox-social-publish-worker-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3008541Z   EXPECTED_LOG_GROUP: /aws/lambda/stashbox-social-api-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3008981Z   EXPECTED_WORKER_LOG_GROUP: /aws/lambda/stashbox-social-publish-worker-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3009503Z   EXPECTED_CONFIG_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/config
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3010014Z   EXPECTED_TOKEN_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/tokens
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3010521Z   EXPECTED_PUBLISH_BUCKET: stashbox-social-publish-656260749296-us-east-1
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3010987Z   EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3011602Z   EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3012004Z   EXPECTED_SCHEDULE_GROUP: stashbox-social-publish-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3012330Z   AWS_DEFAULT_REGION: us-east-1
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3012699Z   AWS_ACCESS_KEY_ID: ***
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3013148Z   AWS_SECRET_ACCESS_KEY: ***
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:14.3013392Z ##[endgroup]
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:16.6727898Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:17.1090186Z 	Uploading to social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/41728ae900b90296306894147e705b82  1048576 / 3232067  (32.44%)
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:17.1826015Z 	Uploading to social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/41728ae900b90296306894147e705b82  2097152 / 3232067  (64.89%)
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:17.4939378Z 	Uploading to social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/41728ae900b90296306894147e705b82  3145728 / 3232067  (97.33%)
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:17.4940747Z 	Uploading to social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/41728ae900b90296306894147e705b82  3232067 / 3232067  (100.00%)
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.1700222Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.1701899Z 	File with same data already exists at social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/41728ae900b90296306894147e705b82, skipping upload
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2465099Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2465842Z 	Deploying with following values
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2466541Z 	===============================
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2467043Z 	Stack name                   : stashbox-social-api-dev
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2467579Z 	Region                       : us-east-1
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2468007Z 	Confirm changeset            : False
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2468414Z 	Disable rollback             : False
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2469000Z 	Deployment s3 bucket         : stashbox-social-deploy-656260749296-us-east-1
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2470101Z 	Capabilities                 : ["CAPABILITY_NAMED_IAM"]
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2470777Z 	Parameter overrides          : {"EnvironmentName": "dev", "AllowedOrigin": "https://stashbox.com"}
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2471815Z 	Signing Profiles             : {}
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2472039Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2472177Z Initiating deployment
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2472467Z =====================
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:18.2472615Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:19.4981895Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:19.4983577Z 	Uploading to social-factory-api/db0dbf945ced7397e099ec8f07737ce93a0a58fe/2881cbcf571edf95f0de8e7216582b53.template  22048 / 22048  (100.00%)
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:19.9453986Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:19.9454071Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:19.9454658Z Waiting for changeset to be created..
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:35.6164874Z 
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:35.6167935Z Error: Failed to create changeset for the stack: stashbox-social-api-dev, ex: Waiter ChangeSetCreateComplete failed: Waiter encountered a terminal failure state: For expression "Status" we matched expected path: "FAILED" Status: FAILED. Reason: The following hook(s)/validation failed: [AWS::EarlyValidation::ResourceExistenceCheck]. To troubleshoot Early Validation errors, use the DescribeEvents API for detailed failure information.
+validate-and-deploy	Deploy isolated DEV stack	2026-07-28T20:33:35.8278497Z ##[error]Process completed with exit code 1.
