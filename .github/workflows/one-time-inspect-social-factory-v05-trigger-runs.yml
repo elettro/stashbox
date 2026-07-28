@@ -1,6 +1,5 @@
 name: Inspect Social Factory V05 Trigger Runs
-# Refresh after the robust smoke-repair attempt.
-# Second inspection pass after repair workflow completion.
+# Capture sanitized failure details for the latest smoke and verification runs.
 
 on:
   push:
@@ -27,7 +26,7 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Inspect target workflow runs
+      - name: Inspect target workflow runs and failure diagnostics
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,16 +34,11 @@ jobs:
           set -euo pipefail
           mkdir -p "$(dirname "${REPORT_PATH}")"
           API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          AUTH=(-H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28')
 
           fetch_workflow() {
-            local workflow="$1"
-            local output="$2"
-            curl --fail --silent --show-error \
-              -H 'Accept: application/vnd.github+json' \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "${API}/actions/workflows/${workflow}/runs?per_page=5" \
-              > "${output}"
+            curl --fail --silent --show-error "${AUTH[@]}" \
+              "${API}/actions/workflows/$1/runs?per_page=5" > "$2"
           }
 
           fetch_workflow 'one-time-apply-social-factory-v05-smoke.yml' /tmp/smoke-runs.json
@@ -54,27 +48,67 @@ jobs:
           for target in smoke verify deploy; do
             RUN_ID=$(jq -r '.workflow_runs[0].id // empty' "/tmp/${target}-runs.json")
             if [ -n "${RUN_ID}" ]; then
-              curl --fail --silent --show-error \
-                -H 'Accept: application/vnd.github+json' \
-                -H "Authorization: Bearer ${GH_TOKEN}" \
-                -H 'X-GitHub-Api-Version: 2022-11-28' \
-                "${API}/actions/runs/${RUN_ID}/jobs?per_page=30" \
-                > "/tmp/${target}-jobs.json"
+              curl --fail --silent --show-error "${AUTH[@]}" \
+                "${API}/actions/runs/${RUN_ID}/jobs?per_page=30" > "/tmp/${target}-jobs.json"
+              JOB_ID=$(jq -r '.jobs[0].id // empty' "/tmp/${target}-jobs.json")
+              if [ -n "${JOB_ID}" ]; then
+                curl --fail --location --silent --show-error "${AUTH[@]}" \
+                  "${API}/actions/jobs/${JOB_ID}/logs" > "/tmp/${target}-logs.bin" || true
+              fi
             else
               printf '{"jobs":[]}' > "/tmp/${target}-jobs.json"
             fi
           done
+
+          python <<'PY'
+          import io
+          import re
+          import zipfile
+          from pathlib import Path
+
+          def extract(name):
+              source = Path(f'/tmp/{name}-logs.bin')
+              target = Path(f'/tmp/{name}-diagnostic.txt')
+              if not source.exists():
+                  target.write_text('', encoding='utf-8')
+                  return
+              raw = source.read_bytes()
+              if raw.startswith(b'PK'):
+                  with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                      text = '\n'.join(
+                          archive.read(item).decode('utf-8', errors='replace')
+                          for item in archive.namelist()
+                          if not item.endswith('/')
+                      )
+              else:
+                  text = raw.decode('utf-8', errors='replace')
+              pattern = re.compile(
+                  r'error|failed|failure|not found|expected|timed out|version|unauthorized|HTTP [45][0-9][0-9]|process completed',
+                  re.IGNORECASE
+              )
+              lines = [line for line in text.splitlines() if pattern.search(line)]
+              cleaned = '\n'.join(lines[-80:])
+              cleaned = re.sub(r'(?i)(x-admin-token|authorization):?\s+\S+', r'\1: [REDACTED]', cleaned)
+              cleaned = re.sub(r'(?<![A-Za-z0-9])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9])', '[REDACTED]', cleaned)
+              target.write_text(cleaned[:16000], encoding='utf-8')
+
+          for name in ('smoke', 'verify', 'deploy'):
+              extract(name)
+          PY
 
           RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           jq -n \
             --arg recorded_at "${RECORDED_AT}" \
             --slurpfile smoke_runs /tmp/smoke-runs.json \
             --slurpfile smoke_jobs /tmp/smoke-jobs.json \
+            --rawfile smoke_diagnostic /tmp/smoke-diagnostic.txt \
             --slurpfile verify_runs /tmp/verify-runs.json \
             --slurpfile verify_jobs /tmp/verify-jobs.json \
+            --rawfile verify_diagnostic /tmp/verify-diagnostic.txt \
             --slurpfile deploy_runs /tmp/deploy-runs.json \
-            --slurpfile deploy_jobs /tmp/deploy-jobs.json '
-              def normalized($runs; $jobs):
+            --slurpfile deploy_jobs /tmp/deploy-jobs.json \
+            --rawfile deploy_diagnostic /tmp/deploy-diagnostic.txt '
+              def normalized($runs; $jobs; $diagnostic):
                 ($runs[0].workflow_runs[0] // null) as $run |
                 {
                   run: (if $run then {
@@ -93,13 +127,14 @@ jobs:
                     status,
                     conclusion,
                     steps: [.steps[]? | {name, status, conclusion, number}]
-                  }]
+                  }],
+                  sanitized_diagnostic: $diagnostic
                 };
               {
                 recorded_at: $recorded_at,
-                smoke_patch: normalized($smoke_runs; $smoke_jobs),
-                live_verification: normalized($verify_runs; $verify_jobs),
-                social_factory_deploy: normalized($deploy_runs; $deploy_jobs)
+                smoke_patch: normalized($smoke_runs; $smoke_jobs; $smoke_diagnostic),
+                live_verification: normalized($verify_runs; $verify_jobs; $verify_diagnostic),
+                social_factory_deploy: normalized($deploy_runs; $deploy_jobs; $deploy_diagnostic)
               }
             ' > "${REPORT_PATH}"
 
