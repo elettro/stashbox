@@ -1,0 +1,81 @@
+name: One-Time Retry Video Factory Long Title 3x4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-retry-video-factory-long-title-3x4.yml'
+      - 'radio-api/scripts/retry-video-factory-long-title-3x4.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  retry-long-title-3x4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      JOB_ID: ed85c085-40d8-425c-90af-3385821a1e34
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_LONG_TITLE_3X4_RETRY_RESULT.md
+      OUTPUT_DIR: /tmp/video-factory-long-title-3x4-retry
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FFPROBE_PATH: /usr/bin/ffprobe
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install FFmpeg tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          test -x "${FFMPEG_PATH}"
+          test -x "${FFPROBE_PATH}"
+
+      - name: Check retry script syntax
+        run: node --check radio-api/scripts/retry-video-factory-long-title-3x4.mjs
+
+      - name: Retry and validate long-title 3:4 render
+        run: node radio-api/scripts/retry-video-factory-long-title-3x4.mjs
+
+      - name: Upload retry video and frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-factory-long-title-3x4-retry
+          path: /tmp/video-factory-long-title-3x4-retry
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit retry report
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -f "${RESULT_PATH}" ]; then
+            echo "Retry report was not created; skipping report commit."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${RESULT_PATH}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record Video Factory long-title 3x4 retry'
+          fi
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require successful retry
+        run: |
+          grep -q '^Status: completed$' "${RESULT_PATH}"
