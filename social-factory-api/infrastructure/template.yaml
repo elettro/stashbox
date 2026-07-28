@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, and protected Video Factory orchestration.
+Description: Isolated Stashbox Social Factory DEV API with YouTube OAuth, unlisted publishing, protected Video Factory orchestration, server-side staging, and content review drafts.
 
 Parameters:
   EnvironmentName:
@@ -160,6 +160,26 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub ${SocialPublishBucket.Arn}/incoming/*
+              - Sid: ReadWriteReviewDrafts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/drafts/*
+              - Sid: ListReviewDrafts
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt SocialPublishBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - drafts/*
+              - Sid: ReadVideoFactoryRenderOutputs
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}/video-factory/*
 
   SocialApiDevFunction:
     Type: AWS::Serverless::Function
@@ -181,6 +201,7 @@ Resources:
           YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
+          VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
           SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
       Events:
@@ -256,6 +277,24 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/orchestration/render-jobs/{jobId}/launch
             Method: POST
+        OrchestrationRenderJobStage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/orchestration/render-jobs/{jobId}/stage
+            Method: POST
+        ReviewItemsList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items
+            Method: GET
+        ReviewItemGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/{reviewId}
+            Method: GET
 
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup
