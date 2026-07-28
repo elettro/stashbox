@@ -6,4 +6,8 @@
   // Keep this bootstrap synchronous; dynamically appended scripts may execute
   // after the shared header has already restructured the legacy top bar.
   document.write('<script src="/radio-admin/dev/app-core.js?v=20260721-songs-access1"><\/script>');
+
+  if (window.location.pathname.includes('/radio-admin/songs/dev')) {
+    document.write('<script src="/radio-admin/songs/dev/vec-disabled.js?v=20260728-songs-vec-disabled1"><\/script>');
+  }
 })();
