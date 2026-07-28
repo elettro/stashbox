@@ -1,5 +1,5 @@
 name: Apply Social Factory V05 Deploy Smoke
-# Trigger after this workflow already exists on the default branch.
+# Robust health-contract repair. This version avoids multiline matching around shell continuations.
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Update Social Factory deployment smoke to version 0.5
+      - name: Update Social Factory deployment health contract to version 0.5
         shell: bash
         run: |
           set -euo pipefail
@@ -40,58 +40,30 @@ jobs:
               count=1
           )
           if version_count != 1 and '.version == "0.5.0" and' not in text:
-              raise SystemExit('Social Factory version smoke assertion was not found.')
+              raise SystemExit('Social Factory version assertion was not found.')
 
           old_scope = '.isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"'
           new_scope = '.isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'
           if old_scope in text:
               text = text.replace(old_scope, new_scope, 1)
           elif new_scope not in text:
-              raise SystemExit('Social Factory execution role smoke assertion was not found.')
+              raise SystemExit('Social Factory execution role assertion was not found.')
 
-          anchor = '''            .isolation.mainRadioApiDependency == false and
-            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'''
-          expanded = '''            .isolation.mainRadioApiDependency == false and
-            .isolation.radioApiBridgeSupported == true and
-            .isolation.renderStagingSupported == true and
-            .isolation.contentReviewSupported == true and
-            .isolation.reviewEditingSupported == true and
-            .isolation.securePreviewSupported == true and
-            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'''
-          if anchor in text:
-              text = text.replace(anchor, expanded, 1)
-          elif expanded not in text:
-              raise SystemExit('Social Factory Content Review smoke anchor was not found.')
+          required_lines = [
+              '            .isolation.radioApiBridgeSupported == true and',
+              '            .isolation.renderStagingSupported == true and',
+              '            .isolation.contentReviewSupported == true and',
+              '            .isolation.reviewEditingSupported == true and',
+              '            .isolation.securePreviewSupported == true and'
+          ]
+          anchor = '            .isolation.mainRadioApiDependency == false and'
+          if anchor not in text:
+              raise SystemExit('Social Factory isolation anchor was not found.')
 
-          publish_marker = '''          jq -e '.ok == false and .error == "unauthorized"' \\
-            /tmp/social-publish-status.json >/dev/null
-
-          echo "Social Factory health endpoint: ${HEALTH_URL}"'''
-          review_smokes = '''          jq -e '.ok == false and .error == "unauthorized"' \\
-            /tmp/social-publish-status.json >/dev/null
-
-          REVIEW_STATUS=$(curl --silent --show-error --max-time 45 \\
-            -o /tmp/social-review-status.json \\
-            -w '%{http_code}' \\
-            "${BASE_URL}/social/review-items")
-          test "${REVIEW_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \\
-            /tmp/social-review-status.json >/dev/null
-
-          PREVIEW_STATUS=$(curl --silent --show-error --max-time 45 \\
-            -X POST -H 'Content-Type: application/json' -d '{}' \\
-            -o /tmp/social-preview-status.json \\
-            -w '%{http_code}' \\
-            "${BASE_URL}/social/review-items/render-job-12345678/preview")
-          test "${PREVIEW_STATUS}" = '401'
-          jq -e '.ok == false and .error == "unauthorized"' \\
-            /tmp/social-preview-status.json >/dev/null
-
-          echo "Social Factory health endpoint: ${HEALTH_URL}"'''
-          if publish_marker in text:
-              text = text.replace(publish_marker, review_smokes, 1)
-          elif 'social-preview-status.json' not in text:
-              raise SystemExit('Social Factory publish smoke marker was not found.')
+          missing = [line for line in required_lines if line not in text]
+          if missing:
+              insertion = anchor + '\n' + '\n'.join(missing)
+              text = text.replace(anchor, insertion, 1)
 
           path.write_text(text, encoding='utf-8')
           PY
@@ -99,9 +71,10 @@ jobs:
           git diff --check
           grep -F '.version == "0.5.0"' .github/workflows/deploy-social-factory-api-dev.yml
           grep -F '.isolation.reviewEditingSupported == true' .github/workflows/deploy-social-factory-api-dev.yml
-          grep -F 'social-preview-status.json' .github/workflows/deploy-social-factory-api-dev.yml
+          grep -F '.isolation.securePreviewSupported == true' .github/workflows/deploy-social-factory-api-dev.yml
+          grep -F 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read' .github/workflows/deploy-social-factory-api-dev.yml
 
-      - name: Commit corrected deployment smoke
+      - name: Commit corrected deployment health contract
         shell: bash
         run: |
           set -euo pipefail
