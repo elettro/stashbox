@@ -1,0 +1,73 @@
+name: One-Time Snapshot Video Factory Runs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-snapshot-video-factory-runs.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_CURRENT_RUNS.md
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Capture current Video Factory workflow runs
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${RESULT_PATH}")"
+          {
+            echo '# Current Video Factory Workflow Runs'
+            echo
+            echo "Captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            for WORKFLOW in \
+              one-time-dispatch-video-factory-endpoints.yml \
+              deploy-video-factory-renderer-dev.yml \
+              one-time-validate-video-factory-portrait-ratios.yml \
+              monitor-video-factory-deploy-dev.yml; do
+              echo "## ${WORKFLOW}"
+              RUN=$(gh run list \
+                --repo "${REPOSITORY}" \
+                --workflow "${WORKFLOW}" \
+                --limit 1 \
+                --json databaseId,status,conclusion,createdAt,updatedAt,url,event,headSha \
+                --jq '.[0] // {}')
+              if [ "$(printf '%s' "${RUN}" | jq 'length')" = '0' ]; then
+                echo '- No run found'
+              else
+                echo "- Run ID: $(printf '%s' "${RUN}" | jq -r '.databaseId')"
+                echo "- Status: $(printf '%s' "${RUN}" | jq -r '.status')"
+                echo "- Conclusion: $(printf '%s' "${RUN}" | jq -r '.conclusion // "pending"')"
+                echo "- Event: $(printf '%s' "${RUN}" | jq -r '.event')"
+                echo "- Created: $(printf '%s' "${RUN}" | jq -r '.createdAt')"
+                echo "- Updated: $(printf '%s' "${RUN}" | jq -r '.updatedAt')"
+                echo "- Head SHA: $(printf '%s' "${RUN}" | jq -r '.headSha')"
+                echo "- URL: $(printf '%s' "${RUN}" | jq -r '.url')"
+              fi
+              echo
+            done
+          } > "${RESULT_PATH}"
+
+      - name: Commit workflow snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${RESULT_PATH}"
+          git commit -m 'Record current Video Factory workflow runs'
+          git push origin HEAD:main
