@@ -1,0 +1,88 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T04:13:42Z",
+  "stage_http_status": "200",
+  "review_http_status": "200",
+  "review_item": {
+    "id": "render-cc50acd7-014d-492f-89ac-682c8894240e",
+    "status": "in_review",
+    "approval_state": "pending",
+    "publishing_status": "not_published",
+    "source": {
+      "type": "video_factory_render",
+      "render_job_id": "cc50acd7-014d-492f-89ac-682c8894240e",
+      "render_batch_id": "2a0b380d-a9dc-434f-8802-33ca77f094f5",
+      "source_uri": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/hippy-speedball-i-m-on-my-way-original-stashbox/2026-07-28/cc50acd7-014d-492f-89ac-682c8894240e/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4"
+    },
+    "song": {
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "title": "Hippy Speedball (I'm On My Way)",
+      "artist": "Stashbox",
+      "genre": "Reggae",
+      "artwork_url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/songs/stashbox/radio/250808-hippy-speedball-im-on-my-way-original/hippy-speedball-im-on-my-way-original-stashbox-distrokid-art-final-hi-res4096x4096v1.jpg"
+    },
+    "video": {
+      "bucket": "stashbox-social-publish-656260749296-us-east-1",
+      "object_key": "incoming/render-jobs/cc50acd7-014d-492f-89ac-682c8894240e/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+      "staging_uri": "s3://stashbox-social-publish-656260749296-us-east-1/incoming/render-jobs/cc50acd7-014d-492f-89ac-682c8894240e/stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+      "file_name": "stashbox_hippy-speedball-im-on-my-way_30s_9x16_v01.mp4",
+      "content_type": "video/mp4",
+      "size_bytes": 4998155,
+      "aspect_ratio": "9:16",
+      "duration_seconds": 30,
+      "width": 1080,
+      "height": 1920
+    },
+    "metadata": {
+      "title_options": [
+        "Stashbox - Hippy Speedball (I'm On My Way) | Official Short",
+        "Hippy Speedball (I'm On My Way) by Stashbox | 30-Second Vertical Video",
+        "Stashbox - Hippy Speedball (I'm On My Way) | Stashbox Radio"
+      ],
+      "selected_title": "Stashbox - Hippy Speedball (I'm On My Way) | Official Short",
+      "description": "Stashbox - Hippy Speedball (I'm On My Way)\n\nA 30-second 9:16 video created through Stashbox Video Factory and prepared by Stashbox Social Factory.\n\nShop: https://stashbox.ai/search?q=Hippy+Speedball+(original)\n\nDiscover more music and dynamic video experiences at Stashbox Radio.\n\n#Stashbox #Reggae #StashboxRadio",
+      "tags": [
+        "Stashbox",
+        "Hippy Speedball (I'm On My Way)",
+        "Reggae",
+        "Nostalgic",
+        "Stashbox Radio",
+        "Social Factory",
+        "Music Video",
+        "Vertical Video",
+        "Short Form Video"
+      ],
+      "hashtags": [
+        "#Stashbox",
+        "#Reggae",
+        "#StashboxRadio"
+      ],
+      "category_id": "10",
+      "collaborators": [],
+      "collaborator_review_required": true,
+      "credits": {
+        "artist": "Stashbox",
+        "song_title": "Hippy Speedball (I'm On My Way)",
+        "album_name": "",
+        "publisher": "Elettro Incorporated"
+      }
+    },
+    "publish_settings": {
+      "visibility": "unlisted",
+      "made_for_kids": false,
+      "notify_subscribers": false,
+      "scheduled_at": null
+    },
+    "automation": {
+      "auto_publish": false,
+      "review_required": true,
+      "review_window_status": "open"
+    },
+    "created_at": "2026-07-28T04:13:41.272Z"
+  },
+  "staged_object": {
+    "content_length": 4998155,
+    "content_type": "video/mp4"
+  },
+  "youtube_published": false
+}
