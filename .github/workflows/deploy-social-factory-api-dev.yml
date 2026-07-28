@@ -23,10 +23,15 @@ jobs:
       AWS_REGION: us-east-1
       STACK_NAME: stashbox-social-api-dev
       EXPECTED_FUNCTION_NAME: stashbox-social-api-dev
+      EXPECTED_WORKER_FUNCTION_NAME: stashbox-social-publish-worker-dev
       EXPECTED_LOG_GROUP: /aws/lambda/stashbox-social-api-dev
+      EXPECTED_WORKER_LOG_GROUP: /aws/lambda/stashbox-social-publish-worker-dev
       EXPECTED_CONFIG_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/config
       EXPECTED_TOKEN_SECRET_NAME: stashbox/social-factory/dev/youtube-oauth/tokens
       EXPECTED_PUBLISH_BUCKET: stashbox-social-publish-656260749296-us-east-1
+      EXPECTED_SCHEDULE_QUEUE_NAME: stashbox-social-publish-dev
+      EXPECTED_SCHEDULE_DLQ_NAME: stashbox-social-publish-dev-dlq
+      EXPECTED_SCHEDULE_GROUP: stashbox-social-publish-dev
 
     steps:
       - name: Checkout repository
@@ -73,7 +78,7 @@ jobs:
                 echo 'Continuing rollback so the existing Social Factory stack can be updated in place.'
                 aws cloudformation continue-update-rollback --stack-name "${STACK_NAME}"
                 aws cloudformation wait stack-rollback-complete --stack-name "${STACK_NAME}"
-                echo 'Rollback completed. Existing stack, API URL, and OAuth resources were preserved.'
+                echo 'Rollback completed. Existing stack, API URL, OAuth resources, and queue resources were preserved.'
                 ;;
               ROLLBACK_FAILED|ROLLBACK_COMPLETE|CREATE_FAILED|DELETE_FAILED|DELETE_IN_PROGRESS)
                 echo 'Removing only a non-updateable Social Factory stack before clean deployment.'
@@ -85,6 +90,8 @@ jobs:
                 aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
                 aws logs delete-log-group \
                   --log-group-name "${EXPECTED_LOG_GROUP}" 2>/dev/null || true
+                aws logs delete-log-group \
+                  --log-group-name "${EXPECTED_WORKER_LOG_GROUP}" 2>/dev/null || true
                 echo 'Non-updateable stack removed successfully.'
                 ;;
               ''|None)
@@ -155,7 +162,7 @@ jobs:
           echo "${DEPLOY_EXIT_CODE}" > /tmp/social-factory-sam-deploy.exit
           exit "${DEPLOY_EXIT_CODE}"
 
-      - name: Verify function, role, secrets, and publish bucket boundary
+      - name: Verify functions, roles, queue, secrets, and storage boundaries
         run: |
           set -euo pipefail
 
@@ -167,15 +174,26 @@ jobs:
           }
 
           FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
+          WORKER_FUNCTION_NAME=$(stack_output SocialScheduledPublishWorkerFunctionName)
           ROLE_ARN=$(stack_output SocialApiDevExecutionRoleArn)
+          WORKER_ROLE_ARN=$(stack_output SocialScheduledPublishWorkerRoleArn)
           CONFIG_SECRET_ARN=$(stack_output YoutubeOAuthConfigSecretArn)
           TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
           PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
           PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
+          QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
+          QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
+          DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
+          SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
+          SCHEDULER_TARGET_ROLE_ARN=$(stack_output SocialPublishSchedulerTargetRoleArn)
 
           test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION_NAME}"
+          test "${WORKER_FUNCTION_NAME}" = "${EXPECTED_WORKER_FUNCTION_NAME}"
           test "${PUBLISH_BUCKET}" = "${EXPECTED_PUBLISH_BUCKET}"
           test "${PUBLISH_BUCKET_ARN}" = "arn:aws:s3:::${EXPECTED_PUBLISH_BUCKET}"
+          test "${QUEUE_ARN##*:}" = "${EXPECTED_SCHEDULE_QUEUE_NAME}"
+          test "${DLQ_ARN##*:}" = "${EXPECTED_SCHEDULE_DLQ_NAME}"
+          test "${SCHEDULE_GROUP}" = "${EXPECTED_SCHEDULE_GROUP}"
           [[ "${CONFIG_SECRET_ARN}" == *":secret:${EXPECTED_CONFIG_SECRET_NAME}-"* ]]
           [[ "${TOKEN_SECRET_ARN}" == *":secret:${EXPECTED_TOKEN_SECRET_NAME}-"* ]]
 
@@ -198,6 +216,7 @@ jobs:
           EXPECTED_POLICIES=$(printf '%s\n' \
             SocialApiDevLogsOnly \
             SocialApiDevPublishStaging \
+            SocialApiDevScheduling \
             SocialApiDevYoutubeOAuthSecrets | sort)
           diff -u <(printf '%s\n' "${EXPECTED_POLICIES}") <(printf '%s\n' "${ACTUAL_POLICIES}")
 
@@ -244,6 +263,66 @@ jobs:
               (($publish.Action | array | sort) == (["s3:GetObject", "s3:PutObject"] | sort)) and
               (($publish.Resource | array) == [$resource])
             ' >/dev/null
+
+          SCHEDULING_DOCUMENT=$(aws iam get-role-policy \
+            --role-name "${ROLE_NAME}" \
+            --policy-name SocialApiDevScheduling \
+            --query 'PolicyDocument' \
+            --output json)
+          echo "${SCHEDULING_DOCUMENT}" | jq -e \
+            --arg scheduler_role "${SCHEDULER_TARGET_ROLE_ARN}" \
+            --arg schedule_group "/${SCHEDULE_GROUP}/social-review-" '
+              def array: if type == "array" then . else [.] end;
+              ([.Statement[] | select(.Sid == "ManageSocialPublishSchedules")][0]) as $manage |
+              ([.Statement[] | select(.Sid == "PassSchedulerTargetRole")][0]) as $pass |
+              $manage.Effect == "Allow" and
+              (($manage.Action | array | sort) == (["scheduler:CreateSchedule", "scheduler:DeleteSchedule", "scheduler:GetSchedule"] | sort)) and
+              (($manage.Resource | array | all(contains($schedule_group)))) and
+              $pass.Effect == "Allow" and
+              (($pass.Action | array) == ["iam:PassRole"]) and
+              (($pass.Resource | array) == [$scheduler_role])
+            ' >/dev/null
+
+          WORKER_ROLE_NAME="${WORKER_ROLE_ARN##*/}"
+          WORKER_ATTACHED=$(aws iam list-attached-role-policies \
+            --role-name "${WORKER_ROLE_NAME}" \
+            --query 'AttachedPolicies[].PolicyName' \
+            --output text)
+          test -z "${WORKER_ATTACHED}"
+          WORKER_POLICIES=$(aws iam list-role-policies \
+            --role-name "${WORKER_ROLE_NAME}" \
+            --query 'PolicyNames' \
+            --output text | tr '\t' '\n' | sed '/^$/d' | sort)
+          EXPECTED_WORKER_POLICIES=$(printf '%s\n' \
+            SocialPublishWorkerLogs \
+            SocialPublishWorkerQueue \
+            SocialPublishWorkerSecrets \
+            SocialPublishWorkerStorage | sort)
+          diff -u <(printf '%s\n' "${EXPECTED_WORKER_POLICIES}") <(printf '%s\n' "${WORKER_POLICIES}")
+
+          QUEUE_ATTRIBUTES=$(aws sqs get-queue-attributes \
+            --queue-url "${QUEUE_URL}" \
+            --attribute-names QueueArn VisibilityTimeout RedrivePolicy SqsManagedSseEnabled)
+          echo "${QUEUE_ATTRIBUTES}" | jq -e \
+            --arg arn "${QUEUE_ARN}" \
+            --arg dlq "${DLQ_ARN}" '
+              .Attributes.QueueArn == $arn and
+              .Attributes.VisibilityTimeout == "960" and
+              .Attributes.SqsManagedSseEnabled == "true" and
+              ((.Attributes.RedrivePolicy | fromjson).deadLetterTargetArn == $dlq) and
+              ((.Attributes.RedrivePolicy | fromjson).maxReceiveCount == "5")
+            ' >/dev/null
+
+          WORKER_MAPPING=$(aws lambda list-event-source-mappings \
+            --function-name "${WORKER_FUNCTION_NAME}" \
+            --event-source-arn "${QUEUE_ARN}" \
+            --query 'EventSourceMappings[0]' \
+            --output json)
+          echo "${WORKER_MAPPING}" | jq -e '
+            .State == "Enabled" and
+            .BatchSize == 1 and
+            (.FunctionResponseTypes | index("ReportBatchItemFailures")) != null
+          ' >/dev/null
 
           PUBLIC_BLOCK=$(aws s3api get-public-access-block --bucket "${PUBLISH_BUCKET}")
           echo "${PUBLIC_BLOCK}" | jq -e '
@@ -308,7 +387,7 @@ jobs:
             .environment == "dev" and
             .isolation.databaseConfigured == false and
             .isolation.s3Configured == true and
-            .isolation.queueConfigured == false and
+            .isolation.queueConfigured == true and
             .isolation.secretsConfigured == true and
             .isolation.youtubeOauthConfigured == true and
             .isolation.youtubePublishingConfigured == true and
@@ -321,8 +400,10 @@ jobs:
             .isolation.batchStagingSupported == true and
             .isolation.contentReviewSupported == true and
             .isolation.reviewEditingSupported == true and
+            .isolation.reviewPublishingSupported == true and
+            .isolation.scheduledPublishingConfigured == true and
             .isolation.securePreviewSupported == true and
-            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"
+            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-video-factory-read-and-scheduler"
           ' /tmp/social-health.json >/dev/null
 
           YOUTUBE_STATUS=$(curl --silent --show-error --max-time 45 \
@@ -355,9 +436,21 @@ jobs:
           jq -e '.ok == false and .error == "unauthorized"' \
             /tmp/social-publish-status.json >/dev/null
 
+          SCHEDULE_STATUS=$(curl --silent --show-error --max-time 45 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{}' \
+            -o /tmp/social-schedule-status.json \
+            -w '%{http_code}' \
+            "${BASE_URL}/social/review-items/render-test-12345678/schedule")
+          test "${SCHEDULE_STATUS}" = '401'
+          jq -e '.ok == false and .error == "unauthorized"' \
+            /tmp/social-schedule-status.json >/dev/null
+
           echo "Social Factory health endpoint: ${HEALTH_URL}"
           echo "Social Factory upload route: ${BASE_URL}/social/uploads/presign"
           echo "Social Factory YouTube publish route: ${BASE_URL}/social/youtube/publish"
+          echo "Social Factory scheduled publish route: ${BASE_URL}/social/review-items/{reviewId}/schedule"
 
       - name: Record deployment receipt
         if: always()
@@ -374,7 +467,9 @@ jobs:
           }
 
           FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
+          WORKER_FUNCTION_NAME=$(stack_output SocialScheduledPublishWorkerFunctionName)
           ROLE_ARN=$(stack_output SocialApiDevExecutionRoleArn)
+          WORKER_ROLE_ARN=$(stack_output SocialScheduledPublishWorkerRoleArn)
           HEALTH_URL=$(stack_output SocialApiDevUrl)
           BASE_URL=$(stack_output SocialApiDevBaseUrl)
           CALLBACK_URL=$(stack_output SocialApiDevYoutubeCallbackUrl)
@@ -382,6 +477,10 @@ jobs:
           TOKEN_SECRET_ARN=$(stack_output YoutubeOAuthTokenSecretArn)
           PUBLISH_BUCKET=$(stack_output SocialPublishBucketName)
           PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
+          QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
+          QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
+          DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
+          SCHEDULE_GROUP=$(stack_output SocialPublishScheduleGroupName)
           STACK_STATUS_AFTER=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].StackStatus' \
@@ -400,6 +499,7 @@ jobs:
           YOUTUBE_STATUS_HTTP_STATUS=""
           PRESIGN_HTTP_STATUS=""
           PUBLISH_HTTP_STATUS=""
+          SCHEDULE_HTTP_STATUS=""
 
           if [ -n "${HEALTH_URL}" ] && [ "${HEALTH_URL}" != 'None' ]; then
             HEALTH_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
@@ -419,6 +519,10 @@ jobs:
               -X POST -H 'Content-Type: application/json' -d '{}' \
               -o /tmp/social-publish-receipt.json \
               -w '%{http_code}' "${BASE_URL}/social/youtube/publish" 2>/dev/null)
+            SCHEDULE_HTTP_STATUS=$(curl --silent --show-error --max-time 45 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              -o /tmp/social-schedule-receipt.json \
+              -w '%{http_code}' "${BASE_URL}/social/review-items/render-test-12345678/schedule" 2>/dev/null)
           fi
 
           STACK_EVENT_SUMMARY=$(aws cloudformation describe-stack-events \
@@ -444,7 +548,9 @@ jobs:
             --arg artifact_exit_code "${ARTIFACT_EXIT_CODE}" \
             --arg artifact_error_summary "${ARTIFACT_ERROR_SUMMARY}" \
             --arg function_name "${FUNCTION_NAME}" \
+            --arg worker_function_name "${WORKER_FUNCTION_NAME}" \
             --arg execution_role_arn "${ROLE_ARN}" \
+            --arg worker_role_arn "${WORKER_ROLE_ARN}" \
             --arg health_url "${HEALTH_URL}" \
             --arg health_http_status "${HEALTH_HTTP_STATUS}" \
             --arg base_url "${BASE_URL}" \
@@ -452,10 +558,15 @@ jobs:
             --arg youtube_status_http_status "${YOUTUBE_STATUS_HTTP_STATUS}" \
             --arg upload_presign_http_status "${PRESIGN_HTTP_STATUS}" \
             --arg youtube_publish_http_status "${PUBLISH_HTTP_STATUS}" \
+            --arg scheduled_publish_http_status "${SCHEDULE_HTTP_STATUS}" \
             --arg youtube_config_secret_arn "${CONFIG_SECRET_ARN}" \
             --arg youtube_token_secret_arn "${TOKEN_SECRET_ARN}" \
             --arg social_publish_bucket "${PUBLISH_BUCKET}" \
             --arg social_publish_bucket_arn "${PUBLISH_BUCKET_ARN}" \
+            --arg scheduled_publish_queue_url "${QUEUE_URL}" \
+            --arg scheduled_publish_queue_arn "${QUEUE_ARN}" \
+            --arg scheduled_publish_dlq_arn "${DLQ_ARN}" \
+            --arg scheduled_publish_group "${SCHEDULE_GROUP}" \
             --arg deploy_exit_code "${DEPLOY_EXIT_CODE}" \
             --arg deploy_error_summary "${DEPLOY_ERROR_SUMMARY}" \
             --arg stack_event_summary "${STACK_EVENT_SUMMARY}" \
@@ -475,7 +586,9 @@ jobs:
               artifact_exit_code: $artifact_exit_code,
               artifact_error_summary: $artifact_error_summary,
               function_name: $function_name,
+              worker_function_name: $worker_function_name,
               execution_role_arn: $execution_role_arn,
+              worker_role_arn: $worker_role_arn,
               health_url: $health_url,
               health_http_status: $health_http_status,
               base_url: $base_url,
@@ -483,10 +596,15 @@ jobs:
               youtube_status_http_status: $youtube_status_http_status,
               upload_presign_http_status: $upload_presign_http_status,
               youtube_publish_http_status: $youtube_publish_http_status,
+              scheduled_publish_http_status: $scheduled_publish_http_status,
               youtube_config_secret_arn: $youtube_config_secret_arn,
               youtube_token_secret_arn: $youtube_token_secret_arn,
               social_publish_bucket: $social_publish_bucket,
               social_publish_bucket_arn: $social_publish_bucket_arn,
+              scheduled_publish_queue_url: $scheduled_publish_queue_url,
+              scheduled_publish_queue_arn: $scheduled_publish_queue_arn,
+              scheduled_publish_dlq_arn: $scheduled_publish_dlq_arn,
+              scheduled_publish_group: $scheduled_publish_group,
               deploy_exit_code: $deploy_exit_code,
               deploy_error_summary: $deploy_error_summary,
               stack_event_summary: $stack_event_summary

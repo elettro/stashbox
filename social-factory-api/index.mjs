@@ -6,6 +6,7 @@ import { createBatchOperationsService } from './batch-operations.mjs';
 import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
 import { createReviewPublishService } from './review-publish.mjs';
+import { createSchedulePublishService } from './schedule-publish.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
 const SERVICE_VERSION = '0.7.0';
@@ -96,12 +97,14 @@ function reviewRoute(path) {
   const saveMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/save$/);
   const decisionMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/decision$/);
   const publishMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/publish$/);
+  const scheduleMatch = String(path).match(/^\/social\/review-items\/([^/]+)\/schedule$/);
   return {
     reviewId: itemMatch ? decodeURIComponent(itemMatch[1]) : '',
     previewReviewId: previewMatch ? decodeURIComponent(previewMatch[1]) : '',
     saveReviewId: saveMatch ? decodeURIComponent(saveMatch[1]) : '',
     decisionReviewId: decisionMatch ? decodeURIComponent(decisionMatch[1]) : '',
-    publishReviewId: publishMatch ? decodeURIComponent(publishMatch[1]) : ''
+    publishReviewId: publishMatch ? decodeURIComponent(publishMatch[1]) : '',
+    scheduleReviewId: scheduleMatch ? decodeURIComponent(scheduleMatch[1]) : ''
   };
 }
 
@@ -113,7 +116,8 @@ export function createHandler({
   batchOperations = null,
   reviewWorkflow = null,
   reviewActions = null,
-  reviewPublisher = null
+  reviewPublisher = null,
+  reviewScheduler = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
@@ -122,6 +126,7 @@ export function createHandler({
   let resolvedReviewWorkflow = reviewWorkflow;
   let resolvedReviewActions = reviewActions;
   let resolvedReviewPublisher = reviewPublisher;
+  let resolvedReviewScheduler = reviewScheduler;
 
   function getYoutubePublish() {
     if (!resolvedYoutubePublish) resolvedYoutubePublish = createYoutubePublishService();
@@ -167,6 +172,11 @@ export function createHandler({
     return resolvedReviewPublisher;
   }
 
+  function getReviewScheduler() {
+    if (!resolvedReviewScheduler) resolvedReviewScheduler = createSchedulePublishService();
+    return resolvedReviewScheduler;
+  }
+
   return async function socialFactoryHandler(event = {}) {
     const method = getRequestMethod(event);
     const path = getRequestPath(event);
@@ -183,6 +193,10 @@ export function createHandler({
 
     try {
       if (method === 'GET' && path === '/social/health') {
+        const queueConfigured = Boolean(process.env.SOCIAL_SCHEDULE_QUEUE_ARN);
+        const schedulerConfigured = Boolean(
+          process.env.SOCIAL_SCHEDULE_GROUP && process.env.SOCIAL_SCHEDULER_ROLE_ARN
+        );
         return json(200, {
           ok: true,
           service: SERVICE_NAME,
@@ -192,7 +206,7 @@ export function createHandler({
           isolation: {
             databaseConfigured: false,
             s3Configured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
-            queueConfigured: false,
+            queueConfigured,
             secretsConfigured: true,
             youtubeOauthConfigured: true,
             youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
@@ -211,9 +225,9 @@ export function createHandler({
             contentReviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             reviewEditingSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             reviewPublishingSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
-            scheduledPublishingConfigured: false,
+            scheduledPublishingConfigured: queueConfigured && schedulerConfigured,
             securePreviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
-            executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read'
+            executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-video-factory-read-and-scheduler'
           }
         });
       }
@@ -320,6 +334,13 @@ export function createHandler({
         return json(200, {
           ok: true,
           ...(await getReviewPublisher().publish(event, review.publishReviewId))
+        });
+      }
+
+      if (method === 'POST' && review.scheduleReviewId) {
+        return json(200, {
+          ok: true,
+          ...(await getReviewScheduler().schedule(event, review.scheduleReviewId))
         });
       }
 

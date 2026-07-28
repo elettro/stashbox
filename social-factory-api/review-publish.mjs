@@ -120,34 +120,107 @@ export function createReviewPublishService({
     return resolvedStore;
   }
 
-  async function authorize(event) {
-    const config = await secretStore.read(configSecretId);
-    assertAdmin(event, config);
+  async function loadReview(reviewId) {
+    const id = safeReviewId(reviewId);
+    const item = await getStore().getReview(id);
+    if (!item) throw serviceError('review_item_not_found', 404);
+    return { id, item };
+  }
+
+  function alreadyPublished(item, id) {
+    if (item.publishing_status !== 'published' || !item.platform_results?.youtube?.video_id) return null;
+    return {
+      publishing_triggered: false,
+      uploaded: false,
+      mode: 'already_published',
+      review_id: id,
+      item
+    };
+  }
+
+  function assertApproved(item) {
+    if (item.status !== 'approved' || item.approval_state !== 'approved') {
+      throw serviceError('review_item_not_approved', 409, {
+        status: String(item.status || ''),
+        approval_state: String(item.approval_state || '')
+      });
+    }
+  }
+
+  async function executePublish({ event, id, item, confirmUpload, scheduledContext = null }) {
+    const publishEvent = {
+      ...event,
+      body: JSON.stringify({
+        object_key: item.video?.object_key,
+        title: item.metadata?.selected_title,
+        description: item.metadata?.description,
+        tags: item.metadata?.tags,
+        category_id: item.metadata?.category_id || '10',
+        made_for_kids: Boolean(item.publish_settings?.made_for_kids),
+        notify_subscribers: Boolean(item.publish_settings?.notify_subscribers),
+        confirm_upload: confirmUpload === true
+      }),
+      isBase64Encoded: false
+    };
+
+    const result = await youtubePublish.publish(publishEvent);
+    if (!result.uploaded) {
+      return {
+        publishing_triggered: false,
+        review_id: id,
+        scheduled_at: item.publish_settings?.scheduled_at || null,
+        requested_visibility: String(item.publish_settings?.visibility || 'unlisted'),
+        ...result
+      };
+    }
+
+    const publishedAt = now().toISOString();
+    const updated = {
+      ...item,
+      publishing_status: 'published',
+      published_at: publishedAt,
+      publish_settings: {
+        ...item.publish_settings,
+        actual_visibility: 'unlisted'
+      },
+      schedule: scheduledContext
+        ? {
+            ...item.schedule,
+            status: 'completed',
+            completed_at: publishedAt,
+            last_error: null
+          }
+        : item.schedule,
+      platform_results: {
+        ...item.platform_results,
+        youtube: {
+          status: 'published',
+          video_id: result.youtube_video_id,
+          url: result.youtube_url,
+          privacy_status: result.privacy_status || 'unlisted',
+          published_at: publishedAt
+        }
+      },
+      updated_at: publishedAt
+    };
+
+    await getStore().putReview(id, updated);
+    return {
+      publishing_triggered: true,
+      review_id: id,
+      ...result,
+      item: updated
+    };
   }
 
   return {
     async publish(event, reviewId) {
-      await authorize(event);
-      const id = safeReviewId(reviewId);
-      const item = await getStore().getReview(id);
-      if (!item) throw serviceError('review_item_not_found', 404);
-
-      if (item.publishing_status === 'published' && item.platform_results?.youtube?.video_id) {
-        return {
-          publishing_triggered: false,
-          uploaded: false,
-          mode: 'already_published',
-          review_id: id,
-          item
-        };
-      }
-
-      if (item.status !== 'approved' || item.approval_state !== 'approved') {
-        throw serviceError('review_item_not_approved', 409, {
-          status: String(item.status || ''),
-          approval_state: String(item.approval_state || '')
-        });
-      }
+      const config = await secretStore.read(configSecretId);
+      assertAdmin(event, config);
+      const { id, item } = await loadReview(reviewId);
+      const published = alreadyPublished(item, id);
+      if (published) return published;
+      assertApproved(item);
 
       const input = parseBody(event);
       const scheduledAt = item.publish_settings?.scheduled_at
@@ -158,65 +231,84 @@ export function createReviewPublishService({
       if (input.confirm_upload === true && isFutureSchedule) {
         throw serviceError('scheduled_publish_queue_required', 409, {
           scheduled_at: new Date(scheduledAt).toISOString(),
-          next_step: 'configure_asynchronous_publish_queue'
+          next_step: 'queue_the_scheduled_publish'
         });
       }
 
-      const publishEvent = {
-        ...event,
-        body: JSON.stringify({
-          object_key: item.video?.object_key,
-          title: item.metadata?.selected_title,
-          description: item.metadata?.description,
-          tags: item.metadata?.tags,
-          category_id: item.metadata?.category_id || '10',
-          made_for_kids: Boolean(item.publish_settings?.made_for_kids),
-          notify_subscribers: Boolean(item.publish_settings?.notify_subscribers),
-          confirm_upload: input.confirm_upload === true
-        }),
-        isBase64Encoded: false
-      };
+      return executePublish({
+        event,
+        id,
+        item,
+        confirmUpload: input.confirm_upload === true
+      });
+    },
 
-      const result = await youtubePublish.publish(publishEvent);
-      if (!result.uploaded) {
+    async publishScheduled(reviewId, expectedScheduledAt) {
+      const config = await secretStore.read(configSecretId);
+      const { id, item } = await loadReview(reviewId);
+      const published = alreadyPublished(item, id);
+      if (published) return published;
+
+      if (item.status !== 'approved' || item.approval_state !== 'approved') {
         return {
           publishing_triggered: false,
+          uploaded: false,
+          mode: 'scheduled_item_no_longer_approved',
           review_id: id,
-          scheduled_at: Number.isFinite(scheduledAt) ? new Date(scheduledAt).toISOString() : null,
-          requested_visibility: String(item.publish_settings?.visibility || 'unlisted'),
-          ...result
+          skipped: true,
+          item
         };
       }
 
-      const publishedAt = now().toISOString();
-      const updated = {
-        ...item,
-        publishing_status: 'published',
-        published_at: publishedAt,
-        publish_settings: {
-          ...item.publish_settings,
-          actual_visibility: 'unlisted'
-        },
-        platform_results: {
-          ...item.platform_results,
-          youtube: {
-            status: 'published',
-            video_id: result.youtube_video_id,
-            url: result.youtube_url,
-            privacy_status: result.privacy_status || 'unlisted',
-            published_at: publishedAt
-          }
-        },
-        updated_at: publishedAt
-      };
+      const itemScheduledAt = String(item.schedule?.scheduled_at || item.publish_settings?.scheduled_at || '');
+      if (expectedScheduledAt && itemScheduledAt !== String(expectedScheduledAt)) {
+        return {
+          publishing_triggered: false,
+          uploaded: false,
+          mode: 'stale_schedule_message',
+          review_id: id,
+          skipped: true,
+          item
+        };
+      }
 
-      await getStore().putReview(id, updated);
-      return {
-        publishing_triggered: true,
-        review_id: id,
-        ...result,
-        item: updated
+      const scheduledMs = Date.parse(itemScheduledAt);
+      if (!Number.isFinite(scheduledMs)) {
+        throw serviceError('scheduled_at_required', 409);
+      }
+      if (scheduledMs > now().getTime() + SCHEDULE_GRACE_MS) {
+        throw serviceError('scheduled_publish_not_due', 409, {
+          scheduled_at: new Date(scheduledMs).toISOString()
+        });
+      }
+
+      const startedAt = now().toISOString();
+      const processing = {
+        ...item,
+        publishing_status: 'publishing',
+        schedule: {
+          ...item.schedule,
+          status: 'publishing',
+          started_at: startedAt,
+          attempt_count: Number(item.schedule?.attempt_count || 0) + 1,
+          last_error: null
+        },
+        updated_at: startedAt
       };
+      await getStore().putReview(id, processing);
+
+      const internalEvent = {
+        headers: { 'x-admin-token': config.admin_token },
+        body: JSON.stringify({ confirm_upload: true }),
+        isBase64Encoded: false
+      };
+      return executePublish({
+        event: internalEvent,
+        id,
+        item: processing,
+        confirmUpload: true,
+        scheduledContext: { expectedScheduledAt }
+      });
     }
   };
 }

@@ -40,7 +40,7 @@ test('GET /social/health returns isolated service status', async () => {
     reviewPublishingSupported: false,
     scheduledPublishingConfigured: false,
     securePreviewSupported: false,
-    executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read'
+    executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-video-factory-read-and-scheduler'
   });
 });
 
