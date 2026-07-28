@@ -1,0 +1,61 @@
+name: One-Time Validate Video Factory Portrait Ratios V2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-video-factory-portrait-ratios-v2.yml'
+      - 'radio-api/scripts/validate-video-factory-portrait-ratios.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-portrait-ratios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_3X4_4X5_VALIDATION_RESULT.md
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Confirm FFmpeg tools
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Check validation script syntax
+        run: node --check radio-api/scripts/validate-video-factory-portrait-ratios.mjs
+
+      - name: Run real DEV portrait renders
+        run: node radio-api/scripts/validate-video-factory-portrait-ratios.mjs
+
+      - name: Commit validation result
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${RESULT_PATH}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record Video Factory portrait ratio validation'
+          fi
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require completed validation
+        run: |
+          grep -q '^Status: completed$' "${RESULT_PATH}"
