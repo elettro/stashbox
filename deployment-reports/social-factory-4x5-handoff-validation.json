@@ -1,0 +1,45 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T20:45:01Z",
+  "handoff_mode": "staged_missing_review_item",
+  "http_status": {
+    "job": "200",
+    "stage_validation": "200",
+    "stage": "200",
+    "review": "200"
+  },
+  "render": {
+    "job_id": "dc255319-039f-4982-b8af-b42402688933",
+    "batch_id": "f846fbd4-540d-4a9f-ab71-7277f106e11c",
+    "campaign_name": "Stashbox Social Factory 4x5 Handoff 30396445396",
+    "song_key": "riding-waves-014b-jv1-stashbox",
+    "song_title": "Riding Waves (Live)",
+    "artist": "Stashbox",
+    "status": "completed",
+    "aspect_ratio": "4:5",
+    "width": 1080,
+    "height": 1350,
+    "duration_seconds": 15,
+    "output_filename": "stashbox_riding-waves-live_15s_4x5_v01.mp4",
+    "output_url": "s3://stashbox-radio-video-factory-dev-656260749296-us-east-1/video-factory/riding-waves-014b-jv1-stashbox/2026-07-28/dc255319-039f-4982-b8af-b42402688933/stashbox_riding-waves-live_15s_4x5_v01.mp4"
+  },
+  "content_review": {
+    "review_id": "render-dc255319-039f-4982-b8af-b42402688933",
+    "status": "in_review",
+    "approval_state": "pending",
+    "publishing_status": "not_published",
+    "source_type": "video_factory_render",
+    "source_render_job_id": "dc255319-039f-4982-b8af-b42402688933",
+    "aspect_ratio": "4:5",
+    "width": 1080,
+    "height": 1350,
+    "duration_seconds": 15,
+    "staging_uri": "s3://stashbox-social-publish-656260749296-us-east-1/incoming/render-jobs/dc255319-039f-4982-b8af-b42402688933/stashbox_riding-waves-live_15s_4x5_v01.mp4",
+    "auto_publish": false,
+    "review_required": true
+  },
+  "publishing_triggered": false,
+  "youtube_published": false,
+  "schedule_created": false,
+  "production_changed": false
+}
