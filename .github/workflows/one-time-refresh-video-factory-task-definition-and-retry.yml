@@ -1,4 +1,5 @@
 name: Refresh Video Factory Task Definition and Retry
+# Trigger retry after confirming the prior Lambda task-definition revision is inactive.
 
 on:
   push:
