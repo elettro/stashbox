@@ -1,0 +1,97 @@
+name: Diagnose Social Factory Render Launch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      RADIO_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-render-launch-diagnostic.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect failed render launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+
+          RADIO_TOKEN=$(jq -r '.radio_api_admin_token' /tmp/social-config.json)
+          test -n "${RADIO_TOKEN}"
+
+          curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${RADIO_TOKEN}" \
+            "${RADIO_API_BASE}/admin/video-factory/infrastructure" \
+            > /tmp/infrastructure.json
+
+          curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${RADIO_TOKEN}" \
+            "${RADIO_API_BASE}/admin/video-factory/jobs/13b2d78e-d964-4353-bdc2-2b80ba9349af" \
+            > /tmp/job.json
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --slurpfile infra /tmp/infrastructure.json \
+            --slurpfile job /tmp/job.json '
+              {
+                recorded_at: $recorded_at,
+                infrastructure: {
+                  success: ($infra[0].success // false),
+                  configured: ($infra[0].configured // false),
+                  cluster_status: ($infra[0].cluster_status // ""),
+                  running_tasks: ($infra[0].running_tasks // 0),
+                  pending_tasks: ($infra[0].pending_tasks // 0),
+                  output_bucket: ($infra[0].output_bucket // ""),
+                  task_definition_arn: ($infra[0].task_definition_arn // ""),
+                  error: ($infra[0].error // "")
+                },
+                job: {
+                  id: ($job[0].job.id // ""),
+                  status: ($job[0].job.status // ""),
+                  song_key: ($job[0].job.song_key // ""),
+                  song_title: ($job[0].job.song_title // ""),
+                  error_message: ($job[0].job.error_message // ""),
+                  runtime: ($job[0].job.render_recipe.runtime // {})
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/infrastructure.json /tmp/job.json
+          unset RADIO_TOKEN
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Social Factory render launch diagnostic [skip ci]'
+          git push origin HEAD:main
