@@ -36,6 +36,7 @@ jobs:
             echo
             for WORKFLOW in \
               one-time-apply-social-factory-4x5-contract.yml \
+              one-time-dispatch-social-factory-4x5-dev-deploy.yml \
               deploy-social-factory-api-dev.yml \
               one-time-validate-social-factory-4x5-handoff.yml; do
               echo "## ${WORKFLOW}"
@@ -70,3 +71,5 @@ jobs:
           git commit -m 'Record Social Factory 4x5 workflow runs [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
+
+# Snapshot revision: 2
