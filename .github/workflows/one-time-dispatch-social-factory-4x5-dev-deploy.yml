@@ -1,0 +1,102 @@
+name: One-Time Dispatch Social Factory 4x5 DEV Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-dispatch-social-factory-4x5-dev-deploy.yml'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  dispatch-and-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      DEPLOY_WORKFLOW: deploy-social-factory-api-dev.yml
+      REPORT_PATH: deployment-reports/social-factory-4x5-deployment-result.md
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Dispatch isolated Social Factory DEV deployment
+        run: |
+          set -euo pipefail
+          DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "${DEPLOY_WORKFLOW}" --repo "${REPOSITORY}" --ref main
+
+          RUN_ID=''
+          for attempt in $(seq 1 60); do
+            RUN_ID=$(gh run list \
+              --repo "${REPOSITORY}" \
+              --workflow "${DEPLOY_WORKFLOW}" \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,createdAt \
+              --jq "map(select(.createdAt >= \"${DISPATCHED_AT}\"))[0].databaseId // empty")
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+          test -n "${RUN_ID}" || { echo 'Social Factory deployment run was not found.' >&2; exit 1; }
+          echo "DEPLOY_RUN_ID=${RUN_ID}" >> "${GITHUB_ENV}"
+
+          for attempt in $(seq 1 480); do
+            STATUS=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json status --jq '.status')
+            [ "${STATUS}" = 'completed' ] && break
+            sleep 10
+          done
+
+          RUN_JSON=$(gh run view "${RUN_ID}" --repo "${REPOSITORY}" --json databaseId,status,conclusion,createdAt,updatedAt,url,jobs)
+          CONCLUSION=$(printf '%s' "${RUN_JSON}" | jq -r '.conclusion // "unknown"')
+
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          {
+            echo '# Social Factory 4:5 DEV Deployment Result'
+            echo
+            echo "- Run ID: \`${RUN_ID}\`"
+            echo "- Status: $(printf '%s' "${RUN_JSON}" | jq -r '.status')"
+            echo "- Conclusion: ${CONCLUSION}"
+            echo "- Created: $(printf '%s' "${RUN_JSON}" | jq -r '.createdAt')"
+            echo "- Updated: $(printf '%s' "${RUN_JSON}" | jq -r '.updatedAt')"
+            echo "- URL: $(printf '%s' "${RUN_JSON}" | jq -r '.url')"
+            echo
+            echo '## Steps'
+            printf '%s' "${RUN_JSON}" | jq -r '.jobs[].steps[] | "- \(.name): \(.conclusion // .status)"'
+          } > "${REPORT_PATH}"
+
+          if [ "${CONCLUSION}" != 'success' ]; then
+            gh run view "${RUN_ID}" --repo "${REPOSITORY}" --log-failed > deployment-reports/social-factory-4x5-deployment-failed.log || true
+          else
+            rm -f deployment-reports/social-factory-4x5-deployment-failed.log
+          fi
+
+      - name: Commit deployment result
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if [ -f deployment-reports/social-factory-4x5-deployment-failed.log ]; then
+            git add deployment-reports/social-factory-4x5-deployment-failed.log
+          else
+            git add -u deployment-reports/social-factory-4x5-deployment-failed.log 2>/dev/null || true
+          fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record Social Factory 4x5 DEV deployment [skip ci]'
+          fi
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require successful deployment
+        run: |
+          grep -q -- '- Conclusion: success' "${REPORT_PATH}"
