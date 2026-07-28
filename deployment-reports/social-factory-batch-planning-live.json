@@ -1,0 +1,49 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T09:19:31Z",
+  "api_version": "0.6.0",
+  "health_http_status": "200",
+  "plan_http_status": "200",
+  "content_review_page_http_status": "200",
+  "content_review_url": "https://stashbox.com/radio-admin/dev/social-factory/",
+  "plan": {
+    "plan_id": "57d633f6f218181d",
+    "mode": "proposal_only",
+    "campaign_name": "Tomorrow Safe Test",
+    "selected_song_count": 3,
+    "proposed_job_count": 3,
+    "approval_required_before_draft_creation": true,
+    "approval_required_before_render_launch": true,
+    "selected_songs": [
+      {
+        "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+        "title": "Hippy Speedball (I'm On My Way)",
+        "artist": "Stashbox",
+        "genre": "Reggae",
+        "candidate_score": 105,
+        "visual_readiness": "indicated"
+      },
+      {
+        "song_key": "riding-waves-014b-jv1-stashbox",
+        "title": "Riding Waves (Live)",
+        "artist": "Stashbox",
+        "genre": "Reggae",
+        "candidate_score": 105,
+        "visual_readiness": "indicated"
+      },
+      {
+        "song_key": "angel-in-your-bed-live-stashbox",
+        "title": "Angel In Your Bed (Live)",
+        "artist": "Stashbox",
+        "genre": "Funk/Soul",
+        "candidate_score": 100,
+        "visual_readiness": "indicated"
+      }
+    ]
+  },
+  "render_jobs_before": 23,
+  "render_jobs_after": 23,
+  "draft_jobs_created": false,
+  "renders_launched": false,
+  "youtube_published": false
+}
