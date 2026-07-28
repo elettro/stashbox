@@ -1,6 +1,6 @@
 # Current Video Factory Workflow Runs
 
-Captured: 2026-07-28T20:06:39Z
+Captured: 2026-07-28T20:13:43Z
 
 ## one-time-dispatch-video-factory-endpoints.yml
 - Run ID: 30377648044
@@ -13,14 +13,14 @@ Captured: 2026-07-28T20:06:39Z
 - URL: https://github.com/elettro/stashbox/actions/runs/30377648044
 
 ## deploy-video-factory-renderer-dev.yml
-- Run ID: 30377670353
+- Run ID: 30395063325
 - Status: completed
 - Conclusion: success
 - Event: workflow_dispatch
-- Created: 2026-07-28T16:19:11Z
-- Updated: 2026-07-28T16:21:54Z
-- Head SHA: 450146f0915a2b3fc291ad52475c8ea567efb25e
-- URL: https://github.com/elettro/stashbox/actions/runs/30377670353
+- Created: 2026-07-28T20:09:04Z
+- Updated: 2026-07-28T20:12:11Z
+- Head SHA: 742ba69ad0493b4c037389513c982fc72cbf9d15
+- URL: https://github.com/elettro/stashbox/actions/runs/30395063325
 
 ## one-time-validate-video-factory-portrait-ratios-v2.yml
 - Run ID: 30381461384
@@ -44,23 +44,23 @@ Captured: 2026-07-28T20:06:39Z
 
 ## one-time-validate-video-factory-long-title-regression.yml
 - Run ID: 30393503450
-- Status: completed
-- Conclusion: failure
+- Status: in_progress
+- Conclusion: 
 - Event: push
 - Created: 2026-07-28T19:48:04Z
-- Updated: 2026-07-28T19:51:28Z
+- Updated: 2026-07-28T20:12:25Z
 - Head SHA: 5ebd9146839c3552a4d827f0f360c0393c79be63
 - URL: https://github.com/elettro/stashbox/actions/runs/30393503450
 
 ## one-time-apply-video-factory-portrait-title-safe-margin.yml
-- Run ID: 30394708283
-- Status: completed
-- Conclusion: failure
+- Run ID: 30395040791
+- Status: in_progress
+- Conclusion: 
 - Event: push
-- Created: 2026-07-28T20:04:18Z
-- Updated: 2026-07-28T20:04:35Z
-- Head SHA: b2d2770e26ec42c1149e2cd226010a76c3649218
-- URL: https://github.com/elettro/stashbox/actions/runs/30394708283
+- Created: 2026-07-28T20:08:45Z
+- Updated: 2026-07-28T20:08:49Z
+- Head SHA: c067660ad49dea4a7baa3a00fcaeabdba6c698a5
+- URL: https://github.com/elettro/stashbox/actions/runs/30395040791
 
 ## monitor-video-factory-deploy-dev.yml
 - Run ID: 30378715500
