@@ -1,0 +1,117 @@
+name: Snapshot First Social Factory Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-snapshot-first-social-factory-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-first-orchestrated-render-live-status.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read latest Social Factory render status
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          HTTP_STATUS=$(curl \
+            --silent \
+            --show-error \
+            --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/social-render-jobs.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=25")
+
+          test "${HTTP_STATUS}" = '200'
+          jq -e '.ok == true and (.jobs | type == "array")' /tmp/social-render-jobs.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg http_status "${HTTP_STATUS}" '
+              ([.jobs[] |
+                select(
+                  .campaign_name == "First Orchestrated Render" or
+                  (.batch_name | test("Social Factory First Orchestrated Render"; "i"))
+                )] | .[0]) as $job |
+              {
+                status: (if $job then "found" else "not_found" end),
+                recorded_at: $recorded_at,
+                http_status: $http_status,
+                job: (if $job then {
+                  id: $job.id,
+                  batch_id: $job.batch_id,
+                  batch_name: $job.batch_name,
+                  campaign_name: $job.campaign_name,
+                  song_key: $job.song_key,
+                  song_title: $job.song_title,
+                  artist: $job.artist,
+                  status: $job.status,
+                  active: $job.active,
+                  ready_for_staging: $job.ready_for_staging,
+                  duration_mode: $job.duration_mode,
+                  duration_seconds: $job.duration_seconds,
+                  aspect_ratio: $job.aspect_ratio,
+                  width: $job.width,
+                  height: $job.height,
+                  fps: $job.fps,
+                  output_filename: $job.output_filename,
+                  output_url: $job.output_url,
+                  thumbnail_url: $job.thumbnail_url,
+                  error_message: $job.error_message,
+                  created_at: $job.created_at,
+                  started_at: $job.started_at,
+                  completed_at: $job.completed_at,
+                  updated_at: $job.updated_at
+                } else null end),
+                youtube_published: false
+              }
+            ' /tmp/social-render-jobs.json > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-render-jobs.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit status snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Social Factory render live status [skip ci]'
+          git push origin HEAD:main
