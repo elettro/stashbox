@@ -1,0 +1,109 @@
+name: Apply Social Factory FIFO Conversion
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/apply-social-factory-fifo-conversion.yml'
+      - 'scripts/apply-social-factory-fifo-conversion.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-social-factory-fifo-conversion-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Apply idempotent FIFO conversion
+        run: python scripts/apply-social-factory-fifo-conversion.py
+
+      - name: Validate converted source
+        working-directory: social-factory-api
+        run: |
+          npm run check
+          npm test
+          sam validate --template-file infrastructure/template.yaml --lint
+
+      - name: Commit converted source
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --rebase --autostash origin main
+
+          git add \
+            social-factory-api/schedule-publish.mjs \
+            social-factory-api/infrastructure/template.yaml \
+            .github/workflows/deploy-social-factory-api-dev.yml
+
+          if git diff --cached --quiet; then
+            echo 'FIFO conversion is already committed.'
+            exit 0
+          fi
+
+          git commit -m 'Serialize Social Factory scheduled publishing with FIFO [skip ci]'
+          git push origin main
+
+      - name: Record conversion outcome
+        if: always()
+        env:
+          CONVERSION_STATUS: ${{ job.status }}
+        run: |
+          set +e
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          jq -n \
+            --arg status "${CONVERSION_STATUS}" \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            '{
+              status: $status,
+              recorded_at: $recorded_at,
+              commit_sha: $commit_sha,
+              run_id: $run_id,
+              run_url: $run_url
+            }' > /tmp/social-factory-fifo-conversion-v2.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          mkdir -p deployment-reports
+          cp /tmp/social-factory-fifo-conversion-v2.json deployment-reports/social-factory-fifo-conversion-v2.json
+          git add deployment-reports/social-factory-fifo-conversion-v2.json
+
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
+          git commit -m 'Record Social Factory FIFO conversion v2 [skip ci]'
+          git push origin main
