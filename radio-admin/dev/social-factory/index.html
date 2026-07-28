@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stashbox Social Factory · Campaigns & Content Review</title>
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="./social-factory.css?v=20260728-batch1" />
-  <link rel="stylesheet" href="./campaign-builder.css?v=20260728-batch1" />
+  <link rel="stylesheet" href="./social-factory.css?v=20260728-batch2" />
+  <link rel="stylesheet" href="./campaign-builder.css?v=20260728-batch2" />
+  <link rel="stylesheet" href="./render-operations.css?v=20260728-batch2" />
 </head>
 <body class="sf-page">
   <header class="topbar">
@@ -16,7 +17,7 @@
         <h1>Social Factory</h1>
         <span class="dev-admin-badge">DEV</span>
       </div>
-      <p class="radio-admin-meta">Private campaign planning, content review, and publishing preparation</p>
+      <p class="radio-admin-meta">Private campaign planning, render operations, content review, and publishing preparation</p>
     </a>
   </header>
 
@@ -25,7 +26,7 @@
       <div>
         <p class="sf-eyebrow">Campaigns & Content Review</p>
         <h2>Turn eligible songs into organized social campaigns</h2>
-        <p>Social Factory can rank songs, propose Video Factory jobs, prepare draft batches, receive completed renders, and generate YouTube copy while keeping rendering and publishing behind separate approvals.</p>
+        <p>Social Factory can rank songs, propose Video Factory jobs, prepare draft batches, launch approved renders, move completed files into review, and generate YouTube copy while keeping publishing behind a separate approval.</p>
       </div>
       <div class="sf-status-card">
         <span class="sf-live-dot" aria-hidden="true"></span>
@@ -118,6 +119,54 @@
         </div>
         <div id="campaignPlanList" class="sf-campaign-plan-list"></div>
         <p class="sf-private-note">Creating drafts only prepares Video Factory jobs. Every render still requires a separate launch approval.</p>
+      </div>
+    </section>
+
+    <section class="sf-render-operations" aria-labelledby="renderOperationsTitle">
+      <div class="sf-section-head">
+        <div>
+          <p class="sf-eyebrow">Video Factory Operations</p>
+          <h2 id="renderOperationsTitle">Launch, monitor, and stage approved render jobs</h2>
+          <p class="sf-campaign-intro">Load a campaign after its draft jobs are created. Rendering and Content Review staging each require their own confirmation.</p>
+        </div>
+        <span class="sf-pill sf-pill-muted">No Auto-Publish</span>
+      </div>
+
+      <div class="sf-render-lookup">
+        <input id="renderCampaignName" maxlength="100" placeholder="Campaign name, for example Social Factory Test Batch" />
+        <div class="sf-render-select-actions">
+          <button id="loadRenderCampaign" class="sf-button" type="button">Load Campaign Jobs</button>
+          <button id="renderRefresh" class="sf-button sf-button-secondary" type="button">Refresh Status</button>
+        </div>
+      </div>
+
+      <div class="sf-render-summary" aria-label="Render job status summary">
+        <div class="sf-render-stat"><strong id="renderTotalCount">0</strong><span>Total Jobs</span></div>
+        <div class="sf-render-stat"><strong id="renderDraftCount">0</strong><span>Draft</span></div>
+        <div class="sf-render-stat"><strong id="renderActiveCount">0</strong><span>Rendering</span></div>
+        <div class="sf-render-stat"><strong id="renderCompletedCount">0</strong><span>Completed</span></div>
+        <div class="sf-render-stat"><strong id="renderFailedCount">0</strong><span>Failed</span></div>
+      </div>
+
+      <div class="sf-render-toolbar">
+        <div class="sf-render-select-actions">
+          <button id="selectDraftRenders" class="sf-button sf-button-secondary" type="button">Select Drafts</button>
+          <button id="selectCompletedRenders" class="sf-button sf-button-secondary" type="button">Select Completed</button>
+          <button id="clearRenderSelection" class="sf-button sf-button-secondary" type="button">Clear Selection</button>
+          <span id="renderSelectionCount" class="sf-mini-pill">0 selected</span>
+        </div>
+        <div class="sf-render-primary-actions">
+          <button id="launchSelectedRenders" class="sf-button sf-button-warning" type="button" disabled>Launch Selected Renders</button>
+          <button id="stageSelectedRenders" class="sf-button sf-button-success" type="button" disabled>Move Completed to Review</button>
+        </div>
+      </div>
+
+      <div id="renderJobList" class="sf-render-job-list"></div>
+      <p id="renderJobsEmpty" class="sf-render-empty">No campaign jobs loaded yet.</p>
+
+      <div class="sf-render-operation-note">
+        <strong>Publishing stays locked.</strong>
+        <span>Launching renders creates video files. Moving completed files prepares Content Review items. Neither action publishes to YouTube.</span>
       </div>
     </section>
 
@@ -253,8 +302,9 @@
     </section>
   </main>
 
-  <script src="./social-factory.js?v=20260728-batch1"></script>
-  <script src="./campaign-builder.js?v=20260728-batch1"></script>
+  <script src="./social-factory.js?v=20260728-batch2"></script>
+  <script src="./campaign-builder.js?v=20260728-batch2"></script>
+  <script src="./render-operations.js?v=20260728-batch2"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260728-social-factory1" defer></script>
 </body>
 </html>

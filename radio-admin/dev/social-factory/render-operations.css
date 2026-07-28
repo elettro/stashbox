@@ -1,0 +1,194 @@
+.sf-render-operations {
+  margin-top: 16px;
+  padding: 22px;
+  border: 1px solid var(--sf-line);
+  border-radius: 18px;
+  background: rgba(15, 20, 23, .94);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .25);
+}
+
+.sf-render-lookup {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.sf-render-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.sf-render-stat {
+  padding: 12px;
+  border: 1px solid #334047;
+  border-radius: 12px;
+  background: #0b1012;
+}
+
+.sf-render-stat strong,
+.sf-render-stat span {
+  display: block;
+}
+
+.sf-render-stat strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.sf-render-stat span {
+  margin-top: 5px;
+  color: var(--sf-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.sf-render-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sf-render-select-actions,
+.sf-render-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sf-render-job-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.sf-render-job {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid #334047;
+  border-radius: 12px;
+  background: rgba(8, 13, 15, .88);
+}
+
+.sf-render-job[aria-selected="true"] {
+  border-color: rgba(77, 227, 154, .72);
+  box-shadow: inset 0 0 0 1px rgba(77, 227, 154, .2);
+}
+
+.sf-render-job input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.sf-render-job-copy {
+  min-width: 0;
+}
+
+.sf-render-job-copy strong,
+.sf-render-job-copy span,
+.sf-render-job-copy small {
+  display: block;
+}
+
+.sf-render-job-copy strong {
+  overflow-wrap: anywhere;
+}
+
+.sf-render-job-copy span {
+  margin-top: 4px;
+  color: #b2bec2;
+  font-size: 11px;
+}
+
+.sf-render-job-copy small {
+  margin-top: 7px;
+  color: var(--sf-muted);
+  font-size: 10px;
+}
+
+.sf-render-status {
+  min-width: 88px;
+  padding: 6px 8px;
+  border: 1px solid #415059;
+  border-radius: 999px;
+  color: #d9e2e4;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.sf-render-status[data-status="draft"] { border-color: #79828b; }
+.sf-render-status[data-status="pending"],
+.sf-render-status[data-status="preparing"],
+.sf-render-status[data-status="rendering"],
+.sf-render-status[data-status="uploading"] {
+  border-color: var(--sf-blue);
+  color: #9dcdfd;
+}
+.sf-render-status[data-status="completed"] {
+  border-color: var(--sf-green);
+  color: var(--sf-green);
+}
+.sf-render-status[data-status="failed"],
+.sf-render-status[data-status="cancelled"] {
+  border-color: #ef7777;
+  color: #ff9696;
+}
+
+.sf-render-empty {
+  margin: 14px 0 0;
+  padding: 18px;
+  border: 1px dashed #3a474e;
+  border-radius: 12px;
+  color: var(--sf-muted);
+  text-align: center;
+}
+
+.sf-render-operation-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(240, 180, 70, .38);
+  border-radius: 12px;
+  background: rgba(81, 55, 10, .18);
+  color: #e8d5ad;
+  font-size: 12px;
+}
+
+.sf-render-operation-note strong {
+  color: #ffd98b;
+}
+
+@media (max-width: 860px) {
+  .sf-render-summary { grid-template-columns: repeat(3, 1fr); }
+  .sf-render-toolbar { align-items: stretch; flex-direction: column; }
+  .sf-render-select-actions,
+  .sf-render-primary-actions { width: 100%; }
+  .sf-render-select-actions .sf-button,
+  .sf-render-primary-actions .sf-button { flex: 1; }
+}
+
+@media (max-width: 580px) {
+  .sf-render-operations { padding: 18px; }
+  .sf-render-lookup { grid-template-columns: 1fr; }
+  .sf-render-summary { grid-template-columns: 1fr 1fr; }
+  .sf-render-job { grid-template-columns: auto minmax(0, 1fr); }
+  .sf-render-status { grid-column: 2; justify-self: start; }
+  .sf-render-select-actions,
+  .sf-render-primary-actions { flex-direction: column; }
+}

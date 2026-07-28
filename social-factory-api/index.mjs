@@ -2,11 +2,12 @@ import { createYoutubeOAuthService } from './youtube-oauth.mjs';
 import { createYoutubePublishService } from './youtube-publish.mjs';
 import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 import { createBatchCampaignService } from './batch-campaigns.mjs';
+import { createBatchOperationsService } from './batch-operations.mjs';
 import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.6.0';
+const SERVICE_VERSION = '0.7.0';
 
 function getJsonHeaders() {
   return {
@@ -106,12 +107,14 @@ export function createHandler({
   youtubePublish = null,
   videoOrchestrator = null,
   batchCampaigns = null,
+  batchOperations = null,
   reviewWorkflow = null,
   reviewActions = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
   let resolvedBatchCampaigns = batchCampaigns;
+  let resolvedBatchOperations = batchOperations;
   let resolvedReviewWorkflow = reviewWorkflow;
   let resolvedReviewActions = reviewActions;
 
@@ -135,6 +138,16 @@ export function createHandler({
   function getReviewWorkflow() {
     if (!resolvedReviewWorkflow) resolvedReviewWorkflow = createReviewWorkflowService();
     return resolvedReviewWorkflow;
+  }
+
+  function getBatchOperations() {
+    if (!resolvedBatchOperations) {
+      resolvedBatchOperations = createBatchOperationsService({
+        orchestrator: getVideoOrchestrator(),
+        reviewWorkflow: getReviewWorkflow()
+      });
+    }
+    return resolvedBatchOperations;
   }
 
   function getReviewActions() {
@@ -175,7 +188,11 @@ export function createHandler({
             radioApiBridgeSupported: true,
             batchCampaignPlanningSupported: true,
             batchDraftCreationSupported: true,
+            batchRenderOperationsSupported: true,
             batchRenderLaunchRequiresSeparateApproval: true,
+            batchStagingSupported: Boolean(
+              process.env.SOCIAL_PUBLISH_BUCKET && process.env.VIDEO_FACTORY_SOURCE_BUCKET
+            ),
             renderStagingSupported: Boolean(
               process.env.SOCIAL_PUBLISH_BUCKET && process.env.VIDEO_FACTORY_SOURCE_BUCKET
             ),
@@ -223,6 +240,18 @@ export function createHandler({
       if (method === 'POST' && path === '/social/orchestration/batch-drafts') {
         const result = await getBatchCampaigns().createDrafts(event);
         return json(result.created ? 201 : 200, { ok: true, ...result });
+      }
+
+      if (method === 'GET' && path === '/social/orchestration/batch-jobs') {
+        return json(200, { ok: true, ...(await getBatchOperations().list(event)) });
+      }
+
+      if (method === 'POST' && path === '/social/orchestration/batch-launch') {
+        return json(200, { ok: true, ...(await getBatchOperations().launch(event)) });
+      }
+
+      if (method === 'POST' && path === '/social/orchestration/batch-stage') {
+        return json(200, { ok: true, ...(await getBatchOperations().stage(event)) });
       }
 
       if (method === 'GET' && path === '/social/orchestration/render-jobs') {

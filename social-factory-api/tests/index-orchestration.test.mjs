@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandler } from '../index.mjs';
 
-function request(path, method = 'GET', body) {
+function request(path, method = 'GET', body, queryStringParameters = null) {
   return {
     rawPath: path,
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: { 'x-admin-token': 'social-admin' },
+    queryStringParameters,
     requestContext: {
       stage: 'dev',
       http: { method, path }
@@ -14,7 +15,7 @@ function request(path, method = 'GET', body) {
   };
 }
 
-function createApi({ orchestrator = {}, batch = {}, review = {}, actions = {} } = {}) {
+function createApi({ orchestrator = {}, batch = {}, operations = {}, review = {}, actions = {} } = {}) {
   return createHandler({
     youtubeOAuth: {
       start: async () => ({}),
@@ -57,6 +58,30 @@ function createApi({ orchestrator = {}, batch = {}, review = {}, actions = {} } 
         renders_launched: false
       }),
       ...batch
+    },
+    batchOperations: {
+      list: async () => ({
+        campaign_name: 'Tomorrow Test',
+        job_count: 2,
+        counts: { total: 2, draft: 1, active: 1, completed: 0, failed: 0, other: 0 },
+        jobs: [{ id: 'draft-job-12345678', status: 'draft' }],
+        youtube_published: false
+      }),
+      launch: async () => ({
+        launched: false,
+        mode: 'validation_only',
+        approval_required: true,
+        would_launch_count: 1,
+        youtube_published: false
+      }),
+      stage: async () => ({
+        staged: false,
+        mode: 'validation_only',
+        approval_required: true,
+        would_stage_count: 0,
+        youtube_published: false
+      }),
+      ...operations
     },
     reviewWorkflow: {
       stageRender: async (_event, id) => ({
@@ -114,6 +139,37 @@ test('batch planning and draft creation stay behind separate routes', async () =
   const drafts = JSON.parse(draftsResponse.body);
   assert.equal(drafts.created_job_count, 2);
   assert.equal(drafts.renders_launched, false);
+});
+
+test('batch job, launch validation, and stage validation use separate protected routes', async () => {
+  const api = createApi();
+
+  const jobsResponse = await api(request(
+    '/social/orchestration/batch-jobs',
+    'GET',
+    undefined,
+    { campaign_name: 'Tomorrow Test' }
+  ));
+  assert.equal(jobsResponse.statusCode, 200);
+  assert.equal(JSON.parse(jobsResponse.body).job_count, 2);
+
+  const launchResponse = await api(request('/social/orchestration/batch-launch', 'POST', {
+    campaign_name: 'Tomorrow Test'
+  }));
+  assert.equal(launchResponse.statusCode, 200);
+  const launch = JSON.parse(launchResponse.body);
+  assert.equal(launch.mode, 'validation_only');
+  assert.equal(launch.approval_required, true);
+  assert.equal(launch.youtube_published, false);
+
+  const stageResponse = await api(request('/social/orchestration/batch-stage', 'POST', {
+    campaign_name: 'Tomorrow Test'
+  }));
+  assert.equal(stageResponse.statusCode, 200);
+  const stage = JSON.parse(stageResponse.body);
+  assert.equal(stage.mode, 'validation_only');
+  assert.equal(stage.approval_required, true);
+  assert.equal(stage.youtube_published, false);
 });
 
 test('render-job item and launch paths preserve the job ID', async () => {
