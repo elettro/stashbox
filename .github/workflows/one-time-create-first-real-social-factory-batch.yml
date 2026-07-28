@@ -78,6 +78,7 @@ jobs:
           }
 
           READY=false
+          HEALTH_STATUS='000'
           for attempt in $(seq 1 60); do
             HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
               -o /tmp/social-health.json -w '%{http_code}' \
@@ -96,6 +97,8 @@ jobs:
             sleep 10
           done
           test "${READY}" = 'true'
+
+          ENCODED_NAME=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
 
           jq -n \
             --arg campaign_name "${CAMPAIGN_NAME}" '
@@ -146,7 +149,7 @@ jobs:
             .approval_required_before_render_launch == true
           ' /tmp/drafts.json >/dev/null
 
-          jq -r '[.created_jobs[].job.id, .skipped_jobs[].job.id] | map(select(length > 0)) | unique' \
+          jq '((.created_jobs // []) + (.skipped_jobs // [])) | map(.job.id) | map(select(length > 0)) | unique' \
             /tmp/drafts.json > /tmp/job-ids.json
           JOB_COUNT=$(jq 'length' /tmp/job-ids.json)
           test "${JOB_COUNT}" = '3'
@@ -173,27 +176,22 @@ jobs:
 
           POLL_COMPLETE=false
           for attempt in $(seq 1 120); do
-            BATCH_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=$(python3 - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ['CAMPAIGN_NAME']))
-PY
-)" /tmp/batch-status.json)
+            BATCH_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=${ENCODED_NAME}" /tmp/batch-status.json)
             test "${BATCH_STATUS}" = '200'
 
             ACTIVE_COUNT=$(jq '.counts.active' /tmp/batch-status.json)
-            DRAFT_COUNT=$(jq '.counts.draft' /tmp/batch-status.json)
-            if [ "${ACTIVE_COUNT}" = '0' ] && [ "${DRAFT_COUNT}" = '0' ]; then
+            if [ "${ACTIVE_COUNT}" = '0' ]; then
               POLL_COMPLETE=true
               break
             fi
             sleep 15
           done
-
           test "${POLL_COMPLETE}" = 'true'
 
           jq '[.jobs[] | select(.status == "completed") | .id]' /tmp/batch-status.json > /tmp/completed-job-ids.json
           COMPLETED_COUNT=$(jq 'length' /tmp/completed-job-ids.json)
           FAILED_COUNT=$(jq '.counts.failed' /tmp/batch-status.json)
+          DRAFT_REMAINING=$(jq '.counts.draft' /tmp/batch-status.json)
           test "${COMPLETED_COUNT}" -ge 1
 
           jq -n --slurpfile ids /tmp/completed-job-ids.json '{job_ids: $ids[0]}' > /tmp/stage-validation-body.json
@@ -231,6 +229,7 @@ PY
             --arg stage_http_status "${STAGE_STATUS}" \
             --argjson completed_count "${COMPLETED_COUNT}" \
             --argjson failed_count "${FAILED_COUNT}" \
+            --argjson draft_remaining "${DRAFT_REMAINING}" \
             --slurpfile plan /tmp/plan.json \
             --slurpfile drafts /tmp/drafts.json \
             --slurpfile launch /tmp/launch.json \
@@ -265,7 +264,8 @@ PY
                 draft_jobs: {
                   proposed: $plan[0].proposed_job_count,
                   created: $drafts[0].created_job_count,
-                  reused: $drafts[0].skipped_job_count
+                  reused: $drafts[0].skipped_job_count,
+                  remaining_after_launch: $draft_remaining
                 },
                 render_launch: {
                   launched: $launch[0].launched_job_count,

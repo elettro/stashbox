@@ -49,11 +49,7 @@ jobs:
           SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
           test -n "${SOCIAL_ADMIN_TOKEN}"
 
-          ENCODED_NAME=$(python3 - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ['CAMPAIGN_NAME']))
-PY
-)
+          ENCODED_NAME=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
 
           JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
             -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
