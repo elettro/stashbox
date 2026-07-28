@@ -1,0 +1,222 @@
+name: Verify Social Factory 0.7 Operations Live
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-verify-social-factory-07-operations-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CONTENT_REVIEW_URL: https://stashbox.com/radio-admin/dev/social-factory/
+      COMPLETED_JOB_ID: cc50acd7-014d-492f-89ac-682c8894240e
+      REPORT_PATH: deployment-reports/social-factory-07-operations-live.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify live batch operations without changing jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          READY=false
+          HEALTH_STATUS='000'
+          for attempt in $(seq 1 80); do
+            HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/social-health.json -w '%{http_code}' \
+              "${SOCIAL_API_BASE}/social/health" || true)
+            if [ "${HEALTH_STATUS}" = '200' ] && jq -e '
+              .ok == true and
+              .version == "0.7.0" and
+              .isolation.batchRenderOperationsSupported == true and
+              .isolation.batchRenderLaunchRequiresSeparateApproval == true and
+              .isolation.batchStagingSupported == true
+            ' /tmp/social-health.json >/dev/null 2>&1; then
+              READY=true
+              break
+            fi
+            sleep 10
+          done
+          test "${READY}" = 'true'
+
+          BEFORE_JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-before.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${BEFORE_JOBS_STATUS}" = '200'
+          BEFORE_JOB_COUNT=$(jq '.jobs | length' /tmp/jobs-before.json)
+
+          BEFORE_REVIEWS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/reviews-before.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          test "${BEFORE_REVIEWS_STATUS}" = '200'
+          BEFORE_REVIEW_COUNT=$(jq '.items | length' /tmp/reviews-before.json)
+
+          BATCH_JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/batch-jobs.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-jobs?job_ids=${COMPLETED_JOB_ID}")
+          test "${BATCH_JOBS_STATUS}" = '200'
+          jq -e --arg id "${COMPLETED_JOB_ID}" '
+            .ok == true and
+            .job_count == 1 and
+            .jobs[0].id == $id and
+            .jobs[0].status == "completed" and
+            .counts.completed == 1 and
+            .youtube_published == false
+          ' /tmp/batch-jobs.json >/dev/null
+
+          LAUNCH_STATUS=$(curl --silent --show-error --max-time 90 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -d "{\"job_ids\":[\"${COMPLETED_JOB_ID}\"]}" \
+            -o /tmp/batch-launch-validation.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-launch")
+          test "${LAUNCH_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .launched == false and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_launch_count == 0 and
+            .would_skip_count == 1 and
+            .youtube_published == false
+          ' /tmp/batch-launch-validation.json >/dev/null
+
+          STAGE_STATUS=$(curl --silent --show-error --max-time 90 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -d "{\"job_ids\":[\"${COMPLETED_JOB_ID}\"]}" \
+            -o /tmp/batch-stage-validation.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-stage")
+          test "${STAGE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .staged == false and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_stage_count == 1 and
+            .would_skip_count == 0 and
+            .youtube_published == false
+          ' /tmp/batch-stage-validation.json >/dev/null
+
+          AFTER_JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-after.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${AFTER_JOBS_STATUS}" = '200'
+          AFTER_JOB_COUNT=$(jq '.jobs | length' /tmp/jobs-after.json)
+          test "${BEFORE_JOB_COUNT}" = "${AFTER_JOB_COUNT}"
+
+          AFTER_REVIEWS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/reviews-after.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          test "${AFTER_REVIEWS_STATUS}" = '200'
+          AFTER_REVIEW_COUNT=$(jq '.items | length' /tmp/reviews-after.json)
+          test "${BEFORE_REVIEW_COUNT}" = "${AFTER_REVIEW_COUNT}"
+
+          PAGE_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/social-page.html -w '%{http_code}' \
+            "${CONTENT_REVIEW_URL}")
+          test "${PAGE_STATUS}" = '200'
+          grep -Fq 'Video Factory Operations' /tmp/social-page.html
+          grep -Fq 'Launch Selected Renders' /tmp/social-page.html
+          grep -Fq 'Move Completed to Review' /tmp/social-page.html
+          grep -Fq 'No Auto-Publish' /tmp/social-page.html
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg completed_job_id "${COMPLETED_JOB_ID}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg batch_jobs_http_status "${BATCH_JOBS_STATUS}" \
+            --arg launch_validation_http_status "${LAUNCH_STATUS}" \
+            --arg stage_validation_http_status "${STAGE_STATUS}" \
+            --arg content_review_page_http_status "${PAGE_STATUS}" \
+            --arg content_review_url "${CONTENT_REVIEW_URL}" \
+            --argjson before_job_count "${BEFORE_JOB_COUNT}" \
+            --argjson after_job_count "${AFTER_JOB_COUNT}" \
+            --argjson before_review_count "${BEFORE_REVIEW_COUNT}" \
+            --argjson after_review_count "${AFTER_REVIEW_COUNT}" '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                api_version: "0.7.0",
+                completed_job_id: $completed_job_id,
+                health_http_status: $health_http_status,
+                batch_jobs_http_status: $batch_jobs_http_status,
+                launch_validation_http_status: $launch_validation_http_status,
+                stage_validation_http_status: $stage_validation_http_status,
+                content_review_page_http_status: $content_review_page_http_status,
+                content_review_url: $content_review_url,
+                render_jobs_before: $before_job_count,
+                render_jobs_after: $after_job_count,
+                review_items_before: $before_review_count,
+                review_items_after: $after_review_count,
+                validation: {
+                  completed_job_loaded: true,
+                  launch_requires_confirmation: true,
+                  completed_job_not_relaunched: true,
+                  completed_job_ready_for_staging: true,
+                  staging_requires_confirmation: true
+                },
+                draft_jobs_created: false,
+                renders_launched: false,
+                files_staged: false,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-health.json /tmp/jobs-before.json \
+            /tmp/jobs-after.json /tmp/reviews-before.json /tmp/reviews-after.json \
+            /tmp/batch-jobs.json /tmp/batch-launch-validation.json \
+            /tmp/batch-stage-validation.json /tmp/social-page.html
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record live Social Factory 0.7 operations verification [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
