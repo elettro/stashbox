@@ -1,5 +1,5 @@
 name: Verify Social Factory Content Review
-# Trigger after this workflow already exists on the default branch.
+# Trigger final live verification after the first completed render was staged for review.
 
 on:
   push:
@@ -174,8 +174,8 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git pull --rebase origin main
           git add "${REPORT_PATH}"
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Record live Social Factory Content Review verification [skip ci]'
+          git pull --rebase origin main
           git push origin HEAD:main
