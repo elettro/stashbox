@@ -1,0 +1,70 @@
+{
+  "recorded_at": "2026-07-28T01:15:53Z",
+  "latest_run": {
+    "id": 30319656068,
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha": "536156f8762117de9f33a820317aa5833f440a9e",
+    "created_at": "2026-07-28T01:13:47Z",
+    "updated_at": "2026-07-28T01:14:12Z",
+    "html_url": "https://github.com/elettro/stashbox/actions/runs/30319656068"
+  },
+  "jobs": [
+    {
+      "id": 90152666941,
+      "name": "stage",
+      "status": "completed",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run aws-actions/configure-aws-credentials@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Stage completed render server-to-server",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 4
+        },
+        {
+          "name": "Commit staged review receipt",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5
+        },
+        {
+          "name": "Post Run aws-actions/configure-aws-credentials@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        }
+      ]
+    }
+  ]
+}
