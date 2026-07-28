@@ -304,7 +304,7 @@ jobs:
           jq -e '
             .ok == true and
             .service == "stashbox-social-api" and
-            .version == "0.3.0" and
+            .version == "0.6.0" and
             .environment == "dev" and
             .isolation.databaseConfigured == false and
             .isolation.s3Configured == true and
@@ -313,7 +313,14 @@ jobs:
             .isolation.youtubeOauthConfigured == true and
             .isolation.youtubePublishingConfigured == true and
             .isolation.mainRadioApiDependency == false and
-            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"
+            .isolation.radioApiBridgeSupported == true and
+            .isolation.batchCampaignPlanningSupported == true and
+            .isolation.batchDraftCreationSupported == true and
+            .isolation.batchRenderLaunchRequiresSeparateApproval == true and
+            .isolation.contentReviewSupported == true and
+            .isolation.reviewEditingSupported == true and
+            .isolation.securePreviewSupported == true and
+            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"
           ' /tmp/social-health.json >/dev/null
 
           YOUTUBE_STATUS=$(curl --silent --show-error --max-time 45 \
