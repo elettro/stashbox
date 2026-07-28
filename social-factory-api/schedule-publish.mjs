@@ -53,9 +53,10 @@ function safeReviewId(value) {
   return text;
 }
 
-function scheduleName(reviewId) {
-  const digest = crypto.createHash('sha256').update(reviewId).digest('hex').slice(0, 32);
-  return `social-review-${digest}`;
+function scheduleName(reviewId, scheduledAt) {
+  const reviewDigest = crypto.createHash('sha256').update(reviewId).digest('hex').slice(0, 24);
+  const timeDigest = crypto.createHash('sha256').update(scheduledAt.toISOString()).digest('hex').slice(0, 8);
+  return `social-review-${reviewDigest}-${timeDigest}`;
 }
 
 function scheduleExpression(date) {
@@ -187,7 +188,7 @@ export function createSchedulePublishService({
       }
 
       const scheduledAt = new Date(scheduledMs);
-      const name = scheduleName(id);
+      const name = scheduleName(id, scheduledAt);
       const existingSchedule = item.schedule || {};
       if (
         item.publishing_status === 'scheduled' &&
@@ -216,7 +217,9 @@ export function createSchedulePublishService({
         };
       }
 
-      await getScheduleStore().delete(existingSchedule.schedule_name || name);
+      if (existingSchedule.schedule_name) {
+        await getScheduleStore().delete(existingSchedule.schedule_name);
+      }
       await getScheduleStore().create({ name, reviewId: id, scheduledAt });
 
       const timestamp = now().toISOString();
