@@ -1,0 +1,249 @@
+{
+  "recorded_at": "2026-07-28T01:51:10Z",
+  "smoke_patch": {
+    "run": {
+      "id": 30321239613,
+      "status": "completed",
+      "conclusion": "failure",
+      "event": "push",
+      "head_sha": "bae1ad85e954c84c4ccc97b2e02cb366c9a51616",
+      "created_at": "2026-07-28T01:46:46Z",
+      "updated_at": "2026-07-28T01:47:01Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30321239613"
+    },
+    "jobs": [
+      {
+        "id": 90157373590,
+        "name": "patch",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Update Social Factory deployment smoke to version 0.5",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 3
+          },
+          {
+            "name": "Commit corrected deployment smoke",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 4
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          }
+        ]
+      }
+    ]
+  },
+  "live_verification": {
+    "run": {
+      "id": 30321239566,
+      "status": "in_progress",
+      "conclusion": null,
+      "event": "push",
+      "head_sha": "bae1ad85e954c84c4ccc97b2e02cb366c9a51616",
+      "created_at": "2026-07-28T01:46:46Z",
+      "updated_at": "2026-07-28T01:46:50Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30321239566"
+    },
+    "jobs": [
+      {
+        "id": 90157373327,
+        "name": "verify",
+        "status": "in_progress",
+        "conclusion": null,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Run aws-actions/configure-aws-credentials@v4",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Wait for Social Factory 0.5 and verify Content Review",
+            "status": "in_progress",
+            "conclusion": null,
+            "number": 4
+          },
+          {
+            "name": "Commit live verification receipt",
+            "status": "pending",
+            "conclusion": null,
+            "number": 5
+          },
+          {
+            "name": "Post Run aws-actions/configure-aws-credentials@v4",
+            "status": "pending",
+            "conclusion": null,
+            "number": 9
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "pending",
+            "conclusion": null,
+            "number": 10
+          }
+        ]
+      }
+    ]
+  },
+  "social_factory_deploy": {
+    "run": {
+      "id": 30320702818,
+      "status": "completed",
+      "conclusion": "failure",
+      "event": "push",
+      "head_sha": "171a8dcdca62cc6516859b99c8b466cb96574816",
+      "created_at": "2026-07-28T01:35:39Z",
+      "updated_at": "2026-07-28T01:38:12Z",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30320702818"
+    },
+    "jobs": [
+      {
+        "id": 90155779028,
+        "name": "validate-and-deploy",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Checkout repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Setup Node.js 22",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Setup AWS SAM",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4
+          },
+          {
+            "name": "Validate source",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5
+          },
+          {
+            "name": "Configure AWS credentials",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6
+          },
+          {
+            "name": "Recover failed Social Factory stack",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7
+          },
+          {
+            "name": "Build isolated SAM application",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8
+          },
+          {
+            "name": "Prepare isolated deployment artifact bucket",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          },
+          {
+            "name": "Deploy isolated DEV stack",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10
+          },
+          {
+            "name": "Verify function, role, secrets, and publish bucket boundary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11
+          },
+          {
+            "name": "Smoke test health and protected publishing routes",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 12
+          },
+          {
+            "name": "Record deployment receipt",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13
+          },
+          {
+            "name": "Post Configure AWS credentials",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24
+          },
+          {
+            "name": "Post Setup Node.js 22",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 25
+          },
+          {
+            "name": "Post Checkout repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 26
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 27
+          }
+        ]
+      }
+    ]
+  }
+}
