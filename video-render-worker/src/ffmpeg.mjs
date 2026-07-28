@@ -206,12 +206,29 @@ function between(start, end) {
   return `between(t\\,${Number(start).toFixed(3)}\\,${Number(end).toFixed(3)})`;
 }
 
+function estimatedTextUnits(value) {
+  return [...String(value || '')].reduce((total, character) => {
+    if (character === ' ') return total + 0.34;
+    if (/[ilI1.,'’|!]/.test(character)) return total + 0.32;
+    if (/[MW@#%&]/.test(character)) return total + 0.92;
+    if (/[A-Z0-9]/.test(character)) return total + 0.68;
+    return total + 0.56;
+  }, 0);
+}
+
+function fitNarrowOverlayText(text, preferredSize, width) {
+  const horizontalPadding = 36;
+  const availableWidth = Math.max(1, width * 0.86 - horizontalPadding);
+  const widthAtOnePixel = Math.max(1, estimatedTextUnits(text));
+  return Math.min(preferredSize, availableWidth / widthAtOnePixel);
+}
+
 function drawText({ fontFile, text, size, x, y, enable, box = true, opacity = 0.52 }) {
   const options = [
     `fontfile=${escapeDrawtext(fontFile)}`,
     `text='${escapeDrawtext(text)}'`,
     'fontcolor=white',
-    `fontsize=${Math.round(size)}`,
+    `fontsize=${Math.max(1, Math.round(size))}`,
     `x=${x}`,
     `y=${y}`,
     'shadowcolor=black@0.8',
@@ -230,6 +247,7 @@ export function buildOverlayFilter(
 ) {
   const overlays = recipe?.overlays || {};
   const metadata = recipe?.metadata || {};
+  const width = Number(recipe?.width || 1920);
   const height = Number(recipe?.height || 1080);
   const title = stringValue(metadata.title || recipe?.song_title);
   const artist = stringValue(metadata.artist || recipe?.artist);
@@ -238,8 +256,20 @@ export function buildOverlayFilter(
   const outroDuration = Math.min(numberValue(overlays.outro_duration_seconds, 5), totalDuration);
   const outroStart = Math.max(0, totalDuration - outroDuration);
   const filters = [];
-  const titleSize = Math.max(34, height * 0.058);
-  const secondarySize = Math.max(24, height * 0.034);
+  const narrowFormat = width <= height;
+  const landscapeTitleSize = Math.max(34, height * 0.058);
+  const landscapeSecondarySize = Math.max(24, height * 0.034);
+  const narrowTitlePreferredSize = Math.min(landscapeTitleSize, width * 0.07);
+  const narrowSecondaryPreferredSize = Math.min(landscapeSecondarySize, width * 0.045);
+  const titleSize = narrowFormat
+    ? fitNarrowOverlayText(title, narrowTitlePreferredSize, width)
+    : landscapeTitleSize;
+  const artistSize = narrowFormat
+    ? fitNarrowOverlayText(artist, narrowSecondaryPreferredSize, width)
+    : landscapeSecondarySize;
+  const albumSize = narrowFormat
+    ? fitNarrowOverlayText(album, narrowSecondaryPreferredSize * 0.82, width)
+    : landscapeSecondarySize * 0.82;
   const identityX = 'w*0.05';
 
   const addIdentityBlock = (start, end) => {
@@ -248,7 +278,7 @@ export function buildOverlayFilter(
       filters.push(drawText({
         fontFile,
         text: artist,
-        size: secondarySize,
+        size: artistSize,
         x: identityX,
         y: 'h*0.67',
         enable
@@ -268,7 +298,7 @@ export function buildOverlayFilter(
       filters.push(drawText({
         fontFile,
         text: album,
-        size: secondarySize * 0.82,
+        size: albumSize,
         x: identityX,
         y: 'h*0.86',
         enable
