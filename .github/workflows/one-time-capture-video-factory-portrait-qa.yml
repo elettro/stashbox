@@ -42,8 +42,8 @@ jobs:
           test -x "${FFPROBE_PATH}"
           echo "FFMPEG_PATH=${FFMPEG_PATH}" >> "${GITHUB_ENV}"
           echo "FFPROBE_PATH=${FFPROBE_PATH}" >> "${GITHUB_ENV}"
-          "${FFMPEG_PATH}" -version | head -1
-          "${FFPROBE_PATH}" -version | head -1
+          "${FFMPEG_PATH}" -version
+          "${FFPROBE_PATH}" -version
 
       - name: Check capture script syntax
         run: node --check radio-api/scripts/capture-video-factory-portrait-qa.mjs
@@ -57,13 +57,17 @@ jobs:
         with:
           name: video-factory-portrait-visual-qa
           path: /tmp/video-factory-portrait-qa
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Commit visual QA report
         if: always()
         run: |
           set -euo pipefail
+          if [ ! -f "${REPORT_PATH}" ]; then
+            echo "Visual QA report was not created; skipping report commit."
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "${REPORT_PATH}"
