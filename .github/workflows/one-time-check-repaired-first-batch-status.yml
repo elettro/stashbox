@@ -1,0 +1,110 @@
+name: Check Repaired First Batch Status
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-check-repaired-first-batch-status.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      HIPPY_JOB_ID: dca15a54-37f1-4e06-b1d4-11b3c2991463
+      REPORT_PATH: deployment-reports/social-factory-first-real-batch-01-repair-status.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read current render and review status
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/social-config.json)
+          [ -n "${SOCIAL_ADMIN_TOKEN}" ]
+
+          JOB_HTTP=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/job.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs/${HIPPY_JOB_ID}")
+          [ "${JOB_HTTP}" = '200' ]
+
+          REVIEWS_HTTP=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/reviews.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+          [ "${REVIEWS_HTTP}" = '200' ]
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --slurpfile job /tmp/job.json \
+            --slurpfile reviews /tmp/reviews.json '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                hippy_render: {
+                  id: $job[0].job.id,
+                  status: $job[0].job.status,
+                  active: $job[0].job.active,
+                  ready_for_staging: $job[0].job.ready_for_staging,
+                  output_filename: $job[0].job.output_filename,
+                  output_url: $job[0].job.output_url,
+                  error_message: $job[0].job.error_message,
+                  runtime: $job[0].job.render_recipe.runtime
+                },
+                batch_review_items: [$reviews[0].items[] | select(
+                  .id == "render-0c7dd5a4-45aa-443d-ad35-7a9f58031a96" or
+                  .id == "render-c657b328-bdfb-4294-ba96-6a9a031ad081" or
+                  .id == "render-dca15a54-37f1-4e06-b1d4-11b3c2991463"
+                ) | {
+                  id,
+                  song_key: .song.song_key,
+                  title: .song.title,
+                  status,
+                  publishing_status
+                }],
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/job.json /tmp/reviews.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized status receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record repaired first batch status [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
