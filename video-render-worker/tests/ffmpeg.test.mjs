@@ -2,11 +2,33 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildOverlayFilter, escapeDrawtext, segmentVideoFilter } from '../src/ffmpeg.mjs';
 
-test('drawtext escaping protects filter separators', () => {
+test('drawtext escaping protects filter separators and normalizes straight apostrophes', () => {
   assert.equal(
     escapeDrawtext("Dean's: Song, 100%"),
-    String.raw`Dean\'s\: Song\, 100\%`
+    String.raw`Dean’s\: Song\, 100\%`
   );
+});
+
+test('overlay filter safely handles song titles with apostrophes', () => {
+  const filter = buildOverlayFilter({
+    height: 1920,
+    metadata: {
+      title: "Hippy Speedball (I'm On My Way)",
+      artist: 'Stashbox'
+    },
+    overlays: {
+      intro_enabled: true,
+      outro_enabled: true,
+      corner_bug_enabled: true,
+      intro_duration_seconds: 4,
+      outro_duration_seconds: 5
+    }
+  }, 30);
+
+  assert.match(filter, /Hippy Speedball \(I’m On My Way\)/);
+  assert.doesNotMatch(filter, /I'm On My Way/);
+  assert.match(filter, /between\(t\\,25\.000\\,30\.000\)/);
+  assert.equal((filter.match(/drawtext=/g) || []).length, 5);
 });
 
 test('overlay filter contains valid drawtext syntax, intro, outro, and branding', () => {
