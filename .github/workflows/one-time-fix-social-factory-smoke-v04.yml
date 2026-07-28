@@ -1,0 +1,68 @@
+name: Fix Social Factory Smoke V04
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-fix-social-factory-smoke-v04.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Patch health assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-social-factory-api-dev.yml')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  '.version == "0.3.0" and',
+                  '.version == "0.4.0" and'
+              ),
+              (
+                  '.isolation.mainRadioApiDependency == false and\n            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-and-social-publish-bucket"',
+                  '.isolation.mainRadioApiDependency == false and\n            .isolation.radioApiBridgeSupported == true and\n            .isolation.renderStagingSupported == true and\n            .isolation.contentReviewSupported == true and\n            .isolation.executionRoleScope == "cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read"'
+              )
+          ]
+
+          for old, new in replacements:
+              if old in text:
+                  text = text.replace(old, new, 1)
+              elif new not in text:
+                  raise SystemExit(f'Expected deployment smoke text was not found: {old[:80]}')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git diff --check
+          grep -F '.version == "0.4.0"' .github/workflows/deploy-social-factory-api-dev.yml
+          grep -F '.isolation.renderStagingSupported == true' .github/workflows/deploy-social-factory-api-dev.yml
+
+      - name: Commit deployment smoke fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-social-factory-api-dev.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix Social Factory 0.4 deployment smoke [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
