@@ -1,0 +1,140 @@
+name: Unify Social Factory DEV Admin Access
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-unify-social-factory-admin-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unify-social-factory-admin-access
+  cancel-in-progress: false
+
+jobs:
+  unify-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: deployment-reports/social-factory-admin-access.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Use the standard DEV admin token for Social Factory
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ -z "${TRUE_DEV_ADMIN_TOKEN}" ]; then
+            echo 'STASHBOX_DEV_ADMIN_TOKEN is not configured.' >&2
+            exit 1
+          fi
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config-current.json
+
+          jq -e '
+            (.client_id | type == "string" and length > 0) and
+            (.client_secret | type == "string" and length > 0)
+          ' /tmp/social-config-current.json >/dev/null
+
+          jq \
+            --arg admin_token "${TRUE_DEV_ADMIN_TOKEN}" \
+            '.admin_token = $admin_token |
+             .radio_api_admin_token = $admin_token' \
+            /tmp/social-config-current.json > /tmp/social-config-updated.json
+
+          aws secretsmanager put-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --secret-string file:///tmp/social-config-updated.json \
+            >/dev/null
+
+          rm -f /tmp/social-config-current.json /tmp/social-config-updated.json
+
+      - name: Verify standard DEV access and record sanitized receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          REVIEW_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${TRUE_DEV_ADMIN_TOKEN}" \
+            -o /tmp/social-review.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=10")
+          test "${REVIEW_STATUS}" = '200'
+          jq -e '.ok == true and (.items | type == "array")' /tmp/social-review.json >/dev/null
+
+          BATCH_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${TRUE_DEV_ADMIN_TOKEN}" \
+            -o /tmp/social-batch.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-jobs?campaign_name=First%20Social%20Factory%20Batch")
+          test "${BATCH_STATUS}" = '200'
+          jq -e '.ok == true and (.jobs | type == "array")' /tmp/social-batch.json >/dev/null
+
+          ITEM_COUNT=$(jq '.items | length' /tmp/social-review.json)
+          JOB_COUNT=$(jq '.jobs | length' /tmp/social-batch.json)
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg review_http_status "${REVIEW_STATUS}" \
+            --arg batch_http_status "${BATCH_STATUS}" \
+            --argjson review_item_count "${ITEM_COUNT}" \
+            --argjson batch_job_count "${JOB_COUNT}" '
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                standard_dev_admin_access_enabled: true,
+                separate_social_factory_token_required: false,
+                review_http_status: $review_http_status,
+                batch_http_status: $batch_http_status,
+                review_item_count: $review_item_count,
+                batch_job_count: $batch_job_count,
+                credentials_exposed: false,
+                renders_launched: false,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-review.json /tmp/social-batch.json
+          unset TRUE_DEV_ADMIN_TOKEN
+
+      - name: Commit sanitized verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record unified Social Factory admin access [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
