@@ -152,7 +152,15 @@ export function createBatchOperationsService({
       }
     }
 
-    return jobs.slice(0, MAX_OPERATION_JOBS);
+    if (jobs.length > MAX_OPERATION_JOBS) {
+      throw serviceError('batch_operation_job_limit_exceeded', 422, {
+        maximum_jobs: MAX_OPERATION_JOBS,
+        selected_jobs: jobs.length,
+        use_job_ids_to_process_smaller_groups: true
+      });
+    }
+
+    return jobs;
   }
 
   return {
