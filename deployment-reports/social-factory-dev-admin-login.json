@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T17:16:02Z",
+  "source_commit": "a487400ac4a3e65afb00bf8a91345cd9d1a02152",
+  "social_api_base": "https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev",
+  "existing_dev_admin_credential_synced": true,
+  "protected_route_http_status": "200",
+  "candidate_count": 3,
+  "secret_value_recorded": false,
+  "renders_launched": false,
+  "youtube_published": false
+}
