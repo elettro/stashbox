@@ -8,7 +8,7 @@ import { createReviewActionService } from './review-actions.mjs';
 import { createReviewPublishService } from './review-publish.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.8.0';
+const SERVICE_VERSION = '0.7.0';
 
 function getJsonHeaders() {
   return {
