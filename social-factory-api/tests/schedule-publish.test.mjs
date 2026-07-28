@@ -81,11 +81,10 @@ test('confirmed scheduling creates a one-time queue schedule and updates review 
 
   assert.equal(result.scheduled, true);
   assert.equal(result.mode, 'scheduled_queue');
-  assert.equal(operations.length, 2);
-  assert.equal(operations[0].action, 'delete');
-  assert.equal(operations[1].action, 'create');
-  assert.equal(operations[1].reviewId, reviewId);
-  assert.equal(operations[1].scheduledAt.toISOString(), '2026-07-29T15:00:00.000Z');
+  assert.equal(operations.length, 1);
+  assert.equal(operations[0].action, 'create');
+  assert.equal(operations[0].reviewId, reviewId);
+  assert.equal(operations[0].scheduledAt.toISOString(), '2026-07-29T15:00:00.000Z');
   assert.equal(reviews.get(reviewId).publishing_status, 'scheduled');
   assert.equal(reviews.get(reviewId).schedule.status, 'scheduled');
 });
@@ -99,6 +98,22 @@ test('same scheduled time is idempotent', async () => {
   assert.equal(first.scheduled, true);
   assert.equal(second.mode, 'already_scheduled');
   assert.equal(base.operations.length, 0);
+});
+
+test('rescheduling deletes the previous one-time schedule and creates a new name', async () => {
+  const base = fixture();
+  const first = await base.service.schedule(event({ confirm_schedule: true }), base.reviewId);
+  base.operations.length = 0;
+  const second = await base.service.schedule(event({
+    confirm_schedule: true,
+    scheduled_at: '2026-07-30T15:00:00.000Z'
+  }), base.reviewId);
+
+  assert.equal(second.scheduled, true);
+  assert.notEqual(second.schedule_name, first.schedule_name);
+  assert.deepEqual(base.operations.map((item) => item.action), ['delete', 'create']);
+  assert.equal(base.operations[0].name, first.schedule_name);
+  assert.equal(base.operations[1].name, second.schedule_name);
 });
 
 test('schedule requires an approved item', async () => {
