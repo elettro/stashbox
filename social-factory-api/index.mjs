@@ -1,9 +1,10 @@
 import { createYoutubeOAuthService } from './youtube-oauth.mjs';
 import { createYoutubePublishService } from './youtube-publish.mjs';
 import { createVideoOrchestratorService } from './video-orchestrator.mjs';
+import { createReviewWorkflowService } from './review-workflow.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.3.0';
+const SERVICE_VERSION = '0.4.0';
 
 function getJsonHeaders() {
   return {
@@ -77,38 +78,49 @@ function publicPresignContract(result = {}) {
 function orchestrationRoute(path) {
   const jobMatch = String(path).match(/^\/social\/orchestration\/render-jobs\/([^/]+)$/);
   const launchMatch = String(path).match(/^\/social\/orchestration\/render-jobs\/([^/]+)\/launch$/);
+  const stageMatch = String(path).match(/^\/social\/orchestration\/render-jobs\/([^/]+)\/stage$/);
   return {
     jobId: jobMatch ? decodeURIComponent(jobMatch[1]) : '',
-    launchJobId: launchMatch ? decodeURIComponent(launchMatch[1]) : ''
+    launchJobId: launchMatch ? decodeURIComponent(launchMatch[1]) : '',
+    stageJobId: stageMatch ? decodeURIComponent(stageMatch[1]) : ''
   };
+}
+
+function reviewRoute(path) {
+  const itemMatch = String(path).match(/^\/social\/review-items\/([^/]+)$/);
+  return { reviewId: itemMatch ? decodeURIComponent(itemMatch[1]) : '' };
 }
 
 export function createHandler({
   youtubeOAuth = createYoutubeOAuthService(),
   youtubePublish = null,
-  videoOrchestrator = null
+  videoOrchestrator = null,
+  reviewWorkflow = null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
+  let resolvedReviewWorkflow = reviewWorkflow;
 
   function getYoutubePublish() {
-    if (!resolvedYoutubePublish) {
-      resolvedYoutubePublish = createYoutubePublishService();
-    }
+    if (!resolvedYoutubePublish) resolvedYoutubePublish = createYoutubePublishService();
     return resolvedYoutubePublish;
   }
 
   function getVideoOrchestrator() {
-    if (!resolvedVideoOrchestrator) {
-      resolvedVideoOrchestrator = createVideoOrchestratorService();
-    }
+    if (!resolvedVideoOrchestrator) resolvedVideoOrchestrator = createVideoOrchestratorService();
     return resolvedVideoOrchestrator;
+  }
+
+  function getReviewWorkflow() {
+    if (!resolvedReviewWorkflow) resolvedReviewWorkflow = createReviewWorkflowService();
+    return resolvedReviewWorkflow;
   }
 
   return async function socialFactoryHandler(event = {}) {
     const method = getRequestMethod(event);
     const path = getRequestPath(event);
     const route = orchestrationRoute(path);
+    const review = reviewRoute(path);
 
     if (method === 'OPTIONS') {
       return {
@@ -135,7 +147,11 @@ export function createHandler({
             youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             mainRadioApiDependency: false,
             radioApiBridgeSupported: true,
-            executionRoleScope: 'cloudwatch-youtube-oauth-secrets-and-social-publish-bucket'
+            renderStagingSupported: Boolean(
+              process.env.SOCIAL_PUBLISH_BUCKET && process.env.VIDEO_FACTORY_SOURCE_BUCKET
+            ),
+            contentReviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
+            executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-and-video-factory-read'
           }
         });
       }
@@ -149,66 +165,57 @@ export function createHandler({
       }
 
       if (method === 'GET' && path === '/social/youtube/status') {
-        return json(200, {
-          ok: true,
-          ...(await youtubeOAuth.status(event))
-        });
+        return json(200, { ok: true, ...(await youtubeOAuth.status(event)) });
       }
 
       if (method === 'POST' && path === '/social/youtube/disconnect') {
-        return json(200, {
-          ok: true,
-          ...(await youtubeOAuth.disconnect(event))
-        });
+        return json(200, { ok: true, ...(await youtubeOAuth.disconnect(event)) });
       }
 
       if (method === 'POST' && path === '/social/uploads/presign') {
         const result = await getYoutubePublish().presign(event);
-        return json(200, {
-          ok: true,
-          ...publicPresignContract(result)
-        });
+        return json(200, { ok: true, ...publicPresignContract(result) });
       }
 
       if (method === 'POST' && path === '/social/youtube/publish') {
-        return json(200, {
-          ok: true,
-          ...(await getYoutubePublish().publish(event))
-        });
+        return json(200, { ok: true, ...(await getYoutubePublish().publish(event)) });
       }
 
       if (method === 'GET' && path === '/social/orchestration/candidates') {
-        return json(200, {
-          ok: true,
-          ...(await getVideoOrchestrator().candidates(event))
-        });
+        return json(200, { ok: true, ...(await getVideoOrchestrator().candidates(event)) });
       }
 
       if (method === 'GET' && path === '/social/orchestration/render-jobs') {
-        return json(200, {
-          ok: true,
-          ...(await getVideoOrchestrator().listJobs(event))
-        });
+        return json(200, { ok: true, ...(await getVideoOrchestrator().listJobs(event)) });
       }
 
       if (method === 'POST' && path === '/social/orchestration/render-jobs') {
-        return json(201, {
+        return json(201, { ok: true, ...(await getVideoOrchestrator().createDraft(event)) });
+      }
+
+      if (method === 'POST' && route.stageJobId) {
+        return json(200, {
           ok: true,
-          ...(await getVideoOrchestrator().createDraft(event))
+          ...(await getReviewWorkflow().stageRender(event, route.stageJobId))
         });
       }
 
       if (method === 'GET' && route.jobId) {
-        return json(200, {
-          ok: true,
-          ...(await getVideoOrchestrator().getJob(event, route.jobId))
-        });
+        return json(200, { ok: true, ...(await getVideoOrchestrator().getJob(event, route.jobId)) });
       }
 
       if (method === 'POST' && route.launchJobId) {
+        return json(200, { ok: true, ...(await getVideoOrchestrator().launch(event, route.launchJobId)) });
+      }
+
+      if (method === 'GET' && path === '/social/review-items') {
+        return json(200, { ok: true, ...(await getReviewWorkflow().listReviewItems(event)) });
+      }
+
+      if (method === 'GET' && review.reviewId) {
         return json(200, {
           ok: true,
-          ...(await getVideoOrchestrator().launch(event, route.launchJobId))
+          ...(await getReviewWorkflow().getReviewItem(event, review.reviewId))
         });
       }
 
