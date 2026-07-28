@@ -1,0 +1,36 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-28T20:48:00Z",
+  "review_id": "render-dc255319-039f-4982-b8af-b42402688933",
+  "render_job_id": "dc255319-039f-4982-b8af-b42402688933",
+  "list_visible": true,
+  "http_status": {
+    "list": "200",
+    "preview": "200",
+    "download": "200",
+    "item_after_preview": "200"
+  },
+  "preview": {
+    "secure_url_generated": true,
+    "expires_in_seconds": 900,
+    "content_type": "video/mp4",
+    "file_name": "stashbox_riding-waves-live_15s_4x5_v01.mp4",
+    "downloaded_bytes": 5643168,
+    "width": 1080,
+    "height": 1350,
+    "duration_seconds": 15.000000,
+    "frame_rate": "30/1",
+    "video_streams": 1,
+    "audio_streams": 1
+  },
+  "review_state_after_preview": {
+    "status": "in_review",
+    "approval_state": "pending",
+    "publishing_status": "not_published",
+    "auto_publish": false,
+    "scheduled_at": null
+  },
+  "publishing_triggered": false,
+  "schedule_created": false,
+  "production_changed": false
+}
