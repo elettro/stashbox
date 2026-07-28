@@ -175,6 +175,9 @@ jobs:
             echo "queue_url: ${QUEUE_URL}"
             [[ "${QUEUE_URL}" == *"/${EXPECTED_QUEUE_NAME}" ]]
 
+            aws cloudformation list-stack-resources \
+              --stack-name "${STACK_NAME}" \
+              --output json > /tmp/social-stack-resources.json
             for LOGICAL_ID in \
               SocialApiDevFunction \
               SocialScheduledPublishWorkerFunction \
@@ -184,12 +187,14 @@ jobs:
               SocialPublishSchedulerTargetRole \
               SocialScheduledPublishWorkerRole \
               SocialScheduledPublishWorkerLogGroup; do
-              RESOURCE_STATUS=$(aws cloudformation describe-stack-resource \
-                --stack-name "${STACK_NAME}" \
-                --logical-resource-id "${LOGICAL_ID}" \
-                --query 'StackResourceDetail.ResourceStatus' \
-                --output text)
+              RESOURCE_STATUS=$(jq -r --arg logical_id "${LOGICAL_ID}" '
+                [.StackResourceSummaries[] | select(.LogicalResourceId == $logical_id) | .ResourceStatus][0] // ""
+              ' /tmp/social-stack-resources.json)
               echo "resource ${LOGICAL_ID}: ${RESOURCE_STATUS}"
+              if [ -z "${RESOURCE_STATUS}" ]; then
+                echo "CloudFormation resource ${LOGICAL_ID} is missing." >&2
+                exit 1
+              fi
               case "${RESOURCE_STATUS}" in
                 *_COMPLETE) ;;
                 *)
