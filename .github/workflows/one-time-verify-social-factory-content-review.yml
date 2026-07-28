@@ -1,5 +1,5 @@
 name: Verify Social Factory Content Review
-# Trigger final live verification after the first completed render was staged for review.
+# Verify the staged review through the repository custom domain used by GitHub Pages.
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
       SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
       REVIEW_ID: render-cc50acd7-014d-492f-89ac-682c8894240e
-      CONTENT_REVIEW_URL: https://elettro.github.io/stashbox/radio-admin/dev/social-factory/
+      CONTENT_REVIEW_URL: https://stashbox.com/radio-admin/dev/social-factory/
       REPORT_PATH: deployment-reports/social-factory-content-review-live.json
 
     steps:
