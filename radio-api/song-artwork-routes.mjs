@@ -1,3 +1,7 @@
+import crypto from 'node:crypto';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
 const ARTWORK_FIELDS = Object.freeze({
   '1x1': 'song_artwork_url',
   '16x9': 'song_artwork_16x9_url',
@@ -15,6 +19,12 @@ const OPTIONAL_FIELDS = Object.freeze([
   'song_artwork_21x9_url'
 ]);
 
+const IMAGE_TYPES = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp']
+]);
+
 const FALLBACK_ORDER = Object.freeze({
   '1x1': ['1x1'],
   '16x9': ['16x9', '21x9', '1x1'],
@@ -30,6 +40,19 @@ function cleanText(value, maxLength = 2048) {
   return String(value ?? '').trim().slice(0, maxLength);
 }
 
+function safeSegment(value, fallback = 'media') {
+  return cleanText(value, 180)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || fallback;
+}
+
+function encodedKey(key) {
+  return String(key).split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object || {}, key);
 }
@@ -39,6 +62,41 @@ function routeError(statusCode, code, message) {
   error.statusCode = statusCode;
   error.code = code;
   return error;
+}
+
+function uploadBucket() {
+  return cleanText(
+    process.env.UPLOAD_BUCKET ||
+    process.env.UPLOAD_BUCKET_NAME ||
+    process.env.RADIO_UPLOAD_BUCKET ||
+    process.env.S3_BUCKET ||
+    process.env.MEDIA_BUCKET,
+    300
+  );
+}
+
+function uploadRegion() {
+  return cleanText(
+    process.env.UPLOAD_REGION ||
+    process.env.UPLOAD_BUCKET_REGION ||
+    process.env.S3_BUCKET_REGION ||
+    process.env.RADIO_UPLOAD_BUCKET_REGION ||
+    process.env.AWS_REGION ||
+    process.env.AWS_DEFAULT_REGION ||
+    'us-east-1',
+    100
+  );
+}
+
+function publicObjectUrl(bucket, region, key) {
+  const configuredBase = cleanText(
+    process.env.UPLOAD_PUBLIC_BASE_URL ||
+    process.env.MEDIA_PUBLIC_BASE_URL ||
+    process.env.RADIO_MEDIA_PUBLIC_BASE_URL,
+    2000
+  ).replace(/\/+$/, '');
+  if (configuredBase) return `${configuredBase}/${encodedKey(key)}`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey(key)}`;
 }
 
 function isSafeImageUrl(value) {
@@ -60,13 +118,23 @@ function isPublicRoute(segments) {
     segments.length === 4;
 }
 
-function isAdminRoute(segments) {
+function isAdminMediaRoute(segments) {
   return segments[0] === 'radio' &&
     segments[1] === 'admin' &&
     segments[2] === 'songs' &&
     Boolean(segments[3]) &&
     segments[4] === 'artwork-images' &&
     segments.length === 5;
+}
+
+function isAdminPresignRoute(segments) {
+  return segments[0] === 'radio' &&
+    segments[1] === 'admin' &&
+    segments[2] === 'songs' &&
+    Boolean(segments[3]) &&
+    segments[4] === 'artwork-images' &&
+    segments[5] === 'presign' &&
+    segments.length === 6;
 }
 
 async function ensureArtworkTable(deps) {
@@ -223,14 +291,65 @@ async function persistPatch(song, patch, deps) {
   ]);
 }
 
+async function createArtworkPresign(song, body) {
+  const ratio = cleanText(body.ratio, 20).toLowerCase();
+  if (!ARTWORK_FIELDS[ratio]) {
+    throw routeError(400, 'INVALID_ARTWORK_RATIO', `Choose one of: ${Object.keys(ARTWORK_FIELDS).join(', ')}.`);
+  }
+
+  const contentType = cleanText(body.content_type || body.contentType, 120).toLowerCase();
+  const extension = IMAGE_TYPES.get(contentType);
+  if (!extension) throw routeError(400, 'UNSUPPORTED_IMAGE_TYPE', 'Use a JPG, PNG, or WEBP image.');
+
+  const sizeBytes = Number(body.size_bytes || body.sizeBytes || 0);
+  if (sizeBytes && (!Number.isFinite(sizeBytes) || sizeBytes < 1 || sizeBytes > 10 * 1024 * 1024)) {
+    throw routeError(400, 'IMAGE_TOO_LARGE', 'Image must be 10 MB or smaller.');
+  }
+
+  const bucket = uploadBucket();
+  if (!bucket) throw routeError(500, 'UPLOAD_BUCKET_MISSING', 'The media upload bucket is not configured.');
+  const region = uploadRegion();
+  const originalName = safeSegment(body.filename, `image.${extension}`);
+  const baseName = originalName.replace(/\.[a-z0-9]+$/i, '').slice(0, 90) || 'image';
+  const songKey = safeSegment(song.song_key, 'unsorted');
+  const key = `songs/${songKey}/artwork/${ratio}/${Date.now()}-${crypto.randomUUID()}-${baseName}.${extension}`;
+
+  const client = new S3Client({ region });
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000, immutable',
+    Metadata: {
+      song_key: cleanText(song.song_key, 300),
+      artwork_ratio: ratio,
+      artist: cleanText(song.artist, 300)
+    }
+  });
+  const uploadUrl = await getSignedUrl(client, command, { expiresIn: 900 });
+
+  return {
+    upload_url: uploadUrl,
+    public_url: publicObjectUrl(bucket, region, key),
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    key,
+    ratio,
+    field: ARTWORK_FIELDS[ratio],
+    expires_in: 900
+  };
+}
+
 export function isSongArtworkRequest(segments) {
-  return isPublicRoute(segments) || isAdminRoute(segments);
+  return isPublicRoute(segments) || isAdminMediaRoute(segments) || isAdminPresignRoute(segments);
 }
 
 export async function handleSongArtworkRequest(event, deps) {
   const segments = deps.getRouteSegments(event);
   const method = deps.getMethod(event).toUpperCase();
-  const admin = isAdminRoute(segments);
+  const adminMedia = isAdminMediaRoute(segments);
+  const adminPresign = isAdminPresignRoute(segments);
+  const admin = adminMedia || adminPresign;
   const identifier = admin ? segments[3] : segments[2];
 
   if (!admin && method !== 'GET') {
@@ -240,12 +359,18 @@ export async function handleSongArtworkRequest(event, deps) {
   if (admin) await deps.requireAdmin(event);
   const song = await resolveSong(identifier, deps, { includeHidden: admin });
 
+  if (adminPresign) {
+    if (method !== 'POST') return deps.response(405, { success: false, error: 'Method not allowed.' });
+    const upload = await createArtworkPresign(song, deps.parseBody(event));
+    return deps.response(200, { success: true, ...upload });
+  }
+
   if (method === 'GET') {
     const stored = await readOptionalArtwork(song.song_key, deps);
     return deps.response(200, { success: true, media: mediaPayload(song, stored) });
   }
 
-  if (admin && method === 'PATCH') {
+  if (adminMedia && method === 'PATCH') {
     const patch = normalizedPatch(deps.parseBody(event));
     if (!Object.keys(patch).length) {
       throw routeError(400, 'ARTWORK_FIELDS_REQUIRED', `Provide at least one of: ${Object.values(ARTWORK_FIELDS).join(', ')}.`);
