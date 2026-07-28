@@ -1,6 +1,18 @@
 {
-  "recorded_at": "2026-07-28T21:20:11Z",
+  "recorded_at": "2026-07-28T21:24:51Z",
   "runs": [
+    {
+      "id": 30400391344,
+      "name": "One-Time Repair Social Scheduled Infrastructure V2",
+      "path": ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml",
+      "event": "push",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-07-28T21:22:25Z",
+      "updated_at": "2026-07-28T21:22:28Z",
+      "head_sha": "3f0fb5c1feca6eb87cb810f7a96a466826b03af6",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30400391344"
+    },
     {
       "id": 30400052138,
       "name": "One-Time Repair Social Scheduled Infrastructure V2",
@@ -76,12 +88,12 @@
   ],
   "latest_repair_jobs": [
     {
-      "id": 90412384905,
+      "id": 90413491722,
       "name": "repair-and-deploy",
-      "status": "completed",
-      "conclusion": "failure",
-      "started_at": "2026-07-28T21:17:34Z",
-      "completed_at": "2026-07-28T21:18:42Z",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-07-28T21:22:27Z",
+      "completed_at": null,
       "steps": [
         {
           "name": "Set up job",
@@ -115,33 +127,27 @@
         },
         {
           "name": "Repair scheduled infrastructure and deploy DEV",
-          "status": "completed",
-          "conclusion": "failure",
+          "status": "in_progress",
+          "conclusion": null,
           "number": 6
         },
         {
           "name": "Post Configure AWS credentials",
-          "status": "completed",
-          "conclusion": "success",
+          "status": "pending",
+          "conclusion": null,
           "number": 10
         },
         {
           "name": "Post Setup Node.js 22",
-          "status": "completed",
-          "conclusion": "skipped",
+          "status": "pending",
+          "conclusion": null,
           "number": 11
         },
         {
           "name": "Post Checkout main",
-          "status": "completed",
-          "conclusion": "success",
+          "status": "pending",
+          "conclusion": null,
           "number": 12
-        },
-        {
-          "name": "Complete job",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 13
         }
       ]
     }
