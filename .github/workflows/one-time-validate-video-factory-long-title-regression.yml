@@ -1,0 +1,80 @@
+name: One-Time Validate Video Factory Long Title Regression
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-video-factory-long-title-regression.yml'
+      - 'radio-api/scripts/validate-video-factory-long-title-regression.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-long-title-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      RESULT_PATH: radio-api/docs/VIDEO_FACTORY_LONG_TITLE_REGRESSION_RESULT.md
+      OUTPUT_DIR: /tmp/video-factory-long-title-regression
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FFPROBE_PATH: /usr/bin/ffprobe
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install FFmpeg tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          test -x "${FFMPEG_PATH}"
+          test -x "${FFPROBE_PATH}"
+
+      - name: Check validation script syntax
+        run: node --check radio-api/scripts/validate-video-factory-long-title-regression.mjs
+
+      - name: Run long-title and 9:16 DEV renders
+        run: node radio-api/scripts/validate-video-factory-long-title-regression.mjs
+
+      - name: Upload review videos and frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-factory-long-title-regression
+          path: /tmp/video-factory-long-title-regression
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit validation report
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -f "${RESULT_PATH}" ]; then
+            echo "Validation report was not created; skipping report commit."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${RESULT_PATH}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record Video Factory long-title regression validation'
+          fi
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require completed validation
+        run: |
+          grep -q '^Status: completed$' "${RESULT_PATH}"
