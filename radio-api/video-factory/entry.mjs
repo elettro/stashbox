@@ -36,6 +36,10 @@ import {
   isArtistProfileMediaRequest
 } from './artist-profile-media-routes.mjs';
 import {
+  handleSongArtworkRequest,
+  isSongArtworkRequest
+} from './song-artwork-routes.mjs';
+import {
   handleArtistRequest,
   isArtistRequest
 } from './artist-routes.mjs';
@@ -197,12 +201,13 @@ export const handler = async event => {
   const profileStatsRequest = isProfileStatsRequest(segments);
   const profileMediaUploadRequest = isProfileMediaUploadRequest(segments);
   const artistProfileMediaRequest = isArtistProfileMediaRequest(segments);
+  const songArtworkRequest = isSongArtworkRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -216,6 +221,10 @@ export const handler = async event => {
   try {
     await client.connect();
     const deps = accountDeps(client);
+
+    if (songArtworkRequest) {
+      return await handleSongArtworkRequest(safeEvent, deps);
+    }
 
     if (accountLifecycleRequest) {
       return await handleAccountLifecycleRequest(safeEvent, deps);
