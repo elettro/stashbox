@@ -20,6 +20,8 @@ jobs:
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
       OUTPUT_DIR: /tmp/video-factory-portrait-qa
       REPORT_PATH: radio-api/docs/VIDEO_FACTORY_PORTRAIT_VISUAL_QA.md
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FFPROBE_PATH: /usr/bin/ffprobe
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -33,15 +35,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Locate FFmpeg tools
+      - name: Install FFmpeg tools
         run: |
           set -euo pipefail
-          FFMPEG_PATH="$(command -v ffmpeg)"
-          FFPROBE_PATH="$(command -v ffprobe)"
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
           test -x "${FFMPEG_PATH}"
           test -x "${FFPROBE_PATH}"
-          echo "FFMPEG_PATH=${FFMPEG_PATH}" >> "${GITHUB_ENV}"
-          echo "FFPROBE_PATH=${FFPROBE_PATH}" >> "${GITHUB_ENV}"
           "${FFMPEG_PATH}" -version
           "${FFPROBE_PATH}" -version
 
