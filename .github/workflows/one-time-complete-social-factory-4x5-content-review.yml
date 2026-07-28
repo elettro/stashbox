@@ -1,0 +1,217 @@
+name: One-Time Complete Social Factory 4x5 Content Review
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-complete-social-factory-4x5-content-review.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: complete-social-factory-4x5-content-review
+  cancel-in-progress: false
+
+jobs:
+  complete-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      JOB_ID: dc255319-039f-4982-b8af-b42402688933
+      REPORT_PATH: deployment-reports/social-factory-4x5-handoff-validation.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify completed render and safely finish Content Review handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          JOB_STATUS=$(api_get "/social/orchestration/render-jobs/${JOB_ID}" /tmp/job.json)
+          test "${JOB_STATUS}" = '200'
+          jq -e --arg id "${JOB_ID}" '
+            .ok == true and
+            .job.id == $id and
+            .job.status == "completed" and
+            .job.aspect_ratio == "4:5" and
+            .job.width == 1080 and
+            .job.height == 1350 and
+            .job.duration_seconds == 15 and
+            (.job.output_filename | contains("4x5")) and
+            (.job.output_url | startswith("s3://"))
+          ' /tmp/job.json >/dev/null
+
+          REVIEW_ID="render-${JOB_ID}"
+          ENCODED_REVIEW_ID=$(jq -rn --arg value "${REVIEW_ID}" '$value | @uri')
+          REVIEW_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/review.json || true)
+          HANDOFF_MODE='existing_review_item'
+          STAGE_VALIDATION_STATUS='not_needed'
+          STAGE_STATUS='not_needed'
+
+          if [ "${REVIEW_STATUS}" = '404' ]; then
+            printf '{}\n' > /tmp/stage-validation-body.json
+            STAGE_VALIDATION_STATUS=$(api_post "/social/orchestration/render-jobs/${JOB_ID}/stage" /tmp/stage-validation-body.json /tmp/stage-validation.json)
+            test "${STAGE_VALIDATION_STATUS}" = '200'
+            jq -e --arg job_id "${JOB_ID}" --arg review_id "${REVIEW_ID}" '
+              .ok == true and
+              .staged == false and
+              .mode == "validation_only" and
+              .approval_required == true and
+              .job_id == $job_id and
+              .review_id == $review_id
+            ' /tmp/stage-validation.json >/dev/null
+
+            printf '{"confirm_stage":true}\n' > /tmp/stage-body.json
+            STAGE_STATUS=$(api_post "/social/orchestration/render-jobs/${JOB_ID}/stage" /tmp/stage-body.json /tmp/stage.json)
+            test "${STAGE_STATUS}" = '200'
+            jq -e --arg job_id "${JOB_ID}" --arg review_id "${REVIEW_ID}" '
+              .ok == true and
+              .staged == true and
+              .review_item.id == $review_id and
+              .review_item.source.render_job_id == $job_id and
+              .review_item.publishing_status == "not_published"
+            ' /tmp/stage.json >/dev/null
+
+            REVIEW_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/review.json)
+            HANDOFF_MODE='staged_missing_review_item'
+          fi
+
+          test "${REVIEW_STATUS}" = '200'
+          jq -e --arg job_id "${JOB_ID}" --arg review_id "${REVIEW_ID}" '
+            .ok == true and
+            .item.id == $review_id and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .item.source.type == "video_factory_render" and
+            .item.source.render_job_id == $job_id and
+            .item.video.aspect_ratio == "4:5" and
+            .item.video.width == 1080 and
+            .item.video.height == 1350 and
+            .item.video.duration_seconds == 15 and
+            (.item.video.staging_uri | startswith("s3://")) and
+            .item.automation.auto_publish == false and
+            .item.automation.review_required == true
+          ' /tmp/review.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg handoff_mode "${HANDOFF_MODE}" \
+            --arg job_http_status "${JOB_STATUS}" \
+            --arg stage_validation_http_status "${STAGE_VALIDATION_STATUS}" \
+            --arg stage_http_status "${STAGE_STATUS}" \
+            --arg review_http_status "${REVIEW_STATUS}" \
+            --slurpfile job /tmp/job.json \
+            --slurpfile review /tmp/review.json '
+            {
+              status: $status,
+              recorded_at: $recorded_at,
+              handoff_mode: $handoff_mode,
+              http_status: {
+                job: $job_http_status,
+                stage_validation: $stage_validation_http_status,
+                stage: $stage_http_status,
+                review: $review_http_status
+              },
+              render: {
+                job_id: $job[0].job.id,
+                batch_id: $job[0].job.batch_id,
+                campaign_name: $job[0].job.campaign_name,
+                song_key: $job[0].job.song_key,
+                song_title: $job[0].job.song_title,
+                artist: $job[0].job.artist,
+                status: $job[0].job.status,
+                aspect_ratio: $job[0].job.aspect_ratio,
+                width: $job[0].job.width,
+                height: $job[0].job.height,
+                duration_seconds: $job[0].job.duration_seconds,
+                output_filename: $job[0].job.output_filename,
+                output_url: $job[0].job.output_url
+              },
+              content_review: {
+                review_id: $review[0].item.id,
+                status: $review[0].item.status,
+                approval_state: $review[0].item.approval_state,
+                publishing_status: $review[0].item.publishing_status,
+                source_type: $review[0].item.source.type,
+                source_render_job_id: $review[0].item.source.render_job_id,
+                aspect_ratio: $review[0].item.video.aspect_ratio,
+                width: $review[0].item.video.width,
+                height: $review[0].item.video.height,
+                duration_seconds: $review[0].item.video.duration_seconds,
+                staging_uri: $review[0].item.video.staging_uri,
+                auto_publish: $review[0].item.automation.auto_publish,
+                review_required: $review[0].item.automation.review_required
+              },
+              publishing_triggered: false,
+              youtube_published: false,
+              schedule_created: false,
+              production_changed: false
+            }
+          ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/job.json /tmp/review.json \
+            /tmp/stage-validation-body.json /tmp/stage-validation.json \
+            /tmp/stage-body.json /tmp/stage.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized completed handoff receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record completed Social Factory 4x5 handoff [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
