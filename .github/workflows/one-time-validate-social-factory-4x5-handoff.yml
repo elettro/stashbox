@@ -1,0 +1,350 @@
+name: One-Time Validate Social Factory 4x5 Handoff
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-social-factory-4x5-handoff.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: validate-social-factory-4x5-handoff
+  cancel-in-progress: false
+
+jobs:
+  validate-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      SONG_KEY: riding-waves-014b-jv1-stashbox
+      REPORT_PATH: deployment-reports/social-factory-4x5-handoff-validation.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create one 4:5 render and stage it in Content Review
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          CAMPAIGN_NAME="Stashbox Social Factory 4x5 Handoff ${GITHUB_RUN_ID}"
+          ENCODED_CAMPAIGN=$(jq -rn --arg value "${CAMPAIGN_NAME}" '$value | @uri')
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          jq -n \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --arg song_key "${SONG_KEY}" '
+            {
+              campaign_name: $campaign_name,
+              selected_song_keys: [$song_key],
+              song_count: 1,
+              variations_per_song: 1,
+              duration_mode: "custom",
+              duration_seconds: 15,
+              aspect_ratio: "4:5",
+              fps: 30,
+              require_visuals: true,
+              intro_enabled: true,
+              outro_enabled: true,
+              corner_bug_enabled: true,
+              include_artist: true,
+              include_song: true,
+              include_album: true
+            }
+          ' > /tmp/plan-body.json
+
+          CONTRACT_READY=false
+          PLAN_STATUS='000'
+          for attempt in $(seq 1 240); do
+            PLAN_STATUS=$(api_post '/social/orchestration/batch-plan' /tmp/plan-body.json /tmp/plan.json || true)
+            if [ "${PLAN_STATUS}" = '200' ] && jq -e '
+              .ok == true and
+              .mode == "proposal_only" and
+              .settings.aspect_ratio == "4:5" and
+              .selected_song_count == 1 and
+              .proposed_job_count == 1 and
+              .approval_required_before_draft_creation == true and
+              .approval_required_before_render_launch == true
+            ' /tmp/plan.json >/dev/null 2>&1; then
+              CONTRACT_READY=true
+              break
+            fi
+
+            if [ "${PLAN_STATUS}" = '422' ] && jq -e '.error == "invalid_aspect_ratio"' /tmp/plan.json >/dev/null 2>&1; then
+              sleep 10
+              continue
+            fi
+
+            echo "Unexpected 4:5 plan response (${PLAN_STATUS}):" >&2
+            cat /tmp/plan.json >&2
+            exit 1
+          done
+          test "${CONTRACT_READY}" = 'true'
+
+          jq '. + {confirm_create_drafts: true}' /tmp/plan-body.json > /tmp/drafts-body.json
+          DRAFTS_STATUS=$(api_post '/social/orchestration/batch-drafts' /tmp/drafts-body.json /tmp/drafts.json)
+          case "${DRAFTS_STATUS}" in
+            200|201) ;;
+            *) echo "Unexpected draft status ${DRAFTS_STATUS}" >&2; cat /tmp/drafts.json >&2; exit 1 ;;
+          esac
+          jq -e '
+            .ok == true and
+            .created == true and
+            .renders_launched == false and
+            .approval_required_before_render_launch == true
+          ' /tmp/drafts.json >/dev/null
+
+          jq '((.created_jobs // []) + (.skipped_jobs // [])) | map(.job.id) | map(select(length > 0)) | unique' \
+            /tmp/drafts.json > /tmp/job-ids.json
+          test "$(jq 'length' /tmp/job-ids.json)" = '1'
+          JOB_ID=$(jq -r '.[0]' /tmp/job-ids.json)
+          test -n "${JOB_ID}"
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0]}' > /tmp/launch-validation-body.json
+          LAUNCH_VALIDATION_STATUS=$(api_post '/social/orchestration/batch-launch' /tmp/launch-validation-body.json /tmp/launch-validation.json)
+          test "${LAUNCH_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_launch_count == 1 and
+            .youtube_published == false
+          ' /tmp/launch-validation.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0], confirm_render_batch: true}' > /tmp/launch-body.json
+          RENDER_LAUNCHED=false
+          LAUNCH_STATUS='000'
+          for attempt in $(seq 1 120); do
+            LAUNCH_STATUS=$(api_post '/social/orchestration/batch-launch' /tmp/launch-body.json /tmp/launch.json)
+            test "${LAUNCH_STATUS}" = '200'
+            jq -e '
+              .ok == true and
+              .mode == "render_batch_launched" and
+              .publishing_triggered == false and
+              .youtube_published == false
+            ' /tmp/launch.json >/dev/null
+
+            if [ "$(jq '.launched_job_count' /tmp/launch.json)" = '1' ]; then
+              RENDER_LAUNCHED=true
+              break
+            fi
+
+            test "$(jq '.failed_job_count' /tmp/launch.json)" = '1'
+            sleep 15
+          done
+          test "${RENDER_LAUNCHED}" = 'true'
+
+          RENDER_COMPLETE=false
+          for attempt in $(seq 1 240); do
+            JOBS_STATUS=$(api_get "/social/orchestration/batch-jobs?campaign_name=${ENCODED_CAMPAIGN}" /tmp/jobs.json)
+            test "${JOBS_STATUS}" = '200'
+
+            ACTIVE_COUNT=$(jq '.counts.active' /tmp/jobs.json)
+            DRAFT_COUNT=$(jq '.counts.draft' /tmp/jobs.json)
+            COMPLETED_COUNT=$(jq '.counts.completed' /tmp/jobs.json)
+            FAILED_COUNT=$(jq '.counts.failed' /tmp/jobs.json)
+
+            if [ "${ACTIVE_COUNT}" = '0' ] && [ "${DRAFT_COUNT}" = '0' ]; then
+              test "${COMPLETED_COUNT}" = '1'
+              test "${FAILED_COUNT}" = '0'
+              RENDER_COMPLETE=true
+              break
+            fi
+            sleep 15
+          done
+          test "${RENDER_COMPLETE}" = 'true'
+
+          jq -e --arg id "${JOB_ID}" '
+            .youtube_published == false and
+            .counts.total == 1 and
+            .counts.completed == 1 and
+            .jobs[0].id == $id and
+            .jobs[0].status == "completed" and
+            .jobs[0].aspect_ratio == "4:5" and
+            .jobs[0].width == 1080 and
+            .jobs[0].height == 1350 and
+            .jobs[0].duration_seconds == 15 and
+            (.jobs[0].output_filename | contains("4x5")) and
+            (.jobs[0].output_url | startswith("s3://"))
+          ' /tmp/jobs.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0]}' > /tmp/stage-validation-body.json
+          STAGE_VALIDATION_STATUS=$(api_post '/social/orchestration/batch-stage' /tmp/stage-validation-body.json /tmp/stage-validation.json)
+          test "${STAGE_VALIDATION_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .would_stage_count == 1 and
+            .youtube_published == false
+          ' /tmp/stage-validation.json >/dev/null
+
+          jq -n --slurpfile ids /tmp/job-ids.json '{job_ids: $ids[0], confirm_stage_batch: true}' > /tmp/stage-body.json
+          STAGE_STATUS=$(api_post '/social/orchestration/batch-stage' /tmp/stage-body.json /tmp/stage.json)
+          test "${STAGE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "completed_renders_staged" and
+            .staged_job_count == 1 and
+            .failed_job_count == 0 and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/stage.json >/dev/null
+
+          REVIEW_ID=$(jq -r '.staged_jobs[0].review_item.id' /tmp/stage.json)
+          test -n "${REVIEW_ID}"
+          ENCODED_REVIEW_ID=$(jq -rn --arg value "${REVIEW_ID}" '$value | @uri')
+          REVIEW_STATUS=$(api_get "/social/review-items/${ENCODED_REVIEW_ID}" /tmp/review.json)
+          test "${REVIEW_STATUS}" = '200'
+
+          jq -e --arg job_id "${JOB_ID}" --arg review_id "${REVIEW_ID}" '
+            .ok == true and
+            .item.id == $review_id and
+            .item.status == "in_review" and
+            .item.approval_state == "pending" and
+            .item.publishing_status == "not_published" and
+            .item.source.type == "video_factory_render" and
+            .item.source.render_job_id == $job_id and
+            .item.video.aspect_ratio == "4:5" and
+            .item.video.width == 1080 and
+            .item.video.height == 1350 and
+            .item.video.duration_seconds == 15 and
+            (.item.video.staging_uri | startswith("s3://")) and
+            .item.automation.auto_publish == false and
+            .item.automation.review_required == true
+          ' /tmp/review.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg campaign_name "${CAMPAIGN_NAME}" \
+            --arg job_id "${JOB_ID}" \
+            --arg review_id "${REVIEW_ID}" \
+            --arg plan_http_status "${PLAN_STATUS}" \
+            --arg drafts_http_status "${DRAFTS_STATUS}" \
+            --arg launch_validation_http_status "${LAUNCH_VALIDATION_STATUS}" \
+            --arg launch_http_status "${LAUNCH_STATUS}" \
+            --arg stage_validation_http_status "${STAGE_VALIDATION_STATUS}" \
+            --arg stage_http_status "${STAGE_STATUS}" \
+            --arg review_http_status "${REVIEW_STATUS}" \
+            --slurpfile jobs /tmp/jobs.json \
+            --slurpfile review /tmp/review.json '
+            {
+              status: $status,
+              recorded_at: $recorded_at,
+              campaign_name: $campaign_name,
+              format: {
+                duration_seconds: 15,
+                aspect_ratio: "4:5",
+                width: 1080,
+                height: 1350,
+                fps: 30
+              },
+              http_status: {
+                plan: $plan_http_status,
+                drafts: $drafts_http_status,
+                launch_validation: $launch_validation_http_status,
+                launch: $launch_http_status,
+                stage_validation: $stage_validation_http_status,
+                stage: $stage_http_status,
+                review: $review_http_status
+              },
+              render: {
+                job_id: $job_id,
+                song_key: $jobs[0].jobs[0].song_key,
+                song_title: $jobs[0].jobs[0].song_title,
+                artist: $jobs[0].jobs[0].artist,
+                status: $jobs[0].jobs[0].status,
+                aspect_ratio: $jobs[0].jobs[0].aspect_ratio,
+                width: $jobs[0].jobs[0].width,
+                height: $jobs[0].jobs[0].height,
+                duration_seconds: $jobs[0].jobs[0].duration_seconds,
+                output_filename: $jobs[0].jobs[0].output_filename,
+                output_url: $jobs[0].jobs[0].output_url
+              },
+              content_review: {
+                review_id: $review_id,
+                status: $review[0].item.status,
+                approval_state: $review[0].item.approval_state,
+                publishing_status: $review[0].item.publishing_status,
+                source_render_job_id: $review[0].item.source.render_job_id,
+                aspect_ratio: $review[0].item.video.aspect_ratio,
+                width: $review[0].item.video.width,
+                height: $review[0].item.video.height,
+                duration_seconds: $review[0].item.video.duration_seconds,
+                staging_uri: $review[0].item.video.staging_uri,
+                auto_publish: $review[0].item.automation.auto_publish,
+                review_required: $review[0].item.automation.review_required
+              },
+              publishing_triggered: false,
+              youtube_published: false,
+              schedule_created: false
+            }
+          ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/plan-body.json /tmp/plan.json \
+            /tmp/drafts-body.json /tmp/drafts.json /tmp/job-ids.json \
+            /tmp/launch-validation-body.json /tmp/launch-validation.json \
+            /tmp/launch-body.json /tmp/launch.json /tmp/jobs.json \
+            /tmp/stage-validation-body.json /tmp/stage-validation.json \
+            /tmp/stage-body.json /tmp/stage.json /tmp/review.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized handoff receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory 4x5 handoff validation [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
