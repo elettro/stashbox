@@ -1,0 +1,180 @@
+name: Verify Social Factory Batch Planning Live
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-verify-social-factory-batch-planning-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      CONTENT_REVIEW_URL: https://stashbox.com/radio-admin/dev/social-factory/
+      REPORT_PATH: deployment-reports/social-factory-batch-planning-live.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify live safe batch planning
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          READY=false
+          HEALTH_STATUS='000'
+          for attempt in $(seq 1 60); do
+            HEALTH_STATUS=$(curl --silent --show-error --max-time 45 \
+              -o /tmp/social-health.json -w '%{http_code}' \
+              "${SOCIAL_API_BASE}/social/health" || true)
+            if [ "${HEALTH_STATUS}" = '200' ] && jq -e '
+              .ok == true and
+              .version == "0.6.0" and
+              .isolation.batchCampaignPlanningSupported == true and
+              .isolation.batchDraftCreationSupported == true and
+              .isolation.batchRenderLaunchRequiresSeparateApproval == true
+            ' /tmp/social-health.json >/dev/null 2>&1; then
+              READY=true
+              break
+            fi
+            sleep 10
+          done
+          test "${READY}" = 'true'
+
+          BEFORE_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-before.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${BEFORE_STATUS}" = '200'
+          BEFORE_COUNT=$(jq '.jobs | length' /tmp/jobs-before.json)
+
+          PLAN_STATUS=$(curl --silent --show-error --max-time 120 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -d '{
+              "campaign_name":"Tomorrow Safe Test",
+              "song_count":3,
+              "variations_per_song":1,
+              "duration_mode":"promo",
+              "duration_seconds":30,
+              "aspect_ratio":"9:16",
+              "require_visuals":true
+            }' \
+            -o /tmp/batch-plan.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/batch-plan")
+          test "${PLAN_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .mode == "proposal_only" and
+            .approval_required_before_draft_creation == true and
+            .approval_required_before_render_launch == true and
+            .selected_song_count >= 1 and
+            .proposed_job_count >= 1 and
+            (.jobs | type == "array")
+          ' /tmp/batch-plan.json >/dev/null
+
+          AFTER_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/jobs-after.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/orchestration/render-jobs?limit=250")
+          test "${AFTER_STATUS}" = '200'
+          AFTER_COUNT=$(jq '.jobs | length' /tmp/jobs-after.json)
+          test "${BEFORE_COUNT}" = "${AFTER_COUNT}"
+
+          PAGE_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/social-page.html -w '%{http_code}' \
+            "${CONTENT_REVIEW_URL}")
+          test "${PAGE_STATUS}" = '200'
+          grep -Fq 'Batch Campaign Builder' /tmp/social-page.html
+          grep -Fq 'Generate Safe Plan' /tmp/social-page.html
+          grep -Fq 'Create Draft Jobs' /tmp/social-page.html
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg status success \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg plan_http_status "${PLAN_STATUS}" \
+            --arg page_http_status "${PAGE_STATUS}" \
+            --arg content_review_url "${CONTENT_REVIEW_URL}" \
+            --argjson before_job_count "${BEFORE_COUNT}" \
+            --argjson after_job_count "${AFTER_COUNT}" \
+            --slurpfile plan /tmp/batch-plan.json '
+              ($plan[0]) as $p |
+              {
+                status: $status,
+                recorded_at: $recorded_at,
+                api_version: "0.6.0",
+                health_http_status: $health_http_status,
+                plan_http_status: $plan_http_status,
+                content_review_page_http_status: $page_http_status,
+                content_review_url: $content_review_url,
+                plan: {
+                  plan_id: $p.plan_id,
+                  mode: $p.mode,
+                  campaign_name: $p.campaign_name,
+                  selected_song_count: $p.selected_song_count,
+                  proposed_job_count: $p.proposed_job_count,
+                  approval_required_before_draft_creation: $p.approval_required_before_draft_creation,
+                  approval_required_before_render_launch: $p.approval_required_before_render_launch,
+                  selected_songs: [$p.selected_songs[] | {
+                    song_key,
+                    title,
+                    artist,
+                    genre,
+                    candidate_score,
+                    visual_readiness
+                  }]
+                },
+                render_jobs_before: $before_job_count,
+                render_jobs_after: $after_job_count,
+                draft_jobs_created: false,
+                renders_launched: false,
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/social-health.json /tmp/jobs-before.json \
+            /tmp/jobs-after.json /tmp/batch-plan.json /tmp/social-page.html
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record live Social Factory batch planning verification [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
