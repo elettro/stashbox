@@ -8,6 +8,7 @@ on:
       - '.github/workflows/one-time-deploy-apostrophe-fix-and-retry-social-render.yml'
       - 'video-render-worker/src/ffmpeg.mjs'
       - 'video-render-worker/tests/ffmpeg.test.mjs'
+      - 'video-render-worker/scripts/apostrophe-filter-smoke.mjs'
 
 permissions:
   contents: write
@@ -55,7 +56,7 @@ jobs:
           npm --prefix video-render-worker run check
           npm --prefix video-render-worker test
 
-      - name: Build and push corrected renderer image
+      - name: Build, smoke-test, and push corrected renderer image
         shell: bash
         run: |
           set -euo pipefail
@@ -70,6 +71,7 @@ jobs:
           aws ecr get-login-password --region "${AWS_REGION}" \
             | docker login --username AWS --password-stdin "${REGISTRY}"
           docker build --pull --tag "${IMAGE_URI}" video-render-worker
+          docker run --rm --entrypoint node "${IMAGE_URI}" scripts/apostrophe-filter-smoke.mjs
           docker push "${IMAGE_URI}"
 
           echo "ECR_URI=${ECR_URI}" >> "${GITHUB_ENV}"
