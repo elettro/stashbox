@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 
-const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16', '3:4', '4:5', '1:1']);
+const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16']);
 const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
 const NON_REUSABLE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
 
@@ -60,7 +60,10 @@ function normalizeSettings(input = {}) {
 
   const aspectRatio = cleanText(input.aspect_ratio, '9:16', 8);
   if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) {
-    throw serviceError('invalid_aspect_ratio', 422, { allowed: [...ALLOWED_ASPECT_RATIOS] });
+    throw serviceError('youtube_aspect_ratio_not_supported', 422, {
+      aspect_ratio: aspectRatio,
+      allowed: [...ALLOWED_ASPECT_RATIOS]
+    });
   }
 
   const durationMode = lower(input.duration_mode || 'promo');
