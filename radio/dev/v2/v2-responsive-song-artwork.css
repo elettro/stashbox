@@ -14,3 +14,22 @@
 [data-player].responsive-artwork-ready [data-mobile-vec-stage].responsive-artwork-surface-ready {
   opacity: 1 !important;
 }
+
+/* Prepared song artwork must always be shown in full. The player may leave
+   unused space around a 9x16, 16x9, or 21x9 image, but it must never crop it. */
+[data-player] [data-backdrop].responsive-artwork-surface-ready,
+[data-player] [data-mobile-vec-stage].responsive-artwork-surface-ready {
+  background-size: contain !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-color: #050607 !important;
+}
+
+[data-player] [data-mobile-vec-stage] img[data-responsive-official-artwork="true"] {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
