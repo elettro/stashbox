@@ -45,6 +45,16 @@ function candidates() {
   ];
 }
 
+function serviceWithCandidates() {
+  return createBatchCampaignService({
+    orchestrator: {
+      async candidates() {
+        return { candidates: candidates() };
+      }
+    }
+  });
+}
+
 test('batch plan is proposal-only and does not create or launch renders', async () => {
   const calls = [];
   const orchestrator = {
@@ -84,14 +94,50 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
 });
 
+test('batch plan creates a true full-song recipe without a duration cutoff', async () => {
+  const service = serviceWithCandidates();
+  const result = await service.plan(event({
+    campaign_name: 'Full Song Test',
+    selected_song_keys: ['strong-reggae-song'],
+    duration_mode: 'full'
+  }));
+
+  assert.equal(result.settings.duration_mode, 'full');
+  assert.equal(result.settings.duration_seconds, null);
+  assert.equal(result.jobs[0].recipe.duration_mode, 'full');
+  assert.equal(Object.hasOwn(result.jobs[0].recipe, 'duration_seconds'), false);
+});
+
+test('automatic proposal reroll advances to another eligible song and plan id', async () => {
+  const service = serviceWithCandidates();
+  const first = await service.plan(event({ song_count: 1, proposal_attempt: 0 }));
+  const second = await service.plan(event({ song_count: 1, proposal_attempt: 1 }));
+
+  assert.equal(first.selected_songs[0].song_key, 'strong-reggae-song');
+  assert.equal(second.selected_songs[0].song_key, 'second-reggae-song');
+  assert.notEqual(second.plan_id, first.plan_id);
+  assert.notEqual(second.jobs[0].recipe.seed, first.jobs[0].recipe.seed);
+  assert.match(second.jobs[0].recipe.batch_name, /alt01$/);
+});
+
+test('specific-song reroll keeps the chosen song but produces an alternate seed', async () => {
+  const service = serviceWithCandidates();
+  const first = await service.plan(event({
+    selected_song_keys: ['strong-reggae-song'],
+    proposal_attempt: 0
+  }));
+  const second = await service.plan(event({
+    selected_song_keys: ['strong-reggae-song'],
+    proposal_attempt: 2
+  }));
+
+  assert.equal(second.selected_songs[0].song_key, first.selected_songs[0].song_key);
+  assert.notEqual(second.jobs[0].recipe.seed, first.jobs[0].recipe.seed);
+  assert.match(second.jobs[0].recipe.batch_name, /alt02$/);
+});
+
 test('batch plan rejects 4:5 because YouTube output is limited to 9:16 or 16:9', async () => {
-  const service = createBatchCampaignService({
-    orchestrator: {
-      async candidates() {
-        return { candidates: candidates() };
-      }
-    }
-  });
+  const service = serviceWithCandidates();
 
   await assert.rejects(
     service.plan(event({
@@ -110,13 +156,7 @@ test('batch plan rejects 4:5 because YouTube output is limited to 9:16 or 16:9',
 });
 
 test('batch plan preserves explicit overlay opt-ins', async () => {
-  const service = createBatchCampaignService({
-    orchestrator: {
-      async candidates() {
-        return { candidates: candidates() };
-      }
-    }
-  });
+  const service = serviceWithCandidates();
 
   const result = await service.plan(event({
     selected_song_keys: ['strong-reggae-song'],
@@ -133,13 +173,7 @@ test('batch plan preserves explicit overlay opt-ins', async () => {
 });
 
 test('batch plan excludes visible songs that still need a VEC check by default', async () => {
-  const service = createBatchCampaignService({
-    orchestrator: {
-      async candidates() {
-        return { candidates: candidates() };
-      }
-    }
-  });
+  const service = serviceWithCandidates();
 
   const result = await service.plan(event({ song_count: 3 }));
   assert.deepEqual(
@@ -216,6 +250,7 @@ test('confirmed batch creation creates drafts but never launches renders', async
   assert.equal(createdBodies.length, 2);
   assert.ok(createdBodies.every((body) => body.campaign_name === 'Tomorrow Test'));
   assert.ok(createdBodies.every((body) => body.intro_enabled === false));
+  assert.ok(createdBodies.every((body) => typeof body.seed === 'string' && body.seed.length === 32));
 });
 
 test('confirmed batch creation reuses an existing draft instead of duplicating it', async () => {
