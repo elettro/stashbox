@@ -4,7 +4,10 @@
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
   const YOUTUBE_RATIOS = new Set(['9:16', '16:9']);
+  const MAX_AUTO_STAGE_JOBS = 20;
   let decorating = false;
+  let syncInProgress = false;
+  let renderSyncTimer = null;
 
   const byId = id => document.getElementById(id);
 
@@ -53,6 +56,23 @@
     return payload;
   }
 
+  async function apiGet(path) {
+    const token = getToken();
+    if (!token) throw new Error('The Social Factory token is missing or incorrect.');
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'GET',
+      headers: { 'x-admin-token': token }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) {
+      const error = new Error(payload.error || `Request failed with HTTP ${response.status}`);
+      error.status = response.status;
+      error.details = payload.details || null;
+      throw error;
+    }
+    return payload;
+  }
+
   function formatError(error) {
     if (error?.message === 'cancel_schedule_before_hiding') {
       return 'Cancel the active schedule before hiding this item.';
@@ -62,6 +82,120 @@
     }
     const detail = error?.details?.next_step || error?.details?.aspect_ratio;
     return detail ? `${error.message}: ${detail}` : String(error?.message || error || 'Unknown error');
+  }
+
+  function socialFactoryOrigin(job = {}) {
+    const project = String(job.project_name || '').trim().toLowerCase();
+    const metadata = String(job.metadata_comment || '').trim().toLowerCase();
+    const campaign = String(job.campaign_name || '').trim();
+    const batch = String(job.batch_name || '').trim();
+    return project === 'social factory' || metadata.includes('social factory') || Boolean(campaign && batch);
+  }
+
+  function refreshQueueWithoutSync() {
+    const button = byId('refreshQueue');
+    if (!button) return;
+    button.dataset.autoStageBypass = 'true';
+    button.click();
+  }
+
+  async function syncCompletedSocialFactoryRenders({ announce = false } = {}) {
+    if (syncInProgress || !getToken()) return { staged: 0, failed: 0 };
+    syncInProgress = true;
+
+    try {
+      const [reviewPayload, jobsPayload] = await Promise.all([
+        apiGet('/social/review-items?limit=100'),
+        apiGet('/social/orchestration/render-jobs?limit=250')
+      ]);
+
+      const reviews = Array.isArray(reviewPayload.items) ? reviewPayload.items : [];
+      const existingRenderIds = new Set(
+        reviews.map(item => String(item?.source?.render_job_id || '').trim()).filter(Boolean)
+      );
+      const jobs = Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
+      const candidates = jobs.filter(job => {
+        const jobId = String(job.id || '').trim();
+        const status = String(job.status || '').trim().toLowerCase();
+        const ratio = String(job.aspect_ratio || '').trim();
+        const output = String(job.output_url || job.outputs?.[0]?.output_url || '').trim();
+        return jobId &&
+          status === 'completed' &&
+          output &&
+          ratioAllowed(ratio) &&
+          socialFactoryOrigin(job) &&
+          !existingRenderIds.has(jobId);
+      }).slice(0, MAX_AUTO_STAGE_JOBS);
+
+      let staged = 0;
+      let failed = 0;
+      for (const job of candidates) {
+        try {
+          const result = await api(
+            `/social/orchestration/render-jobs/${encodeURIComponent(job.id)}/stage`,
+            { confirm_stage: true }
+          );
+          if (result.staged === true || result.review_item) {
+            staged += 1;
+            existingRenderIds.add(String(job.id));
+          }
+        } catch (error) {
+          failed += 1;
+          console.warn('Social Factory auto-stage failed', {
+            jobId: job.id,
+            error: error?.message || error
+          });
+        }
+      }
+
+      if (staged) {
+        showMessage(
+          `${staged} completed Social Factory render${staged === 1 ? '' : 's'} automatically moved into Content Review. Nothing was published.`,
+          failed ? 'error' : 'success'
+        );
+      } else if (announce && !failed) {
+        showMessage('No new completed Social Factory renders are waiting to enter Content Review.');
+      } else if (failed) {
+        showMessage(`${failed} completed render${failed === 1 ? '' : 's'} could not be moved into Content Review.`, 'error');
+      }
+
+      return { staged, failed };
+    } catch (error) {
+      if (announce) showMessage(formatError(error), 'error');
+      return { staged: 0, failed: 1 };
+    } finally {
+      syncInProgress = false;
+    }
+  }
+
+  async function handleQueueRefresh(event) {
+    const button = byId('refreshQueue');
+    if (!button) return;
+    if (button.dataset.autoStageBypass === 'true') {
+      delete button.dataset.autoStageBypass;
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    await syncCompletedSocialFactoryRenders({ announce: true });
+    refreshQueueWithoutSync();
+  }
+
+  function scheduleRenderSync() {
+    if (renderSyncTimer) window.clearTimeout(renderSyncTimer);
+    renderSyncTimer = window.setTimeout(async () => {
+      renderSyncTimer = null;
+      const renderList = byId('renderJobList');
+      const hasCompleted = Boolean(
+        renderList?.querySelector('[data-status="completed"]') ||
+        [...(renderList?.querySelectorAll('.sf-render-status') || [])]
+          .some(node => String(node.textContent || '').trim().toLowerCase() === 'completed')
+      );
+      if (!hasCompleted) return;
+      const result = await syncCompletedSocialFactoryRenders();
+      if (result.staged) refreshQueueWithoutSync();
+    }, 500);
   }
 
   function enforceCampaignRatios() {
@@ -130,7 +264,7 @@
       });
       wrapper?.remove();
       showMessage(`“${title}” was hidden from the Content Review list. Nothing was deleted or published.`, 'success');
-      byId('refreshQueue')?.click();
+      refreshQueueWithoutSync();
     } catch (error) {
       button.disabled = false;
       showMessage(formatError(error), 'error');
@@ -178,6 +312,19 @@
     const queue = byId('queueList');
     if (queue) new MutationObserver(decorateQueue).observe(queue, { childList: true });
 
+    const refreshQueue = byId('refreshQueue');
+    refreshQueue?.addEventListener('click', handleQueueRefresh, true);
+
+    const renderList = byId('renderJobList');
+    if (renderList) {
+      new MutationObserver(scheduleRenderSync).observe(renderList, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-status']
+      });
+    }
+
     const ratio = byId('videoRatio');
     if (ratio) {
       new MutationObserver(updateYoutubeEligibility).observe(ratio, {
@@ -197,7 +344,18 @@
       });
     }
 
+    byId('saveToken')?.addEventListener('click', () => {
+      window.setTimeout(async () => {
+        const result = await syncCompletedSocialFactoryRenders();
+        if (result.staged) refreshQueueWithoutSync();
+      }, 250);
+    });
+
     window.addEventListener('socialfactory:drafts-created', enforceCampaignRatios);
+    window.setTimeout(async () => {
+      const result = await syncCompletedSocialFactoryRenders();
+      if (result.staged) refreshQueueWithoutSync();
+    }, 700);
   }
 
   if (document.readyState === 'loading') {
