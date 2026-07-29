@@ -19,7 +19,8 @@ function fixture(overrides = {}) {
     video: {
       object_key: 'incoming/render-jobs/job-12345678/test.mp4',
       content_type: 'video/mp4',
-      size_bytes: 4998155
+      size_bytes: 4998155,
+      aspect_ratio: '9:16'
     },
     metadata: {
       selected_title: 'Stashbox - Test Song | Official Short',
@@ -124,6 +125,25 @@ test('review item must be approved before publishing', async () => {
     service.publish(event({ confirm_upload: true }), reviewId),
     (error) => error.statusCode === 409 && error.message === 'review_item_not_approved'
   );
+});
+
+test('4:5 review item cannot be validated or published to YouTube', async () => {
+  const { service, reviewId, calls } = fixture({
+    video: {
+      object_key: 'incoming/render-jobs/job-12345678/test.mp4',
+      content_type: 'video/mp4',
+      size_bytes: 4998155,
+      aspect_ratio: '4:5'
+    }
+  });
+
+  await assert.rejects(
+    service.publish(event({ confirm_upload: false }), reviewId),
+    error => error.statusCode === 409
+      && error.message === 'youtube_aspect_ratio_not_supported'
+      && error.details?.aspect_ratio === '4:5'
+  );
+  assert.equal(calls.length, 0);
 });
 
 test('future scheduled items remain locked until the asynchronous queue exists', async () => {
