@@ -77,6 +77,9 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.equal(result.proposed_job_count, 4);
   assert.equal(result.jobs[0].recipe.aspect_ratio, '9:16');
   assert.equal(result.jobs[0].recipe.duration_seconds, 30);
+  assert.equal(result.jobs[0].recipe.include_artist, false);
+  assert.equal(result.jobs[0].recipe.include_song, false);
+  assert.equal(result.jobs[0].recipe.include_album, false);
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
 });
 
@@ -101,6 +104,27 @@ test('batch plan accepts 4:5 feed portrait output', async () => {
   assert.equal(result.jobs[0].recipe.aspect_ratio, '4:5');
   assert.equal(result.jobs[0].recipe.duration_seconds, 15);
   assert.equal(result.proposed_job_count, 1);
+});
+
+test('batch plan preserves an explicit manual title-overlay opt-in', async () => {
+  const service = createBatchCampaignService({
+    orchestrator: {
+      async candidates() {
+        return { candidates: candidates() };
+      }
+    }
+  });
+
+  const result = await service.plan(event({
+    selected_song_keys: ['strong-reggae-song'],
+    include_artist: true,
+    include_song: true,
+    include_album: true
+  }));
+
+  assert.equal(result.jobs[0].recipe.include_artist, true);
+  assert.equal(result.jobs[0].recipe.include_song, true);
+  assert.equal(result.jobs[0].recipe.include_album, true);
 });
 
 test('batch plan excludes visible songs that still need a VEC check by default', async () => {

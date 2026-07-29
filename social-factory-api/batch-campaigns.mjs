@@ -92,9 +92,9 @@ function normalizeSettings(input = {}) {
     intro_enabled: input.intro_enabled !== false,
     outro_enabled: input.outro_enabled !== false,
     corner_bug_enabled: input.corner_bug_enabled !== false,
-    include_artist: input.include_artist !== false,
-    include_song: input.include_song !== false,
-    include_album: input.include_album !== false
+    include_artist: input.include_artist === true,
+    include_song: input.include_song === true,
+    include_album: input.include_album === true
   };
 }
 

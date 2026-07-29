@@ -87,6 +87,23 @@ test('initial recipe includes output, overlays, metadata, and an empty timeline'
   assert.equal(recipe.height, 1080);
   assert.equal(recipe.seed, 'space-jam-seed');
   assert.equal(recipe.overlays.corner_bug_enabled, true);
+  assert.equal(recipe.overlays.include_artist, false);
+  assert.equal(recipe.overlays.include_song, false);
+  assert.equal(recipe.overlays.include_album, false);
   assert.equal(recipe.metadata.publisher, 'Elettro Incorporated');
   assert.deepEqual(recipe.timeline, []);
+});
+
+
+test('title overlays remain available as an explicit manual opt-in', () => {
+  const recipe = buildInitialRenderRecipe({
+    song_key: 'manual-title-test',
+    include_artist: true,
+    include_song: true,
+    include_album: true
+  });
+
+  assert.equal(recipe.overlays.include_artist, true);
+  assert.equal(recipe.overlays.include_song, true);
+  assert.equal(recipe.overlays.include_album, true);
 });

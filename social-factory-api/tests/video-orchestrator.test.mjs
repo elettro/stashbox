@@ -97,6 +97,9 @@ test('create draft defaults to a 30-second vertical social render', async () => 
     assert.equal(body.duration_mode, 'promo');
     assert.equal(body.duration_seconds, 30);
     assert.equal(body.aspect_ratio, '9:16');
+    assert.equal(body.include_artist, false);
+    assert.equal(body.include_song, false);
+    assert.equal(body.include_album, false);
     return jsonResponse({ job: { id: 'job-12345678', status: 'draft' } }, 201);
   });
 
@@ -132,6 +135,29 @@ test('create draft forwards 4:5 feed portrait output to Video Factory', async ()
   assert.equal(result.requested_recipe.aspect_ratio, '4:5');
   assert.equal(result.job.aspect_ratio, '4:5');
   assert.equal(calls.length, 1);
+});
+
+test('create draft preserves an explicit title-overlay opt-in', async () => {
+  const { service } = createService(async (url, options) => {
+    const body = JSON.parse(options.body);
+    assert.equal(body.include_artist, true);
+    assert.equal(body.include_song, true);
+    assert.equal(body.include_album, true);
+    return jsonResponse({ job: { id: 'job-title-opt-in-12345678', status: 'draft' } }, 201);
+  });
+
+  const result = await service.createDraft(event({
+    body: {
+      song_key: 'manual-title-test',
+      include_artist: true,
+      include_song: true,
+      include_album: true
+    }
+  }));
+
+  assert.equal(result.requested_recipe.include_artist, true);
+  assert.equal(result.requested_recipe.include_song, true);
+  assert.equal(result.requested_recipe.include_album, true);
 });
 
 test('launch is validation-only until confirm_render is explicitly true', async () => {

@@ -271,9 +271,9 @@ export function createVideoOrchestratorService({
         intro_enabled: input.intro_enabled ?? true,
         outro_enabled: input.outro_enabled ?? true,
         corner_bug_enabled: input.corner_bug_enabled ?? true,
-        include_artist: input.include_artist ?? true,
-        include_song: input.include_song ?? true,
-        include_album: input.include_album ?? true,
+        include_artist: input.include_artist ?? false,
+        include_song: input.include_song ?? false,
+        include_album: input.include_album ?? false,
         filename_template: String(
           input.filename_template || '{artist}_{song}_{duration}_{aspect}_v{variation}'
         ).trim(),

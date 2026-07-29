@@ -159,9 +159,9 @@ function normalizeCreateInput(input = {}) {
       intro_enabled: input.intro_enabled ?? input.introEnabled ?? true,
       outro_enabled: input.outro_enabled ?? input.outroEnabled ?? true,
       corner_bug_enabled: input.corner_bug_enabled ?? input.cornerBugEnabled ?? true,
-      include_artist: input.include_artist ?? input.includeArtist ?? true,
-      include_song: input.include_song ?? input.includeSong ?? true,
-      include_album: input.include_album ?? input.includeAlbum ?? true,
+      include_artist: input.include_artist ?? input.includeArtist ?? VIDEO_FACTORY_DEFAULTS.include_artist,
+      include_song: input.include_song ?? input.includeSong ?? VIDEO_FACTORY_DEFAULTS.include_song,
+      include_album: input.include_album ?? input.includeAlbum ?? VIDEO_FACTORY_DEFAULTS.include_album,
       metadata_comment: String(input.metadata_comment || input.metadataComment || '').trim()
     }
   };

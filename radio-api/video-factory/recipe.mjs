@@ -15,7 +15,10 @@ export const VIDEO_FACTORY_DEFAULTS = Object.freeze({
   output_type: 'music_video',
   filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}',
   variation: 1,
-  segment_duration_seconds: 8
+  segment_duration_seconds: 8,
+  include_artist: false,
+  include_song: false,
+  include_album: false
 });
 
 export function sanitizeFilenameToken(value, fallback = 'stashbox') {
@@ -130,9 +133,9 @@ export function buildInitialRenderRecipe(input = {}) {
       corner_bug_enabled: input.corner_bug_enabled ?? input.cornerBugEnabled ?? true,
       intro_duration_seconds: Number(input.intro_duration_seconds || input.introDurationSeconds || 4),
       outro_duration_seconds: Number(input.outro_duration_seconds || input.outroDurationSeconds || 5),
-      include_artist: input.include_artist ?? input.includeArtist ?? true,
-      include_song: input.include_song ?? input.includeSong ?? true,
-      include_album: input.include_album ?? input.includeAlbum ?? true
+      include_artist: input.include_artist ?? input.includeArtist ?? VIDEO_FACTORY_DEFAULTS.include_artist,
+      include_song: input.include_song ?? input.includeSong ?? VIDEO_FACTORY_DEFAULTS.include_song,
+      include_album: input.include_album ?? input.includeAlbum ?? VIDEO_FACTORY_DEFAULTS.include_album
     },
     metadata: {
       title: String(input.song_title || input.songTitle || input.song_name || '').trim(),
