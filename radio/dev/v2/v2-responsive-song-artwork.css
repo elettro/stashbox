@@ -1,0 +1,16 @@
+[data-player] [data-backdrop],
+[data-player] [data-mobile-vec-stage] {
+  transition: opacity .16s ease !important;
+}
+
+[data-player] [data-backdrop]:not(.responsive-artwork-surface-ready),
+[data-player] [data-mobile-vec-stage]:not(.responsive-artwork-surface-ready),
+[data-player]:not(.responsive-artwork-ready) [data-backdrop],
+[data-player]:not(.responsive-artwork-ready) [data-mobile-vec-stage] {
+  opacity: 0 !important;
+}
+
+[data-player].responsive-artwork-ready [data-backdrop].responsive-artwork-surface-ready,
+[data-player].responsive-artwork-ready [data-mobile-vec-stage].responsive-artwork-surface-ready {
+  opacity: 1 !important;
+}
