@@ -20,7 +20,8 @@ function fixture() {
       bucket: 'stashbox-social-publish-test',
       object_key: 'incoming/render-jobs/job-12345678/test.mp4',
       file_name: 'test.mp4',
-      content_type: 'video/mp4'
+      content_type: 'video/mp4',
+      aspect_ratio: '9:16'
     },
     metadata: {
       selected_title: 'Stashbox - Test Song | Official Short',
@@ -141,6 +142,36 @@ test('hold and reopen decisions are supported', async () => {
   const reopened = await service.decision(event({ decision: 'reopen' }), 'render-job-12345678');
   assert.equal(reopened.item.status, 'in_review');
   assert.equal(reopened.item.approval_state, 'pending');
+});
+
+test('hide preserves the review record while removing it from the normal queue state', async () => {
+  const { service, reviews } = fixture();
+  const result = await service.decision(
+    event({ decision: 'hide', note: 'Remove this unwanted version from the queue.' }),
+    'render-job-12345678'
+  );
+
+  assert.equal(result.decision_applied, true);
+  assert.equal(result.publishing_triggered, false);
+  assert.equal(result.item.status, 'hidden');
+  assert.equal(result.item.approval_state, 'hidden');
+  assert.equal(result.item.automation.review_window_status, 'hidden');
+  assert.equal(reviews.has('render-job-12345678'), true);
+  assert.equal(reviews.get('render-job-12345678').video.object_key, 'incoming/render-jobs/job-12345678/test.mp4');
+});
+
+test('scheduled items must be cancelled before they can be hidden', async () => {
+  const { service, reviews } = fixture();
+  const item = reviews.get('render-job-12345678');
+  item.publishing_status = 'scheduled';
+  reviews.set(item.id, item);
+
+  await assert.rejects(
+    service.decision(event({ decision: 'hide' }), 'render-job-12345678'),
+    error => error.statusCode === 409
+      && error.message === 'cancel_schedule_before_hiding'
+      && error.details?.next_step === 'cancel_the_active_schedule'
+  );
 });
 
 test('all review actions require the Social Factory admin token', async () => {
