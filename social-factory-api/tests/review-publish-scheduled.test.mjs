@@ -9,7 +9,10 @@ function fixture(overrides = {}) {
     status: 'approved',
     approval_state: 'approved',
     publishing_status: 'scheduled',
-    video: { object_key: 'incoming/render-jobs/job-12345678/test.mp4' },
+    video: {
+      object_key: 'incoming/render-jobs/job-12345678/test.mp4',
+      aspect_ratio: '9:16'
+    },
     metadata: {
       selected_title: 'Scheduled Test Song',
       description: 'Scheduled description',
@@ -87,6 +90,23 @@ test('scheduled worker publishes due approved item', async () => {
   assert.equal(calls[0].event.headers['x-admin-token'], 'test-admin-token');
   assert.equal(calls[0].body.confirm_upload, true);
   assert.equal(reviews.get(reviewId).published_at, '2026-07-29T15:00:10.000Z');
+});
+
+test('scheduled worker rejects unsupported 4:5 YouTube content', async () => {
+  const { service, reviewId, calls } = fixture({
+    video: {
+      object_key: 'incoming/render-jobs/job-12345678/test.mp4',
+      aspect_ratio: '4:5'
+    }
+  });
+
+  await assert.rejects(
+    service.publishScheduled(reviewId, '2026-07-29T15:00:00.000Z'),
+    error => error.statusCode === 409
+      && error.message === 'youtube_aspect_ratio_not_supported'
+      && error.details?.aspect_ratio === '4:5'
+  );
+  assert.equal(calls.length, 0);
 });
 
 test('stale schedule message is acknowledged without uploading', async () => {
