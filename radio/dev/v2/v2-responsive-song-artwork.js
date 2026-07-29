@@ -123,7 +123,11 @@
 
   function applyBackdrop(player, selected) {
     const backdrop = player?.querySelector('[data-backdrop]');
-    if (backdrop) {
+    if (backdrop && (
+      backdrop.dataset.responsiveArtworkUrl !== selected.url ||
+      backdrop.dataset.songArtworkRequestedRatio !== selected.requested ||
+      backdrop.dataset.songArtworkSourceRatio !== (selected.source || '')
+    )) {
       backdrop.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
       backdrop.style.backgroundPosition = 'center';
       backdrop.style.backgroundRepeat = 'no-repeat';
@@ -135,13 +139,18 @@
 
     const stage = player?.querySelector('[data-mobile-vec-stage]');
     const activeMedia = stage?.querySelector('.v2-mobile-vec-media.is-active');
-    if (stage && !activeMedia) {
+    if (stage && !activeMedia && (
+      stage.dataset.responsiveArtworkUrl !== selected.url ||
+      stage.dataset.songArtworkRequestedRatio !== selected.requested ||
+      stage.dataset.songArtworkSourceRatio !== (selected.source || '')
+    )) {
       stage.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
       stage.style.backgroundPosition = 'center';
       stage.style.backgroundRepeat = 'no-repeat';
       stage.style.backgroundSize = 'cover';
       stage.dataset.songArtworkRequestedRatio = selected.requested;
       stage.dataset.songArtworkSourceRatio = selected.source || '';
+      stage.dataset.responsiveArtworkUrl = selected.url;
     }
   }
 
@@ -190,7 +199,7 @@
     try {
       const selected = await applyForSong(player, songKey);
       const officialImage = player.querySelector('[data-mobile-vec-stage] .v2-mobile-vec-media.is-active');
-      if (selected?.url && officialImage?.tagName === 'IMG') {
+      if (selected?.url && officialImage?.tagName === 'IMG' && officialImage.src !== selected.url) {
         officialImage.src = selected.url;
         officialImage.dataset.responsiveArtworkRatio = selected.source || selected.requested;
       }
@@ -200,7 +209,7 @@
   });
 
   const observer = new MutationObserver(scheduleApply);
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
+  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class'] });
   window.addEventListener('resize', scheduleApply, { passive: true });
   window.addEventListener('orientationchange', scheduleApply, { passive: true });
   document.addEventListener('DOMContentLoaded', scheduleApply, { once: true });
