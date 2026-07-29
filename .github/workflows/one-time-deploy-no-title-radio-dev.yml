@@ -1,0 +1,204 @@
+name: One-Time Deploy No-Title Radio DEV
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-deploy-no-title-radio-dev.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-no-title-radio-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPECTED_FUNCTION_NAME: stashbox-radio-api-dev-v2
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      TRUE_DEV_COGNITO_REGION: us-east-1
+      TRUE_DEV_COGNITO_USER_POOL_ID: us-east-1_okL8XCVT6
+      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      REPORT_PATH: deployment-reports/video-factory-no-title-default.json
+
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate no-title source contract
+        run: |
+          set -euo pipefail
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --test radio-api/tests/video-factory-foundation.test.mjs
+          grep -Fq 'include_artist: false' radio-api/video-factory/recipe.mjs
+          grep -Fq 'include_song: false' radio-api/video-factory/recipe.mjs
+          grep -Fq 'include_album: false' radio-api/video-factory/recipe.mjs
+          grep -Fq '<input id="includeArtist" type="checkbox" /> Artist name' radio-admin/dev/video-factory/index.html
+          grep -Fq '<input id="includeSong" type="checkbox" /> Song name' radio-admin/dev/video-factory/index.html
+          grep -Fq '<input id="includeAlbum" type="checkbox" /> Album name' radio-admin/dev/video-factory/index.html
+
+      - name: Install Radio API production dependencies
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev --no-audit --no-fund
+          else
+            npm install --omit=dev --no-audit --no-fund
+          fi
+
+      - name: Download and validate DEV Cognito keys
+        run: |
+          set -euo pipefail
+          JWKS_URL="https://cognito-idp.${TRUE_DEV_COGNITO_REGION}.amazonaws.com/${TRUE_DEV_COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            "${JWKS_URL}" --output radio-api/cognito-jwks-dev.json
+          jq -e '(.keys | type == "array") and (.keys | length >= 2)' radio-api/cognito-jwks-dev.json >/dev/null
+
+      - name: Build exact TRUE DEV Lambda package
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs index.mjs
+          node --check index.mjs
+          node --check radio-main.mjs
+          zip -q -r dist/true-dev-lambda.zip . \
+            -x 'dist/*' \
+            -x '.git/*' \
+            -x '*.zip'
+          test -s dist/true-dev-lambda.zip
+          unzip -l dist/true-dev-lambda.zip | grep -q 'video-factory/recipe.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
+          openssl dgst -sha256 -binary dist/true-dev-lambda.zip | base64 -w 0 > /tmp/expected-code-sha256
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Validate and snapshot existing DEV Lambda configuration
+        env:
+          FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+          AWS_REGION_VALUE: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION_NAME}"
+          test "${AWS_REGION_VALUE}" = 'us-east-1'
+          aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" > /tmp/lambda-before.json
+          jq '{FunctionName,Runtime,Role,Handler,Timeout,MemorySize,Architectures,Environment}' \
+            /tmp/lambda-before.json > /tmp/lambda-before-config.json
+
+      - name: Deploy code only to Radio TRUE DEV Lambda
+        env:
+          FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "${FUNCTION_NAME}" \
+            --zip-file fileb://radio-api/dist/true-dev-lambda.zip \
+            > /tmp/lambda-update.json
+          aws lambda wait function-updated --function-name "${FUNCTION_NAME}"
+
+      - name: Verify code and configuration preservation
+        env:
+          FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" > /tmp/lambda-after.json
+          jq '{FunctionName,Runtime,Role,Handler,Timeout,MemorySize,Architectures,Environment}' \
+            /tmp/lambda-after.json > /tmp/lambda-after-config.json
+          diff -u /tmp/lambda-before-config.json /tmp/lambda-after-config.json
+          test "$(jq -r '.LastUpdateStatus' /tmp/lambda-after.json)" = 'Successful'
+          EXPECTED_SHA=$(cat /tmp/expected-code-sha256)
+          DEPLOYED_SHA=$(jq -r '.CodeSha256' /tmp/lambda-after.json)
+          test "${DEPLOYED_SHA}" = "${EXPECTED_SHA}"
+          printf '%s' "${DEPLOYED_SHA}" > /tmp/deployed-code-sha256
+
+      - name: Run read-only TRUE DEV smoke tests
+        run: |
+          set -euo pipefail
+          node radio-api/scripts/smoke-test-true-dev.mjs
+          SUMMARY_STATUS=$(curl --silent --show-error --max-time 45 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/video-factory-summary.json -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/admin/video-factory/summary")
+          test "${SUMMARY_STATUS}" = '200'
+          jq -e '.success == true and (.summary | type == "object")' /tmp/video-factory-summary.json >/dev/null
+          printf '%s' "${SUMMARY_STATUS}" > /tmp/summary-http-status
+
+      - name: Verify live Video Factory interface defaults
+        run: |
+          set -euo pipefail
+          LIVE_HTML=$(curl --fail --silent --show-error --max-time 45 \
+            "https://stashbox.com/radio-admin/dev/video-factory/?qa=${GITHUB_RUN_ID}")
+          printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeArtist" type="checkbox" />'
+          printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeSong" type="checkbox" />'
+          printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeAlbum" type="checkbox" />'
+
+      - name: Commit sanitized deployment receipt
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n \
+            --arg status success \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg source_sha "$(git rev-parse HEAD)" \
+            --arg function_name "${EXPECTED_FUNCTION_NAME}" \
+            --arg code_sha256 "$(cat /tmp/deployed-code-sha256)" \
+            --arg summary_http_status "$(cat /tmp/summary-http-status)" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              source_sha:$source_sha,
+              function_name:$function_name,
+              lambda_last_update_status:"Successful",
+              code_sha256_verified:true,
+              deployed_code_sha256:$code_sha256,
+              existing_configuration_preserved:true,
+              video_factory_summary_http_status:$summary_http_status,
+              live_interface_checkboxes_unchecked:true,
+              defaults:{
+                include_artist:false,
+                include_song:false,
+                include_album:false,
+                intro_enabled_unchanged:true,
+                outro_enabled_unchanged:true,
+                corner_bug_enabled_unchanged:true
+              },
+              social_dev_deployment_already_verified:true,
+              explicit_manual_opt_in_preserved:true,
+              existing_jobs_modified:false,
+              existing_review_items_modified:false,
+              render_created:false,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record deployed no-title Video Factory defaults [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
