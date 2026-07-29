@@ -3,6 +3,7 @@
 
   const HEADER_ID = 'stashboxDevAdminHeader';
   const STYLE_ID = 'stashboxDevAdminHeaderStyles';
+  const MOBILE_BREAKPOINT = 700;
 
   const navigation = [
     { key: 'songs', label: 'Songs', href: '/radio-admin/songs/dev/' },
@@ -62,11 +63,19 @@
         text-align: left !important;
       }
       #${HEADER_ID}, #${HEADER_ID} * { box-sizing: border-box !important; }
+      #${HEADER_ID} .sbra-admin-top-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 14px !important;
+        width: 100% !important;
+      }
       #${HEADER_ID} .sbra-admin-brand {
         display: inline-flex !important;
         flex-direction: column !important;
         align-items: flex-start !important;
         gap: 1px !important;
+        min-width: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
         border: 0 !important;
@@ -93,6 +102,49 @@
         font-weight: 800 !important;
         letter-spacing: 0 !important;
         text-transform: none !important;
+      }
+      #${HEADER_ID} .sbra-admin-menu-toggle {
+        display: none !important;
+        flex: 0 0 auto !important;
+        width: 44px !important;
+        height: 44px !important;
+        margin: 0 !important;
+        padding: 10px !important;
+        border: 1px solid #3a4049 !important;
+        border-radius: 10px !important;
+        background: #101317 !important;
+        color: #f7f7f5 !important;
+        cursor: pointer !important;
+        box-shadow: none !important;
+      }
+      #${HEADER_ID} .sbra-admin-menu-toggle:hover,
+      #${HEADER_ID} .sbra-admin-menu-toggle:focus-visible {
+        border-color: #f0a500 !important;
+        background: #18130b !important;
+        outline: none !important;
+      }
+      #${HEADER_ID} .sbra-admin-menu-lines {
+        display: grid !important;
+        gap: 5px !important;
+        width: 100% !important;
+      }
+      #${HEADER_ID} .sbra-admin-menu-lines span {
+        display: block !important;
+        width: 100% !important;
+        height: 2px !important;
+        border-radius: 999px !important;
+        background: currentColor !important;
+        transform-origin: center !important;
+        transition: transform .18s ease, opacity .18s ease !important;
+      }
+      #${HEADER_ID}.sbra-mobile-nav-open .sbra-admin-menu-lines span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg) !important;
+      }
+      #${HEADER_ID}.sbra-mobile-nav-open .sbra-admin-menu-lines span:nth-child(2) {
+        opacity: 0 !important;
+      }
+      #${HEADER_ID}.sbra-mobile-nav-open .sbra-admin-menu-lines span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg) !important;
       }
       #${HEADER_ID} .sbra-admin-nav {
         display: flex !important;
@@ -147,14 +199,47 @@
       #${HEADER_ID} .sbra-admin-compat-controls {
         display: none !important;
       }
-      @media (max-width: 700px) {
-        #${HEADER_ID} { padding: 11px 10px 10px !important; }
-        #${HEADER_ID} .sbra-admin-title { font-size: 19px !important; }
-        #${HEADER_ID} .sbra-admin-nav { gap: 6px !important; }
+      @media (max-width: ${MOBILE_BREAKPOINT}px) {
+        #${HEADER_ID} {
+          padding: 9px 10px !important;
+        }
+        #${HEADER_ID} .sbra-admin-kicker {
+          font-size: 9px !important;
+          letter-spacing: .07em !important;
+        }
+        #${HEADER_ID} .sbra-admin-title {
+          max-width: calc(100vw - 82px) !important;
+          overflow: hidden !important;
+          font-size: 18px !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+        }
+        #${HEADER_ID} .sbra-admin-menu-toggle {
+          display: grid !important;
+          place-items: center !important;
+        }
+        #${HEADER_ID} .sbra-admin-nav {
+          display: none !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 8px !important;
+          margin: 10px 0 2px !important;
+          padding: 10px 0 1px !important;
+          border-top: 1px solid #242a31 !important;
+        }
+        #${HEADER_ID}.sbra-mobile-nav-open .sbra-admin-nav {
+          display: grid !important;
+        }
         #${HEADER_ID} .sbra-admin-nav a {
-          min-height: 30px !important;
-          padding: 7px 9px !important;
-          font-size: 11px !important;
+          width: 100% !important;
+          min-height: 40px !important;
+          padding: 9px 8px !important;
+          font-size: 12px !important;
+          white-space: normal !important;
+        }
+      }
+      @media (max-width: 390px) {
+        #${HEADER_ID} .sbra-admin-nav {
+          grid-template-columns: 1fr !important;
         }
       }
     `;
@@ -197,10 +282,48 @@
     });
   }
 
+  function setMobileMenuState(header, toggle, open) {
+    const nextOpen = Boolean(open);
+    header.classList.toggle('sbra-mobile-nav-open', nextOpen);
+    toggle.setAttribute('aria-expanded', String(nextOpen));
+    toggle.setAttribute('aria-label', nextOpen ? 'Close DEV admin navigation' : 'Open DEV admin navigation');
+  }
+
+  function installMobileMenuBehavior(header, toggle, nav) {
+    toggle.addEventListener('click', event => {
+      event.stopPropagation();
+      setMobileMenuState(header, toggle, !header.classList.contains('sbra-mobile-nav-open'));
+    });
+
+    nav.addEventListener('click', event => {
+      if (event.target.closest('a')) setMobileMenuState(header, toggle, false);
+    });
+
+    document.addEventListener('click', event => {
+      if (window.innerWidth > MOBILE_BREAKPOINT) return;
+      if (!header.classList.contains('sbra-mobile-nav-open')) return;
+      if (!header.contains(event.target)) setMobileMenuState(header, toggle, false);
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && header.classList.contains('sbra-mobile-nav-open')) {
+        setMobileMenuState(header, toggle, false);
+        toggle.focus();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > MOBILE_BREAKPOINT) setMobileMenuState(header, toggle, false);
+    });
+  }
+
   function buildHeader(configuration) {
     const header = document.createElement('header');
     header.id = HEADER_ID;
     header.setAttribute('data-active-tool', configuration.key);
+
+    const topRow = document.createElement('div');
+    topRow.className = 'sbra-admin-top-row';
 
     const brand = document.createElement('a');
     brand.className = 'sbra-admin-brand';
@@ -215,7 +338,20 @@
     title.className = 'sbra-admin-title';
     title.textContent = configuration.title;
 
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'sbra-admin-menu-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', 'stashboxDevAdminNavigation');
+    toggle.setAttribute('aria-label', 'Open DEV admin navigation');
+    toggle.innerHTML = `
+      <span class="sbra-admin-menu-lines" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    `;
+
     const nav = document.createElement('nav');
+    nav.id = 'stashboxDevAdminNavigation';
     nav.className = 'sbra-admin-nav';
     nav.setAttribute('aria-label', 'Stashbox Radio DEV admin tools');
 
@@ -232,7 +368,9 @@
     compat.setAttribute('aria-hidden', 'true');
 
     brand.append(kicker, title);
-    header.append(brand, nav, compat);
+    topRow.append(brand, toggle);
+    header.append(topRow, nav, compat);
+    installMobileMenuBehavior(header, toggle, nav);
     return { header, compat };
   }
 
