@@ -83,7 +83,7 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
 });
 
-test('batch plan accepts 4:5 feed portrait output', async () => {
+test('batch plan rejects 4:5 because YouTube output is limited to 9:16 or 16:9', async () => {
   const service = createBatchCampaignService({
     orchestrator: {
       async candidates() {
@@ -92,18 +92,20 @@ test('batch plan accepts 4:5 feed portrait output', async () => {
     }
   });
 
-  const result = await service.plan(event({
-    campaign_name: 'Feed Portrait Test',
-    selected_song_keys: ['strong-reggae-song'],
-    aspect_ratio: '4:5',
-    duration_mode: 'custom',
-    duration_seconds: 15
-  }));
-
-  assert.equal(result.settings.aspect_ratio, '4:5');
-  assert.equal(result.jobs[0].recipe.aspect_ratio, '4:5');
-  assert.equal(result.jobs[0].recipe.duration_seconds, 15);
-  assert.equal(result.proposed_job_count, 1);
+  await assert.rejects(
+    service.plan(event({
+      campaign_name: 'Feed Portrait Test',
+      selected_song_keys: ['strong-reggae-song'],
+      aspect_ratio: '4:5',
+      duration_mode: 'custom',
+      duration_seconds: 15
+    })),
+    error => error.statusCode === 422
+      && error.message === 'youtube_aspect_ratio_not_supported'
+      && error.details?.aspect_ratio === '4:5'
+      && error.details?.allowed?.includes('9:16')
+      && error.details?.allowed?.includes('16:9')
+  );
 });
 
 test('batch plan preserves an explicit manual title-overlay opt-in', async () => {
