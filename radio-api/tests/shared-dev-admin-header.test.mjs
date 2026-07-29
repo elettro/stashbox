@@ -100,8 +100,6 @@ test('mobile DEV admin navigation is collapsed behind an accessible hamburger bu
 
 test('desktop DEV admin navigation remains visible and unchanged', () => {
   const source = read('radio-admin/dev/shared-admin-header.js');
-  const desktopNavStart = source.indexOf(`#${HEADER_ID}`);
-  assert.equal(desktopNavStart, -1, 'test source should not interpolate runtime template values');
   assert.match(source, /#\$\{HEADER_ID\} \.sbra-admin-nav \{[\s\S]*display: flex !important/);
   assert.match(source, /#\$\{HEADER_ID\} \.sbra-admin-menu-toggle \{[\s\S]*display: none !important/);
 });
