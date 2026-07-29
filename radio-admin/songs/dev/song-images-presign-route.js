@@ -9,7 +9,7 @@
   // work even when an older cached app.js is still present.
   const script = document.createElement('script');
   script.id = 'songImagesCompatBridgeScript';
-  script.src = '/radio-admin/songs/dev/song-images-compat-bridge.js?v=20260729-song-images-compat2';
+  script.src = '/radio-admin/songs/dev/song-images-compat-bridge.js?v=20260729-song-images-persist1';
   script.async = false;
   document.head.appendChild(script);
 })();
