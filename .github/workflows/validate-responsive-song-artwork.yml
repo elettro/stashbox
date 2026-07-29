@@ -1,0 +1,47 @@
+name: Validate Responsive Song Artwork
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/validate-responsive-song-artwork.yml'
+      - 'radio/dev/responsive-song-artwork.js'
+      - 'radio/dev/notifications.js'
+      - 'radio/dev/v2/v2-responsive-song-artwork.js'
+      - 'radio/dev/v2/index.html'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate responsive artwork clients
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check radio/dev/responsive-song-artwork.js
+          node --check radio/dev/notifications.js
+          node --check radio/dev/v2/v2-responsive-song-artwork.js
+
+      - name: Verify player loaders
+        run: |
+          grep -q "responsive-song-artwork.js" radio/dev/notifications.js
+          grep -q "v2-responsive-song-artwork.js" radio/dev/v2/index.html
+
+      - name: Verify breakpoint and fallback policy
+        run: |
+          grep -q "width < 700" radio/dev/responsive-song-artwork.js
+          grep -q "width >= 1800" radio/dev/responsive-song-artwork.js
+          grep -q "\['9x16', '4x5', '3x4', '1x1'\]" radio/dev/responsive-song-artwork.js
+          grep -q "\['21x9', '16x9', '1x1'\]" radio/dev/v2/v2-responsive-song-artwork.js
