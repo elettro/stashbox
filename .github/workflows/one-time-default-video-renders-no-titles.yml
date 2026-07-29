@@ -1,0 +1,205 @@
+name: One-Time Default Video Renders No Titles
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-default-video-renders-no-titles.yml'
+      - 'radio-api/scripts/apply-video-factory-no-title-default.mjs'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: default-video-renders-no-titles
+  cancel-in-progress: false
+
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPORT_PATH: deployment-reports/video-factory-no-title-default.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply no-title defaults
+        run: |
+          set -euo pipefail
+          node --check radio-api/scripts/apply-video-factory-no-title-default.mjs
+          node radio-api/scripts/apply-video-factory-no-title-default.mjs
+
+      - name: Verify Video Factory interface defaults
+        run: |
+          set -euo pipefail
+          node --check radio-admin/dev/video-factory/video-factory.js
+          grep -Fq '<input id="includeArtist" type="checkbox" /> Artist name' radio-admin/dev/video-factory/index.html
+          grep -Fq '<input id="includeSong" type="checkbox" /> Song name' radio-admin/dev/video-factory/index.html
+          grep -Fq '<input id="includeAlbum" type="checkbox" /> Album name' radio-admin/dev/video-factory/index.html
+          ! grep -Fq 'id="includeArtist" type="checkbox" checked' radio-admin/dev/video-factory/index.html
+          ! grep -Fq 'id="includeSong" type="checkbox" checked' radio-admin/dev/video-factory/index.html
+          ! grep -Fq 'id="includeAlbum" type="checkbox" checked' radio-admin/dev/video-factory/index.html
+
+      - name: Test Radio Video Factory defaults
+        run: |
+          set -euo pipefail
+          node --check radio-api/video-factory/recipe.mjs
+          node --check radio-api/video-factory/routes.mjs
+          node --test radio-api/tests/video-factory-foundation.test.mjs
+
+      - name: Test Social Factory defaults
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit tested source defaults
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            radio-admin/dev/video-factory/index.html \
+            radio-api/video-factory/recipe.mjs \
+            radio-api/video-factory/routes.mjs \
+            radio-api/tests/video-factory-foundation.test.mjs \
+            social-factory-api/batch-campaigns.mjs \
+            social-factory-api/video-orchestrator.mjs \
+            social-factory-api/tests/batch-campaigns.test.mjs \
+            social-factory-api/tests/video-orchestrator.test.mjs \
+            .github/workflows/deploy-true-dev-lambda.yml
+          git commit -m 'Default future video renders to no title overlays [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
+          git rev-parse HEAD > /tmp/source-sha
+
+      - name: Dispatch Radio and Social DEV deployments
+        run: |
+          set -euo pipefail
+          RADIO_BEFORE=$(gh run list --workflow deploy-true-dev-lambda.yml --limit 1 --json databaseId --jq '.[0].databaseId // 0')
+          SOCIAL_BEFORE=$(gh run list --workflow deploy-social-factory-api-dev.yml --limit 1 --json databaseId --jq '.[0].databaseId // 0')
+          echo "${RADIO_BEFORE}" > /tmp/radio-before
+          echo "${SOCIAL_BEFORE}" > /tmp/social-before
+          gh workflow run deploy-true-dev-lambda.yml --ref main
+          gh workflow run deploy-social-factory-api-dev.yml --ref main
+
+      - name: Wait for DEV deployments
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=$(cat /tmp/source-sha)
+          RADIO_BEFORE=$(cat /tmp/radio-before)
+          SOCIAL_BEFORE=$(cat /tmp/social-before)
+
+          find_run() {
+            local workflow="$1"
+            local before="$2"
+            local run_id=''
+            for attempt in $(seq 1 60); do
+              run_id=$(gh run list \
+                --workflow "${workflow}" \
+                --event workflow_dispatch \
+                --limit 20 \
+                --json databaseId,headSha,status,createdAt \
+                --jq ".[] | select(.databaseId > ${before} and .headSha == \"${SOURCE_SHA}\") | .databaseId" \
+                | head -n 1)
+              if [ -n "${run_id}" ]; then
+                printf '%s' "${run_id}"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "Timed out finding ${workflow} for ${SOURCE_SHA}." >&2
+            return 1
+          }
+
+          RADIO_RUN_ID=$(find_run deploy-true-dev-lambda.yml "${RADIO_BEFORE}")
+          SOCIAL_RUN_ID=$(find_run deploy-social-factory-api-dev.yml "${SOCIAL_BEFORE}")
+          echo "${RADIO_RUN_ID}" > /tmp/radio-run-id
+          echo "${SOCIAL_RUN_ID}" > /tmp/social-run-id
+
+          gh run watch "${RADIO_RUN_ID}" --exit-status
+          gh run watch "${SOCIAL_RUN_ID}" --exit-status
+
+      - name: Verify deployed contracts without creating renders
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=$(cat /tmp/source-sha)
+          RADIO_RUN_ID=$(cat /tmp/radio-run-id)
+          SOCIAL_RUN_ID=$(cat /tmp/social-run-id)
+
+          RADIO_CONCLUSION=$(gh run view "${RADIO_RUN_ID}" --json conclusion --jq '.conclusion')
+          SOCIAL_CONCLUSION=$(gh run view "${SOCIAL_RUN_ID}" --json conclusion --jq '.conclusion')
+          test "${RADIO_CONCLUSION}" = 'success'
+          test "${SOCIAL_CONCLUSION}" = 'success'
+
+          HTML_STATUS='not_checked'
+          for attempt in $(seq 1 20); do
+            LIVE_HTML=$(curl --silent --show-error --max-time 45 \
+              "https://stashbox.com/radio-admin/dev/video-factory/?qa=${GITHUB_RUN_ID}" || true)
+            if printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeArtist" type="checkbox" />' && \
+               printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeSong" type="checkbox" />' && \
+               printf '%s' "${LIVE_HTML}" | grep -Fq 'id="includeAlbum" type="checkbox" />'; then
+              HTML_STATUS='live_unchecked'
+              break
+            fi
+            sleep 10
+          done
+
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n \
+            --arg status success \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg source_sha "${SOURCE_SHA}" \
+            --arg radio_run_id "${RADIO_RUN_ID}" \
+            --arg social_run_id "${SOCIAL_RUN_ID}" \
+            --arg radio_conclusion "${RADIO_CONCLUSION}" \
+            --arg social_conclusion "${SOCIAL_CONCLUSION}" \
+            --arg interface_status "${HTML_STATUS}" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              source_sha:$source_sha,
+              defaults:{
+                include_artist:false,
+                include_song:false,
+                include_album:false,
+                intro_enabled_unchanged:true,
+                outro_enabled_unchanged:true,
+                corner_bug_enabled_unchanged:true
+              },
+              explicit_manual_opt_in_preserved:true,
+              existing_jobs_modified:false,
+              existing_review_items_modified:false,
+              radio_dev_deployment:{run_id:$radio_run_id,conclusion:$radio_conclusion},
+              social_dev_deployment:{run_id:$social_run_id,conclusion:$social_conclusion},
+              live_video_factory_interface:$interface_status,
+              render_created:false,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+      - name: Commit deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record no-title Video Factory defaults [skip ci]'
+          git push origin HEAD:main
