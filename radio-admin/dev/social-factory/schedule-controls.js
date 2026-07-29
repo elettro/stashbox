@@ -6,6 +6,10 @@
   const YOUTUBE_RATIOS = new Set(['9:16', '16:9']);
   const state = { busy: false };
 
+  const previewStyle = document.createElement('style');
+  previewStyle.textContent = '.sf-preview-loading[hidden] { display: none !important; }';
+  document.head.appendChild(previewStyle);
+
   function byId(id) {
     return document.getElementById(id);
   }
