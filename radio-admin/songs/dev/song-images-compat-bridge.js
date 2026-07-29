@@ -7,7 +7,11 @@
 
   const API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
   const LEGACY_PRESIGN_PATH = '/dev/admin/uploads/presign';
+  const SONG_API_PATH = '/dev/admin/songs';
+  const VEC_RECIPE_PATH = '/dev/admin/vec/recipe';
+  const PREPARED_RECIPE_FIELD = 'prepared_artwork_images';
   const PROFILE_SOURCE_PREFIX = 'song_profile_image:';
+
   const FIELD_TO_RATIO = Object.freeze({
     song_artwork_url: '1x1',
     song_artwork_9x16_url: '9x16',
@@ -16,6 +20,7 @@
     song_artwork_4x5_url: '4x5',
     song_artwork_21x9_url: '21x9'
   });
+
   const OPTIONAL_FIELDS = new Set([
     'song_artwork_9x16_url',
     'song_artwork_16x9_url',
@@ -62,6 +67,12 @@
     return Array.from(headers.entries());
   }
 
+  function jsonHeaders(headers = []) {
+    const next = new Headers(headers);
+    next.set('Content-Type', 'application/json');
+    return Array.from(next.entries());
+  }
+
   function xhrResponse(url, { method = 'GET', headers = [], body = null } = {}) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -86,6 +97,15 @@
     });
   }
 
+  async function responseJson(response) {
+    const text = await response.text();
+    const data = parseJson(text);
+    if (!response.ok) {
+      throw new Error(clean(data?.detail || data?.error || data?.message || text || response.statusText || `Request failed with status ${response.status}.`));
+    }
+    return data;
+  }
+
   function selectedSongRecord(songKey = '') {
     try {
       if (selectedSong && (!songKey || clean(selectedSong.song_key).toLowerCase() === clean(songKey).toLowerCase())) return selectedSong;
@@ -108,34 +128,46 @@
       .map((asset) => ({
         type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
         url: clean(asset?.url || asset?.src),
-        source: clean(asset?.source || 'song') || 'song',
-        key: clean(asset?.key || asset?.object_key || keyFromUrl(asset?.url || asset?.src))
+        source: clean(asset?.source || 'song') || 'song'
       }))
       .filter((asset) => asset.url);
   }
 
-  function keyFromUrl(url) {
-    try { return decodeURIComponent(new URL(url).pathname.replace(/^\/+/, '')); } catch (_) { return ''; }
+  function legacyPreparedImages(song) {
+    const images = {};
+    normalizeAssets(song?.visual_assets).forEach((asset) => {
+      if (!asset.source.startsWith(PROFILE_SOURCE_PREFIX)) return;
+      const ratio = asset.source.slice(PROFILE_SOURCE_PREFIX.length);
+      if (Object.values(FIELD_TO_RATIO).includes(ratio)) images[ratio] = asset.url;
+    });
+    return images;
   }
 
-  function profileSource(ratio) {
-    return `${PROFILE_SOURCE_PREFIX}${ratio}`;
+  function preparedImages(recipe, song) {
+    const stored = recipe?.[PREPARED_RECIPE_FIELD];
+    const images = { ...legacyPreparedImages(song) };
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      Object.values(FIELD_TO_RATIO).forEach((ratio) => {
+        if (ratio === '1x1') return;
+        const url = clean(stored[ratio]);
+        if (url) images[ratio] = url;
+        else if (Object.prototype.hasOwnProperty.call(stored, ratio)) delete images[ratio];
+      });
+    }
+    return images;
   }
 
-  function profileUrl(assets, ratio) {
-    return clean(assets.find((asset) => asset.source === profileSource(ratio))?.url);
-  }
-
-  function mediaPayload(songKey, song, assets) {
+  function mediaPayload(songKey, song, recipe = {}) {
     const squareInput = document.getElementById('field_song_artwork_url');
     const square = clean(squareInput?.value || song?.song_artwork_url);
+    const prepared = preparedImages(recipe, song);
     const images = {
       '1x1': square,
-      '9x16': profileUrl(assets, '9x16'),
-      '16x9': profileUrl(assets, '16x9'),
-      '3x4': profileUrl(assets, '3x4'),
-      '4x5': profileUrl(assets, '4x5'),
-      '21x9': profileUrl(assets, '21x9')
+      '9x16': clean(prepared['9x16']),
+      '16x9': clean(prepared['16x9']),
+      '3x4': clean(prepared['3x4']),
+      '4x5': clean(prepared['4x5']),
+      '21x9': clean(prepared['21x9'])
     };
     const ready = Object.values(images).filter(Boolean).length;
     return {
@@ -151,22 +183,66 @@
       song_artwork_4x5_url: images['4x5'],
       song_artwork_21x9_url: images['21x9'],
       artwork_images: images,
-      completion: { ready, total: 6, complete: ready === 6, label: ready === 6 ? 'Complete Image Set' : `${ready} of 6 Images Ready` }
+      completion: {
+        ready,
+        total: 6,
+        complete: ready === 6,
+        label: ready === 6 ? 'Complete Image Set' : `${ready} of 6 Images Ready`
+      }
     };
   }
 
-  function updateLocalState(songKey, payload, assets) {
+  function updateLocalState(songKey, patch, recipe) {
+    const directArtwork = {};
+    Object.entries(FIELD_TO_RATIO).forEach(([field, ratio]) => {
+      if (field === 'song_artwork_url') {
+        if (Object.prototype.hasOwnProperty.call(patch, field)) directArtwork[field] = clean(patch[field]);
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, field)) directArtwork[field] = clean(patch[field]);
+      else directArtwork[field] = clean(recipe?.[PREPARED_RECIPE_FIELD]?.[ratio]);
+    });
+
+    try { selectedSong = { ...(selectedSong || {}), song_key: songKey, ...directArtwork }; } catch (_) {}
     try {
-      selectedSong = { ...(selectedSong || {}), song_key: songKey, ...payload, visual_assets: assets };
+      if (songsByKey?.[songKey]) songsByKey[songKey] = { ...songsByKey[songKey], ...directArtwork };
     } catch (_) {}
-    try { editorVisualAssets = assets; } catch (_) {}
-    try {
-      if (songsByKey?.[songKey]) songsByKey[songKey] = { ...songsByKey[songKey], ...payload, visual_assets: assets };
-    } catch (_) {}
-    if (Object.prototype.hasOwnProperty.call(payload, 'song_artwork_url')) {
+
+    if (Object.prototype.hasOwnProperty.call(directArtwork, 'song_artwork_url')) {
       const input = document.getElementById('field_song_artwork_url');
-      if (input) input.value = clean(payload.song_artwork_url);
+      if (input) {
+        input.value = directArtwork.song_artwork_url;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     }
+  }
+
+  async function loadRecipe(songKey, headers) {
+    const response = await xhrResponse(`${API_ORIGIN}${VEC_RECIPE_PATH}?song_key=${encodeURIComponent(songKey)}`, {
+      method: 'GET',
+      headers
+    });
+    const data = await responseJson(response);
+    return data?.recipe && typeof data.recipe === 'object' && !Array.isArray(data.recipe) ? data.recipe : {};
+  }
+
+  async function saveRecipe(songKey, recipe, headers) {
+    const response = await xhrResponse(`${API_ORIGIN}${VEC_RECIPE_PATH}`, {
+      method: 'PUT',
+      headers: jsonHeaders(headers),
+      body: JSON.stringify({ song_key: songKey, recipe })
+    });
+    const data = await responseJson(response);
+    return data?.recipe && typeof data.recipe === 'object' && !Array.isArray(data.recipe) ? data.recipe : recipe;
+  }
+
+  async function saveSquareArtwork(songKey, squareUrl, headers) {
+    const response = await xhrResponse(`${API_ORIGIN}${SONG_API_PATH}/${encodeURIComponent(songKey)}`, {
+      method: 'PUT',
+      headers: jsonHeaders(headers),
+      body: JSON.stringify({ song_artwork_url: clean(squareUrl) })
+    });
+    await responseJson(response);
   }
 
   async function handleLegacyPresign(input, init, url, bodyText) {
@@ -177,7 +253,7 @@
     });
   }
 
-  async function handleDedicatedPresign(input, init, url, match, bodyText) {
+  async function handleDedicatedPresign(input, init, match, bodyText) {
     const body = parseJson(bodyText);
     const songKey = decodeURIComponent(match[1]);
     const ratio = clean(body.ratio).toLowerCase();
@@ -191,7 +267,7 @@
     });
     return xhrResponse(`${API_ORIGIN}${LEGACY_PRESIGN_PATH}`, {
       method: 'POST',
-      headers: headerEntries(input, init),
+      headers: jsonHeaders(headerEntries(input, init)),
       body: legacyBody
     });
   }
@@ -199,51 +275,62 @@
   async function handleArtworkMedia(input, init, match, bodyText) {
     const songKey = decodeURIComponent(match[1]);
     const method = requestMethod(input, init);
+    const headers = headerEntries(input, init);
     const song = selectedSongRecord(songKey);
-    let assets = normalizeAssets(song?.visual_assets);
 
     if (method === 'GET') {
-      return new Response(JSON.stringify({ success: true, media: mediaPayload(songKey, song, assets) }), {
+      const recipe = await loadRecipe(songKey, headers);
+      return new Response(JSON.stringify({ success: true, media: mediaPayload(songKey, song, recipe) }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    if (method !== 'PATCH') return new Response(JSON.stringify({ success: false, error: 'Method not allowed.' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
-
-    const patch = parseJson(bodyText);
-    const updatePayload = {};
-    let optionalChanged = false;
-
-    Object.entries(FIELD_TO_RATIO).forEach(([field, ratio]) => {
-      if (!Object.prototype.hasOwnProperty.call(patch, field)) return;
-      const nextUrl = clean(patch[field]);
-      if (field === 'song_artwork_url') {
-        updatePayload.song_artwork_url = nextUrl;
-        return;
-      }
-      if (!OPTIONAL_FIELDS.has(field)) return;
-      optionalChanged = true;
-      assets = assets.filter((asset) => asset.source !== profileSource(ratio));
-      if (nextUrl) assets.push({ type: 'image', url: nextUrl, source: profileSource(ratio), key: keyFromUrl(nextUrl) });
-    });
-
-    if (optionalChanged) updatePayload.visual_assets = assets;
-    if (!Object.keys(updatePayload).length) {
-      return new Response(JSON.stringify({ success: false, error: 'No artwork fields supplied.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    if (method !== 'PATCH') {
+      return new Response(JSON.stringify({ success: false, error: 'Method not allowed.' }), {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    const saveResponse = await xhrResponse(`${API_ORIGIN}/dev/admin/songs/${encodeURIComponent(songKey)}`, {
-      method: 'PUT',
-      headers: headerEntries(input, init),
-      body: JSON.stringify(updatePayload)
-    });
-    const saveText = await saveResponse.text();
-    if (!saveResponse.ok) return new Response(saveText, { status: saveResponse.status, statusText: saveResponse.statusText, headers: saveResponse.headers });
+    const patch = parseJson(bodyText);
+    const suppliedFields = Object.keys(patch).filter((field) => Object.prototype.hasOwnProperty.call(FIELD_TO_RATIO, field));
+    if (!suppliedFields.length) {
+      return new Response(JSON.stringify({ success: false, error: 'No artwork fields supplied.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    updateLocalState(songKey, updatePayload, assets);
-    const updatedSong = { ...song, ...updatePayload, visual_assets: assets };
-    return new Response(JSON.stringify({ success: true, persisted: true, media: mediaPayload(songKey, updatedSong, assets) }), {
+    if (Object.prototype.hasOwnProperty.call(patch, 'song_artwork_url')) {
+      await saveSquareArtwork(songKey, patch.song_artwork_url, headers);
+    }
+
+    let recipe = await loadRecipe(songKey, headers);
+    const optionalPatch = suppliedFields.filter((field) => OPTIONAL_FIELDS.has(field));
+    if (optionalPatch.length) {
+      const currentImages = preparedImages(recipe, song);
+      optionalPatch.forEach((field) => {
+        const ratio = FIELD_TO_RATIO[field];
+        const nextUrl = clean(patch[field]);
+        if (nextUrl) currentImages[ratio] = nextUrl;
+        else delete currentImages[ratio];
+      });
+      recipe = await saveRecipe(songKey, {
+        ...recipe,
+        [PREPARED_RECIPE_FIELD]: currentImages,
+        prepared_artwork_updated_at: new Date().toISOString()
+      }, headers);
+    }
+
+    updateLocalState(songKey, patch, recipe);
+    const updatedSong = { ...song, ...patch };
+    return new Response(JSON.stringify({
+      success: true,
+      persisted: true,
+      storage: 'song_visual_recipe',
+      media: mediaPayload(songKey, updatedSong, recipe)
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -262,7 +349,7 @@
 
     const presignMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images\/presign$/);
     if (presignMatch && method === 'POST') {
-      return handleDedicatedPresign(input, init, url, presignMatch, bodyText);
+      return handleDedicatedPresign(input, init, presignMatch, bodyText);
     }
 
     const mediaMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
