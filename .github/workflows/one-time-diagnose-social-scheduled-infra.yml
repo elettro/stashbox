@@ -70,4 +70,4 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-# No-title workflow diagnostic snapshot.
+# No-title workflow diagnostic snapshot refresh.
