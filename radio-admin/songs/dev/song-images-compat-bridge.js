@@ -2,8 +2,8 @@
   'use strict';
 
   if (!window.location.pathname.includes('/radio-admin/songs/dev')) return;
-  if (window.__stashboxSongImagesCompatBridgeInstalled) return;
-  window.__stashboxSongImagesCompatBridgeInstalled = true;
+  if (window.__stashboxSongImagesCompatBridgeV3Installed) return;
+  window.__stashboxSongImagesCompatBridgeV3Installed = true;
 
   const API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
   const LEGACY_PRESIGN_PATH = '/dev/admin/uploads/presign';
@@ -29,10 +29,15 @@
     'song_artwork_21x9_url'
   ]);
 
-  const previousFetch = window.fetch.bind(window);
+  const downstreamFetch = window.fetch.bind(window);
+  const nativeFetch = window.__stashboxNativeFetch || downstreamFetch;
 
   function clean(value) {
     return String(value ?? '').trim();
+  }
+
+  function wait(milliseconds) {
+    return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
   function requestUrl(input) {
@@ -61,49 +66,48 @@
     try { return JSON.parse(text); } catch (_) { return {}; }
   }
 
-  function headerEntries(input, init) {
+  function mergedHeaders(input, init) {
     const headers = new Headers(typeof input !== 'string' && input?.headers ? input.headers : undefined);
     new Headers(init?.headers || undefined).forEach((value, key) => headers.set(key, value));
-    return Array.from(headers.entries());
+    return headers;
   }
 
-  function jsonHeaders(headers = []) {
-    const next = new Headers(headers);
+  function jsonHeaders(headers) {
+    const next = new Headers(headers || undefined);
     next.set('Content-Type', 'application/json');
-    return Array.from(next.entries());
+    return next;
   }
 
-  function xhrResponse(url, { method = 'GET', headers = [], body = null } = {}) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(method, url, true);
-      headers.forEach(([key, value]) => xhr.setRequestHeader(key, value));
-      xhr.onload = () => {
-        const responseHeaders = new Headers();
-        clean(xhr.getAllResponseHeaders()).split(/\r?\n/).forEach((line) => {
-          const separator = line.indexOf(':');
-          if (separator > 0) responseHeaders.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
-        });
-        resolve(new Response(xhr.responseText || '', {
-          status: xhr.status || 500,
-          statusText: xhr.statusText || '',
-          headers: responseHeaders
-        }));
-      };
-      xhr.onerror = () => reject(new TypeError('Network request failed.'));
-      xhr.ontimeout = () => reject(new TypeError('Network request timed out.'));
-      xhr.timeout = 60000;
-      xhr.send(body);
-    });
+  function networkMessage(label, error, attempts) {
+    const detail = clean(error?.message);
+    return `${label} lost its network connection after ${attempts} attempts${detail ? ` (${detail})` : ''}.`;
   }
 
-  async function responseJson(response) {
+  async function fetchWithRetry(input, init, { label = 'Request', attempts = 3 } = {}) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await nativeFetch(input, init);
+      } catch (error) {
+        lastError = error;
+        if (attempt < attempts) await wait(attempt === 1 ? 350 : 900);
+      }
+    }
+    throw new Error(networkMessage(label, lastError, attempts));
+  }
+
+  async function responseJson(response, label = 'Request') {
     const text = await response.text();
     const data = parseJson(text);
     if (!response.ok) {
-      throw new Error(clean(data?.detail || data?.error || data?.message || text || response.statusText || `Request failed with status ${response.status}.`));
+      throw new Error(clean(data?.detail || data?.error || data?.message || text || response.statusText || `${label} failed with status ${response.status}.`));
     }
     return data;
+  }
+
+  async function apiJson(url, init, label) {
+    const response = await fetchWithRetry(url, init, { label, attempts: 3 });
+    return responseJson(response, label);
   }
 
   function selectedSongRecord(songKey = '') {
@@ -113,7 +117,7 @@
     try {
       const direct = songsByKey?.[songKey];
       if (direct) return direct;
-      const found = Object.values(songsByKey || {}).find((song) => clean(song?.song_key).toLowerCase() === clean(songKey).toLowerCase());
+      const found = Object.values(songsByKey || {}).find(song => clean(song?.song_key).toLowerCase() === clean(songKey).toLowerCase());
       if (found) return found;
     } catch (_) {}
     return {};
@@ -125,17 +129,17 @@
       try { assets = JSON.parse(assets); } catch (_) { assets = []; }
     }
     return (Array.isArray(assets) ? assets : [])
-      .map((asset) => ({
+      .map(asset => ({
         type: asset?.type === 'clip' || asset?.type === 'video' ? 'clip' : 'image',
         url: clean(asset?.url || asset?.src),
         source: clean(asset?.source || 'song') || 'song'
       }))
-      .filter((asset) => asset.url);
+      .filter(asset => asset.url);
   }
 
   function legacyPreparedImages(song) {
     const images = {};
-    normalizeAssets(song?.visual_assets).forEach((asset) => {
+    normalizeAssets(song?.visual_assets).forEach(asset => {
       if (!asset.source.startsWith(PROFILE_SOURCE_PREFIX)) return;
       const ratio = asset.source.slice(PROFILE_SOURCE_PREFIX.length);
       if (Object.values(FIELD_TO_RATIO).includes(ratio)) images[ratio] = asset.url;
@@ -144,10 +148,10 @@
   }
 
   function preparedImages(recipe, song) {
-    const stored = recipe?.[PREPARED_RECIPE_FIELD];
     const images = { ...legacyPreparedImages(song) };
+    const stored = recipe?.[PREPARED_RECIPE_FIELD];
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-      Object.values(FIELD_TO_RATIO).forEach((ratio) => {
+      Object.values(FIELD_TO_RATIO).forEach(ratio => {
         if (ratio === '1x1') return;
         const url = clean(stored[ratio]);
         if (url) images[ratio] = url;
@@ -218,39 +222,37 @@
   }
 
   async function loadRecipe(songKey, headers) {
-    const response = await xhrResponse(`${API_ORIGIN}${VEC_RECIPE_PATH}?song_key=${encodeURIComponent(songKey)}`, {
-      method: 'GET',
-      headers
-    });
-    const data = await responseJson(response);
+    const data = await apiJson(
+      `${API_ORIGIN}${VEC_RECIPE_PATH}?song_key=${encodeURIComponent(songKey)}`,
+      { method: 'GET', headers },
+      `Loading saved artwork for ${songKey}`
+    );
     return data?.recipe && typeof data.recipe === 'object' && !Array.isArray(data.recipe) ? data.recipe : {};
   }
 
   async function saveRecipe(songKey, recipe, headers) {
-    const response = await xhrResponse(`${API_ORIGIN}${VEC_RECIPE_PATH}`, {
-      method: 'PUT',
-      headers: jsonHeaders(headers),
-      body: JSON.stringify({ song_key: songKey, recipe })
-    });
-    const data = await responseJson(response);
+    const data = await apiJson(
+      `${API_ORIGIN}${VEC_RECIPE_PATH}`,
+      {
+        method: 'PUT',
+        headers: jsonHeaders(headers),
+        body: JSON.stringify({ song_key: songKey, recipe })
+      },
+      `Saving prepared artwork for ${songKey}`
+    );
     return data?.recipe && typeof data.recipe === 'object' && !Array.isArray(data.recipe) ? data.recipe : recipe;
   }
 
   async function saveSquareArtwork(songKey, squareUrl, headers) {
-    const response = await xhrResponse(`${API_ORIGIN}${SONG_API_PATH}/${encodeURIComponent(songKey)}`, {
-      method: 'PUT',
-      headers: jsonHeaders(headers),
-      body: JSON.stringify({ song_artwork_url: clean(squareUrl) })
-    });
-    await responseJson(response);
-  }
-
-  async function handleLegacyPresign(input, init, url, bodyText) {
-    return xhrResponse(url.toString(), {
-      method: requestMethod(input, init),
-      headers: headerEntries(input, init),
-      body: bodyText
-    });
+    await apiJson(
+      `${API_ORIGIN}${SONG_API_PATH}/${encodeURIComponent(songKey)}`,
+      {
+        method: 'PUT',
+        headers: jsonHeaders(headers),
+        body: JSON.stringify({ song_artwork_url: clean(squareUrl) })
+      },
+      `Saving the 1x1 artwork for ${songKey}`
+    );
   }
 
   async function handleDedicatedPresign(input, init, match, bodyText) {
@@ -265,17 +267,17 @@
       filename: `${ratio || 'image'}-${clean(body.filename || 'image.png')}`,
       content_type: clean(body.content_type || body.contentType || 'application/octet-stream')
     });
-    return xhrResponse(`${API_ORIGIN}${LEGACY_PRESIGN_PATH}`, {
+    return fetchWithRetry(`${API_ORIGIN}${LEGACY_PRESIGN_PATH}`, {
       method: 'POST',
-      headers: jsonHeaders(headerEntries(input, init)),
+      headers: jsonHeaders(mergedHeaders(input, init)),
       body: legacyBody
-    });
+    }, { label: `Secure upload authorization for ${ratio || 'image'}`, attempts: 3 });
   }
 
   async function handleArtworkMedia(input, init, match, bodyText) {
     const songKey = decodeURIComponent(match[1]);
     const method = requestMethod(input, init);
-    const headers = headerEntries(input, init);
+    const headers = mergedHeaders(input, init);
     const song = selectedSongRecord(songKey);
 
     if (method === 'GET') {
@@ -294,7 +296,7 @@
     }
 
     const patch = parseJson(bodyText);
-    const suppliedFields = Object.keys(patch).filter((field) => Object.prototype.hasOwnProperty.call(FIELD_TO_RATIO, field));
+    const suppliedFields = Object.keys(patch).filter(field => Object.prototype.hasOwnProperty.call(FIELD_TO_RATIO, field));
     if (!suppliedFields.length) {
       return new Response(JSON.stringify({ success: false, error: 'No artwork fields supplied.' }), {
         status: 400,
@@ -307,10 +309,10 @@
     }
 
     let recipe = await loadRecipe(songKey, headers);
-    const optionalPatch = suppliedFields.filter((field) => OPTIONAL_FIELDS.has(field));
+    const optionalPatch = suppliedFields.filter(field => OPTIONAL_FIELDS.has(field));
     if (optionalPatch.length) {
       const currentImages = preparedImages(recipe, song);
-      optionalPatch.forEach((field) => {
+      optionalPatch.forEach(field => {
         const ratio = FIELD_TO_RATIO[field];
         const nextUrl = clean(patch[field]);
         if (nextUrl) currentImages[ratio] = nextUrl;
@@ -336,27 +338,41 @@
     });
   }
 
-  window.fetch = async function stashboxSongImagesCompatFetch(input, init = {}) {
+  function storageLabel(url) {
+    const encoded = url.pathname.split('/').filter(Boolean).pop() || 'image';
+    try { return decodeURIComponent(encoded); } catch (_) { return encoded; }
+  }
+
+  window.fetch = async function stashboxSongImagesCompatFetchV3(input, init = {}) {
     const url = requestUrl(input);
-    if (!url || url.origin !== API_ORIGIN) return previousFetch(input, init);
+    if (!url) return downstreamFetch(input, init);
 
     const method = requestMethod(input, init);
-    const bodyText = await requestBody(input, init);
 
-    if (url.pathname === LEGACY_PRESIGN_PATH && method === 'POST') {
-      return handleLegacyPresign(input, init, url, bodyText);
+    if (url.origin === API_ORIGIN && url.pathname === LEGACY_PRESIGN_PATH && method === 'POST') {
+      return fetchWithRetry(input, init, { label: 'Secure image upload authorization', attempts: 3 });
     }
 
-    const presignMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images\/presign$/);
-    if (presignMatch && method === 'POST') {
-      return handleDedicatedPresign(input, init, presignMatch, bodyText);
+    if (url.origin === API_ORIGIN) {
+      const bodyText = await requestBody(input, init);
+      const presignMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images\/presign$/);
+      if (presignMatch && method === 'POST') {
+        return handleDedicatedPresign(input, init, presignMatch, bodyText);
+      }
+
+      const mediaMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
+      if (mediaMatch && (method === 'GET' || method === 'PATCH')) {
+        return handleArtworkMedia(input, init, mediaMatch, bodyText);
+      }
     }
 
-    const mediaMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
-    if (mediaMatch && (method === 'GET' || method === 'PATCH')) {
-      return handleArtworkMedia(input, init, mediaMatch, bodyText);
+    if (method === 'PUT' && /(^|\.)s3[.-]/i.test(url.hostname)) {
+      return fetchWithRetry(input, init, {
+        label: `Storage upload for ${storageLabel(url)}`,
+        attempts: 3
+      });
     }
 
-    return previousFetch(input, init);
+    return downstreamFetch(input, init);
   };
 })();
