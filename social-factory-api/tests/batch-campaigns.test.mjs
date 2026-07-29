@@ -77,6 +77,7 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.equal(result.proposed_job_count, 4);
   assert.equal(result.jobs[0].recipe.aspect_ratio, '9:16');
   assert.equal(result.jobs[0].recipe.duration_seconds, 30);
+  assert.equal(result.jobs[0].recipe.intro_enabled, false);
   assert.equal(result.jobs[0].recipe.include_artist, false);
   assert.equal(result.jobs[0].recipe.include_song, false);
   assert.equal(result.jobs[0].recipe.include_album, false);
@@ -108,7 +109,7 @@ test('batch plan rejects 4:5 because YouTube output is limited to 9:16 or 16:9',
   );
 });
 
-test('batch plan preserves an explicit manual title-overlay opt-in', async () => {
+test('batch plan preserves explicit overlay opt-ins', async () => {
   const service = createBatchCampaignService({
     orchestrator: {
       async candidates() {
@@ -119,11 +120,13 @@ test('batch plan preserves an explicit manual title-overlay opt-in', async () =>
 
   const result = await service.plan(event({
     selected_song_keys: ['strong-reggae-song'],
+    intro_enabled: true,
     include_artist: true,
     include_song: true,
     include_album: true
   }));
 
+  assert.equal(result.jobs[0].recipe.intro_enabled, true);
   assert.equal(result.jobs[0].recipe.include_artist, true);
   assert.equal(result.jobs[0].recipe.include_song, true);
   assert.equal(result.jobs[0].recipe.include_album, true);
@@ -212,6 +215,7 @@ test('confirmed batch creation creates drafts but never launches renders', async
   assert.equal(result.approval_required_before_render_launch, true);
   assert.equal(createdBodies.length, 2);
   assert.ok(createdBodies.every((body) => body.campaign_name === 'Tomorrow Test'));
+  assert.ok(createdBodies.every((body) => body.intro_enabled === false));
 });
 
 test('confirmed batch creation reuses an existing draft instead of duplicating it', async () => {
