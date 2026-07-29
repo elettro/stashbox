@@ -16,6 +16,7 @@ function fixture(overrides = {}) {
     status: 'approved',
     approval_state: 'approved',
     publishing_status: 'not_published',
+    video: { aspect_ratio: '9:16' },
     publish_settings: {
       visibility: 'unlisted',
       scheduled_at: '2026-07-29T15:00:00.000Z'
@@ -87,6 +88,17 @@ test('confirmed scheduling creates a one-time queue schedule and updates review 
   assert.equal(operations[0].scheduledAt.toISOString(), '2026-07-29T15:00:00.000Z');
   assert.equal(reviews.get(reviewId).publishing_status, 'scheduled');
   assert.equal(reviews.get(reviewId).schedule.status, 'scheduled');
+});
+
+test('4:5 item cannot be validated or scheduled for YouTube', async () => {
+  const { service, reviewId, operations } = fixture({ video: { aspect_ratio: '4:5' } });
+  await assert.rejects(
+    service.schedule(event({ confirm_schedule: false }), reviewId),
+    error => error.statusCode === 409
+      && error.message === 'youtube_aspect_ratio_not_supported'
+      && error.details?.aspect_ratio === '4:5'
+  );
+  assert.equal(operations.length, 0);
 });
 
 test('same scheduled time is idempotent', async () => {
