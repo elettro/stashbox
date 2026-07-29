@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPOSITORY: ${{ github.repository }}
-      REPORT_PATH: deployment-reports/social-factory-repair-runs.json
+      REPORT_PATH: deployment-reports/no-title-default-runs.json
 
     steps:
       - name: Checkout main
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Capture Actions runs and latest job steps
+      - name: Capture no-title and deployment runs
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "${REPORT_PATH}")"
@@ -36,38 +36,28 @@ jobs:
 
           jq '
             [.workflow_runs[] |
-              select(.path == ".github/workflows/one-time-repair-social-scheduled-infra.yml" or
-                     .path == ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml" or
+              select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml" or
+                     .path == ".github/workflows/deploy-true-dev-lambda.yml" or
                      .path == ".github/workflows/deploy-social-factory-api-dev.yml") |
               {id, name, path, event, status, conclusion, created_at, updated_at, head_sha, html_url}
             ]
           ' /tmp/all-runs.json > /tmp/selected-runs.json
 
-          REPAIR_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-repair-social-scheduled-infra-v2.yml")][0].id // empty' /tmp/selected-runs.json)
-          DEPLOY_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/deploy-social-factory-api-dev.yml")][0].id // empty' /tmp/selected-runs.json)
-
-          if [ -n "${REPAIR_RUN_ID}" ]; then
-            gh api "repos/${REPOSITORY}/actions/runs/${REPAIR_RUN_ID}/jobs?per_page=100" > /tmp/repair-jobs.json
+          NO_TITLE_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml")][0].id // empty' /tmp/selected-runs.json)
+          if [ -n "${NO_TITLE_RUN_ID}" ]; then
+            gh api "repos/${REPOSITORY}/actions/runs/${NO_TITLE_RUN_ID}/jobs?per_page=100" > /tmp/no-title-jobs.json
           else
-            printf '%s\n' '{"jobs":[]}' > /tmp/repair-jobs.json
-          fi
-
-          if [ -n "${DEPLOY_RUN_ID}" ]; then
-            gh api "repos/${REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}/jobs?per_page=100" > /tmp/deploy-jobs.json
-          else
-            printf '%s\n' '{"jobs":[]}' > /tmp/deploy-jobs.json
+            printf '%s\n' '{"jobs":[]}' > /tmp/no-title-jobs.json
           fi
 
           jq -n \
             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --slurpfile runs /tmp/selected-runs.json \
-            --slurpfile repair_jobs /tmp/repair-jobs.json \
-            --slurpfile deploy_jobs /tmp/deploy-jobs.json '
+            --slurpfile jobs /tmp/no-title-jobs.json '
             {
               recorded_at:$recorded_at,
               runs:$runs[0],
-              latest_repair_jobs:($repair_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))})),
-              latest_deploy_jobs:($deploy_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
+              latest_no_title_jobs:($jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
             }' > "${REPORT_PATH}"
 
       - name: Commit snapshot
@@ -76,8 +66,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "${REPORT_PATH}"
-          git commit -m 'Record Social Factory repair workflow runs [skip ci]'
+          git commit -m 'Record no-title default workflow status [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
 
-# Final deployment snapshot
+# No-title workflow diagnostic snapshot.
