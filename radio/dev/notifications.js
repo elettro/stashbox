@@ -26,6 +26,9 @@
   loadScript('./mobile-account-initials-direct.js?v=20260721-initials1')
     .catch((error) => console.error('[accounts] mobile initials bootstrap failed', error));
 
+  loadScript('./responsive-song-artwork.js?v=20260728-responsive-artwork1')
+    .catch((error) => console.error('[song artwork] responsive artwork bootstrap failed', error));
+
   loadScript('./account-config-ready.js?v=20260721-configready1')
     .then(() => loadScript('./account-observer-guard.js'))
     .then(() => loadScript('./account.js'))
@@ -56,7 +59,6 @@
       loadScript('./mobile-notification-peek.js?v=20260721-peek2'),
       loadScript('./mobile-critical-fixes.js?v=20260721-critical4'),
       loadScript('./mobile-account-flow-fix.js?v=20260721-accountflow1'),
-      loadScript('./mobile-player-control-surface.js?v=20260721-controls1'),
-      loadScript('./responsive-song-artwork.js?v=20260728-responsive-artwork1')
+      loadScript('./mobile-player-control-surface.js?v=20260721-controls1')
     ]).catch((error) => console.error('[notifications] DEV notification client failed', error)));
 })();
