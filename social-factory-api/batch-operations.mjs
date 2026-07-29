@@ -2,6 +2,7 @@ import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 import { createReviewWorkflowService } from './review-workflow.mjs';
 
 const MAX_OPERATION_JOBS = 10;
+const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 const TERMINAL_FAILURE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
 
@@ -38,6 +39,10 @@ function stringList(value) {
 
 function lower(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function youtubeRatioAllowed(job = {}) {
+  return YOUTUBE_ASPECT_RATIOS.has(String(job.aspect_ratio || '').trim());
 }
 
 function selectionFrom(event, body = null) {
@@ -124,6 +129,17 @@ function childEvent(event, body) {
   };
 }
 
+function unsupportedRatioSkip(job) {
+  return {
+    reason: 'youtube_aspect_ratio_not_supported',
+    details: {
+      aspect_ratio: String(job.aspect_ratio || ''),
+      allowed: [...YOUTUBE_ASPECT_RATIOS]
+    },
+    job: safeJob(job)
+  };
+}
+
 export function createBatchOperationsService({
   orchestrator = createVideoOrchestratorService(),
   reviewWorkflow = createReviewWorkflowService()
@@ -181,7 +197,8 @@ export function createBatchOperationsService({
       const input = parseBody(event);
       const selection = selectionFrom(event, input);
       const jobs = await selectedJobs(event, selection);
-      const draftJobs = jobs.filter((job) => lower(job.status) === 'draft');
+      const draftJobs = jobs.filter((job) => lower(job.status) === 'draft' && youtubeRatioAllowed(job));
+      const unsupportedJobs = jobs.filter((job) => lower(job.status) === 'draft' && !youtubeRatioAllowed(job));
       const skippedJobs = jobs.filter((job) => lower(job.status) !== 'draft');
 
       if (input.confirm_render_batch !== true) {
@@ -192,21 +209,25 @@ export function createBatchOperationsService({
           campaign_name: selection.campaignName || String(jobs[0]?.campaign_name || ''),
           selected_job_count: jobs.length,
           would_launch_count: draftJobs.length,
-          would_skip_count: skippedJobs.length,
+          would_skip_count: skippedJobs.length + unsupportedJobs.length,
           jobs: jobs.map(safeJob),
+          unsupported_ratio_jobs: unsupportedJobs.map(unsupportedRatioSkip),
           youtube_published: false
         };
       }
 
       const launched = [];
-      const skipped = skippedJobs.map((job) => ({
-        reason: ACTIVE_STATUSES.has(lower(job.status))
-          ? 'already_active'
-          : lower(job.status) === 'completed'
-            ? 'already_completed'
-            : 'status_not_launchable',
-        job: safeJob(job)
-      }));
+      const skipped = [
+        ...unsupportedJobs.map(unsupportedRatioSkip),
+        ...skippedJobs.map((job) => ({
+          reason: ACTIVE_STATUSES.has(lower(job.status))
+            ? 'already_active'
+            : lower(job.status) === 'completed'
+              ? 'already_completed'
+              : 'status_not_launchable',
+          job: safeJob(job)
+        }))
+      ];
       const failed = [];
 
       for (const job of draftJobs) {
@@ -248,7 +269,8 @@ export function createBatchOperationsService({
       const input = parseBody(event);
       const selection = selectionFrom(event, input);
       const jobs = await selectedJobs(event, selection);
-      const completedJobs = jobs.filter((job) => lower(job.status) === 'completed');
+      const completedJobs = jobs.filter((job) => lower(job.status) === 'completed' && youtubeRatioAllowed(job));
+      const unsupportedJobs = jobs.filter((job) => lower(job.status) === 'completed' && !youtubeRatioAllowed(job));
       const skippedJobs = jobs.filter((job) => lower(job.status) !== 'completed');
 
       if (input.confirm_stage_batch !== true) {
@@ -259,17 +281,21 @@ export function createBatchOperationsService({
           campaign_name: selection.campaignName || String(jobs[0]?.campaign_name || ''),
           selected_job_count: jobs.length,
           would_stage_count: completedJobs.length,
-          would_skip_count: skippedJobs.length,
+          would_skip_count: skippedJobs.length + unsupportedJobs.length,
           jobs: jobs.map(safeJob),
+          unsupported_ratio_jobs: unsupportedJobs.map(unsupportedRatioSkip),
           youtube_published: false
         };
       }
 
       const staged = [];
-      const skipped = skippedJobs.map((job) => ({
-        reason: 'render_not_completed',
-        job: safeJob(job)
-      }));
+      const skipped = [
+        ...unsupportedJobs.map(unsupportedRatioSkip),
+        ...skippedJobs.map((job) => ({
+          reason: 'render_not_completed',
+          job: safeJob(job)
+        }))
+      ];
       const failed = [];
 
       for (const job of completedJobs) {
