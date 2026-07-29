@@ -1,6 +1,30 @@
 {
-  "recorded_at": "2026-07-29T17:59:35Z",
+  "recorded_at": "2026-07-29T18:06:51Z",
   "runs": [
+    {
+      "id": 30478241289,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-07-29T18:04:22Z",
+      "updated_at": "2026-07-29T18:06:42Z",
+      "head_sha": "ddc9f1c0a9ba9bf3bde9f2869256ffd9d247fd0d",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30478241289"
+    },
+    {
+      "id": 30478214522,
+      "name": "One-Time Deploy No-Title Radio DEV",
+      "path": ".github/workflows/one-time-deploy-no-title-radio-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-29T18:04:01Z",
+      "updated_at": "2026-07-29T18:04:43Z",
+      "head_sha": "9266f2219874eeaa5451df94bca56f0e2802c484",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30478214522"
+    },
     {
       "id": 30477446283,
       "name": "Deploy Social Factory API DEV",
@@ -160,6 +184,126 @@
           "status": "completed",
           "conclusion": "success",
           "number": 25
+        }
+      ]
+    }
+  ],
+  "latest_radio_direct_jobs": [
+    {
+      "id": 90665184712,
+      "name": "deploy",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-07-29T18:04:05Z",
+      "completed_at": "2026-07-29T18:04:42Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Checkout tested source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Setup Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Validate no-title source contract",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Install Radio API production dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Download and validate DEV Cognito keys",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Build exact TRUE DEV Lambda package",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Configure AWS credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Validate and snapshot existing DEV Lambda configuration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Deploy code only to Radio TRUE DEV Lambda",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Verify code and configuration preservation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Run read-only TRUE DEV smoke tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Verify live Video Factory interface defaults",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Commit sanitized deployment receipt",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 14
+        },
+        {
+          "name": "Post Configure AWS credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26
+        },
+        {
+          "name": "Post Setup Node.js 22",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 27
+        },
+        {
+          "name": "Post Checkout tested source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29
         }
       ]
     }
