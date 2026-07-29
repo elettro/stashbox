@@ -203,3 +203,5 @@ jobs:
           git add "${REPORT_PATH}"
           git commit -m 'Record no-title Video Factory defaults [skip ci]'
           git push origin HEAD:main
+
+# Trigger after the workflow exists on main.
