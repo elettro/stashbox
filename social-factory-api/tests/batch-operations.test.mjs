@@ -52,17 +52,17 @@ function jobs() {
   ];
 }
 
-function createService({ launch, stageRender } = {}) {
+function createService({ launch, stageRender, jobList = jobs() } = {}) {
   return createBatchOperationsService({
     orchestrator: {
       async listJobs() {
-        return { jobs: jobs() };
+        return { jobs: jobList };
       },
       async launch(input, id) {
         if (launch) return launch(input, id);
         return {
           launched: true,
-          job: { ...jobs()[0], id, status: 'pending', active: true },
+          job: { ...jobList[0], id, status: 'pending', active: true },
           downstream: { success: true }
         };
       }
@@ -144,6 +144,33 @@ test('confirmed batch launch launches only draft jobs and skips active or comple
   assert.equal(result.youtube_published, false);
 });
 
+test('4:5 draft jobs are skipped and never launched for YouTube', async () => {
+  const unsupported = {
+    ...jobs()[0],
+    id: 'portrait-feed-job-12345678',
+    aspect_ratio: '4:5'
+  };
+  let launches = 0;
+  const service = createService({
+    jobList: [unsupported],
+    launch: async () => {
+      launches += 1;
+      return {};
+    }
+  });
+
+  const result = await service.launch(event({
+    campaign_name: 'Tomorrow Test',
+    confirm_render_batch: true
+  }));
+
+  assert.equal(result.launched_job_count, 0);
+  assert.equal(result.skipped_job_count, 1);
+  assert.equal(result.skipped_jobs[0].reason, 'youtube_aspect_ratio_not_supported');
+  assert.equal(result.skipped_jobs[0].details.aspect_ratio, '4:5');
+  assert.equal(launches, 0);
+});
+
 test('batch stage is validation-only without explicit confirmation', async () => {
   let stages = 0;
   const service = createService({
@@ -190,6 +217,32 @@ test('confirmed batch stage moves only completed jobs into Content Review', asyn
   assert.equal(result.failed_job_count, 0);
   assert.equal(result.publishing_triggered, false);
   assert.equal(result.youtube_published, false);
+});
+
+test('completed 4:5 jobs are skipped and never moved into YouTube Content Review', async () => {
+  const unsupported = {
+    ...jobs()[2],
+    id: 'portrait-feed-completed-12345678',
+    aspect_ratio: '4:5'
+  };
+  let stages = 0;
+  const service = createService({
+    jobList: [unsupported],
+    stageRender: async () => {
+      stages += 1;
+      return {};
+    }
+  });
+
+  const result = await service.stage(event({
+    campaign_name: 'Tomorrow Test',
+    confirm_stage_batch: true
+  }));
+
+  assert.equal(result.staged_job_count, 0);
+  assert.equal(result.skipped_job_count, 1);
+  assert.equal(result.skipped_jobs[0].reason, 'youtube_aspect_ratio_not_supported');
+  assert.equal(stages, 0);
 });
 
 test('batch operations require a campaign name or explicit job IDs', async () => {
