@@ -20,8 +20,10 @@ permissions:
 
 jobs:
   validate-and-dispatch:
-    name: Validate and deploy through TRUE DEV
+    name: Validate, deploy, and verify through TRUE DEV
     runs-on: ubuntu-latest
+    env:
+      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,4 +48,36 @@ jobs:
       - name: Dispatch established TRUE DEV deployment
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run deploy-true-dev-lambda.yml --ref main
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-true-dev-lambda.yml --ref main
+          sleep 8
+          RUN_ID=$(gh run list \
+            --workflow=deploy-true-dev-lambda.yml \
+            --event workflow_dispatch \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          test -n "${RUN_ID}"
+          echo "Waiting for TRUE DEV deployment run ${RUN_ID}."
+          gh run watch "${RUN_ID}" --exit-status
+
+      - name: Verify Song Artwork routes are live
+        run: |
+          set -euo pipefail
+          ARTWORK_STATUS=$(curl --silent --show-error --max-time 45 \
+            -o /tmp/song-artwork-route.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/admin/songs/song-artwork-route-probe/artwork-images")
+          test "${ARTWORK_STATUS}" = '401'
+
+          PRESIGN_STATUS=$(curl --silent --show-error --max-time 45 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            --data '{"ratio":"1x1","filename":"route-probe.png","content_type":"image/png","size_bytes":1}' \
+            -o /tmp/song-artwork-presign-route.json \
+            -w '%{http_code}' \
+            "${TRUE_DEV_API_BASE}/radio/admin/songs/song-artwork-route-probe/artwork-images/presign")
+          test "${PRESIGN_STATUS}" = '401'
+
+          echo 'Song Artwork media and presign routes are live behind admin authentication.'
