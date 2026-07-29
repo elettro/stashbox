@@ -120,20 +120,4 @@ update('social-factory-api/tests/video-orchestrator.test.mjs', (source) => {
   return next;
 });
 
-update('.github/workflows/deploy-true-dev-lambda.yml', (source) => {
-  let next = replaceOnce(
-    source,
-    "      - 'radio-api/video-factory/entry.mjs'",
-    "      - 'radio-api/video-factory/**'",
-    'Radio DEV Video Factory deployment trigger'
-  );
-  next = replaceOnce(
-    next,
-    "      - 'radio-api/tests/personalized-notifications.test.mjs'",
-    "      - 'radio-api/tests/personalized-notifications.test.mjs'\n      - 'radio-api/tests/video-factory-foundation.test.mjs'",
-    'Radio DEV Video Factory test deployment trigger'
-  );
-  return next;
-});
-
 console.log('Applied no-title defaults while preserving explicit title-overlay opt-in.');
