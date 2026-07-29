@@ -19,20 +19,20 @@
       uses: 'Player artwork, playlists, search, favorites and song cards.'
     },
     {
-      ratio: '16x9',
-      field: 'song_artwork_16x9_url',
-      label: 'Landscape',
-      width: 1920,
-      height: 1080,
-      uses: 'Desktop heroes, YouTube, video thumbnails and horizontal promotions.'
-    },
-    {
       ratio: '9x16',
       field: 'song_artwork_9x16_url',
       label: 'Vertical',
       width: 1080,
       height: 1920,
       uses: 'Mobile full screen, Stories, Reels, TikTok and Shorts.'
+    },
+    {
+      ratio: '16x9',
+      field: 'song_artwork_16x9_url',
+      label: 'Landscape',
+      width: 1920,
+      height: 1080,
+      uses: 'Desktop heroes, YouTube, video thumbnails and horizontal promotions.'
     },
     {
       ratio: '3x4',
