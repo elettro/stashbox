@@ -105,7 +105,7 @@
 
     try {
       const [reviewPayload, jobsPayload] = await Promise.all([
-        apiGet('/social/review-items?limit=100'),
+        apiGet('/social/review-items?limit=100&include_hidden=1'),
         apiGet('/social/orchestration/render-jobs?limit=250')
       ]);
 
