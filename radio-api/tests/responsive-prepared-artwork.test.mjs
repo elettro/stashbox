@@ -31,10 +31,20 @@ test('responsive ratio rules use mobile portrait, landscape and ultrawide surfac
     assert.match(source, /return '9x16'/);
     assert.match(source, /return '21x9'/);
     assert.match(source, /return '16x9'/);
-    assert.match(source, /\['9x16', '4x5', '3x4', '1x1'\]/);
-    assert.match(source, /\['21x9', '16x9', '1x1'\]/);
-    assert.match(source, /\['16x9', '21x9', '1x1'\]/);
   }
+  assert.match(mainSource, /\['9x16', '1x1'\]/);
+  assert.match(mainSource, /\['21x9', '16x9', '1x1'\]/);
+  assert.match(mainSource, /\['16x9', '1x1'\]/);
+  assert.match(artistSource, /\['9x16', '4x5', '3x4', '1x1'\]/);
+});
+
+test('main player presents prepared artwork as one layer instead of square over square', () => {
+  assert.match(mainSource, /function applySingleArtworkLayer/);
+  assert.match(mainSource, /clearBackground\(backdrop\)/);
+  assert.match(mainSource, /clearBackground\(stage\)/);
+  assert.match(mainSource, /image\.dataset\.responsiveOfficialArtwork = 'true'/);
+  assert.match(mainSource, /stage\.dataset\.singleResponsiveArtwork = 'true'/);
+  assert.match(mainSource, /player\.classList\.toggle\('has-exact-responsive-artwork'/);
 });
 
 test('artist player changes only official song artwork and leaves VEC media alone', () => {
@@ -46,7 +56,7 @@ test('artist player changes only official song artwork and leaves VEC media alon
 });
 
 test('both player entry pages load cache-busted responsive artwork scripts', () => {
-  assert.match(mainHtml, /v2-responsive-song-artwork\.js\?v=20260729-prepared-artwork2/);
+  assert.match(mainHtml, /v2-responsive-song-artwork\.js\?v=20260729-single-layer3/);
   assert.match(artistHtml, /artist-responsive-song-artwork\.js\?v=20260729-prepared-artwork1/);
   assert.ok(artistHtml.indexOf('artist-realm-player.js') < artistHtml.indexOf('artist-responsive-song-artwork.js'));
 });
