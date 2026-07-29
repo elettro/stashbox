@@ -1,0 +1,58 @@
+.sf-action-tooltip {
+  position: fixed;
+  z-index: 100000;
+  width: max-content;
+  max-width: min(380px, calc(100vw - 24px));
+  padding: 11px 13px;
+  border: 1px solid rgba(77, 227, 154, 0.32);
+  border-radius: 10px;
+  background: rgba(8, 15, 18, 0.98);
+  color: #f4f8f6;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.48);
+  font: 600 13px/1.42 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  text-align: left;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.sf-action-tooltip[hidden] {
+  display: none !important;
+}
+
+.sf-action-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: rgba(8, 15, 18, 0.98);
+  border-right: 1px solid rgba(77, 227, 154, 0.32);
+  border-bottom: 1px solid rgba(77, 227, 154, 0.32);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.sf-action-tooltip[data-placement="top"]::after {
+  bottom: -6px;
+}
+
+.sf-action-tooltip[data-placement="bottom"]::after {
+  top: -6px;
+  transform: translateX(-50%) rotate(225deg);
+}
+
+.sf-form-actions [data-sf-action-tooltip] {
+  cursor: help;
+}
+
+.sf-form-actions [data-sf-action-tooltip]:focus-visible {
+  outline: 2px solid #4de39a;
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .sf-action-tooltip {
+    max-width: calc(100vw - 20px);
+    font-size: 12px;
+  }
+}
