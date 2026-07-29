@@ -92,6 +92,7 @@ function normalizeSettings(input = {}) {
     artist: cleanText(input.artist, '', 120),
     require_visuals: input.require_visuals !== false,
     selected_song_keys: selectedSongKeys,
+    proposal_attempt: boundedInteger(input.proposal_attempt, 0, 0, 1000, 'proposal_attempt'),
     intro_enabled: input.intro_enabled === true,
     outro_enabled: input.outro_enabled !== false,
     corner_bug_enabled: input.corner_bug_enabled !== false,
@@ -121,15 +122,32 @@ function selectSongs(candidates, settings) {
     return selected;
   }
 
-  return visible.slice(0, settings.song_count);
+  if (!visible.length) return [];
+  const count = Math.min(settings.song_count, visible.length);
+  const start = (settings.proposal_attempt * count) % visible.length;
+  const rotated = [...visible.slice(start), ...visible.slice(0, start)];
+  return rotated.slice(0, count);
 }
 
 function recipeFor(song, settings, variationIndex) {
   const variation = String(variationIndex).padStart(2, '0');
   const title = cleanText(song.title || song.song_key, song.song_key, 100);
+  const alternateSuffix = settings.proposal_attempt > 0
+    ? ` - alt${String(settings.proposal_attempt).padStart(2, '0')}`
+    : '';
+  const seed = crypto.createHash('sha256').update([
+    settings.campaign_name,
+    settings.proposal_attempt,
+    song.song_key,
+    variationIndex,
+    settings.aspect_ratio,
+    settings.duration_mode,
+    settings.duration_seconds ?? 'full'
+  ].join('|')).digest('hex').slice(0, 32);
+
   return {
     song_key: String(song.song_key),
-    batch_name: `${settings.campaign_name} - ${title} - v${variation}`.slice(0, 180),
+    batch_name: `${settings.campaign_name} - ${title} - v${variation}${alternateSuffix}`.slice(0, 180),
     client_name: 'Stashbox',
     project_name: 'Social Factory',
     campaign_name: settings.campaign_name,
@@ -137,6 +155,8 @@ function recipeFor(song, settings, variationIndex) {
     ...(settings.duration_mode === 'full' ? {} : { duration_seconds: settings.duration_seconds }),
     aspect_ratio: settings.aspect_ratio,
     fps: settings.fps,
+    seed,
+    proposal_attempt: settings.proposal_attempt,
     intro_enabled: settings.intro_enabled,
     outro_enabled: settings.outro_enabled,
     corner_bug_enabled: settings.corner_bug_enabled,
@@ -144,7 +164,7 @@ function recipeFor(song, settings, variationIndex) {
     include_song: settings.include_song,
     include_album: settings.include_album,
     filename_template: '{artist}_{song}_{duration}_{aspect}_v{variation}',
-    metadata_comment: `Prepared by Stashbox Social Factory batch plan for ${settings.campaign_name}`
+    metadata_comment: `Prepared by Stashbox Social Factory batch plan for ${settings.campaign_name}${alternateSuffix}`
   };
 }
 
