@@ -55,6 +55,7 @@ test('main player preloads the selected ratio and never exposes temporary square
   assert.match(mainSource, /document\.addEventListener\('pointerdown'/);
   assert.match(mainSource, /prefetchSongArtwork\(songElement\.dataset\.song\)/);
   assert.match(mainSource, /responsive-artwork-surface-ready/);
+  assert.match(mainSource, /if \(!changed\) \{[\s\S]*node\.classList\.add\('responsive-artwork-surface-ready'\)/);
   assert.match(mainCss, /\[data-backdrop\]:not\(\.responsive-artwork-surface-ready\)/);
   assert.match(mainCss, /\[data-mobile-vec-stage\]:not\(\.responsive-artwork-surface-ready\)/);
   assert.match(mainCss, /opacity: 0 !important/);
@@ -70,7 +71,7 @@ test('artist player changes only official song artwork and leaves VEC media alon
 
 test('both player entry pages load cache-busted responsive artwork resources', () => {
   assert.match(mainHtml, /v2-responsive-song-artwork\.css\?v=20260729-no-flash1/);
-  assert.match(mainHtml, /v2-responsive-song-artwork\.js\?v=20260729-no-flash4/);
+  assert.match(mainHtml, /v2-responsive-song-artwork\.js\?v=20260729-no-flash5/);
   assert.match(artistHtml, /artist-responsive-song-artwork\.js\?v=20260729-prepared-artwork1/);
   assert.ok(artistHtml.indexOf('artist-realm-player.js') < artistHtml.indexOf('artist-responsive-song-artwork.js'));
 });
