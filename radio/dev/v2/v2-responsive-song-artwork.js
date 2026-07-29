@@ -8,6 +8,7 @@
   const RECIPE_URL = `${API}/radio/vec/recipe`;
   const PLACEHOLDER = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const recipeCache = new Map();
+  const imagePreloadCache = new Map();
   let catalogPromise = null;
   let scheduled = 0;
   let applyToken = 0;
@@ -17,6 +18,45 @@
   const fixDropbox = value => clean(value)
     .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
     .replace(/\?dl=[01]/, '');
+
+  function installReadinessStyles() {
+    if (document.getElementById('stashboxResponsiveArtworkReadinessStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'stashboxResponsiveArtworkReadinessStyles';
+    style.textContent = `
+      [data-player] [data-backdrop],
+      [data-player] [data-mobile-vec-stage] {
+        transition: opacity .16s ease !important;
+      }
+      [data-player] [data-backdrop]:not(.responsive-artwork-surface-ready),
+      [data-player] [data-mobile-vec-stage]:not(.responsive-artwork-surface-ready),
+      [data-player]:not(.responsive-artwork-ready) [data-backdrop],
+      [data-player]:not(.responsive-artwork-ready) [data-mobile-vec-stage] {
+        opacity: 0 !important;
+      }
+      [data-player].responsive-artwork-ready [data-backdrop].responsive-artwork-surface-ready,
+      [data-player].responsive-artwork-ready [data-mobile-vec-stage].responsive-artwork-surface-ready {
+        opacity: 1 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function markPlayerPending(player) {
+    if (!player) return;
+    player.classList.remove('responsive-artwork-ready');
+    player.classList.add('responsive-artwork-pending');
+    player.querySelector('[data-backdrop]')?.classList.remove('responsive-artwork-surface-ready');
+    player.querySelector('[data-mobile-vec-stage]')?.classList.remove('responsive-artwork-surface-ready');
+    player.setAttribute('aria-busy', 'true');
+  }
+
+  function markPlayerReady(player) {
+    if (!player) return;
+    player.classList.remove('responsive-artwork-pending');
+    player.classList.add('responsive-artwork-ready');
+    player.setAttribute('aria-busy', 'false');
+  }
 
   function unwrap(data) {
     if (typeof data?.body === 'string') {
@@ -72,6 +112,27 @@
         }));
     }
     return recipeCache.get(songKey);
+  }
+
+  function preloadImage(url) {
+    const source = fixDropbox(url);
+    if (!source) return Promise.resolve(false);
+    if (!imagePreloadCache.has(source)) {
+      imagePreloadCache.set(source, new Promise(resolve => {
+        const image = new Image();
+        let settled = false;
+        const finish = loaded => {
+          if (settled) return;
+          settled = true;
+          resolve(Boolean(loaded));
+        };
+        image.onload = () => finish(true);
+        image.onerror = () => finish(false);
+        image.src = source;
+        if (image.complete) finish(image.naturalWidth > 0);
+      }));
+    }
+    return imagePreloadCache.get(source);
   }
 
   function surfaceSize(player) {
@@ -158,10 +219,15 @@
     try { return new URL(fixed, window.location.href).href; } catch (_) { return fixed; }
   }
 
+  function artworkFit(selected) {
+    return selected.requested === '9x16' ? 'contain' : (selected.exact ? 'cover' : 'contain');
+  }
+
   function clearBackground(node) {
     if (!node) return;
     node.style.backgroundImage = 'none';
     node.style.backgroundColor = '#050607';
+    node.classList.remove('responsive-artwork-surface-ready');
     node.dataset.responsiveArtworkUrl = '';
   }
 
@@ -174,11 +240,12 @@
     node.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
     node.style.backgroundPosition = 'center';
     node.style.backgroundRepeat = 'no-repeat';
-    node.style.backgroundSize = selected.exact ? 'cover' : 'contain';
+    node.style.backgroundSize = artworkFit(selected);
     node.style.backgroundColor = '#050607';
     node.dataset.songArtworkRequestedRatio = selected.requested;
     node.dataset.songArtworkSourceRatio = selected.source || '';
     node.dataset.responsiveArtworkUrl = selected.url;
+    node.classList.add('responsive-artwork-surface-ready');
   }
 
   function isOfficialArtworkImage(image, selected) {
@@ -199,7 +266,7 @@
     image.style.height = '100%';
     image.style.maxWidth = 'none';
     image.style.maxHeight = 'none';
-    image.style.objectFit = selected.exact ? 'cover' : 'contain';
+    image.style.objectFit = artworkFit(selected);
     image.style.objectPosition = 'center';
     image.dataset.responsiveOfficialArtwork = 'true';
     image.dataset.responsiveArtworkUrl = selected.url;
@@ -216,26 +283,22 @@
 
     if (!stage) {
       setBackground(backdrop, selected);
-      return;
-    }
-
-    // The VEC stage is the only visual surface once it exists. Never leave the
-    // square player backdrop visible behind a second artwork layer.
-    clearBackground(backdrop);
-
-    if (isOfficialArtworkImage(activeMedia, selected)) {
-      applyOfficialArtworkImage(activeMedia, selected);
-      clearBackground(stage);
-      stage.dataset.singleResponsiveArtwork = 'true';
     } else {
-      // While VEC media is changing, keep one responsive artwork background on
-      // the stage itself. It is removed as soon as the official image is active.
-      setBackground(stage, selected);
-      stage.dataset.singleResponsiveArtwork = 'false';
+      clearBackground(backdrop);
+      if (isOfficialArtworkImage(activeMedia, selected)) {
+        applyOfficialArtworkImage(activeMedia, selected);
+        clearBackground(stage);
+        stage.classList.add('responsive-artwork-surface-ready');
+        stage.dataset.singleResponsiveArtwork = 'true';
+      } else {
+        setBackground(stage, selected);
+        stage.dataset.singleResponsiveArtwork = 'false';
+      }
     }
 
     player.dataset.songArtworkRequestedRatio = selected.requested;
     player.dataset.songArtworkSourceRatio = selected.source || '';
+    player.dataset.responsiveArtworkUrl = selected.url;
     player.classList.toggle('has-exact-responsive-artwork', selected.exact);
   }
 
@@ -243,14 +306,31 @@
     const token = ++applyToken;
     const recipe = await recipeForSong(song.key).catch(() => ({}));
     if (token !== applyToken) return null;
-    const current = activePlayer();
+    let current = activePlayer();
     if (!current || current !== player) return null;
     if (identityToken) {
       const identity = currentIdentity(current);
       if (`${normalize(identity.title)}|${normalize(identity.artist)}` !== identityToken) return null;
     }
+
     const selected = chooseArtwork(current, song, recipe);
+    const alreadyReady = current.classList.contains('responsive-artwork-ready')
+      && current.dataset.responsiveArtworkUrl === selected.url
+      && current.dataset.songArtworkRequestedRatio === selected.requested;
+    if (alreadyReady) return selected;
+
+    markPlayerPending(current);
+    await preloadImage(selected.url);
+    if (token !== applyToken) return null;
+    current = activePlayer();
+    if (!current || current !== player) return null;
+    if (identityToken) {
+      const identity = currentIdentity(current);
+      if (`${normalize(identity.title)}|${normalize(identity.artist)}` !== identityToken) return null;
+    }
+
     applySingleArtworkLayer(current, selected);
+    markPlayerReady(current);
     return selected;
   }
 
@@ -263,17 +343,55 @@
     try {
       const songs = await catalog();
       const song = findSong(songs, identity.title, identity.artist);
-      if (!song) return;
+      if (!song) {
+        markPlayerReady(player);
+        return;
+      }
       await applyForSong(player, song, identityToken);
     } catch (error) {
+      markPlayerReady(player);
       console.warn('[V2 song artwork] Responsive player artwork unavailable.', error?.message || error);
     }
   }
 
-  function scheduleApply() {
+  function scheduleApply(delay = 25) {
     window.clearTimeout(scheduled);
-    scheduled = window.setTimeout(applyResponsiveArtwork, 45);
+    scheduled = window.setTimeout(applyResponsiveArtwork, delay);
   }
+
+  async function prefetchSongArtwork(songKey) {
+    const key = clean(songKey);
+    if (!key) return;
+    try {
+      const [songs, recipe] = await Promise.all([catalog(), recipeForSong(key)]);
+      const song = songs.find(item => item.key === key);
+      if (!song) return;
+      const player = document.querySelector('[data-player]');
+      const selected = chooseArtwork(player, song, recipe);
+      await preloadImage(selected.url);
+    } catch (_) {}
+  }
+
+  function playerFromMutation(mutation) {
+    if (mutation.type === 'attributes' && mutation.target?.matches?.('[data-player]')) {
+      return mutation.target.hidden ? null : mutation.target;
+    }
+    const element = mutation.target?.nodeType === Node.TEXT_NODE
+      ? mutation.target.parentElement
+      : mutation.target;
+    const title = element?.closest?.('[data-ptitle]');
+    return title?.closest?.('[data-player]') || null;
+  }
+
+  installReadinessStyles();
+
+  document.addEventListener('pointerdown', event => {
+    const songElement = event.target.closest?.('#v2App [data-song]');
+    if (!songElement) return;
+    const player = document.querySelector('[data-player]');
+    markPlayerPending(player);
+    prefetchSongArtwork(songElement.dataset.song);
+  }, true);
 
   window.addEventListener('stashbox:vec-asset-change', async event => {
     const asset = event?.detail?.asset || {};
@@ -288,25 +406,52 @@
       const selected = await applyForSong(player, song);
       const officialImage = player.querySelector('[data-mobile-vec-stage] .v2-mobile-vec-media.is-active');
       if (selected?.url && officialImage?.tagName === 'IMG') {
+        await preloadImage(selected.url);
         applyOfficialArtworkImage(officialImage, selected);
         clearBackground(player.querySelector('[data-backdrop]'));
-        clearBackground(player.querySelector('[data-mobile-vec-stage]'));
+        const stage = player.querySelector('[data-mobile-vec-stage]');
+        clearBackground(stage);
+        stage?.classList.add('responsive-artwork-surface-ready');
+        markPlayerReady(player);
       }
     } catch (error) {
+      markPlayerReady(player);
       console.warn('[V2 song artwork] Official artwork ratio switch failed.', error?.message || error);
     }
   });
 
-  const observer = new MutationObserver(scheduleApply);
+  const observer = new MutationObserver(mutations => {
+    let identityChanged = false;
+    for (const mutation of mutations) {
+      const player = playerFromMutation(mutation);
+      if (!player) continue;
+      markPlayerPending(player);
+      identityChanged = true;
+    }
+    scheduleApply(identityChanged ? 0 : 25);
+  });
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
     characterData: true,
     attributes: true,
-    attributeFilter: ['hidden', 'class']
+    attributeFilter: ['hidden']
   });
-  window.addEventListener('resize', scheduleApply, { passive: true });
-  window.addEventListener('orientationchange', scheduleApply, { passive: true });
-  document.addEventListener('DOMContentLoaded', scheduleApply, { once: true });
-  scheduleApply();
+
+  window.addEventListener('resize', () => {
+    markPlayerPending(activePlayer());
+    scheduleApply(0);
+  }, { passive: true });
+  window.addEventListener('orientationchange', () => {
+    markPlayerPending(activePlayer());
+    scheduleApply(0);
+  }, { passive: true });
+  document.addEventListener('DOMContentLoaded', () => scheduleApply(0), { once: true });
+
+  window.StashboxResponsiveArtwork = Object.freeze({
+    refresh: () => scheduleApply(0),
+    prefetchSong: prefetchSongArtwork
+  });
+
+  scheduleApply(0);
 })();
