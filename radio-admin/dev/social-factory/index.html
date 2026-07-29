@@ -55,7 +55,7 @@
         <div>
           <p class="sf-eyebrow">Batch Campaign Builder</p>
           <h2 id="campaignTitle">Plan the next Video Factory batch</h2>
-          <p class="sf-campaign-intro">Generate a ranked proposal first. Creating draft jobs is a separate approval. This section never launches renders or publishes videos.</p>
+          <p class="sf-campaign-intro">Generate a ranked proposal first. YouTube batches are restricted to 9:16 vertical or 16:9 widescreen. Creating draft jobs is a separate approval, and this section never launches renders or publishes videos.</p>
         </div>
         <span class="sf-pill sf-pill-muted">Safe Planning Mode</span>
       </div>
@@ -88,11 +88,9 @@
           </select>
         </label>
         <label>Video Size
-          <select id="campaignRatio">
+          <select id="campaignRatio" aria-description="YouTube output is restricted to 9x16 vertical or 16x9 widescreen.">
             <option value="9:16" selected>9:16 Vertical</option>
-            <option value="1:1">1:1 Square</option>
             <option value="16:9">16:9 Widescreen</option>
-            <option value="3:4">3:4 Portrait</option>
           </select>
         </label>
         <label>Genre Filter
@@ -293,7 +291,7 @@
 
               <div class="sf-publish-lock sf-full">
                 <strong>YouTube publishing remains locked</strong>
-                <span>This page saves and approves content. A separate confirmed publishing control will be added later.</span>
+                <span>This page saves and approves content. YouTube output is limited to 9x16 or 16x9, and publishing still requires a separate confirmed control.</span>
               </div>
             </form>
           </div>
@@ -303,9 +301,9 @@
   </main>
 
   <script src="./social-factory.js?v=20260728-batch2"></script>
-  <script src="./publishing-controls.js?v=20260728-publish1"></script>
-  <script src="./schedule-controls.js?v=20260728-schedule1"></script>
-  <script src="./campaign-builder.js?v=20260728-batch2"></script>
+  <script src="./publishing-controls.js?v=20260729-reviewhide2"></script>
+  <script src="./schedule-controls.js?v=20260729-youtuberatios2"></script>
+  <script src="./campaign-builder.js?v=20260729-youtuberatios2"></script>
   <script src="./render-operations.js?v=20260728-batch2"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260728-social-factory1" defer></script>
 </body>
