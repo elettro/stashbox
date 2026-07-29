@@ -202,3 +202,5 @@ jobs:
           git commit -m 'Record deployed no-title Video Factory defaults [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
+
+# Trigger after the workflow exists on main.
