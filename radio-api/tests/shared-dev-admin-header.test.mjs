@@ -13,9 +13,11 @@ const targetPages = [
   'radio/visual-experience/dev/index.html',
   'radio-admin/dev/vec/index.html',
   'radio-admin/dev/video-factory/index.html',
+  'radio-admin/dev/social-factory/index.html',
   'radio-admin/ads/dev/index.html',
   'radio-admin/dev/ads/index.html',
   'radio-admin/notifications/dev/index.html',
+  'radio-admin/dev/system-health/index.html',
   'radio/dashboard/dev/index.html'
 ];
 
@@ -36,10 +38,12 @@ test('shared admin navigation uses the approved button order', () => {
     "label: 'Video Library'",
     "label: 'VEC Lab'",
     "label: 'Video Factory'",
+    "label: 'Social Factory'",
     "label: 'Ads'",
     "label: 'Artists'",
     "label: 'Notifications'",
     "label: 'Dashboard'",
+    "label: 'System Health'",
     "label: 'Radio Dev'",
     "label: 'Radio Dev 2.0'"
   ];
@@ -72,11 +76,34 @@ test('each DEV tool receives its relevant title and active key', () => {
     "return { key: 'video-library', title: 'Video Library' }",
     "return { key: 'vec', title: 'VEC Lab' }",
     "return { key: 'video-factory', title: 'Video Factory' }",
+    "return { key: 'social-factory', title: 'Social Factory · Content Review' }",
     "return { key: 'ads', title: 'Ads CMS' }",
     "return { key: 'notifications', title: 'Notifications CMS' }",
+    "return { key: 'system-health', title: 'System Health' }",
     "return { key: 'dashboard', title: 'Dashboard' }"
   ];
   expected.forEach(value => assert.match(source, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))));
+});
+
+test('mobile DEV admin navigation is collapsed behind an accessible hamburger button', () => {
+  const source = read('radio-admin/dev/shared-admin-header.js');
+  assert.match(source, /className = 'sbra-admin-menu-toggle'/);
+  assert.match(source, /aria-controls', 'stashboxDevAdminNavigation'/);
+  assert.match(source, /aria-expanded', 'false'/);
+  assert.match(source, /@media \(max-width: \$\{MOBILE_BREAKPOINT\}px\)/);
+  assert.match(source, /\.sbra-admin-menu-toggle \{[\s\S]*display: grid !important/);
+  assert.match(source, /\.sbra-admin-nav \{[\s\S]*display: none !important/);
+  assert.match(source, /\.sbra-mobile-nav-open \.sbra-admin-nav \{[\s\S]*display: grid !important/);
+  assert.match(source, /event\.key === 'Escape'/);
+  assert.match(source, /window\.innerWidth > MOBILE_BREAKPOINT/);
+});
+
+test('desktop DEV admin navigation remains visible and unchanged', () => {
+  const source = read('radio-admin/dev/shared-admin-header.js');
+  const desktopNavStart = source.indexOf(`#${HEADER_ID}`);
+  assert.equal(desktopNavStart, -1, 'test source should not interpolate runtime template values');
+  assert.match(source, /#\$\{HEADER_ID\} \.sbra-admin-nav \{[\s\S]*display: flex !important/);
+  assert.match(source, /#\$\{HEADER_ID\} \.sbra-admin-menu-toggle \{[\s\S]*display: none !important/);
 });
 
 test('legacy navigation headers are removed while content heroes remain eligible', () => {
