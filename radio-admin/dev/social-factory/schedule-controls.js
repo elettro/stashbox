@@ -3,6 +3,7 @@
 
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
+  const YOUTUBE_RATIOS = new Set(['9:16', '16:9']);
   const state = { busy: false };
 
   function byId(id) {
@@ -37,6 +38,14 @@
     return String(byId('selectedTitle')?.value || byId('editorTitle')?.textContent || 'this video').trim();
   }
 
+  function selectedAspectRatio() {
+    return String(byId('videoRatio')?.textContent || '').trim();
+  }
+
+  function youtubeRatioAllowed() {
+    return YOUTUBE_RATIOS.has(selectedAspectRatio());
+  }
+
   function scheduledAtIso() {
     const value = byId('scheduledAt')?.value;
     if (!value) return '';
@@ -64,13 +73,16 @@
     if (error?.message === 'review_item_not_approved') {
       return 'Approve this item before scheduling it.';
     }
+    if (error?.message === 'youtube_aspect_ratio_not_supported') {
+      return 'YouTube content must be 9x16 or 16x9. Hide this item and create the correct version.';
+    }
     if (error?.message === 'scheduled_at_required') {
       return 'Choose a future schedule date and time first.';
     }
     if (error?.message === 'scheduled_at_too_soon') {
       return 'Choose a schedule time at least two minutes in the future.';
     }
-    const detail = error?.details?.scheduled_at || error?.details?.minimum_lead_seconds;
+    const detail = error?.details?.scheduled_at || error?.details?.minimum_lead_seconds || error?.details?.aspect_ratio;
     return detail ? `${error.message}: ${detail}` : String(error?.message || error || 'Unknown error');
   }
 
@@ -118,10 +130,13 @@
     const published = publishingStatus() === 'published';
     const scheduled = publishingStatus() === 'scheduled';
     const validTime = scheduledInFuture();
+    const validRatio = youtubeRatioAllowed();
 
-    validateButton.disabled = state.busy || !hasItem || !approved || published || scheduled || !validTime;
-    scheduleButton.disabled = state.busy || !hasItem || !approved || published || scheduled || !validTime;
+    validateButton.disabled = state.busy || !hasItem || !approved || published || scheduled || !validTime || !validRatio;
+    scheduleButton.disabled = state.busy || !hasItem || !approved || published || scheduled || !validTime || !validRatio;
     cancelButton.disabled = state.busy || !hasItem || !scheduled;
+    validateButton.dataset.ratioBlocked = String(!validRatio);
+    scheduleButton.dataset.ratioBlocked = String(!validRatio);
     validateButton.hidden = published || scheduled;
     scheduleButton.hidden = published || scheduled;
     cancelButton.hidden = !scheduled;
@@ -136,6 +151,10 @@
     const reviewId = selectedReviewId();
     const scheduledAt = scheduledAtIso();
     if (!reviewId || !scheduledAt || state.busy) return;
+    if (!youtubeRatioAllowed()) {
+      showMessage(`YouTube content must be 9x16 or 16x9. This item is ${selectedAspectRatio() || 'an unsupported ratio'}.`, 'error');
+      return;
+    }
 
     setBusy(true);
     showMessage('Validating the approved item and future schedule…');
@@ -159,6 +178,10 @@
     const reviewId = selectedReviewId();
     const scheduledAt = scheduledAtIso();
     if (!reviewId || !scheduledAt || state.busy) return;
+    if (!youtubeRatioAllowed()) {
+      showMessage(`YouTube content must be 9x16 or 16x9. This item is ${selectedAspectRatio() || 'an unsupported ratio'}.`, 'error');
+      return;
+    }
 
     const title = selectedTitle();
     const confirmed = window.confirm(
@@ -255,7 +278,7 @@
     cancelButton.addEventListener('click', cancelScheduledItem);
 
     const observer = new MutationObserver(updateControls);
-    ['queueList', 'reviewStatusPill', 'publishStatusPill'].map(byId).filter(Boolean).forEach((target) => {
+    ['queueList', 'reviewStatusPill', 'publishStatusPill', 'videoRatio'].map(byId).filter(Boolean).forEach(target => {
       observer.observe(target, { attributes: true, childList: true, subtree: true, characterData: true });
     });
     byId('scheduledAt')?.addEventListener('change', updateControls);
