@@ -4,6 +4,7 @@ import { createAwsReviewPublishStore } from './review-publish.mjs';
 
 const MIN_SCHEDULE_LEAD_MS = 2 * 60 * 1000;
 const MAX_SCHEDULE_LEAD_MS = 366 * 24 * 60 * 60 * 1000;
+const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -51,6 +52,16 @@ function safeReviewId(value) {
     throw serviceError('invalid_review_id', 422);
   }
   return text;
+}
+
+function assertYoutubeAspectRatio(item) {
+  const aspectRatio = String(item?.video?.aspect_ratio || '').trim();
+  if (!YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+    throw serviceError('youtube_aspect_ratio_not_supported', 409, {
+      aspect_ratio: aspectRatio || 'missing',
+      allowed: [...YOUTUBE_ASPECT_RATIOS]
+    });
+  }
 }
 
 function scheduleName(reviewId, scheduledAt) {
@@ -166,6 +177,7 @@ export function createSchedulePublishService({
           approval_state: String(item.approval_state || '')
         });
       }
+      assertYoutubeAspectRatio(item);
 
       const scheduledText = String(
         input.scheduled_at || item.publish_settings?.scheduled_at || ''
