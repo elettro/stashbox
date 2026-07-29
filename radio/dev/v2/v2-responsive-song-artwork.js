@@ -5,8 +5,9 @@
 
   const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const SONGS_URL = `${API}/radio/songs`;
+  const RECIPE_URL = `${API}/radio/vec/recipe`;
   const PLACEHOLDER = '/images/branding/stashbox-logo-transparent-rastacolors.png';
-  const cache = new Map();
+  const recipeCache = new Map();
   let catalogPromise = null;
   let scheduled = 0;
   let applyToken = 0;
@@ -43,32 +44,60 @@
     return [];
   }
 
+  function recipeFrom(data) {
+    data = unwrap(data) || {};
+    const recipe = data.recipe || data.vec_recipe || data.data?.recipe || data.data || {};
+    return recipe && typeof recipe === 'object' && !Array.isArray(recipe) ? recipe : {};
+  }
+
   async function catalog() {
     if (!catalogPromise) {
       catalogPromise = getJson(SONGS_URL).then(data => rows(data).map((row, index) => ({
         key: clean(row.song_key || row.songKey || row.id || `song-${index}`),
         title: clean(row.display_title || row.song_name || row.title),
-        artist: clean(row.artist || row.artist_name || 'Stashbox')
+        artist: clean(row.artist || row.artist_name || 'Stashbox'),
+        square: fixDropbox(row.resolved_artwork_url || row.song_artwork_url || row.artwork_url || row.cover_art_url || row.image_url)
       })).filter(song => song.key && song.title));
     }
     return catalogPromise;
   }
 
-  async function artworkMedia(songKey) {
-    if (!cache.has(songKey)) {
-      cache.set(songKey, getJson(`${API}/radio/songs/${encodeURIComponent(songKey)}/artwork-images`)
-        .then(data => data?.media || {})
+  async function recipeForSong(songKey) {
+    if (!recipeCache.has(songKey)) {
+      recipeCache.set(songKey, getJson(`${RECIPE_URL}?song_key=${encodeURIComponent(songKey)}`)
+        .then(recipeFrom)
         .catch(error => {
-          cache.delete(songKey);
+          recipeCache.delete(songKey);
           throw error;
         }));
     }
-    return cache.get(songKey);
+    return recipeCache.get(songKey);
   }
 
-  function requestedRatio(width = window.innerWidth) {
-    if (width < 700) return '9x16';
-    if (width >= 1800) return '21x9';
+  function surfaceSize(player) {
+    const candidates = [
+      player?.querySelector('[data-mobile-vec-stage]'),
+      player?.querySelector('[data-backdrop]'),
+      player
+    ];
+    for (const candidate of candidates) {
+      const rect = candidate?.getBoundingClientRect?.();
+      if (rect?.width >= 100 && rect?.height >= 100) {
+        return { width: rect.width, height: rect.height };
+      }
+    }
+    return {
+      width: Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1),
+      height: Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1)
+    };
+  }
+
+  function requestedRatio(player) {
+    const { width, height } = surfaceSize(player);
+    const aspect = width / Math.max(1, height);
+    const tallMobileSurface = width <= 820 && height >= width * 1.15;
+    if (tallMobileSurface) return '9x16';
+    if (width >= 1440 && aspect >= 1.9) return '21x9';
     return '16x9';
   }
 
@@ -78,25 +107,28 @@
     return ['16x9', '21x9', '1x1'];
   }
 
-  function imageMap(media) {
+  function imageMap(song, recipe) {
+    const prepared = recipe?.prepared_artwork_images;
+    const stored = prepared && typeof prepared === 'object' && !Array.isArray(prepared) ? prepared : {};
     return {
-      '1x1': fixDropbox(media?.artwork_images?.['1x1'] || media?.song_artwork_1x1_url || media?.song_artwork_url),
-      '16x9': fixDropbox(media?.artwork_images?.['16x9'] || media?.song_artwork_16x9_url),
-      '9x16': fixDropbox(media?.artwork_images?.['9x16'] || media?.song_artwork_9x16_url),
-      '3x4': fixDropbox(media?.artwork_images?.['3x4'] || media?.song_artwork_3x4_url),
-      '4x5': fixDropbox(media?.artwork_images?.['4x5'] || media?.song_artwork_4x5_url),
-      '21x9': fixDropbox(media?.artwork_images?.['21x9'] || media?.song_artwork_21x9_url)
+      '1x1': fixDropbox(stored['1x1'] || song?.square),
+      '16x9': fixDropbox(stored['16x9']),
+      '9x16': fixDropbox(stored['9x16']),
+      '3x4': fixDropbox(stored['3x4']),
+      '4x5': fixDropbox(stored['4x5']),
+      '21x9': fixDropbox(stored['21x9'])
     };
   }
 
-  function chooseArtwork(media) {
-    const requested = requestedRatio();
-    const images = imageMap(media);
+  function chooseArtwork(player, song, recipe) {
+    const requested = requestedRatio(player);
+    const images = imageMap(song, recipe);
     const source = fallbackOrder(requested).find(ratio => images[ratio]) || '';
     return {
       requested,
       source,
-      url: source ? images[source] : PLACEHOLDER
+      exact: Boolean(source && source === requested),
+      url: source ? images[source] : (song?.square || PLACEHOLDER)
     };
   }
 
@@ -121,42 +153,35 @@
       || null;
   }
 
+  function setBackground(node, selected) {
+    if (!node) return;
+    const changed = node.dataset.responsiveArtworkUrl !== selected.url
+      || node.dataset.songArtworkRequestedRatio !== selected.requested
+      || node.dataset.songArtworkSourceRatio !== (selected.source || '');
+    if (!changed) return;
+    node.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
+    node.style.backgroundPosition = 'center';
+    node.style.backgroundRepeat = 'no-repeat';
+    node.style.backgroundSize = selected.exact ? 'cover' : 'contain';
+    node.dataset.songArtworkRequestedRatio = selected.requested;
+    node.dataset.songArtworkSourceRatio = selected.source || '';
+    node.dataset.responsiveArtworkUrl = selected.url;
+  }
+
   function applyBackdrop(player, selected) {
-    const backdrop = player?.querySelector('[data-backdrop]');
-    if (backdrop && (
-      backdrop.dataset.responsiveArtworkUrl !== selected.url ||
-      backdrop.dataset.songArtworkRequestedRatio !== selected.requested ||
-      backdrop.dataset.songArtworkSourceRatio !== (selected.source || '')
-    )) {
-      backdrop.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
-      backdrop.style.backgroundPosition = 'center';
-      backdrop.style.backgroundRepeat = 'no-repeat';
-      backdrop.style.backgroundSize = 'cover';
-      backdrop.dataset.songArtworkRequestedRatio = selected.requested;
-      backdrop.dataset.songArtworkSourceRatio = selected.source || '';
-      backdrop.dataset.responsiveArtworkUrl = selected.url;
-    }
+    setBackground(player?.querySelector('[data-backdrop]'), selected);
 
     const stage = player?.querySelector('[data-mobile-vec-stage]');
     const activeMedia = stage?.querySelector('.v2-mobile-vec-media.is-active');
-    if (stage && !activeMedia && (
-      stage.dataset.responsiveArtworkUrl !== selected.url ||
-      stage.dataset.songArtworkRequestedRatio !== selected.requested ||
-      stage.dataset.songArtworkSourceRatio !== (selected.source || '')
-    )) {
-      stage.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
-      stage.style.backgroundPosition = 'center';
-      stage.style.backgroundRepeat = 'no-repeat';
-      stage.style.backgroundSize = 'cover';
-      stage.dataset.songArtworkRequestedRatio = selected.requested;
-      stage.dataset.songArtworkSourceRatio = selected.source || '';
-      stage.dataset.responsiveArtworkUrl = selected.url;
-    }
+    if (stage && !activeMedia) setBackground(stage, selected);
+
+    player.dataset.songArtworkRequestedRatio = selected.requested;
+    player.dataset.songArtworkSourceRatio = selected.source || '';
   }
 
-  async function applyForSong(player, songKey, identityToken = '') {
+  async function applyForSong(player, song, identityToken = '') {
     const token = ++applyToken;
-    const media = await artworkMedia(songKey);
+    const recipe = await recipeForSong(song.key).catch(() => ({}));
     if (token !== applyToken) return null;
     const current = activePlayer();
     if (!current || current !== player) return null;
@@ -164,7 +189,7 @@
       const identity = currentIdentity(current);
       if (`${normalize(identity.title)}|${normalize(identity.artist)}` !== identityToken) return null;
     }
-    const selected = chooseArtwork(media);
+    const selected = chooseArtwork(current, song, recipe);
     applyBackdrop(current, selected);
     return selected;
   }
@@ -179,7 +204,7 @@
       const songs = await catalog();
       const song = findSong(songs, identity.title, identity.artist);
       if (!song) return;
-      await applyForSong(player, song.key, identityToken);
+      await applyForSong(player, song, identityToken);
     } catch (error) {
       console.warn('[V2 song artwork] Responsive player artwork unavailable.', error?.message || error);
     }
@@ -197,10 +222,15 @@
     const player = activePlayer();
     if (!player) return;
     try {
-      const selected = await applyForSong(player, songKey);
+      const songs = await catalog();
+      const song = songs.find(item => item.key === songKey);
+      if (!song) return;
+      const selected = await applyForSong(player, song);
       const officialImage = player.querySelector('[data-mobile-vec-stage] .v2-mobile-vec-media.is-active');
       if (selected?.url && officialImage?.tagName === 'IMG' && officialImage.src !== selected.url) {
         officialImage.src = selected.url;
+        officialImage.style.objectFit = selected.exact ? 'cover' : 'contain';
+        officialImage.style.objectPosition = 'center';
         officialImage.dataset.responsiveArtworkRatio = selected.source || selected.requested;
       }
     } catch (error) {
@@ -209,7 +239,13 @@
   });
 
   const observer = new MutationObserver(scheduleApply);
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ['hidden', 'class']
+  });
   window.addEventListener('resize', scheduleApply, { passive: true });
   window.addEventListener('orientationchange', scheduleApply, { passive: true });
   document.addEventListener('DOMContentLoaded', scheduleApply, { once: true });
