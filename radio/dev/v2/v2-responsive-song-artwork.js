@@ -236,7 +236,10 @@
     const changed = node.dataset.responsiveArtworkUrl !== selected.url
       || node.dataset.songArtworkRequestedRatio !== selected.requested
       || node.dataset.songArtworkSourceRatio !== (selected.source || '');
-    if (!changed) return;
+    if (!changed) {
+      node.classList.add('responsive-artwork-surface-ready');
+      return;
+    }
     node.style.backgroundImage = `url("${selected.url.replaceAll('"', '%22')}")`;
     node.style.backgroundPosition = 'center';
     node.style.backgroundRepeat = 'no-repeat';
