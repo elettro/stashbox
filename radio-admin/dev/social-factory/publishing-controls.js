@@ -5,6 +5,25 @@
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
   const state = { busy: false, resultReviewId: '' };
 
+  function loadActionTooltipResources() {
+    if (!document.querySelector('link[data-sf-action-tooltips]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.href = './action-tooltips.css?v=20260729-actiontips1';
+      stylesheet.dataset.sfActionTooltips = 'true';
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector('script[data-sf-action-tooltips]')) {
+      const script = document.createElement('script');
+      script.src = './action-tooltips.js?v=20260729-actiontips1';
+      script.async = false;
+      script.dataset.sfActionTooltips = 'true';
+      document.head.appendChild(script);
+    }
+  }
+
+  loadActionTooltipResources();
+
   function byId(id) {
     return document.getElementById(id);
   }
