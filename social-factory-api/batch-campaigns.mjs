@@ -92,7 +92,7 @@ function normalizeSettings(input = {}) {
     artist: cleanText(input.artist, '', 120),
     require_visuals: input.require_visuals !== false,
     selected_song_keys: selectedSongKeys,
-    intro_enabled: input.intro_enabled !== false,
+    intro_enabled: input.intro_enabled === true,
     outro_enabled: input.outro_enabled !== false,
     corner_bug_enabled: input.corner_bug_enabled !== false,
     include_artist: input.include_artist === true,
