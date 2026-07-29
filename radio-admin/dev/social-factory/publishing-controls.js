@@ -11,12 +11,35 @@
     window.__stashboxHiddenReviewFilterInstalled = true;
     const nativeFetch = window.fetch.bind(window);
     window.fetch = async function filteredReviewFetch(input, init = {}) {
-      const response = await nativeFetch(input, init);
+      let requestInit = init;
       try {
         const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : String(input?.url || '');
         const url = new URL(requestUrl, window.location.href);
         const method = String(init?.method || input?.method || 'GET').toUpperCase();
+        const isCampaignRequest = method === 'POST' && (
+          url.pathname.endsWith('/social/orchestration/batch-plan') ||
+          url.pathname.endsWith('/social/orchestration/batch-drafts')
+        );
+        if (isCampaignRequest && typeof init?.body === 'string') {
+          const body = JSON.parse(init.body);
+          if (!Object.prototype.hasOwnProperty.call(body, 'intro_enabled')) {
+            requestInit = { ...init, body: JSON.stringify({ ...body, intro_enabled: false }) };
+          }
+        }
+      } catch (_) {
+        requestInit = init;
+      }
+
+      const response = await nativeFetch(input, requestInit);
+      try {
+        const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : String(input?.url || '');
+        const url = new URL(requestUrl, window.location.href);
+        const method = String(requestInit?.method || input?.method || 'GET').toUpperCase();
         if (method !== 'GET' || !url.pathname.endsWith('/social/review-items')) return response;
+        const includeHidden = ['1', 'true', 'yes'].includes(
+          String(url.searchParams.get('include_hidden') || '').trim().toLowerCase()
+        );
+        if (includeHidden) return response;
         const payload = await response.clone().json();
         if (!Array.isArray(payload?.items)) return response;
         const items = payload.items.filter(item => String(item?.status || '').toLowerCase() !== 'hidden');
@@ -60,7 +83,7 @@
     }
     if (!document.querySelector('script[data-sf-review-queue-controls]')) {
       const script = document.createElement('script');
-      script.src = './review-queue-controls.js?v=20260729-reviewhide1';
+      script.src = './review-queue-controls.js?v=20260729-discardfix1';
       script.async = false;
       script.dataset.sfReviewQueueControls = 'true';
       document.head.appendChild(script);
