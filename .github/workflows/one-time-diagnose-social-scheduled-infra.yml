@@ -37,6 +37,7 @@ jobs:
           jq '
             [.workflow_runs[] |
               select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml" or
+                     .path == ".github/workflows/one-time-deploy-no-title-radio-dev.yml" or
                      .path == ".github/workflows/deploy-true-dev-lambda.yml" or
                      .path == ".github/workflows/deploy-social-factory-api-dev.yml") |
               {id, name, path, event, status, conclusion, created_at, updated_at, head_sha, html_url}
@@ -44,20 +45,30 @@ jobs:
           ' /tmp/all-runs.json > /tmp/selected-runs.json
 
           NO_TITLE_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml")][0].id // empty' /tmp/selected-runs.json)
+          RADIO_DIRECT_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-deploy-no-title-radio-dev.yml")][0].id // empty' /tmp/selected-runs.json)
+
           if [ -n "${NO_TITLE_RUN_ID}" ]; then
             gh api "repos/${REPOSITORY}/actions/runs/${NO_TITLE_RUN_ID}/jobs?per_page=100" > /tmp/no-title-jobs.json
           else
             printf '%s\n' '{"jobs":[]}' > /tmp/no-title-jobs.json
           fi
 
+          if [ -n "${RADIO_DIRECT_RUN_ID}" ]; then
+            gh api "repos/${REPOSITORY}/actions/runs/${RADIO_DIRECT_RUN_ID}/jobs?per_page=100" > /tmp/radio-direct-jobs.json
+          else
+            printf '%s\n' '{"jobs":[]}' > /tmp/radio-direct-jobs.json
+          fi
+
           jq -n \
             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --slurpfile runs /tmp/selected-runs.json \
-            --slurpfile jobs /tmp/no-title-jobs.json '
+            --slurpfile jobs /tmp/no-title-jobs.json \
+            --slurpfile radio_jobs /tmp/radio-direct-jobs.json '
             {
               recorded_at:$recorded_at,
               runs:$runs[0],
-              latest_no_title_jobs:($jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
+              latest_no_title_jobs:($jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))})),
+              latest_radio_direct_jobs:($radio_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
             }' > "${REPORT_PATH}"
 
       - name: Commit snapshot
@@ -70,4 +81,4 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-# No-title workflow diagnostic snapshot refresh.
+# Scoped Radio no-title deployment snapshot.
