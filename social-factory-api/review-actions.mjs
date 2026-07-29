@@ -4,7 +4,7 @@ import { createAwsSecretStore } from './youtube-oauth.mjs';
 const REVIEW_PREFIX = 'drafts/';
 const PREVIEW_TTL_SECONDS = 15 * 60;
 const ALLOWED_VISIBILITY = new Set(['private', 'unlisted', 'public']);
-const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen']);
+const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen', 'hide']);
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -309,13 +309,21 @@ export function createReviewActionService({
       if (!ALLOWED_DECISIONS.has(decision)) {
         throw serviceError('invalid_review_decision', 422, { allowed: [...ALLOWED_DECISIONS] });
       }
+      if (decision === 'hide' && item.publishing_status === 'scheduled') {
+        throw serviceError('cancel_schedule_before_hiding', 409, {
+          publishing_status: 'scheduled',
+          next_step: 'cancel_the_active_schedule'
+        });
+      }
 
       const timestamp = now().toISOString();
       const state = decision === 'approve'
         ? { status: 'approved', approval_state: 'approved', review_window_status: 'closed' }
         : decision === 'hold'
           ? { status: 'held', approval_state: 'held', review_window_status: 'held' }
-          : { status: 'in_review', approval_state: 'pending', review_window_status: 'open' };
+          : decision === 'hide'
+            ? { status: 'hidden', approval_state: 'hidden', review_window_status: 'hidden' }
+            : { status: 'in_review', approval_state: 'pending', review_window_status: 'open' };
 
       const updated = {
         ...item,
