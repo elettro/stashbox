@@ -45,8 +45,8 @@
   function installVariationOptions() {
     const select = byId('campaignVariations');
     if (!select) return;
-    const selected = Math.max(1, Math.min(10, Number(select.value || 1)));
-    select.replaceChildren(...Array.from({ length: 10 }, (_, index) => {
+    const selected = Math.max(1, Math.min(4, Number(select.value || 1)));
+    select.replaceChildren(...Array.from({ length: 4 }, (_, index) => {
       const value = index + 1;
       const option = document.createElement('option');
       option.value = String(value);
@@ -55,7 +55,7 @@
       return option;
     }));
     select.value = String(selected);
-    select.setAttribute('aria-description', 'Choose from 1 through 10 unique render versions per song. A campaign may contain no more than 20 total render jobs.');
+    select.setAttribute('aria-description', 'Choose from 1 through 4 unique render versions per song. A campaign may contain no more than 20 total render jobs.');
     select.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
