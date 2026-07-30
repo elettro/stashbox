@@ -1,6 +1,42 @@
 {
-  "recorded_at": "2026-07-30T15:17:36Z",
+  "recorded_at": "2026-07-30T16:04:40Z",
   "runs": [
+    {
+      "id": 30557244850,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T15:33:13Z",
+      "updated_at": "2026-07-30T15:35:26Z",
+      "head_sha": "3eaac90ccdc2de12231cfcdb66fcda74064e7c14",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30557244850"
+    },
+    {
+      "id": 30557244779,
+      "name": "One-Time Apply Custom GPT Authentication",
+      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T15:33:13Z",
+      "updated_at": "2026-07-30T15:34:07Z",
+      "head_sha": "3eaac90ccdc2de12231cfcdb66fcda74064e7c14",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30557244779"
+    },
+    {
+      "id": 30556842095,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T15:28:25Z",
+      "updated_at": "2026-07-30T15:30:43Z",
+      "head_sha": "29ff94a174005bd283dd0c84848af169e337142d",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30556842095"
+    },
     {
       "id": 30555786683,
       "name": "One-Time Apply Custom GPT Authentication",
@@ -18,10 +54,10 @@
       "name": "Deploy Social Factory API DEV",
       "path": ".github/workflows/deploy-social-factory-api-dev.yml",
       "event": "push",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "created_at": "2026-07-30T15:15:33Z",
-      "updated_at": "2026-07-30T15:15:36Z",
+      "updated_at": "2026-07-30T15:17:33Z",
       "head_sha": "93c5936c11bc56cb662c7e44d2ec007f929fed87",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30555786318"
     },
@@ -60,112 +96,16 @@
       "updated_at": "2026-07-30T14:12:12Z",
       "head_sha": "5fb290e1c81d2601f9cb4208ed7b469494639185",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30550363325"
-    },
-    {
-      "id": 30550170023,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T14:07:28Z",
-      "updated_at": "2026-07-30T14:08:25Z",
-      "head_sha": "2aa346e38b8a2d22c2df5751e55ac32225adef70",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30550170023"
-    },
-    {
-      "id": 30549742285,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-07-30T14:02:09Z",
-      "updated_at": "2026-07-30T14:04:18Z",
-      "head_sha": "a42c90d49018ee2383422985a246798c960de123",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30549742285"
-    },
-    {
-      "id": 30549544849,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T13:59:51Z",
-      "updated_at": "2026-07-30T14:01:05Z",
-      "head_sha": "d8be82eda3bf520cc792e289cbe102670ebc98ec",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30549544849"
-    },
-    {
-      "id": 30549470102,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T13:58:55Z",
-      "updated_at": "2026-07-30T14:00:07Z",
-      "head_sha": "b4e6a847e1338eae240e92743d1b7ca8006e28a1",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30549470102"
-    },
-    {
-      "id": 30549325747,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T13:57:08Z",
-      "updated_at": "2026-07-30T13:58:07Z",
-      "head_sha": "8b9b4173cea4d1636c4d049bf34bf1f7f298bd6b",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30549325747"
-    },
-    {
-      "id": 30549119503,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T13:54:32Z",
-      "updated_at": "2026-07-30T13:56:29Z",
-      "head_sha": "e3b6657e0ac8cc2397bcfeb70da3fea4c7a184bc",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30549119503"
-    },
-    {
-      "id": 30548976126,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-07-30T13:52:46Z",
-      "updated_at": "2026-07-30T13:55:32Z",
-      "head_sha": "2c63c309a1f74abc7916f9d52383214f24b0d886",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30548976126"
-    },
-    {
-      "id": 30548975803,
-      "name": "One-Time Apply Custom GPT Authentication",
-      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T13:52:45Z",
-      "updated_at": "2026-07-30T13:53:31Z",
-      "head_sha": "2c63c309a1f74abc7916f9d52383214f24b0d886",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30548975803"
     }
   ],
   "latest_custom_gpt_auth_jobs": [
     {
-      "id": 90915757376,
+      "id": 90920734583,
       "name": "apply-test-deploy",
       "status": "completed",
       "conclusion": "failure",
-      "started_at": "2026-07-30T15:15:36Z",
-      "completed_at": "2026-07-30T15:16:19Z",
+      "started_at": "2026-07-30T15:33:16Z",
+      "completed_at": "2026-07-30T15:34:06Z",
       "steps": [
         {
           "name": "Set up job",
@@ -194,13 +134,13 @@
         {
           "name": "Apply dedicated Custom GPT auth patch",
           "status": "completed",
-          "conclusion": "failure",
+          "conclusion": "success",
           "number": 5
         },
         {
           "name": "Validate full Social Factory source",
           "status": "completed",
-          "conclusion": "skipped",
+          "conclusion": "failure",
           "number": 6
         },
         {
@@ -256,12 +196,12 @@
   ],
   "latest_social_factory_deploy_jobs": [
     {
-      "id": 90915755716,
+      "id": 90920734797,
       "name": "validate-and-deploy",
       "status": "completed",
-      "conclusion": "success",
-      "started_at": "2026-07-30T15:15:36Z",
-      "completed_at": "2026-07-30T15:17:32Z",
+      "conclusion": "failure",
+      "started_at": "2026-07-30T15:33:23Z",
+      "completed_at": "2026-07-30T15:35:24Z",
       "steps": [
         {
           "name": "Set up job",
@@ -326,13 +266,13 @@
         {
           "name": "Record deployment receipt",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "failure",
           "number": 11
         },
         {
           "name": "Require successful deployment",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 12
         },
         {
@@ -344,7 +284,7 @@
         {
           "name": "Post Setup Node.js 22",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 23
         },
         {
