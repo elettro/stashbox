@@ -12,6 +12,7 @@ import {
   renderTimelineSegment
 } from './ffmpeg.mjs';
 import { buildRenderTimeline } from './timeline.mjs';
+import { selectRenderArtwork } from './artwork-selection.mjs';
 
 function requiredEnv(name) {
   const value = String(process.env[name] || '').trim();
@@ -108,15 +109,31 @@ async function streamDownload(url, outputPath) {
 
 async function loadArtworkFallback(context, job, recipe) {
   const recipeArtwork = stringValue(recipe?.artwork?.url || recipe?.artwork_url);
-  if (recipeArtwork) return recipeArtwork;
+  try {
+    const body = await apiRequest(
+      context.apiBase,
+      context.adminToken,
+      `/radio/songs/${encodeURIComponent(job.song_key)}/artwork-images`,
+      { method: 'GET' }
+    );
+    const selection = selectRenderArtwork(body?.media || body, job.aspect_ratio, recipeArtwork);
+    if (selection.url) return selection;
+  } catch (error) {
+    console.warn('[Video Factory Worker] Optimized artwork lookup failed:', error.message);
+  }
+
   try {
     const body = await apiRequest(context.apiBase, context.adminToken, '/admin/songs', { method: 'GET' });
     const songs = Array.isArray(body.songs) ? body.songs : [];
     const song = songs.find(item => String(item.song_key) === String(job.song_key));
-    return stringValue(song?.resolved_artwork_url || song?.song_artwork_url);
+    return selectRenderArtwork({
+      artwork_images: {
+        '1x1': stringValue(song?.song_artwork_url || song?.resolved_artwork_url)
+      }
+    }, job.aspect_ratio, recipeArtwork);
   } catch (error) {
-    console.warn('[Video Factory Worker] Artwork fallback lookup failed:', error.message);
-    return '';
+    console.warn('[Video Factory Worker] Square artwork fallback lookup failed:', error.message);
+    return selectRenderArtwork({}, job.aspect_ratio, recipeArtwork);
   }
 }
 
@@ -213,7 +230,8 @@ async function main() {
     }
 
     const visualSettings = await loadVisualSettings(context, job);
-    const artworkUrl = await loadArtworkFallback(context, job, activeRecipe);
+    const artworkSelection = await loadArtworkFallback(context, job, activeRecipe);
+    const artworkUrl = artworkSelection.url;
     const timeline = Array.isArray(activeRecipe.timeline) && activeRecipe.timeline.length
       ? activeRecipe.timeline
       : buildRenderTimeline({
@@ -231,7 +249,7 @@ async function main() {
     activeRecipe = {
       ...activeRecipe,
       duration_seconds: Math.round(requestedDuration * 1000) / 1000,
-      artwork: { ...(activeRecipe.artwork || {}), url: artworkUrl },
+      artwork: { ...(activeRecipe.artwork || {}), ...artworkSelection, url: artworkUrl },
       visuals: {
         ...(activeRecipe.visuals || {}),
         source: 'vec-eligible-assets',
