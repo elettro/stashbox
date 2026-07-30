@@ -1,0 +1,269 @@
+name: Apply Optimized Render Artwork
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-optimized-render-artwork.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Add optimized artwork selector
+        run: |
+          cat > video-render-worker/src/artwork-selection.mjs <<'EOF'
+          const RATIO_KEYS = Object.freeze({
+            '1:1': '1x1',
+            '16:9': '16x9',
+            '9:16': '9x16',
+            '3:4': '3x4',
+            '4:5': '4x5',
+            '21:9': '21x9'
+          });
+
+          const OPTIMIZED_ORDER = Object.freeze({
+            '1x1': ['1x1'],
+            '16x9': ['16x9', '21x9', '1x1'],
+            '9x16': ['9x16', '3x4', '4x5', '1x1'],
+            '3x4': ['3x4', '4x5', '9x16', '1x1'],
+            '4x5': ['4x5', '3x4', '9x16', '1x1'],
+            '21x9': ['21x9', '16x9', '1x1']
+          });
+
+          function text(value) {
+            return String(value || '').trim();
+          }
+
+          export function artworkRatioKey(aspectRatio) {
+            const normalized = text(aspectRatio).toLowerCase().replace(/\s+/g, '');
+            return RATIO_KEYS[normalized] || normalized.replace(':', 'x') || '1x1';
+          }
+
+          export function normalizeArtworkImages(media = {}) {
+            const images = media?.artwork_images && typeof media.artwork_images === 'object'
+              ? media.artwork_images
+              : {};
+            return {
+              '1x1': text(images['1x1'] || media.song_artwork_1x1_url || media.song_artwork_url),
+              '16x9': text(images['16x9'] || media.song_artwork_16x9_url),
+              '9x16': text(images['9x16'] || media.song_artwork_9x16_url),
+              '3x4': text(images['3x4'] || media.song_artwork_3x4_url),
+              '4x5': text(images['4x5'] || media.song_artwork_4x5_url),
+              '21x9': text(images['21x9'] || media.song_artwork_21x9_url)
+            };
+          }
+
+          export function selectRenderArtwork(media = {}, aspectRatio = '1:1', emergencyUrl = '') {
+            const requestedRatio = artworkRatioKey(aspectRatio);
+            const images = normalizeArtworkImages(media);
+            const order = OPTIMIZED_ORDER[requestedRatio] || [requestedRatio, '1x1'];
+            const sourceRatio = order.find((ratio) => text(images[ratio])) || '';
+            const selectedUrl = sourceRatio ? images[sourceRatio] : text(emergencyUrl);
+
+            return {
+              url: selectedUrl,
+              requested_ratio: requestedRatio,
+              source_ratio: sourceRatio || (selectedUrl ? 'legacy_recipe' : ''),
+              fallback_used: Boolean(selectedUrl && sourceRatio !== requestedRatio),
+              selection_rule: sourceRatio === requestedRatio
+                ? 'exact_ratio'
+                : sourceRatio === '1x1'
+                  ? 'square_fallback'
+                  : sourceRatio
+                    ? 'closest_orientation_fallback'
+                    : selectedUrl
+                      ? 'legacy_emergency_fallback'
+                      : 'missing'
+            };
+          }
+          EOF
+
+      - name: Wire artwork selector into renderer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('video-render-worker/src/index.mjs')
+          text = path.read_text()
+
+          anchor = "import { buildRenderTimeline } from './timeline.mjs';\n"
+          addition = "import { selectRenderArtwork } from './artwork-selection.mjs';\n"
+          if addition not in text:
+              if anchor not in text:
+                  raise SystemExit('Timeline import anchor was not found.')
+              text = text.replace(anchor, anchor + addition)
+
+          start = text.index('async function loadArtworkFallback')
+          end = text.index('\n\nasync function loadVisualSettings', start)
+          replacement = '''async function loadArtworkFallback(context, job, recipe) {
+            const recipeArtwork = stringValue(recipe?.artwork?.url || recipe?.artwork_url);
+            try {
+              const body = await apiRequest(
+                context.apiBase,
+                context.adminToken,
+                `/radio/songs/${encodeURIComponent(job.song_key)}/artwork-images`,
+                { method: 'GET' }
+              );
+              const selection = selectRenderArtwork(body?.media || body, job.aspect_ratio, recipeArtwork);
+              if (selection.url) return selection;
+            } catch (error) {
+              console.warn('[Video Factory Worker] Optimized artwork lookup failed:', error.message);
+            }
+
+            try {
+              const body = await apiRequest(context.apiBase, context.adminToken, '/admin/songs', { method: 'GET' });
+              const songs = Array.isArray(body.songs) ? body.songs : [];
+              const song = songs.find(item => String(item.song_key) === String(job.song_key));
+              return selectRenderArtwork({
+                artwork_images: {
+                  '1x1': stringValue(song?.song_artwork_url || song?.resolved_artwork_url)
+                }
+              }, job.aspect_ratio, recipeArtwork);
+            } catch (error) {
+              console.warn('[Video Factory Worker] Square artwork fallback lookup failed:', error.message);
+              return selectRenderArtwork({}, job.aspect_ratio, recipeArtwork);
+            }
+          }'''
+          text = text[:start] + replacement + text[end:]
+
+          old_call = "    const artworkUrl = await loadArtworkFallback(context, job, activeRecipe);\n"
+          new_call = "    const artworkSelection = await loadArtworkFallback(context, job, activeRecipe);\n    const artworkUrl = artworkSelection.url;\n"
+          if old_call in text:
+              text = text.replace(old_call, new_call)
+          elif new_call not in text:
+              raise SystemExit('Artwork lookup call was not found.')
+
+          old_recipe = "      artwork: { ...(activeRecipe.artwork || {}), url: artworkUrl },\n"
+          new_recipe = "      artwork: { ...(activeRecipe.artwork || {}), ...artworkSelection, url: artworkUrl },\n"
+          if old_recipe in text:
+              text = text.replace(old_recipe, new_recipe)
+          elif new_recipe not in text:
+              raise SystemExit('Artwork recipe assignment was not found.')
+
+          path.write_text(text)
+          PY
+
+      - name: Add selector tests
+        run: |
+          cat > video-render-worker/tests/artwork-selection.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { artworkRatioKey, selectRenderArtwork } from '../src/artwork-selection.mjs';
+
+          const dirtyBird = {
+            artwork_images: {
+              '1x1': 'https://media.example/dirty-bird-1x1.jpg',
+              '16x9': 'https://media.example/dirty-bird-16x9.jpg',
+              '9x16': 'https://media.example/dirty-bird-9x16.jpg',
+              '3x4': 'https://media.example/dirty-bird-3x4.jpg',
+              '4x5': 'https://media.example/dirty-bird-4x5.jpg',
+              '21x9': 'https://media.example/dirty-bird-21x9.jpg'
+            }
+          };
+
+          test('normalizes render aspect ratios to artwork profile keys', () => {
+            assert.equal(artworkRatioKey('9:16'), '9x16');
+            assert.equal(artworkRatioKey('16:9'), '16x9');
+            assert.equal(artworkRatioKey('1:1'), '1x1');
+          });
+
+          test('Dirty Bird 9:16 render selects its direct 9x16 artwork', () => {
+            const result = selectRenderArtwork(dirtyBird, '9:16');
+            assert.equal(result.url, 'https://media.example/dirty-bird-9x16.jpg');
+            assert.equal(result.source_ratio, '9x16');
+            assert.equal(result.fallback_used, false);
+            assert.equal(result.selection_rule, 'exact_ratio');
+          });
+
+          test('9:16 render uses the closest portrait artwork before square', () => {
+            const result = selectRenderArtwork({
+              artwork_images: {
+                '1x1': 'https://media.example/song-1x1.jpg',
+                '3x4': 'https://media.example/song-3x4.jpg',
+                '4x5': 'https://media.example/song-4x5.jpg'
+              }
+            }, '9:16');
+            assert.equal(result.url, 'https://media.example/song-3x4.jpg');
+            assert.equal(result.source_ratio, '3x4');
+            assert.equal(result.selection_rule, 'closest_orientation_fallback');
+          });
+
+          test('9:16 render falls back to 1x1 only when portrait artwork is absent', () => {
+            const result = selectRenderArtwork({
+              artwork_images: {
+                '1x1': 'https://media.example/song-square.jpg',
+                '16x9': 'https://media.example/song-wide.jpg'
+              }
+            }, '9:16');
+            assert.equal(result.url, 'https://media.example/song-square.jpg');
+            assert.equal(result.source_ratio, '1x1');
+            assert.equal(result.selection_rule, 'square_fallback');
+          });
+
+          test('16:9 render uses 21x9 before square when 16x9 is missing', () => {
+            const result = selectRenderArtwork({
+              artwork_images: {
+                '1x1': 'https://media.example/song-square.jpg',
+                '21x9': 'https://media.example/song-ultrawide.jpg'
+              }
+            }, '16:9');
+            assert.equal(result.url, 'https://media.example/song-ultrawide.jpg');
+            assert.equal(result.source_ratio, '21x9');
+          });
+          EOF
+
+      - name: Include selector in worker checks
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'video-render-worker/package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (!pkg.scripts.check.includes('src/artwork-selection.mjs')) {
+            pkg.scripts.check = pkg.scripts.check.replace(
+              'node --check src/index.mjs',
+              'node --check src/index.mjs && node --check src/artwork-selection.mjs'
+            );
+          }
+          fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+
+      - name: Validate source and tests
+        run: |
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund
+          npm --prefix video-render-worker run check
+          npm --prefix video-render-worker test
+
+      - name: Commit renderer fix
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add video-render-worker/src/index.mjs \
+                  video-render-worker/src/artwork-selection.mjs \
+                  video-render-worker/tests/artwork-selection.test.mjs \
+                  video-render-worker/package.json
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            git commit -m 'Use optimized song artwork ratios in video renders'
+            git push origin main
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy DEV renderer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-video-factory-renderer-dev.yml --ref main
