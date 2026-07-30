@@ -1,0 +1,83 @@
+name: Validate Dirty Bird YouTube Publish
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-validate-dirty-bird-youtube.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-b4056bb3-ec24-4733-929d-4a4e5facabf8
+      REPORT_PATH: deployment-reports/dirty-bird-youtube-validation.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate without uploading
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}"
+          mkdir -p deployment-reports
+
+          HTTP_STATUS=$(curl --silent --show-error --max-time 120 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -d '{"confirm_upload":false}' \
+            -o /tmp/dirty-bird-validation.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}/publish")
+
+          jq -n \
+            --arg checked_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg review_id "${REVIEW_ID}" \
+            --arg http_status "${HTTP_STATUS}" \
+            --slurpfile response /tmp/dirty-bird-validation.json \
+            '{
+              checked_at: $checked_at,
+              review_id: $review_id,
+              confirm_upload: false,
+              uploaded: false,
+              http_status: ($http_status | tonumber),
+              response: ($response[0] | {
+                ok,
+                error,
+                details,
+                mode,
+                ready,
+                title,
+                channel_id,
+                privacy_status,
+                publishing_triggered,
+                scheduled_at,
+                requested_visibility
+              })
+            }' > "${REPORT_PATH}"
+
+      - name: Commit sanitized validation report
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then
+            echo 'No validation change to commit.'
+            exit 0
+          fi
+          git commit -m 'Record Dirty Bird YouTube validation [skip ci]'
+          git push origin HEAD:main
