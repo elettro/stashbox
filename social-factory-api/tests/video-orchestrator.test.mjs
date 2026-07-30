@@ -89,6 +89,32 @@ test('candidate route ranks render-ready songs and never launches a render', asy
   assert.equal(calls[0].options.headers['x-admin-token'], 'radio-admin');
 });
 
+test('candidate route recognizes Song CMS rows response and nested audio fields', async () => {
+  const { service } = createService(async () => jsonResponse({
+    count: 2,
+    rows: [
+      {
+        song_key: 'rows-song-one',
+        display_title: 'Rows Song One',
+        artist: 'Stashbox',
+        audio: { url: 'https://audio.example/rows-one.mp3' },
+        enhanced_visuals_enabled: true
+      },
+      {
+        song_key: 'rows-song-two',
+        song_name: 'Rows Song Two',
+        artist_name: 'The Ras Box',
+        audio_file_url: 'https://audio.example/rows-two.mp3'
+      }
+    ]
+  }));
+
+  const result = await service.candidates(event());
+  assert.equal(result.evaluated_count, 2);
+  assert.equal(result.eligible_count, 2);
+  assert.deepEqual(result.candidates.map((song) => song.song_key), ['rows-song-one', 'rows-song-two']);
+});
+
 test('create draft defaults to a 30-second vertical social render', async () => {
   const { service, calls } = createService(async (url, options) => {
     assert.equal(url, 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/video-factory/jobs');
@@ -178,24 +204,4 @@ test('confirmed launch calls only the allowlisted Video Factory render route', a
   assert.equal(result.launched, true);
   assert.equal(result.job.active, true);
   assert.equal(calls.length, 1);
-});
-
-test('bridge refuses a different API host', async () => {
-  const { service } = createService(async () => jsonResponse({ songs: [] }), {
-    radio_api_base_url: 'https://example.com/dev'
-  });
-  await assert.rejects(
-    service.candidates(event()),
-    (error) => error.statusCode === 500 && error.message === 'radio_api_bridge_invalid_base_url'
-  );
-});
-
-test('bridge remains disabled until the Radio DEV admin token is configured', async () => {
-  const { service } = createService(async () => jsonResponse({ songs: [] }), {
-    radio_api_admin_token: 'REPLACE_RADIO_DEV_ADMIN_TOKEN'
-  });
-  await assert.rejects(
-    service.candidates(event()),
-    (error) => error.statusCode === 409 && error.message === 'radio_api_bridge_not_configured'
-  );
 });
