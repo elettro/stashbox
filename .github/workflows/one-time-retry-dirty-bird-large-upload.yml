@@ -1,0 +1,108 @@
+name: Retry Dirty Bird Large YouTube Upload
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-retry-dirty-bird-large-upload.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  retry-and-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-b4056bb3-ec24-4733-929d-4a4e5facabf8
+      REPORT_PATH: deployment-reports/dirty-bird-large-upload-retry.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Queue confirmed upload
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}"
+          mkdir -p deployment-reports
+          HTTP_STATUS=$(curl --silent --show-error --max-time 120 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -d '{"confirm_upload":true}' \
+            -o /tmp/queue-response.json \
+            -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}/publish")
+          cat /tmp/queue-response.json
+          test "${HTTP_STATUS}" = '200'
+          jq -e '.ok == true and (.queued == true or .uploaded == true or .mode == "already_published")' /tmp/queue-response.json >/dev/null
+
+      - name: Monitor final YouTube state
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          FINAL=''
+          for attempt in $(seq 1 60); do
+            curl --fail --silent --show-error --max-time 60 \
+              -H "x-admin-token: ${ADMIN_TOKEN}" \
+              "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}" > /tmp/review.json
+            STATUS=$(jq -r '.item.publishing_status // "not_published"' /tmp/review.json)
+            echo "Attempt ${attempt}: ${STATUS}"
+            if [ "${STATUS}" = 'published' ] || [ "${STATUS}" = 'publish_failed' ]; then
+              FINAL="${STATUS}"
+              break
+            fi
+            sleep 15
+          done
+
+          jq -n \
+            --arg checked_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg final_status "${FINAL:-timeout}" \
+            --slurpfile queue /tmp/queue-response.json \
+            --slurpfile review /tmp/review.json \
+            '{
+              checked_at: $checked_at,
+              final_status: $final_status,
+              queue_response: ($queue[0] | {
+                ok,
+                queued,
+                uploaded,
+                mode,
+                review_id,
+                content_length,
+                max_direct_publish_bytes
+              }),
+              item: ($review[0].item | {
+                id,
+                song_title: (.song.title // ""),
+                publishing_status,
+                publish_error,
+                published_at,
+                youtube: (.platform_results.youtube // null),
+                updated_at
+              })
+            }' > "${REPORT_PATH}"
+
+          test "${FINAL}" = 'published'
+
+      - name: Commit sanitized result
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Dirty Bird large upload result [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
