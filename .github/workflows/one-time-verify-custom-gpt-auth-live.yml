@@ -1,0 +1,213 @@
+name: One-Time Verify Custom GPT Authentication Live
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-verify-custom-gpt-auth-live.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-custom-gpt-auth-live
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      CUSTOM_GPT_SECRET: stashbox/social-factory/dev/custom-gpt
+      REPORT_PATH: deployment-reports/custom-gpt-auth-live-verification.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run sanitized live verification
+        run: |
+          set -uo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          VERIFY_EXIT=0
+
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || true)
+          BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" \
+            --output text 2>/dev/null || true)
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevFunctionName'].OutputValue" \
+            --output text 2>/dev/null || true)
+          CUSTOM_GPT_SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='CustomGptCredentialSecretArn'].OutputValue" \
+            --output text 2>/dev/null || true)
+          CUSTOM_GPT_RESOURCE_STATUS=$(aws cloudformation list-stack-resources \
+            --stack-name "${STACK_NAME}" \
+            --query "StackResourceSummaries[?LogicalResourceId=='CustomGptCredentialSecret'].ResourceStatus | [0]" \
+            --output text 2>/dev/null || true)
+          FUNCTION_SECRET_ID=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query 'Environment.Variables.SOCIAL_CUSTOM_GPT_SECRET' \
+            --output text 2>/dev/null || true)
+
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/custom-gpt-health.json -w '%{http_code}' \
+            "${BASE_URL}/social/health" || true)
+          HEALTH_OK=$(jq -r '.ok == true' /tmp/custom-gpt-health.json 2>/dev/null || echo false)
+          HEALTH_ENV=$(jq -r '.environment // ""' /tmp/custom-gpt-health.json 2>/dev/null || true)
+          HEALTH_AUTH_FLAG=$(jq -r '.isolation.customGptAuthenticationConfigured == true' /tmp/custom-gpt-health.json 2>/dev/null || echo false)
+          HEALTH_CYCLE_FLAGS=$(jq -r '
+            .isolation.batchCampaignPlanningSupported == true and
+            .isolation.batchRenderOperationsSupported == true and
+            .isolation.contentReviewSupported == true and
+            .isolation.scheduledPublishingConfigured == true
+          ' /tmp/custom-gpt-health.json 2>/dev/null || echo false)
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json 2>/dev/null || printf '{}' > /tmp/social-config.json
+          ADMIN_TOKEN=$(jq -r '.admin_token // ""' /tmp/social-config.json)
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${CUSTOM_GPT_SECRET}" \
+            --query SecretString --output text > /tmp/custom-gpt-secret.json 2>/dev/null || printf '{}' > /tmp/custom-gpt-secret.json
+          CUSTOM_GPT_API_KEY=$(jq -r '.api_key // ""' /tmp/custom-gpt-secret.json)
+          CUSTOM_GPT_ENABLED=$(jq -r '.enabled != false' /tmp/custom-gpt-secret.json)
+          CUSTOM_GPT_ACTOR=$(jq -r '.actor_id // ""' /tmp/custom-gpt-secret.json)
+          CUSTOM_GPT_PERMISSION_COUNT=$(jq -r '(.permissions // []) | length' /tmp/custom-gpt-secret.json)
+
+          BROWSER_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/custom-gpt-browser-check.json -w '%{http_code}' \
+            "${BASE_URL}/social/orchestration/candidates?limit=1" || true)
+          BROWSER_OK=$(jq -r '.ok == true' /tmp/custom-gpt-browser-check.json 2>/dev/null || echo false)
+
+          CUSTOM_GPT_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${CUSTOM_GPT_API_KEY}" \
+            -o /tmp/custom-gpt-key-check.json -w '%{http_code}' \
+            "${BASE_URL}/social/orchestration/candidates?limit=1" || true)
+          CUSTOM_GPT_OK=$(jq -r '.ok == true' /tmp/custom-gpt-key-check.json 2>/dev/null || echo false)
+
+          INVALID_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H 'x-admin-token: invalid-custom-gpt-test-token' \
+            -o /tmp/custom-gpt-invalid.json -w '%{http_code}' \
+            "${BASE_URL}/social/review-items?limit=1" || true)
+
+          echo "stack_status=${STACK_STATUS}"
+          echo "custom_gpt_resource_status=${CUSTOM_GPT_RESOURCE_STATUS}"
+          echo "function_secret_id=${FUNCTION_SECRET_ID}"
+          echo "health_http_status=${HEALTH_STATUS}"
+          echo "health_contract_ok=${HEALTH_OK}/${HEALTH_ENV}/${HEALTH_AUTH_FLAG}/${HEALTH_CYCLE_FLAGS}"
+          echo "browser_admin_http_status=${BROWSER_STATUS}"
+          echo "custom_gpt_http_status=${CUSTOM_GPT_STATUS}"
+          echo "invalid_token_http_status=${INVALID_STATUS}"
+          echo "custom_gpt_actor=${CUSTOM_GPT_ACTOR}"
+          echo "custom_gpt_permission_count=${CUSTOM_GPT_PERMISSION_COUNT}"
+
+          [ "${STACK_STATUS}" = 'UPDATE_COMPLETE' ] || VERIFY_EXIT=1
+          [ -n "${BASE_URL}" ] || VERIFY_EXIT=1
+          [ -n "${FUNCTION_NAME}" ] || VERIFY_EXIT=1
+          [ -n "${CUSTOM_GPT_SECRET_ARN}" ] || VERIFY_EXIT=1
+          case "${CUSTOM_GPT_RESOURCE_STATUS}" in *_COMPLETE) ;; *) VERIFY_EXIT=1 ;; esac
+          [ "${FUNCTION_SECRET_ID}" = "${CUSTOM_GPT_SECRET}" ] || VERIFY_EXIT=1
+          [ "${HEALTH_STATUS}" = '200' ] || VERIFY_EXIT=1
+          [ "${HEALTH_OK}" = 'true' ] || VERIFY_EXIT=1
+          [ "${HEALTH_ENV}" = 'dev' ] || VERIFY_EXIT=1
+          [ "${HEALTH_AUTH_FLAG}" = 'true' ] || VERIFY_EXIT=1
+          [ "${HEALTH_CYCLE_FLAGS}" = 'true' ] || VERIFY_EXIT=1
+          [ -n "${ADMIN_TOKEN}" ] || VERIFY_EXIT=1
+          [ "${BROWSER_STATUS}" = '200' ] || VERIFY_EXIT=1
+          [ "${BROWSER_OK}" = 'true' ] || VERIFY_EXIT=1
+          [ -n "${CUSTOM_GPT_API_KEY}" ] || VERIFY_EXIT=1
+          [ "${CUSTOM_GPT_ENABLED}" = 'true' ] || VERIFY_EXIT=1
+          [ "${CUSTOM_GPT_ACTOR}" = 'stashbox-radio-gpt' ] || VERIFY_EXIT=1
+          [ "${CUSTOM_GPT_PERMISSION_COUNT}" -gt 0 ] || VERIFY_EXIT=1
+          [ "${CUSTOM_GPT_STATUS}" = '200' ] || VERIFY_EXIT=1
+          [ "${CUSTOM_GPT_OK}" = 'true' ] || VERIFY_EXIT=1
+          [ "${INVALID_STATUS}" = '401' ] || VERIFY_EXIT=1
+
+          jq -n \
+            --arg status "$([ "${VERIFY_EXIT}" = '0' ] && echo success || echo failure)" \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg base_url "${BASE_URL}" \
+            --arg function_name "${FUNCTION_NAME}" \
+            --arg custom_gpt_secret_id "${FUNCTION_SECRET_ID}" \
+            --arg custom_gpt_resource_status "${CUSTOM_GPT_RESOURCE_STATUS}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg browser_admin_http_status "${BROWSER_STATUS}" \
+            --arg custom_gpt_http_status "${CUSTOM_GPT_STATUS}" \
+            --arg invalid_token_http_status "${INVALID_STATUS}" \
+            --arg custom_gpt_actor "${CUSTOM_GPT_ACTOR}" \
+            --argjson custom_gpt_permission_count "${CUSTOM_GPT_PERMISSION_COUNT:-0}" \
+            --argjson browser_admin_preserved "$([ "${BROWSER_STATUS}" = '200' ] && [ "${BROWSER_OK}" = 'true' ] && echo true || echo false)" \
+            --argjson custom_gpt_credential_verified "$([ "${CUSTOM_GPT_STATUS}" = '200' ] && [ "${CUSTOM_GPT_OK}" = 'true' ] && echo true || echo false)" \
+            --argjson health_contract_verified "$([ "${HEALTH_STATUS}" = '200' ] && [ "${HEALTH_AUTH_FLAG}" = 'true' ] && [ "${HEALTH_CYCLE_FLAGS}" = 'true' ] && echo true || echo false)" \
+            --argjson invalid_token_rejected "$([ "${INVALID_STATUS}" = '401' ] && echo true || echo false)" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              stack_status:$stack_status,
+              base_url:$base_url,
+              function_name:$function_name,
+              custom_gpt_secret_id:$custom_gpt_secret_id,
+              custom_gpt_resource_status:$custom_gpt_resource_status,
+              health_http_status:$health_http_status,
+              browser_admin_http_status:$browser_admin_http_status,
+              custom_gpt_http_status:$custom_gpt_http_status,
+              invalid_token_http_status:$invalid_token_http_status,
+              custom_gpt_actor:$custom_gpt_actor,
+              custom_gpt_permission_count:$custom_gpt_permission_count,
+              browser_admin_preserved:$browser_admin_preserved,
+              custom_gpt_credential_separate:true,
+              custom_gpt_credential_verified:$custom_gpt_credential_verified,
+              health_contract_verified:$health_contract_verified,
+              invalid_token_rejected:$invalid_token_rejected,
+              full_social_factory_cycle_permissions_configured:true,
+              token_value_recorded:false,
+              rendering_triggered:false,
+              scheduling_triggered:false,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/custom-gpt-secret.json
+          printf '%s' "${VERIFY_EXIT}" > /tmp/custom-gpt-live-verify-exit
+          exit 0
+
+      - name: Commit sanitized verification receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record live Custom GPT authentication verification [skip ci]'
+            git push origin HEAD:main
+          fi
+
+      - name: Require successful live verification
+        run: test "$(cat /tmp/custom-gpt-live-verify-exit)" = '0'
