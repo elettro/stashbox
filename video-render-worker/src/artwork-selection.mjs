@@ -39,6 +39,25 @@ export function normalizeArtworkImages(media = {}) {
   };
 }
 
+function isSongArtworkSegment(segment = {}) {
+  const assetId = text(segment?.asset_id).toLowerCase();
+  const source = text(segment?.source).toLowerCase();
+  const sourceAssetId = text(segment?.source_asset_id).toLowerCase();
+  return assetId === 'song-artwork'
+    || source === 'song-artwork'
+    || source.startsWith('song-artwork-')
+    || sourceAssetId === 'official-artwork';
+}
+
+export function refreshTimelineArtwork(timeline = [], artworkUrl = '') {
+  const segments = Array.isArray(timeline) ? timeline : [];
+  const selectedUrl = text(artworkUrl);
+  if (!selectedUrl) return segments;
+  return segments.map(segment => isSongArtworkSegment(segment)
+    ? { ...segment, url: selectedUrl }
+    : segment);
+}
+
 export function selectRenderArtwork(media = {}, aspectRatio = '1:1', emergencyUrl = '') {
   const requestedRatio = artworkRatioKey(aspectRatio);
   const images = normalizeArtworkImages(media);
