@@ -6,6 +6,7 @@ const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
 const NON_REUSABLE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
 const ACTIVE_RENDER_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 const MAX_BATCH_JOBS = 20;
+const MAX_VERSIONS_PER_SONG = 4;
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -57,7 +58,13 @@ function normalizeSettings(input = {}) {
   const selectedSongKeys = [...new Set(stringList(input.selected_song_keys))].slice(0, 10);
   const requestedSongCount = boundedInteger(input.song_count, 3, 1, 10, 'song_count');
   const songCount = selectedSongKeys.length || requestedSongCount;
-  const variationsPerSong = boundedInteger(input.variations_per_song, 1, 1, 10, 'variations_per_song');
+  const variationsPerSong = boundedInteger(
+    input.variations_per_song,
+    1,
+    1,
+    MAX_VERSIONS_PER_SONG,
+    'variations_per_song'
+  );
   if (songCount * variationsPerSong > MAX_BATCH_JOBS) {
     throw serviceError('batch_job_limit_exceeded', 422, {
       maximum_jobs: MAX_BATCH_JOBS,
