@@ -1,0 +1,218 @@
+name: One-Time Apply Custom GPT Authentication
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-custom-gpt-auth.yml'
+      - 'social-factory-api/request-auth.mjs'
+      - 'social-factory-api/tests/request-auth.test.mjs'
+      - 'social-factory-api/scripts/apply-custom-gpt-auth.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-custom-gpt-auth
+  cancel-in-progress: false
+
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      REPORT_PATH: deployment-reports/custom-gpt-auth-deployment.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Apply dedicated Custom GPT auth patch
+        run: |
+          set -euo pipefail
+          node --check social-factory-api/request-auth.mjs
+          node --check social-factory-api/scripts/apply-custom-gpt-auth.mjs
+          node social-factory-api/scripts/apply-custom-gpt-auth.mjs
+          node --check social-factory-api/index.mjs
+
+      - name: Validate full Social Factory source
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+          sam validate --template-file infrastructure/template.yaml --lint
+
+      - name: Commit tested authentication source
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            social-factory-api/index.mjs \
+            social-factory-api/infrastructure/template.yaml
+          git commit -m 'Add dedicated Custom GPT authentication [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and deploy isolated DEV stack
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ROLE_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].RoleARN' \
+            --output text)
+          test "${ROLE_ARN}" = "arn:aws:iam::${ACCOUNT_ID}:role/stashbox-social-cloudformation-dev-role"
+          ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+
+          cd social-factory-api
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "${ROLE_ARN}" \
+            --s3-bucket "${ARTIFACT_BUCKET}" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com \
+            2>&1 | tee /tmp/custom-gpt-auth-deploy.log
+
+      - name: Verify separate credential infrastructure and existing browser access
+        run: |
+          set -euo pipefail
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+          test "${STACK_STATUS}" = 'UPDATE_COMPLETE'
+
+          BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" \
+            --output text)
+          CUSTOM_GPT_SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='CustomGptCredentialSecretArn'].OutputValue" \
+            --output text)
+          test -n "${CUSTOM_GPT_SECRET_ARN}"
+
+          CUSTOM_GPT_RESOURCE_STATUS=$(aws cloudformation list-stack-resources \
+            --stack-name "${STACK_NAME}" \
+            --query "StackResourceSummaries[?LogicalResourceId=='CustomGptCredentialSecret'].ResourceStatus | [0]" \
+            --output text)
+          case "${CUSTOM_GPT_RESOURCE_STATUS}" in
+            *_COMPLETE) ;;
+            *) echo "Custom GPT secret resource is not complete: ${CUSTOM_GPT_RESOURCE_STATUS}" >&2; exit 1 ;;
+          esac
+
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevFunctionName'].OutputValue" \
+            --output text)
+          FUNCTION_SECRET_ID=$(aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --query 'Environment.Variables.SOCIAL_CUSTOM_GPT_SECRET' \
+            --output text)
+          test "${FUNCTION_SECRET_ID}" = 'stashbox/social-factory/dev/custom-gpt'
+
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/custom-gpt-health.json -w '%{http_code}' \
+            "${BASE_URL}/social/health")
+          test "${HEALTH_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .environment == "dev" and
+            .isolation.customGptAuthenticationConfigured == true and
+            .isolation.batchCampaignPlanningSupported == true and
+            .isolation.batchRenderOperationsSupported == true and
+            .isolation.contentReviewSupported == true and
+            .isolation.scheduledPublishingConfigured == true
+          ' /tmp/custom-gpt-health.json >/dev/null
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${CONFIG_SECRET}" \
+            --query SecretString --output text > /tmp/social-config.json
+          ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${ADMIN_TOKEN}"
+          BROWSER_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/custom-gpt-browser-check.json -w '%{http_code}' \
+            "${BASE_URL}/social/orchestration/candidates?limit=1")
+          unset ADMIN_TOKEN
+          rm -f /tmp/social-config.json
+          test "${BROWSER_STATUS}" = '200'
+          jq -e '.ok == true' /tmp/custom-gpt-browser-check.json >/dev/null
+
+          INVALID_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H 'x-admin-token: invalid-custom-gpt-test-token' \
+            -o /tmp/custom-gpt-invalid.json -w '%{http_code}' \
+            "${BASE_URL}/social/review-items?limit=1")
+          test "${INVALID_STATUS}" = '401'
+
+          jq -n \
+            --arg status success \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg base_url "${BASE_URL}" \
+            --arg function_name "${FUNCTION_NAME}" \
+            --arg custom_gpt_secret_id "${FUNCTION_SECRET_ID}" \
+            --arg custom_gpt_resource_status "${CUSTOM_GPT_RESOURCE_STATUS}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg browser_admin_http_status "${BROWSER_STATUS}" \
+            --arg invalid_token_http_status "${INVALID_STATUS}" '
+            {
+              status:$status,
+              recorded_at:$recorded_at,
+              stack_status:$stack_status,
+              base_url:$base_url,
+              function_name:$function_name,
+              custom_gpt_secret_id:$custom_gpt_secret_id,
+              custom_gpt_resource_status:$custom_gpt_resource_status,
+              health_http_status:$health_http_status,
+              browser_admin_http_status:$browser_admin_http_status,
+              invalid_token_http_status:$invalid_token_http_status,
+              browser_admin_preserved:true,
+              custom_gpt_credential_separate:true,
+              full_social_factory_cycle_permissions_configured:true,
+              token_value_recorded:false,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+      - name: Commit sanitized deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Custom GPT authentication deployment [skip ci]'
+          git push origin HEAD:main
