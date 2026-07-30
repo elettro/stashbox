@@ -82,7 +82,8 @@ test('batch plan is proposal-only and does not create or launch renders', async 
 
   assert.equal(result.mode, 'proposal_only');
   assert.equal(result.approval_required_before_draft_creation, true);
-  assert.equal(result.approval_required_before_render_launch, true);
+  assert.equal(result.approval_required_before_render_launch, false);
+  assert.equal(result.render_launch_included_with_draft_creation_approval, true);
   assert.equal(result.selected_song_count, 2);
   assert.equal(result.proposed_job_count, 4);
   assert.equal(result.jobs[0].recipe.aspect_ratio, '9:16');
@@ -92,6 +93,20 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.equal(result.jobs[0].recipe.include_song, false);
   assert.equal(result.jobs[0].recipe.include_album, false);
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
+});
+
+test('one song may produce ten distinct versions', async () => {
+  const service = serviceWithCandidates();
+  const result = await service.plan(event({
+    campaign_name: 'Ten Versions',
+    selected_song_keys: ['strong-reggae-song'],
+    variations_per_song: 10
+  }));
+
+  assert.equal(result.selected_song_count, 1);
+  assert.equal(result.proposed_job_count, 10);
+  assert.deepEqual(result.jobs.map((entry) => entry.variation), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(new Set(result.jobs.map((entry) => entry.recipe.seed)).size, 10);
 });
 
 test('batch plan creates a true full-song recipe without a duration cutoff', async () => {
@@ -209,8 +224,9 @@ test('batch draft route remains validation-only until explicitly confirmed', asy
   assert.equal(createCalls, 0);
 });
 
-test('confirmed batch creation creates drafts but never launches renders', async () => {
+test('confirmed campaign creation creates drafts and immediately launches renders', async () => {
   const createdBodies = [];
+  const launchedIds = [];
   const service = createBatchCampaignService({
     orchestrator: {
       async candidates() {
@@ -231,6 +247,11 @@ test('confirmed batch creation creates drafts but never launches renders', async
             campaign_name: body.campaign_name
           }
         };
+      },
+      async launch(input, jobId) {
+        assert.equal(JSON.parse(input.body).confirm_render, true);
+        launchedIds.push(jobId);
+        return { job: { id: jobId, status: 'pending' } };
       }
     }
   });
@@ -243,18 +264,24 @@ test('confirmed batch creation creates drafts but never launches renders', async
   }));
 
   assert.equal(result.created, true);
+  assert.equal(result.mode, 'drafts_created_and_renders_launched');
   assert.equal(result.created_job_count, 2);
   assert.equal(result.skipped_job_count, 0);
-  assert.equal(result.renders_launched, false);
-  assert.equal(result.approval_required_before_render_launch, true);
+  assert.equal(result.renders_launched, true);
+  assert.equal(result.launched_job_count, 2);
+  assert.equal(result.launch_failed_job_count, 0);
+  assert.equal(result.approval_required_before_render_launch, false);
+  assert.deepEqual(launchedIds, ['job-1-12345678', 'job-2-12345678']);
   assert.equal(createdBodies.length, 2);
   assert.ok(createdBodies.every((body) => body.campaign_name === 'Tomorrow Test'));
   assert.ok(createdBodies.every((body) => body.intro_enabled === false));
   assert.ok(createdBodies.every((body) => typeof body.seed === 'string' && body.seed.length === 32));
+  assert.equal(result.publishing_triggered, false);
 });
 
-test('confirmed batch creation reuses an existing draft instead of duplicating it', async () => {
+test('confirmed campaign creation reuses and launches an existing draft instead of duplicating it', async () => {
   let createCalls = 0;
+  const launchedIds = [];
   const existing = {
     id: 'existing-job-12345678',
     status: 'draft',
@@ -274,6 +301,11 @@ test('confirmed batch creation reuses an existing draft instead of duplicating i
       async createDraft() {
         createCalls += 1;
         return { job: {} };
+      },
+      async launch(input, jobId) {
+        assert.equal(JSON.parse(input.body).confirm_render, true);
+        launchedIds.push(jobId);
+        return { job: { ...existing, status: 'pending' } };
       }
     }
   });
@@ -288,5 +320,7 @@ test('confirmed batch creation reuses an existing draft instead of duplicating i
   assert.equal(result.created_job_count, 0);
   assert.equal(result.skipped_job_count, 1);
   assert.equal(result.skipped_jobs[0].reason, 'existing_job_reused');
+  assert.equal(result.launched_job_count, 1);
+  assert.deepEqual(launchedIds, ['existing-job-12345678']);
   assert.equal(createCalls, 0);
 });
