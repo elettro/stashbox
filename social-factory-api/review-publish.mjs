@@ -120,19 +120,62 @@ export function createAwsReviewPublishStore({ bucketName = process.env.SOCIAL_PU
   };
 }
 
+export function createAwsImmediatePublishQueue({
+  queueUrl = process.env.SOCIAL_SCHEDULE_QUEUE_URL
+} = {}) {
+  if (!queueUrl) throw new Error('social_publish_queue_url_missing');
+  let sdkPromise;
+  let clientPromise;
+
+  async function getSdk() {
+    if (!sdkPromise) sdkPromise = import('@aws-sdk/client-sqs');
+    return sdkPromise;
+  }
+
+  async function getClient() {
+    if (!clientPromise) clientPromise = getSdk().then(({ SQSClient }) => new SQSClient({}));
+    return clientPromise;
+  }
+
+  return {
+    queueUrl,
+    async enqueue({ reviewId, queuedAt }) {
+      const [{ SendMessageCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      await client.send(new SendMessageCommand({
+        QueueUrl: queueUrl,
+        MessageGroupId: 'immediate-youtube-publish',
+        MessageBody: JSON.stringify({
+          schema_version: 1,
+          type: 'social_factory_immediate_publish',
+          review_id: reviewId,
+          queued_at: queuedAt
+        })
+      }));
+      return { review_id: reviewId, queued_at: queuedAt };
+    }
+  };
+}
+
 export function createReviewPublishService({
   secretStore = createAwsSecretStore(),
   store = null,
+  publishQueue = null,
   youtubePublish = createYoutubePublishService(),
   configSecretId = process.env.YOUTUBE_OAUTH_CONFIG_SECRET,
   now = () => new Date()
 } = {}) {
   if (!configSecretId) throw new Error('youtube_oauth_config_secret_missing');
   let resolvedStore = store;
+  let resolvedPublishQueue = publishQueue;
 
   function getStore() {
     if (!resolvedStore) resolvedStore = createAwsReviewPublishStore();
     return resolvedStore;
+  }
+
+  function getPublishQueue() {
+    if (!resolvedPublishQueue) resolvedPublishQueue = createAwsImmediatePublishQueue();
+    return resolvedPublishQueue;
   }
 
   async function loadReview(reviewId) {
@@ -153,6 +196,18 @@ export function createReviewPublishService({
     };
   }
 
+  function alreadyInProgress(item, id) {
+    if (!['queued', 'publishing', 'retrying'].includes(String(item.publishing_status || ''))) return null;
+    return {
+      publishing_triggered: false,
+      uploaded: false,
+      queued: true,
+      mode: 'already_queued',
+      review_id: id,
+      item
+    };
+  }
+
   function assertApproved(item) {
     if (item.status !== 'approved' || item.approval_state !== 'approved') {
       throw serviceError('review_item_not_approved', 409, {
@@ -160,6 +215,37 @@ export function createReviewPublishService({
         approval_state: String(item.approval_state || '')
       });
     }
+  }
+
+  async function markQueued(id, item, validation = {}) {
+    const queuedAt = now().toISOString();
+    const updated = {
+      ...item,
+      publishing_status: 'queued',
+      publish_error: null,
+      publish_attempt: {
+        ...item.publish_attempt,
+        status: 'queued',
+        queued_at: queuedAt,
+        failed_at: null,
+        completed_at: null,
+        last_error: null
+      },
+      platform_results: {
+        ...item.platform_results,
+        youtube: {
+          ...item.platform_results?.youtube,
+          status: 'queued',
+          queued_at: queuedAt,
+          content_length: Number(validation.content_length || item.video?.size_bytes || 0),
+          failed_at: null,
+          error: null
+        }
+      },
+      updated_at: queuedAt
+    };
+    await getStore().putReview(id, updated);
+    return updated;
   }
 
   async function markPublishing(id, item, scheduledContext) {
@@ -349,6 +435,8 @@ export function createReviewPublishService({
       const { id, item } = await loadReview(reviewId);
       const published = alreadyPublished(item, id);
       if (published) return published;
+      const active = alreadyInProgress(item, id);
+      if (active) return active;
       assertApproved(item);
       assertYoutubeAspectRatio(item);
 
@@ -365,11 +453,67 @@ export function createReviewPublishService({
         });
       }
 
+      if (input.confirm_upload !== true) {
+        return executePublish({ event, id, item, confirmUpload: false });
+      }
+
+      const validation = await executePublish({ event, id, item, confirmUpload: false });
+      const contentLength = Number(validation.content_length || item.video?.size_bytes || 0);
+      const directLimit = Number(validation.max_direct_publish_bytes || 0);
+
+      if (directLimit > 0 && contentLength > directLimit) {
+        let queuedItem = await markQueued(id, item, validation);
+        try {
+          await getPublishQueue().enqueue({ reviewId: id, queuedAt: queuedItem.updated_at });
+        } catch (error) {
+          queuedItem = await markPublishFailed(id, queuedItem, error, null);
+          throw serviceError('youtube_background_queue_failed', 502, {
+            review_id: id,
+            publishing_status: queuedItem.publishing_status,
+            error: errorText(error)
+          });
+        }
+        return {
+          publishing_triggered: true,
+          uploaded: false,
+          queued: true,
+          mode: 'background_upload',
+          review_id: id,
+          content_length: contentLength,
+          max_direct_publish_bytes: directLimit,
+          item: queuedItem
+        };
+      }
+
+      return executePublish({ event, id, item, confirmUpload: true });
+    },
+
+    async publishQueued(reviewId) {
+      const config = await secretStore.read(configSecretId);
+      const { id, item } = await loadReview(reviewId);
+      const published = alreadyPublished(item, id);
+      if (published) return published;
+      if (item.status !== 'approved' || item.approval_state !== 'approved') {
+        return {
+          publishing_triggered: false,
+          uploaded: false,
+          mode: 'queued_item_no_longer_approved',
+          review_id: id,
+          skipped: true,
+          item
+        };
+      }
+      assertYoutubeAspectRatio(item);
+      const internalEvent = {
+        headers: { 'x-admin-token': config.admin_token },
+        body: JSON.stringify({ confirm_upload: true }),
+        isBase64Encoded: false
+      };
       return executePublish({
-        event,
+        event: internalEvent,
         id,
         item,
-        confirmUpload: input.confirm_upload === true
+        confirmUpload: true
       });
     },
 

@@ -188,3 +188,47 @@ test('review publishing requires the Social Factory admin token', async () => {
     (error) => error.statusCode === 401 && error.message === 'unauthorized'
   );
 });
+
+test('large confirmed publish enters the background upload queue', async () => {
+  const reviewId = 'render-large-12345678';
+  const reviews = new Map([[reviewId, {
+    id: reviewId,
+    status: 'approved',
+    approval_state: 'approved',
+    publishing_status: 'not_published',
+    video: { object_key: 'incoming/render-jobs/large/video.mp4', size_bytes: 90_000_000, aspect_ratio: '9:16' },
+    metadata: { selected_title: 'Large Test', description: '', tags: [], category_id: '10' },
+    publish_settings: { visibility: 'unlisted', made_for_kids: false, notify_subscribers: false, scheduled_at: null }
+  }]]);
+  const queued = [];
+  const service = createReviewPublishService({
+    secretStore: { async read() { return { admin_token: 'social-admin' }; } },
+    store: {
+      async getReview(id) { return structuredClone(reviews.get(id)); },
+      async putReview(id, item) { reviews.set(id, structuredClone(item)); }
+    },
+    publishQueue: { async enqueue(message) { queued.push(message); } },
+    youtubePublish: {
+      async publish(publishEvent) {
+        const body = JSON.parse(publishEvent.body);
+        assert.equal(body.confirm_upload, false);
+        return {
+          uploaded: false,
+          mode: 'validation_only',
+          ready: true,
+          content_length: 90_000_000,
+          max_direct_publish_bytes: 25_000_000
+        };
+      }
+    },
+    configSecretId: 'config',
+    now: () => new Date('2026-07-30T15:30:00.000Z')
+  });
+
+  const result = await service.publish(event({ confirm_upload: true }), reviewId);
+  assert.equal(result.queued, true);
+  assert.equal(result.mode, 'background_upload');
+  assert.equal(reviews.get(reviewId).publishing_status, 'queued');
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].reviewId, reviewId);
+});

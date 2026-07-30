@@ -24,6 +24,8 @@
     const status = clean(item.publishing_status || 'not_published').toLowerCase();
     if (status === 'published') return 'published';
     if (status === 'publishing') return 'publishing';
+    if (status === 'queued') return 'queued';
+    if (status === 'retrying') return 'retrying';
     if (status === 'scheduled') return 'scheduled';
     if (status === 'publish_failed' || status === 'failed') return 'publish_failed';
     return 'not_published';
@@ -33,6 +35,8 @@
     return {
       published: 'YouTube Published',
       publishing: 'YouTube Publishing',
+      queued: 'YouTube Queued',
+      retrying: 'YouTube Retrying',
       scheduled: 'YouTube Scheduled',
       publish_failed: 'YouTube Failed',
       not_published: 'Not on YouTube'

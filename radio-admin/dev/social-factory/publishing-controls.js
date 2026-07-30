@@ -191,13 +191,14 @@
     const validRatio = youtubeRatioAllowed();
     const publishLabel = String(byId('publishStatusPill')?.textContent || '').toLowerCase();
     const published = publishLabel.includes('published') && !publishLabel.includes('not published');
+    const uploadActive = ['queued', 'publishing', 'retrying'].some(status => publishLabel.includes(status));
 
-    validateButton.disabled = state.busy || !reviewId || !approved || published || !validRatio;
-    publishButton.disabled = state.busy || !reviewId || !approved || published || scheduledInFuture() || !validRatio;
+    validateButton.disabled = state.busy || !reviewId || !approved || published || uploadActive || !validRatio;
+    publishButton.disabled = state.busy || !reviewId || !approved || published || uploadActive || scheduledInFuture() || !validRatio;
     validateButton.dataset.ratioBlocked = String(!validRatio);
     publishButton.dataset.ratioBlocked = String(!validRatio);
-    publishButton.hidden = published;
-    validateButton.hidden = published;
+    publishButton.hidden = published || uploadActive;
+    validateButton.hidden = published || uploadActive;
     if (result) result.hidden = !published || state.resultReviewId !== reviewId;
   }
 
@@ -261,18 +262,27 @@
         { confirm_upload: true }
       );
       const result = byId('youtubePublishResult');
-      if (result && payload.youtube_url) {
-        state.resultReviewId = reviewId;
-        result.href = payload.youtube_url;
-        result.textContent = 'Open unlisted YouTube video';
-        result.hidden = false;
-      }
       const publishStatus = byId('publishStatusPill');
-      if (publishStatus) {
-        publishStatus.textContent = 'Published';
-        publishStatus.dataset.status = 'published';
+      if (payload.queued || payload.mode === 'background_upload') {
+        if (result) result.hidden = true;
+        if (publishStatus) {
+          publishStatus.textContent = 'YouTube Queued';
+          publishStatus.dataset.status = 'queued';
+        }
+        showMessage('Large video accepted. The background worker is uploading it to YouTube now.', 'success');
+      } else {
+        if (result && payload.youtube_url) {
+          state.resultReviewId = reviewId;
+          result.href = payload.youtube_url;
+          result.textContent = 'Open unlisted YouTube video';
+          result.hidden = false;
+        }
+        if (publishStatus) {
+          publishStatus.textContent = 'YouTube Published';
+          publishStatus.dataset.status = 'published';
+        }
+        showMessage('YouTube upload completed and the Social Factory review record was updated.', 'success');
       }
-      showMessage('YouTube upload completed and the Social Factory review record was updated.', 'success');
       byId('refreshQueue')?.click();
     } catch (error) {
       showMessage(formatError(error), 'error');

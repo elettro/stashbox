@@ -11,18 +11,23 @@ function safeMessage(record = {}) {
   }
 
   const reviewId = String(payload.review_id || '').trim();
-  const scheduledAt = String(payload.scheduled_at || '').trim();
   if (!/^[a-zA-Z0-9-]{8,120}$/.test(reviewId)) {
-    const error = new Error('invalid_schedule_review_id');
+    const error = new Error('invalid_publish_review_id');
     error.statusCode = 422;
     throw error;
   }
+
+  if (payload.type === 'social_factory_immediate_publish') {
+    return { reviewId, type: 'immediate', scheduledAt: '', payload };
+  }
+
+  const scheduledAt = String(payload.scheduled_at || '').trim();
   if (!Number.isFinite(Date.parse(scheduledAt))) {
     const error = new Error('invalid_schedule_timestamp');
     error.statusCode = 422;
     throw error;
   }
-  return { reviewId, scheduledAt, payload };
+  return { reviewId, type: 'scheduled', scheduledAt, payload };
 }
 
 export function createScheduledPublishWorker({
@@ -77,12 +82,12 @@ export function createScheduledPublishWorker({
       try {
         const message = safeMessage(record);
         reviewId = message.reviewId;
-        const result = await getReviewPublisher().publishScheduled(
-          message.reviewId,
-          message.scheduledAt
-        );
-        console.log('Scheduled Social Factory publish processed', {
+        const result = message.type === 'immediate'
+          ? await getReviewPublisher().publishQueued(message.reviewId)
+          : await getReviewPublisher().publishScheduled(message.reviewId, message.scheduledAt);
+        console.log('Social Factory publish queue item processed', {
           reviewId: message.reviewId,
+          queue_type: message.type,
           mode: result.mode || '',
           uploaded: Boolean(result.uploaded),
           skipped: Boolean(result.skipped)

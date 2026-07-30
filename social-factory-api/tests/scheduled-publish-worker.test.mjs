@@ -113,3 +113,34 @@ test('invalid queue messages are sent toward the dead-letter queue', async () =>
   const result = await worker({ Records: [record('{bad-json', 'bad-message')] });
   assert.deepEqual(result.batchItemFailures, [{ itemIdentifier: 'bad-message' }]);
 });
+
+
+test('worker processes an immediate large-video publish message', async () => {
+  const calls = [];
+  const worker = createScheduledPublishWorker({
+    reviewPublisher: {
+      async publishQueued(reviewId) {
+        calls.push(reviewId);
+        return { uploaded: true, mode: 'unlisted_upload' };
+      },
+      async publishScheduled() {
+        throw new Error('scheduled path should not run');
+      }
+    },
+    reviewStore: {
+      async getReview() { return null; },
+      async putReview() {}
+    }
+  });
+
+  const result = await worker({
+    Records: [record({
+      type: 'social_factory_immediate_publish',
+      review_id: 'render-large-12345678',
+      queued_at: '2026-07-30T15:30:00.000Z'
+    }, 'immediate-message')]
+  });
+
+  assert.deepEqual(result.batchItemFailures, []);
+  assert.deepEqual(calls, ['render-large-12345678']);
+});

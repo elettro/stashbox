@@ -268,6 +268,11 @@ Resources:
                 Condition:
                   StringEquals:
                     iam:PassedToService: scheduler.amazonaws.com
+              - Sid: QueueImmediateYoutubePublish
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt SocialPublishScheduleQueue.Arn
 
   SocialScheduledPublishWorkerRole:
     Type: AWS::IAM::Role
@@ -360,6 +365,7 @@ Resources:
           VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
           SOCIAL_SCHEDULE_GROUP: !Ref SocialPublishScheduleGroup
           SOCIAL_SCHEDULE_QUEUE_ARN: !GetAtt SocialPublishScheduleQueue.Arn
+          SOCIAL_SCHEDULE_QUEUE_URL: !Ref SocialPublishScheduleQueue
           SOCIAL_SCHEDULER_ROLE_ARN: !GetAtt SocialPublishSchedulerTargetRole.Arn
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
           SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
@@ -541,7 +547,7 @@ Resources:
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
-          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
+          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '536870912'
       Events:
         ScheduledPublishQueue:
           Type: SQS
