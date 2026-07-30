@@ -1,0 +1,136 @@
+{
+  "checked_at": "2026-07-30T15:07:41Z",
+  "total_items": 11,
+  "dirty_bird": [
+    {
+      "id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+      "song_title": "Dirty Bird",
+      "selected_title": "Stashbox - Dirty Bird | Official Short",
+      "review_status": "approved",
+      "approval_state": "approved",
+      "publishing_status": "not_published",
+      "visibility_requested": "unlisted",
+      "scheduled_at": null,
+      "published_at": null,
+      "youtube": null,
+      "schedule": null,
+      "updated_at": "2026-07-30T14:39:17.840Z"
+    },
+    {
+      "id": "render-dc16b7fa-70e2-4553-9163-c627156e5798",
+      "song_title": "Dirty Bird",
+      "selected_title": "Stashbox - Dirty Bird | Official Short",
+      "review_status": "hidden",
+      "approval_state": "hidden",
+      "publishing_status": "not_published",
+      "visibility_requested": "unlisted",
+      "scheduled_at": null,
+      "published_at": null,
+      "youtube": null,
+      "schedule": null,
+      "updated_at": "2026-07-30T13:47:15.732Z"
+    }
+  ],
+  "recent_items": [
+    {
+      "id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+      "song_title": "Dirty Bird",
+      "review_status": "approved",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T14:39:17.840Z"
+    },
+    {
+      "id": "render-cc50acd7-014d-492f-89ac-682c8894240e",
+      "song_title": "Hippy Speedball (I'm On My Way)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-29T19:41:19.324Z"
+    },
+    {
+      "id": "render-c657b328-bdfb-4294-ba96-6a9a031ad081",
+      "song_title": "Riding Waves (Live)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:20.612Z"
+    },
+    {
+      "id": "render-0c7dd5a4-45aa-443d-ad35-7a9f58031a96",
+      "song_title": "Angel In Your Bed (Live)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:24.606Z"
+    },
+    {
+      "id": "render-63683d47-a6fc-49f7-997a-e7118c7b1e36",
+      "song_title": "Riding Waves (Live)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:29.107Z"
+    },
+    {
+      "id": "render-23b53d23-1260-4c01-9ef3-cd0f0c343dd1",
+      "song_title": "Angel In Your Bed (Live)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:32.487Z"
+    },
+    {
+      "id": "render-c694a998-9548-46f3-b2c2-be194aacb2ef",
+      "song_title": "Party Spots and Waves (Newport Beach)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:35.746Z"
+    },
+    {
+      "id": "render-09805081-a31f-4b72-a023-c4a40737a084",
+      "song_title": "Party Spots and Waves (Newport Beach)",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:46:39.036Z"
+    },
+    {
+      "id": "render-dc16b7fa-70e2-4553-9163-c627156e5798",
+      "song_title": "Dirty Bird",
+      "review_status": "hidden",
+      "publishing_status": "not_published",
+      "published_at": null,
+      "youtube_video_id": null,
+      "youtube_url": null,
+      "updated_at": "2026-07-30T13:47:15.732Z"
+    },
+    {
+      "id": "render-dc255319-039f-4982-b8af-b42402688933",
+      "song_title": "Riding Waves (Live)",
+      "review_status": "approved",
+      "publishing_status": "published",
+      "published_at": "2026-07-29T17:21:33.609Z",
+      "youtube_video_id": "e7EP96GrcYA",
+      "youtube_url": "https://www.youtube.com/watch?v=e7EP96GrcYA",
+      "updated_at": "2026-07-29T17:21:33.609Z"
+    }
+  ]
+}
