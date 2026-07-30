@@ -1,5 +1,6 @@
 name: Fix 9x16 Render Artwork
 
+# Triggered after the workflow existed on main so GitHub Actions processes the repair.
 on:
   push:
     branches:
