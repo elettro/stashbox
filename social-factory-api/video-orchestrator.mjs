@@ -76,11 +76,36 @@ function validateBridgeConfig(config = {}) {
   return { baseUrl, adminToken };
 }
 
+function parseNestedPayload(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 function normalizeSongList(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.songs)) return payload.songs;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.data)) return payload.data;
+  const root = parseNestedPayload(payload);
+  if (Array.isArray(root)) return root;
+
+  const directKeys = ['songs', 'items', 'data', 'rows', 'records', 'results'];
+  for (const key of directKeys) {
+    const value = parseNestedPayload(root?.[key]);
+    if (Array.isArray(value)) return value;
+  }
+
+  const nestedRoots = [root?.data, root?.body, root?.result, root?.response]
+    .map(parseNestedPayload)
+    .filter((value) => value && typeof value === 'object');
+  for (const nested of nestedRoots) {
+    if (Array.isArray(nested)) return nested;
+    for (const key of directKeys) {
+      const value = parseNestedPayload(nested?.[key]);
+      if (Array.isArray(value)) return value;
+    }
+  }
+
   return [];
 }
 
@@ -89,12 +114,14 @@ function textPresent(value) {
 }
 
 function scoreSong(song = {}) {
-  const songKey = String(song.song_key || song.songKey || '').trim();
-  const title = String(song.display_title || song.song_name || song.title || songKey).trim();
-  const artist = String(song.artist || '').trim();
+  const songKey = String(song.song_key || song.songKey || song.key || '').trim();
+  const title = String(song.display_title || song.song_name || song.title || song.name || songKey).trim();
+  const artist = String(song.artist || song.artist_name || '').trim();
   const visibility = String(song.public_visibility || song.visibility || 'visible').trim().toLowerCase();
-  const hasAudio = textPresent(song.audio_url || song.audioUrl);
-  const hasArtwork = textPresent(song.song_artwork_url || song.artwork_url || song.artworkUrl);
+  const audioValue = song.audio_url || song.audioUrl || song.audio_file_url || song.source_audio_url || song.audio?.url;
+  const artworkValue = song.song_artwork_url || song.artwork_url || song.artworkUrl || song.artwork?.url;
+  const hasAudio = textPresent(audioValue);
+  const hasArtwork = textPresent(artworkValue);
   const hasVisualHints = Boolean(
     song.enhanced_visuals_enabled ||
     (Array.isArray(song.visual_assets) && song.visual_assets.length) ||
@@ -136,8 +163,8 @@ function scoreSong(song = {}) {
     song_key: songKey,
     title,
     artist,
-    album_name: String(song.album_name || '').trim(),
-    genre: String(song.genre || '').trim(),
+    album_name: String(song.album_name || song.album || '').trim(),
+    genre: String(song.genre || song.primary_genre || '').trim(),
     public_visibility: visibility,
     featured: Boolean(song.featured),
     audio_ready: hasAudio,
@@ -216,7 +243,8 @@ export function createVideoOrchestratorService({
       const config = await authorize(event);
       const payload = await radioRequest(config, '/admin/songs');
       const limit = safeLimit(event?.queryStringParameters?.limit, 20, 100);
-      const candidates = normalizeSongList(payload)
+      const sourceSongs = normalizeSongList(payload);
+      const candidates = sourceSongs
         .map(scoreSong)
         .sort((left, right) => right.candidate_score - left.candidate_score || left.title.localeCompare(right.title));
       const eligible = candidates.filter((song) => song.eligible).slice(0, limit);
