@@ -95,18 +95,31 @@ test('batch plan is proposal-only and does not create or launch renders', async 
   assert.deepEqual(calls.map((call) => call.type), ['candidates']);
 });
 
-test('one song may produce ten distinct versions', async () => {
+test('one song may produce four distinct versions', async () => {
   const service = serviceWithCandidates();
   const result = await service.plan(event({
-    campaign_name: 'Ten Versions',
+    campaign_name: 'Four Versions',
     selected_song_keys: ['strong-reggae-song'],
-    variations_per_song: 10
+    variations_per_song: 4
   }));
 
   assert.equal(result.selected_song_count, 1);
-  assert.equal(result.proposed_job_count, 10);
-  assert.deepEqual(result.jobs.map((entry) => entry.variation), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-  assert.equal(new Set(result.jobs.map((entry) => entry.recipe.seed)).size, 10);
+  assert.equal(result.proposed_job_count, 4);
+  assert.deepEqual(result.jobs.map((entry) => entry.variation), [1, 2, 3, 4]);
+  assert.equal(new Set(result.jobs.map((entry) => entry.recipe.seed)).size, 4);
+});
+
+test('batch plan rejects more than four versions per song', async () => {
+  const service = serviceWithCandidates();
+  await assert.rejects(
+    service.plan(event({
+      selected_song_keys: ['strong-reggae-song'],
+      variations_per_song: 5
+    })),
+    error => error.statusCode === 422
+      && error.message === 'invalid_variations_per_song'
+      && error.details?.maximum === 4
+  );
 });
 
 test('batch plan creates a true full-song recipe without a duration cutoff', async () => {
