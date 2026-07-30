@@ -1,0 +1,165 @@
+name: Fix 9x16 Render Artwork
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-fix-9x16-render-artwork.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix-test-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fix ratio artwork lookup and frozen timelines
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          selection_path = Path('video-render-worker/src/artwork-selection.mjs')
+          selection = selection_path.read_text()
+
+          helper = '''
+          function isSongArtworkSegment(segment = {}) {
+            const assetId = text(segment?.asset_id).toLowerCase();
+            const source = text(segment?.source).toLowerCase();
+            const sourceAssetId = text(segment?.source_asset_id).toLowerCase();
+            return assetId === 'song-artwork'
+              || source === 'song-artwork'
+              || source.startsWith('song-artwork-')
+              || sourceAssetId === 'official-artwork';
+          }
+
+          export function refreshTimelineArtwork(timeline = [], artworkUrl = '') {
+            const segments = Array.isArray(timeline) ? timeline : [];
+            const selectedUrl = text(artworkUrl);
+            if (!selectedUrl) return segments;
+            return segments.map(segment => isSongArtworkSegment(segment)
+              ? { ...segment, url: selectedUrl }
+              : segment);
+          }
+          '''
+          marker = '\nexport function selectRenderArtwork'
+          if 'export function refreshTimelineArtwork' not in selection:
+              if marker not in selection:
+                  raise SystemExit('Artwork selector insertion point was not found.')
+              selection = selection.replace(marker, helper + marker)
+          selection_path.write_text(selection)
+
+          worker_path = Path('video-render-worker/src/index.mjs')
+          worker = worker_path.read_text()
+
+          old_import = "import { selectRenderArtwork } from './artwork-selection.mjs';"
+          new_import = "import { refreshTimelineArtwork, selectRenderArtwork } from './artwork-selection.mjs';"
+          if old_import in worker:
+              worker = worker.replace(old_import, new_import)
+          elif new_import not in worker:
+              raise SystemExit('Artwork selector import was not found.')
+
+          public_route = "`/radio/songs/${encodeURIComponent(job.song_key)}/artwork-images`"
+          admin_route = "`/radio/admin/songs/${encodeURIComponent(job.song_key)}/artwork-images`"
+          if public_route in worker:
+              worker = worker.replace(public_route, admin_route, 1)
+          elif admin_route not in worker:
+              raise SystemExit('Artwork API route was not found.')
+
+          old_timeline = '''    const timeline = Array.isArray(activeRecipe.timeline) && activeRecipe.timeline.length
+              ? activeRecipe.timeline
+              : buildRenderTimeline({'''
+          new_timeline = '''    const frozenTimeline = Array.isArray(activeRecipe.timeline) && activeRecipe.timeline.length
+              ? refreshTimelineArtwork(activeRecipe.timeline, artworkUrl)
+              : [];
+            const timeline = frozenTimeline.length
+              ? frozenTimeline
+              : buildRenderTimeline({'''
+          if old_timeline in worker:
+              worker = worker.replace(old_timeline, new_timeline)
+          elif 'const frozenTimeline = Array.isArray(activeRecipe.timeline)' not in worker:
+              raise SystemExit('Frozen timeline block was not found.')
+
+          worker_path.write_text(worker)
+
+          test_path = Path('video-render-worker/tests/artwork-selection.test.mjs')
+          tests = test_path.read_text()
+          old_test_import = "import { artworkRatioKey, selectRenderArtwork } from '../src/artwork-selection.mjs';"
+          new_test_import = "import { artworkRatioKey, refreshTimelineArtwork, selectRenderArtwork } from '../src/artwork-selection.mjs';"
+          if old_test_import in tests:
+              tests = tests.replace(old_test_import, new_test_import)
+          elif new_test_import not in tests:
+              raise SystemExit('Artwork test import was not found.')
+
+          regression_test = '''
+
+          test('frozen 9:16 timelines replace stale square artwork with selected portrait artwork', () => {
+            const timeline = [
+              {
+                asset_id: 'song-artwork',
+                type: 'image',
+                source: 'song-artwork-start',
+                url: 'https://media.example/song-square.jpg'
+              },
+              {
+                asset_id: 'manual:official-artwork',
+                source_asset_id: 'official-artwork',
+                type: 'image',
+                source: 'song-artwork-manual',
+                url: 'https://media.example/song-square.jpg'
+              },
+              {
+                asset_id: 'vec-image-1',
+                type: 'image',
+                source: 'vec',
+                url: 'https://media.example/vec-image.jpg'
+              }
+            ];
+            const refreshed = refreshTimelineArtwork(
+              timeline,
+              'https://media.example/song-9x16.jpg'
+            );
+            assert.equal(refreshed[0].url, 'https://media.example/song-9x16.jpg');
+            assert.equal(refreshed[1].url, 'https://media.example/song-9x16.jpg');
+            assert.equal(refreshed[2].url, 'https://media.example/vec-image.jpg');
+          });
+          '''
+          if "frozen 9:16 timelines replace stale square artwork" not in tests:
+              tests += regression_test
+          test_path.write_text(tests)
+          PY
+
+      - name: Validate worker source and tests
+        run: |
+          npm --prefix video-render-worker install --omit=dev --no-audit --no-fund
+          npm --prefix video-render-worker run check
+          npm --prefix video-render-worker test
+
+      - name: Commit renderer correction
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add video-render-worker/src/index.mjs \
+                  video-render-worker/src/artwork-selection.mjs \
+                  video-render-worker/tests/artwork-selection.test.mjs
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            git commit -m 'Use 9x16 profile artwork in vertical renders'
+            git push origin main
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy DEV renderer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-video-factory-renderer-dev.yml --ref main
