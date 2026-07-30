@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-07-30T15:32:12Z",
+  "final_status": "published",
+  "queue_response": {
+    "ok": true,
+    "queued": true,
+    "uploaded": false,
+    "mode": "background_upload",
+    "review_id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+    "content_length": 52283701,
+    "max_direct_publish_bytes": 26214400
+  },
+  "item": {
+    "id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+    "song_title": "Dirty Bird",
+    "publishing_status": "published",
+    "publish_error": null,
+    "published_at": "2026-07-30T15:32:02.527Z",
+    "youtube": {
+      "status": "published",
+      "started_at": "2026-07-30T15:31:58.887Z",
+      "failed_at": null,
+      "error": null,
+      "queued_at": "2026-07-30T15:31:57.299Z",
+      "content_length": 52283701,
+      "video_id": "BQY_Sznu1g8",
+      "url": "https://www.youtube.com/watch?v=BQY_Sznu1g8",
+      "privacy_status": "unlisted",
+      "published_at": "2026-07-30T15:32:02.527Z"
+    },
+    "updated_at": "2026-07-30T15:32:02.527Z"
+  }
+}
