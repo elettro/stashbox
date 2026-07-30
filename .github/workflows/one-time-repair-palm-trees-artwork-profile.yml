@@ -1,0 +1,156 @@
+name: Repair Palm Trees Artwork Profile
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-repair-palm-trees-artwork-profile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      LAMBDA_NAME: stashbox-radio-api-dev-v2
+      SONG_KEY: palm-trees-stashbox
+      CDN_BASE: https://d1ufj7xan6uxy0.cloudfront.net
+      REPORT_PATH: deployment-reports/palm-trees-artwork-profile-repair.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Locate uploaded ratio images and repair profile mapping
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          test -n "${ADMIN_TOKEN}" || { echo 'STASHBOX_DEV_ADMIN_TOKEN is missing.' >&2; exit 1; }
+
+          BUCKET=$(aws lambda get-function-configuration \
+            --function-name "${LAMBDA_NAME}" \
+            --query 'Environment.Variables.UPLOAD_BUCKET' \
+            --output text)
+          test -n "${BUCKET}" && test "${BUCKET}" != 'None' || { echo 'UPLOAD_BUCKET is missing.' >&2; exit 1; }
+
+          PREFIX="songs/stashbox/tracks/${SONG_KEY}/artwork/"
+          aws s3api list-objects-v2 \
+            --bucket "${BUCKET}" \
+            --prefix "${PREFIX}" \
+            --output json > /tmp/artwork-objects.json
+
+          python - <<'PY'
+          import json, os, re, urllib.parse
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/artwork-objects.json').read_text())
+          objects = sorted(data.get('Contents', []), key=lambda item: item.get('LastModified', ''), reverse=True)
+          cdn = os.environ['CDN_BASE'].rstrip('/')
+          ratios = ['16x9', '9x16', '3x4', '4x5', '21x9', '1x1']
+          selected = {}
+          candidates = {ratio: [] for ratio in ratios}
+
+          for item in objects:
+              key = item.get('Key', '')
+              low = key.lower()
+              for ratio in ratios:
+                  if re.search(rf'(^|[^0-9a-z]){re.escape(ratio)}([^0-9a-z]|$)', low):
+                      candidates[ratio].append({
+                          'key': key,
+                          'last_modified': item.get('LastModified', ''),
+                          'size': item.get('Size', 0)
+                      })
+                      if ratio not in selected:
+                          selected[ratio] = f"{cdn}/{urllib.parse.quote(key, safe='/')}"
+
+          Path('/tmp/selected-artwork.json').write_text(json.dumps({
+              'bucket': os.environ.get('BUCKET', ''),
+              'prefix': os.environ['PREFIX'],
+              'selected': selected,
+              'candidates': candidates,
+              'all_objects': objects
+          }, indent=2))
+          PY
+
+          PATCH=$(jq -c '{
+            song_artwork_16x9_url: (.selected["16x9"] // empty),
+            song_artwork_9x16_url: (.selected["9x16"] // empty),
+            song_artwork_3x4_url: (.selected["3x4"] // empty),
+            song_artwork_4x5_url: (.selected["4x5"] // empty),
+            song_artwork_21x9_url: (.selected["21x9"] // empty)
+          } | with_entries(select(.value != ""))' /tmp/selected-artwork.json)
+
+          FOUND_9X16=$(jq -r '.selected["9x16"] // empty' /tmp/selected-artwork.json)
+          PATCH_STATUS='not_attempted'
+          printf '{"success":false,"error":"No 9x16 artwork object found under the song artwork prefix."}' > /tmp/patch-response.json
+
+          if [ -n "${FOUND_9X16}" ]; then
+            PATCH_STATUS=$(curl --silent --show-error --max-time 90 \
+              -X PATCH \
+              -H "x-admin-token: ${ADMIN_TOKEN}" \
+              -H 'content-type: application/json' \
+              --data "${PATCH}" \
+              -o /tmp/patch-response.json -w '%{http_code}' \
+              "${API_BASE}/radio/admin/songs/${SONG_KEY}/artwork-images")
+          fi
+
+          VERIFY_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/verified-profile.json -w '%{http_code}' \
+            "${API_BASE}/radio/admin/songs/${SONG_KEY}/artwork-images")
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg bucket "${BUCKET}" \
+            --arg prefix "${PREFIX}" \
+            --arg patch_http_status "${PATCH_STATUS}" \
+            --arg verify_http_status "${VERIFY_STATUS}" \
+            --slurpfile found /tmp/selected-artwork.json \
+            --slurpfile patch /tmp/patch-response.json \
+            --slurpfile verified /tmp/verified-profile.json '
+              {
+                recorded_at: $recorded_at,
+                bucket: $bucket,
+                prefix: $prefix,
+                patch_http_status: $patch_http_status,
+                verify_http_status: $verify_http_status,
+                selected: ($found[0].selected // {}),
+                candidates: ($found[0].candidates // {}),
+                patch_response: $patch[0],
+                verified_profile: ($verified[0].media // $verified[0] // {})
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/artwork-objects.json /tmp/selected-artwork.json /tmp/patch-response.json /tmp/verified-profile.json
+          unset ADMIN_TOKEN
+
+      - name: Commit repair report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Palm Trees artwork profile repair [skip ci]'
+          git push origin HEAD:main
