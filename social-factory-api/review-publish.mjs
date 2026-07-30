@@ -64,6 +64,10 @@ function assertYoutubeAspectRatio(item) {
   }
 }
 
+function errorText(error, fallback = 'youtube_upload_failed') {
+  return String(error?.message || error?.error || error || fallback).trim().slice(0, 1000) || fallback;
+}
+
 async function bodyToString(body) {
   if (!body) return '';
   if (typeof body.transformToString === 'function') return body.transformToString('utf-8');
@@ -158,58 +162,172 @@ export function createReviewPublishService({
     }
   }
 
+  async function markPublishing(id, item, scheduledContext) {
+    const startedAt = now().toISOString();
+    const updated = {
+      ...item,
+      publishing_status: 'publishing',
+      publish_error: null,
+      publish_attempt: {
+        ...item.publish_attempt,
+        status: 'publishing',
+        attempt_count: Number(item.publish_attempt?.attempt_count || 0) + 1,
+        started_at: startedAt,
+        failed_at: null,
+        completed_at: null,
+        last_error: null
+      },
+      platform_results: {
+        ...item.platform_results,
+        youtube: {
+          ...item.platform_results?.youtube,
+          status: 'publishing',
+          started_at: startedAt,
+          failed_at: null,
+          error: null
+        }
+      },
+      schedule: scheduledContext
+        ? {
+            ...item.schedule,
+            status: 'publishing',
+            started_at: item.schedule?.started_at || startedAt,
+            last_error: null
+          }
+        : item.schedule,
+      updated_at: startedAt
+    };
+    await getStore().putReview(id, updated);
+    return updated;
+  }
+
+  async function markPublishFailed(id, item, error, scheduledContext) {
+    const failedAt = now().toISOString();
+    const message = errorText(error);
+    const updated = {
+      ...item,
+      publishing_status: 'publish_failed',
+      publish_error: message,
+      publish_attempt: {
+        ...item.publish_attempt,
+        status: 'failed',
+        failed_at: failedAt,
+        completed_at: null,
+        last_error: message
+      },
+      platform_results: {
+        ...item.platform_results,
+        youtube: {
+          ...item.platform_results?.youtube,
+          status: 'failed',
+          failed_at: failedAt,
+          error: message
+        }
+      },
+      schedule: scheduledContext
+        ? {
+            ...item.schedule,
+            status: 'failed',
+            failed_at: failedAt,
+            last_error: message
+          }
+        : item.schedule,
+      updated_at: failedAt
+    };
+    await getStore().putReview(id, updated);
+    return updated;
+  }
+
   async function executePublish({ event, id, item, confirmUpload, scheduledContext = null }) {
+    let workingItem = item;
+    if (confirmUpload === true) {
+      workingItem = await markPublishing(id, item, scheduledContext);
+    }
+
     const publishEvent = {
       ...event,
       body: JSON.stringify({
-        object_key: item.video?.object_key,
-        title: item.metadata?.selected_title,
-        description: item.metadata?.description,
-        tags: item.metadata?.tags,
-        category_id: item.metadata?.category_id || '10',
-        made_for_kids: Boolean(item.publish_settings?.made_for_kids),
-        notify_subscribers: Boolean(item.publish_settings?.notify_subscribers),
+        object_key: workingItem.video?.object_key,
+        title: workingItem.metadata?.selected_title,
+        description: workingItem.metadata?.description,
+        tags: workingItem.metadata?.tags,
+        category_id: workingItem.metadata?.category_id || '10',
+        made_for_kids: Boolean(workingItem.publish_settings?.made_for_kids),
+        notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),
         confirm_upload: confirmUpload === true
       }),
       isBase64Encoded: false
     };
 
-    const result = await youtubePublish.publish(publishEvent);
+    let result;
+    try {
+      result = await youtubePublish.publish(publishEvent);
+    } catch (error) {
+      if (confirmUpload === true) {
+        await markPublishFailed(id, workingItem, error, scheduledContext);
+      }
+      throw error;
+    }
+
     if (!result.uploaded) {
+      if (confirmUpload === true) {
+        const failed = await markPublishFailed(
+          id,
+          workingItem,
+          result.error || result.message || result.mode || 'youtube_upload_not_completed',
+          scheduledContext
+        );
+        throw serviceError('youtube_upload_not_completed', 502, {
+          mode: String(result.mode || ''),
+          review_id: id,
+          publishing_status: failed.publishing_status
+        });
+      }
       return {
         publishing_triggered: false,
         review_id: id,
-        scheduled_at: item.publish_settings?.scheduled_at || null,
-        requested_visibility: String(item.publish_settings?.visibility || 'unlisted'),
+        scheduled_at: workingItem.publish_settings?.scheduled_at || null,
+        requested_visibility: String(workingItem.publish_settings?.visibility || 'unlisted'),
         ...result
       };
     }
 
     const publishedAt = now().toISOString();
     const updated = {
-      ...item,
+      ...workingItem,
       publishing_status: 'published',
       published_at: publishedAt,
+      publish_error: null,
+      publish_attempt: {
+        ...workingItem.publish_attempt,
+        status: 'published',
+        completed_at: publishedAt,
+        failed_at: null,
+        last_error: null
+      },
       publish_settings: {
-        ...item.publish_settings,
+        ...workingItem.publish_settings,
         actual_visibility: 'unlisted'
       },
       schedule: scheduledContext
         ? {
-            ...item.schedule,
+            ...workingItem.schedule,
             status: 'completed',
             completed_at: publishedAt,
             last_error: null
           }
-        : item.schedule,
+        : workingItem.schedule,
       platform_results: {
-        ...item.platform_results,
+        ...workingItem.platform_results,
         youtube: {
+          ...workingItem.platform_results?.youtube,
           status: 'published',
           video_id: result.youtube_video_id,
           url: result.youtube_url,
           privacy_status: result.privacy_status || 'unlisted',
-          published_at: publishedAt
+          published_at: publishedAt,
+          failed_at: null,
+          error: null
         }
       },
       updated_at: publishedAt
