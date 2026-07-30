@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-07-30T15:18:04Z",
+  "review_id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+  "confirm_upload": false,
+  "uploaded": false,
+  "http_status": 200,
+  "response": {
+    "ok": true,
+    "error": null,
+    "details": null,
+    "mode": "validation_only",
+    "ready": true,
+    "title": "Stashbox - Dirty Bird | Official Short",
+    "channel_id": "UC6C6Z_erONmKW67pF5AyYkA",
+    "privacy_status": "unlisted",
+    "publishing_triggered": false,
+    "scheduled_at": null,
+    "requested_visibility": "unlisted"
+  }
+}
