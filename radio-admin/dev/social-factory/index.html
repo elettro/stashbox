@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stashbox Social Factory · Campaigns & Content Review</title>
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="./social-factory.css?v=20260728-batch2" />
-  <link rel="stylesheet" href="./campaign-builder.css?v=20260728-batch2" />
-  <link rel="stylesheet" href="./render-operations.css?v=20260728-batch2" />
+  <link rel="stylesheet" href="/radio-admin/dev/styles.css" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/social-factory.css?v=20260730-loadfix1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-builder.css?v=20260730-loadfix1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/render-operations.css?v=20260730-loadfix1" />
 </head>
 <body class="sf-page">
   <header class="topbar">
@@ -26,7 +26,7 @@
       <div>
         <p class="sf-eyebrow">Campaigns & Content Review</p>
         <h2>Turn eligible songs into organized social campaigns</h2>
-        <p>Social Factory can rank songs, propose Video Factory jobs, prepare draft batches, launch approved renders, move completed files into review, and generate YouTube copy while keeping publishing behind a separate approval.</p>
+        <p>Rank songs, prepare Video Factory jobs, launch approved renders, review completed videos, and prepare controlled YouTube publishing.</p>
       </div>
       <div class="sf-status-card">
         <span class="sf-live-dot" aria-hidden="true"></span>
@@ -55,7 +55,7 @@
         <div>
           <p class="sf-eyebrow">Batch Campaign Builder</p>
           <h2 id="campaignTitle">Plan the next Video Factory batch</h2>
-          <p class="sf-campaign-intro">Generate a ranked proposal first. YouTube batches are restricted to 9:16 vertical or 16:9 widescreen. New campaigns default the opening intro overlay off. Creating draft jobs is a separate approval, and this section never launches renders or publishes videos.</p>
+          <p class="sf-campaign-intro">Generate a safe proposal first. YouTube output is limited to 9:16 or 16:9. New Social Factory campaigns default the opening intro and title overlays off.</p>
         </div>
         <span class="sf-pill sf-pill-muted">Safe Planning Mode</span>
       </div>
@@ -105,7 +105,6 @@
           <input id="campaignArtist" placeholder="Optional, for example Stashbox" />
         </label>
         <label class="sf-campaign-check"><input id="campaignRequireVisuals" type="checkbox" checked /> Only songs with indicated visuals</label>
-
         <div class="sf-campaign-actions">
           <button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button>
           <button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create Draft Jobs</button>
@@ -129,8 +128,8 @@
       <div class="sf-section-head">
         <div>
           <p class="sf-eyebrow">Video Factory Operations</p>
-          <h2 id="renderOperationsTitle">Launch, monitor, and stage approved render jobs</h2>
-          <p class="sf-campaign-intro">Load a campaign after its draft jobs are created. Rendering requires confirmation. Completed Social Factory renders automatically enter Content Review.</p>
+          <h2 id="renderOperationsTitle">Launch and monitor campaign renders</h2>
+          <p class="sf-campaign-intro">Load a campaign after its drafts are created. Completed Social Factory renders automatically enter Content Review.</p>
         </div>
         <span class="sf-pill sf-pill-muted">No Auto-Publish</span>
       </div>
@@ -166,7 +165,6 @@
 
       <div id="renderJobList" class="sf-render-job-list"></div>
       <p id="renderJobsEmpty" class="sf-render-empty">No campaign jobs loaded yet.</p>
-
       <div class="sf-render-operation-note">
         <strong>Publishing stays locked.</strong>
         <span>Launching renders creates video files. Completed Social Factory files enter Content Review automatically. Neither action publishes to YouTube.</span>
@@ -184,7 +182,6 @@
           </div>
           <button id="refreshQueue" class="sf-icon-button" type="button" aria-label="Refresh review queue">↻</button>
         </div>
-
         <div class="sf-filters">
           <input id="queueSearch" type="search" placeholder="Search song or artist" />
           <select id="queueStatus" aria-label="Filter review status">
@@ -194,7 +191,6 @@
             <option value="held">Held</option>
           </select>
         </div>
-
         <div class="sf-count-row">
           <span id="queueCount">0 items</span>
           <span>Private DEV</span>
@@ -241,30 +237,24 @@
               <label class="sf-full">Generated Title Options
                 <div id="titleOptions" class="sf-title-options"></div>
               </label>
-
               <label class="sf-full">Selected YouTube Title
                 <input id="selectedTitle" maxlength="100" required />
                 <span class="sf-field-meta"><span id="titleCount">0</span>/100</span>
               </label>
-
               <label class="sf-full">Description
                 <textarea id="description" rows="12" maxlength="5000"></textarea>
                 <span class="sf-field-meta"><span id="descriptionCount">0</span>/5000</span>
               </label>
-
               <label class="sf-full">Tags
                 <textarea id="tags" rows="3" placeholder="One per line or separated by commas"></textarea>
               </label>
-
               <label class="sf-full">Hashtags
                 <input id="hashtags" placeholder="#Stashbox #Reggae #StashboxRadio" />
               </label>
-
               <label class="sf-full">Collaborators
                 <textarea id="collaborators" rows="4" placeholder="One per line: Name | @YouTubeHandle | Credit"></textarea>
                 <span class="sf-field-help">Official YouTube collaborator invitations are still completed in YouTube Studio.</span>
               </label>
-
               <div class="sf-form-row">
                 <label>Visibility
                   <select id="visibility">
@@ -277,23 +267,19 @@
                   <input id="scheduledAt" type="datetime-local" />
                 </label>
               </div>
-
               <div class="sf-form-row sf-checkbox-row">
                 <label><input id="madeForKids" type="checkbox" /> Made for kids</label>
                 <label><input id="notifySubscribers" type="checkbox" /> Notify subscribers</label>
               </div>
-
               <label class="sf-full">Review Note
                 <textarea id="reviewNote" rows="3" placeholder="Internal note about approval, edits, or hold reason"></textarea>
               </label>
-
               <div class="sf-form-actions sf-full">
                 <button id="saveReview" class="sf-button" type="submit">Save Changes</button>
                 <button id="approveReview" class="sf-button sf-button-success" type="button">Approve</button>
                 <button id="holdReview" class="sf-button sf-button-warning" type="button">Hold</button>
                 <button id="reopenReview" class="sf-button sf-button-secondary" type="button">Reopen</button>
               </div>
-
               <div class="sf-publish-lock sf-full">
                 <strong>YouTube publishing remains locked</strong>
                 <span>This page saves and approves content. YouTube output is limited to 9x16 or 16x9, and publishing still requires a separate confirmed control.</span>
@@ -305,12 +291,12 @@
     </section>
   </main>
 
-  <script src="./social-factory.js?v=20260728-batch2"></script>
-  <script src="./publishing-controls.js?v=20260729-discard-intro1"></script>
-  <script src="./schedule-controls.js?v=20260729-youtuberatios2"></script>
-  <script src="./campaign-builder.js?v=20260729-youtuberatios2"></script>
-  <script src="./campaign-proposal-controls.js?v=20260729-reroll-full1"></script>
-  <script src="./render-operations.js?v=20260728-batch2"></script>
-  <script src="/radio-admin/dev/shared-admin-header.js?v=20260728-social-factory1" defer></script>
+  <script src="/radio-admin/dev/social-factory/social-factory.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/social-factory/publishing-controls.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/social-factory/schedule-controls.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/social-factory/campaign-builder.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/social-factory/campaign-proposal-controls.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/social-factory/render-operations.js?v=20260730-loadfix1"></script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260730-loadfix1" defer></script>
 </body>
 </html>
