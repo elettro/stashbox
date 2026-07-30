@@ -52,6 +52,7 @@ jobs:
           test -n "${BUCKET}" && test "${BUCKET}" != 'None' || { echo 'UPLOAD_BUCKET is missing.' >&2; exit 1; }
 
           PREFIX="songs/stashbox/tracks/${SONG_KEY}/artwork/"
+          export BUCKET PREFIX
           aws s3api list-objects-v2 \
             --bucket "${BUCKET}" \
             --prefix "${PREFIX}" \
