@@ -1,0 +1,89 @@
+name: Diagnose Social Factory YouTube Status
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-social-youtube-status.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/social-factory-youtube-status-live.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Query protected Social Factory review records
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}"
+          mkdir -p deployment-reports
+          curl --fail --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100" > /tmp/reviews.json
+
+          jq '{
+            checked_at: (now | todateiso8601),
+            total_items: (.items | length),
+            dirty_bird: [
+              .items[]
+              | select(((.song.title // "") + " " + (.metadata.selected_title // "")) | ascii_downcase | contains("dirty bird"))
+              | {
+                  id,
+                  song_title: (.song.title // ""),
+                  selected_title: (.metadata.selected_title // ""),
+                  review_status: (.status // ""),
+                  approval_state: (.approval_state // ""),
+                  publishing_status: (.publishing_status // "not_published"),
+                  visibility_requested: (.publish_settings.visibility // ""),
+                  scheduled_at: (.publish_settings.scheduled_at // null),
+                  published_at: (.published_at // null),
+                  youtube: (.platform_results.youtube // null),
+                  schedule: (.schedule // null),
+                  updated_at: (.updated_at // null)
+                }
+            ],
+            recent_items: [
+              .items
+              | sort_by(.created_at // "")
+              | reverse
+              | .[0:10][]
+              | {
+                  id,
+                  song_title: (.song.title // ""),
+                  review_status: (.status // ""),
+                  publishing_status: (.publishing_status // "not_published"),
+                  published_at: (.published_at // null),
+                  youtube_video_id: (.platform_results.youtube.video_id // null),
+                  youtube_url: (.platform_results.youtube.url // null),
+                  updated_at: (.updated_at // null)
+                }
+            ]
+          }' /tmp/reviews.json > "${REPORT_PATH}"
+
+      - name: Commit sanitized status report
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then
+            echo 'No status change to commit.'
+            exit 0
+          fi
+          git commit -m 'Record live Social Factory YouTube status [skip ci]'
+          git push origin HEAD:main
