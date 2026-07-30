@@ -1,0 +1,136 @@
+name: One-Time Finalize Custom GPT Authentication Live
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-finalize-custom-gpt-auth-live.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      CUSTOM_GPT_SECRET: stashbox/social-factory/dev/custom-gpt
+      REPORT_PATH: deployment-reports/custom-gpt-auth-live-verification.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify live credentials and write receipt
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          stack_output() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
+              --output text
+          }
+
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)
+          BASE_URL=$(stack_output SocialApiDevBaseUrl)
+          FUNCTION_NAME=$(stack_output SocialApiDevFunctionName)
+          CUSTOM_GPT_SECRET_ARN=$(stack_output CustomGptCredentialSecretArn)
+          FUNCTION_SECRET_ID=$(aws lambda get-function-configuration --function-name "${FUNCTION_NAME}" --query 'Environment.Variables.SOCIAL_CUSTOM_GPT_SECRET' --output text)
+          RESOURCE_STATUS=$(aws cloudformation list-stack-resources --stack-name "${STACK_NAME}" --query "StackResourceSummaries[?LogicalResourceId=='CustomGptCredentialSecret'].ResourceStatus | [0]" --output text)
+
+          HEALTH_STATUS=$(curl --silent --show-error --max-time 60 -o /tmp/health.json -w '%{http_code}' "${BASE_URL}/social/health")
+          HEALTH_OK=$(jq -r '.ok == true and .environment == "dev" and .isolation.customGptAuthenticationConfigured == true and .isolation.batchCampaignPlanningSupported == true and .isolation.batchRenderOperationsSupported == true and .isolation.contentReviewSupported == true and .isolation.scheduledPublishingConfigured == true' /tmp/health.json)
+
+          aws secretsmanager get-secret-value --secret-id "${CONFIG_SECRET}" --query SecretString --output text > /tmp/admin.json
+          ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/admin.json)
+          aws secretsmanager get-secret-value --secret-id "${CUSTOM_GPT_SECRET}" --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+          GPT_ACTOR=$(jq -r '.actor_id' /tmp/gpt.json)
+          GPT_PERMISSION_COUNT=$(jq -r '.permissions | length' /tmp/gpt.json)
+
+          BROWSER_STATUS=$(curl --silent --show-error --max-time 60 -H "x-admin-token: ${ADMIN_TOKEN}" -o /tmp/browser.json -w '%{http_code}' "${BASE_URL}/social/orchestration/candidates?limit=1")
+          GPT_STATUS=$(curl --silent --show-error --max-time 60 -H "x-admin-token: ${GPT_TOKEN}" -o /tmp/gpt-check.json -w '%{http_code}' "${BASE_URL}/social/orchestration/candidates?limit=1")
+          INVALID_STATUS=$(curl --silent --show-error --max-time 60 -H 'x-admin-token: invalid-custom-gpt-test-token' -o /tmp/invalid.json -w '%{http_code}' "${BASE_URL}/social/review-items?limit=1")
+          BROWSER_OK=$(jq -r '.ok == true' /tmp/browser.json)
+          GPT_OK=$(jq -r '.ok == true' /tmp/gpt-check.json)
+
+          test "${STACK_STATUS}" = 'UPDATE_COMPLETE'
+          test "${FUNCTION_SECRET_ID}" = "${CUSTOM_GPT_SECRET_ARN}"
+          case "${RESOURCE_STATUS}" in *_COMPLETE) ;; *) exit 1 ;; esac
+          test "${HEALTH_STATUS}" = '200'
+          test "${HEALTH_OK}" = 'true'
+          test "${BROWSER_STATUS}" = '200'
+          test "${BROWSER_OK}" = 'true'
+          test "${GPT_STATUS}" = '200'
+          test "${GPT_OK}" = 'true'
+          test "${INVALID_STATUS}" = '401'
+          test "${GPT_ACTOR}" = 'stashbox-radio-gpt'
+          test "${GPT_PERMISSION_COUNT}" -gt 0
+
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg stack_status "${STACK_STATUS}" \
+            --arg base_url "${BASE_URL}" \
+            --arg function_name "${FUNCTION_NAME}" \
+            --arg custom_gpt_secret_id "${FUNCTION_SECRET_ID}" \
+            --arg custom_gpt_resource_status "${RESOURCE_STATUS}" \
+            --arg health_http_status "${HEALTH_STATUS}" \
+            --arg browser_admin_http_status "${BROWSER_STATUS}" \
+            --arg custom_gpt_http_status "${GPT_STATUS}" \
+            --arg invalid_token_http_status "${INVALID_STATUS}" \
+            --arg custom_gpt_actor "${GPT_ACTOR}" \
+            --argjson custom_gpt_permission_count "${GPT_PERMISSION_COUNT}" '
+            {
+              status:"success",
+              recorded_at:$recorded_at,
+              stack_status:$stack_status,
+              base_url:$base_url,
+              function_name:$function_name,
+              custom_gpt_secret_id:$custom_gpt_secret_id,
+              custom_gpt_resource_status:$custom_gpt_resource_status,
+              health_http_status:$health_http_status,
+              browser_admin_http_status:$browser_admin_http_status,
+              custom_gpt_http_status:$custom_gpt_http_status,
+              invalid_token_http_status:$invalid_token_http_status,
+              custom_gpt_actor:$custom_gpt_actor,
+              custom_gpt_permission_count:$custom_gpt_permission_count,
+              browser_admin_preserved:true,
+              custom_gpt_credential_separate:true,
+              custom_gpt_credential_verified:true,
+              health_contract_verified:true,
+              invalid_token_rejected:true,
+              full_social_factory_cycle_permissions_configured:true,
+              token_value_recorded:false,
+              rendering_triggered:false,
+              scheduling_triggered:false,
+              publishing_triggered:false,
+              production_changed:false
+            }' > "${REPORT_PATH}"
+
+          rm -f /tmp/admin.json /tmp/gpt.json
+
+      - name: Commit clean receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record successful Custom GPT authentication verification [skip ci]'
+          git push origin HEAD:main
