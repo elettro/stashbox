@@ -1,0 +1,22 @@
+name: Trigger Large YouTube Upload Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-trigger-large-youtube-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Social Factory DEV deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-social-factory-api-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
