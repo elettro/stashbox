@@ -5,18 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stashbox Social Factory · Campaigns & Content Review</title>
   <link rel="stylesheet" href="/radio-admin/dev/styles.css" />
-  <link rel="stylesheet" href="/radio-admin/dev/social-factory/social-factory.css?v=20260730-loadfix1" />
-  <link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-builder.css?v=20260730-loadfix1" />
-  <link rel="stylesheet" href="/radio-admin/dev/social-factory/render-operations.css?v=20260730-loadfix1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/social-factory.css?v=20260730-freezefix1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-builder.css?v=20260730-freezefix1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/render-operations.css?v=20260730-freezefix1" />
 </head>
 <body class="sf-page">
   <header class="topbar">
     <a class="topbar-title-link" href="/radio-admin/dev/" aria-label="Return to Stashbox Radio dev admin">
       <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
-      <div class="radio-title-row">
-        <h1>Social Factory</h1>
-        <span class="dev-admin-badge">DEV</span>
-      </div>
+      <div class="radio-title-row"><h1>Social Factory</h1><span class="dev-admin-badge">DEV</span></div>
       <p class="radio-admin-meta">Private campaign planning, render operations, content review, and publishing preparation</p>
     </a>
   </header>
@@ -28,21 +25,11 @@
         <h2>Turn eligible songs into organized social campaigns</h2>
         <p>Rank songs, prepare Video Factory jobs, launch approved renders, review completed videos, and prepare controlled YouTube publishing.</p>
       </div>
-      <div class="sf-status-card">
-        <span class="sf-live-dot" aria-hidden="true"></span>
-        <div>
-          <strong>Connected workflow</strong>
-          <span>Song CMS → Video Factory → Social Factory Review</span>
-        </div>
-      </div>
+      <div class="sf-status-card"><span class="sf-live-dot" aria-hidden="true"></span><div><strong>Connected workflow</strong><span>Song CMS → Video Factory → Social Factory Review</span></div></div>
     </section>
 
     <section class="sf-token-card" aria-label="Social Factory authorization">
-      <div>
-        <p class="sf-eyebrow">Private DEV access</p>
-        <strong>Social Factory Admin Token</strong>
-        <span id="tokenStatus">Not saved in this tab</span>
-      </div>
+      <div><p class="sf-eyebrow">Private DEV access</p><strong>Social Factory Admin Token</strong><span id="tokenStatus">Not saved in this tab</span></div>
       <div class="sf-token-controls">
         <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" />
         <button id="saveToken" class="sf-button" type="button">Use Token</button>
@@ -61,64 +48,19 @@
       </div>
 
       <form id="campaignForm" class="sf-campaign-form">
-        <label>Campaign Name
-          <input id="campaignName" maxlength="100" value="Social Factory Test Batch" required />
-        </label>
-        <label>Songs
-          <select id="campaignSongCount">
-            <option value="1">1 song</option>
-            <option value="3" selected>3 songs</option>
-            <option value="5">5 songs</option>
-            <option value="10">10 songs</option>
-          </select>
-        </label>
-        <label>Versions Per Song
-          <select id="campaignVariations">
-            <option value="1" selected>1 version</option>
-            <option value="2">2 versions</option>
-            <option value="3">3 versions</option>
-          </select>
-        </label>
-        <label>Length
-          <select id="campaignDuration" aria-description="Choose a short clip, a multi-minute video, or the complete song duration.">
-            <option value="15">15 seconds</option>
-            <option value="30" selected>30 seconds</option>
-            <option value="45">45 seconds</option>
-            <option value="60">60 seconds</option>
-            <option value="90">90 seconds</option>
-            <option value="120">2 minutes</option>
-            <option value="180">3 minutes</option>
-            <option value="300">5 minutes</option>
-            <option value="full">Full Song</option>
-          </select>
-        </label>
-        <label>Video Size
-          <select id="campaignRatio" aria-description="YouTube output is restricted to 9x16 vertical or 16x9 widescreen.">
-            <option value="9:16" selected>9:16 Vertical</option>
-            <option value="16:9">16:9 Widescreen</option>
-          </select>
-        </label>
-        <label>Genre Filter
-          <input id="campaignGenre" placeholder="Optional, for example Reggae" />
-        </label>
-        <label>Artist Filter
-          <input id="campaignArtist" placeholder="Optional, for example Stashbox" />
-        </label>
+        <label>Campaign Name<input id="campaignName" maxlength="100" value="Social Factory Test Batch" required /></label>
+        <label>Songs<select id="campaignSongCount"><option value="1">1 song</option><option value="3" selected>3 songs</option><option value="5">5 songs</option><option value="10">10 songs</option></select></label>
+        <label>Versions Per Song<select id="campaignVariations"><option value="1" selected>1 version</option><option value="2">2 versions</option><option value="3">3 versions</option></select></label>
+        <label>Length<select id="campaignDuration" aria-description="Choose a short clip, a multi-minute video, or the complete song duration."><option value="15">15 seconds</option><option value="30" selected>30 seconds</option><option value="45">45 seconds</option><option value="60">60 seconds</option><option value="90">90 seconds</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option><option value="full">Full Song</option></select></label>
+        <label>Video Size<select id="campaignRatio" aria-description="YouTube output is restricted to 9x16 vertical or 16x9 widescreen."><option value="9:16" selected>9:16 Vertical</option><option value="16:9">16:9 Widescreen</option></select></label>
+        <label>Genre Filter<input id="campaignGenre" placeholder="Optional, for example Reggae" /></label>
+        <label>Artist Filter<input id="campaignArtist" placeholder="Optional, for example Stashbox" /></label>
         <label class="sf-campaign-check"><input id="campaignRequireVisuals" type="checkbox" checked /> Only songs with indicated visuals</label>
-        <div class="sf-campaign-actions">
-          <button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button>
-          <button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create Draft Jobs</button>
-        </div>
+        <div class="sf-campaign-actions"><button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button><button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create Draft Jobs</button></div>
       </form>
 
       <div id="campaignPlan" class="sf-campaign-plan" hidden>
-        <div class="sf-campaign-plan-head">
-          <div>
-            <p class="sf-eyebrow">Proposed Batch</p>
-            <strong id="campaignPlanSummary"></strong>
-          </div>
-          <span id="campaignPlanId" class="sf-mini-pill"></span>
-        </div>
+        <div class="sf-campaign-plan-head"><div><p class="sf-eyebrow">Proposed Batch</p><strong id="campaignPlanSummary"></strong></div><span id="campaignPlanId" class="sf-mini-pill"></span></div>
         <div id="campaignPlanList" class="sf-campaign-plan-list"></div>
         <p class="sf-private-note">Creating drafts only prepares Video Factory jobs. Every render still requires a separate launch approval.</p>
       </div>
@@ -126,164 +68,53 @@
 
     <section class="sf-render-operations" aria-labelledby="renderOperationsTitle">
       <div class="sf-section-head">
-        <div>
-          <p class="sf-eyebrow">Video Factory Operations</p>
-          <h2 id="renderOperationsTitle">Launch and monitor campaign renders</h2>
-          <p class="sf-campaign-intro">Load a campaign after its drafts are created. Completed Social Factory renders automatically enter Content Review.</p>
-        </div>
+        <div><p class="sf-eyebrow">Video Factory Operations</p><h2 id="renderOperationsTitle">Launch and monitor campaign renders</h2><p class="sf-campaign-intro">Load a campaign after its drafts are created. Completed Social Factory renders automatically enter Content Review.</p></div>
         <span class="sf-pill sf-pill-muted">No Auto-Publish</span>
       </div>
-
-      <div class="sf-render-lookup">
-        <input id="renderCampaignName" maxlength="100" placeholder="Campaign name, for example Social Factory Test Batch" />
-        <div class="sf-render-select-actions">
-          <button id="loadRenderCampaign" class="sf-button" type="button">Load Campaign Jobs</button>
-          <button id="renderRefresh" class="sf-button sf-button-secondary" type="button">Refresh Status</button>
-        </div>
-      </div>
-
-      <div class="sf-render-summary" aria-label="Render job status summary">
-        <div class="sf-render-stat"><strong id="renderTotalCount">0</strong><span>Total Jobs</span></div>
-        <div class="sf-render-stat"><strong id="renderDraftCount">0</strong><span>Draft</span></div>
-        <div class="sf-render-stat"><strong id="renderActiveCount">0</strong><span>Rendering</span></div>
-        <div class="sf-render-stat"><strong id="renderCompletedCount">0</strong><span>Completed</span></div>
-        <div class="sf-render-stat"><strong id="renderFailedCount">0</strong><span>Failed</span></div>
-      </div>
-
+      <div class="sf-render-lookup"><input id="renderCampaignName" maxlength="100" placeholder="Campaign name, for example Social Factory Test Batch" /><div class="sf-render-select-actions"><button id="loadRenderCampaign" class="sf-button" type="button">Load Campaign Jobs</button><button id="renderRefresh" class="sf-button sf-button-secondary" type="button">Refresh Status</button></div></div>
+      <div class="sf-render-summary" aria-label="Render job status summary"><div class="sf-render-stat"><strong id="renderTotalCount">0</strong><span>Total Jobs</span></div><div class="sf-render-stat"><strong id="renderDraftCount">0</strong><span>Draft</span></div><div class="sf-render-stat"><strong id="renderActiveCount">0</strong><span>Rendering</span></div><div class="sf-render-stat"><strong id="renderCompletedCount">0</strong><span>Completed</span></div><div class="sf-render-stat"><strong id="renderFailedCount">0</strong><span>Failed</span></div></div>
       <div class="sf-render-toolbar">
-        <div class="sf-render-select-actions">
-          <button id="selectDraftRenders" class="sf-button sf-button-secondary" type="button">Select Drafts</button>
-          <button id="selectCompletedRenders" class="sf-button sf-button-secondary" type="button">Select Completed</button>
-          <button id="clearRenderSelection" class="sf-button sf-button-secondary" type="button">Clear Selection</button>
-          <span id="renderSelectionCount" class="sf-mini-pill">0 selected</span>
-        </div>
-        <div class="sf-render-primary-actions">
-          <button id="launchSelectedRenders" class="sf-button sf-button-warning" type="button" disabled>Launch Selected Renders</button>
-          <button id="stageSelectedRenders" class="sf-button sf-button-success" type="button" disabled>Move Completed to Review</button>
-        </div>
+        <div class="sf-render-select-actions"><button id="selectDraftRenders" class="sf-button sf-button-secondary" type="button">Select Drafts</button><button id="selectCompletedRenders" class="sf-button sf-button-secondary" type="button">Select Completed</button><button id="clearRenderSelection" class="sf-button sf-button-secondary" type="button">Clear Selection</button><span id="renderSelectionCount" class="sf-mini-pill">0 selected</span></div>
+        <div class="sf-render-primary-actions"><button id="launchSelectedRenders" class="sf-button sf-button-warning" type="button" disabled>Launch Selected Renders</button><button id="stageSelectedRenders" class="sf-button sf-button-success" type="button" disabled>Move Completed to Review</button></div>
       </div>
-
       <div id="renderJobList" class="sf-render-job-list"></div>
       <p id="renderJobsEmpty" class="sf-render-empty">No campaign jobs loaded yet.</p>
-      <div class="sf-render-operation-note">
-        <strong>Publishing stays locked.</strong>
-        <span>Launching renders creates video files. Completed Social Factory files enter Content Review automatically. Neither action publishes to YouTube.</span>
-      </div>
+      <div class="sf-render-operation-note"><strong>Publishing stays locked.</strong><span>Launching renders creates video files. Completed Social Factory files enter Content Review automatically. Neither action publishes to YouTube.</span></div>
     </section>
 
     <div id="message" class="sf-message" role="status" hidden></div>
 
     <section class="sf-workspace">
       <aside class="sf-queue" aria-labelledby="queueTitle">
-        <div class="sf-section-head">
-          <div>
-            <p class="sf-eyebrow">Review queue</p>
-            <h2 id="queueTitle">Content Items</h2>
-          </div>
-          <button id="refreshQueue" class="sf-icon-button" type="button" aria-label="Refresh review queue">↻</button>
-        </div>
-        <div class="sf-filters">
-          <input id="queueSearch" type="search" placeholder="Search song or artist" />
-          <select id="queueStatus" aria-label="Filter review status">
-            <option value="all">All statuses</option>
-            <option value="in_review">In Review</option>
-            <option value="approved">Approved</option>
-            <option value="held">Held</option>
-          </select>
-        </div>
-        <div class="sf-count-row">
-          <span id="queueCount">0 items</span>
-          <span>Private DEV</span>
-        </div>
+        <div class="sf-section-head"><div><p class="sf-eyebrow">Review queue</p><h2 id="queueTitle">Content Items</h2></div><button id="refreshQueue" class="sf-icon-button" type="button" aria-label="Refresh review queue">↻</button></div>
+        <div class="sf-filters"><input id="queueSearch" type="search" placeholder="Search song or artist" /><select id="queueStatus" aria-label="Filter review status"><option value="all">All statuses</option><option value="in_review">In Review</option><option value="approved">Approved</option><option value="held">Held</option></select></div>
+        <div class="sf-count-row"><span id="queueCount">0 items</span><span>Private DEV</span></div>
         <div id="queueList" class="sf-queue-list"></div>
         <p id="queueEmpty" class="sf-empty">No review items were found.</p>
       </aside>
 
       <section class="sf-editor" aria-labelledby="editorTitle">
-        <div id="editorBlank" class="sf-editor-blank">
-          <span class="sf-blank-icon">▶</span>
-          <h2>Select a content item</h2>
-          <p>Choose a finished render from the review queue to preview the video and edit its publishing information.</p>
-        </div>
-
+        <div id="editorBlank" class="sf-editor-blank"><span class="sf-blank-icon">▶</span><h2>Select a content item</h2><p>Choose a finished render from the review queue to preview the video and edit its publishing information.</p></div>
         <div id="editorContent" hidden>
-          <div class="sf-editor-head">
-            <div>
-              <p class="sf-eyebrow">Selected item</p>
-              <h2 id="editorTitle">Content Review</h2>
-              <p id="editorSubtitle"></p>
-            </div>
-            <div class="sf-editor-statuses">
-              <span id="reviewStatusPill" class="sf-pill">In Review</span>
-              <span id="publishStatusPill" class="sf-pill sf-pill-muted">Not Published</span>
-            </div>
-          </div>
-
+          <div class="sf-editor-head"><div><p class="sf-eyebrow">Selected item</p><h2 id="editorTitle">Content Review</h2><p id="editorSubtitle"></p></div><div class="sf-editor-statuses"><span id="reviewStatusPill" class="sf-pill">In Review</span><span id="publishStatusPill" class="sf-pill sf-pill-muted">Not Published</span></div></div>
           <div class="sf-editor-grid">
             <div class="sf-preview-panel">
-              <div class="sf-video-frame">
-                <video id="videoPreview" controls playsinline preload="metadata"></video>
-                <div id="previewLoading" class="sf-preview-loading">Loading secure preview…</div>
-              </div>
-              <div class="sf-video-facts">
-                <span id="videoRatio">9:16</span>
-                <span id="videoDuration">30 sec</span>
-                <span id="videoSize">0 MB</span>
-              </div>
+              <div class="sf-video-frame"><video id="videoPreview" controls playsinline preload="metadata"></video><div id="previewLoading" class="sf-preview-loading">Loading secure preview…</div></div>
+              <div class="sf-video-facts"><span id="videoRatio">9:16</span><span id="videoDuration">30 sec</span><span id="videoSize">0 MB</span></div>
               <p class="sf-private-note">Preview links are temporary. The MP4 remains private in Social Factory storage.</p>
             </div>
-
             <form id="reviewForm" class="sf-form">
-              <label class="sf-full">Generated Title Options
-                <div id="titleOptions" class="sf-title-options"></div>
-              </label>
-              <label class="sf-full">Selected YouTube Title
-                <input id="selectedTitle" maxlength="100" required />
-                <span class="sf-field-meta"><span id="titleCount">0</span>/100</span>
-              </label>
-              <label class="sf-full">Description
-                <textarea id="description" rows="12" maxlength="5000"></textarea>
-                <span class="sf-field-meta"><span id="descriptionCount">0</span>/5000</span>
-              </label>
-              <label class="sf-full">Tags
-                <textarea id="tags" rows="3" placeholder="One per line or separated by commas"></textarea>
-              </label>
-              <label class="sf-full">Hashtags
-                <input id="hashtags" placeholder="#Stashbox #Reggae #StashboxRadio" />
-              </label>
-              <label class="sf-full">Collaborators
-                <textarea id="collaborators" rows="4" placeholder="One per line: Name | @YouTubeHandle | Credit"></textarea>
-                <span class="sf-field-help">Official YouTube collaborator invitations are still completed in YouTube Studio.</span>
-              </label>
-              <div class="sf-form-row">
-                <label>Visibility
-                  <select id="visibility">
-                    <option value="unlisted">Unlisted</option>
-                    <option value="private">Private</option>
-                    <option value="public">Public after approval</option>
-                  </select>
-                </label>
-                <label>Schedule
-                  <input id="scheduledAt" type="datetime-local" />
-                </label>
-              </div>
-              <div class="sf-form-row sf-checkbox-row">
-                <label><input id="madeForKids" type="checkbox" /> Made for kids</label>
-                <label><input id="notifySubscribers" type="checkbox" /> Notify subscribers</label>
-              </div>
-              <label class="sf-full">Review Note
-                <textarea id="reviewNote" rows="3" placeholder="Internal note about approval, edits, or hold reason"></textarea>
-              </label>
-              <div class="sf-form-actions sf-full">
-                <button id="saveReview" class="sf-button" type="submit">Save Changes</button>
-                <button id="approveReview" class="sf-button sf-button-success" type="button">Approve</button>
-                <button id="holdReview" class="sf-button sf-button-warning" type="button">Hold</button>
-                <button id="reopenReview" class="sf-button sf-button-secondary" type="button">Reopen</button>
-              </div>
-              <div class="sf-publish-lock sf-full">
-                <strong>YouTube publishing remains locked</strong>
-                <span>This page saves and approves content. YouTube output is limited to 9x16 or 16x9, and publishing still requires a separate confirmed control.</span>
-              </div>
+              <label class="sf-full">Generated Title Options<div id="titleOptions" class="sf-title-options"></div></label>
+              <label class="sf-full">Selected YouTube Title<input id="selectedTitle" maxlength="100" required /><span class="sf-field-meta"><span id="titleCount">0</span>/100</span></label>
+              <label class="sf-full">Description<textarea id="description" rows="12" maxlength="5000"></textarea><span class="sf-field-meta"><span id="descriptionCount">0</span>/5000</span></label>
+              <label class="sf-full">Tags<textarea id="tags" rows="3" placeholder="One per line or separated by commas"></textarea></label>
+              <label class="sf-full">Hashtags<input id="hashtags" placeholder="#Stashbox #Reggae #StashboxRadio" /></label>
+              <label class="sf-full">Collaborators<textarea id="collaborators" rows="4" placeholder="One per line: Name | @YouTubeHandle | Credit"></textarea><span class="sf-field-help">Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>
+              <div class="sf-form-row"><label>Visibility<select id="visibility"><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public after approval</option></select></label><label>Schedule<input id="scheduledAt" type="datetime-local" /></label></div>
+              <div class="sf-form-row sf-checkbox-row"><label><input id="madeForKids" type="checkbox" /> Made for kids</label><label><input id="notifySubscribers" type="checkbox" /> Notify subscribers</label></div>
+              <label class="sf-full">Review Note<textarea id="reviewNote" rows="3" placeholder="Internal note about approval, edits, or hold reason"></textarea></label>
+              <div class="sf-form-actions sf-full"><button id="saveReview" class="sf-button" type="submit">Save Changes</button><button id="approveReview" class="sf-button sf-button-success" type="button">Approve</button><button id="holdReview" class="sf-button sf-button-warning" type="button">Hold</button><button id="reopenReview" class="sf-button sf-button-secondary" type="button">Reopen</button></div>
+              <div class="sf-publish-lock sf-full"><strong>YouTube publishing remains locked</strong><span>This page saves and approves content. YouTube output is limited to 9x16 or 16x9, and publishing still requires a separate confirmed control.</span></div>
             </form>
           </div>
         </div>
@@ -291,12 +122,12 @@
     </section>
   </main>
 
-  <script src="/radio-admin/dev/social-factory/social-factory.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/social-factory/publishing-controls.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/social-factory/schedule-controls.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/social-factory/campaign-builder.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/social-factory/campaign-proposal-controls.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/social-factory/render-operations.js?v=20260730-loadfix1"></script>
-  <script src="/radio-admin/dev/shared-admin-header.js?v=20260730-loadfix1" defer></script>
+  <script src="/radio-admin/dev/social-factory/social-factory.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/publishing-controls.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/schedule-controls.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/campaign-builder.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/campaign-proposal-controls.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/render-operations.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260730-freezefix1" defer></script>
 </body>
 </html>
