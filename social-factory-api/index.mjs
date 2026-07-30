@@ -7,6 +7,7 @@ import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
 import { createReviewPublishService } from './review-publish.mjs';
 import { createSchedulePublishService } from './schedule-publish.mjs';
+import { createRequestAuthenticator } from './request-auth.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
 const SERVICE_VERSION = '0.7.0';
@@ -119,7 +120,8 @@ export function createHandler({
   reviewWorkflow = null,
   reviewActions = null,
   reviewPublisher = null,
-  reviewScheduler = null
+  reviewScheduler = null,
+  requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
   let resolvedVideoOrchestrator = videoOrchestrator;
@@ -193,7 +195,24 @@ export function createHandler({
       };
     }
 
+    let authenticatedActor = null;
+
     try {
+      if (requestAuthenticator) {
+        const normalized = await requestAuthenticator.normalize(event, { method, path });
+        event = normalized.event;
+        authenticatedActor = normalized.actor;
+        if (authenticatedActor) {
+          console.info('Social Factory authenticated action', {
+            actor_id: authenticatedActor.id,
+            actor_type: authenticatedActor.type,
+            permission: authenticatedActor.permission,
+            method,
+            path
+          });
+        }
+      }
+
       if (method === 'GET' && path === '/social/health') {
         const queueConfigured = Boolean(process.env.SOCIAL_SCHEDULE_QUEUE_ARN);
         const schedulerConfigured = Boolean(
@@ -229,6 +248,7 @@ export function createHandler({
             reviewPublishingSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             scheduledPublishingConfigured: queueConfigured && schedulerConfigured,
             securePreviewSupported: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
+            customGptAuthenticationConfigured: Boolean(process.env.SOCIAL_CUSTOM_GPT_SECRET),
             executionRoleScope: 'cloudwatch-youtube-oauth-secrets-social-publish-video-factory-read-and-scheduler'
           }
         });
@@ -367,6 +387,16 @@ export function createHandler({
         path
       });
     } catch (error) {
+      if (authenticatedActor) {
+        console.warn('Social Factory authenticated action failed', {
+          actor_id: authenticatedActor.id,
+          actor_type: authenticatedActor.type,
+          permission: authenticatedActor.permission,
+          method,
+          path,
+          error: error?.message || 'internal_error'
+        });
+      }
       return errorResponse(error);
     }
   };

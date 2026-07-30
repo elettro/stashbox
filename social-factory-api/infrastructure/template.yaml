@@ -64,6 +64,27 @@ Resources:
         - Key: Purpose
           Value: youtube-oauth-tokens
 
+  CustomGptCredentialSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: stashbox/social-factory/dev/custom-gpt
+      Description: Dedicated revocable credential for the private Stashbox Radio Custom GPT in DEV.
+      GenerateSecretString:
+        SecretStringTemplate: >-
+          {"actor_id":"stashbox-radio-gpt","enabled":true,"permissions":["songs:read","campaigns:plan","campaigns:create_drafts","renders:read","renders:create_drafts","renders:launch","review:read","review:write","review:decide","review:stage","schedule:create","schedule:cancel","youtube:read","youtube:publish"]}
+        GenerateStringKey: api_key
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: custom-gpt-credential
+
   SocialPublishBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -214,6 +235,7 @@ Resources:
                 Resource:
                   - !Ref YoutubeOAuthConfigSecret
                   - !Ref YoutubeOAuthTokenSecret
+                  - !Ref CustomGptCredentialSecret
               - Sid: WriteYoutubeOAuthTokenSecret
                 Effect: Allow
                 Action:
@@ -361,6 +383,7 @@ Resources:
           ALLOWED_ORIGIN: !Ref AllowedOrigin
           YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
+          SOCIAL_CUSTOM_GPT_SECRET: !Ref CustomGptCredentialSecret
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
           VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
           SOCIAL_SCHEDULE_GROUP: !Ref SocialPublishScheduleGroup
@@ -602,6 +625,8 @@ Outputs:
     Value: !Ref YoutubeOAuthConfigSecret
   YoutubeOAuthTokenSecretArn:
     Value: !Ref YoutubeOAuthTokenSecret
+  CustomGptCredentialSecretArn:
+    Value: !Ref CustomGptCredentialSecret
   SocialPublishBucketName:
     Value: !Ref SocialPublishBucket
   SocialPublishBucketArn:
