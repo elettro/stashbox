@@ -124,11 +124,19 @@
 
     const plan = byId('campaignPlan');
     if (plan) {
-      new MutationObserver(() => {
-        button.hidden = plan.hidden;
-        normalizeFullSongLabels();
-      }).observe(plan, { attributes: true, attributeFilter: ['hidden'], childList: true, subtree: true });
+      // Set the initial state before observing. Observe only the plan element's
+      // own hidden attribute so changing the child button cannot retrigger the
+      // observer and lock the browser main thread.
       button.hidden = plan.hidden;
+      new MutationObserver(() => {
+        const shouldHide = Boolean(plan.hidden);
+        if (button.hidden !== shouldHide) button.hidden = shouldHide;
+        normalizeFullSongLabels();
+      }).observe(plan, {
+        attributes: true,
+        attributeFilter: ['hidden'],
+        subtree: false
+      });
     }
   }
 
@@ -187,15 +195,17 @@
         requestInit = init;
       }
 
-      const response = await previousFetch(input, requestInit);
-      if (isPlanRequest) {
-        window.setTimeout(() => {
-          const button = byId('refreshCampaignProposal');
-          if (button) button.disabled = false;
-          normalizeFullSongLabels();
-        }, 0);
+      try {
+        return await previousFetch(input, requestInit);
+      } finally {
+        if (isPlanRequest) {
+          window.setTimeout(() => {
+            const button = byId('refreshCampaignProposal');
+            if (button) button.disabled = false;
+            normalizeFullSongLabels();
+          }, 0);
+        }
       }
-      return response;
     };
   }
 
