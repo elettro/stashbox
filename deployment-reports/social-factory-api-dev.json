@@ -1,9 +1,9 @@
 {
   "status": "failure",
-  "recorded_at": "2026-07-30T14:00:00Z",
-  "commit_sha": "b4e6a847e1338eae240e92743d1b7ca8006e28a1",
-  "run_id": "30549470102",
-  "run_url": "https://github.com/elettro/stashbox/actions/runs/30549470102",
+  "recorded_at": "2026-07-30T14:00:58Z",
+  "commit_sha": "d8be82eda3bf520cc792e289cbe102670ebc98ec",
+  "run_id": "30549544849",
+  "run_url": "https://github.com/elettro/stashbox/actions/runs/30549544849",
   "region": "us-east-1",
   "stack_name": "stashbox-social-api-dev",
   "stack_status": "",
