@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-07-30T15:18:41Z",
+  "item": {
+    "id": "render-b4056bb3-ec24-4733-929d-4a4e5facabf8",
+    "song_title": "Dirty Bird",
+    "review_status": "approved",
+    "approval_state": "approved",
+    "publishing_status": "publish_failed",
+    "publish_error": "direct_publish_size_exceeds_safe_limit",
+    "published_at": null,
+    "platform_youtube": {
+      "status": "failed",
+      "started_at": "2026-07-30T15:17:08.064Z",
+      "failed_at": "2026-07-30T15:17:08.297Z",
+      "error": "direct_publish_size_exceeds_safe_limit"
+    },
+    "schedule": null,
+    "updated_at": "2026-07-30T15:17:08.297Z"
+  }
+}
