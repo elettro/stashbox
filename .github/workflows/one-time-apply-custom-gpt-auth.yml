@@ -9,6 +9,7 @@ on:
       - '.github/workflows/one-time-apply-custom-gpt-auth.yml'
       - 'social-factory-api/request-auth.mjs'
       - 'social-factory-api/tests/request-auth.test.mjs'
+      - 'social-factory-api/tests/health.test.mjs'
       - 'social-factory-api/scripts/apply-custom-gpt-auth.mjs'
 
 permissions:
@@ -217,4 +218,4 @@ jobs:
           git commit -m 'Record Custom GPT authentication deployment [skip ci]'
           git push origin HEAD:main
 
-# Retrigger after workflow became available on main — 2026-07-30
+# Retrigger after health capability test update — 2026-07-30
