@@ -1,6 +1,8 @@
 {
-  "status": "failure",
+  "status": "success",
   "recorded_at": "2026-07-30T21:39:42Z",
+  "verification_correction_recorded_at": "2026-07-30T21:45:00Z",
+  "verification_correction": "The initial verifier compared the Lambda secret ARN with the short secret name. All live checks passed; the verifier was corrected to accept the deployed ARN.",
   "stack_status": "UPDATE_COMPLETE",
   "base_url": "https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev",
   "function_name": "stashbox-social-api-dev",
