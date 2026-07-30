@@ -4,6 +4,8 @@ import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16']);
 const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
 const NON_REUSABLE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
+const ACTIVE_RENDER_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
+const MAX_BATCH_JOBS = 20;
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -53,9 +55,9 @@ function lower(value) {
 
 function normalizeSettings(input = {}) {
   const songCount = boundedInteger(input.song_count, 3, 1, 10, 'song_count');
-  const variationsPerSong = boundedInteger(input.variations_per_song, 1, 1, 3, 'variations_per_song');
-  if (songCount * variationsPerSong > 20) {
-    throw serviceError('batch_job_limit_exceeded', 422, { maximum_jobs: 20 });
+  const variationsPerSong = boundedInteger(input.variations_per_song, 1, 1, 10, 'variations_per_song');
+  if (songCount * variationsPerSong > MAX_BATCH_JOBS) {
+    throw serviceError('batch_job_limit_exceeded', 422, { maximum_jobs: MAX_BATCH_JOBS });
   }
 
   const aspectRatio = cleanText(input.aspect_ratio, '9:16', 8);
@@ -207,7 +209,8 @@ function createProposal(candidates, settings) {
     mode: 'proposal_only',
     campaign_name: settings.campaign_name,
     approval_required_before_draft_creation: true,
-    approval_required_before_render_launch: true,
+    approval_required_before_render_launch: false,
+    render_launch_included_with_draft_creation_approval: true,
     selected_song_count: selectedSongs.length,
     proposed_job_count: jobs.length,
     settings,
@@ -231,6 +234,15 @@ function reusableJob(job, recipe) {
     String(job.batch_name || '') === recipe.batch_name &&
     String(job.song_key || '') === recipe.song_key &&
     String(job.campaign_name || '') === recipe.campaign_name;
+}
+
+function launchSkipReason(job = {}) {
+  const status = lower(job.status);
+  if (ACTIVE_RENDER_STATUSES.has(status)) return 'already_active';
+  if (status === 'completed') return 'already_completed';
+  if (status !== 'draft') return 'status_not_launchable';
+  if (!job.id) return 'missing_job_id';
+  return '';
 }
 
 export function createBatchCampaignService({
@@ -293,18 +305,58 @@ export function createBatchCampaignService({
         existingJobs.push(result.job);
       }
 
+      const campaignJobs = [
+        ...createdJobs.map((entry) => entry.job),
+        ...skippedJobs.map((entry) => entry.job)
+      ];
+      const launchedJobs = [];
+      const launchSkippedJobs = [];
+      const launchFailedJobs = [];
+
+      for (const job of campaignJobs) {
+        const reason = launchSkipReason(job);
+        if (reason) {
+          launchSkippedJobs.push({ reason, job });
+          continue;
+        }
+        try {
+          const result = await orchestrator.launch(
+            childEvent(event, { confirm_render: true }),
+            String(job.id)
+          );
+          launchedJobs.push({
+            job: result.job || job,
+            downstream: result.downstream || null
+          });
+        } catch (error) {
+          launchFailedJobs.push({
+            job,
+            error: String(error?.message || 'render_launch_failed'),
+            details: error?.details || null
+          });
+        }
+      }
+
       return {
         created: true,
-        mode: 'drafts_created',
+        mode: 'drafts_created_and_renders_launched',
         plan_id: proposal.plan_id,
         campaign_name: proposal.campaign_name,
         proposed_job_count: proposal.proposed_job_count,
         created_job_count: createdJobs.length,
         skipped_job_count: skippedJobs.length,
-        approval_required_before_render_launch: true,
-        renders_launched: false,
+        approval_required_before_render_launch: false,
+        renders_launched: launchedJobs.length > 0,
+        launched_job_count: launchedJobs.length,
+        launch_skipped_job_count: launchSkippedJobs.length,
+        launch_failed_job_count: launchFailedJobs.length,
         created_jobs: createdJobs,
         skipped_jobs: skippedJobs,
+        launched_jobs: launchedJobs,
+        launch_skipped_jobs: launchSkippedJobs,
+        launch_failed_jobs: launchFailedJobs,
+        publishing_triggered: false,
+        youtube_published: false,
         proposal
       };
     }
