@@ -54,10 +54,16 @@ function lower(value) {
 }
 
 function normalizeSettings(input = {}) {
-  const songCount = boundedInteger(input.song_count, 3, 1, 10, 'song_count');
+  const selectedSongKeys = [...new Set(stringList(input.selected_song_keys))].slice(0, 10);
+  const requestedSongCount = boundedInteger(input.song_count, 3, 1, 10, 'song_count');
+  const songCount = selectedSongKeys.length || requestedSongCount;
   const variationsPerSong = boundedInteger(input.variations_per_song, 1, 1, 10, 'variations_per_song');
   if (songCount * variationsPerSong > MAX_BATCH_JOBS) {
-    throw serviceError('batch_job_limit_exceeded', 422, { maximum_jobs: MAX_BATCH_JOBS });
+    throw serviceError('batch_job_limit_exceeded', 422, {
+      maximum_jobs: MAX_BATCH_JOBS,
+      selected_song_count: songCount,
+      variations_per_song: variationsPerSong
+    });
   }
 
   const aspectRatio = cleanText(input.aspect_ratio, '9:16', 8);
@@ -80,11 +86,9 @@ function normalizeSettings(input = {}) {
   const campaignName = cleanText(input.campaign_name, 'Social Factory Test Batch', 100);
   if (!campaignName) throw serviceError('campaign_name_required', 422);
 
-  const selectedSongKeys = [...new Set(stringList(input.selected_song_keys))].slice(0, 10);
-
   return {
     campaign_name: campaignName,
-    song_count: selectedSongKeys.length || songCount,
+    song_count: songCount,
     variations_per_song: variationsPerSong,
     aspect_ratio: aspectRatio,
     duration_mode: durationMode,
