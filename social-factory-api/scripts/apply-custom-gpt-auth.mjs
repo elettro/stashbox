@@ -56,8 +56,8 @@ const customGptSecretBlock = `${tokenSecretBlock}\n  CustomGptCredentialSecret:\
 templateSource = replaceOnce(templateSource, tokenSecretBlock, customGptSecretBlock, 'custom GPT secret resource');
 templateSource = replaceOnce(
   templateSource,
-  `                  - !Ref YoutubeOAuthConfigSecret\n                  - !Ref YoutubeOAuthTokenSecret\n              - Sid: WriteYoutubeOAuthTokenSecret`,
-  `                  - !Ref YoutubeOAuthConfigSecret\n                  - !Ref YoutubeOAuthTokenSecret\n                  - !Ref CustomGptCredentialSecret\n              - Sid: WriteYoutubeOAuthTokenSecret`,
+  `        - PolicyName: SocialApiDevYoutubeOAuthSecrets\n          PolicyDocument:\n            Version: '2012-10-17'\n            Statement:\n              - Sid: ReadYoutubeOAuthSecrets\n                Effect: Allow\n                Action:\n                  - secretsmanager:DescribeSecret\n                  - secretsmanager:GetSecretValue\n                Resource:\n                  - !Ref YoutubeOAuthConfigSecret\n                  - !Ref YoutubeOAuthTokenSecret\n              - Sid: WriteYoutubeOAuthTokenSecret`,
+  `        - PolicyName: SocialApiDevYoutubeOAuthSecrets\n          PolicyDocument:\n            Version: '2012-10-17'\n            Statement:\n              - Sid: ReadYoutubeOAuthSecrets\n                Effect: Allow\n                Action:\n                  - secretsmanager:DescribeSecret\n                  - secretsmanager:GetSecretValue\n                Resource:\n                  - !Ref YoutubeOAuthConfigSecret\n                  - !Ref YoutubeOAuthTokenSecret\n                  - !Ref CustomGptCredentialSecret\n              - Sid: WriteYoutubeOAuthTokenSecret`,
   'API role custom GPT secret read permission'
 );
 templateSource = replaceOnce(
