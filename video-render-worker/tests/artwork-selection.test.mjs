@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { artworkRatioKey, selectRenderArtwork } from '../src/artwork-selection.mjs';
+import { artworkRatioKey, refreshTimelineArtwork, selectRenderArtwork } from '../src/artwork-selection.mjs';
 
 const dirtyBird = {
   artwork_images: {
@@ -61,4 +61,35 @@ test('16:9 render uses 21x9 before square when 16x9 is missing', () => {
   }, '16:9');
   assert.equal(result.url, 'https://media.example/song-ultrawide.jpg');
   assert.equal(result.source_ratio, '21x9');
+});
+
+test('frozen 9:16 timelines replace stale square artwork with selected portrait artwork', () => {
+  const timeline = [
+    {
+      asset_id: 'song-artwork',
+      type: 'image',
+      source: 'song-artwork-start',
+      url: 'https://media.example/song-square.jpg'
+    },
+    {
+      asset_id: 'manual:official-artwork',
+      source_asset_id: 'official-artwork',
+      type: 'image',
+      source: 'song-artwork-manual',
+      url: 'https://media.example/song-square.jpg'
+    },
+    {
+      asset_id: 'vec-image-1',
+      type: 'image',
+      source: 'vec',
+      url: 'https://media.example/vec-image.jpg'
+    }
+  ];
+  const refreshed = refreshTimelineArtwork(
+    timeline,
+    'https://media.example/song-9x16.jpg'
+  );
+  assert.equal(refreshed[0].url, 'https://media.example/song-9x16.jpg');
+  assert.equal(refreshed[1].url, 'https://media.example/song-9x16.jpg');
+  assert.equal(refreshed[2].url, 'https://media.example/vec-image.jpg');
 });
