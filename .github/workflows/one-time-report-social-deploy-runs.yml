@@ -1,0 +1,45 @@
+name: Report Social Factory Deployment Runs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-report-social-deploy-runs.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read recent deployment runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p deployment-reports
+          gh run list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --workflow deploy-social-factory-api-dev.yml \
+            --limit 10 \
+            --json databaseId,status,conclusion,headSha,event,createdAt,updatedAt,url \
+            > deployment-reports/social-factory-deploy-runs-live.json
+
+      - name: Commit report
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add deployment-reports/social-factory-deploy-runs-live.json
+          git commit -m 'Record Social Factory deploy run queue [skip ci]'
+          git push origin HEAD:main
