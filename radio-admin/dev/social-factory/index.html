@@ -23,7 +23,7 @@
       <div>
         <p class="sf-eyebrow">Campaigns & Content Review</p>
         <h2>Turn eligible songs into organized social campaigns</h2>
-        <p>Rank songs, prepare Video Factory jobs, launch approved renders, review completed videos, and prepare controlled YouTube publishing.</p>
+        <p>Rank songs, prepare and launch Video Factory jobs, review completed videos, and prepare controlled YouTube publishing.</p>
       </div>
       <div class="sf-status-card"><span class="sf-live-dot" aria-hidden="true"></span><div><strong>Connected workflow</strong><span>Song CMS → Video Factory → Social Factory Review</span></div></div>
     </section>
@@ -50,25 +50,25 @@
       <form id="campaignForm" class="sf-campaign-form">
         <label>Campaign Name<input id="campaignName" maxlength="100" value="Social Factory Test Batch" required /></label>
         <label>Songs<select id="campaignSongCount"><option value="1">1 song</option><option value="3" selected>3 songs</option><option value="5">5 songs</option><option value="10">10 songs</option></select></label>
-        <label>Versions Per Song<select id="campaignVariations"><option value="1" selected>1 version</option><option value="2">2 versions</option><option value="3">3 versions</option></select></label>
+        <label>Versions Per Song<select id="campaignVariations" aria-description="Choose from 1 through 4 unique render versions per song. A campaign may contain no more than 20 total render jobs."><option value="1" selected>1 version</option><option value="2">2 versions</option><option value="3">3 versions</option><option value="4">4 versions</option></select></label>
         <label>Length<select id="campaignDuration" aria-description="Choose a short clip, a multi-minute video, or the complete song duration."><option value="15">15 seconds</option><option value="30" selected>30 seconds</option><option value="45">45 seconds</option><option value="60">60 seconds</option><option value="90">90 seconds</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option><option value="full">Full Song</option></select></label>
         <label>Video Size<select id="campaignRatio" aria-description="YouTube output is restricted to 9x16 vertical or 16x9 widescreen."><option value="9:16" selected>9:16 Vertical</option><option value="16:9">16:9 Widescreen</option></select></label>
         <label>Genre Filter<input id="campaignGenre" placeholder="Optional, for example Reggae" /></label>
         <label>Artist Filter<input id="campaignArtist" placeholder="Optional, for example Stashbox" /></label>
         <label class="sf-campaign-check"><input id="campaignRequireVisuals" type="checkbox" checked /> Only songs with indicated visuals</label>
-        <div class="sf-campaign-actions"><button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button><button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create Draft Jobs</button></div>
+        <div class="sf-campaign-actions"><button id="planCampaign" class="sf-button" type="submit">Generate Safe Plan</button><button id="createCampaignDrafts" class="sf-button sf-button-warning" type="button" hidden>Create &amp; Launch Renders</button></div>
       </form>
 
       <div id="campaignPlan" class="sf-campaign-plan" hidden>
         <div class="sf-campaign-plan-head"><div><p class="sf-eyebrow">Proposed Batch</p><strong id="campaignPlanSummary"></strong></div><span id="campaignPlanId" class="sf-mini-pill"></span></div>
         <div id="campaignPlanList" class="sf-campaign-plan-list"></div>
-        <p class="sf-private-note">Creating drafts only prepares Video Factory jobs. Every render still requires a separate launch approval.</p>
+        <p class="sf-private-note">Approving the proposed batch creates the Video Factory jobs and immediately launches the renders. Completed videos enter Content Review automatically. Nothing is published.</p>
       </div>
     </section>
 
     <section class="sf-render-operations" aria-labelledby="renderOperationsTitle">
       <div class="sf-section-head">
-        <div><p class="sf-eyebrow">Video Factory Operations</p><h2 id="renderOperationsTitle">Launch and monitor campaign renders</h2><p class="sf-campaign-intro">Load a campaign after its drafts are created. Completed Social Factory renders automatically enter Content Review.</p></div>
+        <div><p class="sf-eyebrow">Video Factory Operations</p><h2 id="renderOperationsTitle">Monitor campaign renders</h2><p class="sf-campaign-intro">Load a campaign to monitor progress or manually recover an older draft. Completed Social Factory renders automatically enter Content Review.</p></div>
         <span class="sf-pill sf-pill-muted">No Auto-Publish</span>
       </div>
       <div class="sf-render-lookup"><input id="renderCampaignName" maxlength="100" placeholder="Campaign name, for example Social Factory Test Batch" /><div class="sf-render-select-actions"><button id="loadRenderCampaign" class="sf-button" type="button">Load Campaign Jobs</button><button id="renderRefresh" class="sf-button sf-button-secondary" type="button">Refresh Status</button></div></div>
@@ -126,7 +126,7 @@
   <script src="/radio-admin/dev/social-factory/publishing-controls.js?v=20260730-freezefix1"></script>
   <script src="/radio-admin/dev/social-factory/schedule-controls.js?v=20260730-freezefix1"></script>
   <script src="/radio-admin/dev/social-factory/campaign-builder.js?v=20260730-freezefix1"></script>
-  <script src="/radio-admin/dev/social-factory/campaign-proposal-controls.js?v=20260730-freezefix1"></script>
+  <script src="/radio-admin/dev/social-factory/campaign-proposal-controls.js?v=20260730-versions4"></script>
   <script src="/radio-admin/dev/social-factory/render-operations.js?v=20260730-freezefix1"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260730-freezefix1" defer></script>
 </body>
