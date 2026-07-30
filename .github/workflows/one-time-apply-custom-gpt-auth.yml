@@ -216,3 +216,5 @@ jobs:
           git add "${REPORT_PATH}"
           git commit -m 'Record Custom GPT authentication deployment [skip ci]'
           git push origin HEAD:main
+
+# Retrigger after workflow became available on main — 2026-07-30
