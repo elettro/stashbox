@@ -1,0 +1,491 @@
+openapi: 3.1.0
+info:
+  title: Stashbox Radio Social Factory API
+  version: 0.7.0
+  description: Controlled DEV actions for Stashbox Radio campaign planning, Video Factory orchestration, Content Review, scheduling, and YouTube operations.
+servers:
+  - url: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+security:
+  - AdminToken: []
+paths:
+  /social/health:
+    get:
+      operationId: getSocialFactoryHealth
+      summary: Check the Social Factory service and supported capabilities.
+      security: []
+      responses:
+        '200':
+          description: Service health and capability flags.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/youtube/status:
+    get:
+      operationId: getYouTubeConnectionStatus
+      summary: Check whether the Stashbox YouTube account is connected and usable.
+      responses:
+        '200':
+          description: YouTube OAuth and channel status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/candidates:
+    get:
+      operationId: listSocialCampaignCandidates
+      summary: List and rank songs eligible for Social Factory rendering.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Candidate songs and readiness information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/batch-plan:
+    post:
+      operationId: planSocialRenderBatch
+      summary: Create a validation-only batch plan without creating render jobs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchPlanRequest'
+      responses:
+        '200':
+          description: Planned jobs, skipped songs, warnings, and recipe details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/batch-drafts:
+    post:
+      operationId: createSocialRenderDrafts
+      summary: Create Video Factory draft jobs from an approved batch definition. This does not launch renders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchPlanRequest'
+      responses:
+        '200':
+          description: Validation response when no drafts were created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        '201':
+          description: Draft jobs created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/render-jobs:
+    get:
+      operationId: listSocialRenderJobs
+      summary: List Video Factory render jobs and their current status.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Render jobs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+    post:
+      operationId: createSingleSocialRenderDraft
+      summary: Create one Video Factory render draft. This does not launch the render.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderDraftRequest'
+      responses:
+        '201':
+          description: Draft render job created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/render-jobs/{jobId}:
+    get:
+      operationId: getSocialRenderJob
+      summary: Inspect one render job by ID.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Render job details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/render-jobs/{jobId}/launch:
+    post:
+      operationId: validateOrLaunchSocialRender
+      summary: Validate a render launch, or launch only when confirm_render is explicitly true.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm_render:
+                  type: boolean
+                  default: false
+                  description: Omit or set false for validation. Set true only after immediate explicit user confirmation.
+      responses:
+        '200':
+          description: Validation or launch result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/render-jobs/{jobId}/stage:
+    post:
+      operationId: stageCompletedRenderForReview
+      summary: Stage a completed render into Content Review.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Staging and review-item result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/batch-jobs:
+    get:
+      operationId: inspectSocialRenderBatch
+      summary: Inspect a selected set of render jobs.
+      parameters:
+        - name: job_ids
+          in: query
+          required: true
+          description: Comma-separated render job IDs.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch job states and counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/batch-launch:
+    post:
+      operationId: validateOrLaunchSocialRenderBatch
+      summary: Validate batch launch, or launch only when confirm_render is explicitly true.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_ids]
+              properties:
+                job_ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                confirm_render:
+                  type: boolean
+                  default: false
+                  description: Omit or set false for validation. Set true only after immediate explicit user confirmation.
+      responses:
+        '200':
+          description: Validation or launch result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/orchestration/batch-stage:
+    post:
+      operationId: stageCompletedRenderBatchForReview
+      summary: Stage completed render jobs into Content Review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_ids]
+              properties:
+                job_ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Batch staging results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items:
+    get:
+      operationId: listSocialContentReviewItems
+      summary: List Content Review items.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Review items and status details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}:
+    get:
+      operationId: getSocialContentReviewItem
+      summary: Inspect one Content Review item.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Review item details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/preview:
+    post:
+      operationId: createSocialContentPreview
+      summary: Create or retrieve a secure preview for a review item.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Secure preview response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/save:
+    post:
+      operationId: saveSocialContentReviewEdits
+      summary: Save title, description, or other supported review metadata without approving or publishing.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Saved review item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/decision:
+    post:
+      operationId: setSocialContentReviewDecision
+      summary: Approve, hold, reject, or otherwise change a review decision. Requires immediate explicit user confirmation.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, hold, reject]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Updated review decision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/publish:
+    post:
+      operationId: validateOrPublishSocialContent
+      summary: Validate publishing, or publish only when confirm_upload is explicitly true.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm_upload:
+                  type: boolean
+                  default: false
+                  description: Omit or set false for validation. Set true only after immediate explicit user confirmation.
+      responses:
+        '200':
+          description: Validation or publishing result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/schedule:
+    post:
+      operationId: validateOrScheduleSocialContent
+      summary: Validate scheduling, or schedule only when confirm_schedule is explicitly true.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduled_at]
+              properties:
+                scheduled_at:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                  default: America/Montreal
+                confirm_schedule:
+                  type: boolean
+                  default: false
+                  description: Omit or set false for validation. Set true only after immediate explicit user confirmation.
+      responses:
+        '200':
+          description: Validation or scheduling result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  /social/review-items/{reviewId}/schedule/cancel:
+    post:
+      operationId: cancelScheduledSocialContent
+      summary: Cancel an existing scheduled publication. Requires immediate explicit user confirmation.
+      parameters:
+        - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Schedule cancellation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+components:
+  securitySchemes:
+    AdminToken:
+      type: apiKey
+      in: header
+      name: x-admin-token
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 250
+        default: 50
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    ReviewId:
+      name: reviewId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    BatchPlanRequest:
+      type: object
+      properties:
+        selected_song_keys:
+          type: array
+          items:
+            type: string
+        post_count:
+          type: integer
+          minimum: 1
+          maximum: 100
+        duration_seconds:
+          type: integer
+          minimum: 5
+          maximum: 600
+          default: 30
+        formats:
+          type: array
+          items:
+            type: string
+            enum: ['9:16', '16:9', '1:1', '4:5']
+        posting_pressure:
+          type: string
+          enum: [low, standard, aggressive, custom]
+        include_artist:
+          type: boolean
+          default: false
+        include_song:
+          type: boolean
+          default: false
+        include_album:
+          type: boolean
+          default: false
+      additionalProperties: true
+    RenderDraftRequest:
+      type: object
+      required: [song_key]
+      properties:
+        song_key:
+          type: string
+        aspect_ratio:
+          type: string
+          enum: ['9:16', '16:9', '1:1', '4:5']
+          default: '9:16'
+        duration_seconds:
+          type: integer
+          minimum: 5
+          maximum: 600
+          default: 30
+        fps:
+          type: integer
+          enum: [24, 25, 30, 60]
+          default: 30
+        include_artist:
+          type: boolean
+          default: false
+        include_song:
+          type: boolean
+          default: false
+        include_album:
+          type: boolean
+          default: false
+      additionalProperties: true
+    GenericResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
