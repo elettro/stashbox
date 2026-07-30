@@ -62,8 +62,8 @@ templateSource = replaceOnce(
 );
 templateSource = replaceOnce(
   templateSource,
-  `          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret\n          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket`,
-  `          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret\n          SOCIAL_CUSTOM_GPT_SECRET: !Ref CustomGptCredentialSecret\n          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket`,
+  `  SocialApiDevFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      FunctionName: stashbox-social-api-dev\n      Description: Isolated Stashbox Social Factory DEV API.\n      CodeUri: ../\n      Handler: index.handler\n      Runtime: nodejs22.x\n      Architectures:\n        - x86_64\n      MemorySize: 1024\n      Timeout: 900\n      Role: !GetAtt SocialApiDevRole.Arn\n      Environment:\n        Variables:\n          APP_ENV: !Ref EnvironmentName\n          ALLOWED_ORIGIN: !Ref AllowedOrigin\n          YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret\n          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret`,
+  `  SocialApiDevFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      FunctionName: stashbox-social-api-dev\n      Description: Isolated Stashbox Social Factory DEV API.\n      CodeUri: ../\n      Handler: index.handler\n      Runtime: nodejs22.x\n      Architectures:\n        - x86_64\n      MemorySize: 1024\n      Timeout: 900\n      Role: !GetAtt SocialApiDevRole.Arn\n      Environment:\n        Variables:\n          APP_ENV: !Ref EnvironmentName\n          ALLOWED_ORIGIN: !Ref AllowedOrigin\n          YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret\n          YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret\n          SOCIAL_CUSTOM_GPT_SECRET: !Ref CustomGptCredentialSecret`,
   'API custom GPT secret environment variable'
 );
 templateSource = replaceOnce(
