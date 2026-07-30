@@ -12,7 +12,7 @@ import {
   renderTimelineSegment
 } from './ffmpeg.mjs';
 import { buildRenderTimeline } from './timeline.mjs';
-import { selectRenderArtwork } from './artwork-selection.mjs';
+import { refreshTimelineArtwork, selectRenderArtwork } from './artwork-selection.mjs';
 
 function requiredEnv(name) {
   const value = String(process.env[name] || '').trim();
@@ -113,7 +113,7 @@ async function loadArtworkFallback(context, job, recipe) {
     const body = await apiRequest(
       context.apiBase,
       context.adminToken,
-      `/radio/songs/${encodeURIComponent(job.song_key)}/artwork-images`,
+      `/radio/admin/songs/${encodeURIComponent(job.song_key)}/artwork-images`,
       { method: 'GET' }
     );
     const selection = selectRenderArtwork(body?.media || body, job.aspect_ratio, recipeArtwork);
@@ -232,8 +232,11 @@ async function main() {
     const visualSettings = await loadVisualSettings(context, job);
     const artworkSelection = await loadArtworkFallback(context, job, activeRecipe);
     const artworkUrl = artworkSelection.url;
-    const timeline = Array.isArray(activeRecipe.timeline) && activeRecipe.timeline.length
-      ? activeRecipe.timeline
+    const frozenTimeline = Array.isArray(activeRecipe.timeline) && activeRecipe.timeline.length
+      ? refreshTimelineArtwork(activeRecipe.timeline, artworkUrl)
+      : [];
+    const timeline = frozenTimeline.length
+      ? frozenTimeline
       : buildRenderTimeline({
           total_duration_seconds: requestedDuration,
           segment_duration_seconds: Number(activeRecipe?.visuals?.segment_duration_seconds || 8),
