@@ -1,0 +1,138 @@
+name: Diagnose Latest 9x16 Render Artwork
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-latest-9x16-artwork.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      STACK_NAME: stashbox-video-factory-dev
+      REPORT_PATH: deployment-reports/latest-9x16-render-artwork-diagnostic.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect latest completed 9x16 job and deployed renderer
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          test -n "${ADMIN_TOKEN}" || { echo 'STASHBOX_DEV_ADMIN_TOKEN is missing.' >&2; exit 1; }
+
+          JOBS_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/video-jobs.json -w '%{http_code}' \
+            "${API_BASE}/admin/video-factory/jobs?limit=250")
+          test "${JOBS_STATUS}" = '200' || { cat /tmp/video-jobs.json >&2; exit 1; }
+
+          JOB_ID=$(jq -r '[.jobs[] | select(.aspect_ratio == "9:16" and .status == "completed")] | sort_by(.created_at) | reverse | .[0].id // empty' /tmp/video-jobs.json)
+          test -n "${JOB_ID}" || { echo 'No completed 9x16 job found.' >&2; exit 1; }
+
+          curl --fail --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${API_BASE}/admin/video-factory/jobs/${JOB_ID}" > /tmp/video-job.json
+          SONG_KEY=$(jq -r '.job.song_key // empty' /tmp/video-job.json)
+          test -n "${SONG_KEY}" || { echo 'Latest 9x16 job has no song_key.' >&2; exit 1; }
+
+          ENCODED_SONG_KEY=$(jq -rn --arg value "${SONG_KEY}" '$value|@uri')
+          ARTWORK_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            -o /tmp/artwork.json -w '%{http_code}' \
+            "${API_BASE}/radio/admin/songs/${ENCODED_SONG_KEY}/artwork-images")
+
+          TASK_DEFINITION=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='RenderTaskDefinitionArn'].OutputValue" \
+            --output text)
+          aws ecs describe-task-definition \
+            --task-definition "${TASK_DEFINITION}" \
+            --output json > /tmp/task-definition.json
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg jobs_http_status "${JOBS_STATUS}" \
+            --arg artwork_http_status "${ARTWORK_STATUS}" \
+            --arg task_definition "${TASK_DEFINITION}" \
+            --slurpfile exact /tmp/video-job.json \
+            --slurpfile artwork /tmp/artwork.json \
+            --slurpfile task /tmp/task-definition.json '
+              ($exact[0].job // {}) as $job |
+              ($job.render_recipe // {}) as $recipe |
+              {
+                recorded_at: $recorded_at,
+                jobs_http_status: $jobs_http_status,
+                artwork_http_status: $artwork_http_status,
+                deployed_renderer: {
+                  task_definition: $task_definition,
+                  image: ($task[0].taskDefinition.containerDefinitions[0].image // ""),
+                  revision: ($task[0].taskDefinition.revision // null),
+                  registered_at: ($task[0].taskDefinition.registeredAt // null)
+                },
+                job: {
+                  id: $job.id,
+                  song_key: $job.song_key,
+                  song_title: $job.song_title,
+                  artist: $job.artist,
+                  status: $job.status,
+                  aspect_ratio: $job.aspect_ratio,
+                  width: $job.width,
+                  height: $job.height,
+                  created_at: $job.created_at,
+                  started_at: $job.started_at,
+                  completed_at: $job.completed_at,
+                  output_url: $job.output_url,
+                  artwork_selection: ($recipe.artwork // {}),
+                  first_timeline_segments: [($recipe.timeline // [])[0:8][] | {
+                    index,
+                    asset_id,
+                    source,
+                    source_asset_id,
+                    type,
+                    url,
+                    start_seconds,
+                    duration_seconds
+                  }]
+                },
+                song_artwork_profile: ($artwork[0].media // $artwork[0] // {})
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/video-jobs.json /tmp/video-job.json /tmp/artwork.json /tmp/task-definition.json
+          unset ADMIN_TOKEN
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record latest 9x16 render artwork diagnostic [skip ci]'
+          git push origin HEAD:main
