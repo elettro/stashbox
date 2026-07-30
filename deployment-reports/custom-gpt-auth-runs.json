@@ -1,6 +1,30 @@
 {
-  "recorded_at": "2026-07-30T16:04:40Z",
+  "recorded_at": "2026-07-30T18:56:49Z",
   "runs": [
+    {
+      "id": 30560156295,
+      "name": "Deploy Social Factory API DEV",
+      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T16:09:26Z",
+      "updated_at": "2026-07-30T16:10:22Z",
+      "head_sha": "ef45b70bbddd20ee1c018130c2659a209d3deec5",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30560156295"
+    },
+    {
+      "id": 30560156059,
+      "name": "One-Time Apply Custom GPT Authentication",
+      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T16:09:26Z",
+      "updated_at": "2026-07-30T16:10:26Z",
+      "head_sha": "ef45b70bbddd20ee1c018130c2659a209d3deec5",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30560156059"
+    },
     {
       "id": 30557244850,
       "name": "Deploy Social Factory API DEV",
@@ -84,28 +108,16 @@
       "updated_at": "2026-07-30T15:09:47Z",
       "head_sha": "b950adeccd75fa9c3ea6334f3c4b9bafae38121f",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30555234853"
-    },
-    {
-      "id": 30550363325,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-07-30T14:09:57Z",
-      "updated_at": "2026-07-30T14:12:12Z",
-      "head_sha": "5fb290e1c81d2601f9cb4208ed7b469494639185",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30550363325"
     }
   ],
   "latest_custom_gpt_auth_jobs": [
     {
-      "id": 90920734583,
+      "id": 90930785937,
       "name": "apply-test-deploy",
       "status": "completed",
       "conclusion": "failure",
-      "started_at": "2026-07-30T15:33:16Z",
-      "completed_at": "2026-07-30T15:34:06Z",
+      "started_at": "2026-07-30T16:09:29Z",
+      "completed_at": "2026-07-30T16:10:25Z",
       "steps": [
         {
           "name": "Set up job",
@@ -140,13 +152,13 @@
         {
           "name": "Validate full Social Factory source",
           "status": "completed",
-          "conclusion": "failure",
+          "conclusion": "success",
           "number": 6
         },
         {
           "name": "Commit tested authentication source",
           "status": "completed",
-          "conclusion": "skipped",
+          "conclusion": "failure",
           "number": 7
         },
         {
@@ -196,12 +208,12 @@
   ],
   "latest_social_factory_deploy_jobs": [
     {
-      "id": 90920734797,
+      "id": 90930785897,
       "name": "validate-and-deploy",
       "status": "completed",
       "conclusion": "failure",
-      "started_at": "2026-07-30T15:33:23Z",
-      "completed_at": "2026-07-30T15:35:24Z",
+      "started_at": "2026-07-30T16:09:36Z",
+      "completed_at": "2026-07-30T16:10:21Z",
       "steps": [
         {
           "name": "Set up job",
@@ -230,37 +242,37 @@
         {
           "name": "Validate source",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "failure",
           "number": 5
         },
         {
           "name": "Configure AWS credentials",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 6
         },
         {
           "name": "Prepare stack and deployment bucket",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 7
         },
         {
           "name": "Build isolated SAM application",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 8
         },
         {
           "name": "Deploy isolated DEV stack",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 9
         },
         {
           "name": "Verify stack resources and protected routes",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 10
         },
         {
@@ -274,12 +286,6 @@
           "status": "completed",
           "conclusion": "skipped",
           "number": 12
-        },
-        {
-          "name": "Post Configure AWS credentials",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 22
         },
         {
           "name": "Post Setup Node.js 22",
