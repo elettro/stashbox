@@ -1,0 +1,67 @@
+name: Diagnose Dirty Bird YouTube Failure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-dirty-bird-youtube-failure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REVIEW_ID: render-b4056bb3-ec24-4733-929d-4a4e5facabf8
+      REPORT_PATH: deployment-reports/dirty-bird-youtube-failure-live.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read Dirty Bird review failure
+        env:
+          ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ADMIN_TOKEN}"
+          mkdir -p deployment-reports
+          curl --fail --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}" > /tmp/review.json
+
+          jq '{
+            checked_at: (now | todateiso8601),
+            item: (.item | {
+              id,
+              song_title: (.song.title // ""),
+              review_status: (.status // ""),
+              approval_state: (.approval_state // ""),
+              publishing_status: (.publishing_status // "not_published"),
+              publish_error: (.publish_error // null),
+              published_at: (.published_at // null),
+              platform_youtube: (.platform_results.youtube // null),
+              schedule: (.schedule // null),
+              updated_at: (.updated_at // null)
+            })
+          }' /tmp/review.json > "${REPORT_PATH}"
+
+      - name: Commit sanitized failure report
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then
+            echo 'No failure change to commit.'
+            exit 0
+          fi
+          git commit -m 'Record Dirty Bird YouTube failure [skip ci]'
+          git push origin HEAD:main
