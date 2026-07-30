@@ -42,6 +42,49 @@
     select.setAttribute('aria-description', 'Choose a short clip, a multi-minute video, or the complete song duration.');
   }
 
+  function installVariationOptions() {
+    const select = byId('campaignVariations');
+    if (!select) return;
+    const selected = Math.max(1, Math.min(10, Number(select.value || 1)));
+    select.replaceChildren(...Array.from({ length: 10 }, (_, index) => {
+      const value = index + 1;
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = `${value} version${value === 1 ? '' : 's'}`;
+      option.selected = value === selected;
+      return option;
+    }));
+    select.value = String(selected);
+    select.setAttribute('aria-description', 'Choose from 1 through 10 unique render versions per song. A campaign may contain no more than 20 total render jobs.');
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function installCreateAndLaunchCopy() {
+    const button = byId('createCampaignDrafts');
+    if (!button || button.dataset.autoLaunchCopyInstalled === 'true') return;
+    button.dataset.autoLaunchCopyInstalled = 'true';
+    button.textContent = 'Create & Launch Renders';
+    button.title = 'Create the approved Video Factory jobs and immediately start rendering them. Nothing is published.';
+
+    button.addEventListener('click', () => {
+      const nativeConfirm = window.confirm.bind(window);
+      const replacement = (message) => {
+        const text = String(message || '');
+        const match = text.match(/^Create\s+(\d+)\s+Video Factory draft job(?:s)?\?/i);
+        if (!match) return nativeConfirm(text);
+        const count = Number(match[1] || 0);
+        return nativeConfirm(
+          `Create and launch ${count} Video Factory render${count === 1 ? '' : 's'} now?\n\n` +
+          'This starts AWS rendering work. Completed videos will enter Social Factory Content Review automatically. Nothing will be published to YouTube.'
+        );
+      };
+      window.confirm = replacement;
+      window.setTimeout(() => {
+        if (window.confirm === replacement) window.confirm = nativeConfirm;
+      }, 0);
+    }, true);
+  }
+
   function installStyles() {
     if (byId('sfProposalControlStyles')) return;
     const style = document.createElement('style');
@@ -101,7 +144,7 @@
     button.className = 'sf-button sf-button-secondary';
     button.type = 'button';
     button.innerHTML = '<span class="sf-refresh-symbol" aria-hidden="true">↻</span>Refresh Proposal';
-    button.title = 'Create another safe proposal. No draft jobs, renders, or publishing actions occur.';
+    button.title = 'Create another safe proposal. No jobs, renders, or publishing actions occur.';
     actions.appendChild(button);
 
     button.addEventListener('click', () => {
@@ -124,9 +167,6 @@
 
     const plan = byId('campaignPlan');
     if (plan) {
-      // Set the initial state before observing. Observe only the plan element's
-      // own hidden attribute so changing the child button cannot retrigger the
-      // observer and lock the browser main thread.
       button.hidden = plan.hidden;
       new MutationObserver(() => {
         const shouldHide = Boolean(plan.hidden);
@@ -165,6 +205,7 @@
     window.fetch = async function proposalFetch(input, init = {}) {
       let requestInit = init;
       let isPlanRequest = false;
+      let isDraftRequest = false;
       try {
         const requestUrl = typeof input === 'string' || input instanceof URL
           ? String(input)
@@ -176,6 +217,7 @@
           url.pathname.endsWith('/social/orchestration/batch-drafts')
         );
         isPlanRequest = url.pathname.endsWith('/social/orchestration/batch-plan');
+        isDraftRequest = url.pathname.endsWith('/social/orchestration/batch-drafts');
 
         if (isCampaignRequest && typeof init?.body === 'string') {
           const body = JSON.parse(init.body);
@@ -196,7 +238,24 @@
       }
 
       try {
-        return await previousFetch(input, requestInit);
+        const response = await previousFetch(input, requestInit);
+        if (isDraftRequest) {
+          const payload = await response.clone().json().catch(() => ({}));
+          window.setTimeout(() => {
+            if (!response.ok || payload.ok === false || payload.created !== true) return;
+            const launched = Number(payload.launched_job_count || 0);
+            const failed = Number(payload.launch_failed_job_count || 0);
+            const skipped = Number(payload.launch_skipped_job_count || 0);
+            showMessage(
+              `${launched} render${launched === 1 ? '' : 's'} launched automatically` +
+              `${failed ? `, ${failed} failed to launch` : ''}` +
+              `${skipped ? `, ${skipped} already active or completed` : ''}. ` +
+              'Completed videos will enter Content Review automatically. Nothing was published.',
+              failed ? 'error' : 'success'
+            );
+          }, 0);
+        }
+        return response;
       } finally {
         if (isPlanRequest) {
           window.setTimeout(() => {
@@ -212,6 +271,8 @@
   function install() {
     installStyles();
     installLengthOptions();
+    installVariationOptions();
+    installCreateAndLaunchCopy();
     installRefreshButton();
     installProposalAttemptReset();
     installRequestAdapter();
