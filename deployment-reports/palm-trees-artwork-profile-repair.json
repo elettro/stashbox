@@ -1,0 +1,225 @@
+{
+  "recorded_at": "2026-07-30T20:19:56Z",
+  "bucket": "stashbox-radio-media-dev-us-east-1",
+  "prefix": "songs/stashbox/tracks/palm-trees-stashbox/artwork/",
+  "patch_http_status": "200",
+  "verify_http_status": "200",
+  "selected": {
+    "21x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+    "3x4": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+    "4x5": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+    "1x1": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+    "9x16": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+    "16x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png"
+  },
+  "candidates": {
+    "16x9": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+        "last_modified": "2026-07-29T17:59:10+00:00",
+        "size": 2766110
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152915295Z-c2550552-db82-4b31-b2f6-ca90ed867496-16x9-STASHBOX_Palm_Trees_16x9_1920x1080.png",
+        "last_modified": "2026-07-29T15:29:16+00:00",
+        "size": 1469203
+      }
+    ],
+    "9x16": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+        "last_modified": "2026-07-29T17:59:10+00:00",
+        "size": 2574038
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152914878Z-45b9d4ce-08ff-4735-84d3-a2cfab9788a4-9x16-STASHBOX_Palm_Trees_9x16_1080x1920.png",
+        "last_modified": "2026-07-29T15:29:16+00:00",
+        "size": 1442112
+      }
+    ],
+    "3x4": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+        "last_modified": "2026-07-29T17:59:11+00:00",
+        "size": 2395951
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152915657Z-96028aa2-c355-4d65-884f-7b15b971b534-3x4-STASHBOX_Palm_Trees_3x4_1536x2048.png",
+        "last_modified": "2026-07-29T15:29:16+00:00",
+        "size": 2464979
+      }
+    ],
+    "4x5": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+        "last_modified": "2026-07-29T17:59:11+00:00",
+        "size": 2727076
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152916092Z-6499c9ab-b061-405c-a87e-f0123174e539-4x5-STASHBOX_Palm_Trees_4x5_1080x1350.png",
+        "last_modified": "2026-07-29T15:29:17+00:00",
+        "size": 1372482
+      }
+    ],
+    "21x9": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+        "last_modified": "2026-07-29T17:59:12+00:00",
+        "size": 2577966
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152916517Z-5b103e06-e014-42e5-a02b-d3071d486608-21x9-STASHBOX_Palm_Trees_21x9_2520x1080.png",
+        "last_modified": "2026-07-29T15:29:17+00:00",
+        "size": 1519868
+      }
+    ],
+    "1x1": [
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+        "last_modified": "2026-07-29T17:59:10+00:00",
+        "size": 2813406
+      },
+      {
+        "key": "songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T152913856Z-7813c4cb-6bc2-47ee-ae57-64907d537fa5-1x1-STASHBOX_Palm_Trees_1x1_2048x2048.png",
+        "last_modified": "2026-07-29T15:29:15+00:00",
+        "size": 3637902
+      }
+    ]
+  },
+  "patch_response": {
+    "success": true,
+    "persisted": true,
+    "media": {
+      "song_key": "palm-trees-stashbox",
+      "song_name": "Palm Trees",
+      "display_title": "Palm Trees",
+      "artist": "Stashbox",
+      "song_artwork_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+      "song_artwork_1x1_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+      "song_artwork_16x9_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+      "song_artwork_9x16_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+      "song_artwork_3x4_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+      "song_artwork_4x5_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+      "song_artwork_21x9_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+      "artwork_images": {
+        "1x1": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+        "16x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+        "9x16": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+        "3x4": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+        "4x5": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+        "21x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png"
+      },
+      "resolved_artwork": {
+        "1x1": {
+          "requested_ratio": "1x1",
+          "source_ratio": "1x1",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+          "fallback_used": false
+        },
+        "16x9": {
+          "requested_ratio": "16x9",
+          "source_ratio": "16x9",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+          "fallback_used": false
+        },
+        "9x16": {
+          "requested_ratio": "9x16",
+          "source_ratio": "9x16",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+          "fallback_used": false
+        },
+        "3x4": {
+          "requested_ratio": "3x4",
+          "source_ratio": "3x4",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+          "fallback_used": false
+        },
+        "4x5": {
+          "requested_ratio": "4x5",
+          "source_ratio": "4x5",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+          "fallback_used": false
+        },
+        "21x9": {
+          "requested_ratio": "21x9",
+          "source_ratio": "21x9",
+          "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+          "fallback_used": false
+        }
+      },
+      "completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "updated_at": "2026-07-30T20:19:56.219Z"
+    }
+  },
+  "verified_profile": {
+    "song_key": "palm-trees-stashbox",
+    "song_name": "Palm Trees",
+    "display_title": "Palm Trees",
+    "artist": "Stashbox",
+    "song_artwork_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+    "song_artwork_1x1_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+    "song_artwork_16x9_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+    "song_artwork_9x16_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+    "song_artwork_3x4_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+    "song_artwork_4x5_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+    "song_artwork_21x9_url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+    "artwork_images": {
+      "1x1": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+      "16x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+      "9x16": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+      "3x4": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+      "4x5": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+      "21x9": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png"
+    },
+    "resolved_artwork": {
+      "1x1": {
+        "requested_ratio": "1x1",
+        "source_ratio": "1x1",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175908370Z-88f2e13a-2b8f-40a6-9de4-00037578005e-1x1-stashbox_palm_trees_1x1_1254x1254.png",
+        "fallback_used": false
+      },
+      "16x9": {
+        "requested_ratio": "16x9",
+        "source_ratio": "16x9",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909790Z-726faf21-403f-42f8-8798-31b84e36ae98-16x9-stashbox_palm_trees_16x9_1672x941.png",
+        "fallback_used": false
+      },
+      "9x16": {
+        "requested_ratio": "9x16",
+        "source_ratio": "9x16",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175909392Z-b87c4d9a-b6bd-4c0f-aee0-9a9ebca74cbd-9x16-stashbox_palm_trees_9x16_941x1672.png",
+        "fallback_used": false
+      },
+      "3x4": {
+        "requested_ratio": "3x4",
+        "source_ratio": "3x4",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910192Z-40c797bf-bd2f-439c-86aa-34f64c3c1f97-3x4-stashbox_palm_trees_3x4_1086x1448.png",
+        "fallback_used": false
+      },
+      "4x5": {
+        "requested_ratio": "4x5",
+        "source_ratio": "4x5",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175910574Z-755524d2-2ce8-466f-b56a-0a24243d4873-4x5-stashbox_palm_trees_4x5_1122x1402.png",
+        "fallback_used": false
+      },
+      "21x9": {
+        "requested_ratio": "21x9",
+        "source_ratio": "21x9",
+        "url": "https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/palm-trees-stashbox/artwork/20260729T175911093Z-496906fa-ceeb-494a-ae67-79131527a1ba-21x9-stashbox_palm_trees_21x9_1916x821.png",
+        "fallback_used": false
+      }
+    },
+    "completion": {
+      "ready": 6,
+      "total": 6,
+      "complete": true,
+      "label": "Complete Image Set"
+    },
+    "updated_at": "2026-07-30T20:19:56.219Z"
+  }
+}
