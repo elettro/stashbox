@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPOSITORY: ${{ github.repository }}
-      REPORT_PATH: deployment-reports/no-title-default-runs.json
+      REPORT_PATH: deployment-reports/custom-gpt-auth-runs.json
 
     steps:
       - name: Checkout main
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Capture no-title and deployment runs
+      - name: Capture Custom GPT authentication and Social Factory deploy runs
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "${REPORT_PATH}")"
@@ -36,39 +36,37 @@ jobs:
 
           jq '
             [.workflow_runs[] |
-              select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml" or
-                     .path == ".github/workflows/one-time-deploy-no-title-radio-dev.yml" or
-                     .path == ".github/workflows/deploy-true-dev-lambda.yml" or
+              select(.path == ".github/workflows/one-time-apply-custom-gpt-auth.yml" or
                      .path == ".github/workflows/deploy-social-factory-api-dev.yml") |
               {id, name, path, event, status, conclusion, created_at, updated_at, head_sha, html_url}
             ]
           ' /tmp/all-runs.json > /tmp/selected-runs.json
 
-          NO_TITLE_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-default-video-renders-no-titles.yml")][0].id // empty' /tmp/selected-runs.json)
-          RADIO_DIRECT_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-deploy-no-title-radio-dev.yml")][0].id // empty' /tmp/selected-runs.json)
+          CUSTOM_GPT_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/one-time-apply-custom-gpt-auth.yml")][0].id // empty' /tmp/selected-runs.json)
+          SOCIAL_DEPLOY_RUN_ID=$(jq -r '[.[] | select(.path == ".github/workflows/deploy-social-factory-api-dev.yml")][0].id // empty' /tmp/selected-runs.json)
 
-          if [ -n "${NO_TITLE_RUN_ID}" ]; then
-            gh api "repos/${REPOSITORY}/actions/runs/${NO_TITLE_RUN_ID}/jobs?per_page=100" > /tmp/no-title-jobs.json
+          if [ -n "${CUSTOM_GPT_RUN_ID}" ]; then
+            gh api "repos/${REPOSITORY}/actions/runs/${CUSTOM_GPT_RUN_ID}/jobs?per_page=100" > /tmp/custom-gpt-jobs.json
           else
-            printf '%s\n' '{"jobs":[]}' > /tmp/no-title-jobs.json
+            printf '%s\n' '{"jobs":[]}' > /tmp/custom-gpt-jobs.json
           fi
 
-          if [ -n "${RADIO_DIRECT_RUN_ID}" ]; then
-            gh api "repos/${REPOSITORY}/actions/runs/${RADIO_DIRECT_RUN_ID}/jobs?per_page=100" > /tmp/radio-direct-jobs.json
+          if [ -n "${SOCIAL_DEPLOY_RUN_ID}" ]; then
+            gh api "repos/${REPOSITORY}/actions/runs/${SOCIAL_DEPLOY_RUN_ID}/jobs?per_page=100" > /tmp/social-deploy-jobs.json
           else
-            printf '%s\n' '{"jobs":[]}' > /tmp/radio-direct-jobs.json
+            printf '%s\n' '{"jobs":[]}' > /tmp/social-deploy-jobs.json
           fi
 
           jq -n \
             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --slurpfile runs /tmp/selected-runs.json \
-            --slurpfile jobs /tmp/no-title-jobs.json \
-            --slurpfile radio_jobs /tmp/radio-direct-jobs.json '
+            --slurpfile custom_jobs /tmp/custom-gpt-jobs.json \
+            --slurpfile social_jobs /tmp/social-deploy-jobs.json '
             {
               recorded_at:$recorded_at,
               runs:$runs[0],
-              latest_no_title_jobs:($jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))})),
-              latest_radio_direct_jobs:($radio_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
+              latest_custom_gpt_auth_jobs:($custom_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))})),
+              latest_social_factory_deploy_jobs:($social_jobs[0].jobs | map({id,name,status,conclusion,started_at,completed_at,steps:(.steps | map({name,status,conclusion,number}))}))
             }' > "${REPORT_PATH}"
 
       - name: Commit snapshot
@@ -77,8 +75,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "${REPORT_PATH}"
-          git commit -m 'Record no-title default workflow status [skip ci]'
+          git commit -m 'Record Custom GPT authentication workflow status [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
 
-# Scoped Radio no-title deployment snapshot.
+# Custom GPT authentication deployment snapshot.
