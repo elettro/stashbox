@@ -1,0 +1,503 @@
+name: Enable Large YouTube Uploads
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-enable-large-youtube-uploads.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply background upload queue support
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Package dependency for sending immediate publish messages to SQS.
+          replace_once(
+              'social-factory-api/package.json',
+              '    "@aws-sdk/client-scheduler": "^3.0.0",\n',
+              '    "@aws-sdk/client-scheduler": "^3.0.0",\n    "@aws-sdk/client-sqs": "^3.0.0",\n'
+          )
+
+          # Infrastructure: API may enqueue immediate uploads. Worker may stream up to 512 MB.
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "              - Sid: PassSchedulerTargetRole\n                Effect: Allow\n                Action:\n                  - iam:PassRole\n                Resource: !GetAtt SocialPublishSchedulerTargetRole.Arn\n                Condition:\n                  StringEquals:\n                    iam:PassedToService: scheduler.amazonaws.com\n",
+              "              - Sid: PassSchedulerTargetRole\n                Effect: Allow\n                Action:\n                  - iam:PassRole\n                Resource: !GetAtt SocialPublishSchedulerTargetRole.Arn\n                Condition:\n                  StringEquals:\n                    iam:PassedToService: scheduler.amazonaws.com\n              - Sid: QueueImmediateYoutubePublish\n                Effect: Allow\n                Action:\n                  - sqs:SendMessage\n                Resource: !GetAtt SocialPublishScheduleQueue.Arn\n"
+          )
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "          SOCIAL_SCHEDULE_QUEUE_ARN: !GetAtt SocialPublishScheduleQueue.Arn\n          SOCIAL_SCHEDULER_ROLE_ARN: !GetAtt SocialPublishSchedulerTargetRole.Arn\n          SOCIAL_MAX_UPLOAD_BYTES: '536870912'\n          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'\n",
+              "          SOCIAL_SCHEDULE_QUEUE_ARN: !GetAtt SocialPublishScheduleQueue.Arn\n          SOCIAL_SCHEDULE_QUEUE_URL: !Ref SocialPublishScheduleQueue\n          SOCIAL_SCHEDULER_ROLE_ARN: !GetAtt SocialPublishSchedulerTargetRole.Arn\n          SOCIAL_MAX_UPLOAD_BYTES: '536870912'\n          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'\n"
+          )
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket\n          SOCIAL_MAX_UPLOAD_BYTES: '536870912'\n          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'\n      Events:\n        ScheduledPublishQueue:",
+              "          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket\n          SOCIAL_MAX_UPLOAD_BYTES: '536870912'\n          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '536870912'\n      Events:\n        ScheduledPublishQueue:"
+          )
+
+          review_path = Path('social-factory-api/review-publish.mjs')
+          review = review_path.read_text()
+
+          marker = "export function createReviewPublishService({\n"
+          queue_code = """export function createAwsImmediatePublishQueue({
+            queueUrl = process.env.SOCIAL_SCHEDULE_QUEUE_URL
+          } = {}) {
+            if (!queueUrl) throw new Error('social_publish_queue_url_missing');
+            let sdkPromise;
+            let clientPromise;
+
+            async function getSdk() {
+              if (!sdkPromise) sdkPromise = import('@aws-sdk/client-sqs');
+              return sdkPromise;
+            }
+
+            async function getClient() {
+              if (!clientPromise) clientPromise = getSdk().then(({ SQSClient }) => new SQSClient({}));
+              return clientPromise;
+            }
+
+            return {
+              queueUrl,
+              async enqueue({ reviewId, queuedAt }) {
+                const [{ SendMessageCommand }, client] = await Promise.all([getSdk(), getClient()]);
+                await client.send(new SendMessageCommand({
+                  QueueUrl: queueUrl,
+                  MessageGroupId: 'immediate-youtube-publish',
+                  MessageBody: JSON.stringify({
+                    schema_version: 1,
+                    type: 'social_factory_immediate_publish',
+                    review_id: reviewId,
+                    queued_at: queuedAt
+                  })
+                }));
+                return { review_id: reviewId, queued_at: queuedAt };
+              }
+            };
+          }
+
+          """
+          if review.count(marker) != 1:
+              raise SystemExit('review-publish: service marker mismatch')
+          review = review.replace(marker, queue_code + marker, 1)
+
+          review = review.replace(
+              "  store = null,\n  youtubePublish = createYoutubePublishService(),\n",
+              "  store = null,\n  publishQueue = null,\n  youtubePublish = createYoutubePublishService(),\n",
+              1
+          )
+          review = review.replace(
+              "  let resolvedStore = store;\n\n  function getStore() {\n",
+              "  let resolvedStore = store;\n  let resolvedPublishQueue = publishQueue;\n\n  function getStore() {\n",
+              1
+          )
+          review = review.replace(
+              "  function getStore() {\n    if (!resolvedStore) resolvedStore = createAwsReviewPublishStore();\n    return resolvedStore;\n  }\n\n  async function loadReview(reviewId) {\n",
+              "  function getStore() {\n    if (!resolvedStore) resolvedStore = createAwsReviewPublishStore();\n    return resolvedStore;\n  }\n\n  function getPublishQueue() {\n    if (!resolvedPublishQueue) resolvedPublishQueue = createAwsImmediatePublishQueue();\n    return resolvedPublishQueue;\n  }\n\n  async function loadReview(reviewId) {\n",
+              1
+          )
+          review = review.replace(
+              "  function assertApproved(item) {\n",
+              "  function alreadyInProgress(item, id) {\n    if (!['queued', 'publishing', 'retrying'].includes(String(item.publishing_status || ''))) return null;\n    return {\n      publishing_triggered: false,\n      uploaded: false,\n      queued: true,\n      mode: 'already_queued',\n      review_id: id,\n      item\n    };\n  }\n\n  function assertApproved(item) {\n",
+              1
+          )
+          review = review.replace(
+              "  async function markPublishing(id, item, scheduledContext) {\n",
+              "  async function markQueued(id, item, validation = {}) {\n    const queuedAt = now().toISOString();\n    const updated = {\n      ...item,\n      publishing_status: 'queued',\n      publish_error: null,\n      publish_attempt: {\n        ...item.publish_attempt,\n        status: 'queued',\n        queued_at: queuedAt,\n        failed_at: null,\n        completed_at: null,\n        last_error: null\n      },\n      platform_results: {\n        ...item.platform_results,\n        youtube: {\n          ...item.platform_results?.youtube,\n          status: 'queued',\n          queued_at: queuedAt,\n          content_length: Number(validation.content_length || item.video?.size_bytes || 0),\n          failed_at: null,\n          error: null\n        }\n      },\n      updated_at: queuedAt\n    };\n    await getStore().putReview(id, updated);\n    return updated;\n  }\n\n  async function markPublishing(id, item, scheduledContext) {\n",
+              1
+          )
+
+          old_publish = """      const { id, item } = await loadReview(reviewId);
+                const published = alreadyPublished(item, id);
+                if (published) return published;
+                assertApproved(item);
+                assertYoutubeAspectRatio(item);
+
+                const input = parseBody(event);
+                const scheduledAt = item.publish_settings?.scheduled_at
+                  ? Date.parse(item.publish_settings.scheduled_at)
+                  : NaN;
+                const isFutureSchedule = Number.isFinite(scheduledAt) && scheduledAt > now().getTime() + SCHEDULE_GRACE_MS;
+
+                if (input.confirm_upload === true && isFutureSchedule) {
+                  throw serviceError('scheduled_publish_queue_required', 409, {
+                    scheduled_at: new Date(scheduledAt).toISOString(),
+                    next_step: 'queue_the_scheduled_publish'
+                  });
+                }
+
+                return executePublish({
+                  event,
+                  id,
+                  item,
+                  confirmUpload: input.confirm_upload === true
+                });
+              },
+
+              async publishScheduled(reviewId, expectedScheduledAt) {"""
+          new_publish = """      const { id, item } = await loadReview(reviewId);
+                const published = alreadyPublished(item, id);
+                if (published) return published;
+                const active = alreadyInProgress(item, id);
+                if (active) return active;
+                assertApproved(item);
+                assertYoutubeAspectRatio(item);
+
+                const input = parseBody(event);
+                const scheduledAt = item.publish_settings?.scheduled_at
+                  ? Date.parse(item.publish_settings.scheduled_at)
+                  : NaN;
+                const isFutureSchedule = Number.isFinite(scheduledAt) && scheduledAt > now().getTime() + SCHEDULE_GRACE_MS;
+
+                if (input.confirm_upload === true && isFutureSchedule) {
+                  throw serviceError('scheduled_publish_queue_required', 409, {
+                    scheduled_at: new Date(scheduledAt).toISOString(),
+                    next_step: 'queue_the_scheduled_publish'
+                  });
+                }
+
+                if (input.confirm_upload !== true) {
+                  return executePublish({ event, id, item, confirmUpload: false });
+                }
+
+                const validation = await executePublish({ event, id, item, confirmUpload: false });
+                const contentLength = Number(validation.content_length || item.video?.size_bytes || 0);
+                const directLimit = Number(validation.max_direct_publish_bytes || 0);
+
+                if (directLimit > 0 && contentLength > directLimit) {
+                  let queuedItem = await markQueued(id, item, validation);
+                  try {
+                    await getPublishQueue().enqueue({ reviewId: id, queuedAt: queuedItem.updated_at });
+                  } catch (error) {
+                    queuedItem = await markPublishFailed(id, queuedItem, error, null);
+                    throw serviceError('youtube_background_queue_failed', 502, {
+                      review_id: id,
+                      publishing_status: queuedItem.publishing_status,
+                      error: errorText(error)
+                    });
+                  }
+                  return {
+                    publishing_triggered: true,
+                    uploaded: false,
+                    queued: true,
+                    mode: 'background_upload',
+                    review_id: id,
+                    content_length: contentLength,
+                    max_direct_publish_bytes: directLimit,
+                    item: queuedItem
+                  };
+                }
+
+                return executePublish({ event, id, item, confirmUpload: true });
+              },
+
+              async publishQueued(reviewId) {
+                const config = await secretStore.read(configSecretId);
+                const { id, item } = await loadReview(reviewId);
+                const published = alreadyPublished(item, id);
+                if (published) return published;
+                if (item.status !== 'approved' || item.approval_state !== 'approved') {
+                  return {
+                    publishing_triggered: false,
+                    uploaded: false,
+                    mode: 'queued_item_no_longer_approved',
+                    review_id: id,
+                    skipped: true,
+                    item
+                  };
+                }
+                assertYoutubeAspectRatio(item);
+                const internalEvent = {
+                  headers: { 'x-admin-token': config.admin_token },
+                  body: JSON.stringify({ confirm_upload: true }),
+                  isBase64Encoded: false
+                };
+                return executePublish({
+                  event: internalEvent,
+                  id,
+                  item,
+                  confirmUpload: true
+                });
+              },
+
+              async publishScheduled(reviewId, expectedScheduledAt) {"""
+          if old_publish not in review:
+              raise SystemExit('review-publish: publish block mismatch')
+          review = review.replace(old_publish, new_publish, 1)
+          review_path.write_text(review)
+
+          # Worker accepts immediate and scheduled queue messages.
+          worker_path = Path('social-factory-api/scheduled-publish-worker.mjs')
+          worker = worker_path.read_text()
+          old_safe = """  const reviewId = String(payload.review_id || '').trim();
+            const scheduledAt = String(payload.scheduled_at || '').trim();
+            if (!/^[a-zA-Z0-9-]{8,120}$/.test(reviewId)) {
+              const error = new Error('invalid_schedule_review_id');
+              error.statusCode = 422;
+              throw error;
+            }
+            if (!Number.isFinite(Date.parse(scheduledAt))) {
+              const error = new Error('invalid_schedule_timestamp');
+              error.statusCode = 422;
+              throw error;
+            }
+            return { reviewId, scheduledAt, payload };"""
+          new_safe = """  const reviewId = String(payload.review_id || '').trim();
+            if (!/^[a-zA-Z0-9-]{8,120}$/.test(reviewId)) {
+              const error = new Error('invalid_publish_review_id');
+              error.statusCode = 422;
+              throw error;
+            }
+
+            if (payload.type === 'social_factory_immediate_publish') {
+              return { reviewId, type: 'immediate', scheduledAt: '', payload };
+            }
+
+            const scheduledAt = String(payload.scheduled_at || '').trim();
+            if (!Number.isFinite(Date.parse(scheduledAt))) {
+              const error = new Error('invalid_schedule_timestamp');
+              error.statusCode = 422;
+              throw error;
+            }
+            return { reviewId, type: 'scheduled', scheduledAt, payload };"""
+          if old_safe not in worker:
+              raise SystemExit('worker: safe message block mismatch')
+          worker = worker.replace(old_safe, new_safe, 1)
+          old_process = """        const result = await getReviewPublisher().publishScheduled(
+                    message.reviewId,
+                    message.scheduledAt
+                  );
+                  console.log('Scheduled Social Factory publish processed', {
+                    reviewId: message.reviewId,
+                    mode: result.mode || '',
+                    uploaded: Boolean(result.uploaded),
+                    skipped: Boolean(result.skipped)
+                  });"""
+          new_process = """        const result = message.type === 'immediate'
+                    ? await getReviewPublisher().publishQueued(message.reviewId)
+                    : await getReviewPublisher().publishScheduled(message.reviewId, message.scheduledAt);
+                  console.log('Social Factory publish queue item processed', {
+                    reviewId: message.reviewId,
+                    queue_type: message.type,
+                    mode: result.mode || '',
+                    uploaded: Boolean(result.uploaded),
+                    skipped: Boolean(result.skipped)
+                  });"""
+          if old_process not in worker:
+              raise SystemExit('worker: process block mismatch')
+          worker_path.write_text(worker.replace(old_process, new_process, 1))
+
+          # Queue and publishing UI statuses.
+          status_path = Path('radio-admin/dev/social-factory/youtube-status-display.js')
+          status = status_path.read_text()
+          status = status.replace(
+              "    if (status === 'published') return 'published';\n    if (status === 'publishing') return 'publishing';\n    if (status === 'scheduled') return 'scheduled';\n",
+              "    if (status === 'published') return 'published';\n    if (status === 'publishing') return 'publishing';\n    if (status === 'queued') return 'queued';\n    if (status === 'retrying') return 'retrying';\n    if (status === 'scheduled') return 'scheduled';\n",
+              1
+          )
+          status = status.replace(
+              "      publishing: 'YouTube Publishing',\n      scheduled: 'YouTube Scheduled',\n",
+              "      publishing: 'YouTube Publishing',\n      queued: 'YouTube Queued',\n      retrying: 'YouTube Retrying',\n      scheduled: 'YouTube Scheduled',\n",
+              1
+          )
+          status_path.write_text(status)
+
+          controls_path = Path('radio-admin/dev/social-factory/publishing-controls.js')
+          controls = controls_path.read_text()
+          old_controls = """    const publishLabel = String(byId('publishStatusPill')?.textContent || '').toLowerCase();
+              const published = publishLabel.includes('published') && !publishLabel.includes('not published');
+
+              validateButton.disabled = state.busy || !reviewId || !approved || published || !validRatio;
+              publishButton.disabled = state.busy || !reviewId || !approved || published || scheduledInFuture() || !validRatio;
+              validateButton.dataset.ratioBlocked = String(!validRatio);
+              publishButton.dataset.ratioBlocked = String(!validRatio);
+              publishButton.hidden = published;
+              validateButton.hidden = published;"""
+          new_controls = """    const publishLabel = String(byId('publishStatusPill')?.textContent || '').toLowerCase();
+              const published = publishLabel.includes('published') && !publishLabel.includes('not published');
+              const uploadActive = ['queued', 'publishing', 'retrying'].some(status => publishLabel.includes(status));
+
+              validateButton.disabled = state.busy || !reviewId || !approved || published || uploadActive || !validRatio;
+              publishButton.disabled = state.busy || !reviewId || !approved || published || uploadActive || scheduledInFuture() || !validRatio;
+              validateButton.dataset.ratioBlocked = String(!validRatio);
+              publishButton.dataset.ratioBlocked = String(!validRatio);
+              publishButton.hidden = published || uploadActive;
+              validateButton.hidden = published || uploadActive;"""
+          if old_controls not in controls:
+              raise SystemExit('publishing controls state block mismatch')
+          controls = controls.replace(old_controls, new_controls, 1)
+          old_result = """      const result = byId('youtubePublishResult');
+                if (result && payload.youtube_url) {
+                  state.resultReviewId = reviewId;
+                  result.href = payload.youtube_url;
+                  result.textContent = 'Open unlisted YouTube video';
+                  result.hidden = false;
+                }
+                const publishStatus = byId('publishStatusPill');
+                if (publishStatus) {
+                  publishStatus.textContent = 'Published';
+                  publishStatus.dataset.status = 'published';
+                }
+                showMessage('YouTube upload completed and the Social Factory review record was updated.', 'success');
+                byId('refreshQueue')?.click();"""
+          new_result = """      const result = byId('youtubePublishResult');
+                const publishStatus = byId('publishStatusPill');
+                if (payload.queued || payload.mode === 'background_upload') {
+                  if (result) result.hidden = true;
+                  if (publishStatus) {
+                    publishStatus.textContent = 'YouTube Queued';
+                    publishStatus.dataset.status = 'queued';
+                  }
+                  showMessage('Large video accepted. The background worker is uploading it to YouTube now.', 'success');
+                } else {
+                  if (result && payload.youtube_url) {
+                    state.resultReviewId = reviewId;
+                    result.href = payload.youtube_url;
+                    result.textContent = 'Open unlisted YouTube video';
+                    result.hidden = false;
+                  }
+                  if (publishStatus) {
+                    publishStatus.textContent = 'YouTube Published';
+                    publishStatus.dataset.status = 'published';
+                  }
+                  showMessage('YouTube upload completed and the Social Factory review record was updated.', 'success');
+                }
+                byId('refreshQueue')?.click();"""
+          if old_result not in controls:
+              raise SystemExit('publishing controls result block mismatch')
+          controls_path.write_text(controls.replace(old_result, new_result, 1))
+
+          # Cache bust the two updated browser bundles.
+          index_path = Path('radio-admin/dev/social-factory/index.html')
+          index = index_path.read_text()
+          index = index.replace('publishing-controls.js?v=20260730-loadfix2', 'publishing-controls.js?v=20260730-largeupload1')
+          index = index.replace('youtube-status-display.js?v=20260730-youtubestatus1', 'youtube-status-display.js?v=20260730-largeupload1')
+          index_path.write_text(index)
+
+          # Add focused tests for queued large uploads and immediate queue worker messages.
+          review_test = Path('social-factory-api/tests/review-publish.test.mjs')
+          review_tests = review_test.read_text()
+          review_tests += """
+
+          test('large confirmed publish enters the background upload queue', async () => {
+            const reviewId = 'render-large-12345678';
+            const reviews = new Map([[reviewId, {
+              id: reviewId,
+              status: 'approved',
+              approval_state: 'approved',
+              publishing_status: 'not_published',
+              video: { object_key: 'incoming/render-jobs/large/video.mp4', size_bytes: 90_000_000, aspect_ratio: '9:16' },
+              metadata: { selected_title: 'Large Test', description: '', tags: [], category_id: '10' },
+              publish_settings: { visibility: 'unlisted', made_for_kids: false, notify_subscribers: false, scheduled_at: null }
+            }]]);
+            const queued = [];
+            const service = createReviewPublishService({
+              secretStore: { async read() { return { admin_token: 'social-admin' }; } },
+              store: {
+                async getReview(id) { return structuredClone(reviews.get(id)); },
+                async putReview(id, item) { reviews.set(id, structuredClone(item)); }
+              },
+              publishQueue: { async enqueue(message) { queued.push(message); } },
+              youtubePublish: {
+                async publish(publishEvent) {
+                  const body = JSON.parse(publishEvent.body);
+                  assert.equal(body.confirm_upload, false);
+                  return {
+                    uploaded: false,
+                    mode: 'validation_only',
+                    ready: true,
+                    content_length: 90_000_000,
+                    max_direct_publish_bytes: 25_000_000
+                  };
+                }
+              },
+              configSecretId: 'config',
+              now: () => new Date('2026-07-30T15:30:00.000Z')
+            });
+
+            const result = await service.publish(event({ confirm_upload: true }), reviewId);
+            assert.equal(result.queued, true);
+            assert.equal(result.mode, 'background_upload');
+            assert.equal(reviews.get(reviewId).publishing_status, 'queued');
+            assert.equal(queued.length, 1);
+            assert.equal(queued[0].reviewId, reviewId);
+          });
+          """
+          review_test.write_text(review_tests)
+
+          worker_test = Path('social-factory-api/tests/scheduled-publish-worker.test.mjs')
+          worker_tests = worker_test.read_text()
+          worker_tests += """
+
+          test('worker processes an immediate large-video publish message', async () => {
+            const calls = [];
+            const worker = createScheduledPublishWorker({
+              reviewPublisher: {
+                async publishQueued(reviewId) {
+                  calls.push(reviewId);
+                  return { uploaded: true, mode: 'unlisted_upload' };
+                },
+                async publishScheduled() {
+                  throw new Error('scheduled path should not run');
+                }
+              },
+              reviewStore: {
+                async getReview() { return null; },
+                async putReview() {}
+              }
+            });
+
+            const result = await worker({
+              Records: [record({
+                type: 'social_factory_immediate_publish',
+                review_id: 'render-large-12345678',
+                queued_at: '2026-07-30T15:30:00.000Z'
+              }, 'immediate-message')]
+            });
+
+            assert.deepEqual(result.batchItemFailures, []);
+            assert.deepEqual(calls, ['render-large-12345678']);
+          });
+          """
+          worker_test.write_text(worker_tests)
+          PY
+
+      - name: Install and validate
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund --package-lock=false
+          npm run check
+          npm test
+
+      - name: Commit implementation
+        run: |
+          set -euo pipefail
+          git config user.name 'stashbox-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add social-factory-api radio-admin/dev/social-factory
+          git commit -m 'Queue large YouTube uploads in the background'
+          git pull --rebase origin main
+          git push origin HEAD:main
