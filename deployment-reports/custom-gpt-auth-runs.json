@@ -1,6 +1,18 @@
 {
-  "recorded_at": "2026-07-30T18:56:49Z",
+  "recorded_at": "2026-07-30T21:28:54Z",
   "runs": [
+    {
+      "id": 30572913702,
+      "name": "One-Time Apply Custom GPT Authentication",
+      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-07-30T19:00:12Z",
+      "updated_at": "2026-07-30T19:02:30Z",
+      "head_sha": "c062af4dd86d7d35751ab6802a9574f6885a704f",
+      "html_url": "https://github.com/elettro/stashbox/actions/runs/30572913702"
+    },
     {
       "id": 30560156295,
       "name": "Deploy Social Factory API DEV",
@@ -60,64 +72,16 @@
       "updated_at": "2026-07-30T15:30:43Z",
       "head_sha": "29ff94a174005bd283dd0c84848af169e337142d",
       "html_url": "https://github.com/elettro/stashbox/actions/runs/30556842095"
-    },
-    {
-      "id": 30555786683,
-      "name": "One-Time Apply Custom GPT Authentication",
-      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T15:15:34Z",
-      "updated_at": "2026-07-30T15:16:20Z",
-      "head_sha": "93c5936c11bc56cb662c7e44d2ec007f929fed87",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30555786683"
-    },
-    {
-      "id": 30555786318,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-07-30T15:15:33Z",
-      "updated_at": "2026-07-30T15:17:33Z",
-      "head_sha": "93c5936c11bc56cb662c7e44d2ec007f929fed87",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30555786318"
-    },
-    {
-      "id": 30555517146,
-      "name": "Deploy Social Factory API DEV",
-      "path": ".github/workflows/deploy-social-factory-api-dev.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-07-30T15:12:19Z",
-      "updated_at": "2026-07-30T15:14:14Z",
-      "head_sha": "a9615701d45be43f31cb78296747d8e241c67952",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30555517146"
-    },
-    {
-      "id": 30555234853,
-      "name": "One-Time Apply Custom GPT Authentication",
-      "path": ".github/workflows/one-time-apply-custom-gpt-auth.yml",
-      "event": "push",
-      "status": "completed",
-      "conclusion": "failure",
-      "created_at": "2026-07-30T15:08:51Z",
-      "updated_at": "2026-07-30T15:09:47Z",
-      "head_sha": "b950adeccd75fa9c3ea6334f3c4b9bafae38121f",
-      "html_url": "https://github.com/elettro/stashbox/actions/runs/30555234853"
     }
   ],
   "latest_custom_gpt_auth_jobs": [
     {
-      "id": 90930785937,
+      "id": 90973938709,
       "name": "apply-test-deploy",
       "status": "completed",
       "conclusion": "failure",
-      "started_at": "2026-07-30T16:09:29Z",
-      "completed_at": "2026-07-30T16:10:25Z",
+      "started_at": "2026-07-30T19:00:15Z",
+      "completed_at": "2026-07-30T19:02:30Z",
       "steps": [
         {
           "name": "Set up job",
@@ -158,25 +122,25 @@
         {
           "name": "Commit tested authentication source",
           "status": "completed",
-          "conclusion": "failure",
+          "conclusion": "success",
           "number": 7
         },
         {
           "name": "Configure AWS credentials",
           "status": "completed",
-          "conclusion": "skipped",
+          "conclusion": "success",
           "number": 8
         },
         {
           "name": "Build and deploy isolated DEV stack",
           "status": "completed",
-          "conclusion": "skipped",
+          "conclusion": "success",
           "number": 9
         },
         {
           "name": "Verify separate credential infrastructure and existing browser access",
           "status": "completed",
-          "conclusion": "skipped",
+          "conclusion": "failure",
           "number": 10
         },
         {
@@ -184,6 +148,12 @@
           "status": "completed",
           "conclusion": "skipped",
           "number": 11
+        },
+        {
+          "name": "Post Configure AWS credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
         },
         {
           "name": "Post Setup Node.js 22",
