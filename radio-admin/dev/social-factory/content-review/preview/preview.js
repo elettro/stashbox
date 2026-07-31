@@ -9,18 +9,38 @@
   const reviewLabel = q('reviewLabel');
   const authPanel = q('authPanel');
   const authMessage = q('authMessage');
+  const tokenForm = q('tokenForm');
+  const adminTokenInput = q('adminToken');
+  const tokenStatus = q('tokenStatus');
   const playerPanel = q('playerPanel');
   const video = q('previewVideo');
   const status = q('previewStatus');
   const refresh = q('refreshPreview');
+  const changeToken = q('changeToken');
   const expiry = q('expiryStatus');
   let timer = null;
   let controller = null;
 
   const reviewId = String(new URLSearchParams(location.search).get('review_id') || '').trim();
-  const token = () => sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || '';
 
-  function clear() {
+  function getToken() {
+    return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  function setToken(value) {
+    const token = String(value || '').trim();
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      sessionStorage.setItem(TOKEN_KEY, token);
+      tokenStatus.textContent = 'Saved privately in this browser';
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      tokenStatus.textContent = 'Not saved in this browser';
+    }
+  }
+
+  function clearPreview() {
     if (timer) clearTimeout(timer);
     timer = null;
     if (controller) controller.abort();
@@ -30,28 +50,31 @@
     video.load();
   }
 
-  function auth(message) {
-    clear();
+  function showAuth(message) {
+    clearPreview();
     playerPanel.hidden = true;
     authPanel.hidden = false;
     authMessage.textContent = message;
+    adminTokenInput.value = '';
+    tokenStatus.textContent = getToken() ? 'Saved privately in this browser' : 'Not saved in this browser';
+    adminTokenInput.focus();
   }
 
   function expired() {
-    clear();
+    clearPreview();
     status.hidden = false;
     status.textContent = 'This secure preview expired. Select Refresh Preview to create a new 15-minute preview.';
     expiry.textContent = 'Preview expired.';
   }
 
   async function load() {
-    const adminToken = token();
+    const adminToken = getToken();
     if (!adminToken) {
-      auth('The Social Factory DEV admin token is missing. Open Content Review, enter the current DEV admin token, then return to this page.');
+      showAuth('Enter the current Social Factory DEV admin token below, then select Save and Load Preview.');
       return;
     }
 
-    clear();
+    clearPreview();
     authPanel.hidden = true;
     playerPanel.hidden = false;
     refresh.disabled = true;
@@ -80,7 +103,8 @@
 
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        auth('The saved Social Factory DEV admin token is invalid. Return to Content Review and enter the current DEV admin token.');
+        setToken('');
+        showAuth('That DEV admin token was rejected. Enter the current token and try again.');
         return;
       }
       if (!response.ok || payload.ok === false || !payload.preview_url) {
@@ -115,13 +139,30 @@
     }
   }
 
+  tokenForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = adminTokenInput.value;
+    if (!String(value || '').trim()) {
+      authMessage.textContent = 'Enter the DEV admin token before loading the preview.';
+      return;
+    }
+    setToken(value);
+    load();
+  });
+
+  changeToken.addEventListener('click', () => {
+    setToken('');
+    showAuth('Enter the current Social Factory DEV admin token below.');
+  });
+
   if (!/^[a-zA-Z0-9-]{8,120}$/.test(reviewId)) {
     reviewLabel.textContent = 'A valid review_id query parameter is required.';
-    auth('This preview link is missing a valid review item ID. Return to Content Review and open the preview again.');
+    showAuth('This preview link is missing a valid review item ID. Return to Content Review and open the preview again.');
   } else {
     reviewLabel.textContent = reviewId;
     refresh.addEventListener('click', load);
-    window.addEventListener('pagehide', clear);
-    load();
+    window.addEventListener('pagehide', clearPreview);
+    if (getToken()) load();
+    else showAuth('Enter the current Social Factory DEV admin token below, then select Save and Load Preview.');
   }
 })();
