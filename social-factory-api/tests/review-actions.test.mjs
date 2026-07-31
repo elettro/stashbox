@@ -82,7 +82,9 @@ function fixture() {
 
 test('preview returns a short-lived private video URL', async () => {
   const { service } = fixture();
-  const result = await service.preview(event(), 'render-job-12345678');
+  const browserEvent = event();
+  browserEvent.headers.origin = 'https://stashbox.com';
+  const result = await service.preview(browserEvent, 'render-job-12345678');
   assert.match(result.preview_url, /^https:\/\/preview\.example\//);
   assert.equal(result.expires_in_seconds, 900);
   assert.equal(result.content_type, 'video/mp4');

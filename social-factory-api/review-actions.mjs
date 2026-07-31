@@ -223,11 +223,10 @@ export function createReviewActionService({
       const { item } = await load(event, reviewId);
       const previewUrl = await getStore().createPreviewUrl(item);
       const reviewPageUrl = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(safeReviewId(reviewId))}`;
-      const actorType = getHeader(event, 'x-stashbox-actor-type').toLowerCase();
-      const actorId = getHeader(event, 'x-stashbox-actor').toLowerCase();
-      const isCustomGptRequest = actorType === 'custom_gpt' || actorId.includes('gpt') || Boolean(getHeader(event, 'authorization'));
+      const origin = getHeader(event, 'origin').toLowerCase();
+      const isStashboxBrowserRequest = origin === 'https://stashbox.com';
       return {
-        ...(isCustomGptRequest ? {} : { preview_url: previewUrl }),
+        ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),
         review_page_url: reviewPageUrl,
         expires_in_seconds: PREVIEW_TTL_SECONDS,
         content_type: String(item?.video?.content_type || 'video/mp4'),
