@@ -13,7 +13,7 @@
     document.write('<script src="/radio-admin/songs/dev/song-images-presign-route.js?v=20260729-song-images-network1"><\/script>');
     document.write('<script src="/radio-admin/songs/dev/song-images-compat-bridge.js?v=20260730-canonical-artwork1"><\/script>');
     document.write('<script src="/radio-admin/songs/dev/song-images.js?v=20260730-canonical-artwork1"><\/script>');
-    document.write('<script src="/radio-admin/songs/dev/song-images-preview-modal.js?v=20260729-song-images-preview1"><\/script>');
+    document.write('<script src="/radio-admin/songs/dev/song-images-preview-modal.js?v=20260731-full-modal2"><\/script>');
     document.write('<script src="/radio-admin/songs/dev/song-images-vertical-preview-v2.js?v=20260731-full-preview1"><\/script>');
     document.write('<script src="/radio-admin/songs/dev/song-images-zip.js?v=20260729-song-images-network1"><\/script>');
   }
