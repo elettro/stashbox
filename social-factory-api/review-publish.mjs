@@ -5,6 +5,7 @@ import { createYoutubePublishService } from './youtube-publish.mjs';
 const REVIEW_PREFIX = 'drafts/';
 const SCHEDULE_GRACE_MS = 60 * 1000;
 const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
+const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -339,6 +340,11 @@ export function createReviewPublishService({
         tags: workingItem.metadata?.tags,
         category_id: workingItem.metadata?.category_id || '10',
         made_for_kids: Boolean(workingItem.publish_settings?.made_for_kids),
+        contains_synthetic_media: workingItem.publish_settings?.contains_synthetic_media !== false,
+        playlist_titles: Array.isArray(workingItem.publish_settings?.playlist_titles)
+          && workingItem.publish_settings.playlist_titles.length
+          ? workingItem.publish_settings.playlist_titles
+          : [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
         notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),
         confirm_upload: confirmUpload === true
       }),
@@ -411,6 +417,8 @@ export function createReviewPublishService({
           video_id: result.youtube_video_id,
           url: result.youtube_url,
           privacy_status: result.privacy_status || 'unlisted',
+          contains_synthetic_media: result.contains_synthetic_media !== false,
+          playlist_results: Array.isArray(result.playlist_results) ? result.playlist_results : [],
           published_at: publishedAt,
           failed_at: null,
           error: null

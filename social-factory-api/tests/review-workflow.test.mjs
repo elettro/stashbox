@@ -118,7 +118,7 @@ test('metadata generator produces editable YouTube copy and keeps the real title
   assert.match(metadata.selected_title, /Hippy Speedball \(I'm On My Way\)/);
   assert.match(metadata.description, /30-second 9:16 video/);
   assert.ok(metadata.tags.includes('Reggae'));
-  assert.deepEqual(metadata.collaborators, []);
+  assert.equal(metadata.collaborators[0].youtube_handle, '@Elettrotv');
   assert.equal(metadata.collaborator_review_required, true);
 });
 
@@ -147,6 +147,9 @@ test('confirmed staging copies server-to-server and creates a content review ite
   assert.equal(result.review_item.status, 'in_review');
   assert.equal(result.review_item.video.size_bytes, 17_400_000);
   assert.equal(result.review_item.publish_settings.visibility, 'unlisted');
+  assert.equal(result.review_item.publish_settings.made_for_kids, false);
+  assert.equal(result.review_item.publish_settings.contains_synthetic_media, true);
+  assert.deepEqual(result.review_item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);
   assert.equal(result.review_item.automation.auto_publish, false);
   assert.equal(reviews.size, 1);
   assert.equal(calls.length, 2);

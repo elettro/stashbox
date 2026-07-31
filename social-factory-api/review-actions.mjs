@@ -5,6 +5,13 @@ const REVIEW_PREFIX = 'drafts/';
 const PREVIEW_TTL_SECONDS = 15 * 60;
 const ALLOWED_VISIBILITY = new Set(['private', 'unlisted', 'public']);
 const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen', 'hide']);
+const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
+const DEFAULT_COLLABORATORS = Object.freeze([{
+  name: 'Elettro TV',
+  youtube_handle: '@Elettrotv',
+  channel_id: '',
+  credit: 'Collaborator'
+}]);
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -273,7 +280,11 @@ export function createReviewActionService({
             100
           ),
           collaborators: normalizeCollaborators(
-            input.collaborators ?? input.metadata?.collaborators ?? currentMetadata.collaborators
+            input.collaborators ??
+            input.metadata?.collaborators ??
+            (Array.isArray(currentMetadata.collaborators) && currentMetadata.collaborators.length
+              ? currentMetadata.collaborators
+              : DEFAULT_COLLABORATORS)
           ),
           credits: normalizeCredits(
             input.credits ?? input.metadata?.credits ?? {},
@@ -289,7 +300,21 @@ export function createReviewActionService({
           ...item.publish_settings,
           visibility,
           made_for_kids: Boolean(
-            input.made_for_kids ?? input.publish_settings?.made_for_kids ?? item.publish_settings?.made_for_kids
+            input.made_for_kids ?? input.publish_settings?.made_for_kids ?? item.publish_settings?.made_for_kids ?? false
+          ),
+          contains_synthetic_media: Boolean(
+            input.contains_synthetic_media ??
+            input.publish_settings?.contains_synthetic_media ??
+            item.publish_settings?.contains_synthetic_media ??
+            true
+          ),
+          playlist_titles: cleanStringList(
+            input.playlist_titles ??
+            input.publish_settings?.playlist_titles ??
+            item.publish_settings?.playlist_titles ??
+            [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
+            10,
+            150
           ),
           notify_subscribers: Boolean(
             input.notify_subscribers ??

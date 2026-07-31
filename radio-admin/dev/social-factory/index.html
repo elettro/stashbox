@@ -113,9 +113,10 @@
               <label class="sf-full">Description<textarea id="description" rows="12" maxlength="5000"></textarea><span class="sf-field-meta"><span id="descriptionCount">0</span>/5000</span></label>
               <label class="sf-full">Tags<textarea id="tags" rows="3" placeholder="One per line or separated by commas"></textarea></label>
               <label class="sf-full">Hashtags<input id="hashtags" placeholder="#Stashbox #Reggae #StashboxRadio" /></label>
-              <label class="sf-full">Collaborators<textarea id="collaborators" rows="4" placeholder="One per line: Name | @YouTubeHandle | Credit"></textarea><span class="sf-field-help">Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>
+              <label class="sf-full">Collaborators<textarea id="collaborators" rows="4" placeholder="One per line: Name | @YouTubeHandle | Credit"></textarea><span class="sf-field-help">@Elettrotv is the default. Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>
+              <label class="sf-full">YouTube Playlists<textarea id="playlistTitles" rows="2" placeholder="One playlist title per line"></textarea><span class="sf-field-help">Every published Stashbox Social Factory video defaults to the Stashbox Radio video library playlist.</span></label>
               <div class="sf-form-row"><label>Visibility<select id="visibility"><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public after approval</option></select></label><label>Schedule<input id="scheduledAt" type="datetime-local" /></label></div>
-              <div class="sf-form-row sf-checkbox-row"><label><input id="madeForKids" type="checkbox" /> Made for kids</label><label><input id="notifySubscribers" type="checkbox" /> Notify subscribers</label></div>
+              <div class="sf-form-row sf-checkbox-row"><label><input id="madeForKids" type="checkbox" /> Made for kids</label><label><input id="containsSyntheticMedia" type="checkbox" checked /> Contains realistic AI / synthetic media</label><label><input id="notifySubscribers" type="checkbox" /> Notify subscribers</label></div>
               <label class="sf-full">Review Note<textarea id="reviewNote" rows="3" placeholder="Internal note about approval, edits, or hold reason"></textarea></label>
               <div class="sf-form-actions sf-full"><button id="saveReview" class="sf-button" type="submit">Save Changes</button><button id="approveReview" class="sf-button sf-button-success" type="button">Approve</button><button id="holdReview" class="sf-button sf-button-warning" type="button">Hold</button><button id="reopenReview" class="sf-button sf-button-secondary" type="button">Reopen</button></div>
               <div class="sf-publish-lock sf-full"><strong>YouTube publishing remains locked</strong><span>This page saves and approves content. YouTube output is limited to 9x16 or 16x9, and publishing still requires a separate confirmed control.</span></div>
@@ -126,7 +127,7 @@
     </section>
   </main>
 
-  <script src="/radio-admin/dev/social-factory/social-factory.js?v=20260730-loadfix2"></script>
+  <script src="/radio-admin/dev/social-factory/social-factory.js?v=20260731-youtube-defaults1"></script>
   <script src="/radio-admin/dev/social-factory/publishing-controls.js?v=20260730-largeupload1"></script>
   <script src="/radio-admin/dev/social-factory/schedule-controls.js?v=20260730-loadfix2"></script>
   <script src="/radio-admin/dev/social-factory/campaign-builder.js?v=20260730-loadfix2"></script>

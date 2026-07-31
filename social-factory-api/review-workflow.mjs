@@ -5,6 +5,13 @@ const DEFAULT_RADIO_API_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazona
 const EXPECTED_RADIO_API_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
 const REVIEW_PREFIX = 'drafts/';
 const VIDEO_PREFIX = 'incoming/render-jobs/';
+const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
+const DEFAULT_COLLABORATORS = Object.freeze([{
+  name: 'Elettro TV',
+  youtube_handle: '@Elettrotv',
+  channel_id: '',
+  credit: 'Collaborator'
+}]);
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -215,7 +222,7 @@ export function generateReviewMetadata({ song = {}, job = {} } = {}) {
     tags,
     hashtags,
     category_id: '10',
-    collaborators: [],
+    collaborators: DEFAULT_COLLABORATORS.map(item => ({ ...item })),
     collaborator_review_required: true,
     credits: {
       artist,
@@ -436,6 +443,8 @@ export function createReviewWorkflowService({
         publish_settings: {
           visibility: 'unlisted',
           made_for_kids: false,
+          contains_synthetic_media: true,
+          playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
           notify_subscribers: false,
           scheduled_at: null
         },

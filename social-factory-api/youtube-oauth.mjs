@@ -7,7 +7,8 @@ const YOUTUBE_CHANNELS_URL = 'https://www.googleapis.com/youtube/v3/channels';
 
 export const DEFAULT_YOUTUBE_SCOPES = Object.freeze([
   'https://www.googleapis.com/auth/youtube.upload',
-  'https://www.googleapis.com/auth/youtube.readonly'
+  'https://www.googleapis.com/auth/youtube.readonly',
+  'https://www.googleapis.com/auth/youtube.force-ssl'
 ]);
 
 function base64UrlEncode(value) {

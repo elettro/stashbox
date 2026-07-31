@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createAwsSecretStore } from './youtube-oauth.mjs';
+import { addVideoToNamedPlaylists } from './youtube-playlists.mjs';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos';
@@ -117,12 +118,18 @@ function validatePublishMetadata(body = {}) {
     });
   }
 
+  const playlistTitles = Array.isArray(body.playlist_titles)
+    ? [...new Set(body.playlist_titles.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10)
+    : [];
+
   return {
     title,
     description,
     tags,
     categoryId: String(body.category_id || '10'),
     madeForKids: Boolean(body.made_for_kids),
+    containsSyntheticMedia: body.contains_synthetic_media !== false,
+    playlistTitles,
     notifySubscribers: Boolean(body.notify_subscribers)
   };
 }
@@ -353,6 +360,8 @@ export function createYoutubePublishService({
         content_length: contentLength,
         privacy_status: 'unlisted',
         title: metadata.title,
+        contains_synthetic_media: metadata.containsSyntheticMedia,
+        playlist_titles: metadata.playlistTitles,
         max_direct_publish_bytes: maxDirectPublishBytes
       };
 
@@ -394,7 +403,8 @@ export function createYoutubePublishService({
           },
           status: {
             privacyStatus: 'unlisted',
-            selfDeclaredMadeForKids: metadata.madeForKids
+            selfDeclaredMadeForKids: metadata.madeForKids,
+            containsSyntheticMedia: metadata.containsSyntheticMedia
           }
         })
       });
@@ -429,12 +439,20 @@ export function createYoutubePublishService({
         throw serviceError(uploaded?.error?.message || 'youtube_video_upload_failed', 502);
       }
 
+      const playlistResults = await addVideoToNamedPlaylists({
+        fetchImpl,
+        accessToken: tokens.access_token,
+        videoId: uploaded.id,
+        playlistTitles: metadata.playlistTitles
+      });
+
       return {
         uploaded: true,
         mode: 'unlisted_upload',
         ...validation,
         youtube_video_id: uploaded.id,
-        youtube_url: `https://www.youtube.com/watch?v=${uploaded.id}`
+        youtube_url: `https://www.youtube.com/watch?v=${uploaded.id}`,
+        playlist_results: playlistResults
       };
     }
   };

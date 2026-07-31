@@ -274,4 +274,6 @@ test('confirmed publish uses resumable upload and returns the YouTube video ID',
   assert.equal(fetchCalls[1].options.method, 'PUT');
   const metadata = JSON.parse(fetchCalls[0].options.body);
   assert.equal(metadata.status.privacyStatus, 'unlisted');
+  assert.equal(metadata.status.selfDeclaredMadeForKids, false);
+  assert.equal(metadata.status.containsSyntheticMedia, true);
 });

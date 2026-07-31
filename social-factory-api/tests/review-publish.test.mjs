@@ -103,6 +103,9 @@ test('approved review item can be validated without publishing', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].object_key, 'incoming/render-jobs/job-12345678/test.mp4');
   assert.equal(calls[0].title, 'Stashbox - Test Song | Official Short');
+  assert.equal(calls[0].made_for_kids, false);
+  assert.equal(calls[0].contains_synthetic_media, true);
+  assert.deepEqual(calls[0].playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);
   assert.equal(reviews.get(reviewId).publishing_status, 'not_published');
 });
 

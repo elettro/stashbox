@@ -3,6 +3,8 @@
 
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
+  const DEFAULT_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
+  const DEFAULT_COLLABORATORS = [{ name: 'Elettro TV', youtube_handle: '@Elettrotv', credit: 'Collaborator' }];
 
   const state = {
     items: [],
@@ -27,8 +29,8 @@
       'previewVideoButton', 'refreshPreviewButton', 'openPreviewPage',
       'videoRatio', 'videoDuration', 'videoSize', 'reviewForm', 'titleOptions',
       'selectedTitle', 'titleCount', 'description', 'descriptionCount', 'tags',
-      'hashtags', 'collaborators', 'visibility', 'scheduledAt', 'madeForKids',
-      'notifySubscribers', 'reviewNote', 'saveReview', 'approveReview',
+      'hashtags', 'collaborators', 'playlistTitles', 'visibility', 'scheduledAt', 'madeForKids',
+      'containsSyntheticMedia', 'notifySubscribers', 'reviewNote', 'saveReview', 'approveReview',
       'holdReview', 'reopenReview'
     ].forEach((id) => { elements[id] = byId(id); });
   }
@@ -313,10 +315,18 @@
     elements.description.value = metadata.description || '';
     elements.tags.value = Array.isArray(metadata.tags) ? metadata.tags.join('\n') : '';
     elements.hashtags.value = Array.isArray(metadata.hashtags) ? metadata.hashtags.join(' ') : '';
-    elements.collaborators.value = collaboratorsToText(metadata.collaborators);
+    const collaborators = Array.isArray(metadata.collaborators) && metadata.collaborators.length
+      ? metadata.collaborators
+      : DEFAULT_COLLABORATORS;
+    elements.collaborators.value = collaboratorsToText(collaborators);
+    const playlistTitles = Array.isArray(settings.playlist_titles) && settings.playlist_titles.length
+      ? settings.playlist_titles
+      : [DEFAULT_PLAYLIST_TITLE];
+    elements.playlistTitles.value = playlistTitles.join('\n');
     elements.visibility.value = settings.visibility || 'unlisted';
     elements.scheduledAt.value = toLocalDateTime(settings.scheduled_at);
     elements.madeForKids.checked = Boolean(settings.made_for_kids);
+    elements.containsSyntheticMedia.checked = settings.contains_synthetic_media !== false;
     elements.notifySubscribers.checked = Boolean(settings.notify_subscribers);
     elements.reviewNote.value = item.review_decision?.note || '';
     renderTitleOptions(metadata.title_options || [], metadata.selected_title || '');
@@ -400,15 +410,18 @@
       : null;
     const tags = elements.tags.value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean);
     const hashtags = elements.hashtags.value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
+    const playlistTitles = elements.playlistTitles.value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
     return {
       selected_title: elements.selectedTitle.value.trim(),
       description: elements.description.value.trim(),
       tags,
       hashtags,
       collaborators: parseCollaborators(elements.collaborators.value),
+      playlist_titles: playlistTitles.length ? playlistTitles : [DEFAULT_PLAYLIST_TITLE],
       visibility: elements.visibility.value,
       scheduled_at: scheduled,
       made_for_kids: elements.madeForKids.checked,
+      contains_synthetic_media: elements.containsSyntheticMedia.checked,
       notify_subscribers: elements.notifySubscribers.checked
     };
   }
