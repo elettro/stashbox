@@ -1,0 +1,65 @@
+name: Fix secure preview browser viewer
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-fix-secure-preview-browser-viewer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply authenticated browser viewer marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          actions = Path('social-factory-api/review-actions.mjs')
+          text = actions.read_text()
+          old = "const isStashboxBrowserRequest = origin === 'https://stashbox.com';"
+          new = "const viewer = String(event?.queryStringParameters?.viewer || '').toLowerCase();\n      const isStashboxBrowserRequest = origin === 'https://stashbox.com' || viewer === 'browser';"
+          if old not in text:
+              raise SystemExit('browser request detection target not found')
+          actions.write_text(text.replace(old, new, 1))
+
+          page = Path('radio-admin/dev/social-factory/content-review/preview/preview.js')
+          js = page.read_text()
+          old_url = "/preview`,{method:'POST'"
+          new_url = "/preview?viewer=browser`,{method:'POST'"
+          if old_url not in js:
+              raise SystemExit('preview page request target not found')
+          page.write_text(js.replace(old_url, new_url, 1))
+
+          tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
+          t = tests.read_text()
+          old_test = "event({origin:'https://stashbox.com'})"
+          new_test = "{headers:{'x-admin-token':'t'},queryStringParameters:{viewer:'browser'}}"
+          if old_test not in t:
+              raise SystemExit('browser viewer test target not found')
+          tests.write_text(t.replace(old_test, new_test, 1))
+          PY
+
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+          cd ..
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/review-actions.mjs \
+                  social-factory-api/tests/secure-preview-contract.test.mjs \
+                  radio-admin/dev/social-factory/content-review/preview/preview.js
+          git commit -m 'Fix authenticated browser secure preview loading'
+          git pull --rebase origin main
+          git push origin HEAD:main
