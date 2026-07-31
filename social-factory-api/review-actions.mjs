@@ -226,6 +226,7 @@ export function createReviewActionService({
       const origin = getHeader(event, 'origin').toLowerCase();
       const isStashboxBrowserRequest = origin === 'https://stashbox.com';
       return {
+        ok: true,
         ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),
         review_page_url: reviewPageUrl,
         expires_in_seconds: PREVIEW_TTL_SECONDS,
@@ -316,9 +317,7 @@ export function createReviewActionService({
             150
           ),
           notify_subscribers: Boolean(
-            input.notify_subscribers ??
-            input.publish_settings?.notify_subscribers ??
-            item.publish_settings?.notify_subscribers
+            input.notify_subscribers ?? input.publish_settings?.notify_subscribers ?? item.publish_settings?.notify_subscribers
           ),
           scheduled_at: normalizeScheduledAt(
             input.scheduled_at ?? input.publish_settings?.scheduled_at ?? item.publish_settings?.scheduled_at
