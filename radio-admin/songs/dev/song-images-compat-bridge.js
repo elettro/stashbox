@@ -2,8 +2,8 @@
   'use strict';
 
   if (!window.location.pathname.includes('/radio-admin/songs/dev')) return;
-  if (window.__stashboxSongImagesCompatBridgeV3Installed) return;
-  window.__stashboxSongImagesCompatBridgeV3Installed = true;
+  if (window.__stashboxSongImagesCompatBridgeV4Installed) return;
+  window.__stashboxSongImagesCompatBridgeV4Installed = true;
 
   const API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
   const LEGACY_PRESIGN_PATH = '/dev/admin/uploads/presign';
@@ -362,6 +362,11 @@
 
       const mediaMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
       if (mediaMatch && (method === 'GET' || method === 'PATCH')) {
+        const canonicalResponse = await fetchWithRetry(input, init, {
+          label: 'Canonical song artwork request',
+          attempts: 3
+        });
+        if (canonicalResponse.status !== 404) return canonicalResponse;
         return handleArtworkMedia(input, init, mediaMatch, bodyText);
       }
     }

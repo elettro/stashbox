@@ -19,6 +19,9 @@ const OPTIONAL_FIELDS = Object.freeze([
   'song_artwork_21x9_url'
 ]);
 
+const LEGACY_PREPARED_FIELD = 'prepared_artwork_images';
+const PROFILE_SOURCE_PREFIX = 'song_profile_image:';
+
 const IMAGE_TYPES = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -165,7 +168,7 @@ async function resolveSong(identifier, deps, { includeHidden = false } = {}) {
   if (!key) throw routeError(404, 'SONG_NOT_FOUND', 'Song not found.');
 
   const result = await deps.client.query(`
-    SELECT song_key, song_name, display_title, artist, song_artwork_url, public_visibility
+    SELECT song_key, song_name, display_title, artist, song_artwork_url, visual_assets, public_visibility
     FROM ${deps.qname('songs')}
     WHERE lower(song_key) = $1
       ${includeHidden ? '' : "AND COALESCE(public_visibility, 'visible') = 'visible'"}
@@ -185,6 +188,136 @@ async function readOptionalArtwork(songKey, deps) {
     LIMIT 1
   `, [songKey]);
   return result.rows[0] || {};
+}
+
+function objectValue(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function arrayValue(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export function legacyPreparedArtwork(song = {}, recipeValue = {}) {
+  const recipe = objectValue(recipeValue);
+  const prepared = objectValue(recipe[LEGACY_PREPARED_FIELD]);
+  const images = {};
+
+  for (const asset of arrayValue(song.visual_assets)) {
+    const source = cleanText(asset?.source).toLowerCase();
+    if (!source.startsWith(PROFILE_SOURCE_PREFIX)) continue;
+    const ratio = source.slice(PROFILE_SOURCE_PREFIX.length);
+    const field = ARTWORK_FIELDS[ratio];
+    const url = cleanText(asset?.url || asset?.src);
+    if (field && OPTIONAL_FIELDS.includes(field) && url && !images[field]) images[field] = url;
+  }
+
+  for (const [ratio, field] of Object.entries(ARTWORK_FIELDS)) {
+    if (!OPTIONAL_FIELDS.includes(field)) continue;
+    const url = cleanText(prepared[ratio]);
+    if (url) images[field] = url;
+  }
+
+  return images;
+}
+
+export function mergeArtworkSources(stored = {}, legacy = {}) {
+  return Object.fromEntries(OPTIONAL_FIELDS.map(field => [
+    field,
+    cleanText(stored[field] || legacy[field])
+  ]));
+}
+
+async function readLegacyVisualRecipe(songKey, deps) {
+  try {
+    const result = await deps.client.query(`
+      SELECT recipe
+      FROM ${deps.qname('song_visual_recipes')}
+      WHERE lower(song_key) = lower($1)
+      LIMIT 1
+    `, [songKey]);
+    return objectValue(result.rows[0]?.recipe);
+  } catch (error) {
+    if (error?.code === '42P01') return {};
+    throw error;
+  }
+}
+
+async function ensureLegacyVisualRecipeTable(deps) {
+  await deps.client.query(`
+    CREATE TABLE IF NOT EXISTS ${deps.qname('song_visual_recipes')} (
+      song_key TEXT PRIMARY KEY,
+      recipe JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
+async function syncLegacyPreparedArtwork(songKey, patch, deps) {
+  const optionalPatch = Object.fromEntries(
+    Object.entries(patch || {}).filter(([field]) => OPTIONAL_FIELDS.includes(field))
+  );
+  if (!Object.keys(optionalPatch).length) return;
+
+  await ensureLegacyVisualRecipeTable(deps);
+  const recipe = await readLegacyVisualRecipe(songKey, deps);
+  const prepared = { ...objectValue(recipe[LEGACY_PREPARED_FIELD]) };
+
+  for (const [field, value] of Object.entries(optionalPatch)) {
+    const ratio = Object.entries(ARTWORK_FIELDS).find(([, artworkField]) => artworkField === field)?.[0];
+    if (!ratio) continue;
+    const url = cleanText(value);
+    if (url) prepared[ratio] = url;
+    else delete prepared[ratio];
+  }
+
+  const nextRecipe = {
+    ...recipe,
+    [LEGACY_PREPARED_FIELD]: prepared,
+    prepared_artwork_updated_at: new Date().toISOString()
+  };
+
+  await deps.client.query(`
+    INSERT INTO ${deps.qname('song_visual_recipes')} (song_key, recipe)
+    VALUES ($1, $2::jsonb)
+    ON CONFLICT (song_key) DO UPDATE SET recipe = EXCLUDED.recipe, updated_at = now()
+  `, [songKey, JSON.stringify(nextRecipe)]);
+}
+
+async function readCanonicalArtwork(song, deps) {
+  let stored = await readOptionalArtwork(song.song_key, deps);
+  const recipe = await readLegacyVisualRecipe(song.song_key, deps);
+  const legacy = legacyPreparedArtwork(song, recipe);
+  const migrationPatch = Object.fromEntries(
+    OPTIONAL_FIELDS
+      .filter(field => !cleanText(stored[field]) && cleanText(legacy[field]))
+      .map(field => [field, cleanText(legacy[field])])
+  );
+
+  if (Object.keys(migrationPatch).length) {
+    await persistPatch(song, migrationPatch, deps);
+    stored = await readOptionalArtwork(song.song_key, deps);
+  }
+
+  return {
+    ...stored,
+    ...mergeArtworkSources(stored, legacy)
+  };
 }
 
 function artworkImages(song, stored = {}) {
@@ -366,7 +499,7 @@ export async function handleSongArtworkRequest(event, deps) {
   }
 
   if (method === 'GET') {
-    const stored = await readOptionalArtwork(song.song_key, deps);
+    const stored = await readCanonicalArtwork(song, deps);
     return deps.response(200, { success: true, media: mediaPayload(song, stored) });
   }
 
@@ -377,8 +510,9 @@ export async function handleSongArtworkRequest(event, deps) {
     }
 
     await persistPatch(song, patch, deps);
+    await syncLegacyPreparedArtwork(song.song_key, patch, deps);
     const freshSong = await resolveSong(song.song_key, deps, { includeHidden: true });
-    const stored = await readOptionalArtwork(song.song_key, deps);
+    const stored = await readCanonicalArtwork(freshSong, deps);
     return deps.response(200, {
       success: true,
       persisted: true,
