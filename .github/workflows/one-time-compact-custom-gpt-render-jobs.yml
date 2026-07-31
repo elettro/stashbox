@@ -1,0 +1,221 @@
+name: Compact Custom GPT Render Jobs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-compact-custom-gpt-render-jobs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Patch compact render-job listing
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const orchestratorPath = 'social-factory-api/video-orchestrator.mjs';
+          let source = fs.readFileSync(orchestratorPath, 'utf8');
+
+          const normalizeBlock = `function normalizeJob(payload = {}) {
+            const job = payload?.job || payload?.data?.job || payload?.data || payload;
+            if (!job || typeof job !== 'object') return {};
+            const status = String(job.status || '').toLowerCase();
+            return {
+              ...job,
+              status,
+              active: ACTIVE_RENDER_STATUSES.has(status),
+              ready_for_staging: status === 'completed' && Boolean(job.output_url || job.outputs?.length)
+            };
+          }`;
+
+          const compactHelpers = `${normalizeBlock}
+
+          function compactJob(job = {}) {
+            const id = String(job.id || job.job_id || job.render_job_id || '').trim();
+            const progressValue = job.progress_percent ?? job.progress ?? job.percent_complete;
+            const progressNumber = Number(progressValue);
+            const durationValue = job.duration_seconds ?? job.requested_duration_seconds;
+            const durationNumber = Number(durationValue);
+            const rawError = job.error_message || job.error || job.failure_reason || '';
+            const error = typeof rawError === 'string'
+              ? rawError.slice(0, 500)
+              : rawError
+                ? JSON.stringify(rawError).slice(0, 500)
+                : '';
+            const outputUrl = job.output_url || job.outputs?.[0]?.url || job.outputs?.[0]?.output_url || '';
+            let attentionReason = '';
+            if (['failed', 'error', 'blocked', 'cancelled'].includes(job.status)) {
+              attentionReason = 'render_failed';
+            } else if (job.status === 'draft') {
+              attentionReason = 'awaiting_launch_approval';
+            } else if (job.ready_for_staging) {
+              attentionReason = 'ready_for_content_review';
+            } else if (job.active) {
+              attentionReason = 'render_in_progress';
+            }
+
+            return {
+              id,
+              job_id: id,
+              batch_name: String(job.batch_name || '').trim(),
+              campaign_name: String(job.campaign_name || '').trim(),
+              song_key: String(job.song_key || '').trim(),
+              song_title: String(job.song_title || job.song_name || job.title || '').trim(),
+              artist: String(job.artist || job.artist_name || '').trim(),
+              aspect_ratio: String(job.aspect_ratio || '').trim(),
+              duration_seconds: Number.isFinite(durationNumber) ? durationNumber : null,
+              status: String(job.status || '').trim(),
+              progress_percent: Number.isFinite(progressNumber) ? progressNumber : null,
+              created_at: String(job.created_at || '').trim(),
+              updated_at: String(job.updated_at || '').trim(),
+              error,
+              output_url: String(outputUrl || '').trim(),
+              active: Boolean(job.active),
+              ready_for_staging: Boolean(job.ready_for_staging),
+              attention_reason: attentionReason
+            };
+          }`;
+
+          if (!source.includes(normalizeBlock)) {
+            throw new Error('normalizeJob block did not match expected source');
+          }
+          source = source.replace(normalizeBlock, compactHelpers);
+
+          const oldListJobs = `    async listJobs(event) {
+              const config = await authorize(event);
+              const limit = safeLimit(event?.queryStringParameters?.limit, 50, 250);
+              const payload = await radioRequest(config, \`/admin/video-factory/jobs?limit=\${limit}\`);
+              const jobs = Array.isArray(payload?.jobs) ? payload.jobs.map(normalizeJob) : [];
+              return { count: jobs.length, jobs };
+            },`;
+
+          const newListJobs = `    async listJobs(event) {
+              const config = await authorize(event);
+              const limit = safeLimit(event?.queryStringParameters?.limit, 10, 25);
+              const payload = await radioRequest(config, \`/admin/video-factory/jobs?limit=\${limit}\`);
+              const normalizedJobs = Array.isArray(payload?.jobs) ? payload.jobs.map(normalizeJob) : [];
+              const jobs = normalizedJobs.map(compactJob);
+              return {
+                compact: true,
+                count: jobs.length,
+                limit,
+                attention_count: jobs.filter((job) => job.attention_reason).length,
+                jobs
+              };
+            },`;
+
+          if (!source.includes(oldListJobs)) {
+            throw new Error('listJobs block did not match expected source');
+          }
+          source = source.replace(oldListJobs, newListJobs);
+          fs.writeFileSync(orchestratorPath, source);
+
+          const indexPath = 'social-factory-api/index.mjs';
+          let indexSource = fs.readFileSync(indexPath, 'utf8');
+          if (!indexSource.includes("const SERVICE_VERSION = '0.7.0';")) {
+            throw new Error('SERVICE_VERSION did not match expected source');
+          }
+          indexSource = indexSource.replace(
+            "const SERVICE_VERSION = '0.7.0';",
+            "const SERVICE_VERSION = '0.7.1';"
+          );
+          fs.writeFileSync(indexPath, indexSource);
+
+          const openapiPath = 'custom-gpt/stashbox-radio/openapi.yaml';
+          let openapi = fs.readFileSync(openapiPath, 'utf8');
+          openapi = openapi.replace('version: 0.7.0', 'version: 0.7.1');
+          fs.writeFileSync(openapiPath, openapi);
+          NODE
+
+      - name: Add compact-list regression test
+        run: |
+          cat > social-factory-api/tests/video-orchestrator-compact-list.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { createVideoOrchestratorService } from '../video-orchestrator.mjs';
+
+          test('render job list is compact and uses a small default limit', async () => {
+            let requestedUrl = '';
+            const service = createVideoOrchestratorService({
+              configSecretId: 'test-secret',
+              secretStore: {
+                read: async () => ({
+                  admin_token: 'social-admin',
+                  radio_api_base_url: 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev',
+                  radio_api_admin_token: 'radio-admin'
+                })
+              },
+              fetchImpl: async (url) => {
+                requestedUrl = String(url);
+                return {
+                  ok: true,
+                  json: async () => ({
+                    jobs: [{
+                      id: 'job-12345678',
+                      status: 'failed',
+                      song_key: 'dirty-bird-20a-stashbox',
+                      song_title: 'Dirty Bird',
+                      artist: 'Stashbox',
+                      aspect_ratio: '9:16',
+                      progress_percent: 42,
+                      error_message: 'renderer_failed',
+                      huge_internal_metadata: 'x'.repeat(250000)
+                    }]
+                  })
+                };
+              }
+            });
+
+            const result = await service.listJobs({
+              headers: { 'x-admin-token': 'social-admin' },
+              queryStringParameters: null
+            });
+
+            assert.match(requestedUrl, /\/admin\/video-factory\/jobs\?limit=10$/);
+            assert.equal(result.compact, true);
+            assert.equal(result.count, 1);
+            assert.equal(result.attention_count, 1);
+            assert.equal(result.jobs[0].id, 'job-12345678');
+            assert.equal(result.jobs[0].attention_reason, 'render_failed');
+            assert.equal(result.jobs[0].huge_internal_metadata, undefined);
+            assert.ok(JSON.stringify(result).length < 5000);
+          });
+          EOF
+
+      - name: Validate and test
+        working-directory: social-factory-api
+        run: |
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit compact render-job fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/video-orchestrator.mjs \
+                  social-factory-api/index.mjs \
+                  social-factory-api/tests/video-orchestrator-compact-list.test.mjs \
+                  custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m 'Compact Custom GPT render job listings'
+          git pull --rebase origin main
+          git push origin HEAD:main
