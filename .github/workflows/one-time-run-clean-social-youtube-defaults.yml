@@ -1,0 +1,65 @@
+name: Run Clean Social Factory YouTube Defaults
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-run-clean-social-youtube-defaults.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      REPORT_PATH: deployment-reports/social-youtube-defaults-clean-run.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Dispatch and wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run one-time-execute-social-youtube-defaults-clean.yml --ref main
+          sleep 8
+          RUN_ID=$(gh run list --workflow=one-time-execute-social-youtube-defaults-clean.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "${RUN_ID}"
+          echo "${RUN_ID}" > /tmp/run-id
+          set +e
+          gh run watch "${RUN_ID}" --exit-status
+          echo "$?" > /tmp/run-exit
+          set -e
+          gh run view "${RUN_ID}" --log-failed > /tmp/run-failed.log 2>&1 || true
+
+      - name: Record result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID=$(cat /tmp/run-id 2>/dev/null || true)
+          EXIT_CODE=$(cat /tmp/run-exit 2>/dev/null || echo 1)
+          STATUS=failure
+          if [ "${EXIT_CODE}" = '0' ]; then STATUS=success; fi
+          LOG=$(tail -c 20000 /tmp/run-failed.log 2>/dev/null || true)
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n --arg status "${STATUS}" --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" --arg run_id "${RUN_ID}" --arg exit_code "${EXIT_CODE}" --arg failed_log "${LOG}" '{status:$status,recorded_at:$recorded_at,run_id:$run_id,exit_code:$exit_code,failed_log:$failed_log}' > "${REPORT_PATH}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record clean Social Factory YouTube defaults run [skip ci]' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Require success
+        run: test "$(jq -r '.status' "${REPORT_PATH}")" = 'success'
