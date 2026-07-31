@@ -1,0 +1,54 @@
+name: Final secure preview DEV deployment
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-secure-preview-final-deploy.yml']
+permissions:
+  contents: write
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: aws-actions/setup-sam@v2
+      - name: Apply DEV-only implementation
+        run: python scripts/apply-secure-social-preview.py
+      - name: Validate and test
+        run: |
+          grep -q 'Preview Video' radio-admin/dev/social-factory/index.html
+          ! grep -q 'loadPreview(item.id)' radio-admin/dev/social-factory/social-factory.js
+          grep -q 'Refresh Preview' radio-admin/dev/social-factory/content-review/preview/index.html
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+      - name: Commit implementation
+        run: |
+          git config user.name stashbox-preview-bot
+          git config user.email actions@users.noreply.github.com
+          git add radio-admin/dev/social-factory/index.html radio-admin/dev/social-factory/social-factory.js social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m 'Implement secure DEV Social Factory previews'
+          git push origin main
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Deploy isolated DEV API
+        working-directory: social-factory-api
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name stashbox-social-api-dev --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy --stack-name stashbox-social-api-dev --region us-east-1 --capabilities CAPABILITY_NAMED_IAM --role-arn "$ROLE" --s3-bucket "$BUCKET" --s3-prefix "social-factory-api/${GITHUB_SHA}" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+      - name: Verify route authentication and page
+        run: |
+          test "$(curl -sS -o /tmp/p.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev/social/review-items/render-c694a998-9548-46f3-b2c2-be194aacb2ef/preview)" = 401
+          test "$(curl -sS -o /tmp/page.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=render-c694a998-9548-46f3-b2c2-be194aacb2ef')" = 200
+          grep -q 'Secure Content Review Preview' /tmp/page.html
