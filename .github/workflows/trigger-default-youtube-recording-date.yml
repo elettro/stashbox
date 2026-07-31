@@ -1,0 +1,21 @@
+name: Trigger Default YouTube Recording Date
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/trigger-default-youtube-recording-date.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch recording-date update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run one-time-default-youtube-recording-date.yml --repo "${GITHUB_REPOSITORY}" --ref main
