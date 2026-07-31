@@ -1,0 +1,37 @@
+name: Trigger Social Factory YouTube Defaults Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-trigger-social-youtube-defaults-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Dispatch established DEV deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-social-factory-api-dev.yml --ref main
+          sleep 10
+          RUN_ID=$(gh run list --workflow=deploy-social-factory-api-dev.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "${RUN_ID}"
+          echo "Waiting for Social Factory DEV deployment ${RUN_ID}."
+          gh run watch "${RUN_ID}" --exit-status
