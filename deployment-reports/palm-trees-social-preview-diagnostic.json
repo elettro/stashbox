@@ -1,0 +1,36 @@
+{
+  "recorded_at": "2026-07-31T10:40:09Z",
+  "review_id": "render-1ee79a2c-7ad3-451f-9b28-f00c61ac8de4",
+  "list_http_status": "200",
+  "item_http_status": "200",
+  "preview_http_status": "200",
+  "preview_host": "stashbox-social-publish-656260749296-us-east-1.s3.us-east-1.amazonaws.com",
+  "expires_in_seconds": 900,
+  "signed_url_present": true,
+  "media_probe": {
+    "head_http_status": "403",
+    "range_http_status": "206",
+    "content_type": "video/mp4",
+    "accept_ranges": "bytes",
+    "content_range": "bytes 0-1023/2914239",
+    "downloaded_range_bytes": 1024
+  },
+  "item": {
+    "id": "render-1ee79a2c-7ad3-451f-9b28-f00c61ac8de4",
+    "title": "Palm Trees",
+    "artist": "Stashbox",
+    "status": "in_review",
+    "video": {
+      "bucket": "stashbox-social-publish-656260749296-us-east-1",
+      "object_key": "incoming/render-jobs/1ee79a2c-7ad3-451f-9b28-f00c61ac8de4/stashbox_palm-trees_15s_9x16_v01.mp4",
+      "staging_uri": "s3://stashbox-social-publish-656260749296-us-east-1/incoming/render-jobs/1ee79a2c-7ad3-451f-9b28-f00c61ac8de4/stashbox_palm-trees_15s_9x16_v01.mp4",
+      "file_name": "stashbox_palm-trees_15s_9x16_v01.mp4",
+      "content_type": "video/mp4",
+      "size_bytes": 2914239,
+      "aspect_ratio": "9:16",
+      "duration_seconds": 15,
+      "width": 1080,
+      "height": 1920
+    }
+  }
+}
