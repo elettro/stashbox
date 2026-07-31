@@ -1,0 +1,219 @@
+name: Apply Social Factory YouTube Defaults
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-apply-social-youtube-defaults.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply defaults and publishing support
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected source block not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # OAuth must include a playlist-write scope. Existing connections will need one reconnect.
+          replace_once(
+              'social-factory-api/youtube-oauth.mjs',
+              "  'https://www.googleapis.com/auth/youtube.upload',\n  'https://www.googleapis.com/auth/youtube.readonly'\n",
+              "  'https://www.googleapis.com/auth/youtube.upload',\n  'https://www.googleapis.com/auth/youtube.readonly',\n  'https://www.googleapis.com/auth/youtube.force-ssl'\n"
+          )
+
+          # New review items inherit the requested Stashbox defaults.
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "const VIDEO_PREFIX = 'incoming/render-jobs/';\n",
+              "const VIDEO_PREFIX = 'incoming/render-jobs/';\nconst DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\nconst DEFAULT_COLLABORATORS = Object.freeze([{\n  name: 'Elettro TV',\n  youtube_handle: '@Elettrotv',\n  channel_id: '',\n  credit: 'Collaborator'\n}]);\n"
+          )
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "    collaborators: [],\n    collaborator_review_required: true,\n",
+              "    collaborators: DEFAULT_COLLABORATORS.map(item => ({ ...item })),\n    collaborator_review_required: true,\n"
+          )
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "          visibility: 'unlisted',\n          made_for_kids: false,\n          notify_subscribers: false,\n          scheduled_at: null\n",
+              "          visibility: 'unlisted',\n          made_for_kids: false,\n          contains_synthetic_media: true,\n          playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n          notify_subscribers: false,\n          scheduled_at: null\n"
+          )
+
+          # Saving old or new review items preserves the defaults and permits overrides.
+          replace_once(
+              'social-factory-api/review-actions.mjs',
+              "const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen', 'hide']);\n",
+              "const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen', 'hide']);\nconst DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\nconst DEFAULT_COLLABORATORS = Object.freeze([{\n  name: 'Elettro TV',\n  youtube_handle: '@Elettrotv',\n  channel_id: '',\n  credit: 'Collaborator'\n}]);\n"
+          )
+          replace_once(
+              'social-factory-api/review-actions.mjs',
+              "          collaborators: normalizeCollaborators(\n            input.collaborators ?? input.metadata?.collaborators ?? currentMetadata.collaborators\n          ),\n",
+              "          collaborators: normalizeCollaborators(\n            input.collaborators ??\n            input.metadata?.collaborators ??\n            (Array.isArray(currentMetadata.collaborators) && currentMetadata.collaborators.length\n              ? currentMetadata.collaborators\n              : DEFAULT_COLLABORATORS)\n          ),\n"
+          )
+          replace_once(
+              'social-factory-api/review-actions.mjs',
+              "          made_for_kids: Boolean(\n            input.made_for_kids ?? input.publish_settings?.made_for_kids ?? item.publish_settings?.made_for_kids\n          ),\n          notify_subscribers: Boolean(\n",
+              "          made_for_kids: Boolean(\n            input.made_for_kids ?? input.publish_settings?.made_for_kids ?? item.publish_settings?.made_for_kids ?? false\n          ),\n          contains_synthetic_media: Boolean(\n            input.contains_synthetic_media ??\n            input.publish_settings?.contains_synthetic_media ??\n            item.publish_settings?.contains_synthetic_media ??\n            true\n          ),\n          playlist_titles: cleanStringList(\n            input.playlist_titles ??\n            input.publish_settings?.playlist_titles ??\n            item.publish_settings?.playlist_titles ??\n            [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n            10,\n            150\n          ),\n          notify_subscribers: Boolean(\n"
+          )
+
+          # Pass the new settings through the review publishing contract and record results.
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);\n",
+              "const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);\nconst DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\n"
+          )
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "        made_for_kids: Boolean(workingItem.publish_settings?.made_for_kids),\n        notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),\n        confirm_upload: confirmUpload === true\n",
+              "        made_for_kids: Boolean(workingItem.publish_settings?.made_for_kids),\n        contains_synthetic_media: workingItem.publish_settings?.contains_synthetic_media !== false,\n        playlist_titles: Array.isArray(workingItem.publish_settings?.playlist_titles)\n          && workingItem.publish_settings.playlist_titles.length\n          ? workingItem.publish_settings.playlist_titles\n          : [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n        notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),\n        confirm_upload: confirmUpload === true\n"
+          )
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "          privacy_status: result.privacy_status || 'unlisted',\n          published_at: publishedAt,\n",
+              "          privacy_status: result.privacy_status || 'unlisted',\n          contains_synthetic_media: result.contains_synthetic_media !== false,\n          playlist_results: Array.isArray(result.playlist_results) ? result.playlist_results : [],\n          published_at: publishedAt,\n"
+          )
+
+          # YouTube upload sends the synthetic-media disclosure and assigns named playlists after upload.
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "import { createAwsSecretStore } from './youtube-oauth.mjs';\n",
+              "import { createAwsSecretStore } from './youtube-oauth.mjs';\nimport { addVideoToNamedPlaylists } from './youtube-playlists.mjs';\n"
+          )
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "  return {\n    title,\n    description,\n    tags,\n    categoryId: String(body.category_id || '10'),\n    madeForKids: Boolean(body.made_for_kids),\n    notifySubscribers: Boolean(body.notify_subscribers)\n  };\n",
+              "  const playlistTitles = Array.isArray(body.playlist_titles)\n    ? [...new Set(body.playlist_titles.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10)\n    : [];\n\n  return {\n    title,\n    description,\n    tags,\n    categoryId: String(body.category_id || '10'),\n    madeForKids: Boolean(body.made_for_kids),\n    containsSyntheticMedia: body.contains_synthetic_media !== false,\n    playlistTitles,\n    notifySubscribers: Boolean(body.notify_subscribers)\n  };\n"
+          )
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "        title: metadata.title,\n        max_direct_publish_bytes: maxDirectPublishBytes\n",
+              "        title: metadata.title,\n        contains_synthetic_media: metadata.containsSyntheticMedia,\n        playlist_titles: metadata.playlistTitles,\n        max_direct_publish_bytes: maxDirectPublishBytes\n"
+          )
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "            privacyStatus: 'unlisted',\n            selfDeclaredMadeForKids: metadata.madeForKids\n",
+              "            privacyStatus: 'unlisted',\n            selfDeclaredMadeForKids: metadata.madeForKids,\n            containsSyntheticMedia: metadata.containsSyntheticMedia\n"
+          )
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "      return {\n        uploaded: true,\n        mode: 'unlisted_upload',\n        ...validation,\n        youtube_video_id: uploaded.id,\n        youtube_url: `https://www.youtube.com/watch?v=${uploaded.id}`\n      };\n",
+              "      const playlistResults = await addVideoToNamedPlaylists({\n        fetchImpl,\n        accessToken: tokens.access_token,\n        videoId: uploaded.id,\n        playlistTitles: metadata.playlistTitles\n      });\n\n      return {\n        uploaded: true,\n        mode: 'unlisted_upload',\n        ...validation,\n        youtube_video_id: uploaded.id,\n        youtube_url: `https://www.youtube.com/watch?v=${uploaded.id}`,\n        playlist_results: playlistResults\n      };\n"
+          )
+
+          # Content Review shows and saves each requested default.
+          replace_once(
+              'radio-admin/dev/social-factory/index.html',
+              "              <label class=\"sf-full\">Collaborators<textarea id=\"collaborators\" rows=\"4\" placeholder=\"One per line: Name | @YouTubeHandle | Credit\"></textarea><span class=\"sf-field-help\">Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>\n              <div class=\"sf-form-row\"><label>Visibility",
+              "              <label class=\"sf-full\">Collaborators<textarea id=\"collaborators\" rows=\"4\" placeholder=\"One per line: Name | @YouTubeHandle | Credit\"></textarea><span class=\"sf-field-help\">@Elettrotv is the default. Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>\n              <label class=\"sf-full\">YouTube Playlists<textarea id=\"playlistTitles\" rows=\"2\" placeholder=\"One playlist title per line\"></textarea><span class=\"sf-field-help\">Every published Stashbox Social Factory video defaults to the Stashbox Radio video library playlist.</span></label>\n              <div class=\"sf-form-row\"><label>Visibility"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/index.html',
+              "              <div class=\"sf-form-row sf-checkbox-row\"><label><input id=\"madeForKids\" type=\"checkbox\" /> Made for kids</label><label><input id=\"notifySubscribers\" type=\"checkbox\" /> Notify subscribers</label></div>\n",
+              "              <div class=\"sf-form-row sf-checkbox-row\"><label><input id=\"madeForKids\" type=\"checkbox\" /> Made for kids</label><label><input id=\"containsSyntheticMedia\" type=\"checkbox\" checked /> Contains realistic AI / synthetic media</label><label><input id=\"notifySubscribers\" type=\"checkbox\" /> Notify subscribers</label></div>\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/index.html',
+              "/radio-admin/dev/social-factory/social-factory.js?v=20260730-loadfix2",
+              "/radio-admin/dev/social-factory/social-factory.js?v=20260731-youtube-defaults1"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "  const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';\n",
+              "  const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';\n  const DEFAULT_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\n  const DEFAULT_COLLABORATORS = [{ name: 'Elettro TV', youtube_handle: '@Elettrotv', credit: 'Collaborator' }];\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "      'hashtags', 'collaborators', 'visibility', 'scheduledAt', 'madeForKids',\n      'notifySubscribers', 'reviewNote', 'saveReview', 'approveReview',\n",
+              "      'hashtags', 'collaborators', 'playlistTitles', 'visibility', 'scheduledAt', 'madeForKids',\n      'containsSyntheticMedia', 'notifySubscribers', 'reviewNote', 'saveReview', 'approveReview',\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "    elements.collaborators.value = collaboratorsToText(metadata.collaborators);\n    elements.visibility.value = settings.visibility || 'unlisted';\n",
+              "    const collaborators = Array.isArray(metadata.collaborators) && metadata.collaborators.length\n      ? metadata.collaborators\n      : DEFAULT_COLLABORATORS;\n    elements.collaborators.value = collaboratorsToText(collaborators);\n    const playlistTitles = Array.isArray(settings.playlist_titles) && settings.playlist_titles.length\n      ? settings.playlist_titles\n      : [DEFAULT_PLAYLIST_TITLE];\n    elements.playlistTitles.value = playlistTitles.join('\\n');\n    elements.visibility.value = settings.visibility || 'unlisted';\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "    elements.madeForKids.checked = Boolean(settings.made_for_kids);\n    elements.notifySubscribers.checked = Boolean(settings.notify_subscribers);\n",
+              "    elements.madeForKids.checked = Boolean(settings.made_for_kids);\n    elements.containsSyntheticMedia.checked = settings.contains_synthetic_media !== false;\n    elements.notifySubscribers.checked = Boolean(settings.notify_subscribers);\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "    const hashtags = elements.hashtags.value.split(/[\\s,]+/).map((item) => item.trim()).filter(Boolean);\n    return {\n",
+              "    const hashtags = elements.hashtags.value.split(/[\\s,]+/).map((item) => item.trim()).filter(Boolean);\n    const playlistTitles = elements.playlistTitles.value.split(/\\r?\\n|,/).map((item) => item.trim()).filter(Boolean);\n    return {\n"
+          )
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "      collaborators: parseCollaborators(elements.collaborators.value),\n      visibility: elements.visibility.value,\n      scheduled_at: scheduled,\n      made_for_kids: elements.madeForKids.checked,\n      notify_subscribers: elements.notifySubscribers.checked\n",
+              "      collaborators: parseCollaborators(elements.collaborators.value),\n      playlist_titles: playlistTitles.length ? playlistTitles : [DEFAULT_PLAYLIST_TITLE],\n      visibility: elements.visibility.value,\n      scheduled_at: scheduled,\n      made_for_kids: elements.madeForKids.checked,\n      contains_synthetic_media: elements.containsSyntheticMedia.checked,\n      notify_subscribers: elements.notifySubscribers.checked\n"
+          )
+
+          # Validation and test expectations.
+          replace_once(
+              'social-factory-api/package.json',
+              "node --check youtube-oauth.mjs && node --check youtube-publish.mjs &&",
+              "node --check youtube-oauth.mjs && node --check youtube-playlists.mjs && node --check youtube-publish.mjs &&"
+          )
+          replace_once(
+              'social-factory-api/tests/review-workflow.test.mjs',
+              "  assert.deepEqual(metadata.collaborators, []);\n",
+              "  assert.equal(metadata.collaborators[0].youtube_handle, '@Elettrotv');\n"
+          )
+          replace_once(
+              'social-factory-api/tests/review-workflow.test.mjs',
+              "  assert.equal(result.review_item.publish_settings.visibility, 'unlisted');\n",
+              "  assert.equal(result.review_item.publish_settings.visibility, 'unlisted');\n  assert.equal(result.review_item.publish_settings.made_for_kids, false);\n  assert.equal(result.review_item.publish_settings.contains_synthetic_media, true);\n  assert.deepEqual(result.review_item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n"
+          )
+          replace_once(
+              'social-factory-api/tests/youtube-publish.test.mjs',
+              "  assert.equal(metadata.status.privacyStatus, 'unlisted');\n",
+              "  assert.equal(metadata.status.privacyStatus, 'unlisted');\n  assert.equal(metadata.status.selfDeclaredMadeForKids, false);\n  assert.equal(metadata.status.containsSyntheticMedia, true);\n"
+          )
+          replace_once(
+              'social-factory-api/tests/review-publish.test.mjs',
+              "  assert.equal(calls[0].title, 'Stashbox - Test Song | Official Short');\n",
+              "  assert.equal(calls[0].title, 'Stashbox - Test Song | Official Short');\n  assert.equal(calls[0].made_for_kids, false);\n  assert.equal(calls[0].contains_synthetic_media, true);\n  assert.deepEqual(calls[0].playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n"
+          )
+          PY
+
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit applied defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add social-factory-api radio-admin/dev/social-factory
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Default Social Factory YouTube settings and playlist assignment'
+          git push origin HEAD:main
