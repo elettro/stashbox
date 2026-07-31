@@ -106,6 +106,7 @@ test('approved review item can be validated without publishing', async () => {
   assert.equal(calls[0].made_for_kids, false);
   assert.equal(calls[0].contains_synthetic_media, true);
   assert.deepEqual(calls[0].playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);
+  assert.equal(calls[0].recording_date, '2026-07-28');
   assert.equal(reviews.get(reviewId).publishing_status, 'not_published');
 });
 

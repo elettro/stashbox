@@ -392,6 +392,7 @@ Resources:
           SOCIAL_SCHEDULER_ROLE_ARN: !GetAtt SocialPublishSchedulerTargetRole.Arn
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
           SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'
+          SOCIAL_PUBLISH_TIME_ZONE: America/New_York
       Events:
         Health:
           Type: HttpApi
@@ -571,6 +572,7 @@ Resources:
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
           SOCIAL_MAX_UPLOAD_BYTES: '536870912'
           SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '536870912'
+          SOCIAL_PUBLISH_TIME_ZONE: America/New_York
       Events:
         ScheduledPublishQueue:
           Type: SQS

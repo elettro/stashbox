@@ -6,6 +6,29 @@ const REVIEW_PREFIX = 'drafts/';
 const SCHEDULE_GRACE_MS = 60 * 1000;
 const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
+const DEFAULT_PUBLISH_TIME_ZONE = process.env.SOCIAL_PUBLISH_TIME_ZONE || 'America/New_York';
+
+function dateOnlyInTimeZone(value, timeZone = DEFAULT_PUBLISH_TIME_ZONE) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw serviceError('invalid_recording_date_source', 500);
+  }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function resolveRecordingDate(item, currentDate) {
+  const explicit = String(item?.publish_settings?.recording_date || '').trim();
+  if (explicit) return explicit;
+  const publishMoment = item?.publish_settings?.scheduled_at || currentDate;
+  return dateOnlyInTimeZone(publishMoment);
+}
 
 function serviceError(message, statusCode = 400, details) {
   const error = new Error(message);
@@ -331,6 +354,8 @@ export function createReviewPublishService({
       workingItem = await markPublishing(id, item, scheduledContext);
     }
 
+    const recordingDate = resolveRecordingDate(workingItem, now());
+
     const publishEvent = {
       ...event,
       body: JSON.stringify({
@@ -345,6 +370,7 @@ export function createReviewPublishService({
           && workingItem.publish_settings.playlist_titles.length
           ? workingItem.publish_settings.playlist_titles
           : [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
+        recording_date: recordingDate,
         notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),
         confirm_upload: confirmUpload === true
       }),
@@ -399,7 +425,8 @@ export function createReviewPublishService({
       },
       publish_settings: {
         ...workingItem.publish_settings,
-        actual_visibility: 'unlisted'
+        actual_visibility: 'unlisted',
+        actual_recording_date: result.recording_date || recordingDate
       },
       schedule: scheduledContext
         ? {
@@ -419,6 +446,7 @@ export function createReviewPublishService({
           privacy_status: result.privacy_status || 'unlisted',
           contains_synthetic_media: result.contains_synthetic_media !== false,
           playlist_results: Array.isArray(result.playlist_results) ? result.playlist_results : [],
+          recording_date: result.recording_date || recordingDate,
           published_at: publishedAt,
           failed_at: null,
           error: null

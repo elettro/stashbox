@@ -257,6 +257,7 @@ test('confirmed publish uses resumable upload and returns the YouTube video ID',
     title: 'Social Factory Test',
     description: 'First unlisted upload',
     tags: ['stashbox', 'test'],
+    recording_date: '2026-07-27',
     privacy_status: 'public',
     confirm_upload: true
   }));
@@ -276,4 +277,6 @@ test('confirmed publish uses resumable upload and returns the YouTube video ID',
   assert.equal(metadata.status.privacyStatus, 'unlisted');
   assert.equal(metadata.status.selfDeclaredMadeForKids, false);
   assert.equal(metadata.status.containsSyntheticMedia, true);
+  assert.equal(metadata.recordingDetails.recordingDate, '2026-07-27');
+  assert.match(fetchCalls[0].url, /part=snippet%2Cstatus%2CrecordingDetails/);
 });

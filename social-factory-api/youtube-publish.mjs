@@ -121,6 +121,10 @@ function validatePublishMetadata(body = {}) {
   const playlistTitles = Array.isArray(body.playlist_titles)
     ? [...new Set(body.playlist_titles.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10)
     : [];
+  const recordingDate = String(body.recording_date || '').trim();
+  if (recordingDate && !/^\d{4}-\d{2}-\d{2}$/.test(recordingDate)) {
+    throw serviceError('invalid_youtube_recording_date', 422, { format: 'YYYY-MM-DD' });
+  }
 
   return {
     title,
@@ -130,6 +134,7 @@ function validatePublishMetadata(body = {}) {
     madeForKids: Boolean(body.made_for_kids),
     containsSyntheticMedia: body.contains_synthetic_media !== false,
     playlistTitles,
+    recordingDate,
     notifySubscribers: Boolean(body.notify_subscribers)
   };
 }
@@ -362,6 +367,7 @@ export function createYoutubePublishService({
         title: metadata.title,
         contains_synthetic_media: metadata.containsSyntheticMedia,
         playlist_titles: metadata.playlistTitles,
+        recording_date: metadata.recordingDate || null,
         max_direct_publish_bytes: maxDirectPublishBytes
       };
 
@@ -383,7 +389,7 @@ export function createYoutubePublishService({
 
       const initUrl = new URL(YOUTUBE_UPLOAD_URL);
       initUrl.searchParams.set('uploadType', 'resumable');
-      initUrl.searchParams.set('part', 'snippet,status');
+      initUrl.searchParams.set('part', 'snippet,status,recordingDetails');
       initUrl.searchParams.set('notifySubscribers', String(metadata.notifySubscribers));
 
       const initResponse = await fetchImpl(initUrl, {
@@ -405,7 +411,10 @@ export function createYoutubePublishService({
             privacyStatus: 'unlisted',
             selfDeclaredMadeForKids: metadata.madeForKids,
             containsSyntheticMedia: metadata.containsSyntheticMedia
-          }
+          },
+          recordingDetails: metadata.recordingDate
+            ? { recordingDate: metadata.recordingDate }
+            : undefined
         })
       });
 

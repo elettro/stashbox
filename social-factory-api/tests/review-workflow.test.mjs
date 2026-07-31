@@ -150,6 +150,7 @@ test('confirmed staging copies server-to-server and creates a content review ite
   assert.equal(result.review_item.publish_settings.made_for_kids, false);
   assert.equal(result.review_item.publish_settings.contains_synthetic_media, true);
   assert.deepEqual(result.review_item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);
+  assert.equal(result.review_item.publish_settings.recording_date_mode, 'publish_date');
   assert.equal(result.review_item.automation.auto_publish, false);
   assert.equal(reviews.size, 1);
   assert.equal(calls.length, 2);

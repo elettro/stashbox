@@ -445,6 +445,7 @@ export function createReviewWorkflowService({
           made_for_kids: false,
           contains_synthetic_media: true,
           playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
+          recording_date_mode: 'publish_date',
           notify_subscribers: false,
           scheduled_at: null
         },
