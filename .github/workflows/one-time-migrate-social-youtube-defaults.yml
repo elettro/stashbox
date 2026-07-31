@@ -1,0 +1,183 @@
+name: Migrate Existing Social Factory YouTube Defaults
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-migrate-social-youtube-defaults.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      TOKEN_SECRET: stashbox/social-factory/dev/youtube-oauth/tokens
+      PLAYLIST_TITLE: Stashbox Radio - Video Library - Stashbox
+      REPORT_PATH: deployment-reports/social-youtube-defaults-migration.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify playlist and migrate existing review records
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")" /tmp/social-review-migration
+
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='SocialPublishBucketName'].OutputValue" \
+            --output text)
+          test -n "${BUCKET}"
+
+          aws secretsmanager get-secret-value --secret-id "${CONFIG_SECRET}" --query SecretString --output text > /tmp/config.json
+          aws secretsmanager get-secret-value --secret-id "${TOKEN_SECRET}" --query SecretString --output text > /tmp/tokens.json
+
+          CLIENT_ID=$(jq -r '.client_id // empty' /tmp/config.json)
+          CLIENT_SECRET=$(jq -r '.client_secret // empty' /tmp/config.json)
+          REFRESH_TOKEN=$(jq -r '.refresh_token // empty' /tmp/tokens.json)
+          STORED_SCOPE=$(jq -r '.scope // empty' /tmp/tokens.json)
+          test -n "${CLIENT_ID}" && test -n "${CLIENT_SECRET}" && test -n "${REFRESH_TOKEN}"
+
+          TOKEN_STATUS=$(curl --silent --show-error --max-time 60 \
+            -X POST \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode "client_id=${CLIENT_ID}" \
+            --data-urlencode "client_secret=${CLIENT_SECRET}" \
+            --data-urlencode "refresh_token=${REFRESH_TOKEN}" \
+            --data-urlencode 'grant_type=refresh_token' \
+            -o /tmp/token-response.json -w '%{http_code}' \
+            'https://oauth2.googleapis.com/token')
+          test "${TOKEN_STATUS}" = '200'
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' /tmp/token-response.json)
+          test -n "${ACCESS_TOKEN}"
+
+          PLAYLIST_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -o /tmp/playlists.json -w '%{http_code}' \
+            'https://www.googleapis.com/youtube/v3/playlists?part=id%2Csnippet&mine=true&maxResults=50')
+          test "${PLAYLIST_STATUS}" = '200'
+          PLAYLIST_ID=$(jq -r --arg title "${PLAYLIST_TITLE}" \
+            '[.items[]? | select((.snippet.title // "" | ascii_downcase) == ($title | ascii_downcase)) | .id][0] // empty' \
+            /tmp/playlists.json)
+          PLAYLIST_FOUND=false
+          if [ -n "${PLAYLIST_ID}" ]; then PLAYLIST_FOUND=true; fi
+
+          aws s3api list-objects-v2 --bucket "${BUCKET}" --prefix 'drafts/' --output json > /tmp/drafts.json
+          jq -r '.Contents[]?.Key | select(endswith(".json"))' /tmp/drafts.json > /tmp/draft-keys.txt
+
+          TOTAL=0
+          UPDATED=0
+          UNCHANGED=0
+          while IFS= read -r KEY; do
+            [ -n "${KEY}" ] || continue
+            TOTAL=$((TOTAL + 1))
+            SAFE_NAME=$(printf '%s' "${KEY}" | sha256sum | cut -d' ' -f1)
+            ORIGINAL="/tmp/social-review-migration/${SAFE_NAME}-original.json"
+            MIGRATED="/tmp/social-review-migration/${SAFE_NAME}-migrated.json"
+            aws s3 cp "s3://${BUCKET}/${KEY}" "${ORIGINAL}" --only-show-errors
+
+            jq --arg playlist "${PLAYLIST_TITLE}" '
+              .metadata = (.metadata // {}) |
+              .metadata.collaborators = (
+                if ((.metadata.collaborators // []) | length) == 0 then
+                  [{name:"Elettro TV",youtube_handle:"@Elettrotv",channel_id:"",credit:"Collaborator"}]
+                else .metadata.collaborators end
+              ) |
+              .metadata.collaborator_review_required = true |
+              .publish_settings = (.publish_settings // {}) |
+              (if (.publish_settings | has("made_for_kids")) then . else .publish_settings.made_for_kids = false end) |
+              (if (.publish_settings | has("contains_synthetic_media")) then . else .publish_settings.contains_synthetic_media = true end) |
+              .publish_settings.playlist_titles = (
+                if ((.publish_settings.playlist_titles // []) | length) == 0 then [$playlist]
+                else .publish_settings.playlist_titles end
+              )
+            ' "${ORIGINAL}" > "${MIGRATED}"
+
+            if cmp -s "${ORIGINAL}" "${MIGRATED}"; then
+              UNCHANGED=$((UNCHANGED + 1))
+            else
+              aws s3api put-object \
+                --bucket "${BUCKET}" \
+                --key "${KEY}" \
+                --body "${MIGRATED}" \
+                --content-type 'application/json; charset=utf-8' \
+                --cache-control 'no-store' >/dev/null
+              UPDATED=$((UPDATED + 1))
+            fi
+          done < /tmp/draft-keys.txt
+
+          REQUIRED_SCOPE='https://www.googleapis.com/auth/youtube.force-ssl'
+          RECONNECT_REQUIRED=true
+          if printf '%s' "${STORED_SCOPE}" | grep -Fq "${REQUIRED_SCOPE}"; then RECONNECT_REQUIRED=false; fi
+
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg bucket "${BUCKET}" \
+            --arg playlist_title "${PLAYLIST_TITLE}" \
+            --arg playlist_id "${PLAYLIST_ID}" \
+            --argjson playlist_found "${PLAYLIST_FOUND}" \
+            --arg stored_scope "${STORED_SCOPE}" \
+            --argjson youtube_reconnect_required "${RECONNECT_REQUIRED}" \
+            --argjson total_review_items "${TOTAL}" \
+            --argjson updated_review_items "${UPDATED}" \
+            --argjson unchanged_review_items "${UNCHANGED}" '
+              {
+                status: "success",
+                recorded_at: $recorded_at,
+                bucket: $bucket,
+                defaults: {
+                  made_for_kids: false,
+                  contains_synthetic_media: true,
+                  playlist_title: $playlist_title,
+                  collaborator_handle: "@Elettrotv"
+                },
+                playlist: {
+                  found: $playlist_found,
+                  id: $playlist_id,
+                  title: $playlist_title
+                },
+                oauth: {
+                  stored_scope: $stored_scope,
+                  youtube_reconnect_required: $youtube_reconnect_required
+                },
+                migration: {
+                  total_review_items: $total_review_items,
+                  updated_review_items: $updated_review_items,
+                  unchanged_review_items: $unchanged_review_items
+                },
+                youtube_published: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -rf /tmp/config.json /tmp/tokens.json /tmp/token-response.json /tmp/playlists.json /tmp/drafts.json /tmp/draft-keys.txt /tmp/social-review-migration
+          unset CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN
+
+      - name: Commit migration report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record Social Factory YouTube defaults migration [skip ci]' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
