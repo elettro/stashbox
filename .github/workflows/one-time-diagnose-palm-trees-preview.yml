@@ -1,0 +1,161 @@
+name: Diagnose Palm Trees Social Factory Preview
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-diagnose-palm-trees-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/palm-trees-social-preview-diagnostic.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test latest Palm Trees review preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          LIST_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/review-list.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items?limit=100")
+
+          REVIEW_ID=$(jq -r '
+            [(.items // [])[]
+              | select(
+                  ((.song.title // "") | ascii_downcase) == "palm trees" or
+                  ((.song.song_key // .song.key // "") | ascii_downcase) == "palm-trees-stashbox" or
+                  ((.metadata.selected_title // "") | ascii_downcase | contains("palm trees"))
+                )]
+            | sort_by(.created_at // .updated_at // "")
+            | reverse
+            | .[0].id // empty
+          ' /tmp/review-list.json)
+          test -n "${REVIEW_ID}" || { echo 'No Palm Trees review item found.' >&2; exit 1; }
+
+          ITEM_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -o /tmp/review-item.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}")
+
+          PREVIEW_STATUS=$(curl --silent --show-error --max-time 90 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+            -d '{}' \
+            -o /tmp/review-preview.json -w '%{http_code}' \
+            "${SOCIAL_API_BASE}/social/review-items/${REVIEW_ID}/preview")
+
+          PREVIEW_URL=$(jq -r '.preview_url // empty' /tmp/review-preview.json)
+          test -n "${PREVIEW_URL}" || { cat /tmp/review-preview.json >&2; exit 1; }
+
+          HEAD_STATUS=$(curl --silent --show-error --max-time 90 \
+            -I -o /tmp/head-headers.txt -w '%{http_code}' "${PREVIEW_URL}" || true)
+          RANGE_STATUS=$(curl --silent --show-error --max-time 90 \
+            -H 'Range: bytes=0-1023' \
+            -o /tmp/range.bin -D /tmp/range-headers.txt -w '%{http_code}' \
+            "${PREVIEW_URL}" || true)
+
+          CONTENT_TYPE=$(awk 'BEGIN{IGNORECASE=1} /^content-type:/{gsub(/\r/,""); print $2; exit}' /tmp/range-headers.txt)
+          ACCEPT_RANGES=$(awk 'BEGIN{IGNORECASE=1} /^accept-ranges:/{gsub(/\r/,""); print $2; exit}' /tmp/range-headers.txt)
+          CONTENT_RANGE=$(awk 'BEGIN{IGNORECASE=1} /^content-range:/{sub(/^[^:]+:[ ]*/,""); gsub(/\r/,""); print; exit}' /tmp/range-headers.txt)
+          RANGE_BYTES=$(wc -c < /tmp/range.bin | tr -d ' ')
+          PREVIEW_HOST=$(python - <<'PY'
+          import json, urllib.parse
+          from pathlib import Path
+          p=json.loads(Path('/tmp/review-preview.json').read_text())
+          print(urllib.parse.urlparse(p.get('preview_url','')).netloc)
+          PY
+          )
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --arg review_id "${REVIEW_ID}" \
+            --arg list_http_status "${LIST_STATUS}" \
+            --arg item_http_status "${ITEM_STATUS}" \
+            --arg preview_http_status "${PREVIEW_STATUS}" \
+            --arg head_http_status "${HEAD_STATUS}" \
+            --arg range_http_status "${RANGE_STATUS}" \
+            --arg preview_host "${PREVIEW_HOST}" \
+            --arg content_type "${CONTENT_TYPE}" \
+            --arg accept_ranges "${ACCEPT_RANGES}" \
+            --arg content_range "${CONTENT_RANGE}" \
+            --argjson range_bytes "${RANGE_BYTES:-0}" \
+            --slurpfile item /tmp/review-item.json \
+            --slurpfile preview /tmp/review-preview.json '
+              {
+                recorded_at: $recorded_at,
+                review_id: $review_id,
+                list_http_status: $list_http_status,
+                item_http_status: $item_http_status,
+                preview_http_status: $preview_http_status,
+                preview_host: $preview_host,
+                expires_in_seconds: ($preview[0].expires_in_seconds // null),
+                signed_url_present: (($preview[0].preview_url // "") | startswith("https://")),
+                media_probe: {
+                  head_http_status: $head_http_status,
+                  range_http_status: $range_http_status,
+                  content_type: $content_type,
+                  accept_ranges: $accept_ranges,
+                  content_range: $content_range,
+                  downloaded_range_bytes: $range_bytes
+                },
+                item: {
+                  id: ($item[0].item.id // null),
+                  title: ($item[0].item.song.title // null),
+                  artist: ($item[0].item.song.artist // null),
+                  status: ($item[0].item.status // null),
+                  video: ($item[0].item.video // {})
+                }
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/review-list.json /tmp/review-item.json \
+            /tmp/review-preview.json /tmp/head-headers.txt /tmp/range-headers.txt /tmp/range.bin
+          unset SOCIAL_ADMIN_TOKEN PREVIEW_URL
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Palm Trees preview diagnostic [skip ci]'
+          git push origin HEAD:main
