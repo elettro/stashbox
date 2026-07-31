@@ -1,4 +1,4 @@
-name: Apply final secure preview client detection fix
+name: Apply secure preview response contract fix
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Patch secure preview detection
+      - name: Add schema-required ok field
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -26,39 +26,24 @@ jobs:
 
           actions = Path('social-factory-api/review-actions.mjs')
           text = actions.read_text()
-          old = """      const actorType = getHeader(event, 'x-stashbox-actor-type').toLowerCase();
-                const actorId = getHeader(event, 'x-stashbox-actor').toLowerCase();
-                const isCustomGptRequest = actorType === 'custom_gpt' || actorId.includes('gpt') || Boolean(getHeader(event, 'authorization'));
-                return {
-                  ...(isCustomGptRequest ? {} : { preview_url: previewUrl }),"""
-          new = """      const origin = getHeader(event, 'origin').toLowerCase();
-                const isStashboxBrowserRequest = origin === 'https://stashbox.com';
-                return {
-                  ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),"""
+          old = """      return {
+                ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),
+                review_page_url: reviewPageUrl,"""
+          new = """      return {
+                ok: true,
+                ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),
+                review_page_url: reviewPageUrl,"""
           if old not in text:
-              raise SystemExit('review-actions target block not found')
-          actions.write_text(text.replace(old, new))
+              raise SystemExit('preview response target block not found')
+          actions.write_text(text.replace(old, new, 1))
 
-          contract_tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
-          t = contract_tests.read_text()
-          t = t.replace(
-              "r=await x.s.preview(event(),id);",
-              "r=await x.s.preview(event({origin:'https://stashbox.com'}),id);",
-              1
-          )
-          contract_tests.write_text(t)
-
-          action_tests = Path('social-factory-api/tests/review-actions.test.mjs')
-          a = action_tests.read_text()
-          old_test = """  const { service } = fixture();
-            const result = await service.preview(event(), 'render-job-12345678');"""
-          new_test = """  const { service } = fixture();
-            const browserEvent = event();
-            browserEvent.headers.origin = 'https://stashbox.com';
-            const result = await service.preview(browserEvent, 'render-job-12345678');"""
-          if old_test not in a:
-              raise SystemExit('review-actions browser preview test block not found')
-          action_tests.write_text(a.replace(old_test, new_test, 1))
+          tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
+          t = tests.read_text()
+          old_test = "assert.equal(r.expires_in_seconds,900);"
+          new_test = "assert.equal(r.ok,true);assert.equal(r.expires_in_seconds,900);"
+          if old_test not in t:
+              raise SystemExit('secure preview test target not found')
+          tests.write_text(t.replace(old_test, new_test, 1))
           PY
 
           cd social-factory-api
@@ -69,7 +54,7 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs social-factory-api/tests/review-actions.test.mjs
-          git commit -m 'Finalize secure preview GPT response contract'
+          git add social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs
+          git commit -m 'Add ok field to secure preview response contract'
           git pull --rebase origin main
           git push origin HEAD:main
