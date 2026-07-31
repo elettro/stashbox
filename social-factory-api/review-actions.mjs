@@ -224,7 +224,8 @@ export function createReviewActionService({
       const previewUrl = await getStore().createPreviewUrl(item);
       const reviewPageUrl = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(safeReviewId(reviewId))}`;
       const origin = getHeader(event, 'origin').toLowerCase();
-      const isStashboxBrowserRequest = origin === 'https://stashbox.com';
+      const viewer = String(event?.queryStringParameters?.viewer || '').toLowerCase();
+      const isStashboxBrowserRequest = origin === 'https://stashbox.com' || viewer === 'browser';
       return {
         ok: true,
         ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),
