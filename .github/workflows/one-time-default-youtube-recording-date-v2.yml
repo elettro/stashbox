@@ -1,0 +1,97 @@
+name: Apply YouTube Recording Date Default V2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-default-youtube-recording-date-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply source patch and current tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/one-time-default-youtube-recording-date.yml').read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "          PY\n\n          cd social-factory-api"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          lines = workflow[start:end].splitlines()
+          code = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+
+          try:
+              exec(compile(code, 'recording-date-source-patch', 'exec'), {})
+          except SystemExit as error:
+              message = str(error)
+              if 'social-factory-api/tests/review-workflow.test.mjs' not in message:
+                  raise
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected current test block not found in {path}: {old[:140]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'social-factory-api/tests/review-workflow.test.mjs',
+              "  assert.deepEqual(result.review_item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n  assert.equal(result.review_item.automation.auto_publish, false);\n",
+              "  assert.deepEqual(result.review_item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n  assert.equal(result.review_item.publish_settings.recording_date_mode, 'publish_date');\n  assert.equal(result.review_item.automation.auto_publish, false);\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/review-publish.test.mjs',
+              "  assert.deepEqual(calls[0].playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n  assert.equal(reviews.get(reviewId).publishing_status, 'not_published');\n",
+              "  assert.deepEqual(calls[0].playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n  assert.equal(calls[0].recording_date, '2026-07-28');\n  assert.equal(reviews.get(reviewId).publishing_status, 'not_published');\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/youtube-publish.test.mjs',
+              "    tags: ['stashbox', 'test'],\n    privacy_status: 'public',\n",
+              "    tags: ['stashbox', 'test'],\n    recording_date: '2026-07-27',\n    privacy_status: 'public',\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/youtube-publish.test.mjs',
+              "  assert.equal(metadata.status.containsSyntheticMedia, true);\n",
+              "  assert.equal(metadata.status.containsSyntheticMedia, true);\n  assert.equal(metadata.recordingDetails.recordingDate, '2026-07-27');\n  assert.match(fetchCalls[0].url, /part=snippet%2Cstatus%2CrecordingDetails/);\n"
+          )
+          PY
+
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit recording-date default
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api
+          git commit -m 'Default YouTube recording date to publication date'
+          git pull --rebase origin main
+          git push origin HEAD:main
