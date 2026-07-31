@@ -216,7 +216,9 @@ export function createReviewActionService({
       const { item } = await load(event, reviewId);
       const previewUrl = await getStore().createPreviewUrl(item);
       const reviewPageUrl = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(safeReviewId(reviewId))}`;
-      const isCustomGptRequest = Boolean(getHeader(event, 'authorization'));
+      const actorType = getHeader(event, 'x-stashbox-actor-type').toLowerCase();
+      const actorId = getHeader(event, 'x-stashbox-actor').toLowerCase();
+      const isCustomGptRequest = actorType === 'custom_gpt' || actorId.includes('gpt') || Boolean(getHeader(event, 'authorization'));
       return {
         ...(isCustomGptRequest ? {} : { preview_url: previewUrl }),
         review_page_url: reviewPageUrl,
