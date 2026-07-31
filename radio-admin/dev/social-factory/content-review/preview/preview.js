@@ -112,16 +112,22 @@
       }
 
       status.textContent = 'Loading video…';
+      const markReady = () => {
+        status.hidden = true;
+      };
+      ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
+        video.addEventListener(eventName, markReady, { once: true });
+      });
       video.onerror = () => {
         status.hidden = false;
         status.textContent = 'The secure URL was created, but the browser could not load the video file.';
         expiry.textContent = 'Video playback failed.';
       };
-      video.onloadedmetadata = () => {
-        status.hidden = true;
-      };
       video.src = payload.preview_url;
       video.load();
+      window.setTimeout(() => {
+        if (video.readyState >= 1 && video.duration > 0) markReady();
+      }, 1200);
 
       const ttl = Number(payload.expires_in_seconds || TTL);
       expiry.textContent = `Preview expires in ${Math.round(ttl / 60)} minutes.`;
