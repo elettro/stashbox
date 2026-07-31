@@ -1,0 +1,67 @@
+name: Fix and Run Social Factory YouTube Defaults
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-fix-and-run-social-youtube-defaults.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  fix-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Correct commit order
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/one-time-apply-social-youtube-defaults.yml')
+          text = path.read_text()
+          old = """          git pull --rebase origin main
+          git add social-factory-api radio-admin/dev/social-factory
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Default Social Factory YouTube settings and playlist assignment'
+          git push origin HEAD:main
+"""
+          new = """          git add social-factory-api radio-admin/dev/social-factory
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Default Social Factory YouTube settings and playlist assignment'
+          git pull --rebase origin main
+          git push origin HEAD:main
+"""
+          if old not in text:
+              raise SystemExit('Expected commit block not found.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/one-time-apply-social-youtube-defaults.yml
+          git commit -m 'Fix YouTube defaults workflow commit order'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Dispatch corrected update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run one-time-apply-social-youtube-defaults.yml --ref main
+          sleep 8
+          RUN_ID=$(gh run list --workflow=one-time-apply-social-youtube-defaults.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "${RUN_ID}"
+          gh run watch "${RUN_ID}" --exit-status
