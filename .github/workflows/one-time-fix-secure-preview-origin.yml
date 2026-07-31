@@ -1,0 +1,89 @@
+name: Apply final secure preview client detection fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-fix-secure-preview-origin.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch secure preview detection and deployment receipt
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          actions = Path('social-factory-api/review-actions.mjs')
+          text = actions.read_text()
+          old = """      const actorType = getHeader(event, 'x-stashbox-actor-type').toLowerCase();
+                const actorId = getHeader(event, 'x-stashbox-actor').toLowerCase();
+                const isCustomGptRequest = actorType === 'custom_gpt' || actorId.includes('gpt') || Boolean(getHeader(event, 'authorization'));
+                return {
+                  ...(isCustomGptRequest ? {} : { preview_url: previewUrl }),"""
+          new = """      const origin = getHeader(event, 'origin').toLowerCase();
+                const isStashboxBrowserRequest = origin === 'https://stashbox.com';
+                return {
+                  ...(isStashboxBrowserRequest ? { preview_url: previewUrl } : {}),"""
+          if old not in text:
+              raise SystemExit('review-actions target block not found')
+          actions.write_text(text.replace(old, new))
+
+          tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
+          t = tests.read_text()
+          t = t.replace(
+              "const event=(extra={})=>({headers:{'x-admin-token':'t',...extra}});",
+              "const event=(extra={})=>({headers:{'x-admin-token':'t',...extra}});"
+          )
+          t = t.replace(
+              "r=await x.s.preview(event(),id);",
+              "r=await x.s.preview(event({origin:'https://stashbox.com'}),id);"
+          )
+          t = t.replace(
+              "r=await x.s.preview(event({'x-stashbox-actor':'stashbox-radio-gpt','x-stashbox-actor-type':'custom_gpt'}),id);",
+              "r=await x.s.preview(event(),id);"
+          )
+          t = t.replace(
+              "r=await x.s.preview(event({authorization:'Bearer gpt'}),id);",
+              "r=await x.s.preview(event(),id);"
+          )
+          tests.write_text(t)
+
+          workflow = Path('.github/workflows/deploy-social-factory-api-dev.yml')
+          w = workflow.read_text()
+          old_w = """          git add \"${REPORT_PATH}\"
+                    git commit -m 'Record Social Factory DEV deployment [skip ci]'
+                    git pull --rebase origin main
+                    git push origin HEAD:main"""
+          new_w = """          git add \"${REPORT_PATH}\"
+                    git commit -m 'Record Social Factory DEV deployment [skip ci]'
+                    git stash push --include-untracked --keep-index -m 'social-factory-generated-files' || true
+                    git pull --rebase origin main
+                    git push origin HEAD:main"""
+          if old_w not in w:
+              raise SystemExit('deployment receipt target block not found')
+          workflow.write_text(w.replace(old_w, new_w))
+          PY
+
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+          cd ..
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs .github/workflows/deploy-social-factory-api-dev.yml
+          git commit -m 'Finalize secure preview GPT response contract'
+          git pull --rebase origin main
+          git push origin HEAD:main
