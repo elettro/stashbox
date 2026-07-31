@@ -1,0 +1,100 @@
+name: Watch Canonical Artwork Verification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-watch-canonical-artwork.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Wait for canonical artwork workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deployment-reports
+          RUN_ID=''
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list \
+              --workflow=one-time-canonicalize-social-artwork.yml \
+              --limit=5 \
+              --json databaseId,createdAt \
+              --jq 'sort_by(.createdAt) | reverse | .[0].databaseId // empty')
+            [ -n "${RUN_ID}" ] && break
+            sleep 5
+          done
+          test -n "${RUN_ID}" || { echo 'Canonical artwork workflow run was not found.' >&2; exit 1; }
+
+          set +e
+          timeout 3600 gh run watch "${RUN_ID}" --exit-status
+          WATCH_EXIT=$?
+          set -e
+
+          gh run view "${RUN_ID}" \
+            --json databaseId,name,status,conclusion,url,headSha,createdAt,updatedAt,jobs \
+            > /tmp/canonical-run.json
+
+          jq --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             --argjson watch_exit "${WATCH_EXIT}" \
+            '{
+              checked_at: $checked_at,
+              watch_exit: $watch_exit,
+              run_id: .databaseId,
+              name,
+              status,
+              conclusion,
+              url,
+              head_sha: .headSha,
+              created_at: .createdAt,
+              updated_at: .updatedAt,
+              jobs: [.jobs[] | {
+                name,
+                status,
+                conclusion,
+                started_at: .startedAt,
+                completed_at: .completedAt,
+                steps: [.steps[] | {name, status, conclusion, number}]
+              }]
+            }' /tmp/canonical-run.json > deployment-reports/canonical-artwork-workflow-status.json
+
+          if [ "${WATCH_EXIT}" -ne 0 ]; then
+            gh run view "${RUN_ID}" --log-failed > /tmp/canonical-failed.log 2>&1 || true
+            tail -n 120 /tmp/canonical-failed.log \
+              | sed -E 's/[A-Za-z0-9_=-]{40,}/[REDACTED]/g' \
+              > deployment-reports/canonical-artwork-failure-tail.txt
+          else
+            rm -f deployment-reports/canonical-artwork-failure-tail.txt
+          fi
+
+      - name: Commit watcher receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add deployment-reports/canonical-artwork-workflow-status.json
+          if [ -f deployment-reports/canonical-artwork-failure-tail.txt ]; then
+            git add deployment-reports/canonical-artwork-failure-tail.txt
+          else
+            git rm --ignore-unmatch deployment-reports/canonical-artwork-failure-tail.txt
+          fi
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record canonical artwork workflow status [skip ci]'
+          git push origin HEAD:main
