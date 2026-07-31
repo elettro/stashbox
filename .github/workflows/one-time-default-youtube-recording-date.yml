@@ -1,0 +1,160 @@
+name: Default YouTube Recording Date to Publish Date
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-default-youtube-recording-date.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply recording-date default
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected source block not found in {path}: {old[:140]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "          playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n          notify_subscribers: false,\n",
+              "          playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n          recording_date_mode: 'publish_date',\n          notify_subscribers: false,\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\n",
+              "const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\nconst DEFAULT_PUBLISH_TIME_ZONE = process.env.SOCIAL_PUBLISH_TIME_ZONE || 'America/New_York';\n\nfunction dateOnlyInTimeZone(value, timeZone = DEFAULT_PUBLISH_TIME_ZONE) {\n  const date = value instanceof Date ? value : new Date(value);\n  if (Number.isNaN(date.getTime())) {\n    throw serviceError('invalid_recording_date_source', 500);\n  }\n  const parts = new Intl.DateTimeFormat('en-US', {\n    timeZone,\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit'\n  }).formatToParts(date);\n  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));\n  return `${values.year}-${values.month}-${values.day}`;\n}\n\nfunction resolveRecordingDate(item, currentDate) {\n  const explicit = String(item?.publish_settings?.recording_date || '').trim();\n  if (explicit) return explicit;\n  const publishMoment = item?.publish_settings?.scheduled_at || currentDate;\n  return dateOnlyInTimeZone(publishMoment);\n}\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "    const publishEvent = {\n",
+              "    const recordingDate = resolveRecordingDate(workingItem, now());\n\n    const publishEvent = {\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "        playlist_titles: Array.isArray(workingItem.publish_settings?.playlist_titles)\n          && workingItem.publish_settings.playlist_titles.length\n          ? workingItem.publish_settings.playlist_titles\n          : [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n        notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),\n",
+              "        playlist_titles: Array.isArray(workingItem.publish_settings?.playlist_titles)\n          && workingItem.publish_settings.playlist_titles.length\n          ? workingItem.publish_settings.playlist_titles\n          : [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n        recording_date: recordingDate,\n        notify_subscribers: Boolean(workingItem.publish_settings?.notify_subscribers),\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "      publish_settings: {\n        ...workingItem.publish_settings,\n        actual_visibility: 'unlisted'\n      },\n",
+              "      publish_settings: {\n        ...workingItem.publish_settings,\n        actual_visibility: 'unlisted',\n        actual_recording_date: result.recording_date || recordingDate\n      },\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-publish.mjs',
+              "          playlist_results: Array.isArray(result.playlist_results) ? result.playlist_results : [],\n          published_at: publishedAt,\n",
+              "          playlist_results: Array.isArray(result.playlist_results) ? result.playlist_results : [],\n          recording_date: result.recording_date || recordingDate,\n          published_at: publishedAt,\n"
+          )
+
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "  const playlistTitles = Array.isArray(body.playlist_titles)\n    ? [...new Set(body.playlist_titles.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10)\n    : [];\n\n  return {\n",
+              "  const playlistTitles = Array.isArray(body.playlist_titles)\n    ? [...new Set(body.playlist_titles.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10)\n    : [];\n  const recordingDate = String(body.recording_date || '').trim();\n  if (recordingDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(recordingDate)) {\n    throw serviceError('invalid_youtube_recording_date', 422, { format: 'YYYY-MM-DD' });\n  }\n\n  return {\n"
+          )
+
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "    containsSyntheticMedia: body.contains_synthetic_media !== false,\n    playlistTitles,\n    notifySubscribers: Boolean(body.notify_subscribers)\n",
+              "    containsSyntheticMedia: body.contains_synthetic_media !== false,\n    playlistTitles,\n    recordingDate,\n    notifySubscribers: Boolean(body.notify_subscribers)\n"
+          )
+
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "        contains_synthetic_media: metadata.containsSyntheticMedia,\n        playlist_titles: metadata.playlistTitles,\n        max_direct_publish_bytes: maxDirectPublishBytes\n",
+              "        contains_synthetic_media: metadata.containsSyntheticMedia,\n        playlist_titles: metadata.playlistTitles,\n        recording_date: metadata.recordingDate || null,\n        max_direct_publish_bytes: maxDirectPublishBytes\n"
+          )
+
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "      initUrl.searchParams.set('part', 'snippet,status');\n",
+              "      initUrl.searchParams.set('part', 'snippet,status,recordingDetails');\n"
+          )
+
+          replace_once(
+              'social-factory-api/youtube-publish.mjs',
+              "          status: {\n            privacyStatus: 'unlisted',\n            selfDeclaredMadeForKids: metadata.madeForKids,\n            containsSyntheticMedia: metadata.containsSyntheticMedia\n          }\n",
+              "          status: {\n            privacyStatus: 'unlisted',\n            selfDeclaredMadeForKids: metadata.madeForKids,\n            containsSyntheticMedia: metadata.containsSyntheticMedia\n          },\n          recordingDetails: metadata.recordingDate\n            ? { recordingDate: metadata.recordingDate }\n            : undefined\n"
+          )
+
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'\n",
+              "          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '26214400'\n          SOCIAL_PUBLISH_TIME_ZONE: America/New_York\n"
+          )
+
+          replace_once(
+              'social-factory-api/infrastructure/template.yaml',
+              "          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '536870912'\n",
+              "          SOCIAL_MAX_DIRECT_PUBLISH_BYTES: '536870912'\n          SOCIAL_PUBLISH_TIME_ZONE: America/New_York\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/review-workflow.test.mjs',
+              "  assert.equal(result.review_item.publish_settings.visibility, 'unlisted');\n  assert.equal(result.review_item.automation.auto_publish, false);\n",
+              "  assert.equal(result.review_item.publish_settings.visibility, 'unlisted');\n  assert.equal(result.review_item.publish_settings.recording_date_mode, 'publish_date');\n  assert.equal(result.review_item.automation.auto_publish, false);\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/review-publish.test.mjs',
+              "  assert.equal(calls[0].title, 'Stashbox - Test Song | Official Short');\n",
+              "  assert.equal(calls[0].title, 'Stashbox - Test Song | Official Short');\n  assert.equal(calls[0].recording_date, '2026-07-28');\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/youtube-publish.test.mjs',
+              "    tags: ['stashbox', 'test'],\n    privacy_status: 'public',\n",
+              "    tags: ['stashbox', 'test'],\n    recording_date: '2026-07-27',\n    privacy_status: 'public',\n"
+          )
+
+          replace_once(
+              'social-factory-api/tests/youtube-publish.test.mjs',
+              "  assert.equal(metadata.status.privacyStatus, 'unlisted');\n",
+              "  assert.equal(metadata.status.privacyStatus, 'unlisted');\n  assert.equal(metadata.recordingDetails.recordingDate, '2026-07-27');\n  assert.match(fetchCalls[0].url, /part=snippet%2Cstatus%2CrecordingDetails/);\n"
+          )
+          PY
+
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit recording-date default
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api
+          git commit -m 'Default YouTube recording date to publication date'
+          git pull --rebase origin main
+          git push origin HEAD:main
