@@ -24,6 +24,7 @@
       'refreshQueue', 'queueSearch', 'queueStatus', 'queueCount', 'queueList', 'queueEmpty',
       'editorBlank', 'editorContent', 'editorTitle', 'editorSubtitle',
       'reviewStatusPill', 'publishStatusPill', 'videoPreview', 'previewLoading',
+      'previewVideoButton', 'refreshPreviewButton', 'openPreviewPage',
       'videoRatio', 'videoDuration', 'videoSize', 'reviewForm', 'titleOptions',
       'selectedTitle', 'titleCount', 'description', 'descriptionCount', 'tags',
       'hashtags', 'collaborators', 'visibility', 'scheduledAt', 'madeForKids',
@@ -332,8 +333,14 @@
     elements.holdReview.hidden = status === 'held';
     elements.reopenReview.hidden = status === 'in_review';
 
+    elements.videoPreview.pause();
+    elements.videoPreview.removeAttribute('src');
+    elements.videoPreview.load();
+    elements.previewLoading.hidden = false;
+    elements.previewLoading.textContent = 'Select Preview Video to create a secure 15-minute preview.';
+    elements.refreshPreviewButton.hidden = true;
+    elements.openPreviewPage.href = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(item.id)}`;
     renderQueue();
-    loadPreview(item.id);
   }
 
   async function selectItem(id, { refresh = false } = {}) {
@@ -372,6 +379,15 @@
       elements.videoPreview.src = payload.preview_url;
       elements.videoPreview.load();
       elements.previewLoading.hidden = true;
+      elements.refreshPreviewButton.hidden = false;
+      window.setTimeout(() => {
+        if (state.selectedId !== id) return;
+        elements.videoPreview.pause();
+        elements.videoPreview.removeAttribute('src');
+        elements.videoPreview.load();
+        elements.previewLoading.hidden = false;
+        elements.previewLoading.textContent = 'This secure preview expired. Select Refresh Preview to create a new 15-minute preview.';
+      }, Number(payload.expires_in_seconds || 900) * 1000);
     } catch (error) {
       elements.previewLoading.hidden = false;
       elements.previewLoading.textContent = `Preview unavailable: ${formatError(error)}`;
@@ -482,6 +498,8 @@
     elements.reopenReview.addEventListener('click', () => applyDecision('reopen'));
     elements.selectedTitle.addEventListener('input', setCharacterCounts);
     elements.description.addEventListener('input', setCharacterCounts);
+    elements.previewVideoButton.addEventListener('click', () => state.selectedId && loadPreview(state.selectedId));
+    elements.refreshPreviewButton.addEventListener('click', () => state.selectedId && loadPreview(state.selectedId));
     elements.videoPreview.addEventListener('error', () => {
       elements.previewLoading.hidden = false;
       elements.previewLoading.textContent = 'The secure preview expired. Select the item again to refresh it.';

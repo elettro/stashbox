@@ -262,16 +262,25 @@ paths:
   /social/review-items/{reviewId}/preview:
     post:
       operationId: createSocialContentPreview
-      summary: Create or retrieve a secure preview for a review item.
+      summary: Create a read-only secure reviewer link for a Content Review item.
+      description: Return review_page_url as the clickable reviewer link. Never display, quote, reproduce, or expose any temporary preview_url or storage credentials. This operation does not save, approve, hold, hide, schedule, stage, upload, publish, or change the review item.
       parameters:
         - $ref: '#/components/parameters/ReviewId'
       responses:
         '200':
-          description: Secure preview response.
+          description: Stable authenticated Stashbox reviewer page URL.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericResponse'
+                type: object
+                required: [ok, review_page_url, expires_in_seconds]
+                properties:
+                  ok: {type: boolean}
+                  review_page_url: {type: string, format: uri, description: Present this complete Stashbox URL as the clickable reviewer link.}
+                  expires_in_seconds: {type: integer, enum: [900]}
+                  content_type: {type: string}
+                  file_name: {type: string}
+                additionalProperties: false
   /social/review-items/{reviewId}/save:
     post:
       operationId: saveSocialContentReviewEdits

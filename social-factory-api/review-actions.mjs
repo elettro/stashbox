@@ -215,8 +215,11 @@ export function createReviewActionService({
     async preview(event, reviewId) {
       const { item } = await load(event, reviewId);
       const previewUrl = await getStore().createPreviewUrl(item);
+      const reviewPageUrl = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(safeReviewId(reviewId))}`;
+      const isCustomGptRequest = Boolean(getHeader(event, 'authorization'));
       return {
-        preview_url: previewUrl,
+        ...(isCustomGptRequest ? {} : { preview_url: previewUrl }),
+        review_page_url: reviewPageUrl,
         expires_in_seconds: PREVIEW_TTL_SECONDS,
         content_type: String(item?.video?.content_type || 'video/mp4'),
         file_name: String(item?.video?.file_name || '')
