@@ -39,15 +39,12 @@ jobs:
               raise SystemExit('review-actions target block not found')
           actions.write_text(text.replace(old, new))
 
-          tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
-          t = tests.read_text()
-          t = t.replace(
-              "const event=(extra={})=>({headers:{'x-admin-token':'t',...extra}});",
-              "const event=(extra={})=>({headers:{'x-admin-token':'t',...extra}});"
-          )
+          contract_tests = Path('social-factory-api/tests/secure-preview-contract.test.mjs')
+          t = contract_tests.read_text()
           t = t.replace(
               "r=await x.s.preview(event(),id);",
-              "r=await x.s.preview(event({origin:'https://stashbox.com'}),id);"
+              "r=await x.s.preview(event({origin:'https://stashbox.com'}),id);",
+              1
           )
           t = t.replace(
               "r=await x.s.preview(event({'x-stashbox-actor':'stashbox-radio-gpt','x-stashbox-actor-type':'custom_gpt'}),id);",
@@ -57,15 +54,19 @@ jobs:
               "r=await x.s.preview(event({authorization:'Bearer gpt'}),id);",
               "r=await x.s.preview(event(),id);"
           )
-          tests.write_text(t)
+          contract_tests.write_text(t)
 
-          legacy_tests = Path('social-factory-api/tests/review-actions.test.mjs')
-          legacy = legacy_tests.read_text()
-          old_legacy = "const result = await service.preview(event(), 'render-job-12345678');"
-          new_legacy = "const result = await service.preview({ headers: { 'x-admin-token': 'social-admin', origin: 'https://stashbox.com' } }, 'render-job-12345678');"
-          if old_legacy not in legacy:
-              raise SystemExit('legacy browser preview test target not found')
-          legacy_tests.write_text(legacy.replace(old_legacy, new_legacy, 1))
+          action_tests = Path('social-factory-api/tests/review-actions.test.mjs')
+          a = action_tests.read_text()
+          old_test = """  const { service } = fixture();
+            const result = await service.preview(event(), 'render-job-12345678');"""
+          new_test = """  const { service } = fixture();
+            const browserEvent = event();
+            browserEvent.headers.origin = 'https://stashbox.com';
+            const result = await service.preview(browserEvent, 'render-job-12345678');"""
+          if old_test not in a:
+              raise SystemExit('review-actions browser preview test block not found')
+          action_tests.write_text(a.replace(old_test, new_test, 1))
 
           workflow = Path('.github/workflows/deploy-social-factory-api-dev.yml')
           w = workflow.read_text()
@@ -78,9 +79,8 @@ jobs:
                     git stash push --include-untracked --keep-index -m 'social-factory-generated-files' || true
                     git pull --rebase origin main
                     git push origin HEAD:main"""
-          if old_w not in w:
-              raise SystemExit('deployment receipt target block not found')
-          workflow.write_text(w.replace(old_w, new_w))
+          if old_w in w:
+              workflow.write_text(w.replace(old_w, new_w))
           PY
 
           cd social-factory-api
