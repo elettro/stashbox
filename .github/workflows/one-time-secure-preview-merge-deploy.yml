@@ -1,0 +1,63 @@
+name: Secure preview DEV merge deployment
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-secure-preview-merge-deploy.yml']
+permissions:
+  contents: write
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: aws-actions/setup-sam@v2
+      - name: Apply DEV-only preview changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def rep(path,old,new):
+            p=Path(path);s=p.read_text()
+            if old not in s: raise SystemExit('missing '+path)
+            p.write_text(s.replace(old,new,1))
+          rep('radio-admin/dev/social-factory/index.html','<div class="sf-video-frame"><video id="videoPreview" controls playsinline preload="metadata"></video><div id="previewLoading" class="sf-preview-loading">Loading secure preview…</div></div>\n              <div class="sf-video-facts">','<div class="sf-video-frame"><video id="videoPreview" controls playsinline preload="metadata"></video><div id="previewLoading" class="sf-preview-loading">Select Preview Video to create a secure 15-minute preview.</div></div>\n              <div class="sf-form-actions"><button id="previewVideoButton" class="sf-button" type="button">Preview Video</button><button id="refreshPreviewButton" class="sf-button sf-button-secondary" type="button" hidden>Refresh Preview</button><a id="openPreviewPage" class="sf-button sf-button-secondary" href="#" target="_blank" rel="noopener">Open Preview Page</a></div>\n              <div class="sf-video-facts">')
+          rep('radio-admin/dev/social-factory/social-factory.js',"      'reviewStatusPill', 'publishStatusPill', 'videoPreview', 'previewLoading',\n      'videoRatio', 'videoDuration', 'videoSize', 'reviewForm', 'titleOptions',","      'reviewStatusPill', 'publishStatusPill', 'videoPreview', 'previewLoading',\n      'previewVideoButton', 'refreshPreviewButton', 'openPreviewPage',\n      'videoRatio', 'videoDuration', 'videoSize', 'reviewForm', 'titleOptions',")
+          rep('radio-admin/dev/social-factory/social-factory.js','    renderQueue();\n    loadPreview(item.id);\n  }',"    elements.videoPreview.pause();\n    elements.videoPreview.removeAttribute('src');\n    elements.videoPreview.load();\n    elements.previewLoading.hidden = false;\n    elements.previewLoading.textContent = 'Select Preview Video to create a secure 15-minute preview.';\n    elements.refreshPreviewButton.hidden = true;\n    elements.openPreviewPage.href = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(item.id)}`;\n    renderQueue();\n  }")
+          rep('radio-admin/dev/social-factory/social-factory.js','      elements.videoPreview.src = payload.preview_url;\n      elements.videoPreview.load();\n      elements.previewLoading.hidden = true;',"      elements.videoPreview.src = payload.preview_url;\n      elements.videoPreview.load();\n      elements.previewLoading.hidden = true;\n      elements.refreshPreviewButton.hidden = false;\n      window.setTimeout(() => { if (state.selectedId !== id) return; elements.videoPreview.pause(); elements.videoPreview.removeAttribute('src'); elements.videoPreview.load(); elements.previewLoading.hidden = false; elements.previewLoading.textContent = 'This secure preview expired. Select Refresh Preview to create a new 15-minute preview.'; }, Number(payload.expires_in_seconds || 900) * 1000);")
+          rep('radio-admin/dev/social-factory/social-factory.js',"    elements.description.addEventListener('input', setCharacterCounts);\n    elements.videoPreview.addEventListener('error', () => {","    elements.description.addEventListener('input', setCharacterCounts);\n    elements.previewVideoButton.addEventListener('click', () => state.selectedId && loadPreview(state.selectedId));\n    elements.refreshPreviewButton.addEventListener('click', () => state.selectedId && loadPreview(state.selectedId));\n    elements.videoPreview.addEventListener('error', () => {")
+          rep('social-factory-api/review-actions.mjs',"      return {\n        preview_url: previewUrl,\n        expires_in_seconds: PREVIEW_TTL_SECONDS,\n        content_type: String(item?.video?.content_type || 'video/mp4'),\n        file_name: String(item?.video?.file_name || '')\n      };", "      const reviewPageUrl = `https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${encodeURIComponent(safeReviewId(reviewId))}`;\n      const isCustomGptRequest = Boolean(getHeader(event, 'authorization'));\n      return { ...(isCustomGptRequest ? {} : { preview_url: previewUrl }), review_page_url: reviewPageUrl, expires_in_seconds: PREVIEW_TTL_SECONDS, content_type: String(item?.video?.content_type || 'video/mp4'), file_name: String(item?.video?.file_name || '') };")
+          rep('custom-gpt/stashbox-radio/openapi.yaml',"      summary: Create or retrieve a secure preview for a review item.\n      parameters:\n        - $ref: '#/components/parameters/ReviewId'\n      responses:\n        '200':\n          description: Secure preview response.\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/GenericResponse'","      summary: Create a read-only secure reviewer link for a Content Review item.\n      description: Return review_page_url as the clickable reviewer link. Never display, quote, reproduce, or expose any temporary preview_url or storage credentials. This operation does not save, approve, hold, hide, schedule, stage, upload, publish, or change the review item.\n      parameters:\n        - $ref: '#/components/parameters/ReviewId'\n      responses:\n        '200':\n          description: Stable authenticated Stashbox reviewer page URL.\n          content:\n            application/json:\n              schema:\n                type: object\n                required: [ok, review_page_url, expires_in_seconds]\n                properties:\n                  ok: {type: boolean}\n                  review_page_url: {type: string, format: uri}\n                  expires_in_seconds: {type: integer, enum: [900]}\n                  content_type: {type: string}\n                  file_name: {type: string}\n                additionalProperties: false")
+          Path('social-factory-api/tests/secure-preview-contract.test.mjs').write_text("""import test from 'node:test';import assert from 'node:assert/strict';import {createReviewActionService} from '../review-actions.mjs';const id='render-c694a998-9548-46f3-b2c2-be194aacb2ef';function make(){let w=0;return{w:()=>w,s:createReviewActionService({secretStore:{async read(){return{admin_token:'t'}}},configSecretId:'x',store:{async getReview(){return{status:'in_review',approval_state:'pending',publishing_status:'not_published',metadata:{},publish_settings:{visibility:'unlisted',scheduled_at:null},video:{content_type:'video/mp4',file_name:'v.mp4'}}},async putReview(){w++},async createPreviewUrl(){return'https://signed/?credential=x'}}})}}const e=(x={})=>({headers:{'x-admin-token':'t',...x}});test('browser contract',async()=>{const x=make(),r=await x.s.preview(e(),id);assert.equal(r.expires_in_seconds,900);assert.ok(r.preview_url);assert.equal(r.review_page_url,`https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/?review_id=${id}`);assert.equal(x.w(),0)});test('gpt omits signed url',async()=>{const x=make(),r=await x.s.preview(e({authorization:'Bearer g'}),id);assert.equal('preview_url'in r,false);assert.equal(x.w(),0)});test('auth',async()=>{const x=make();await assert.rejects(()=>x.s.preview({headers:{'x-admin-token':'bad'}},id),/unauthorized/);assert.equal(x.w(),0)});""")
+          PY
+      - name: Test
+        run: |
+          grep -q 'Preview Video' radio-admin/dev/social-factory/index.html
+          ! grep -q 'loadPreview(item.id)' radio-admin/dev/social-factory/social-factory.js
+          cd social-factory-api && npm install --omit=dev --no-audit --no-fund && npm run check && npm test
+      - name: Commit exact implementation
+        run: |
+          git config user.name stashbox-preview-bot
+          git config user.email actions@users.noreply.github.com
+          git add radio-admin/dev/social-factory/index.html radio-admin/dev/social-factory/social-factory.js social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m 'Implement secure DEV Social Factory previews'
+          git push origin main
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Deploy DEV API
+        working-directory: social-factory-api
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name stashbox-social-api-dev --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy --stack-name stashbox-social-api-dev --region us-east-1 --capabilities CAPABILITY_NAMED_IAM --role-arn "$ROLE" --s3-bucket "$BUCKET" --s3-prefix "social-factory-api/${GITHUB_SHA}" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+      - name: Verify DEV route protection
+        run: |
+          test "$(curl -sS -o /tmp/p.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev/social/review-items/render-c694a998-9548-46f3-b2c2-be194aacb2ef/preview)" = 401
