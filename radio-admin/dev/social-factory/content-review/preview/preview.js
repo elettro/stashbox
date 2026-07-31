@@ -40,6 +40,17 @@
     }
   }
 
+  function hideStatus() {
+    status.hidden = true;
+    status.style.display = 'none';
+  }
+
+  function showStatus(message) {
+    status.textContent = message;
+    status.hidden = false;
+    status.style.display = 'grid';
+  }
+
   function clearPreview() {
     if (timer) clearTimeout(timer);
     timer = null;
@@ -62,8 +73,7 @@
 
   function expired() {
     clearPreview();
-    status.hidden = false;
-    status.textContent = 'This secure preview expired. Select Refresh Preview to create a new 15-minute preview.';
+    showStatus('This secure preview expired. Select Refresh Preview to create a new 15-minute preview.');
     expiry.textContent = 'Preview expired.';
   }
 
@@ -78,8 +88,7 @@
     authPanel.hidden = true;
     playerPanel.hidden = false;
     refresh.disabled = true;
-    status.hidden = false;
-    status.textContent = 'Requesting secure preview…';
+    showStatus('Requesting secure preview…');
     expiry.textContent = 'Creating a new 15-minute preview…';
 
     controller = new AbortController();
@@ -111,32 +120,22 @@
         throw new Error(payload.error || `Preview API returned HTTP ${response.status} without a video URL.`);
       }
 
-      status.textContent = 'Loading video…';
-      const markReady = () => {
-        status.hidden = true;
-      };
-      ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
-        video.addEventListener(eventName, markReady, { once: true });
-      });
       video.onerror = () => {
-        status.hidden = false;
-        status.textContent = 'The secure URL was created, but the browser could not load the video file.';
-        expiry.textContent = 'Video playback failed.';
+        hideStatus();
+        expiry.textContent = 'Video playback failed. Select Refresh Preview to try again.';
       };
+
       video.src = payload.preview_url;
       video.load();
-      window.setTimeout(() => {
-        if (video.readyState >= 1 && video.duration > 0) markReady();
-      }, 1200);
+      hideStatus();
 
       const ttl = Number(payload.expires_in_seconds || TTL);
       expiry.textContent = `Preview expires in ${Math.round(ttl / 60)} minutes.`;
       timer = setTimeout(expired, ttl * 1000);
     } catch (error) {
-      status.hidden = false;
-      status.textContent = error?.name === 'AbortError'
+      showStatus(error?.name === 'AbortError'
         ? 'Preview request timed out after 15 seconds. The API did not complete the browser request.'
-        : `Preview unavailable: ${error?.message || 'Unknown error'}`;
+        : `Preview unavailable: ${error?.message || 'Unknown error'}`);
       expiry.textContent = 'No preview is active.';
     } finally {
       clearTimeout(timeout);
