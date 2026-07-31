@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-07-31T01:06:58Z",
+  "watch_exit": 1,
+  "run_id": 30595456624,
+  "name": ".github/workflows/one-time-canonicalize-social-artwork.yml",
+  "status": "completed",
+  "conclusion": "failure",
+  "url": "https://github.com/elettro/stashbox/actions/runs/30595456624",
+  "head_sha": "428cf41085ae44997536f040289df34f0ee65259",
+  "created_at": "2026-07-31T01:06:44Z",
+  "updated_at": "2026-07-31T01:06:44Z",
+  "jobs": []
+}
