@@ -1,0 +1,22 @@
+name: One-time rerun secure preview DEV deployment
+
+on:
+  push:
+    branches:
+      - agent/rerun-secure-preview-dev-deploy
+    paths:
+      - '.github/workflows/one-time-rerun-secure-preview-dev.yml'
+      - 'deployment-triggers/secure-preview-dev-rerun.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch established DEV deployment workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-social-factory-api-dev.yml --repo elettro/stashbox --ref main
