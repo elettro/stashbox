@@ -59,6 +59,14 @@ jobs:
           )
           tests.write_text(t)
 
+          legacy_tests = Path('social-factory-api/tests/review-actions.test.mjs')
+          legacy = legacy_tests.read_text()
+          old_legacy = "const result = await service.preview(event(), 'render-job-12345678');"
+          new_legacy = "const result = await service.preview({ headers: { 'x-admin-token': 'social-admin', origin: 'https://stashbox.com' } }, 'render-job-12345678');"
+          if old_legacy not in legacy:
+              raise SystemExit('legacy browser preview test target not found')
+          legacy_tests.write_text(legacy.replace(old_legacy, new_legacy, 1))
+
           workflow = Path('.github/workflows/deploy-social-factory-api-dev.yml')
           w = workflow.read_text()
           old_w = """          git add \"${REPORT_PATH}\"
@@ -83,7 +91,7 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs .github/workflows/deploy-social-factory-api-dev.yml
+          git add social-factory-api/review-actions.mjs social-factory-api/tests/secure-preview-contract.test.mjs social-factory-api/tests/review-actions.test.mjs .github/workflows/deploy-social-factory-api-dev.yml
           git commit -m 'Finalize secure preview GPT response contract'
           git pull --rebase origin main
           git push origin HEAD:main
