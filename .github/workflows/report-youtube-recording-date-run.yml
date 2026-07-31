@@ -1,0 +1,65 @@
+name: Report YouTube Recording Date Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/report-youtube-recording-date-run.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Wait for recording-date workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID=''
+          STATUS=''
+          CONCLUSION=''
+          URL=''
+          for attempt in $(seq 1 45); do
+            ROW=$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow one-time-default-youtube-recording-date.yml --limit 1 --json databaseId,status,conclusion,url --jq '.[0] // {}')
+            RUN_ID=$(jq -r '.databaseId // empty' <<<"${ROW}")
+            STATUS=$(jq -r '.status // empty' <<<"${ROW}")
+            CONCLUSION=$(jq -r '.conclusion // empty' <<<"${ROW}")
+            URL=$(jq -r '.url // empty' <<<"${ROW}")
+            if [ -n "${RUN_ID}" ] && [ "${STATUS}" = 'completed' ]; then break; fi
+            sleep 10
+          done
+          LOG=''
+          if [ -n "${RUN_ID}" ] && [ "${CONCLUSION}" != 'success' ]; then
+            LOG=$(gh run view "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --log-failed 2>&1 | tail -c 16000 || true)
+          fi
+          mkdir -p deployment-reports
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg run_id "${RUN_ID}" \
+            --arg status "${STATUS}" \
+            --arg conclusion "${CONCLUSION}" \
+            --arg url "${URL}" \
+            --arg failed_log "${LOG}" \
+            '{recorded_at:$recorded_at,run_id:$run_id,status:$status,conclusion:$conclusion,url:$url,failed_log:$failed_log}' \
+            > deployment-reports/youtube-recording-date-run.json
+
+      - name: Commit run receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add deployment-reports/youtube-recording-date-run.json
+          git commit -m 'Record YouTube recording-date workflow run [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
