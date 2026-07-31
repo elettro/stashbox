@@ -35,19 +35,13 @@ jobs:
           const orchestratorPath = 'social-factory-api/video-orchestrator.mjs';
           let source = fs.readFileSync(orchestratorPath, 'utf8');
 
-          const normalizeBlock = `function normalizeJob(payload = {}) {
-            const job = payload?.job || payload?.data?.job || payload?.data || payload;
-            if (!job || typeof job !== 'object') return {};
-            const status = String(job.status || '').toLowerCase();
-            return {
-              ...job,
-              status,
-              active: ACTIVE_RENDER_STATUSES.has(status),
-              ready_for_staging: status === 'completed' && Boolean(job.output_url || job.outputs?.length)
-            };
-          }`;
+          if (!source.includes('function compactJob(job = {})')) {
+            const exportMarker = '\n\nexport function createVideoOrchestratorService';
+            if (!source.includes(exportMarker)) {
+              throw new Error('video orchestrator export marker not found');
+            }
 
-          const compactHelpers = `${normalizeBlock}
+            const compactHelper = `
 
           function compactJob(job = {}) {
             const id = String(job.id || job.job_id || job.render_job_id || '').trim();
@@ -95,45 +89,37 @@ jobs:
             };
           }`;
 
-          if (!source.includes(normalizeBlock)) {
-            throw new Error('normalizeJob block did not match expected source');
+            source = source.replace(exportMarker, `${compactHelper}${exportMarker}`);
           }
-          source = source.replace(normalizeBlock, compactHelpers);
 
-          const oldListJobs = `    async listJobs(event) {
-              const config = await authorize(event);
-              const limit = safeLimit(event?.queryStringParameters?.limit, 50, 250);
-              const payload = await radioRequest(config, \`/admin/video-factory/jobs?limit=\${limit}\`);
-              const jobs = Array.isArray(payload?.jobs) ? payload.jobs.map(normalizeJob) : [];
-              return { count: jobs.length, jobs };
-            },`;
-
-          const newListJobs = `    async listJobs(event) {
-              const config = await authorize(event);
-              const limit = safeLimit(event?.queryStringParameters?.limit, 10, 25);
-              const payload = await radioRequest(config, \`/admin/video-factory/jobs?limit=\${limit}\`);
-              const normalizedJobs = Array.isArray(payload?.jobs) ? payload.jobs.map(normalizeJob) : [];
-              const jobs = normalizedJobs.map(compactJob);
-              return {
-                compact: true,
-                count: jobs.length,
-                limit,
-                attention_count: jobs.filter((job) => job.attention_reason).length,
-                jobs
-              };
-            },`;
-
-          if (!source.includes(oldListJobs)) {
-            throw new Error('listJobs block did not match expected source');
+          const listStart = source.indexOf('    async listJobs(event) {');
+          const createDraftStart = source.indexOf('    async createDraft(event)', listStart);
+          if (listStart < 0 || createDraftStart < 0) {
+            throw new Error('listJobs method boundaries not found');
           }
-          source = source.replace(oldListJobs, newListJobs);
+
+          const listBlock = `    async listJobs(event) {
+            const config = await authorize(event);
+            const limit = safeLimit(event?.queryStringParameters?.limit, 10, 25);
+            const payload = await radioRequest(config, \`/admin/video-factory/jobs?limit=\${limit}\`);
+            const normalizedJobs = Array.isArray(payload?.jobs) ? payload.jobs.map(normalizeJob) : [];
+            const jobs = normalizedJobs.map(compactJob);
+            return {
+              compact: true,
+              count: jobs.length,
+              limit,
+              attention_count: jobs.filter((job) => job.attention_reason).length,
+              jobs
+            };
+          },
+
+          `;
+
+          source = source.slice(0, listStart) + listBlock + source.slice(createDraftStart);
           fs.writeFileSync(orchestratorPath, source);
 
           const indexPath = 'social-factory-api/index.mjs';
           let indexSource = fs.readFileSync(indexPath, 'utf8');
-          if (!indexSource.includes("const SERVICE_VERSION = '0.7.0';")) {
-            throw new Error('SERVICE_VERSION did not match expected source');
-          }
           indexSource = indexSource.replace(
             "const SERVICE_VERSION = '0.7.0';",
             "const SERVICE_VERSION = '0.7.1';"
