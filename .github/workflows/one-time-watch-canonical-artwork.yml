@@ -34,12 +34,12 @@ jobs:
             RUN_ID=$(gh run list \
               --workflow=one-time-canonicalize-social-artwork.yml \
               --limit=5 \
-              --json databaseId,createdAt \
-              --jq 'sort_by(.createdAt) | reverse | .[0].databaseId // empty')
+              --json databaseId,createdAt,headSha \
+              --jq '[.[] | select(.headSha == "dc5fa5efe851c6771aa5304d2fe47049e65c6c71")] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')
             [ -n "${RUN_ID}" ] && break
             sleep 5
           done
-          test -n "${RUN_ID}" || { echo 'Canonical artwork workflow run was not found.' >&2; exit 1; }
+          test -n "${RUN_ID}" || { echo 'Repaired canonical artwork workflow run was not found.' >&2; exit 1; }
 
           set +e
           timeout 3600 gh run watch "${RUN_ID}" --exit-status
@@ -64,6 +64,7 @@ jobs:
               created_at: .createdAt,
               updated_at: .updatedAt,
               jobs: [.jobs[] | {
+                database_id: .databaseId,
                 name,
                 status,
                 conclusion,
@@ -75,7 +76,7 @@ jobs:
 
           if [ "${WATCH_EXIT}" -ne 0 ]; then
             gh run view "${RUN_ID}" --log-failed > /tmp/canonical-failed.log 2>&1 || true
-            tail -n 120 /tmp/canonical-failed.log \
+            tail -n 160 /tmp/canonical-failed.log \
               | sed -E 's/[A-Za-z0-9_=-]{40,}/[REDACTED]/g' \
               > deployment-reports/canonical-artwork-failure-tail.txt
           else
@@ -96,5 +97,5 @@ jobs:
             git rm --ignore-unmatch deployment-reports/canonical-artwork-failure-tail.txt
           fi
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Record canonical artwork workflow status [skip ci]'
+          git commit -m 'Record repaired canonical artwork run status [skip ci]'
           git push origin HEAD:main
