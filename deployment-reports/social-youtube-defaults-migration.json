@@ -1,0 +1,26 @@
+{
+  "status": "success",
+  "recorded_at": "2026-07-31T12:04:14Z",
+  "bucket": "stashbox-social-publish-656260749296-us-east-1",
+  "defaults": {
+    "made_for_kids": false,
+    "contains_synthetic_media": true,
+    "playlist_title": "Stashbox Radio - Video Library - Stashbox",
+    "collaborator_handle": "@Elettrotv"
+  },
+  "playlist": {
+    "found": true,
+    "id": "PLYQleZVJh2Jo",
+    "title": "Stashbox Radio - Video Library - Stashbox"
+  },
+  "oauth": {
+    "stored_scope": "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload",
+    "youtube_reconnect_required": true
+  },
+  "migration": {
+    "total_review_items": 22,
+    "updated_review_items": 22,
+    "unchanged_review_items": 0
+  },
+  "youtube_published": false
+}
