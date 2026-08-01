@@ -51,21 +51,18 @@
       document.head.appendChild(style);
     }
     style.textContent = `
-      .sf-review-card-shell{display:contents!important}
-      .sf-queue-item[data-review-id]{position:relative!important;padding-right:58px!important}
-      .sf-card-hide-button{position:absolute;top:9px;right:9px;z-index:4;width:auto;min-width:0;height:26px;margin:0;padding:4px 8px;border:1px solid rgba(255,116,116,.62);border-radius:8px;background:linear-gradient(180deg,#8d3636,#622424);color:#fff;font-size:10px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+      #queueList .sf-queue-item{position:relative;padding-right:66px}
+      .sf-card-hide-button{position:absolute;top:9px;right:9px;z-index:4;width:auto;min-width:44px;height:26px;padding:0 9px;border:1px solid rgba(255,116,116,.68);border-radius:8px;background:#7a2d2d;color:#fff;font-size:10px;line-height:24px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;cursor:pointer}
       .sf-card-hide-button:hover{filter:brightness(1.12)}
       .sf-card-hide-button:disabled{opacity:.5;cursor:wait}
     `;
   }
 
-  function unwrapLegacyShells() {
+  function removeOldWrappers() {
     document.querySelectorAll('#queueList .sf-review-card-shell').forEach((shell) => {
-      const card = shell.querySelector(':scope > .sf-queue-item[data-review-id]');
-      const hide = shell.querySelector(':scope > .sf-card-hide-button');
-      if (!card) return;
-      if (hide) hide.remove();
-      shell.replaceWith(card);
+      const card = shell.querySelector(':scope > .sf-queue-item');
+      if (card && shell.parentNode) shell.parentNode.insertBefore(card, shell);
+      shell.remove();
     });
   }
 
@@ -73,7 +70,7 @@
     if (applying) return;
     applying = true;
     try {
-      unwrapLegacyShells();
+      removeOldWrappers();
       document.querySelectorAll('#queueList .sf-queue-item[data-review-id]').forEach((card) => {
         const reviewId = String(card.dataset.reviewId || '').trim();
         if (!reviewId) return;
