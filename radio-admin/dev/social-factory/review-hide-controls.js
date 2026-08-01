@@ -59,13 +59,22 @@
   function loadCardControls() {
     if (document.querySelector('script[data-review-card-hide-controls]')) return;
     const script = document.createElement('script');
-    script.src = '/radio-admin/dev/social-factory/review-card-hide-controls.js?v=20260801-4';
+    script.src = '/radio-admin/dev/social-factory/review-card-hide-controls.js?v=20260801-5';
     script.dataset.reviewCardHideControls = 'true';
+    document.body.appendChild(script);
+  }
+
+  function loadYoutubeDefaults() {
+    if (document.querySelector('script[data-youtube-review-defaults]')) return;
+    const script = document.createElement('script');
+    script.src = '/radio-admin/dev/social-factory/youtube-review-defaults.js?v=20260801-1';
+    script.dataset.youtubeReviewDefaults = 'true';
     document.body.appendChild(script);
   }
 
   function install() {
     loadCardControls();
+    loadYoutubeDefaults();
 
     const actions = document.querySelector('#reviewForm .sf-form-actions');
     if (!actions) return;
