@@ -1,0 +1,149 @@
+name: Fix Social Factory YouTube Fields and Description
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-fix-social-youtube-fields-description.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply Social Factory YouTube field cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected block not found in {path}: {old[:140]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # New review metadata: collaborator is only the YouTube handle.
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\nconst DEFAULT_COLLABORATORS = Object.freeze([{\n  name: 'Elettro TV',\n  youtube_handle: '@Elettrotv',\n  channel_id: '',\n  credit: 'Collaborator'\n}]);\n",
+              "const DEFAULT_COLLABORATORS = Object.freeze([{ youtube_handle: '@elettrotv' }]);\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "    `A ${Math.round(durationSeconds)}-second ${aspectRatio} video created through Stashbox Video Factory and prepared by Stashbox Social Factory.`,\n    '',\n    ...linkLines,\n    ...(linkLines.length ? [''] : []),\n    'Discover more music and dynamic video experiences at Stashbox Radio.',\n",
+              "    `A ${Math.round(durationSeconds)}-second ${aspectRatio} video created through Stashbox Video Factory and prepared by Stashbox Social Factory.`,\n    '',\n    'Digital production by Elettro.com — creative strategy, video production, AI-powered visual content, music, and digital media.',\n    '',\n    'Stashbox is a Florida-based live music band creating original music across reggae, rock, blues, soul, hip-hop, country, and more. Discover the band, music, videos, and Stashbox Radio at Stashbox.com.',\n    '',\n    ...linkLines,\n    ...(linkLines.length ? [''] : []),\n    'Discover more music and dynamic video experiences at Stashbox Radio.',\n"
+          )
+
+          replace_once(
+              'social-factory-api/review-workflow.mjs',
+              "          contains_synthetic_media: true,\n          playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],\n          notify_subscribers: false,\n",
+              "          contains_synthetic_media: true,\n          notify_subscribers: false,\n"
+          )
+
+          # Saved review defaults use only @elettrotv and no pretend playlist default.
+          replace_once(
+              'social-factory-api/review-actions.mjs',
+              "const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\nconst DEFAULT_COLLABORATORS = Object.freeze([{\n  name: 'Elettro TV',\n  youtube_handle: '@Elettrotv',\n  channel_id: '',\n  credit: 'Collaborator'\n}]);\n",
+              "const DEFAULT_COLLABORATORS = Object.freeze([{ youtube_handle: '@elettrotv' }]);\n"
+          )
+
+          # Remove the playlist field and make collaborator a single, truthful handle.
+          replace_once(
+              'radio-admin/dev/social-factory/index.html',
+              "              <label class=\"sf-full\">Collaborators<textarea id=\"collaborators\" rows=\"4\" placeholder=\"One per line: Name | @YouTubeHandle | Credit\"></textarea><span class=\"sf-field-help\">@Elettrotv is the default. Official YouTube collaborator invitations are still completed in YouTube Studio.</span></label>\n              <label class=\"sf-full\">YouTube Playlists<textarea id=\"playlistTitles\" rows=\"2\" placeholder=\"One playlist title per line\"></textarea><span class=\"sf-field-help\">Every published Stashbox Social Factory video defaults to the Stashbox Radio video library playlist.</span></label>\n",
+              "              <label class=\"sf-full\">YouTube Collaborator<input id=\"collaborators\" value=\"@elettrotv\" readonly /><span class=\"sf-field-help\">Reference handle only. A formal YouTube collaboration must still be completed in YouTube Studio.</span></label>\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/index.html',
+              "/radio-admin/dev/social-factory/social-factory.js?v=20260731-youtube-defaults1",
+              "/radio-admin/dev/social-factory/social-factory.js?v=20260801-youtube-cleanup1"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "  const DEFAULT_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';\n  const DEFAULT_COLLABORATORS = [{ name: 'Elettro TV', youtube_handle: '@Elettrotv', credit: 'Collaborator' }];\n",
+              "  const DEFAULT_COLLABORATORS = [{ youtube_handle: '@elettrotv' }];\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "      'hashtags', 'collaborators', 'playlistTitles', 'visibility', 'scheduledAt', 'madeForKids',\n",
+              "      'hashtags', 'collaborators', 'visibility', 'scheduledAt', 'madeForKids',\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "  function collaboratorsToText(value) {\n    if (!Array.isArray(value)) return '';\n    return value.map((item) => [\n      item.name || '',\n      item.youtube_handle || '',\n      item.credit || ''\n    ].join(' | ').replace(/\\s+\\|\\s+\\|\\s*$/, '').replace(/\\s+\\|\\s*$/, '')).join('\\n');\n  }\n\n  function parseCollaborators(value) {\n    return String(value || '').split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean).map((line) => {\n      const [name = '', youtubeHandle = '', credit = ''] = line.split('|').map((part) => part.trim());\n      return { name, youtube_handle: youtubeHandle, credit };\n    });\n  }\n",
+              "  function collaboratorsToText(value) {\n    const handle = Array.isArray(value)\n      ? value.map((item) => String(item?.youtube_handle || '').trim()).find(Boolean)\n      : '';\n    return handle || '@elettrotv';\n  }\n\n  function parseCollaborators() {\n    return [{ youtube_handle: '@elettrotv' }];\n  }\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "    elements.collaborators.value = collaboratorsToText(collaborators);\n    const playlistTitles = Array.isArray(settings.playlist_titles) && settings.playlist_titles.length\n      ? settings.playlist_titles\n      : [DEFAULT_PLAYLIST_TITLE];\n    elements.playlistTitles.value = playlistTitles.join('\\n');\n    elements.visibility.value = settings.visibility || 'unlisted';\n",
+              "    elements.collaborators.value = collaboratorsToText(collaborators);\n    elements.visibility.value = settings.visibility || 'unlisted';\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "    const hashtags = elements.hashtags.value.split(/[\\s,]+/).map((item) => item.trim()).filter(Boolean);\n    const playlistTitles = elements.playlistTitles.value.split(/\\r?\\n|,/).map((item) => item.trim()).filter(Boolean);\n    return {\n",
+              "    const hashtags = elements.hashtags.value.split(/[\\s,]+/).map((item) => item.trim()).filter(Boolean);\n    return {\n"
+          )
+
+          replace_once(
+              'radio-admin/dev/social-factory/social-factory.js',
+              "      collaborators: parseCollaborators(elements.collaborators.value),\n      playlist_titles: playlistTitles.length ? playlistTitles : [DEFAULT_PLAYLIST_TITLE],\n      visibility: elements.visibility.value,\n",
+              "      collaborators: parseCollaborators(),\n      visibility: elements.visibility.value,\n"
+          )
+
+          # Keep tests aligned with the truthful defaults and description copy.
+          test_path = Path('social-factory-api/tests/review-workflow.test.mjs')
+          test_text = test_path.read_text()
+          test_text = test_text.replace("'@Elettrotv'", "'@elettrotv'")
+          test_text = test_text.replace("assert.equal(metadata.collaborators[0].name, 'Elettro TV');\n", "")
+          test_text = test_text.replace("assert.equal(metadata.collaborators[0].credit, 'Collaborator');\n", "")
+          test_text = test_text.replace("assert.deepEqual(result.item.publish_settings.playlist_titles, ['Stashbox Radio - Video Library - Stashbox']);\n", "")
+          test_path.write_text(test_text)
+          PY
+
+      - name: Validate changed JavaScript
+        run: |
+          node --check social-factory-api/review-workflow.mjs
+          node --check social-factory-api/review-actions.mjs
+          node --check radio-admin/dev/social-factory/social-factory.js
+          node --test social-factory-api/tests/review-workflow.test.mjs
+
+      - name: Commit applied changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/review-workflow.mjs \
+                  social-factory-api/review-actions.mjs \
+                  social-factory-api/tests/review-workflow.test.mjs \
+                  radio-admin/dev/social-factory/index.html \
+                  radio-admin/dev/social-factory/social-factory.js
+          if git diff --cached --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git commit -m "Clean up Social Factory YouTube fields and descriptions"
+          git push origin HEAD:main
