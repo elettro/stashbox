@@ -5,6 +5,9 @@ on:
     paths: ['.github/workflows/one-time-apply-social-campaign-model.yml']
 permissions:
   contents: write
+concurrency:
+  group: social-factory-campaign-model-dev
+  cancel-in-progress: false
 jobs:
   apply-test-deploy:
     runs-on: ubuntu-latest
@@ -15,8 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - uses: aws-actions/setup-sam@v2
-      - name: Apply campaign model
-        run: python scripts/apply-social-campaign-model.py
+      - name: Apply campaign model when missing
+        shell: bash
+        run: |
+          if grep -q 'campaign_review_page_url' social-factory-api/batch-campaigns.mjs; then
+            echo 'Campaign model already applied in source.'
+          else
+            python scripts/apply-social-campaign-model.py
+          fi
       - name: Validate implementation
         run: |
           grep -q 'campaign_review_page_url' social-factory-api/batch-campaigns.mjs
@@ -27,13 +36,19 @@ jobs:
           npm install --omit=dev --no-audit --no-fund
           npm run check
           npm test
-      - name: Commit implementation
+      - name: Commit implementation when changed
+        shell: bash
         run: |
           git config user.name stashbox-campaign-bot
           git config user.email actions@users.noreply.github.com
           git add social-factory-api/batch-campaigns.mjs social-factory-api/review-workflow.mjs social-factory-api/index.mjs radio-admin/dev/social-factory/campaign-review/index.html
-          git commit -m 'Implement Social Factory campaign review model'
-          git push origin main
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m 'Implement Social Factory campaign review model'
+            git pull --rebase origin main
+            git push origin main
+          fi
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -47,14 +62,12 @@ jobs:
           BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
           ROLE=$(aws cloudformation describe-stacks --stack-name stashbox-social-api-dev --query 'Stacks[0].RoleARN' --output text)
           sam build --template-file infrastructure/template.yaml
-          sam deploy --stack-name stashbox-social-api-dev --region us-east-1 --capabilities CAPABILITY_NAMED_IAM --role-arn "$ROLE" --s3-bucket "$BUCKET" --s3-prefix "social-factory-api/${GITHUB_SHA}" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+          sam deploy --stack-name stashbox-social-api-dev --region us-east-1 --capabilities CAPABILITY_NAMED_IAM --role-arn "$ROLE" --s3-bucket "$BUCKET" --s3-prefix "social-factory-api/campaign-model-${GITHUB_RUN_ID}" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
       - name: Verify live contracts
         run: |
-          test "$(curl -sS -o /tmp/campaign.json -w '%{http_code}' https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev/social/campaigns/campaign-test123/review)" = 401
-          for i in $(seq 1 30); do
-            CODE=$(curl -sS -o /tmp/page.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/?campaign_id=campaign-test123')
-            if [ "$CODE" = 200 ] && grep -q 'Campaign Review' /tmp/page.html && grep -q 'object-fit:contain' /tmp/page.html; then exit 0; fi
-            sleep 10
-          done
-          echo 'Campaign review page did not synchronize to live hosting in time.'
-          exit 1
+          API_CODE=$(curl -sS -o /tmp/campaign.json -w '%{http_code}' https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev/social/campaigns/campaign-test123/review)
+          test "$API_CODE" = 401
+          PAGE_CODE=$(curl -sS -o /tmp/page.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/?campaign_id=campaign-test123')
+          test "$PAGE_CODE" = 200
+          grep -q 'Campaign Review' /tmp/page.html
+          grep -q 'object-fit:contain' /tmp/page.html
