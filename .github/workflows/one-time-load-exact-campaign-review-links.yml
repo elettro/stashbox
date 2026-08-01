@@ -1,0 +1,35 @@
+name: Load exact campaign review links
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-load-exact-campaign-review-links.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - name: Load exact-link enhancement
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('radio-admin/dev/social-factory/youtube-status-display.js')
+          s=p.read_text()
+          marker="      document.body.appendChild(script);\n    }\n  }"
+          replacement="      document.body.appendChild(script);\n    }\n    if (!document.querySelector('script[data-campaign-review-links]')) {\n      const exactLinks = document.createElement('script');\n      exactLinks.src = '/radio-admin/dev/social-factory/campaign-review-links.js?v=20260801-1';\n      exactLinks.dataset.campaignReviewLinks = 'true';\n      document.body.appendChild(exactLinks);\n    }\n  }"
+          if 'data-campaign-review-links' not in s:
+              if marker not in s: raise SystemExit('loader marker missing')
+              s=s.replace(marker,replacement,1)
+              p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name stashbox-campaign-link-bot
+          git config user.email actions@users.noreply.github.com
+          git add radio-admin/dev/social-factory/youtube-status-display.js radio-admin/dev/social-factory/campaign-review-links.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Load exact campaign review links'
+          git pull --rebase origin main
+          git push origin main
