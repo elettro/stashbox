@@ -88,13 +88,11 @@ function parseNestedPayload(value) {
 function normalizeSongList(payload) {
   const root = parseNestedPayload(payload);
   if (Array.isArray(root)) return root;
-
   const directKeys = ['songs', 'items', 'data', 'rows', 'records', 'results'];
   for (const key of directKeys) {
     const value = parseNestedPayload(root?.[key]);
     if (Array.isArray(value)) return value;
   }
-
   const nestedRoots = [root?.data, root?.body, root?.result, root?.response]
     .map(parseNestedPayload)
     .filter((value) => value && typeof value === 'object');
@@ -105,12 +103,31 @@ function normalizeSongList(payload) {
       if (Array.isArray(value)) return value;
     }
   }
-
   return [];
 }
 
 function textPresent(value) {
   return Boolean(String(value || '').trim());
+}
+
+function normalizeDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
+
+function pickSelectionDate(song = {}) {
+  const candidates = [
+    ['release_date', song.release_date || song.releaseDate],
+    ['published_at', song.published_at || song.publishedAt],
+    ['created_at', song.created_at || song.createdAt],
+    ['updated_at', song.updated_at || song.updatedAt]
+  ];
+  for (const [source, raw] of candidates) {
+    const normalized = normalizeDate(raw);
+    if (normalized) return { selection_date: normalized, selection_date_source: source };
+  }
+  return { selection_date: '', selection_date_source: '' };
 }
 
 function scoreSong(song = {}) {
@@ -127,29 +144,19 @@ function scoreSong(song = {}) {
     (Array.isArray(song.visual_assets) && song.visual_assets.length) ||
     Number(song.visual_asset_count || song.visual_count || 0) > 0
   );
+  const dates = pickSelectionDate(song);
 
   let score = 0;
   const reasons = [];
-  if (hasAudio) {
-    score += 50;
-    reasons.push('audio_ready');
-  }
-  if (hasArtwork) {
-    score += 15;
-    reasons.push('artwork_ready');
-  }
-  if (hasVisualHints) {
-    score += 15;
-    reasons.push('visuals_indicated');
-  }
+  if (hasAudio) { score += 50; reasons.push('audio_ready'); }
+  if (hasArtwork) { score += 15; reasons.push('artwork_ready'); }
+  if (hasVisualHints) { score += 15; reasons.push('visuals_indicated'); }
   if (artist) score += 8;
   if (title) score += 7;
-  if (Boolean(song.featured)) {
-    score += 5;
-    reasons.push('featured');
-  }
+  if (Boolean(song.featured)) { score += 5; reasons.push('featured'); }
   if (visibility === 'visible' || visibility === 'public') score += 5;
   if (visibility === 'hidden' || visibility === 'archived') score -= 30;
+  if (dates.selection_date) reasons.push(`dated:${dates.selection_date_source}`);
 
   const eligible = Boolean(songKey && title && hasAudio && visibility !== 'archived');
   if (!eligible) {
@@ -170,6 +177,11 @@ function scoreSong(song = {}) {
     audio_ready: hasAudio,
     artwork_ready: hasArtwork,
     visual_readiness: hasVisualHints ? 'indicated' : 'needs_vec_check',
+    release_date: normalizeDate(song.release_date || song.releaseDate),
+    published_at: normalizeDate(song.published_at || song.publishedAt),
+    created_at: normalizeDate(song.created_at || song.createdAt),
+    updated_at: normalizeDate(song.updated_at || song.updatedAt),
+    ...dates,
     eligible,
     candidate_score: score,
     reasons
@@ -202,10 +214,7 @@ export function createVideoOrchestratorService({
   if (!fetchImpl) throw new Error('fetch_unavailable');
   if (!configSecretId) throw new Error('youtube_oauth_config_secret_missing');
 
-  async function loadConfig() {
-    return secretStore.read(configSecretId);
-  }
-
+  async function loadConfig() { return secretStore.read(configSecretId); }
   async function authorize(event) {
     const config = await loadConfig();
     assertAdmin(event, config);
@@ -214,10 +223,7 @@ export function createVideoOrchestratorService({
 
   async function radioRequest(config, pathname, { method = 'GET', body } = {}) {
     const bridge = validateBridgeConfig(config);
-    if (!String(pathname).startsWith('/admin/')) {
-      throw serviceError('radio_api_bridge_path_not_allowed', 500);
-    }
-
+    if (!String(pathname).startsWith('/admin/')) throw serviceError('radio_api_bridge_path_not_allowed', 500);
     const response = await fetchImpl(`${bridge.baseUrl}${pathname}`, {
       method,
       headers: {
@@ -226,7 +232,6 @@ export function createVideoOrchestratorService({
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
     });
-
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw serviceError('radio_api_request_failed', 502, {
@@ -248,12 +253,12 @@ export function createVideoOrchestratorService({
         .map(scoreSong)
         .sort((left, right) => right.candidate_score - left.candidate_score || left.title.localeCompare(right.title));
       const eligible = candidates.filter((song) => song.eligible).slice(0, limit);
-
       return {
         mode: 'proposal_only',
         approval_required_before_render: true,
         evaluated_count: candidates.length,
         eligible_count: candidates.filter((song) => song.eligible).length,
+        dated_eligible_count: candidates.filter((song) => song.eligible && song.selection_date).length,
         candidates: eligible
       };
     },
@@ -271,21 +276,14 @@ export function createVideoOrchestratorService({
       const input = parseBody(event);
       const songKey = String(input.song_key || '').trim();
       if (!songKey) throw serviceError('song_key_required', 422);
-
       const aspectRatio = String(input.aspect_ratio || '9:16').trim();
-      if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) {
-        throw serviceError('invalid_aspect_ratio', 422, { allowed: [...ALLOWED_ASPECT_RATIOS] });
-      }
-
+      if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) throw serviceError('invalid_aspect_ratio', 422, { allowed: [...ALLOWED_ASPECT_RATIOS] });
       const durationMode = String(input.duration_mode || 'promo').trim().toLowerCase();
-      if (!ALLOWED_DURATION_MODES.has(durationMode)) {
-        throw serviceError('invalid_duration_mode', 422, { allowed: [...ALLOWED_DURATION_MODES] });
-      }
+      if (!ALLOWED_DURATION_MODES.has(durationMode)) throw serviceError('invalid_duration_mode', 422, { allowed: [...ALLOWED_DURATION_MODES] });
       const durationSeconds = durationMode === 'full' ? null : Number(input.duration_seconds ?? 30);
       if (durationMode !== 'full' && (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 600)) {
         throw serviceError('invalid_duration_seconds', 422, { minimum: 1, maximum: 600 });
       }
-
       const draftPayload = {
         song_key: songKey,
         batch_name: String(input.batch_name || `Social Factory ${songKey}`).trim(),
@@ -302,19 +300,10 @@ export function createVideoOrchestratorService({
         include_artist: input.include_artist ?? false,
         include_song: input.include_song ?? false,
         include_album: input.include_album ?? false,
-        filename_template: String(
-          input.filename_template || '{artist}_{song}_{duration}_{aspect}_v{variation}'
-        ).trim(),
-        metadata_comment: String(
-          input.metadata_comment || 'Prepared by Stashbox Social Factory'
-        ).trim()
+        filename_template: String(input.filename_template || '{artist}_{song}_{duration}_{aspect}_v{variation}').trim(),
+        metadata_comment: String(input.metadata_comment || 'Prepared by Stashbox Social Factory').trim()
       };
-
-      const payload = await radioRequest(config, '/admin/video-factory/jobs', {
-        method: 'POST',
-        body: draftPayload
-      });
-
+      const payload = await radioRequest(config, '/admin/video-factory/jobs', { method: 'POST', body: draftPayload });
       return {
         created: true,
         approval_required_before_launch: true,
@@ -337,18 +326,9 @@ export function createVideoOrchestratorService({
       if (!/^[a-zA-Z0-9-]{8,80}$/.test(safeJobId)) throw serviceError('invalid_render_job_id', 422);
       const input = parseBody(event);
       if (input.confirm_render !== true) {
-        return {
-          launched: false,
-          mode: 'validation_only',
-          approval_required: true,
-          job_id: safeJobId
-        };
+        return { launched: false, mode: 'validation_only', approval_required: true, job_id: safeJobId };
       }
-      const payload = await radioRequest(
-        config,
-        `/admin/video-factory/jobs/${encodeURIComponent(safeJobId)}/render`,
-        { method: 'POST', body: {} }
-      );
+      const payload = await radioRequest(config, `/admin/video-factory/jobs/${encodeURIComponent(safeJobId)}/render`, { method: 'POST', body: {} });
       return { launched: true, job: normalizeJob(payload?.job || payload), downstream: payload };
     }
   };
