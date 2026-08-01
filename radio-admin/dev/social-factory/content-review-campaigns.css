@@ -1,3 +1,11 @@
+.sf-workspace {
+  grid-template-columns: minmax(470px, 560px) minmax(0, 1fr) !important;
+}
+
+.sf-queue {
+  min-width: 0;
+}
+
 .sf-review-campaign-group {
   display: grid;
   gap: 10px;
@@ -12,10 +20,10 @@
 }
 
 .sf-review-campaign-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
   padding: 2px 2px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -52,6 +60,12 @@
   white-space: nowrap;
 }
 
+.sf-review-campaign-open {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sf-review-campaign-items {
   display: grid;
   gap: 9px;
@@ -80,12 +94,32 @@
   white-space: nowrap;
 }
 
-@media (max-width: 720px) {
-  .sf-review-campaign-head {
-    display: grid;
+@media (max-width: 1180px) {
+  .sf-workspace {
+    grid-template-columns: minmax(400px, 470px) minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .sf-workspace {
+    grid-template-columns: 1fr !important;
   }
 
-  .sf-review-campaign-progress {
+  .sf-queue {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .sf-review-campaign-head {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .sf-review-campaign-progress,
+  .sf-review-campaign-open {
     width: max-content;
+    max-width: 100%;
   }
 }
