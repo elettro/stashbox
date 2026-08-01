@@ -1,0 +1,87 @@
+name: Add Content Review Card Duration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-add-review-card-duration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Add duration badge to Content Review cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('radio-admin/dev/social-factory/social-factory.js')
+          text = path.read_text()
+
+          old_helper = """  function formatDate(value) {
+"""
+          new_helper = """  function formatDuration(seconds) {
+    const total = Math.round(Number(seconds || 0));
+    if (!total) return '';
+    if (total < 60) return `${total} SEC`;
+    const minutes = Math.floor(total / 60);
+    const remaining = String(total % 60).padStart(2, '0');
+    return `${minutes}:${remaining}`;
+  }
+
+  function formatDate(value) {
+"""
+          if 'function formatDuration(seconds)' not in text:
+              if old_helper not in text:
+                  raise SystemExit('formatDate insertion point not found')
+              text = text.replace(old_helper, new_helper, 1)
+
+          old_meta = """    const ratio = document.createElement('span');
+    ratio.className = 'sf-mini-pill';
+    ratio.textContent = item.video?.aspect_ratio || 'Video';
+    meta.append(status, ratio);
+"""
+          new_meta = """    const ratio = document.createElement('span');
+    ratio.className = 'sf-mini-pill';
+    ratio.textContent = item.video?.aspect_ratio || 'Video';
+    const durationLabel = formatDuration(item.video?.duration_seconds);
+    const duration = document.createElement('span');
+    duration.className = 'sf-mini-pill';
+    duration.textContent = durationLabel;
+    if (durationLabel) {
+      meta.append(status, ratio, duration);
+    } else {
+      meta.append(status, ratio);
+    }
+"""
+          if old_meta in text:
+              text = text.replace(old_meta, new_meta, 1)
+          elif "durationLabel = formatDuration(item.video?.duration_seconds)" not in text:
+              raise SystemExit('queue metadata block not found')
+
+          path.write_text(text)
+          PY
+
+      - name: Check JavaScript syntax
+        run: node --check radio-admin/dev/social-factory/social-factory.js
+
+      - name: Commit change
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio-admin/dev/social-factory/social-factory.js
+          git commit -m "Show video duration on Content Review cards"
+          git push origin main
