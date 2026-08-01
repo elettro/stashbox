@@ -44,46 +44,54 @@
   }
 
   function installStyles() {
-    if (document.getElementById('reviewCardHideStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'reviewCardHideStyles';
+    let style = document.getElementById('reviewCardHideStyles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'reviewCardHideStyles';
+      document.head.appendChild(style);
+    }
     style.textContent = `
-      .sf-review-card-shell{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:8px;width:100%}
-      .sf-review-card-shell>.sf-queue-item{min-width:0;margin-bottom:8px}
-      .sf-card-hide-button{align-self:stretch;min-width:58px;margin-bottom:8px;padding:8px;border:1px solid rgba(255,116,116,.62);border-radius:12px;background:linear-gradient(180deg,#8d3636,#622424);color:#fff;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+      .sf-review-card-shell{display:contents!important}
+      .sf-queue-item[data-review-id]{position:relative!important;padding-right:58px!important}
+      .sf-card-hide-button{position:absolute;top:9px;right:9px;z-index:4;width:auto;min-width:0;height:26px;margin:0;padding:4px 8px;border:1px solid rgba(255,116,116,.62);border-radius:8px;background:linear-gradient(180deg,#8d3636,#622424);color:#fff;font-size:10px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
       .sf-card-hide-button:hover{filter:brightness(1.12)}
       .sf-card-hide-button:disabled{opacity:.5;cursor:wait}
-      @media(max-width:720px){.sf-review-card-shell{grid-template-columns:minmax(0,1fr) 52px}.sf-card-hide-button{min-width:52px;padding:6px;font-size:10px}}
     `;
-    document.head.appendChild(style);
+  }
+
+  function unwrapLegacyShells() {
+    document.querySelectorAll('#queueList .sf-review-card-shell').forEach((shell) => {
+      const card = shell.querySelector(':scope > .sf-queue-item[data-review-id]');
+      const hide = shell.querySelector(':scope > .sf-card-hide-button');
+      if (!card) return;
+      if (hide) hide.remove();
+      shell.replaceWith(card);
+    });
   }
 
   function attachControls() {
     if (applying) return;
     applying = true;
     try {
+      unwrapLegacyShells();
       document.querySelectorAll('#queueList .sf-queue-item[data-review-id]').forEach((card) => {
-        if (card.parentElement?.classList.contains('sf-review-card-shell')) return;
         const reviewId = String(card.dataset.reviewId || '').trim();
         if (!reviewId) return;
 
-        const shell = document.createElement('div');
-        shell.className = 'sf-review-card-shell';
-        const parent = card.parentNode;
-        parent.insertBefore(shell, card);
-        shell.appendChild(card);
-
-        const hide = document.createElement('button');
-        hide.type = 'button';
-        hide.className = 'sf-card-hide-button';
-        hide.textContent = 'Hide';
-        hide.setAttribute('aria-label', 'Hide this item from the active review queue');
-        hide.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          hideItem(reviewId, hide);
-        });
-        shell.appendChild(hide);
+        let hide = card.querySelector(':scope > .sf-card-hide-button');
+        if (!hide) {
+          hide = document.createElement('button');
+          hide.type = 'button';
+          hide.className = 'sf-card-hide-button';
+          hide.textContent = 'Hide';
+          hide.setAttribute('aria-label', 'Hide this item from the active review queue');
+          hide.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            hideItem(reviewId, hide);
+          });
+          card.appendChild(hide);
+        }
       });
     } finally {
       applying = false;
