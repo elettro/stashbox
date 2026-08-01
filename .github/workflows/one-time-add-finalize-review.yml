@@ -1,0 +1,236 @@
+name: Add Finalize Review Action
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-add-finalize-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Add finalize-to-review service and route
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          module = Path('social-factory-api/finalize-review.mjs')
+          module.write_text(r'''import { createVideoOrchestratorService } from './video-orchestrator.mjs';
+import { createReviewWorkflowService } from './review-workflow.mjs';
+
+const REVIEW_PAGE_BASE = 'https://stashbox.com/radio-admin/dev/social-factory/content-review/preview/';
+const ACTIVE_STATUSES = new Set(['draft', 'pending', 'preparing', 'rendering', 'uploading']);
+const FAILED_STATUSES = new Set(['failed', 'cancelled', 'archived']);
+
+function serviceError(message, statusCode = 400, details) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  if (details) error.details = details;
+  return error;
+}
+
+function childEvent(event, body) {
+  return {
+    ...event,
+    body: JSON.stringify(body),
+    isBase64Encoded: false,
+    queryStringParameters: null
+  };
+}
+
+function reviewPageUrl(reviewId) {
+  return `${REVIEW_PAGE_BASE}?review_id=${encodeURIComponent(reviewId)}`;
+}
+
+export function createFinalizeReviewService({
+  orchestrator = createVideoOrchestratorService(),
+  reviewWorkflow = createReviewWorkflowService()
+} = {}) {
+  return {
+    async finalize(event, jobId) {
+      const jobResult = await orchestrator.getJob(event, jobId);
+      const job = jobResult?.job || {};
+      const status = String(job.status || '').trim().toLowerCase();
+
+      if (ACTIVE_STATUSES.has(status)) {
+        return {
+          ready_for_review: false,
+          mode: 'render_in_progress',
+          job_id: String(job.id || jobId),
+          status,
+          progress_percent: Number(job.render_recipe?.runtime?.progress_percent || 0),
+          status_message: String(job.render_recipe?.runtime?.status_message || ''),
+          review_page_url: ''
+        };
+      }
+
+      if (FAILED_STATUSES.has(status)) {
+        throw serviceError('render_not_reviewable', 409, {
+          job_id: String(job.id || jobId),
+          status,
+          error_message: String(job.error_message || '')
+        });
+      }
+
+      if (status !== 'completed') {
+        throw serviceError('render_status_not_supported', 409, {
+          job_id: String(job.id || jobId),
+          status: status || 'unknown'
+        });
+      }
+
+      const staged = await reviewWorkflow.stageRender(
+        childEvent(event, { confirm_stage: true }),
+        String(job.id || jobId)
+      );
+      const reviewId = String(
+        staged?.review_item?.id || staged?.review_id || `render-${String(job.id || jobId)}`
+      );
+
+      return {
+        ready_for_review: true,
+        staged: true,
+        mode: 'render_finalized_for_review',
+        job_id: String(job.id || jobId),
+        status: 'completed',
+        review_id: reviewId,
+        review_page_url: reviewPageUrl(reviewId),
+        review_item: staged?.review_item || null,
+        publishing_triggered: false,
+        youtube_published: false
+      };
+    }
+  };
+}
+''', encoding='utf-8')
+
+          index = Path('social-factory-api/index.mjs')
+          text = index.read_text(encoding='utf-8')
+
+          old = "import { createRequestAuthenticator } from './request-auth.mjs';\n"
+          new = old + "import { createFinalizeReviewService } from './finalize-review.mjs';\n"
+          if "createFinalizeReviewService" not in text:
+              if old not in text:
+                  raise SystemExit('index import anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "  const stageMatch = String(path).match(/^\\/social\\/orchestration\\/render-jobs\\/([^/]+)\\/stage$/);\n"
+          new = old + "  const finalizeMatch = String(path).match(/^\\/social\\/orchestration\\/render-jobs\\/([^/]+)\\/finalize-review$/);\n"
+          if "finalizeMatch" not in text:
+              if old not in text:
+                  raise SystemExit('orchestration route anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "    stageJobId: stageMatch ? decodeURIComponent(stageMatch[1]) : ''\n"
+          new = "    stageJobId: stageMatch ? decodeURIComponent(stageMatch[1]) : '',\n    finalizeJobId: finalizeMatch ? decodeURIComponent(finalizeMatch[1]) : ''\n"
+          if "finalizeJobId" not in text:
+              if old not in text:
+                  raise SystemExit('route result anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "  requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null\n"
+          new = "  finalizeReview = null,\n  requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null\n"
+          if "finalizeReview = null" not in text:
+              if old not in text:
+                  raise SystemExit('handler args anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "  let resolvedReviewScheduler = reviewScheduler;\n"
+          new = old + "  let resolvedFinalizeReview = finalizeReview;\n"
+          if "resolvedFinalizeReview" not in text:
+              if old not in text:
+                  raise SystemExit('resolved service anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "  function getReviewScheduler() {\n    if (!resolvedReviewScheduler) resolvedReviewScheduler = createSchedulePublishService();\n    return resolvedReviewScheduler;\n  }\n"
+          new = old + "\n  function getFinalizeReview() {\n    if (!resolvedFinalizeReview) {\n      resolvedFinalizeReview = createFinalizeReviewService({\n        orchestrator: getVideoOrchestrator(),\n        reviewWorkflow: getReviewWorkflow()\n      });\n    }\n    return resolvedFinalizeReview;\n  }\n"
+          if "function getFinalizeReview" not in text:
+              if old not in text:
+                  raise SystemExit('service getter anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = "      if (method === 'POST' && route.stageJobId) {\n        return json(200, {\n          ok: true,\n          ...(await getReviewWorkflow().stageRender(event, route.stageJobId))\n        });\n      }\n"
+          new = old + "\n      if (method === 'POST' && route.finalizeJobId) {\n        return json(200, {\n          ok: true,\n          ...(await getFinalizeReview().finalize(event, route.finalizeJobId))\n        });\n      }\n"
+          if "route.finalizeJobId" not in text:
+              if old not in text:
+                  raise SystemExit('stage route anchor not found')
+              text = text.replace(old, new, 1)
+
+          text = text.replace("const SERVICE_VERSION = '0.7.0';", "const SERVICE_VERSION = '0.8.0';")
+          index.write_text(text, encoding='utf-8')
+
+          test = Path('social-factory-api/tests/finalize-review.test.mjs')
+          test.write_text(r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createFinalizeReviewService } from '../finalize-review.mjs';
+
+test('returns progress without staging while render is active', async () => {
+  let staged = false;
+  const service = createFinalizeReviewService({
+    orchestrator: {
+      async getJob() {
+        return { job: { id: 'job-12345678', status: 'rendering', render_recipe: { runtime: { progress_percent: 42 } } } };
+      }
+    },
+    reviewWorkflow: {
+      async stageRender() { staged = true; }
+    }
+  });
+
+  const result = await service.finalize({}, 'job-12345678');
+  assert.equal(result.ready_for_review, false);
+  assert.equal(result.progress_percent, 42);
+  assert.equal(staged, false);
+});
+
+test('stages completed render and returns stable review page', async () => {
+  const service = createFinalizeReviewService({
+    orchestrator: {
+      async getJob() {
+        return { job: { id: '80d70ac8-bbe8-4622-a7d0-470f58e71ffd', status: 'completed' } };
+      }
+    },
+    reviewWorkflow: {
+      async stageRender(event, jobId) {
+        assert.equal(JSON.parse(event.body).confirm_stage, true);
+        assert.equal(jobId, '80d70ac8-bbe8-4622-a7d0-470f58e71ffd');
+        return { review_item: { id: `render-${jobId}`, status: 'in_review' } };
+      }
+    }
+  });
+
+  const result = await service.finalize({}, '80d70ac8-bbe8-4622-a7d0-470f58e71ffd');
+  assert.equal(result.ready_for_review, true);
+  assert.equal(result.review_id, 'render-80d70ac8-bbe8-4622-a7d0-470f58e71ffd');
+  assert.match(result.review_page_url, /review_id=render-80d70ac8/);
+  assert.equal(result.youtube_published, false);
+});
+''', encoding='utf-8')
+          PY
+
+      - name: Run Social Factory tests
+        run: |
+          node --test social-factory-api/tests/finalize-review.test.mjs social-factory-api/tests/index-orchestration.test.mjs
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/finalize-review.mjs social-factory-api/index.mjs social-factory-api/tests/finalize-review.test.mjs
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add finalize render to Content Review action"
+            git push origin main
+          fi
