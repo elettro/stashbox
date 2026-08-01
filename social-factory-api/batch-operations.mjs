@@ -201,7 +201,7 @@ export function createBatchOperationsService({
       const unsupportedJobs = jobs.filter((job) => lower(job.status) === 'draft' && !youtubeRatioAllowed(job));
       const skippedJobs = jobs.filter((job) => lower(job.status) !== 'draft');
 
-      if (input.confirm_render_batch !== true) {
+      if (input.confirm_render_batch !== true && input.confirm_render !== true) {
         return {
           launched: false,
           mode: 'validation_only',
@@ -272,8 +272,9 @@ export function createBatchOperationsService({
       const completedJobs = jobs.filter((job) => lower(job.status) === 'completed' && youtubeRatioAllowed(job));
       const unsupportedJobs = jobs.filter((job) => lower(job.status) === 'completed' && !youtubeRatioAllowed(job));
       const skippedJobs = jobs.filter((job) => lower(job.status) !== 'completed');
+      const confirmed = input.confirm_stage_batch === true || input.confirm_stage === true;
 
-      if (input.confirm_stage_batch !== true) {
+      if (!confirmed) {
         return {
           staged: false,
           mode: 'validation_only',
