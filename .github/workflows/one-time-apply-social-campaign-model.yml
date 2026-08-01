@@ -1,0 +1,60 @@
+name: Apply Social Factory campaign model
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-apply-social-campaign-model.yml']
+permissions:
+  contents: write
+jobs:
+  apply-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: aws-actions/setup-sam@v2
+      - name: Apply campaign model
+        run: python scripts/apply-social-campaign-model.py
+      - name: Validate implementation
+        run: |
+          grep -q 'campaign_review_page_url' social-factory-api/batch-campaigns.mjs
+          grep -q 'getCampaignReview' social-factory-api/review-workflow.mjs
+          grep -q '/social/campaigns/' social-factory-api/index.mjs
+          grep -q 'object-fit:contain' radio-admin/dev/social-factory/campaign-review/index.html
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+      - name: Commit implementation
+        run: |
+          git config user.name stashbox-campaign-bot
+          git config user.email actions@users.noreply.github.com
+          git add social-factory-api/batch-campaigns.mjs social-factory-api/review-workflow.mjs social-factory-api/index.mjs radio-admin/dev/social-factory/campaign-review/index.html
+          git commit -m 'Implement Social Factory campaign review model'
+          git push origin main
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Deploy isolated DEV API
+        working-directory: social-factory-api
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name stashbox-social-api-dev --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy --stack-name stashbox-social-api-dev --region us-east-1 --capabilities CAPABILITY_NAMED_IAM --role-arn "$ROLE" --s3-bucket "$BUCKET" --s3-prefix "social-factory-api/${GITHUB_SHA}" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+      - name: Verify live contracts
+        run: |
+          test "$(curl -sS -o /tmp/campaign.json -w '%{http_code}' https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev/social/campaigns/campaign-test123/review)" = 401
+          for i in $(seq 1 30); do
+            CODE=$(curl -sS -o /tmp/page.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/?campaign_id=campaign-test123')
+            if [ "$CODE" = 200 ] && grep -q 'Campaign Review' /tmp/page.html && grep -q 'object-fit:contain' /tmp/page.html; then exit 0; fi
+            sleep 10
+          done
+          echo 'Campaign review page did not synchronize to live hosting in time.'
+          exit 1
