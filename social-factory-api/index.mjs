@@ -7,6 +7,7 @@ import { createReviewWorkflowService } from './review-workflow.mjs';
 import { createReviewActionService } from './review-actions.mjs';
 import { createReviewPublishService } from './review-publish.mjs';
 import { createSchedulePublishService } from './schedule-publish.mjs';
+import { createBatchScheduleService } from './batch-schedule.mjs';
 import { createRequestAuthenticator } from './request-auth.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
@@ -121,6 +122,7 @@ export function createHandler({
   reviewActions = null,
   reviewPublisher = null,
   reviewScheduler = null,
+  batchScheduler = null,
   requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
@@ -131,6 +133,7 @@ export function createHandler({
   let resolvedReviewActions = reviewActions;
   let resolvedReviewPublisher = reviewPublisher;
   let resolvedReviewScheduler = reviewScheduler;
+  let resolvedBatchScheduler = batchScheduler;
 
   function getYoutubePublish() {
     if (!resolvedYoutubePublish) resolvedYoutubePublish = createYoutubePublishService();
@@ -179,6 +182,13 @@ export function createHandler({
   function getReviewScheduler() {
     if (!resolvedReviewScheduler) resolvedReviewScheduler = createSchedulePublishService();
     return resolvedReviewScheduler;
+  }
+
+  function getBatchScheduler() {
+    if (!resolvedBatchScheduler) {
+      resolvedBatchScheduler = createBatchScheduleService({ scheduler: getReviewScheduler() });
+    }
+    return resolvedBatchScheduler;
   }
 
   return async function socialFactoryHandler(event = {}) {
@@ -356,6 +366,13 @@ export function createHandler({
         return json(200, {
           ok: true,
           ...(await getReviewPublisher().publish(event, review.publishReviewId))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/review-items/batch-schedule') {
+        return json(200, {
+          ok: true,
+          ...(await getBatchScheduler().schedule(event))
         });
       }
 

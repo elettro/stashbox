@@ -163,6 +163,42 @@ paths:
                   items: {type: string}
       responses:
         '200': {description: Batch staging result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+  /social/review-items/batch-schedule:
+    post:
+      operationId: validateOrScheduleSocialContentBatch
+      summary: Validate or schedule multiple approved Content Review items with one confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 25
+                  items:
+                    type: object
+                    required: [review_id, scheduled_at]
+                    properties:
+                      review_id: {type: string}
+                      scheduled_at: {type: string, format: date-time}
+                timezone:
+                  type: string
+                  default: America/New_York
+                confirm_batch_schedule:
+                  type: boolean
+                  default: false
+                  description: Omit or set false for validation. Set true only after one explicit user confirmation of the complete schedule.
+      responses:
+        '200':
+          description: Batch validation or saved schedule results for every review item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
   /social/review-items:
     get:
       operationId: listSocialContentReviewItems
@@ -249,7 +285,7 @@ paths:
               required: [scheduled_at]
               properties:
                 scheduled_at: {type: string, format: date-time}
-                timezone: {type: string, default: America/Montreal}
+                timezone: {type: string, default: America/New_York}
                 confirm_schedule: {type: boolean, default: false}
       responses:
         '200': {description: Schedule result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
