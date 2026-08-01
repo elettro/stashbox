@@ -1,0 +1,111 @@
+name: Deploy newest-song selection to Social Factory DEV
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-deploy-newest-selection-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-deploy-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/newest-selection-dev.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Validate newest-selection source and schema
+        run: |
+          set -euo pipefail
+          grep -q "selection_mode" social-factory-api/batch-campaigns.mjs
+          grep -q "selection_date" social-factory-api/video-orchestrator.mjs
+          grep -q "selection_date_source" social-factory-api/video-orchestrator.mjs
+          grep -q "selection_mode:" custom-gpt/stashbox-radio/openapi.yaml
+          grep -q "selection_date:" custom-gpt/stashbox-radio/openapi.yaml
+          grep -q "selection_date_source:" custom-gpt/stashbox-radio/openapi.yaml
+          cd social-factory-api
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy isolated DEV API
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "$ROLE" \
+            --s3-bucket "$BUCKET" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+
+      - name: Verify live newest-selection contract
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id stashbox/social-factory/dev/custom-gpt --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+          HTTP_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${GPT_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -o /tmp/newest.json -w '%{http_code}' \
+            -X POST \
+            -d '{"campaign_name":"Newest Selection Verification","song_count":5,"selection_mode":"newest","variations_per_song":1,"aspect_ratio":"9:16","duration_mode":"custom","duration_seconds":45}' \
+            "${BASE_URL}/social/orchestration/batch-plan")
+          test "${HTTP_STATUS}" = '200'
+          jq -e '.ok == true' /tmp/newest.json >/dev/null
+          jq -e '.plan_id and .settings.selection_mode == "newest"' /tmp/newest.json >/dev/null
+          jq -e '(.selected_songs | type == "array")' /tmp/newest.json >/dev/null
+          jq -e 'all(.selected_songs[]; (.selection_date | type == "string") and (.selection_date_source | type == "string"))' /tmp/newest.json >/dev/null
+          COUNT=$(jq '.selected_songs | length' /tmp/newest.json)
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commit_sha "${GITHUB_SHA}" \
+            --arg stack_status "$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)" \
+            --arg http_status "${HTTP_STATUS}" \
+            --argjson selected_song_count "${COUNT}" \
+            '{status:"success",recorded_at:$recorded_at,commit_sha:$commit_sha,stack_status:$stack_status,http_status:$http_status,selected_song_count:$selected_song_count,selection_mode:"newest",drafts_created:false,renders_launched:false,publishing_triggered:false}' \
+            > "${REPORT_PATH}"
+          rm -f /tmp/gpt.json /tmp/newest.json
+
+      - name: Commit deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add "${REPORT_PATH}"
+          git commit -m 'Record newest-selection DEV deployment [skip ci]'
+          git push origin HEAD:main
