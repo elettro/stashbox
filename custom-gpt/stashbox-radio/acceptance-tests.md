@@ -29,6 +29,38 @@ Run these tests in the GPT editor Preview before sharing the GPT.
 - [ ] An ambiguous title produces a compact choice instead of a guessed selection.
 - [ ] A nonexistent title is reported as not found.
 
+## Natural-language campaign normalization
+
+Test exactly:
+
+`Make a new campaign with 10 Stashbox songs, all 9x16 and 45 seconds.`
+
+The GPT must:
+
+- [ ] Retrieve enough Social Factory candidates to find 10 eligible songs, rather than stopping at five results.
+- [ ] Select exactly 10 distinct eligible songs.
+- [ ] Deduplicate using exact `song_key` values.
+- [ ] Use one variation per song.
+- [ ] Produce exactly 10 planned renders.
+- [ ] Apply 9:16 to every render.
+- [ ] Apply 45 seconds to every render.
+- [ ] Use each song's current VEC recipe.
+- [ ] Use each song's current Song CMS assets.
+- [ ] Keep intro, outro, corner bug, artist text, song-title text, album text, and optional overlays off by default.
+- [ ] Route completed output through Content Review before any publishing step.
+- [ ] Avoid publishing, uploading, scheduling, approval, or auto-publish actions.
+- [ ] Preserve the selected song order throughout the plan and launch validation.
+- [ ] Display the selected 10 song titles in a compact numbered list.
+- [ ] Ask exactly one confirmation: `I selected these 10 songs. Launch the campaign?`
+- [ ] Avoid separate confirmation questions for ratio, duration, assets, VEC recipe, overlays, duplicate prevention, or review routing.
+- [ ] Treat an immediate affirmative answer as permission to launch only the displayed render campaign, never permission to publish or schedule.
+
+Insufficient candidate test:
+
+- [ ] When fewer than 10 eligible unique songs exist, the GPT reports the exact available count.
+- [ ] It asks whether to continue with the smaller set.
+- [ ] It does not use duplicate or ineligible songs to reach 10.
+
 ## Planning and drafting
 
 - [ ] `Plan ten 30-second posts for [song], but create nothing.` calls only `planSocialRenderBatch`.
@@ -103,4 +135,4 @@ Use one non-critical source graphic containing a clear `STASHBOX` title and song
 
 ## Release gate
 
-The initial GPT is ready for private use only after all read-only, planning, drafting, image-set, and safety tests pass. Keep publishing and scheduling tests limited to a deliberately approved unlisted test asset until the complete workflow is verified.
+The initial GPT is ready for private use only after all read-only, planning, drafting, natural-language campaign, image-set, and safety tests pass. Keep publishing and scheduling tests limited to a deliberately approved unlisted test asset until the complete workflow is verified.
