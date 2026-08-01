@@ -3,6 +3,7 @@ import { createVideoOrchestratorService } from './video-orchestrator.mjs';
 
 const ALLOWED_ASPECT_RATIOS = new Set(['16:9', '9:16']);
 const ALLOWED_DURATION_MODES = new Set(['full', 'promo', 'custom']);
+const ALLOWED_SELECTION_MODES = new Set(['ranked', 'newest']);
 const NON_REUSABLE_STATUSES = new Set(['failed', 'cancelled', 'archived']);
 const ACTIVE_RENDER_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 const MAX_BATCH_JOBS = 20;
@@ -17,14 +18,8 @@ function serviceError(message, statusCode = 400, details) {
 
 function parseBody(event = {}) {
   if (!event.body) return {};
-  const text = event.isBase64Encoded
-    ? Buffer.from(event.body, 'base64').toString('utf8')
-    : String(event.body);
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw serviceError('invalid_json_body', 400);
-  }
+  const text = event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : String(event.body);
+  try { return JSON.parse(text); } catch { throw serviceError('invalid_json_body', 400); }
 }
 
 function boundedInteger(value, fallback, minimum, maximum, label) {
@@ -38,33 +33,21 @@ function boundedInteger(value, fallback, minimum, maximum, label) {
 }
 
 function cleanText(value, fallback = '', maximum = 120) {
-  const text = String(value ?? fallback).trim().replace(/\s+/g, ' ');
-  return text.slice(0, maximum);
+  return String(value ?? fallback).trim().replace(/\s+/g, ' ').slice(0, maximum);
 }
 
 function stringList(value) {
   if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
-  return String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-function lower(value) {
-  return String(value || '').trim().toLowerCase();
-}
+function lower(value) { return String(value || '').trim().toLowerCase(); }
 
 function normalizeSettings(input = {}) {
   const selectedSongKeys = [...new Set(stringList(input.selected_song_keys))].slice(0, 10);
   const requestedSongCount = boundedInteger(input.song_count, 3, 1, 10, 'song_count');
   const songCount = selectedSongKeys.length || requestedSongCount;
-  const variationsPerSong = boundedInteger(
-    input.variations_per_song,
-    1,
-    1,
-    MAX_VERSIONS_PER_SONG,
-    'variations_per_song'
-  );
+  const variationsPerSong = boundedInteger(input.variations_per_song, 1, 1, MAX_VERSIONS_PER_SONG, 'variations_per_song');
   if (songCount * variationsPerSong > MAX_BATCH_JOBS) {
     throw serviceError('batch_job_limit_exceeded', 422, {
       maximum_jobs: MAX_BATCH_JOBS,
@@ -75,23 +58,19 @@ function normalizeSettings(input = {}) {
 
   const aspectRatio = cleanText(input.aspect_ratio, '9:16', 8);
   if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) {
-    throw serviceError('youtube_aspect_ratio_not_supported', 422, {
-      aspect_ratio: aspectRatio,
-      allowed: [...ALLOWED_ASPECT_RATIOS]
-    });
+    throw serviceError('youtube_aspect_ratio_not_supported', 422, { aspect_ratio: aspectRatio, allowed: [...ALLOWED_ASPECT_RATIOS] });
   }
 
   const durationMode = lower(input.duration_mode || 'promo');
-  if (!ALLOWED_DURATION_MODES.has(durationMode)) {
-    throw serviceError('invalid_duration_mode', 422, { allowed: [...ALLOWED_DURATION_MODES] });
-  }
-
-  const durationSeconds = durationMode === 'full'
-    ? null
-    : boundedInteger(input.duration_seconds, 30, 1, 600, 'duration_seconds');
-
+  if (!ALLOWED_DURATION_MODES.has(durationMode)) throw serviceError('invalid_duration_mode', 422, { allowed: [...ALLOWED_DURATION_MODES] });
+  const durationSeconds = durationMode === 'full' ? null : boundedInteger(input.duration_seconds, 30, 1, 600, 'duration_seconds');
   const campaignName = cleanText(input.campaign_name, 'Social Factory Test Batch', 100);
   if (!campaignName) throw serviceError('campaign_name_required', 422);
+
+  const selectionMode = lower(input.selection_mode || 'ranked');
+  if (!ALLOWED_SELECTION_MODES.has(selectionMode)) {
+    throw serviceError('invalid_selection_mode', 422, { allowed: [...ALLOWED_SELECTION_MODES] });
+  }
 
   return {
     campaign_name: campaignName,
@@ -104,6 +83,7 @@ function normalizeSettings(input = {}) {
     genre: cleanText(input.genre, '', 80),
     artist: cleanText(input.artist, '', 120),
     featured_only: input.featured_only === true,
+    selection_mode: selectionMode,
     require_visuals: input.require_visuals !== false,
     selected_song_keys: selectedSongKeys,
     proposal_attempt: boundedInteger(input.proposal_attempt, 0, 0, 1000, 'proposal_attempt'),
@@ -116,8 +96,13 @@ function normalizeSettings(input = {}) {
   };
 }
 
+function newestTimestamp(song = {}) {
+  const parsed = Date.parse(song.selection_date || '');
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
 function selectSongs(candidates, settings) {
-  const visible = candidates.filter((song) => {
+  let visible = candidates.filter((song) => {
     const visibility = lower(song.public_visibility);
     if (visibility !== 'visible' && visibility !== 'public') return false;
     if (settings.require_visuals && song.visual_readiness !== 'indicated') return false;
@@ -131,14 +116,23 @@ function selectSongs(candidates, settings) {
     const byKey = new Map(visible.map((song) => [String(song.song_key), song]));
     const selected = settings.selected_song_keys.map((key) => byKey.get(key)).filter(Boolean);
     const missing = settings.selected_song_keys.filter((key) => !byKey.has(key));
-    if (missing.length) {
-      throw serviceError('selected_songs_not_eligible', 422, { song_keys: missing });
-    }
+    if (missing.length) throw serviceError('selected_songs_not_eligible', 422, { song_keys: missing });
     return selected;
+  }
+
+  if (settings.selection_mode === 'newest') {
+    visible = visible.filter((song) => Boolean(song.selection_date));
+    if (!visible.length) {
+      throw serviceError('newest_selection_dates_unavailable', 409, {
+        required_fields: ['release_date', 'published_at', 'created_at', 'updated_at']
+      });
+    }
+    visible.sort((left, right) => newestTimestamp(right) - newestTimestamp(left) || left.title.localeCompare(right.title));
   }
 
   if (!visible.length) return [];
   const count = Math.min(settings.song_count, visible.length);
+  if (settings.selection_mode === 'newest') return visible.slice(0, count);
   const start = (settings.proposal_attempt * count) % visible.length;
   const rotated = [...visible.slice(start), ...visible.slice(0, start)];
   return rotated.slice(0, count);
@@ -147,13 +141,12 @@ function selectSongs(candidates, settings) {
 function recipeFor(song, settings, variationIndex) {
   const variation = String(variationIndex).padStart(2, '0');
   const title = cleanText(song.title || song.song_key, song.song_key, 100);
-  const alternateSuffix = settings.proposal_attempt > 0
-    ? ` - alt${String(settings.proposal_attempt).padStart(2, '0')}`
-    : '';
+  const alternateSuffix = settings.proposal_attempt > 0 ? ` - alt${String(settings.proposal_attempt).padStart(2, '0')}` : '';
   const seed = crypto.createHash('sha256').update([
     settings.campaign_name,
     settings.proposal_attempt,
     settings.featured_only,
+    settings.selection_mode,
     song.song_key,
     variationIndex,
     settings.aspect_ratio,
@@ -191,6 +184,7 @@ function createProposal(candidates, settings) {
       genre: settings.genre,
       artist: settings.artist,
       featured_only: settings.featured_only,
+      selection_mode: settings.selection_mode,
       require_visuals: settings.require_visuals
     });
   }
@@ -205,6 +199,8 @@ function createProposal(candidates, settings) {
           artist: String(song.artist || ''),
           genre: String(song.genre || ''),
           featured: song.featured === true,
+          selection_date: String(song.selection_date || ''),
+          selection_date_source: String(song.selection_date_source || ''),
           candidate_score: Number(song.candidate_score || 0),
           visual_readiness: String(song.visual_readiness || '')
         },
@@ -214,12 +210,8 @@ function createProposal(candidates, settings) {
     }
   }
 
-  const fingerprint = JSON.stringify({
-    settings,
-    songs: selectedSongs.map((song) => song.song_key)
-  });
+  const fingerprint = JSON.stringify({ settings, songs: selectedSongs.map((song) => song.song_key) });
   const planId = crypto.createHash('sha256').update(fingerprint).digest('hex').slice(0, 16);
-
   return {
     plan_id: planId,
     mode: 'proposal_only',
@@ -236,12 +228,7 @@ function createProposal(candidates, settings) {
 }
 
 function childEvent(event, body) {
-  return {
-    ...event,
-    isBase64Encoded: false,
-    body: JSON.stringify(body),
-    queryStringParameters: null
-  };
+  return { ...event, isBase64Encoded: false, body: JSON.stringify(body), queryStringParameters: null };
 }
 
 function reusableJob(job, recipe) {
@@ -261,9 +248,7 @@ function launchSkipReason(job = {}) {
   return '';
 }
 
-export function createBatchCampaignService({
-  orchestrator = createVideoOrchestratorService()
-} = {}) {
+export function createBatchCampaignService({ orchestrator = createVideoOrchestratorService() } = {}) {
   async function buildPlan(event, input) {
     const settings = normalizeSettings(input);
     const candidateResult = await orchestrator.candidates({
@@ -276,28 +261,16 @@ export function createBatchCampaignService({
   }
 
   return {
-    async plan(event) {
-      return buildPlan(event, parseBody(event));
-    },
+    async plan(event) { return buildPlan(event, parseBody(event)); },
 
     async createDrafts(event) {
       const input = parseBody(event);
       const proposal = await buildPlan(event, input);
-
       if (input.confirm_create_drafts !== true) {
-        return {
-          created: false,
-          mode: 'validation_only',
-          approval_required: true,
-          proposal
-        };
+        return { created: false, mode: 'validation_only', approval_required: true, proposal };
       }
 
-      const jobList = await orchestrator.listJobs({
-        ...event,
-        body: undefined,
-        queryStringParameters: { limit: '250' }
-      });
+      const jobList = await orchestrator.listJobs({ ...event, body: undefined, queryStringParameters: { limit: '250' } });
       const existingJobs = Array.isArray(jobList?.jobs) ? jobList.jobs : [];
       const createdJobs = [];
       const skippedJobs = [];
@@ -305,51 +278,27 @@ export function createBatchCampaignService({
       for (const proposed of proposal.jobs) {
         const existing = existingJobs.find((job) => reusableJob(job, proposed.recipe));
         if (existing) {
-          skippedJobs.push({
-            reason: 'existing_job_reused',
-            job: existing,
-            recipe: proposed.recipe
-          });
+          skippedJobs.push({ reason: 'existing_job_reused', job: existing, recipe: proposed.recipe });
           continue;
         }
-
         const result = await orchestrator.createDraft(childEvent(event, proposed.recipe));
-        createdJobs.push({
-          job: result.job,
-          recipe: proposed.recipe
-        });
+        createdJobs.push({ job: result.job, recipe: proposed.recipe });
         existingJobs.push(result.job);
       }
 
-      const campaignJobs = [
-        ...createdJobs.map((entry) => entry.job),
-        ...skippedJobs.map((entry) => entry.job)
-      ];
+      const campaignJobs = [...createdJobs.map((entry) => entry.job), ...skippedJobs.map((entry) => entry.job)];
       const launchedJobs = [];
       const launchSkippedJobs = [];
       const launchFailedJobs = [];
 
       for (const job of campaignJobs) {
         const reason = launchSkipReason(job);
-        if (reason) {
-          launchSkippedJobs.push({ reason, job });
-          continue;
-        }
+        if (reason) { launchSkippedJobs.push({ reason, job }); continue; }
         try {
-          const result = await orchestrator.launch(
-            childEvent(event, { confirm_render: true }),
-            String(job.id)
-          );
-          launchedJobs.push({
-            job: result.job || job,
-            downstream: result.downstream || null
-          });
+          const result = await orchestrator.launch(childEvent(event, { confirm_render: true }), String(job.id));
+          launchedJobs.push({ job: result.job || job, downstream: result.downstream || null });
         } catch (error) {
-          launchFailedJobs.push({
-            job,
-            error: String(error?.message || 'render_launch_failed'),
-            details: error?.details || null
-          });
+          launchFailedJobs.push({ job, error: String(error?.message || 'render_launch_failed'), details: error?.details || null });
         }
       }
 
