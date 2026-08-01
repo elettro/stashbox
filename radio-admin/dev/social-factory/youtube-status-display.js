@@ -151,7 +151,24 @@
     }
   }
 
+  function loadCampaignEnhancements() {
+    if (!document.querySelector('link[data-content-review-campaigns]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.href = '/radio-admin/dev/social-factory/content-review-campaigns.css?v=20260801-1';
+      stylesheet.dataset.contentReviewCampaigns = 'true';
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector('script[data-content-review-campaigns]')) {
+      const script = document.createElement('script');
+      script.src = '/radio-admin/dev/social-factory/content-review-campaigns.js?v=20260801-1';
+      script.dataset.contentReviewCampaigns = 'true';
+      document.body.appendChild(script);
+    }
+  }
+
   function install() {
+    loadCampaignEnhancements();
     const queue = byId('queueList');
     if (queue) {
       const observer = new MutationObserver(() => window.setTimeout(decorate, 0));
