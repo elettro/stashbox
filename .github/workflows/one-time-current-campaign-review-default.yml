@@ -1,0 +1,46 @@
+name: Set current campaign review default
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-current-campaign-review-default.yml']
+permissions:
+  contents: write
+jobs:
+  apply-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Apply current campaign default
+        run: python scripts/apply-current-campaign-review-default.py
+      - name: Validate page behavior
+        run: |
+          grep -q 'let activeCampaign=requestedCampaign' radio-admin/dev/social-factory/campaign-review/index.html
+          grep -q 'chooseCurrentCampaign' radio-admin/dev/social-factory/campaign-review/index.html
+          grep -q 'Automatically showing the newest current campaign' radio-admin/dev/social-factory/campaign-review/index.html
+          grep -q 'object-fit:contain' radio-admin/dev/social-factory/campaign-review/index.html
+      - name: Commit implementation
+        run: |
+          git config user.name stashbox-campaign-bot
+          git config user.email actions@users.noreply.github.com
+          git add radio-admin/dev/social-factory/campaign-review/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Open current campaign in campaign review'
+            git pull --rebase origin main
+            git push origin main
+          fi
+      - name: Verify live page synchronization
+        run: |
+          for i in $(seq 1 30); do
+            CODE=$(curl -sS -o /tmp/page.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/?v=current-campaign')
+            if [ "$CODE" = 200 ] && grep -q 'chooseCurrentCampaign' /tmp/page.html && grep -q 'full uncropped render' /tmp/page.html; then
+              echo 'Live campaign review page synchronized.'
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Live page did not synchronize in time.'
+          exit 1
