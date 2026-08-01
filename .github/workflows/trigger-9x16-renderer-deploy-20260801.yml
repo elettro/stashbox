@@ -1,0 +1,22 @@
+name: Trigger Corrected 9x16 Renderer DEV Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/trigger-9x16-renderer-deploy-20260801.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-renderer-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch DEV renderer deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-video-factory-renderer-dev.yml --repo elettro/stashbox --ref main
