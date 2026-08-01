@@ -171,6 +171,12 @@
       exactLinks.dataset.campaignReviewLinks = 'true';
       document.body.appendChild(exactLinks);
     }
+    if (!document.querySelector('script[data-review-hide-controls]')) {
+      const hideControls = document.createElement('script');
+      hideControls.src = '/radio-admin/dev/social-factory/review-hide-controls.js?v=20260801-1';
+      hideControls.dataset.reviewHideControls = 'true';
+      document.body.appendChild(hideControls);
+    }
   }
 
   function install() {
