@@ -59,7 +59,7 @@
   function loadCardControls() {
     if (document.querySelector('script[data-review-card-hide-controls]')) return;
     const script = document.createElement('script');
-    script.src = '/radio-admin/dev/social-factory/review-card-hide-controls.js?v=20260801-2';
+    script.src = '/radio-admin/dev/social-factory/review-card-hide-controls.js?v=20260801-3';
     script.dataset.reviewCardHideControls = 'true';
     document.body.appendChild(script);
   }
