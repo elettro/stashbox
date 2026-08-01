@@ -165,6 +165,12 @@
       script.dataset.contentReviewCampaigns = 'true';
       document.body.appendChild(script);
     }
+    if (!document.querySelector('script[data-campaign-review-links]')) {
+      const exactLinks = document.createElement('script');
+      exactLinks.src = '/radio-admin/dev/social-factory/campaign-review-links.js?v=20260801-1';
+      exactLinks.dataset.campaignReviewLinks = 'true';
+      document.body.appendChild(exactLinks);
+    }
   }
 
   function install() {
