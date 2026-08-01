@@ -56,7 +56,17 @@
     }
   }
 
+  function loadCardControls() {
+    if (document.querySelector('script[data-review-card-hide-controls]')) return;
+    const script = document.createElement('script');
+    script.src = '/radio-admin/dev/social-factory/review-card-hide-controls.js?v=20260801-2';
+    script.dataset.reviewCardHideControls = 'true';
+    document.body.appendChild(script);
+  }
+
   function install() {
+    loadCardControls();
+
     const actions = document.querySelector('#reviewForm .sf-form-actions');
     if (!actions) return;
 
@@ -72,12 +82,15 @@
       actions.appendChild(button);
     }
 
-    const style = document.createElement('style');
-    style.textContent = `
-      .sf-review-actions-sticky{position:sticky;bottom:0;z-index:20;margin:0 -8px;padding:12px 8px;background:linear-gradient(180deg,rgba(15,20,23,.25),rgba(15,20,23,.98) 28%);border-top:1px solid rgba(255,255,255,.1)}
-      .sf-button-danger{border-color:rgba(255,116,116,.65)!important;background:linear-gradient(180deg,#a43f3f,#762929)!important;color:#fff!important}
-    `;
-    document.head.appendChild(style);
+    if (!document.getElementById('reviewHideStickyStyles')) {
+      const style = document.createElement('style');
+      style.id = 'reviewHideStickyStyles';
+      style.textContent = `
+        .sf-review-actions-sticky{position:sticky;bottom:0;z-index:20;margin:0 -8px;padding:12px 8px;background:linear-gradient(180deg,rgba(15,20,23,.25),rgba(15,20,23,.98) 28%);border-top:1px solid rgba(255,255,255,.1)}
+        .sf-button-danger{border-color:rgba(255,116,116,.65)!important;background:linear-gradient(180deg,#a43f3f,#762929)!important;color:#fff!important}
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
