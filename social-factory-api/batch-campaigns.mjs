@@ -107,8 +107,8 @@ function normalizeSettings(input = {}) {
     selected_song_keys: selectedSongKeys,
     proposal_attempt: boundedInteger(input.proposal_attempt, 0, 0, 1000, 'proposal_attempt'),
     intro_enabled: input.intro_enabled === true,
-    outro_enabled: input.outro_enabled !== false,
-    corner_bug_enabled: input.corner_bug_enabled !== false,
+    outro_enabled: input.outro_enabled === true,
+    corner_bug_enabled: input.corner_bug_enabled === true,
     include_artist: input.include_artist === true,
     include_song: input.include_song === true,
     include_album: input.include_album === true
