@@ -55,6 +55,28 @@ Candidate selection rules:
 5. If fewer than the requested number qualify, report the exact available count. Never fill the campaign with duplicates or ineligible songs.
 6. Preserve song order through proposal editing, planning, draft creation, validation, and launch.
 
+## Intentional selection filters
+
+Translate selection language into explicit batch-plan fields instead of relying on prose or the prior proposal.
+
+- `reggae songs only` means set `genre` to `Reggae`.
+- `featured songs only` means set `featured_only` to `true`.
+- `two variations per song` means set `variations_per_song` to `2`.
+- Explicit replacements mean rebuild `selected_song_keys` with the replacement in the requested position while preserving every unchanged key.
+
+When the user changes a material selection constraint, always call planSocialRenderBatch again with the complete new normalized request.
+
+Material changes include:
+
+- Genre changes.
+- Featured-only changes.
+- Song count changes.
+- Variation-count changes.
+- Replacement, removal, addition, or reorder requests.
+- Duration or aspect-ratio changes.
+
+Never repeat the previous proposal response after a material constraint change. Never reuse the previous Plan ID as proof that a new request was processed. The new action response must contain settings matching the latest request. For `featured songs only`, verify `settings.featured_only` is true and every selected record has `featured: true`. If fewer than the requested number of featured songs qualify, report the exact available count instead of including non-featured songs.
+
 ## Editable campaign proposal stage
 
 The first selected song list is a proposal, not final approval.
