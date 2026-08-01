@@ -1,0 +1,159 @@
+name: One-time add Social Factory batch scheduling
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/one-time-add-social-batch-scheduling.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Patch batch scheduling API and Custom GPT schema
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          schedule_path = Path('social-factory-api/schedule-publish.mjs')
+          schedule = schedule_path.read_text()
+          marker = "    async batchSchedule(event) {"
+          if marker not in schedule:
+              needle = "\n    async cancel(event, reviewId) {"
+              batch_method = r'''
+
+    async batchSchedule(event) {
+      const config = await secretStore.read(configSecretId);
+      assertAdmin(event, config);
+      const input = parseBody(event);
+      const entries = Array.isArray(input.items) ? input.items : [];
+      if (!entries.length || entries.length > 100) {
+        throw serviceError('batch_schedule_items_required', 422, { maximum_items: 100 });
+      }
+
+      const normalized = entries.map((entry, index) => {
+        const reviewId = safeReviewId(entry?.review_id);
+        const scheduledText = String(entry?.scheduled_at || '').trim();
+        const scheduledMs = Date.parse(scheduledText);
+        if (!Number.isFinite(scheduledMs)) {
+          throw serviceError('scheduled_at_required', 422, { index, review_id: reviewId });
+        }
+        return {
+          review_id: reviewId,
+          scheduled_at: new Date(scheduledMs).toISOString(),
+          timezone: String(entry?.timezone || input.timezone || 'America/New_York')
+        };
+      });
+
+      if (new Set(normalized.map((entry) => entry.review_id)).size !== normalized.length) {
+        throw serviceError('duplicate_review_id', 422);
+      }
+
+      const validationResults = [];
+      for (const entry of normalized) {
+        const childEvent = {
+          ...event,
+          body: JSON.stringify({
+            scheduled_at: entry.scheduled_at,
+            timezone: entry.timezone,
+            confirm_schedule: false
+          }),
+          isBase64Encoded: false
+        };
+        validationResults.push(await this.schedule(childEvent, entry.review_id));
+      }
+
+      if (input.confirm_schedule !== true) {
+        return {
+          scheduled: false,
+          mode: 'validation_only',
+          approval_required: true,
+          item_count: normalized.length,
+          items: validationResults.map((result, index) => ({
+            review_id: normalized[index].review_id,
+            scheduled_at: result.scheduled_at,
+            valid: true
+          }))
+        };
+      }
+
+      const results = [];
+      for (const entry of normalized) {
+        const childEvent = {
+          ...event,
+          body: JSON.stringify({
+            scheduled_at: entry.scheduled_at,
+            timezone: entry.timezone,
+            confirm_schedule: true
+          }),
+          isBase64Encoded: false
+        };
+        results.push(await this.schedule(childEvent, entry.review_id));
+      }
+
+      return {
+        scheduled: true,
+        mode: 'batch_scheduled',
+        item_count: results.length,
+        scheduled_item_count: results.filter((result) => result.scheduled).length,
+        items: results.map((result) => ({
+          review_id: result.review_id,
+          scheduled_at: result.scheduled_at,
+          publishing_status: result.item?.publishing_status || 'scheduled',
+          item: result.item
+        }))
+      };
+    },
+'''
+              if needle not in schedule:
+                  raise SystemExit('Could not locate cancel method insertion point')
+              schedule = schedule.replace(needle, batch_method + needle, 1)
+              schedule_path.write_text(schedule)
+
+          index_path = Path('social-factory-api/index.mjs')
+          index = index_path.read_text()
+          route_marker = "path === '/social/review-items/batch-schedule'"
+          if route_marker not in index:
+              needle = "      if (method === 'POST' && review.cancelScheduleReviewId) {"
+              route = """      if (method === 'POST' && path === '/social/review-items/batch-schedule') {\n        return json(200, {\n          ok: true,\n          ...(await getReviewScheduler().batchSchedule(event))\n        });\n      }\n\n"""
+              if needle not in index:
+                  raise SystemExit('Could not locate schedule route insertion point')
+              index = index.replace(needle, route + needle, 1)
+              index = index.replace("const SERVICE_VERSION = '0.7.0';", "const SERVICE_VERSION = '0.8.0';")
+              index_path.write_text(index)
+
+          schema_path = Path('custom-gpt/stashbox-radio/openapi.yaml')
+          schema = schema_path.read_text()
+          openapi_marker = "operationId: validateOrScheduleSocialContentBatch"
+          if openapi_marker not in schema:
+              needle = "  /social/review-items/{reviewId}/schedule:\n"
+              block = """  /social/review-items/batch-schedule:\n    post:\n      operationId: validateOrScheduleSocialContentBatch\n      summary: Validate or schedule multiple approved Content Review items using one confirmed batch.\n      description: Validate the complete schedule first. Set confirm_schedule true only after the user approves the displayed dates and times once.\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [items]\n              properties:\n                timezone:\n                  type: string\n                  default: America/New_York\n                confirm_schedule:\n                  type: boolean\n                  default: false\n                items:\n                  type: array\n                  minItems: 1\n                  maxItems: 100\n                  items:\n                    type: object\n                    required: [review_id, scheduled_at]\n                    properties:\n                      review_id:\n                        type: string\n                      scheduled_at:\n                        type: string\n                        format: date-time\n                      timezone:\n                        type: string\n                        default: America/New_York\n      responses:\n        '200':\n          description: Complete validation or saved batch schedule with updated review items.\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/GenericResponse'\n"""
+              if needle not in schema:
+                  raise SystemExit('Could not locate OpenAPI schedule insertion point')
+              schema = schema.replace(needle, block + needle, 1)
+              schema = schema.replace('version: 0.7.0', 'version: 0.8.0')
+              schema_path.write_text(schema)
+          PY
+
+      - name: Commit patched files
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/schedule-publish.mjs social-factory-api/index.mjs custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m "Add confirmed batch scheduling for Social Factory"
+          git push
