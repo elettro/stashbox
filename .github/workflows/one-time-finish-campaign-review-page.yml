@@ -1,0 +1,59 @@
+name: Finish Social Factory campaign review page
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/apply-campaign-review-v2.py']
+permissions:
+  contents: write
+concurrency:
+  group: social-factory-campaign-review-page-dev
+  cancel-in-progress: false
+jobs:
+  apply-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply campaign review page
+        run: python scripts/apply-campaign-review-v2.py
+      - name: Validate page source
+        shell: bash
+        run: |
+          node --check radio-admin/dev/social-factory/campaign-review/campaign-review.js
+          grep -q 'Campaign Review' radio-admin/dev/social-factory/campaign-review/index.html
+          grep -q 'campaignSelect' radio-admin/dev/social-factory/campaign-review/index.html
+          grep -q 'bulkRegenerate' radio-admin/dev/social-factory/campaign-review/campaign-review.js
+          grep -q 'object-fit: contain' radio-admin/dev/social-factory/campaign-review/campaign-review.css
+          grep -q 'This page never publishes content' radio-admin/dev/social-factory/campaign-review/index.html
+      - name: Commit page assets
+        shell: bash
+        run: |
+          git config user.name stashbox-campaign-review-bot
+          git config user.email actions@users.noreply.github.com
+          git add radio-admin/dev/social-factory/campaign-review/index.html radio-admin/dev/social-factory/campaign-review/campaign-review.css radio-admin/dev/social-factory/campaign-review/campaign-review.js
+          if git diff --cached --quiet; then
+            echo 'No campaign review page changes to commit.'
+          else
+            git commit -m 'Finish Social Factory campaign review page'
+            git pull --rebase origin main
+            git push origin main
+          fi
+      - name: Verify DEV page
+        shell: bash
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            PAGE_CODE=$(curl -L -sS -o /tmp/campaign-review.html -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/')
+            JS_CODE=$(curl -L -sS -o /tmp/campaign-review.js -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/campaign-review.js?v=20260801-1')
+            CSS_CODE=$(curl -L -sS -o /tmp/campaign-review.css -w '%{http_code}' 'https://stashbox.com/radio-admin/dev/social-factory/campaign-review/campaign-review.css?v=20260801-1')
+            if [ "$PAGE_CODE" = 200 ] && [ "$JS_CODE" = 200 ] && [ "$CSS_CODE" = 200 ] && grep -q 'campaignSelect' /tmp/campaign-review.html && grep -q 'bulkRegenerate' /tmp/campaign-review.js && grep -q 'object-fit: contain' /tmp/campaign-review.css; then
+              echo 'Campaign review page is live in DEV.'
+              exit 0
+            fi
+            echo "DEV page not updated yet. Attempt ${attempt}/6. HTTP ${PAGE_CODE}/${JS_CODE}/${CSS_CODE}"
+            sleep 10
+          done
+          echo 'DEV source committed, but public propagation was not confirmed.'
+          exit 1
