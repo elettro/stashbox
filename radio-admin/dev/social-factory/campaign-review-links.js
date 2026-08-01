@@ -6,6 +6,40 @@
   let items = [];
   let applying = false;
 
+  function installLayoutOverride() {
+    if (document.getElementById('sf-wide-review-queue-override')) return;
+    const style = document.createElement('style');
+    style.id = 'sf-wide-review-queue-override';
+    style.textContent = `
+      @media (min-width: 1101px) {
+        .sf-workspace {
+          grid-template-columns: minmax(500px, 560px) minmax(0, 1fr) !important;
+        }
+        .sf-queue {
+          min-width: 500px !important;
+        }
+        .sf-review-campaign-head {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) auto !important;
+          align-items: start !important;
+        }
+        .sf-open-campaign-review {
+          grid-column: 2 !important;
+          grid-row: 1 / span 2 !important;
+          align-self: center !important;
+        }
+        .sf-queue-list {
+          overflow-x: hidden !important;
+        }
+      }
+      @media (max-width: 1100px) {
+        .sf-workspace { grid-template-columns: 1fr !important; }
+        .sf-queue { min-width: 0 !important; position: static !important; max-height: none !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function token() {
     return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || '';
   }
@@ -49,7 +83,8 @@
     if (!savedToken) return;
     try {
       const response = await fetch(`${API_BASE}/social/review-items?limit=250`, {
-        headers: { 'x-admin-token': savedToken }
+        headers: { 'x-admin-token': savedToken },
+        cache: 'no-store'
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) return;
@@ -67,6 +102,7 @@
   }
 
   function decorate() {
+    installLayoutOverride();
     if (applying) return;
     applying = true;
     try {
@@ -95,6 +131,7 @@
   }
 
   function init() {
+    installLayoutOverride();
     const queue = document.getElementById('queueList');
     if (!queue) return;
     new MutationObserver(() => window.setTimeout(decorate, 0)).observe(queue, { childList: true, subtree: true });
