@@ -1,0 +1,91 @@
+.sf-review-campaign-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(8, 17, 20, 0.62);
+}
+
+.sf-review-campaign-group + .sf-review-campaign-group {
+  margin-top: 14px;
+}
+
+.sf-review-campaign-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sf-review-campaign-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sf-review-campaign-head strong {
+  overflow-wrap: anywhere;
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.sf-review-campaign-label {
+  color: #79e5ae;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sf-review-campaign-progress {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(77, 227, 154, 0.12);
+  color: #8df0bb;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sf-review-campaign-items {
+  display: grid;
+  gap: 9px;
+}
+
+.sf-review-campaign-items .sf-queue-item {
+  width: 100%;
+}
+
+.sf-queue-source {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sf-queue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.sf-queue-meta .sf-mini-pill {
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .sf-review-campaign-head {
+    display: grid;
+  }
+
+  .sf-review-campaign-progress {
+    width: max-content;
+  }
+}
