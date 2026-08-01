@@ -155,7 +155,7 @@
     if (!document.querySelector('link[data-content-review-campaigns]')) {
       const stylesheet = document.createElement('link');
       stylesheet.rel = 'stylesheet';
-      stylesheet.href = '/radio-admin/dev/social-factory/content-review-campaigns.css?v=20260801-1';
+      stylesheet.href = '/radio-admin/dev/social-factory/content-review-campaigns.css?v=20260801-wide2';
       stylesheet.dataset.contentReviewCampaigns = 'true';
       document.head.appendChild(stylesheet);
     }
