@@ -103,6 +103,7 @@ function normalizeSettings(input = {}) {
     fps: boundedInteger(input.fps, 30, 24, 60, 'fps'),
     genre: cleanText(input.genre, '', 80),
     artist: cleanText(input.artist, '', 120),
+    featured_only: input.featured_only === true,
     require_visuals: input.require_visuals !== false,
     selected_song_keys: selectedSongKeys,
     proposal_attempt: boundedInteger(input.proposal_attempt, 0, 0, 1000, 'proposal_attempt'),
@@ -122,6 +123,7 @@ function selectSongs(candidates, settings) {
     if (settings.require_visuals && song.visual_readiness !== 'indicated') return false;
     if (settings.genre && lower(song.genre) !== lower(settings.genre)) return false;
     if (settings.artist && lower(song.artist) !== lower(settings.artist)) return false;
+    if (settings.featured_only && song.featured !== true) return false;
     return song.eligible !== false;
   });
 
@@ -151,6 +153,7 @@ function recipeFor(song, settings, variationIndex) {
   const seed = crypto.createHash('sha256').update([
     settings.campaign_name,
     settings.proposal_attempt,
+    settings.featured_only,
     song.song_key,
     variationIndex,
     settings.aspect_ratio,
@@ -187,6 +190,7 @@ function createProposal(candidates, settings) {
     throw serviceError('no_matching_batch_candidates', 409, {
       genre: settings.genre,
       artist: settings.artist,
+      featured_only: settings.featured_only,
       require_visuals: settings.require_visuals
     });
   }
@@ -200,6 +204,7 @@ function createProposal(candidates, settings) {
           title: String(song.title || ''),
           artist: String(song.artist || ''),
           genre: String(song.genre || ''),
+          featured: song.featured === true,
           candidate_score: Number(song.candidate_score || 0),
           visual_readiness: String(song.visual_readiness || '')
         },
