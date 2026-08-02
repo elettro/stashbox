@@ -5,6 +5,27 @@
   const originalFetch = window.fetch.bind(window);
   let enhanceScheduled = false;
 
+  const BUTTON_HELP = Object.freeze({
+    'preview video': 'Loads a temporary secure preview of this rendered video. This does not publish or change its review status.',
+    approve: 'Marks this item approved in Content Review. It does not publish the video. Disabled means this item is already approved.',
+    hold: 'Places this item on hold so it stays in Content Review and is not ready for publishing.',
+    regenerate: 'Creates and launches a replacement render using the current song assets and settings. The existing item is placed on hold.',
+    hide: 'Removes this item from the normal Content Review view without deleting the underlying render.',
+    play: 'Plays the secure preview video.',
+    pause: 'Pauses the secure preview video.',
+    'retry secure preview': 'Requests a fresh temporary preview link and reloads the video.',
+    'select visible': 'Selects every video currently visible after applying campaign and filter settings.',
+    'clear selection': 'Clears all selected campaign videos.',
+    'approve selected': 'Marks all selected videos approved in Content Review. Nothing is published.',
+    'hold selected': 'Places all selected videos on hold.',
+    'regenerate selected': 'Creates replacement renders for all selected videos after confirmation.',
+    'hide selected': 'Hides all selected videos from the normal Content Review view.',
+    'refresh campaign': 'Reloads the latest campaign and Content Review information from the backend.',
+    'clear filters': 'Clears the search, review-status, and aspect-ratio filters.',
+    'save token': 'Stores the DEV admin token in this browser so the page can access protected review data.',
+    'clear token': 'Removes the saved DEV admin token from this browser.'
+  });
+
   function clean(value) {
     return String(value ?? '').trim();
   }
@@ -116,6 +137,25 @@
       .replaceAll("'", '&#039;');
   }
 
+  function addTooltip(control, helpText) {
+    if (!control || !helpText) return;
+    control.dataset.tooltip = helpText;
+    control.setAttribute('title', helpText);
+    control.setAttribute('aria-description', helpText);
+    control.classList.add('has-tooltip');
+  }
+
+  function ensureButtonTooltips(root = document) {
+    for (const control of root.querySelectorAll('button, a.btn')) {
+      const key = clean(control.textContent).toLowerCase();
+      let helpText = BUTTON_HELP[key];
+      if (key === 'approve' && control.disabled) {
+        helpText = 'This item is already approved. Approval changes Content Review status only and does not publish the video.';
+      }
+      addTooltip(control, helpText);
+    }
+  }
+
   function ensureRetry(preview) {
     if (!/Preview unavailable:|Preview expired\./i.test(preview.textContent || '')) return;
     if (preview.querySelector('.preview-retry')) return;
@@ -124,6 +164,7 @@
     retry.type = 'button';
     retry.className = 'btn primary preview-retry';
     retry.textContent = 'Retry secure preview';
+    addTooltip(retry, BUTTON_HELP['retry secure preview']);
     retry.addEventListener('click', () => {
       const card = preview.closest('.card');
       card?.querySelector('.card-actions .btn.primary')?.click();
@@ -147,6 +188,7 @@
     toggle.className = 'preview-play-toggle';
     toggle.textContent = video.paused ? 'Play' : 'Pause';
     toggle.setAttribute('aria-label', 'Play or pause preview video');
+    addTooltip(toggle, video.paused ? BUTTON_HELP.play : BUTTON_HELP.pause);
     toggle.addEventListener('click', async () => {
       if (video.paused) {
         try { await video.play(); } catch (_) { /* Native controls remain available. */ }
@@ -154,21 +196,32 @@
         video.pause();
       }
     });
-    video.addEventListener('play', () => { toggle.textContent = 'Pause'; });
-    video.addEventListener('pause', () => { toggle.textContent = 'Play'; });
-    video.addEventListener('ended', () => { toggle.textContent = 'Play'; });
+    video.addEventListener('play', () => {
+      toggle.textContent = 'Pause';
+      addTooltip(toggle, BUTTON_HELP.pause);
+    });
+    video.addEventListener('pause', () => {
+      toggle.textContent = 'Play';
+      addTooltip(toggle, BUTTON_HELP.play);
+    });
+    video.addEventListener('ended', () => {
+      toggle.textContent = 'Play';
+      addTooltip(toggle, BUTTON_HELP.play);
+    });
     preview.appendChild(toggle);
   }
 
   function enhance() {
     enhanceScheduled = false;
     const grid = document.getElementById('grid');
+    ensureButtonTooltips(document);
     if (!grid) return;
     const cards = [...grid.querySelectorAll('.card')];
     grid.dataset.cardCount = String(cards.length);
 
     for (const card of cards) {
       ensureArtworkMetadata(card);
+      ensureButtonTooltips(card);
       const preview = card.querySelector('.preview');
       if (!preview) continue;
       ensureRetry(preview);
@@ -182,10 +235,9 @@
     window.requestAnimationFrame(enhance);
   }
 
-  // Observe only the campaign grid. This avoids document-wide mutation loops and
-  // prevents the card from repeatedly rebuilding while the user scrolls.
   function start() {
     const grid = document.getElementById('grid');
+    ensureButtonTooltips(document);
     if (!grid) {
       window.setTimeout(start, 100);
       return;
