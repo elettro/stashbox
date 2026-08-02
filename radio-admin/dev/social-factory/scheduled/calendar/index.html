@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Scheduled Calendar · Stashbox Social Factory</title>
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/scheduled/scheduled.css?v=20260802-1" />
+</head>
+<body data-view="calendar">
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Stashbox Social Factory · DEV</p>
+        <h1>Scheduled Calendar</h1>
+        <p class="sub">Read-only monthly calendar of upcoming Social Factory posts. Existing pages and publishing controls are not modified.</p>
+      </div>
+      <nav class="nav" aria-label="Scheduled post views">
+        <a class="button" href="/radio-admin/dev/social-factory/">Content Review</a>
+        <a class="button" href="/radio-admin/dev/social-factory/scheduled/">List View</a>
+        <a class="button" aria-current="true" href="/radio-admin/dev/social-factory/scheduled/calendar/">Calendar View</a>
+      </nav>
+    </header>
+
+    <section class="auth" aria-label="Authorization">
+      <div><strong>Social Factory Admin Token</strong><span id="tokenStatus" class="muted">Token not saved</span></div>
+      <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" />
+      <button id="saveToken" class="button primary" type="button">Use Token</button>
+      <button id="clearToken" class="button" type="button">Clear</button>
+    </section>
+
+    <section class="toolbar" aria-label="Scheduled post filters">
+      <input id="search" type="search" placeholder="Search title, artist, review ID, or platform" />
+      <select id="platform" aria-label="Platform filter"><option value="all">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option></select>
+      <select id="visibility" aria-label="Visibility filter"><option value="all">All visibility</option><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public</option></select>
+      <button id="refresh" class="button" type="button">Refresh</button>
+    </section>
+
+    <section class="summary" aria-label="Scheduled post summary">
+      <div class="stat"><strong id="count-total">0</strong><span>Total scheduled</span></div>
+      <div class="stat"><strong id="count-day">0</strong><span>Next 24 hours</span></div>
+      <div class="stat"><strong id="count-week">0</strong><span>Next 7 days</span></div>
+      <div class="stat"><strong id="count-overdue">0</strong><span>Past scheduled time</span></div>
+    </section>
+
+    <div id="message" class="message" hidden></div>
+    <section class="panel" aria-label="Monthly scheduled-post calendar">
+      <div class="calendar-head">
+        <button id="prevMonth" class="button" type="button" aria-label="Previous month">←</button>
+        <div><p class="eyebrow">Monthly Schedule</p><h2 id="monthLabel" style="margin:0"></h2></div>
+        <div class="nav"><button id="todayMonth" class="button" type="button">Today</button><button id="nextMonth" class="button" type="button" aria-label="Next month">→</button></div>
+      </div>
+      <div id="calendarGrid" class="calendar-grid"></div>
+    </section>
+    <p class="readonly"><strong>Safety:</strong> this calendar uses only <code>GET /social/review-items</code>. No drag-and-drop, cancellation, publishing, or rescheduling is enabled.</p>
+  </main>
+  <script src="/radio-admin/dev/social-factory/scheduled/scheduled.js?v=20260802-1"></script>
+</body>
+</html>
