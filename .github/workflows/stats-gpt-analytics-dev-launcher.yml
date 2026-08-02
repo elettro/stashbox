@@ -1,0 +1,26 @@
+name: Stats GPT Analytics DEV Launcher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stats-gpt-analytics-dev-launcher.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  launch-stats-analytics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Launch top-song analytics DEV workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run one-time-wire-top-song-analytics-dev.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main
+          echo "Triggered Wire top-song analytics into Social Factory DEV"
