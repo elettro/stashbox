@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Scheduled Posts · Stashbox Social Factory</title>
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/scheduled/scheduled.css?v=20260802-1" />
+</head>
+<body data-view="list">
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Stashbox Social Factory · DEV</p>
+        <h1>Scheduled Posts</h1>
+        <p class="sub">Read-only list of upcoming Social Factory posts. This page does not cancel, edit, publish, or reschedule anything.</p>
+      </div>
+      <nav class="nav" aria-label="Scheduled post views">
+        <a class="button" href="/radio-admin/dev/social-factory/">Content Review</a>
+        <a class="button" aria-current="true" href="/radio-admin/dev/social-factory/scheduled/">List View</a>
+        <a class="button" href="/radio-admin/dev/social-factory/scheduled/calendar/">Calendar View</a>
+      </nav>
+    </header>
+
+    <section class="auth" aria-label="Authorization">
+      <div><strong>Social Factory Admin Token</strong><span id="tokenStatus" class="muted">Token not saved</span></div>
+      <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" />
+      <button id="saveToken" class="button primary" type="button">Use Token</button>
+      <button id="clearToken" class="button" type="button">Clear</button>
+    </section>
+
+    <section class="toolbar" aria-label="Scheduled post filters">
+      <input id="search" type="search" placeholder="Search title, artist, review ID, or platform" />
+      <select id="platform" aria-label="Platform filter"><option value="all">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option></select>
+      <select id="visibility" aria-label="Visibility filter"><option value="all">All visibility</option><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public</option></select>
+      <button id="refresh" class="button" type="button">Refresh</button>
+    </section>
+
+    <section class="summary" aria-label="Scheduled post summary">
+      <div class="stat"><strong id="count-total">0</strong><span>Total scheduled</span></div>
+      <div class="stat"><strong id="count-day">0</strong><span>Next 24 hours</span></div>
+      <div class="stat"><strong id="count-week">0</strong><span>Next 7 days</span></div>
+      <div class="stat"><strong id="count-overdue">0</strong><span>Past scheduled time</span></div>
+    </section>
+
+    <div id="message" class="message" hidden></div>
+    <section id="scheduledList" class="cards" aria-live="polite"></section>
+    <p id="empty" class="empty">No scheduled posts were found.</p>
+    <p class="readonly"><strong>Safety:</strong> this page uses only <code>GET /social/review-items</code>. Schedule changes remain disabled until the cancel-and-replace workflow is repaired and verified.</p>
+  </main>
+  <script src="/radio-admin/dev/social-factory/scheduled/scheduled.js?v=20260802-1"></script>
+</body>
+</html>
