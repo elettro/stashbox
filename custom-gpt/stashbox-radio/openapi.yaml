@@ -24,18 +24,15 @@ paths:
   /social/analytics/top-songs:
     get:
       operationId: getTopSongAnalytics
-      summary: Get the most played, liked, shared, or otherwise top-performing Stashbox songs, optionally filtered by genre or artist.
-      description: Read-only live song rankings. Supports metric, genre, artist, limit, and all-time filters. Never creates drafts, renders, schedules, uploads, or publications.
+      summary: Rank Stashbox songs by an all-time engagement metric using live Radio dashboard totals.
+      description: Read-only song analytics. This operation never creates drafts, renders, schedules, uploads, or publications.
       parameters:
         - name: metric
           in: query
-          required: false
-          description: Ranking metric. Default to plays when the user asks for top or most-played songs without naming another metric.
+          required: true
           schema:
             type: string
             enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
-            default: plays
-          example: plays
         - name: limit
           in: query
           required: false
@@ -59,10 +56,8 @@ paths:
         - name: genre
           in: query
           required: false
-          description: Case-insensitive Song CMS genre filter. Pass genre words from the user request directly, for example Reggae.
           schema:
             type: string
-          example: Reggae
       responses:
         '200':
           description: Ranked songs with exact metric totals.
