@@ -16,6 +16,15 @@
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'stashbox';
 
+  function loadPortraitArtworkReliability() {
+    if (window.StashboxPortraitArtworkRule || document.querySelector('script[data-stashbox-portrait-artwork-rule]')) return;
+    const script = document.createElement('script');
+    script.src = '/radio/dev/v2/v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1';
+    script.defer = true;
+    script.dataset.stashboxPortraitArtworkRule = 'true';
+    document.head.appendChild(script);
+  }
+
   function markInteractive(root = document) {
     root.querySelectorAll('#v2App [data-player] [data-partist], #v2App [data-player] [data-pgenre], .artist-realm-player [data-realm-genre]').forEach(node => {
       node.classList.add('stashbox-route-link');
@@ -162,6 +171,7 @@
   const observer = new MutationObserver(() => markInteractive());
   observer.observe(document.documentElement, { childList: true, subtree: true });
   markInteractive();
+  loadPortraitArtworkReliability();
 
   window.StashboxPageOverlay = {
     open: openRoute,
