@@ -436,6 +436,12 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/youtube/publish
             Method: POST
+        TopSongAnalytics:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/analytics/top-songs
+            Method: GET
         OrchestrationCandidates:
           Type: HttpApi
           Properties:
