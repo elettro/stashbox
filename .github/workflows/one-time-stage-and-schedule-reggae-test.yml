@@ -1,0 +1,233 @@
+name: One-time stage and schedule reggae test campaign
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-stage-and-schedule-reggae-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage-and-schedule-reggae-test-2026-08-02
+  cancel-in-progress: false
+
+jobs:
+  stage-approve-schedule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      SOCIAL_CONFIG_SECRET: stashbox/social-factory/dev/youtube-oauth/config
+      SOCIAL_API_BASE: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
+      REPORT_PATH: deployment-reports/reggae-test-stage-schedule-2026-08-02.json
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Stage, approve, and schedule three completed renders
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+
+          aws secretsmanager get-secret-value \
+            --secret-id "${SOCIAL_CONFIG_SECRET}" \
+            --query SecretString \
+            --output text > /tmp/social-config.json
+          SOCIAL_ADMIN_TOKEN=$(jq -r '.admin_token' /tmp/social-config.json)
+          test -n "${SOCIAL_ADMIN_TOKEN}"
+
+          JOB_IDS=(
+            'c8f84257-a677-4f23-ab69-86a77652d14d'
+            '02ddbe5d-e2be-4315-9769-760d9e2f8ec1'
+            'f5a2a7ff-ae3a-4394-b4d6-96035565d293'
+          )
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            curl --silent --show-error --max-time 120 \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          api_post_json() {
+            local path="$1"
+            local body_file="$2"
+            local output="$3"
+            curl --silent --show-error --max-time 180 \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -H "x-admin-token: ${SOCIAL_ADMIN_TOKEN}" \
+              --data-binary "@${body_file}" \
+              -o "${output}" -w '%{http_code}' \
+              "${SOCIAL_API_BASE}${path}"
+          }
+
+          JOB_IDS_CSV=$(IFS=,; echo "${JOB_IDS[*]}")
+          JOBS_STATUS=$(api_get "/social/orchestration/batch-jobs?job_ids=${JOB_IDS_CSV}" /tmp/jobs.json)
+          test "${JOBS_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .job_count == 3 and
+            .counts.completed == 3 and
+            .counts.failed == 0 and
+            .counts.active == 0 and
+            .counts.draft == 0
+          ' /tmp/jobs.json >/dev/null
+
+          jq -n \
+            --arg first "${JOB_IDS[0]}" \
+            --arg second "${JOB_IDS[1]}" \
+            --arg third "${JOB_IDS[2]}" \
+            '{job_ids: [$first, $second, $third], confirm_stage_batch: true}' \
+            > /tmp/stage-body.json
+
+          STAGE_STATUS=$(api_post_json '/social/orchestration/batch-stage' /tmp/stage-body.json /tmp/stage.json)
+          test "${STAGE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .staged == true and
+            .mode == "completed_renders_staged" and
+            .staged_job_count == 3 and
+            .failed_job_count == 0 and
+            .publishing_triggered == false and
+            .youtube_published == false
+          ' /tmp/stage.json >/dev/null
+
+          REVIEW_IDS=()
+          for JOB_ID in "${JOB_IDS[@]}"; do
+            REVIEW_IDS+=("render-${JOB_ID}")
+          done
+
+          for REVIEW_ID in "${REVIEW_IDS[@]}"; do
+            jq -n '{decision: "approve", note: "Approved under the authorized three-video reggae YouTube test campaign."}' > /tmp/decision-body.json
+            DECISION_STATUS=$(api_post_json "/social/review-items/${REVIEW_ID}/decision" /tmp/decision-body.json "/tmp/decision-${REVIEW_ID}.json")
+            test "${DECISION_STATUS}" = '200'
+            jq -e '
+              .ok == true and
+              .decision_applied == true and
+              .publishing_triggered == false and
+              .item.approval_state == "approved" and
+              .item.publish_settings.visibility == "unlisted" and
+              .item.publish_settings.notify_subscribers == false
+            ' "/tmp/decision-${REVIEW_ID}.json" >/dev/null
+          done
+
+          jq -n \
+            --arg r1 "${REVIEW_IDS[0]}" \
+            --arg r2 "${REVIEW_IDS[1]}" \
+            --arg r3 "${REVIEW_IDS[2]}" \
+            '{
+              items: [
+                {review_id: $r1, scheduled_at: "2026-08-02T13:00:00-04:00"},
+                {review_id: $r2, scheduled_at: "2026-08-02T14:00:00-04:00"},
+                {review_id: $r3, scheduled_at: "2026-08-02T15:00:00-04:00"}
+              ],
+              timezone: "America/New_York",
+              confirm_batch_schedule: false
+            }' > /tmp/schedule-validation-body.json
+
+          VALIDATE_STATUS=$(api_post_json '/social/review-items/batch-schedule' /tmp/schedule-validation-body.json /tmp/schedule-validation.json)
+          test "${VALIDATE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .scheduled == false and
+            .mode == "validation_only" and
+            .approval_required == true and
+            .item_count == 3 and
+            ([.items[].valid] | all)
+          ' /tmp/schedule-validation.json >/dev/null
+
+          jq '.confirm_batch_schedule = true' /tmp/schedule-validation-body.json > /tmp/schedule-body.json
+          SCHEDULE_STATUS=$(api_post_json '/social/review-items/batch-schedule' /tmp/schedule-body.json /tmp/schedule.json)
+          test "${SCHEDULE_STATUS}" = '200'
+          jq -e '
+            .ok == true and
+            .scheduled == true and
+            .mode == "batch_scheduled" and
+            .item_count == 3 and
+            ([.items[].publishing_status] | all(. == "scheduled"))
+          ' /tmp/schedule.json >/dev/null
+
+          RECORDED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          jq -n \
+            --arg recorded_at "${RECORDED_AT}" \
+            --slurpfile jobs /tmp/jobs.json \
+            --slurpfile stage /tmp/stage.json \
+            --slurpfile schedule /tmp/schedule.json '
+              {
+                status: "success",
+                recorded_at: $recorded_at,
+                timezone: "America/New_York",
+                requested_schedule: [
+                  "2026-08-02T13:00:00-04:00",
+                  "2026-08-02T14:00:00-04:00",
+                  "2026-08-02T15:00:00-04:00"
+                ],
+                jobs: [$jobs[0].jobs[] | {
+                  id,
+                  song_key,
+                  song_title,
+                  artist,
+                  status,
+                  duration_seconds,
+                  aspect_ratio
+                }],
+                staging: {
+                  staged_job_count: $stage[0].staged_job_count,
+                  failed_job_count: $stage[0].failed_job_count,
+                  review_ids: [$stage[0].staged_jobs[].review_item.id]
+                },
+                scheduling: {
+                  scheduled: $schedule[0].scheduled,
+                  mode: $schedule[0].mode,
+                  item_count: $schedule[0].item_count,
+                  items: [$schedule[0].items[] | {
+                    review_id,
+                    scheduled_at,
+                    schedule_name,
+                    publishing_status
+                  }]
+                },
+                youtube_visibility: "unlisted",
+                notify_subscribers: false,
+                youtube_published_during_workflow: false
+              }
+            ' > "${REPORT_PATH}"
+
+          rm -f /tmp/social-config.json /tmp/jobs.json /tmp/stage-body.json /tmp/stage.json \
+            /tmp/decision-body.json /tmp/decision-render-*.json \
+            /tmp/schedule-validation-body.json /tmp/schedule-validation.json \
+            /tmp/schedule-body.json /tmp/schedule.json
+          unset SOCIAL_ADMIN_TOKEN
+
+      - name: Commit sanitized execution receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record reggae test staging and schedule [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
