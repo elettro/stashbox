@@ -13,19 +13,29 @@ env:
 jobs:
   patch-test-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 100
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Apply patch
-        run: node social-factory-api/scripts/apply-cancel-structured-error-response.mjs
+      - name: Set up AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Apply patch if needed
+        run: |
+          if grep -q "mode: 'execution_error'" social-factory-api/index.mjs; then
+            echo 'Structured cancellation response is already present.'
+          else
+            node social-factory-api/scripts/apply-cancel-structured-error-response.mjs
+          fi
 
       - name: Install dependencies
         working-directory: social-factory-api
@@ -35,13 +45,14 @@ jobs:
         working-directory: social-factory-api
         run: npm test -- --test-name-pattern='schedule|cancel'
 
-      - name: Commit patch
+      - name: Commit patch if needed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add social-factory-api/index.mjs
           git commit -m "Return structured schedule cancellation errors" || true
-          git push origin main
+          git pull --rebase origin main
+          git push origin HEAD:main
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -50,22 +61,53 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build and deploy DEV API
+      - name: Prepare stable deployment bucket and stack role
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ARTIFACT_BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-${AWS_REGION}"
+          STACK_ROLE="arn:aws:iam::${ACCOUNT_ID}:role/stashbox-social-cloudformation-dev-role"
+
+          if ! aws s3api head-bucket --bucket "${ARTIFACT_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${ARTIFACT_BUCKET}" --region "${AWS_REGION}"
+          fi
+
+          aws s3api put-public-access-block \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+          aws s3api put-bucket-encryption \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+          echo "ARTIFACT_BUCKET=${ARTIFACT_BUCKET}" >> "$GITHUB_ENV"
+          echo "STACK_ROLE=${STACK_ROLE}" >> "$GITHUB_ENV"
+
+      - name: Build DEV API
+        working-directory: social-factory-api
+        run: sam build --template-file infrastructure/template.yaml
+
+      - name: Deploy DEV API
         working-directory: social-factory-api
         run: |
-          sam build --template-file infrastructure/template.yaml
           sam deploy \
             --stack-name "$STACK_NAME" \
             --region "$AWS_REGION" \
             --capabilities CAPABILITY_NAMED_IAM \
-            --resolve-s3 \
+            --role-arn "$STACK_ROLE" \
+            --s3-bucket "$ARTIFACT_BUCKET" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
 
       - name: Verify stack
         run: |
-          aws cloudformation describe-stacks \
+          set -euo pipefail
+          STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
             --region "$AWS_REGION" \
             --query 'Stacks[0].StackStatus' \
-            --output text
+            --output text)
+          echo "stack_status=${STATUS}"
+          test "$STATUS" = "UPDATE_COMPLETE"
