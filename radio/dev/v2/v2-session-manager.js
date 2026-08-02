@@ -96,6 +96,20 @@
       || /refresh token.*(?:expired|invalid)|invalid refresh token/i.test(message);
   }
 
+  function isNetworkFetchError(error) {
+    const message = String(error?.message || '');
+    return error instanceof TypeError
+      || /load failed|failed to fetch|network(?:error| request failed)|internet connection appears to be offline/i.test(message);
+  }
+
+  function requestUrl(input) {
+    return input instanceof Request ? input.url : String(input || '');
+  }
+
+  function requestMethod(input, init = {}) {
+    return String(init.method || (input instanceof Request ? input.method : 'GET') || 'GET').toUpperCase();
+  }
+
   function clearInvalidSession(reason = 'refresh-token-expired') {
     try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
     clearTimeout(refreshTimer);
@@ -207,6 +221,25 @@
     return [input, { ...init, headers }];
   }
 
+  async function protectedFetch(input, init, headers) {
+    let [target, targetInit] = requestTarget(input, init, headers);
+    try {
+      return await nativeFetch(target, targetInit);
+    } catch (error) {
+      const eligibleSafariRecovery = requestMethod(input, init) === 'GET'
+        && requestUrl(input).startsWith(API_ROOT)
+        && headers.has('X-Cognito-Id-Token')
+        && isNetworkFetchError(error);
+      if (!eligibleSafariRecovery) throw error;
+
+      headers.delete('X-Cognito-Id-Token');
+      [target, targetInit] = requestTarget(input, init, headers);
+      const response = await nativeFetch(target, targetInit);
+      emit('safari-profile-network-recovery', { transient: true });
+      return response;
+    }
+  }
+
   async function sessionFetch(input, init = {}) {
     const headers = requestHeaders(input, init);
     const protectedRequest = /^Bearer\s+/i.test(headers.get('Authorization') || '') || headers.has('X-Cognito-Id-Token');
@@ -220,16 +253,14 @@
       // A temporary network error does not erase the renewable session.
     }
 
-    let [target, targetInit] = requestTarget(input, init, headers);
-    let response = await nativeFetch(target, targetInit);
+    let response = await protectedFetch(input, init, headers);
     if (response.status !== 401 || !readTokens().refreshToken) return response;
 
     try {
       const current = await refresh({ force: true, reason: '401-refresh' });
       if (current.accessToken) headers.set('Authorization', `Bearer ${current.accessToken}`);
       if (current.idToken) headers.set('X-Cognito-Id-Token', current.idToken);
-      [target, targetInit] = requestTarget(input, init, headers);
-      response = await nativeFetch(target, targetInit);
+      response = await protectedFetch(input, init, headers);
     } catch (_) {}
     return response;
   }
