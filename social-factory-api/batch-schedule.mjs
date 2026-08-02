@@ -51,6 +51,18 @@ function normalizeItems(input = {}) {
   });
 }
 
+function validationFailure(item, error) {
+  return {
+    review_id: item.review_id,
+    scheduled_at: item.scheduled_at,
+    valid: false,
+    approved: false,
+    error: String(error?.message || 'validation_failed'),
+    status_code: Number(error?.statusCode || error?.status || 400),
+    details: error?.details || null
+  };
+}
+
 export function createBatchScheduleService({ scheduler = null } = {}) {
   const resolvedScheduler = scheduler || createSchedulePublishService();
   return {
@@ -58,32 +70,60 @@ export function createBatchScheduleService({ scheduler = null } = {}) {
       const input = parseBody(event);
       const items = normalizeItems(input);
       const timezone = String(input.timezone || 'America/New_York').trim() || 'America/New_York';
+      const confirmBatch = input.confirm_batch_schedule === true || input.confirm_schedule === true;
 
       const validations = [];
       for (const item of items) {
-        validations.push(await resolvedScheduler.schedule(
-          childEvent(event, {
-            scheduled_at: item.scheduled_at,
-            timezone,
-            confirm_schedule: false
-          }),
-          item.review_id
-        ));
+        try {
+          const result = await resolvedScheduler.schedule(
+            childEvent(event, {
+              scheduled_at: item.scheduled_at,
+              timezone,
+              confirm_schedule: false
+            }),
+            item.review_id
+          );
+          validations.push({
+            review_id: result.review_id || item.review_id,
+            scheduled_at: result.scheduled_at || item.scheduled_at,
+            schedule_name: result.schedule_name || null,
+            valid: true,
+            approved: true,
+            error: null,
+            details: null
+          });
+        } catch (error) {
+          validations.push(validationFailure(item, error));
+        }
       }
 
-      if (input.confirm_batch_schedule !== true) {
+      const batchReady = validations.every((result) => result.valid === true);
+
+      if (!confirmBatch) {
         return {
           scheduled: false,
           mode: 'validation_only',
-          approval_required: true,
+          approval_required: batchReady,
+          batch_ready_for_confirmation: batchReady,
           timezone,
           item_count: items.length,
-          items: validations.map((result) => ({
-            review_id: result.review_id,
-            scheduled_at: result.scheduled_at,
-            schedule_name: result.schedule_name,
-            valid: true
-          }))
+          valid_item_count: validations.filter((result) => result.valid).length,
+          invalid_item_count: validations.filter((result) => !result.valid).length,
+          items: validations
+        };
+      }
+
+      if (!batchReady) {
+        return {
+          scheduled: false,
+          mode: 'validation_failed',
+          approval_required: false,
+          batch_ready_for_confirmation: false,
+          timezone,
+          item_count: items.length,
+          valid_item_count: validations.filter((result) => result.valid).length,
+          invalid_item_count: validations.filter((result) => !result.valid).length,
+          items: validations
         };
       }
 
@@ -102,6 +142,7 @@ export function createBatchScheduleService({ scheduler = null } = {}) {
       return {
         scheduled: true,
         mode: 'batch_scheduled',
+        batch_ready_for_confirmation: true,
         timezone,
         item_count: results.length,
         items: results.map((result) => ({
