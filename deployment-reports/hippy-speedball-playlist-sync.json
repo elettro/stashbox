@@ -1,0 +1,16 @@
+{
+  "status": "blocked",
+  "recorded_at": "2026-08-02T14:54:07Z",
+  "review_id": null,
+  "youtube_video_id": "pH7ud_VLbA8",
+  "youtube_title": "Stashbox - Hippy Speedball (I'm On My Way) | Official Short",
+  "playlist_title": "Stashbox Radio - Video Library - Stashbox",
+  "playlist_id": "PLYQleZVJh2Jo",
+  "stored_scope": "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload",
+  "already_present": false,
+  "present_after": false,
+  "insert_http_status": "403",
+  "reconnect_required": true,
+  "mutation_performed": false,
+  "error": "insufficientPermissions"
+}
