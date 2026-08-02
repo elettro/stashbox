@@ -50,6 +50,27 @@ function songKey(row = {}) {
   return clean(row.song_key || row.key || row.id);
 }
 
+async function fetchJson(fetchImpl, url, headers) {
+  const response = await fetchImpl(url, { method: 'GET', headers });
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload, url };
+}
+
+async function fetchCatalog(fetchImpl, baseUrl, headers) {
+  const candidates = ['/radio/songs', '/songs', '/admin/songs'];
+  const failures = [];
+  for (const path of candidates) {
+    const result = await fetchJson(fetchImpl, `${baseUrl}${path}`, headers);
+    if (result.response.ok && normalizeRows(result.payload).length) return result;
+    failures.push({
+      path,
+      status: result.response.status,
+      error: clean(result.payload?.error || result.payload?.message || 'empty_or_invalid_catalog')
+    });
+  }
+  throw serviceError('radio_catalog_request_failed', 502, { attempted_routes: failures });
+}
+
 export function createTopSongAnalyticsService({
   fetchImpl = globalThis.fetch,
   radioApiBase = process.env.RADIO_API_BASE_URL || DEFAULT_RADIO_API_BASE,
@@ -81,26 +102,17 @@ export function createTopSongAnalyticsService({
 
       const baseUrl = String(radioApiBase).replace(/\/$/, '');
       const headers = radioApiAdminToken ? { 'x-admin-token': radioApiAdminToken } : {};
-      const [analyticsResponse, catalogResponse] = await Promise.all([
-        fetchImpl(`${baseUrl}/dashboard/songs`, { method: 'GET', headers }),
-        fetchImpl(`${baseUrl}/radio/songs`, { method: 'GET', headers })
-      ]);
-
-      const analyticsPayload = await analyticsResponse.json().catch(() => ({}));
-      if (!analyticsResponse.ok) {
+      const analyticsResult = await fetchJson(fetchImpl, `${baseUrl}/dashboard/songs`, headers);
+      if (!analyticsResult.response.ok) {
         throw serviceError('radio_analytics_request_failed', 502, {
-          downstream_status: analyticsResponse.status,
-          downstream_error: clean(analyticsPayload?.error || analyticsPayload?.message || 'unknown_error')
+          downstream_status: analyticsResult.response.status,
+          downstream_error: clean(analyticsResult.payload?.error || analyticsResult.payload?.message || 'unknown_error')
         });
       }
 
-      const catalogPayload = await catalogResponse.json().catch(() => ({}));
-      if (!catalogResponse.ok) {
-        throw serviceError('radio_catalog_request_failed', 502, {
-          downstream_status: catalogResponse.status,
-          downstream_error: clean(catalogPayload?.error || catalogPayload?.message || 'unknown_error')
-        });
-      }
+      const catalogResult = await fetchCatalog(fetchImpl, baseUrl, headers);
+      const analyticsPayload = analyticsResult.payload;
+      const catalogPayload = catalogResult.payload;
 
       const catalogBySongKey = new Map(
         normalizeRows(catalogPayload)
@@ -152,6 +164,7 @@ export function createTopSongAnalyticsService({
         period,
         artist_filter: clean(query.artist),
         genre_filter: clean(query.genre),
+        catalog_route: new URL(catalogResult.url).pathname,
         count: rows.length,
         songs: rows,
         campaign_song_keys: rows.map((row) => row.song_key),
