@@ -1,0 +1,73 @@
+name: Generate YouTube Reconnect Link
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-generate-youtube-reconnect-link.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/youtube-reconnect-link.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate short-lived authorization URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          CONFIG_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/config.json
+          ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/config.json)
+          test -n "$ADMIN_TOKEN"
+
+          curl --silent --show-error --max-time 30 --max-redirs 0 \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -D /tmp/headers.txt -o /tmp/body.txt \
+            "$BASE_URL/social/youtube/oauth/start" || true
+
+          AUTH_URL=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]+:[[:space:]]*/,""); sub(/\r$/,""); print; exit}' /tmp/headers.txt)
+          test -n "$AUTH_URL"
+          NOW_EPOCH=$(date -u +%s)
+          EXPIRES_EPOCH=$((NOW_EPOCH + 540))
+          RECORDED_AT=$(date -u -d "@$NOW_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+          EXPIRES_AT=$(date -u -d "@$EXPIRES_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+
+          jq -n \
+            --arg status ready \
+            --arg recorded_at "$RECORDED_AT" \
+            --arg expires_at "$EXPIRES_AT" \
+            --arg authorization_url "$AUTH_URL" \
+            '{status:$status,recorded_at:$recorded_at,expires_at:$expires_at,authorization_url:$authorization_url,required_permission:"youtube.force-ssl",playlist_backfill_target:"Hippy Speedball",mutation_performed:false}' \
+            > "$REPORT_PATH"
+
+      - name: Commit short-lived reconnect receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$REPORT_PATH"
+          git commit -m 'Record short-lived YouTube reconnect link [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
