@@ -65,8 +65,9 @@ replace_once(
 
 schema_path = Path("custom-gpt/stashbox-radio/openapi.yaml")
 schema = schema_path.read_text()
-schema = schema.replace("  version: 0.8.1", "  version: 0.9.1", 1)
-schema = schema.replace("  version: 0.9.0", "  version: 0.9.1", 1)
+schema = schema.replace("  version: 0.8.1", "  version: 0.9.2", 1)
+schema = schema.replace("  version: 0.9.0", "  version: 0.9.2", 1)
+schema = schema.replace("  version: 0.9.1", "  version: 0.9.2", 1)
 analytics_path = """  /social/analytics/top-songs:
     get:
       operationId: getTopSongAnalytics
@@ -124,6 +125,10 @@ analytics_path = """  /social/analytics/top-songs:
                   period:
                     type: string
                     enum: [all_time]
+                  artist_filter:
+                    type: string
+                  genre_filter:
+                    type: string
                   count:
                     type: integer
                   songs:
