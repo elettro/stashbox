@@ -1,12 +1,14 @@
 {
   "status": "success",
-  "recorded_at": "2026-08-02T11:33:16Z",
-  "commit_sha": "d85e2ba5960b7490c71c9f321a66ae0eece960dc",
+  "recorded_at": "2026-08-02T12:57:44Z",
+  "commit_sha": "2ba8db7130360ec0fb05b1ffb218a827cc7876fc",
   "stack_status": "UPDATE_COMPLETE",
   "likes_verified": true,
   "shares_verified": true,
+  "reggae_verified": true,
   "likes_count": 5,
   "shares_count": 5,
+  "reggae_count": 5,
   "mutation_performed": false,
   "publishing_triggered": false
 }
