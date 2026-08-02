@@ -390,10 +390,32 @@ export function createHandler({
       }
 
       if (method === 'POST' && review.cancelScheduleReviewId) {
-        return json(200, {
-          ok: true,
-          ...(await getReviewScheduler().cancel(event, review.cancelScheduleReviewId))
-        });
+        try {
+          return json(200, {
+            ok: true,
+            ...(await getReviewScheduler().cancel(event, review.cancelScheduleReviewId))
+          });
+        } catch (error) {
+          const details = error?.details && typeof error.details === 'object'
+            ? error.details
+            : {};
+          return json(200, {
+            ok: false,
+            cancelled: false,
+            mode: 'execution_error',
+            review_id: review.cancelScheduleReviewId,
+            schedule_name: details.schedule_name || null,
+            publishing_status: details.publishing_status || null,
+            publishing_triggered: false,
+            youtube_published: false,
+            error: error?.message || 'schedule_cancel_failed',
+            details: {
+              ...details,
+              error_name: details.error_name || error?.name || 'Error',
+              status_code: Number(error?.statusCode || 500)
+            }
+          });
+        }
       }
 
       if (method === 'POST' && review.scheduleReviewId) {
