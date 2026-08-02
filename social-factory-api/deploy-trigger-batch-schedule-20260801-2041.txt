@@ -1,0 +1,2 @@
+Trigger Social Factory DEV deployment for confirmed batch scheduling commit 6a51cf0468923080ea253765db77d1ef86d838e8.
+Created 2026-08-01 20:41 America/New_York.
