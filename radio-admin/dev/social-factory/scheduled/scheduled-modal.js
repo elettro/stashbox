@@ -3,8 +3,8 @@
 
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
+  const DEFAULT_TIME_ZONE = 'America/New_York';
   const state = { items: [], selected: null, observer: null };
-
   const token = () => sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || '';
 
   async function request(path, body) {
@@ -12,10 +12,7 @@
     if (!current) throw new Error('Save the Social Factory DEV token first.');
     const response = await fetch(`${API_BASE}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
-      headers: {
-        'x-admin-token': current,
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
-      },
+      headers: { 'x-admin-token': current, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
     });
     const payload = await response.json().catch(() => ({}));
@@ -56,13 +53,48 @@
     return item.aspectRatio === '9:16' ? 'YT · Short' : 'YT · Video';
   }
 
-  function toLocalInput(date) {
-    const pad = (value) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  function easternParts(date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: DEFAULT_TIME_ZONE,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    }).formatToParts(date);
+    return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  }
+
+  function toEasternInput(date) {
+    const p = easternParts(date);
+    return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+  }
+
+  function easternWallTimeToDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const wallUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+    let guess = new Date(wallUtc);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const p = easternParts(guess);
+      const represented = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+      const delta = wallUtc - represented;
+      if (!delta) break;
+      guess = new Date(guess.getTime() + delta);
+    }
+    const check = easternParts(guess);
+    if (Number(check.year) !== year || Number(check.month) !== month || Number(check.day) !== day || Number(check.hour) !== hour || Number(check.minute) !== minute) return null;
+    return guess;
   }
 
   function formatDate(date) {
-    return date.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: DEFAULT_TIME_ZONE,
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    }).format(date);
   }
 
   function createModal() {
@@ -86,7 +118,7 @@
             <div class="sf-modal-fact"><span>Review status</span><strong id="scheduledModalReviewStatus"></strong></div>
             <div class="sf-modal-fact"><span>Schedule name</span><strong id="scheduledModalScheduleName"></strong></div>
           </div>
-          <label class="sf-modal-label">New date and time<input id="scheduledModalDate" type="datetime-local" /></label>
+          <label class="sf-modal-label">New date and time <span class="sf-timezone-note">Eastern Time (America/New_York)</span><input id="scheduledModalDate" type="datetime-local" /></label>
           <div class="sf-modal-note"><strong>Delete Scheduled Post</strong> removes the active publishing schedule and the item disappears from this calendar. The rendered video and Content Review record are preserved.</div>
           <div id="scheduledModalStatus" class="sf-modal-status" hidden></div>
           <div class="sf-modal-actions">
@@ -129,10 +161,9 @@
     document.getElementById('scheduledModalReviewStatus').textContent = item.reviewStatus;
     document.getElementById('scheduledModalScheduleName').textContent = item.scheduleName || 'Active schedule';
     document.getElementById('scheduledModalPlatform').textContent = platformLabel(item);
-    document.getElementById('scheduledModalDate').value = toLocalInput(item.scheduledAt);
+    document.getElementById('scheduledModalDate').value = toEasternInput(item.scheduledAt);
     setStatus('');
-    const modal = document.getElementById('scheduledPostModal');
-    modal.hidden = false;
+    document.getElementById('scheduledPostModal').hidden = false;
     document.body.style.overflow = 'hidden';
   }
 
@@ -180,8 +211,7 @@
     document.querySelectorAll('.event').forEach((event) => {
       if (event.dataset.modalReady === 'true') return;
       const title = event.querySelector('.event-title')?.textContent.trim();
-      const time = event.querySelector('.event-time')?.textContent.trim();
-      const item = state.items.find((candidate) => candidate.title === title && candidate.scheduledAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) === time);
+      const item = state.items.find((candidate) => candidate.title === title);
       if (!item) return;
       event.dataset.modalReady = 'true';
       event.tabIndex = 0;
@@ -208,8 +238,7 @@
   async function deleteSchedule() {
     const item = state.selected;
     if (!item) return;
-    const confirmed = window.confirm(`Delete the scheduled post “${item.title}”?\n\nThis removes its active publishing schedule. The video remains in Content Review.`);
-    if (!confirmed) return;
+    if (!window.confirm(`Delete the scheduled post “${item.title}”?\n\nThis removes its active publishing schedule. The video remains in Content Review.`)) return;
     setBusy(true);
     setStatus('Cancelling and verifying the active schedule…');
     try {
@@ -226,17 +255,16 @@
     const item = state.selected;
     if (!item) return;
     const input = document.getElementById('scheduledModalDate').value;
-    const nextDate = new Date(input);
-    if (!input || Number.isNaN(nextDate.getTime())) {
-      setStatus('Choose a valid date and time.', 'error');
+    const nextDate = easternWallTimeToDate(input);
+    if (!nextDate) {
+      setStatus('Choose a valid Eastern Time date and time.', 'error');
       return;
     }
     if (nextDate.getTime() < Date.now() + 120000) {
       setStatus('Choose a time at least two minutes in the future.', 'error');
       return;
     }
-    const confirmed = window.confirm(`Move “${item.title}” from ${formatDate(item.scheduledAt)} to ${formatDate(nextDate)}?`);
-    if (!confirmed) return;
+    if (!window.confirm(`Move “${item.title}” from ${formatDate(item.scheduledAt)} to ${formatDate(nextDate)}?`)) return;
 
     const schedulePath = `/social/review-items/${encodeURIComponent(item.id)}/schedule`;
     const nextIso = nextDate.toISOString();
@@ -244,17 +272,17 @@
     setBusy(true);
     setStatus('Validating the replacement schedule…');
     try {
-      await request(schedulePath, { scheduled_at: nextIso, confirm_schedule: false });
+      await request(schedulePath, { scheduled_at: nextIso, timezone: DEFAULT_TIME_ZONE, confirm_schedule: false });
       setStatus('Cancelling the old schedule…');
       await cancelConfirmed(item);
       setStatus('Creating the replacement schedule…');
       try {
-        const replacement = await request(schedulePath, { scheduled_at: nextIso, confirm_schedule: true });
+        const replacement = await request(schedulePath, { scheduled_at: nextIso, timezone: DEFAULT_TIME_ZONE, confirm_schedule: true });
         if (!replacement.scheduled_at) throw new Error('Replacement schedule response was incomplete.');
       } catch (replacementError) {
         setStatus('Replacement failed. Attempting to restore the original schedule…', 'error');
         try {
-          await request(schedulePath, { scheduled_at: oldIso, confirm_schedule: true });
+          await request(schedulePath, { scheduled_at: oldIso, timezone: DEFAULT_TIME_ZONE, confirm_schedule: true });
           throw new Error(`Replacement failed; the original schedule was restored. ${replacementError.message || replacementError}`);
         } catch (restoreError) {
           if (String(restoreError.message || restoreError).startsWith('Replacement failed;')) throw restoreError;
