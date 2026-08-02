@@ -1,0 +1,52 @@
+name: Add Scheduled Links To Admin Header
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/add-scheduled-admin-header-links.py'
+      - '.github/workflows/add-scheduled-admin-header-links.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply shared header links
+        run: python scripts/add-scheduled-admin-header-links.py
+
+      - name: Verify isolation and links
+        run: |
+          set -euo pipefail
+          grep -Fq "Scheduled Posts" radio-admin/dev/shared-admin-header.js
+          grep -Fq "Schedule Calendar" radio-admin/dev/shared-admin-header.js
+          grep -Fq "/radio-admin/dev/social-factory/scheduled/" radio-admin/dev/shared-admin-header.js
+          grep -Fq "/radio-admin/dev/social-factory/scheduled/calendar/" radio-admin/dev/shared-admin-header.js
+          grep -Fq "shared-admin-header.js" radio-admin/dev/social-factory/scheduled/index.html
+          grep -Fq "shared-admin-header.js" radio-admin/dev/social-factory/scheduled/calendar/index.html
+          ! grep -R "shared-admin-header.js?v=20260802-scheduled-nav1" radio/dev radio/index.html 2>/dev/null || exit 1
+
+      - name: Commit applied navigation update
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-admin/dev/shared-admin-header.js \
+            radio-admin/dev/social-factory/scheduled/index.html \
+            radio-admin/dev/social-factory/scheduled/calendar/index.html
+          if git diff --cached --quiet; then
+            echo 'Shared admin header already contains scheduled links.'
+            exit 0
+          fi
+          git commit -m 'Add scheduled views to global DEV admin header'
+          git pull --rebase origin main
+          git push origin HEAD:main
