@@ -6,12 +6,16 @@
   if (window.StashboxMobileOfficialArtwork9x16) return;
 
   const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const SONGS_URL = `${API}/radio/songs`;
+  const RESPONSIVE_CACHE_KEY = 'stashbox_v2_responsive_artwork_cache_v3';
   const requestCache = new Map();
   const urlCache = new Map();
+  const imageLoads = new Map();
   const retryTimers = new Map();
 
   let activeSongKey = '';
   let activeAssetSource = '';
+  let catalogPromise = null;
   let operation = 0;
 
   const clean = value => String(value ?? '').trim();
@@ -24,6 +28,15 @@
       try { return unwrap(JSON.parse(data.body)); } catch (_) { return data; }
     }
     return data;
+  }
+
+  function rows(data) {
+    data = unwrap(data);
+    if (Array.isArray(data)) return data;
+    for (const key of ['songs', 'items', 'data']) {
+      if (Array.isArray(data?.[key])) return data[key];
+    }
+    return [];
   }
 
   function mobilePortrait() {
@@ -56,17 +69,86 @@
     try { return new URL(source, window.location.href).href; } catch (_) { return source; }
   }
 
+  function songKeyFromRow(row, index = 0) {
+    return clean(row?.song_key || row?.songKey || row?.id || `song-${index}`);
+  }
+
+  function exact9x16FromRow(row) {
+    const direct = row?.images && typeof row.images === 'object'
+      ? row.images
+      : (row?.artwork_images && typeof row.artwork_images === 'object' ? row.artwork_images : {});
+    const prepared = row?.prepared_artwork_images && typeof row.prepared_artwork_images === 'object'
+      ? row.prepared_artwork_images
+      : {};
+
+    let url = fixUrl(
+      direct['9x16'] ||
+      prepared['9x16'] ||
+      row?.song_artwork_9x16_url
+    );
+
+    if (!url && Array.isArray(row?.visual_assets)) {
+      const asset = row.visual_assets.find(candidate => (
+        clean(candidate?.source).toLowerCase() === 'song_profile_image:9x16'
+      ));
+      url = fixUrl(asset?.url || asset?.src);
+    }
+    return url;
+  }
+
   function exact9x16FromPayload(payload) {
     const data = unwrap(payload) || {};
     const media = data.media || data.data?.media || data.data || data;
-    const images = media?.artwork_images && typeof media.artwork_images === 'object'
-      ? media.artwork_images
-      : {};
-    return fixUrl(
-      images['9x16'] ||
-      media?.song_artwork_9x16_url ||
-      data?.song_artwork_9x16_url
-    );
+    return exact9x16FromRow(media) || exact9x16FromRow(data);
+  }
+
+  function cacheSongRows(songRows) {
+    songRows.forEach((row, index) => {
+      const key = songKeyFromRow(row, index);
+      const url = exact9x16FromRow(row);
+      if (key && url) urlCache.set(key, url);
+    });
+  }
+
+  function seedFromResponsiveCache() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(RESPONSIVE_CACHE_KEY) || 'null');
+      if (!cached || typeof cached !== 'object') return;
+      if (Array.isArray(cached.catalog)) cacheSongRows(cached.catalog);
+      if (cached.artwork && typeof cached.artwork === 'object') {
+        for (const [songKey, entry] of Object.entries(cached.artwork)) {
+          const url = fixUrl(entry?.images?.['9x16']);
+          if (songKey && url) urlCache.set(songKey, url);
+        }
+      }
+    } catch (_) {}
+  }
+
+  async function warmCatalog({ force = false } = {}) {
+    if (catalogPromise && !force) return catalogPromise;
+    catalogPromise = (async () => {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 16000);
+      try {
+        const response = await fetch(SONGS_URL, {
+          cache: force ? 'no-store' : 'default',
+          credentials: 'omit',
+          signal: controller.signal
+        });
+        const text = await response.text();
+        let body = {};
+        try { body = text ? JSON.parse(text) : {}; } catch (_) { body = {}; }
+        if (!response.ok) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
+        cacheSongRows(rows(body));
+        return urlCache;
+      } finally {
+        window.clearTimeout(timer);
+      }
+    })().catch(error => {
+      catalogPromise = null;
+      throw error;
+    });
+    return catalogPromise;
   }
 
   async function fetchExact9x16(songKey, { force = false } = {}) {
@@ -90,7 +172,7 @@
         if (!response.ok) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
         const url = exact9x16FromPayload(body);
         if (url) urlCache.set(key, url);
-        return url;
+        return url || urlCache.get(key) || '';
       } finally {
         window.clearTimeout(timeout);
       }
@@ -103,13 +185,16 @@
   function preload(url) {
     const source = fixUrl(url);
     if (!source) return Promise.resolve(false);
-    return new Promise(resolve => {
+    if (imageLoads.has(source)) return imageLoads.get(source);
+
+    const promise = new Promise(resolve => {
       const image = new Image();
       let settled = false;
       const finish = loaded => {
         if (settled) return;
         settled = true;
         window.clearTimeout(timer);
+        if (!loaded) imageLoads.delete(source);
         resolve(Boolean(loaded));
       };
       const timer = window.setTimeout(() => finish(false), 18000);
@@ -119,6 +204,9 @@
       image.src = source;
       if (image.complete) finish(image.naturalWidth > 0);
     });
+
+    imageLoads.set(source, promise);
+    return promise;
   }
 
   function stillOfficial(songKey, token) {
@@ -133,7 +221,7 @@
     const player = activePlayer();
     const stage = activeStage(player);
     const image = activeImage(stage);
-    if (!player || !stage || !image) return false;
+    if (!player || !stage || !image || !url) return false;
 
     const safeUrl = url.replaceAll('"', '%22');
     stage.style.backgroundImage = `url("${safeUrl}")`;
@@ -180,11 +268,30 @@
     if (prior) window.clearTimeout(prior);
     const timer = window.setTimeout(() => {
       retryTimers.delete(key);
+      imageLoads.delete(fixUrl(urlCache.get(key)));
       if (activeSongKey === key && activeAssetSource === 'official-artwork') {
         enforceExact9x16(key, { force: true });
       }
-    }, 5000);
+    }, 3500);
     retryTimers.set(key, timer);
+  }
+
+  async function warmSong(songKey) {
+    const key = clean(songKey);
+    if (!key || !mobilePortrait()) return '';
+    seedFromResponsiveCache();
+    let url = urlCache.get(key) || '';
+    if (!url) {
+      try {
+        await warmCatalog();
+        url = urlCache.get(key) || '';
+      } catch (_) {}
+    }
+    if (!url) {
+      try { url = await fetchExact9x16(key); } catch (_) { url = ''; }
+    }
+    if (url) preload(url);
+    return url;
   }
 
   async function enforceExact9x16(songKey, { force = false } = {}) {
@@ -197,16 +304,27 @@
     if (stage) stage.dataset.mobileOfficialArtworkState = 'loading-9x16';
 
     try {
-      const url = await fetchExact9x16(key, { force });
+      seedFromResponsiveCache();
+      let url = !force ? (urlCache.get(key) || '') : '';
+      if (!url) {
+        try {
+          await warmCatalog({ force: false });
+          url = urlCache.get(key) || '';
+        } catch (_) {}
+      }
+      if (!url) url = await fetchExact9x16(key, { force });
       if (!stillOfficial(key, token)) return;
       if (!url) {
         if (player) player.dataset.mobileOfficialArtworkState = 'missing-9x16';
         if (stage) stage.dataset.mobileOfficialArtworkState = 'missing-9x16';
         return;
       }
+
+      // Swap immediately. The URL is normally already browser-warmed from pointerdown.
+      const applied = applyExactArtwork(key, url, token);
       const loaded = await preload(url);
       if (!stillOfficial(key, token)) return;
-      if (!loaded || !applyExactArtwork(key, url, token)) {
+      if (!loaded || !applied) {
         if (player) player.dataset.mobileOfficialArtworkState = 'retrying-9x16';
         if (stage) stage.dataset.mobileOfficialArtworkState = 'retrying-9x16';
         scheduleRetry(key);
@@ -220,33 +338,58 @@
     }
   }
 
+  function applyCachedImmediately(songKey) {
+    const key = clean(songKey);
+    const url = urlCache.get(key) || '';
+    if (!key || !url || !mobilePortrait() || activeAssetSource !== 'official-artwork') return false;
+    const token = ++operation;
+    const applied = applyExactArtwork(key, url, token);
+    preload(url).then(loaded => {
+      if (!loaded && stillOfficial(key, token)) scheduleRetry(key);
+    });
+    return applied;
+  }
+
+  function prefetchFromElement(element) {
+    const songElement = element?.closest?.('#v2App [data-song]');
+    const songKey = clean(songElement?.dataset?.song);
+    if (songKey) warmSong(songKey);
+  }
+
   window.addEventListener('stashbox:vec-asset-change', event => {
     const detail = event?.detail || {};
     const asset = detail.asset || {};
     activeSongKey = clean(detail.songKey);
     activeAssetSource = clean(asset.source).toLowerCase();
     operation += 1;
-    if (activeSongKey && activeAssetSource === 'official-artwork' && mobilePortrait()) {
-      enforceExact9x16(activeSongKey);
-    }
+
+    if (!activeSongKey || activeAssetSource !== 'official-artwork' || !mobilePortrait()) return;
+    seedFromResponsiveCache();
+    if (!applyCachedImmediately(activeSongKey)) enforceExact9x16(activeSongKey);
   });
+
+  document.addEventListener('pointerdown', event => prefetchFromElement(event.target), true);
+  document.addEventListener('touchstart', event => prefetchFromElement(event.target), { capture: true, passive: true });
+  document.addEventListener('focusin', event => prefetchFromElement(event.target), true);
 
   window.addEventListener('stashbox:player-view-mode-change', () => {
     if (activeSongKey && activeAssetSource === 'official-artwork' && mobilePortrait()) {
-      window.setTimeout(() => enforceExact9x16(activeSongKey), 0);
+      window.setTimeout(() => {
+        if (!applyCachedImmediately(activeSongKey)) enforceExact9x16(activeSongKey);
+      }, 0);
     }
   });
 
   window.addEventListener('resize', () => {
     if (activeSongKey && activeAssetSource === 'official-artwork' && mobilePortrait()) {
-      enforceExact9x16(activeSongKey);
+      if (!applyCachedImmediately(activeSongKey)) enforceExact9x16(activeSongKey);
     }
   }, { passive: true });
 
   window.addEventListener('orientationchange', () => {
     window.setTimeout(() => {
       if (activeSongKey && activeAssetSource === 'official-artwork' && mobilePortrait()) {
-        enforceExact9x16(activeSongKey);
+        if (!applyCachedImmediately(activeSongKey)) enforceExact9x16(activeSongKey);
       }
     }, 120);
   }, { passive: true });
@@ -257,8 +400,17 @@
     }
   });
 
+  seedFromResponsiveCache();
+  warmCatalog().catch(() => {});
+
   window.StashboxMobileOfficialArtwork9x16 = Object.freeze({
-    refresh: () => activeSongKey && enforceExact9x16(activeSongKey, { force: true }),
-    state: () => ({ songKey: activeSongKey, source: activeAssetSource, mobilePortrait: mobilePortrait() })
+    refresh: () => {
+      seedFromResponsiveCache();
+      if (activeSongKey && activeAssetSource === 'official-artwork') {
+        enforceExact9x16(activeSongKey, { force: true });
+      }
+    },
+    prefetchSong: warmSong,
+    cachedUrl: songKey => urlCache.get(clean(songKey)) || ''
   });
 })();
