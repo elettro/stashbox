@@ -1,0 +1,122 @@
+name: Stats GPT Analytics DEV Deployment V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stats-gpt-analytics-dev-v2.yml'
+      - 'scripts/wire-top-song-analytics.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  wire-test-deploy-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/top-song-analytics-dev.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Wire analytics route and GPT schema
+        run: python scripts/wire-top-song-analytics.py
+
+      - name: Validate and test Social Factory
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit analytics implementation
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/index.mjs social-factory-api/request-auth.mjs custom-gpt/stashbox-radio/openapi.yaml
+          if git diff --cached --quiet; then
+            echo 'Analytics wiring already committed'
+          else
+            git commit -m 'Expose read-only top-song analytics to Custom GPT'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy isolated DEV API
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "$ROLE" \
+            --s3-bucket "$BUCKET" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+
+      - name: Verify live likes and shares analytics
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id stashbox/social-factory/dev/custom-gpt --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+
+          for METRIC in likes shares; do
+            STATUS=$(curl --silent --show-error --max-time 60 \
+              -H "x-admin-token: ${GPT_TOKEN}" \
+              -o "/tmp/${METRIC}.json" -w '%{http_code}' \
+              "${BASE_URL}/social/analytics/top-songs?metric=${METRIC}&limit=5&period=all_time")
+            test "${STATUS}" = '200'
+            jq -e '.ok == true and .mode == "read_only_analytics"' "/tmp/${METRIC}.json" >/dev/null
+            jq -e --arg metric "${METRIC}" '.metric == $metric and (.songs | type == "array")' "/tmp/${METRIC}.json" >/dev/null
+            jq -e '.mutation_performed == false and .publishing_triggered == false' "/tmp/${METRIC}.json" >/dev/null
+          done
+
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commit_sha "$(git rev-parse HEAD)" \
+            --arg stack_status "$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)" \
+            --argjson likes_count "$(jq '.songs | length' /tmp/likes.json)" \
+            --argjson shares_count "$(jq '.songs | length' /tmp/shares.json)" \
+            '{status:"success",recorded_at:$recorded_at,commit_sha:$commit_sha,stack_status:$stack_status,likes_verified:true,shares_verified:true,likes_count:$likes_count,shares_count:$shares_count,mutation_performed:false,publishing_triggered:false}' \
+            > "${REPORT_PATH}"
+
+      - name: Commit deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record top-song analytics DEV deployment [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
