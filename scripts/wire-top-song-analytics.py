@@ -56,6 +56,13 @@ replace_once(
     "  if (method === 'GET' && path === '/social/orchestration/candidates') return 'songs:read';",
 )
 
+template = "social-factory-api/infrastructure/template.yaml"
+replace_once(
+    template,
+    "        OrchestrationCandidates:\n          Type: HttpApi\n          Properties:\n            ApiId: !Ref SocialFactoryHttpApi\n            Path: /social/orchestration/candidates\n            Method: GET\n",
+    "        TopSongAnalytics:\n          Type: HttpApi\n          Properties:\n            ApiId: !Ref SocialFactoryHttpApi\n            Path: /social/analytics/top-songs\n            Method: GET\n        OrchestrationCandidates:\n          Type: HttpApi\n          Properties:\n            ApiId: !Ref SocialFactoryHttpApi\n            Path: /social/orchestration/candidates\n            Method: GET\n",
+)
+
 schema_path = Path("custom-gpt/stashbox-radio/openapi.yaml")
 schema = schema_path.read_text()
 schema = schema.replace("  version: 0.8.1", "  version: 0.9.0", 1)
