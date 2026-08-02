@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           API_PATH="repos/${GITHUB_REPOSITORY}/contents/${TARGET_PATH}"
-          CURRENT=$(gh api "$API_PATH" -f ref=main)
+          CURRENT=$(gh api --method GET "$API_PATH" -f ref=main)
           SHA=$(printf '%s' "$CURRENT" | jq -r '.sha')
           CONTENT=$(printf '%s' "$CURRENT" | jq -r '.content' | tr -d '\n' | base64 --decode)
           STAMP="# launcher-trigger: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
