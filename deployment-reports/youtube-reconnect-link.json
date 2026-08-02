@@ -1,0 +1,9 @@
+{
+  "status": "ready",
+  "recorded_at": "2026-08-02T14:55:48Z",
+  "expires_at": "2026-08-02T15:04:48Z",
+  "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=585581455774-21vrbsr4cqevrqga58an17g52av8dl5q.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftnrca1ff32.execute-api.us-east-1.amazonaws.com%2Fdev%2Fsocial%2Fyoutube%2Foauth%2Fcallback&response_type=code&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.upload+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.force-ssl&access_type=offline&include_granted_scopes=true&prompt=consent&state=eyJwbGF0Zm9ybSI6InlvdXR1YmUiLCJpYXQiOjE3ODU2ODI1NDg3NDcsImV4cCI6MTc4NTY4MzE0ODc0Nywibm9uY2UiOiI4ZDAyNWIxOS0xNjA4LTRmNGItYmNjMy05YmQ2OWRiYzc2ZDUifQ.6vuVAfr8yZhmhVwXK7SbFnNpxd8BiTT60XahISlfEQc",
+  "required_permission": "youtube.force-ssl",
+  "playlist_backfill_target": "Hippy Speedball",
+  "mutation_performed": false
+}
