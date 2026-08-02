@@ -1,0 +1,71 @@
+name: Apply Cancel Structured Error Response
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: stashbox-social-api-dev
+
+jobs:
+  patch-test-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply patch
+        run: node social-factory-api/scripts/apply-cancel-structured-error-response.mjs
+
+      - name: Install dependencies
+        working-directory: social-factory-api
+        run: npm ci
+
+      - name: Run scheduling tests
+        working-directory: social-factory-api
+        run: npm test -- --test-name-pattern='schedule|cancel'
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/index.mjs
+          git commit -m "Return structured schedule cancellation errors" || true
+          git push origin main
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and deploy DEV API
+        working-directory: social-factory-api
+        run: |
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+
+      - name: Verify stack
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query 'Stacks[0].StackStatus' \
+            --output text
