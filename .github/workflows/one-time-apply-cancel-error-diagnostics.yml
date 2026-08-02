@@ -1,0 +1,37 @@
+name: Apply Cancel Error Diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply cancellation diagnostic patch
+        run: node social-factory-api/scripts/apply-cancel-error-diagnostics.mjs
+
+      - name: Run schedule tests
+        run: node --test social-factory-api/tests/schedule-publish.test.mjs social-factory-api/tests/schedule-cancel-route.test.mjs
+
+      - name: Commit patched backend
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/schedule-publish.mjs
+          if git diff --cached --quiet; then
+            echo "No changes required."
+          else
+            git commit -m "Expose AWS Scheduler cancellation errors"
+            git push
+          fi
