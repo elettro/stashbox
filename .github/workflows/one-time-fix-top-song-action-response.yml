@@ -1,0 +1,33 @@
+name: Fix top-song Action response schema
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-fix-top-song-action-response.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply schema compatibility fix
+        run: python scripts/fix-top-song-action-response-schema.py
+
+      - name: Commit updated OpenAPI schema
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m 'Use flexible response schema for top-song Action'
+          git pull --rebase origin main
+          git push origin HEAD:main
