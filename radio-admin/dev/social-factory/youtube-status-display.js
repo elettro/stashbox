@@ -12,6 +12,68 @@
   function getToken() { return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || ''; }
   function clean(value) { return String(value || '').trim(); }
 
+  function installScheduledCtaStyles() {
+    if (document.getElementById('sf-youtube-scheduled-cta-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'sf-youtube-scheduled-cta-styles';
+    style.textContent = `
+      #publishStatusPill[data-status="scheduled"] {
+        border: 2px solid #83e6ff;
+        background: linear-gradient(135deg, #16c7ff 0%, #0877ff 52%, #5138ff 100%);
+        color: #ffffff;
+        padding: 9px 15px;
+        font-size: 12px;
+        font-weight: 950;
+        letter-spacing: .075em;
+        text-shadow: 0 1px 2px rgba(0, 20, 70, .55);
+        box-shadow:
+          0 0 0 3px rgba(22, 199, 255, .18),
+          0 0 24px rgba(22, 199, 255, .55),
+          0 10px 28px rgba(8, 119, 255, .32);
+        animation: sfScheduledCtaPulse 2.2s ease-in-out infinite;
+      }
+
+      .sf-youtube-status[data-status="scheduled"] {
+        border: 1px solid #83e6ff;
+        background: linear-gradient(135deg, #16c7ff 0%, #0877ff 58%, #5138ff 100%);
+        color: #ffffff;
+        padding: 4px 8px;
+        font-weight: 950;
+        letter-spacing: .055em;
+        text-shadow: 0 1px 2px rgba(0, 20, 70, .5);
+        box-shadow: 0 0 14px rgba(22, 199, 255, .42);
+      }
+
+      .sf-queue-item:has(.sf-youtube-status[data-status="scheduled"]) {
+        border-color: rgba(75, 205, 255, .82);
+        box-shadow:
+          inset 0 0 0 1px rgba(75, 205, 255, .18),
+          0 0 18px rgba(8, 119, 255, .16);
+      }
+
+      @keyframes sfScheduledCtaPulse {
+        0%, 100% {
+          box-shadow:
+            0 0 0 3px rgba(22, 199, 255, .16),
+            0 0 20px rgba(22, 199, 255, .48),
+            0 10px 26px rgba(8, 119, 255, .28);
+        }
+        50% {
+          box-shadow:
+            0 0 0 5px rgba(22, 199, 255, .24),
+            0 0 34px rgba(22, 199, 255, .72),
+            0 12px 34px rgba(81, 56, 255, .4);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #publishStatusPill[data-status="scheduled"] { animation: none; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function normalizedStatus(item = {}) {
     const status = clean(item.publishing_status || 'not_published').toLowerCase();
     if (status === 'published') return 'published';
@@ -26,7 +88,7 @@
   function labelFor(status) {
     return {
       published: 'YouTube Published', publishing: 'YouTube Publishing', queued: 'YouTube Queued',
-      retrying: 'YouTube Retrying', scheduled: 'YouTube Scheduled', publish_failed: 'YouTube Failed',
+      retrying: 'YouTube Retrying', scheduled: '✓ YouTube Scheduled', publish_failed: 'YouTube Failed',
       not_published: 'Not on YouTube'
     }[status] || 'Not on YouTube';
   }
@@ -145,6 +207,7 @@
   }
 
   function install() {
+    installScheduledCtaStyles();
     loadCampaignEnhancements();
     const queue = byId('queueList');
     if (queue) {
