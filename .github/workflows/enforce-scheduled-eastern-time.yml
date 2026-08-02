@@ -1,0 +1,74 @@
+name: Enforce Scheduled Eastern Time
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/enforce-scheduled-eastern-time.py'
+      - '.github/workflows/enforce-scheduled-eastern-time.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply Eastern Time scheduling update
+        run: python scripts/enforce-scheduled-eastern-time.py
+
+      - name: Verify timezone and guarded reschedule contract
+        run: |
+          set -euo pipefail
+          node --check radio-admin/dev/social-factory/scheduled/scheduled.js
+          node --check radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "America/New_York" radio-admin/dev/social-factory/scheduled/scheduled.js
+          grep -Fq "America/New_York" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "easternWallTimeToDate" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "confirm_cancel_schedule: true" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "confirm_schedule: false" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "confirm_schedule: true" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+          grep -Fq "Eastern Time (America/New_York)" radio-admin/dev/social-factory/scheduled/scheduled-modal.js
+
+      - name: Commit applied timezone update
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio-admin/dev/social-factory/scheduled/scheduled.js \
+            radio-admin/dev/social-factory/scheduled/scheduled-modal.js \
+            radio-admin/dev/social-factory/scheduled/index.html \
+            radio-admin/dev/social-factory/scheduled/calendar/index.html
+          if git diff --cached --quiet; then
+            echo 'Eastern Time scheduling already applied.'
+          else
+            git commit -m 'Enforce America New York scheduling in calendar views'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Verify live pages include Eastern Time build
+        run: |
+          set -euo pipefail
+          for URL in \
+            'https://stashbox.com/radio-admin/dev/social-factory/scheduled/' \
+            'https://stashbox.com/radio-admin/dev/social-factory/scheduled/calendar/'
+          do
+            READY=false
+            for ATTEMPT in $(seq 1 40); do
+              STATUS=$(curl --silent --show-error --max-time 45 -o /tmp/page.html -w '%{http_code}' "$URL" || true)
+              if [ "$STATUS" = '200' ] && grep -Fq 'scheduled-modal.js?v=20260802-et1' /tmp/page.html && grep -Fq 'scheduled.js?v=20260802-et1' /tmp/page.html; then
+                READY=true
+                break
+              fi
+              sleep 15
+            done
+            test "$READY" = 'true'
+          done
