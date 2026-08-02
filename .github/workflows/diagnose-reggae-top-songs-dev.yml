@@ -1,0 +1,77 @@
+name: Diagnose Reggae top-song analytics DEV
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-reggae-top-songs-dev.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/reggae-top-songs-diagnostic.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test exact GPT request and downstream dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOCIAL_BASE=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id stashbox/social-factory/dev/custom-gpt --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+
+          FUNCTION_NAME=$(aws cloudformation describe-stack-resources --stack-name "$STACK_NAME" --query "StackResources[?ResourceType=='AWS::Lambda::Function'].PhysicalResourceId | [0]" --output text)
+          RADIO_BASE=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --query "Environment.Variables.RADIO_API_BASE_URL" --output text)
+          RADIO_TOKEN=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --query "Environment.Variables.RADIO_API_ADMIN_TOKEN" --output text)
+
+          call() {
+            local name="$1"; shift
+            local status
+            status=$(curl --silent --show-error --max-time 60 -o "/tmp/${name}.json" -w '%{http_code}' "$@" || true)
+            jq -n --arg status "$status" --argjson body "$(jq -c . "/tmp/${name}.json" 2>/dev/null || echo '{}')" '{status:$status,body:$body}' > "/tmp/${name}-result.json"
+          }
+
+          call analytics -H "x-admin-token: ${GPT_TOKEN}" "${SOCIAL_BASE}/social/analytics/top-songs?metric=plays&genre=Reggae&limit=5&period=all_time"
+          call dashboard -H "x-admin-token: ${RADIO_TOKEN}" "${RADIO_BASE%/}/dashboard/songs"
+          call catalog -H "x-admin-token: ${RADIO_TOKEN}" "${RADIO_BASE%/}/radio/songs"
+
+          mkdir -p "$(dirname "$REPORT_PATH")"
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg social_base "$SOCIAL_BASE" \
+            --arg radio_base "$RADIO_BASE" \
+            --slurpfile analytics /tmp/analytics-result.json \
+            --slurpfile dashboard /tmp/dashboard-result.json \
+            --slurpfile catalog /tmp/catalog-result.json \
+            '{recorded_at:$recorded_at,social_base:$social_base,radio_base:$radio_base,analytics:$analytics[0],dashboard:$dashboard[0],catalog:$catalog[0]}' \
+            > "$REPORT_PATH"
+
+          rm -f /tmp/gpt.json /tmp/*-result.json /tmp/analytics.json /tmp/dashboard.json /tmp/catalog.json
+
+      - name: Commit diagnostic report
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$REPORT_PATH"
+          git commit -m 'Record Reggae analytics diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
