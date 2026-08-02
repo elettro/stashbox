@@ -53,31 +53,6 @@
       mode: 'lab',
       songKey: '',
     });
-
-    const vecSongSelect = document.querySelector('[data-vec-song-select]');
-    if (vecSongSelect) {
-      const sortSongOptionsAlphabetically = () => {
-        const placeholder = vecSongSelect.querySelector('option[value=""]');
-        const options = [...vecSongSelect.options]
-          .filter((option) => option.value)
-          .sort((a, b) => a.textContent.localeCompare(b.textContent, undefined, {
-            sensitivity: 'base',
-            numeric: true,
-          }));
-        if (!options.length) return;
-        const selectedValue = vecSongSelect.value;
-        vecSongSelect.replaceChildren(...(placeholder ? [placeholder] : []), ...options);
-        vecSongSelect.value = selectedValue;
-      };
-
-      const songOptionsObserver = new MutationObserver(() => {
-        songOptionsObserver.disconnect();
-        sortSongOptionsAlphabetically();
-        songOptionsObserver.observe(vecSongSelect, { childList: true });
-      });
-      songOptionsObserver.observe(vecSongSelect, { childList: true });
-      sortSongOptionsAlphabetically();
-    }
   </script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260721-shared-header1" defer></script>
 </body>
