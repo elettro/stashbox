@@ -1,0 +1,54 @@
+.grid[data-card-count="1"] {
+  grid-template-columns: minmax(360px, 760px);
+  justify-content: start;
+}
+
+.grid[data-card-count="1"] .card {
+  width: min(760px, 100%);
+}
+
+.grid[data-card-count="1"] .preview {
+  max-height: 76vh;
+}
+
+.preview-retry {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.artwork-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-3);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.artwork-selection strong {
+  color: var(--text);
+  margin-right: 2px;
+}
+
+.artwork-selection[data-warning="true"] {
+  border-color: #8b3f3f;
+  color: #ff9b9b;
+}
+
+@media (max-width: 900px) {
+  .grid[data-card-count="1"] {
+    grid-template-columns: 1fr;
+  }
+
+  .grid[data-card-count="1"] .card {
+    width: 100%;
+  }
+}
