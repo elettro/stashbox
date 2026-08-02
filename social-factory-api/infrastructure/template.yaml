@@ -544,6 +544,12 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/review-items/{reviewId}/publish
             Method: POST
+        ReviewItemsBatchSchedule:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/review-items/batch-schedule
+            Method: POST
         ReviewItemSchedule:
           Type: HttpApi
           Properties:
