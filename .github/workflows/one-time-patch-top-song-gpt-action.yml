@@ -1,0 +1,41 @@
+name: Patch Top Song GPT Action
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch-top-song-gpt-action.py'
+      - '.github/workflows/one-time-patch-top-song-gpt-action.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Patch Action schema
+        run: python scripts/patch-top-song-gpt-action.py
+      - name: Verify exact Reggae request mapping
+        run: |
+          grep -Fq 'version: 0.9.3' custom-gpt/stashbox-radio/openapi.yaml
+          grep -Fq '"Give me the 5 most played reggae songs" maps to metric=plays, genre=Reggae, limit=5' custom-gpt/stashbox-radio/openapi.yaml
+          grep -Fq 'default: plays' custom-gpt/stashbox-radio/openapi.yaml
+          grep -Fq 'example: Reggae' custom-gpt/stashbox-radio/openapi.yaml
+      - name: Commit schema update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom-gpt/stashbox-radio/openapi.yaml
+          if git diff --cached --quiet; then
+            echo 'Schema already patched.'
+            exit 0
+          fi
+          git commit -m 'Make top-song genre analytics deterministic for Custom GPT'
+          git pull --rebase origin main
+          git push origin HEAD:main
