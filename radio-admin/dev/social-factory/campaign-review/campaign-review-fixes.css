@@ -43,6 +43,92 @@
   pointer-events: auto;
 }
 
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  width: max-content;
+  max-width: min(320px, 78vw);
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #02090b;
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+
+.has-tooltip::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  z-index: 41;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  background: #02090b;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) rotate(45deg);
+  transition: opacity .14s ease, visibility .14s ease;
+}
+
+.has-tooltip:hover::after,
+.has-tooltip:focus-visible::after,
+.has-tooltip:hover::before,
+.has-tooltip:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.has-tooltip:hover::after,
+.has-tooltip:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.has-tooltip:disabled {
+  pointer-events: auto;
+}
+
+.card-actions .has-tooltip:nth-child(odd)::after {
+  left: 0;
+  transform: translate(0, 4px);
+}
+
+.card-actions .has-tooltip:nth-child(odd):hover::after,
+.card-actions .has-tooltip:nth-child(odd):focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.card-actions .has-tooltip:nth-child(even)::after {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+
+.card-actions .has-tooltip:nth-child(even):hover::after,
+.card-actions .has-tooltip:nth-child(even):focus-visible::after {
+  transform: translate(0, 0);
+}
+
 .artwork-selection {
   display: flex;
   flex-wrap: wrap;
