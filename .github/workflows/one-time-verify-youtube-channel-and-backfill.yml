@@ -1,0 +1,206 @@
+name: Verify YouTube Channel and Backfill Hippy Speedball
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-verify-youtube-channel-and-backfill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      VIDEO_ID: pH7ud_VLbA8
+      PLAYLIST_ID: PLYQleZVJh2Jo
+      PLAYLIST_TITLE: Stashbox Radio - Video Library - Stashbox
+      REPORT_PATH: deployment-reports/youtube-channel-verification.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify connected channel and backfill playlist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONFIG_SECRET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" \
+            --output text)
+          TOKEN_SECRET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthTokenSecretArn'].OutputValue" \
+            --output text)
+
+          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/config.json
+          aws secretsmanager get-secret-value --secret-id "$TOKEN_SECRET" --query SecretString --output text > /tmp/tokens.json
+
+          CLIENT_ID=$(jq -r '.client_id // empty' /tmp/config.json)
+          CLIENT_SECRET=$(jq -r '.client_secret // empty' /tmp/config.json)
+          REFRESH_TOKEN=$(jq -r '.refresh_token // empty' /tmp/tokens.json)
+          STORED_CHANNEL_ID=$(jq -r '.channel_id // empty' /tmp/tokens.json)
+          STORED_CHANNEL_NAME=$(jq -r '.channel_name // empty' /tmp/tokens.json)
+          STORED_SCOPE=$(jq -r '.scope // ""' /tmp/tokens.json)
+          CONNECTED_AT=$(jq -r '.connected_at // empty' /tmp/tokens.json)
+          LAST_VERIFIED_AT=$(jq -r '.last_verified_at // empty' /tmp/tokens.json)
+
+          test -n "$CLIENT_ID"
+          test -n "$CLIENT_SECRET"
+          test -n "$REFRESH_TOKEN"
+
+          TOKEN_STATUS=$(curl --silent --show-error --max-time 60 \
+            -o /tmp/refresh.json -w '%{http_code}' \
+            -X POST 'https://oauth2.googleapis.com/token' \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode "client_id=${CLIENT_ID}" \
+            --data-urlencode "client_secret=${CLIENT_SECRET}" \
+            --data-urlencode "refresh_token=${REFRESH_TOKEN}" \
+            --data-urlencode 'grant_type=refresh_token')
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' /tmp/refresh.json)
+          REFRESHED_SCOPE=$(jq -r '.scope // ""' /tmp/refresh.json)
+          EFFECTIVE_SCOPE="$REFRESHED_SCOPE"
+          if [ -z "$EFFECTIVE_SCOPE" ]; then EFFECTIVE_SCOPE="$STORED_SCOPE"; fi
+
+          if [ "$TOKEN_STATUS" != '200' ] || [ -z "$ACCESS_TOKEN" ]; then
+            ERROR=$(jq -r '.error_description // .error // "youtube_token_refresh_failed"' /tmp/refresh.json)
+            jq -n \
+              --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+              --arg error "$ERROR" \
+              --arg stored_channel_id "$STORED_CHANNEL_ID" \
+              --arg stored_channel_name "$STORED_CHANNEL_NAME" \
+              --arg stored_scope "$STORED_SCOPE" \
+              '{status:"failed",recorded_at:$recorded_at,connected:false,stored_channel_id:($stored_channel_id|select(length>0)),stored_channel_name:($stored_channel_name|select(length>0)),stored_scope:$stored_scope,error:$error,playlist_backfill_performed:false}' > "$REPORT_PATH"
+            exit 0
+          fi
+
+          CHANNEL_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -o /tmp/channel.json -w '%{http_code}' \
+            --get 'https://www.googleapis.com/youtube/v3/channels' \
+            --data-urlencode 'part=id,snippet' \
+            --data-urlencode 'mine=true')
+
+          VIDEO_STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -o /tmp/video.json -w '%{http_code}' \
+            --get 'https://www.googleapis.com/youtube/v3/videos' \
+            --data-urlencode 'part=id,snippet' \
+            --data-urlencode "id=${VIDEO_ID}")
+
+          LIVE_CHANNEL_ID=$(jq -r '.items[0].id // empty' /tmp/channel.json)
+          LIVE_CHANNEL_NAME=$(jq -r '.items[0].snippet.title // empty' /tmp/channel.json)
+          VIDEO_OWNER_CHANNEL_ID=$(jq -r '.items[0].snippet.channelId // empty' /tmp/video.json)
+          VIDEO_OWNER_CHANNEL_NAME=$(jq -r '.items[0].snippet.channelTitle // empty' /tmp/video.json)
+          VIDEO_TITLE=$(jq -r '.items[0].snippet.title // empty' /tmp/video.json)
+
+          CHANNEL_MATCH=false
+          if [ -n "$LIVE_CHANNEL_ID" ] && [ "$LIVE_CHANNEL_ID" = "$VIDEO_OWNER_CHANNEL_ID" ]; then CHANNEL_MATCH=true; fi
+
+          PLAYLIST_SCOPE=false
+          case " $EFFECTIVE_SCOPE " in
+            *" https://www.googleapis.com/auth/youtube.force-ssl "*) PLAYLIST_SCOPE=true ;;
+          esac
+
+          ALREADY_PRESENT=false
+          PRESENT_AFTER=false
+          MUTATION_PERFORMED=false
+          INSERT_HTTP_STATUS='not_attempted'
+          INSERT_ERROR=''
+
+          if [ "$CHANNEL_MATCH" = 'true' ] && [ "$PLAYLIST_SCOPE" = 'true' ]; then
+            BEFORE_STATUS=$(curl --silent --show-error --max-time 60 \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -o /tmp/before.json -w '%{http_code}' \
+              --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
+              --data-urlencode 'part=id,snippet' \
+              --data-urlencode "playlistId=${PLAYLIST_ID}" \
+              --data-urlencode "videoId=${VIDEO_ID}" \
+              --data-urlencode 'maxResults=5')
+            if [ "$BEFORE_STATUS" = '200' ] && [ "$(jq '.items | length' /tmp/before.json)" -gt 0 ]; then ALREADY_PRESENT=true; fi
+
+            if [ "$ALREADY_PRESENT" != 'true' ]; then
+              jq -n --arg playlist_id "$PLAYLIST_ID" --arg video_id "$VIDEO_ID" \
+                '{snippet:{playlistId:$playlist_id,resourceId:{kind:"youtube#video",videoId:$video_id}}}' > /tmp/insert-body.json
+              INSERT_HTTP_STATUS=$(curl --silent --show-error --max-time 60 \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H 'Content-Type: application/json' \
+                -o /tmp/insert.json -w '%{http_code}' \
+                -X POST 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet' \
+                --data-binary @/tmp/insert-body.json)
+              if [ "$INSERT_HTTP_STATUS" = '200' ]; then
+                MUTATION_PERFORMED=true
+              else
+                INSERT_ERROR=$(jq -r '.error.errors[0].reason // .error.message // "playlist_insert_failed"' /tmp/insert.json)
+              fi
+            else
+              INSERT_HTTP_STATUS='not_needed'
+            fi
+
+            AFTER_STATUS=$(curl --silent --show-error --max-time 60 \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -o /tmp/after.json -w '%{http_code}' \
+              --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
+              --data-urlencode 'part=id,snippet' \
+              --data-urlencode "playlistId=${PLAYLIST_ID}" \
+              --data-urlencode "videoId=${VIDEO_ID}" \
+              --data-urlencode 'maxResults=5')
+            if [ "$AFTER_STATUS" = '200' ] && [ "$(jq '.items | length' /tmp/after.json)" -gt 0 ]; then PRESENT_AFTER=true; fi
+          fi
+
+          STATUS='verified'
+          if [ "$CHANNEL_STATUS" != '200' ] || [ "$VIDEO_STATUS" != '200' ] || [ "$CHANNEL_MATCH" != 'true' ]; then STATUS='wrong_or_unverified_channel'; fi
+          if [ "$CHANNEL_MATCH" = 'true' ] && [ "$PLAYLIST_SCOPE" != 'true' ]; then STATUS='verified_missing_playlist_scope'; fi
+          if [ "$CHANNEL_MATCH" = 'true' ] && [ "$PLAYLIST_SCOPE" = 'true' ] && [ "$PRESENT_AFTER" = 'true' ]; then STATUS='verified_and_backfilled'; fi
+          if [ "$CHANNEL_MATCH" = 'true' ] && [ "$PLAYLIST_SCOPE" = 'true' ] && [ "$PRESENT_AFTER" != 'true' ]; then STATUS='verified_backfill_failed'; fi
+
+          jq -n \
+            --arg status "$STATUS" \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg connected_at "$CONNECTED_AT" \
+            --arg last_verified_at "$LAST_VERIFIED_AT" \
+            --arg stored_channel_id "$STORED_CHANNEL_ID" \
+            --arg stored_channel_name "$STORED_CHANNEL_NAME" \
+            --arg live_channel_id "$LIVE_CHANNEL_ID" \
+            --arg live_channel_name "$LIVE_CHANNEL_NAME" \
+            --arg video_id "$VIDEO_ID" \
+            --arg video_title "$VIDEO_TITLE" \
+            --arg video_owner_channel_id "$VIDEO_OWNER_CHANNEL_ID" \
+            --arg video_owner_channel_name "$VIDEO_OWNER_CHANNEL_NAME" \
+            --arg scope "$EFFECTIVE_SCOPE" \
+            --arg playlist_id "$PLAYLIST_ID" \
+            --arg playlist_title "$PLAYLIST_TITLE" \
+            --arg insert_http_status "$INSERT_HTTP_STATUS" \
+            --arg insert_error "$INSERT_ERROR" \
+            --argjson channel_match "$CHANNEL_MATCH" \
+            --argjson playlist_scope_granted "$PLAYLIST_SCOPE" \
+            --argjson already_present "$ALREADY_PRESENT" \
+            --argjson present_after "$PRESENT_AFTER" \
+            --argjson mutation_performed "$MUTATION_PERFORMED" \
+            '{status:$status,recorded_at:$recorded_at,connected:true,connected_at:($connected_at|select(length>0)),last_verified_at:($last_verified_at|select(length>0)),stored_channel_id:($stored_channel_id|select(length>0)),stored_channel_name:($stored_channel_name|select(length>0)),live_channel_id:$live_channel_id,live_channel_name:$live_channel_name,video_id:$video_id,video_title:$video_title,video_owner_channel_id:$video_owner_channel_id,video_owner_channel_name:$video_owner_channel_name,channel_match:$channel_match,scope:$scope,playlist_scope_granted:$playlist_scope_granted,playlist_id:$playlist_id,playlist_title:$playlist_title,already_present:$already_present,present_after:$present_after,playlist_backfill_performed:$mutation_performed,insert_http_status:$insert_http_status,insert_error:($insert_error|select(length>0))}' > "$REPORT_PATH"
+
+      - name: Commit verification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record YouTube channel verification [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
