@@ -39,6 +39,17 @@ function normalizeRows(payload) {
   return [];
 }
 
+function normalizeGenreValue(value) {
+  if (Array.isArray(value)) return value.map(clean).filter(Boolean);
+  const text = clean(value);
+  if (!text) return [];
+  return text.split(/[,/|]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function songKey(row = {}) {
+  return clean(row.song_key || row.key || row.id);
+}
+
 export function createTopSongAnalyticsService({
   fetchImpl = globalThis.fetch,
   radioApiBase = process.env.RADIO_API_BASE_URL || DEFAULT_RADIO_API_BASE,
@@ -68,41 +79,72 @@ export function createTopSongAnalyticsService({
         });
       }
 
-      const url = `${String(radioApiBase).replace(/\/$/, '')}/dashboard/songs`;
+      const baseUrl = String(radioApiBase).replace(/\/$/, '');
       const headers = radioApiAdminToken ? { 'x-admin-token': radioApiAdminToken } : {};
-      const response = await fetchImpl(url, { method: 'GET', headers });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      const [analyticsResponse, catalogResponse] = await Promise.all([
+        fetchImpl(`${baseUrl}/dashboard/songs`, { method: 'GET', headers }),
+        fetchImpl(`${baseUrl}/radio/songs`, { method: 'GET', headers })
+      ]);
+
+      const analyticsPayload = await analyticsResponse.json().catch(() => ({}));
+      if (!analyticsResponse.ok) {
         throw serviceError('radio_analytics_request_failed', 502, {
-          downstream_status: response.status,
-          downstream_error: clean(payload?.error || payload?.message || 'unknown_error')
+          downstream_status: analyticsResponse.status,
+          downstream_error: clean(analyticsPayload?.error || analyticsPayload?.message || 'unknown_error')
         });
       }
 
-      const rows = normalizeRows(payload)
-        .map((row) => ({
-          song_key: clean(row.song_key || row.key || row.id),
-          title: clean(row.display_title || row.song_name || row.title || row.name),
-          artist: clean(row.artist || row.artist_name || 'Stashbox'),
-          genre: clean(row.genre || row.primary_genre || 'Other'),
-          metric_total: number(row[field]),
-          metrics: {
-            plays: number(row.total_plays),
-            full_plays: number(row.full_play_count),
-            likes: number(row.like_count ?? row.total_likes),
-            shares: number(row.share_count ?? row.total_shares),
-            share_visits: number(row.share_link_visits),
-            video_clicks: number(row.video_clicks),
-            product_clicks: number(row.product_clicks),
-            listening_seconds: number(row.total_seconds_played)
-          }
-        }))
+      const catalogPayload = await catalogResponse.json().catch(() => ({}));
+      if (!catalogResponse.ok) {
+        throw serviceError('radio_catalog_request_failed', 502, {
+          downstream_status: catalogResponse.status,
+          downstream_error: clean(catalogPayload?.error || catalogPayload?.message || 'unknown_error')
+        });
+      }
+
+      const catalogBySongKey = new Map(
+        normalizeRows(catalogPayload)
+          .filter((row) => songKey(row))
+          .map((row) => [songKey(row), row])
+      );
+
+      const rows = normalizeRows(analyticsPayload)
+        .map((row) => {
+          const key = songKey(row);
+          const catalog = catalogBySongKey.get(key) || {};
+          const primaryGenre = clean(row.genre || row.primary_genre || catalog.genre || catalog.primary_genre);
+          const secondaryGenre = clean(row.secondary_genre || catalog.secondary_genre);
+          const genreValues = [
+            ...normalizeGenreValue(primaryGenre),
+            ...normalizeGenreValue(secondaryGenre)
+          ];
+
+          return {
+            song_key: key,
+            title: clean(row.display_title || row.song_name || row.title || row.name || catalog.display_title || catalog.song_name || catalog.title || catalog.name),
+            artist: clean(row.artist || row.artist_name || catalog.artist || catalog.artist_name || 'Stashbox'),
+            genre: primaryGenre || secondaryGenre || 'Other',
+            secondary_genre: secondaryGenre,
+            genre_values: genreValues,
+            metric_total: number(row[field]),
+            metrics: {
+              plays: number(row.total_plays),
+              full_plays: number(row.full_play_count),
+              likes: number(row.like_count ?? row.total_likes),
+              shares: number(row.share_count ?? row.total_shares),
+              share_visits: number(row.share_link_visits),
+              video_clicks: number(row.video_clicks),
+              product_clicks: number(row.product_clicks),
+              listening_seconds: number(row.total_seconds_played)
+            }
+          };
+        })
         .filter((row) => row.song_key)
         .filter((row) => !artist || row.artist.toLowerCase().includes(artist))
-        .filter((row) => !genre || row.genre.toLowerCase().includes(genre))
+        .filter((row) => !genre || row.genre_values.some((value) => value.toLowerCase().includes(genre)))
         .sort((left, right) => right.metric_total - left.metric_total || left.title.localeCompare(right.title))
         .slice(0, limit)
-        .map((row, index) => ({ rank: index + 1, ...row }));
+        .map(({ genre_values, ...row }, index) => ({ rank: index + 1, ...row }));
 
       return {
         mode: 'read_only_analytics',
