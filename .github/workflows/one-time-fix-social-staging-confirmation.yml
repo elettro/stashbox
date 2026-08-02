@@ -1,0 +1,182 @@
+name: One-time fix Social Factory staging confirmation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-fix-social-staging-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Repair staging confirmation contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          openapi_path = Path('custom-gpt/stashbox-radio/openapi.yaml')
+          schema = openapi_path.read_text()
+          schema = schema.replace('version: 0.9.4', 'version: 0.9.5', 1)
+
+          old_single = """  /social/orchestration/render-jobs/{jobId}/stage:
+    post:
+      operationId: stageCompletedRenderForReview
+      summary: Stage one completed render into Content Review.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200': {description: Staging result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+"""
+          new_single = """  /social/orchestration/render-jobs/{jobId}/stage:
+    post:
+      operationId: stageCompletedRenderForReview
+      summary: Validate or stage one completed render into Content Review.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm_stage]
+              properties:
+                confirm_stage:
+                  type: boolean
+                  default: false
+                  description: Set false for validation. Set true to move the completed render into Content Review.
+              additionalProperties: false
+      responses:
+        '200': {description: Staging validation or execution result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+"""
+          if old_single not in schema and 'required: [confirm_stage]' not in schema:
+              raise SystemExit('Single-render staging schema anchor not found')
+          schema = schema.replace(old_single, new_single, 1)
+
+          old_batch = """  /social/orchestration/batch-stage:
+    post:
+      operationId: stageCompletedRenderBatchForReview
+      summary: Stage completed jobs into Content Review as a batch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_ids]
+              properties:
+                job_ids:
+                  type: array
+                  minItems: 1
+                  items: {type: string}
+      responses:
+        '200': {description: Batch staging result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+"""
+          new_batch = """  /social/orchestration/batch-stage:
+    post:
+      operationId: stageCompletedRenderBatchForReview
+      summary: Validate or stage completed jobs into Content Review as a batch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_ids, confirm_stage_batch]
+              properties:
+                job_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items: {type: string}
+                confirm_stage_batch:
+                  type: boolean
+                  default: false
+                  description: Set false for validation. Set true to move every eligible completed render into Content Review in one batch.
+              additionalProperties: false
+      responses:
+        '200': {description: Batch staging validation or execution result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+"""
+          if old_batch not in schema and 'required: [job_ids, confirm_stage_batch]' not in schema:
+              raise SystemExit('Batch staging schema anchor not found')
+          schema = schema.replace(old_batch, new_batch, 1)
+          openapi_path.write_text(schema)
+
+          instructions_path = Path('custom-gpt/stashbox-radio/instructions.md')
+          instructions = instructions_path.read_text()
+
+          monitor_old = """- Completed Social Factory renders should enter Content Review when the workflow supports automatic staging. Otherwise, stage completed jobs as one batch when requested.
+"""
+          monitor_new = """- Completed Social Factory renders should enter Content Review when the workflow supports automatic staging. Otherwise, validate batch staging with `confirm_stage_batch: false`, then execute the same batch with `confirm_stage_batch: true` when the approved campaign request includes staging or the user asks to continue the campaign into Content Review.
+- Staging only copies completed output into Content Review. It does not approve, schedule, upload, publish, or notify subscribers.
+- Never stop after a successful validation-only staging response when execution has already been authorized. Make the confirmed staging call and verify `staged: true` plus the returned review IDs.
+"""
+          if monitor_old in instructions:
+              instructions = instructions.replace(monitor_old, monitor_new, 1)
+
+          level2_old = """- Validation-only render, publish, or schedule checks.
+- SR Profile Image Set generation from an attached source image.
+"""
+          level2_new = """- Validation-only render, staging, publish, or schedule checks.
+- Staging completed renders into Content Review after the campaign launch was approved or the user explicitly requests the workflow to continue into Content Review.
+- SR Profile Image Set generation from an attached source image.
+"""
+          if level2_old in instructions:
+              instructions = instructions.replace(level2_old, level2_new, 1)
+
+          content_review_old = """- Before publishing or scheduling, validate first and repeat destination, title, privacy, date, time, timezone, and review ID.
+"""
+          content_review_new = """- Before publishing or scheduling, validate first and repeat destination, title, privacy, date, time, timezone, and review ID.
+- For batch staging, send every completed job ID and `confirm_stage_batch: true` after authorization. Capture every returned review ID before approval or scheduling.
+"""
+          if content_review_old in instructions:
+              instructions = instructions.replace(content_review_old, content_review_new, 1)
+
+          instructions_path.write_text(instructions)
+
+          readme_path = Path('custom-gpt/stashbox-radio/README.md')
+          readme = readme_path.read_text()
+          readme = readme.replace(
+              '2. **Drafting, creative production, and validation** — plans, draft creation, image-set generation, ZIP packaging, preview, save, validation-only launch/publish/schedule calls.',
+              '2. **Drafting, creative production, staging, and validation** — plans, draft creation, image-set generation, ZIP packaging, preview, save, Content Review staging, and validation-only launch/publish/schedule calls.'
+          )
+          readme_path.write_text(readme)
+
+          assert 'required: [job_ids, confirm_stage_batch]' in schema
+          assert 'confirm_stage_batch:' in schema
+          assert 'required: [confirm_stage]' in schema
+          assert 'Never stop after a successful validation-only staging response' in instructions
+          PY
+
+          grep -n "confirm_stage_batch\|confirm_stage" custom-gpt/stashbox-radio/openapi.yaml
+          grep -n "validation-only staging response\|Staging only copies" custom-gpt/stashbox-radio/instructions.md
+
+      - name: Commit staging contract fix
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add custom-gpt/stashbox-radio/openapi.yaml custom-gpt/stashbox-radio/instructions.md custom-gpt/stashbox-radio/README.md
+          if git diff --cached --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git commit -m 'Fix Custom GPT staging confirmation contract'
+          git push
