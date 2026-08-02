@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Stashbox Radio Social Factory API
-  version: 0.8.1
+  version: 0.9.0
   description: Controlled DEV actions for Stashbox Radio campaign planning, Video Factory orchestration, Content Review, scheduling, and YouTube operations.
 servers:
   - url: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
@@ -21,6 +21,51 @@ paths:
       summary: Check whether the Stashbox YouTube account is connected and usable.
       responses:
         '200': {description: YouTube status, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+  /social/analytics/top-songs:
+    get:
+      operationId: getTopSongAnalytics
+      summary: Rank Stashbox songs by an all-time engagement metric using live Radio dashboard totals.
+      description: Read-only song analytics. This operation never creates drafts, renders, schedules, uploads, or publications.
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+            default: 5
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all_time]
+            default: all_time
+        - name: artist
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: genre
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ranked songs with exact metric totals.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /social/orchestration/candidates:
     get:
       operationId: listSocialCampaignCandidates

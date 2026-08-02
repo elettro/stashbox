@@ -9,9 +9,10 @@ import { createReviewPublishService } from './review-publish.mjs';
 import { createSchedulePublishService } from './schedule-publish.mjs';
 import { createBatchScheduleService } from './batch-schedule.mjs';
 import { createRequestAuthenticator } from './request-auth.mjs';
+import { createTopSongAnalyticsService } from './top-song-analytics.mjs';
 
 const SERVICE_NAME = 'stashbox-social-api';
-const SERVICE_VERSION = '0.7.0';
+const SERVICE_VERSION = '0.8.0';
 
 function getJsonHeaders() {
   return {
@@ -123,6 +124,7 @@ export function createHandler({
   reviewPublisher = null,
   reviewScheduler = null,
   batchScheduler = null,
+  topSongAnalytics = null,
   requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null
 } = {}) {
   let resolvedYoutubePublish = youtubePublish;
@@ -134,6 +136,7 @@ export function createHandler({
   let resolvedReviewPublisher = reviewPublisher;
   let resolvedReviewScheduler = reviewScheduler;
   let resolvedBatchScheduler = batchScheduler;
+  let resolvedTopSongAnalytics = topSongAnalytics;
 
   function getYoutubePublish() {
     if (!resolvedYoutubePublish) resolvedYoutubePublish = createYoutubePublishService();
@@ -191,6 +194,11 @@ export function createHandler({
     return resolvedBatchScheduler;
   }
 
+  function getTopSongAnalytics() {
+    if (!resolvedTopSongAnalytics) resolvedTopSongAnalytics = createTopSongAnalyticsService();
+    return resolvedTopSongAnalytics;
+  }
+
   return async function socialFactoryHandler(event = {}) {
     const method = getRequestMethod(event);
     const path = getRequestPath(event);
@@ -243,6 +251,7 @@ export function createHandler({
             youtubePublishingConfigured: Boolean(process.env.SOCIAL_PUBLISH_BUCKET),
             mainRadioApiDependency: false,
             radioApiBridgeSupported: true,
+            topSongAnalyticsSupported: true,
             batchCampaignPlanningSupported: true,
             batchDraftCreationSupported: true,
             batchRenderOperationsSupported: true,
@@ -287,6 +296,10 @@ export function createHandler({
 
       if (method === 'POST' && path === '/social/youtube/publish') {
         return json(200, { ok: true, ...(await getYoutubePublish().publish(event)) });
+      }
+
+      if (method === 'GET' && path === '/social/analytics/top-songs') {
+        return json(200, { ok: true, ...(await getTopSongAnalytics().topSongs(event)) });
       }
 
       if (method === 'GET' && path === '/social/orchestration/candidates') {

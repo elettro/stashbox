@@ -68,6 +68,7 @@ export function permissionForRequest(methodValue, pathValue) {
   if (method === 'POST' && path === '/social/uploads/presign') return 'youtube:publish';
   if (method === 'POST' && path === '/social/youtube/publish') return 'youtube:publish';
 
+  if (method === 'GET' && path === '/social/analytics/top-songs') return 'songs:read';
   if (method === 'GET' && path === '/social/orchestration/candidates') return 'songs:read';
   if (method === 'POST' && path === '/social/orchestration/batch-plan') return 'campaigns:plan';
   if (method === 'POST' && path === '/social/orchestration/batch-drafts') return 'campaigns:create_drafts';
