@@ -11,6 +11,8 @@
     { key: 'vec', label: 'VEC Lab', href: '/radio-admin/dev/vec/' },
     { key: 'video-factory', label: 'Video Factory', href: '/radio-admin/dev/video-factory/' },
     { key: 'social-factory', label: 'Social Factory', href: '/radio-admin/dev/social-factory/' },
+    { key: 'scheduled-posts', label: 'Scheduled Posts', href: '/radio-admin/dev/social-factory/scheduled/' },
+    { key: 'scheduled-calendar', label: 'Schedule Calendar', href: '/radio-admin/dev/social-factory/scheduled/calendar/' },
     { key: 'ads', label: 'Ads', href: '/radio-admin/ads/dev/' },
     { key: 'artists', label: 'Artists', href: '/radio-admin/artists/dev/' },
     { key: 'notifications', label: 'Notifications', href: '/radio-admin/notifications/dev/' },
@@ -31,6 +33,8 @@
     if (path.includes('/radio/visual-experience/dev/')) return { key: 'video-library', title: 'Video Library' };
     if (path.includes('/radio-admin/dev/vec/')) return { key: 'vec', title: 'VEC Lab' };
     if (path.includes('/radio-admin/dev/video-factory/')) return { key: 'video-factory', title: 'Video Factory' };
+    if (path.includes('/radio-admin/dev/social-factory/scheduled/calendar/')) return { key: 'scheduled-calendar', title: 'Social Factory · Schedule Calendar' };
+    if (path.includes('/radio-admin/dev/social-factory/scheduled/')) return { key: 'scheduled-posts', title: 'Social Factory · Scheduled Posts' };
     if (path.includes('/radio-admin/dev/social-factory/')) return { key: 'social-factory', title: 'Social Factory · Content Review' };
     if (path.includes('/radio-admin/ads/dev/') || path.includes('/radio-admin/dev/ads/')) return { key: 'ads', title: 'Ads CMS' };
     if (path.includes('/radio-admin/notifications/dev/')) return { key: 'notifications', title: 'Notifications CMS' };
