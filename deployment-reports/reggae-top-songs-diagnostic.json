@@ -1,0 +1,132 @@
+{
+  "recorded_at": "2026-08-02T14:21:39Z",
+  "social_base": "https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev",
+  "radio_base": "None",
+  "analytics": {
+    "status": "200",
+    "body": {
+      "ok": true,
+      "mode": "read_only_analytics",
+      "metric": "plays",
+      "period": "all_time",
+      "artist_filter": "",
+      "genre_filter": "Reggae",
+      "count": 5,
+      "songs": [
+        {
+          "rank": 1,
+          "song_key": "can-you-hear-that-stashbox",
+          "title": "Can You Hear That (Ode to Toots)",
+          "artist": "Stashbox",
+          "genre": "Reggae",
+          "secondary_genre": "",
+          "metric_total": 0,
+          "metrics": {
+            "plays": 0,
+            "full_plays": 0,
+            "likes": 0,
+            "shares": 0,
+            "share_visits": 0,
+            "video_clicks": 0,
+            "product_clicks": 0,
+            "listening_seconds": 99
+          }
+        },
+        {
+          "rank": 2,
+          "song_key": "culture-by-culture-02bb-stashbox",
+          "title": "Culture By Culture",
+          "artist": "Stashbox",
+          "genre": "Reggae",
+          "secondary_genre": "",
+          "metric_total": 0,
+          "metrics": {
+            "plays": 0,
+            "full_plays": 0,
+            "likes": 0,
+            "shares": 0,
+            "share_visits": 0,
+            "video_clicks": 0,
+            "product_clicks": 0,
+            "listening_seconds": 199
+          }
+        },
+        {
+          "rank": 3,
+          "song_key": "culture-by-culture-06aa-stashbox",
+          "title": "Culture By Culture (Live Chill Jam)",
+          "artist": "Stashbox",
+          "genre": "Reggae",
+          "secondary_genre": "",
+          "metric_total": 0,
+          "metrics": {
+            "plays": 0,
+            "full_plays": 0,
+            "likes": 0,
+            "shares": 0,
+            "share_visits": 0,
+            "video_clicks": 0,
+            "product_clicks": 0,
+            "listening_seconds": 581
+          }
+        },
+        {
+          "rank": 4,
+          "song_key": "dub-reggae-01a-ras-claat-stashbox",
+          "title": "Dub Reggae 01",
+          "artist": "Stashbox",
+          "genre": "Reggae",
+          "secondary_genre": "Dub, Instrumental",
+          "metric_total": 0,
+          "metrics": {
+            "plays": 0,
+            "full_plays": 0,
+            "likes": 0,
+            "shares": 0,
+            "share_visits": 0,
+            "video_clicks": 0,
+            "product_clicks": 0,
+            "listening_seconds": 1764
+          }
+        },
+        {
+          "rank": 5,
+          "song_key": "freedom-street-002b-stashbox",
+          "title": "Freedom Street (live)",
+          "artist": "Stashbox",
+          "genre": "Reggae",
+          "secondary_genre": "",
+          "metric_total": 0,
+          "metrics": {
+            "plays": 0,
+            "full_plays": 0,
+            "likes": 0,
+            "shares": 0,
+            "share_visits": 0,
+            "video_clicks": 0,
+            "product_clicks": 0,
+            "listening_seconds": 10
+          }
+        }
+      ],
+      "campaign_song_keys": [
+        "can-you-hear-that-stashbox",
+        "culture-by-culture-02bb-stashbox",
+        "culture-by-culture-06aa-stashbox",
+        "dub-reggae-01a-ras-claat-stashbox",
+        "freedom-street-002b-stashbox"
+      ],
+      "publishing_triggered": false,
+      "mutation_performed": false,
+      "generated_at": "2026-08-02T14:21:39.165Z"
+    }
+  },
+  "dashboard": {
+    "status": "000",
+    "body": {}
+  },
+  "catalog": {
+    "status": "000",
+    "body": {}
+  }
+}
