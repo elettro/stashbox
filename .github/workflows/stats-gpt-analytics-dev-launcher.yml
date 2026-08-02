@@ -8,19 +8,27 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
-  contents: read
+  contents: write
 
 jobs:
   launch-stats-analytics:
     runs-on: ubuntu-latest
     steps:
-      - name: Launch top-song analytics DEV workflow
+      - name: Trigger top-song analytics DEV workflow by touching its file
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_PATH: .github/workflows/one-time-wire-top-song-analytics-dev.yml
         run: |
           set -euo pipefail
-          gh workflow run one-time-wire-top-song-analytics-dev.yml \
-            --repo "${GITHUB_REPOSITORY}" \
-            --ref main
-          echo "Triggered Wire top-song analytics into Social Factory DEV"
+          API_PATH="repos/${GITHUB_REPOSITORY}/contents/${TARGET_PATH}"
+          CURRENT=$(gh api "$API_PATH" -f ref=main)
+          SHA=$(printf '%s' "$CURRENT" | jq -r '.sha')
+          CONTENT=$(printf '%s' "$CURRENT" | jq -r '.content' | tr -d '\n' | base64 --decode)
+          STAMP="# launcher-trigger: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          UPDATED=$(printf '%s\n%s\n' "$CONTENT" "$STAMP" | base64 -w 0)
+          gh api --method PUT "$API_PATH" \
+            -f message='Trigger top-song analytics DEV deployment' \
+            -f content="$UPDATED" \
+            -f sha="$SHA" \
+            -f branch=main
+          echo "Triggered Wire top-song analytics into Social Factory DEV via file update"
