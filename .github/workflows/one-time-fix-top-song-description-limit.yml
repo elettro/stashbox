@@ -1,0 +1,48 @@
+name: Fix Top Song Description Length
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fix-top-song-description-limit.py'
+      - '.github/workflows/one-time-fix-top-song-description-limit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply fix
+        run: python scripts/fix-top-song-description-limit.py
+      - name: Verify description length
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('custom-gpt/stashbox-radio/openapi.yaml').read_text()
+          marker = 'operationId: getTopSongAnalytics'
+          start = text.index(marker)
+          block = text[start:text.index('      parameters:', start)]
+          line = next(x for x in block.splitlines() if x.strip().startswith('description:'))
+          description = line.split('description:', 1)[1].strip()
+          assert len(description) <= 300, len(description)
+          print('description_length=', len(description))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom-gpt/stashbox-radio/openapi.yaml
+          if git diff --cached --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git commit -m 'Shorten top-song Action description below 300 characters'
+          git pull --rebase origin main
+          git push origin HEAD:main
