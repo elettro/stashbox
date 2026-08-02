@@ -1,0 +1,76 @@
+{
+  "status": "success",
+  "recorded_at": "2026-08-02T16:31:31Z",
+  "timezone": "America/New_York",
+  "requested_schedule": [
+    "2026-08-02T13:00:00-04:00",
+    "2026-08-02T14:00:00-04:00",
+    "2026-08-02T15:00:00-04:00"
+  ],
+  "jobs": [
+    {
+      "id": "f5a2a7ff-ae3a-4394-b4d6-96035565d293",
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "song_title": "Riding Waves (Live)",
+      "artist": "Stashbox",
+      "status": "completed",
+      "duration_seconds": 60,
+      "aspect_ratio": "9:16"
+    },
+    {
+      "id": "02ddbe5d-e2be-4315-9769-760d9e2f8ec1",
+      "song_key": "palm-trees-stashbox",
+      "song_title": "Palm Trees",
+      "artist": "Stashbox",
+      "status": "completed",
+      "duration_seconds": 60,
+      "aspect_ratio": "9:16"
+    },
+    {
+      "id": "c8f84257-a677-4f23-ab69-86a77652d14d",
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "song_title": "Hippy Speedball (I'm On My Way)",
+      "artist": "Stashbox",
+      "status": "completed",
+      "duration_seconds": 60,
+      "aspect_ratio": "9:16"
+    }
+  ],
+  "staging": {
+    "staged_job_count": 3,
+    "failed_job_count": 0,
+    "review_ids": [
+      "render-f5a2a7ff-ae3a-4394-b4d6-96035565d293",
+      "render-02ddbe5d-e2be-4315-9769-760d9e2f8ec1",
+      "render-c8f84257-a677-4f23-ab69-86a77652d14d"
+    ]
+  },
+  "scheduling": {
+    "scheduled": true,
+    "mode": "batch_scheduled",
+    "item_count": 3,
+    "items": [
+      {
+        "review_id": "render-c8f84257-a677-4f23-ab69-86a77652d14d",
+        "scheduled_at": "2026-08-02T17:00:00.000Z",
+        "schedule_name": "social-review-3757628b3e698feb10d03568-8ed0841e",
+        "publishing_status": "scheduled"
+      },
+      {
+        "review_id": "render-02ddbe5d-e2be-4315-9769-760d9e2f8ec1",
+        "scheduled_at": "2026-08-02T18:00:00.000Z",
+        "schedule_name": "social-review-6d3db371d1a36f561fc1cc11-768a6fd1",
+        "publishing_status": "scheduled"
+      },
+      {
+        "review_id": "render-f5a2a7ff-ae3a-4394-b4d6-96035565d293",
+        "scheduled_at": "2026-08-02T19:00:00.000Z",
+        "schedule_name": "social-review-2b82027bab5c11282378c4c6-e814c20f",
+        "publishing_status": "scheduled"
+      }
+    ]
+  },
+  "youtube_visibility": "unlisted",
+  "notify_subscribers": false,
+  "youtube_published_during_workflow": false
+}
