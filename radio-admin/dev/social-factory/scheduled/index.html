@@ -6,6 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Scheduled Posts · Stashbox Social Factory</title>
   <link rel="stylesheet" href="/radio-admin/dev/social-factory/scheduled/scheduled.css?v=20260802-1" />
+  <link rel="stylesheet" href="/radio-admin/dev/social-factory/scheduled/scheduled-modal.css?v=20260802-2" />
 </head>
 <body data-view="list">
   <main class="shell">
@@ -13,7 +14,7 @@
       <div>
         <p class="eyebrow">Stashbox Social Factory · DEV</p>
         <h1>Scheduled Posts</h1>
-        <p class="sub">Read-only list of upcoming Social Factory posts. This page does not cancel, edit, publish, or reschedule anything.</p>
+        <p class="sub">View upcoming Social Factory posts, open details, move a schedule, or remove a scheduled post without publishing it.</p>
       </div>
       <nav class="nav" aria-label="Scheduled post views">
         <a class="button" href="/radio-admin/dev/social-factory/">Content Review</a>
@@ -46,8 +47,9 @@
     <div id="message" class="message" hidden></div>
     <section id="scheduledList" class="cards" aria-live="polite"></section>
     <p id="empty" class="empty">No scheduled posts were found.</p>
-    <p class="readonly"><strong>Safety:</strong> this page uses only <code>GET /social/review-items</code>. Schedule changes remain disabled until the cancel-and-replace workflow is repaired and verified.</p>
+    <p class="readonly"><strong>Safety:</strong> rescheduling validates first, confirms cancellation, verifies it, then creates the replacement. Deleting a scheduled post removes the active schedule but preserves the video and Content Review item.</p>
   </main>
   <script src="/radio-admin/dev/social-factory/scheduled/scheduled.js?v=20260802-1"></script>
+  <script src="/radio-admin/dev/social-factory/scheduled/scheduled-modal.js?v=20260802-2"></script>
 </body>
 </html>
