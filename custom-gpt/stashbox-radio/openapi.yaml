@@ -60,11 +60,70 @@ paths:
             type: string
       responses:
         '200':
-          description: Ranked song analytics response.
+          description: Ranked songs with exact metric totals.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericResponse'
+                type: object
+                required: [ok, mode, metric, period, count, songs, mutation_performed, publishing_triggered]
+                properties:
+                  ok:
+                    type: boolean
+                  mode:
+                    type: string
+                    enum: [read_only_analytics]
+                  metric:
+                    type: string
+                    enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
+                  period:
+                    type: string
+                    enum: [all_time]
+                  artist_filter:
+                    type: string
+                  genre_filter:
+                    type: string
+                  count:
+                    type: integer
+                  songs:
+                    type: array
+                    items:
+                      type: object
+                      required: [rank, song_key, title, metric_total]
+                      properties:
+                        rank:
+                          type: integer
+                        song_key:
+                          type: string
+                        title:
+                          type: string
+                        artist:
+                          type: string
+                        genre:
+                          type: string
+                        metric_total:
+                          type: number
+                        metrics:
+                          type: object
+                          properties:
+                            plays: {type: number}
+                            full_plays: {type: number}
+                            likes: {type: number}
+                            shares: {type: number}
+                            share_visits: {type: number}
+                            video_clicks: {type: number}
+                            product_clicks: {type: number}
+                            listening_seconds: {type: number}
+                  campaign_song_keys:
+                    type: array
+                    items:
+                      type: string
+                  mutation_performed:
+                    type: boolean
+                  publishing_triggered:
+                    type: boolean
+                  generated_at:
+                    type: string
+                    format: date-time
   /social/orchestration/candidates:
     get:
       operationId: listSocialCampaignCandidates
