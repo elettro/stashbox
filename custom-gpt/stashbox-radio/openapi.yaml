@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Stashbox Radio Social Factory API
-  version: 0.8.0
+  version: 0.8.1
   description: Controlled DEV actions for Stashbox Radio campaign planning, Video Factory orchestration, Content Review, scheduling, and YouTube operations.
 servers:
   - url: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
@@ -26,7 +26,14 @@ paths:
       operationId: listSocialCampaignCandidates
       summary: List eligible songs including normalized date fields used for newest-song selection.
       parameters:
-        - $ref: '#/components/parameters/Limit'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+            default: 50
       responses:
         '200':
           description: Candidate songs with readiness, featured state, and normalized dates.
@@ -70,7 +77,14 @@ paths:
       operationId: listSocialRenderJobs
       summary: List Video Factory render jobs and current status.
       parameters:
-        - $ref: '#/components/parameters/Limit'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+            default: 50
       responses:
         '200': {description: Render jobs, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
     post:
@@ -88,7 +102,11 @@ paths:
       operationId: getSocialRenderJob
       summary: Inspect one render job.
       parameters:
-        - $ref: '#/components/parameters/JobId'
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200': {description: Render job, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/orchestration/render-jobs/{jobId}/launch:
@@ -96,7 +114,11 @@ paths:
       operationId: validateOrLaunchSocialRender
       summary: Validate or launch one render.
       parameters:
-        - $ref: '#/components/parameters/JobId'
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: false
         content:
@@ -112,7 +134,11 @@ paths:
       operationId: stageCompletedRenderForReview
       summary: Stage one completed render into Content Review.
       parameters:
-        - $ref: '#/components/parameters/JobId'
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200': {description: Staging result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/orchestration/batch-jobs:
@@ -204,7 +230,14 @@ paths:
       operationId: listSocialContentReviewItems
       summary: List Content Review items.
       parameters:
-        - $ref: '#/components/parameters/Limit'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+            default: 50
       responses:
         '200': {description: Review items, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/review-items/{reviewId}:
@@ -212,7 +245,11 @@ paths:
       operationId: getSocialContentReviewItem
       summary: Inspect one Content Review item.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200': {description: Review item, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/review-items/{reviewId}/preview:
@@ -220,7 +257,11 @@ paths:
       operationId: createSocialContentPreview
       summary: Create a secure read-only reviewer link.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200': {description: Secure reviewer URL, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/review-items/{reviewId}/save:
@@ -228,12 +269,45 @@ paths:
       operationId: saveSocialContentReviewEdits
       summary: Save review metadata without approving or publishing.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
-            schema: {type: object, additionalProperties: true}
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                selected_title:
+                  type: string
+                selected_description:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                visibility:
+                  type: string
+                  enum: [public, unlisted, private]
+                playlist_titles:
+                  type: array
+                  items:
+                    type: string
+                scheduled_at:
+                  type: [string, 'null']
+                  format: date-time
+                timezone:
+                  type: string
+                note:
+                  type: string
+              additionalProperties: false
       responses:
         '200': {description: Saved review item, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/review-items/{reviewId}/decision:
@@ -241,7 +315,11 @@ paths:
       operationId: setSocialContentReviewDecision
       summary: Approve, hold, or reject a review item.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -259,7 +337,11 @@ paths:
       operationId: validateOrPublishSocialContent
       summary: Validate or publish a review item.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: false
         content:
@@ -275,7 +357,11 @@ paths:
       operationId: validateOrScheduleSocialContent
       summary: Validate or schedule publication.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -294,7 +380,11 @@ paths:
       operationId: cancelScheduledSocialContent
       summary: Cancel a scheduled publication.
       parameters:
-        - $ref: '#/components/parameters/ReviewId'
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200': {description: Cancellation result, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
 components:
