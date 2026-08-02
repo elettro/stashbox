@@ -3,6 +3,7 @@
 
   const reviewItems = new Map();
   const originalFetch = window.fetch.bind(window);
+  let enhanceScheduled = false;
 
   function clean(value) {
     return String(value ?? '').trim();
@@ -91,7 +92,7 @@
     const selected = info.selected || 'not reported';
     const rule = info.rule || 'not reported';
     row.innerHTML = [
-      `<strong>Profile artwork</strong>`,
+      '<strong>Profile artwork</strong>',
       `<span>Requested: ${escapeHtml(requested)}</span>`,
       `<span>Selected: ${escapeHtml(selected)}</span>`,
       `<span>Rule: ${escapeHtml(rule.replaceAll('_', ' '))}</span>`
@@ -130,18 +131,37 @@
     preview.appendChild(retry);
   }
 
-  function autoLoadPreview(card) {
-    if (card.dataset.previewAutoloaded === 'true') return;
-    const preview = card.querySelector('.preview');
-    const button = card.querySelector('.card-actions .btn.primary');
-    if (!preview || !button) return;
-    if (preview.querySelector('video, .spinner')) return;
+  function ensureVideoControls(preview) {
+    const video = preview.querySelector('video');
+    if (!video) return;
 
-    card.dataset.previewAutoloaded = 'true';
-    window.setTimeout(() => button.click(), 80);
+    video.controls = true;
+    video.setAttribute('controls', '');
+    video.playsInline = true;
+    video.preload = 'metadata';
+    video.removeAttribute('autoplay');
+
+    if (preview.querySelector('.preview-play-toggle')) return;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'preview-play-toggle';
+    toggle.textContent = video.paused ? 'Play' : 'Pause';
+    toggle.setAttribute('aria-label', 'Play or pause preview video');
+    toggle.addEventListener('click', async () => {
+      if (video.paused) {
+        try { await video.play(); } catch (_) { /* Native controls remain available. */ }
+      } else {
+        video.pause();
+      }
+    });
+    video.addEventListener('play', () => { toggle.textContent = 'Pause'; });
+    video.addEventListener('pause', () => { toggle.textContent = 'Play'; });
+    video.addEventListener('ended', () => { toggle.textContent = 'Play'; });
+    preview.appendChild(toggle);
   }
 
   function enhance() {
+    enhanceScheduled = false;
     const grid = document.getElementById('grid');
     if (!grid) return;
     const cards = [...grid.querySelectorAll('.card')];
@@ -150,12 +170,30 @@
     for (const card of cards) {
       ensureArtworkMetadata(card);
       const preview = card.querySelector('.preview');
-      if (preview) ensureRetry(preview);
-      autoLoadPreview(card);
+      if (!preview) continue;
+      ensureRetry(preview);
+      ensureVideoControls(preview);
     }
   }
 
-  const observer = new MutationObserver(enhance);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  document.addEventListener('DOMContentLoaded', enhance);
+  function scheduleEnhance() {
+    if (enhanceScheduled) return;
+    enhanceScheduled = true;
+    window.requestAnimationFrame(enhance);
+  }
+
+  // Observe only the campaign grid. This avoids document-wide mutation loops and
+  // prevents the card from repeatedly rebuilding while the user scrolls.
+  function start() {
+    const grid = document.getElementById('grid');
+    if (!grid) {
+      window.setTimeout(start, 100);
+      return;
+    }
+    const observer = new MutationObserver(scheduleEnhance);
+    observer.observe(grid, { childList: true, subtree: true });
+    scheduleEnhance();
+  }
+
+  document.addEventListener('DOMContentLoaded', start);
 })();
