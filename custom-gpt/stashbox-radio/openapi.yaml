@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Stashbox Radio Social Factory API
-  version: 0.9.3
+  version: 0.9.4
   description: Controlled DEV actions for Stashbox Radio campaign planning, Video Factory orchestration, Content Review, scheduling, and YouTube operations.
 servers:
   - url: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
@@ -60,70 +60,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Ranked songs with exact metric totals.
+          description: Ranked song analytics response.
           content:
             application/json:
               schema:
-                type: object
-                required: [ok, mode, metric, period, count, songs, mutation_performed, publishing_triggered]
-                properties:
-                  ok:
-                    type: boolean
-                  mode:
-                    type: string
-                    enum: [read_only_analytics]
-                  metric:
-                    type: string
-                    enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
-                  period:
-                    type: string
-                    enum: [all_time]
-                  artist_filter:
-                    type: string
-                  genre_filter:
-                    type: string
-                  count:
-                    type: integer
-                  songs:
-                    type: array
-                    items:
-                      type: object
-                      required: [rank, song_key, title, metric_total]
-                      properties:
-                        rank:
-                          type: integer
-                        song_key:
-                          type: string
-                        title:
-                          type: string
-                        artist:
-                          type: string
-                        genre:
-                          type: string
-                        metric_total:
-                          type: number
-                        metrics:
-                          type: object
-                          properties:
-                            plays: {type: number}
-                            full_plays: {type: number}
-                            likes: {type: number}
-                            shares: {type: number}
-                            share_visits: {type: number}
-                            video_clicks: {type: number}
-                            product_clicks: {type: number}
-                            listening_seconds: {type: number}
-                  campaign_song_keys:
-                    type: array
-                    items:
-                      type: string
-                  mutation_performed:
-                    type: boolean
-                  publishing_triggered:
-                    type: boolean
-                  generated_at:
-                    type: string
-                    format: date-time
+                $ref: '#/components/schemas/GenericResponse'
   /social/orchestration/candidates:
     get:
       operationId: listSocialCampaignCandidates
