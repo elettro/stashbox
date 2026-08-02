@@ -17,7 +17,10 @@
     .replace(/^-+|-+$/g, '') || 'stashbox';
 
   function loadPortraitArtworkReliability() {
-    if (window.StashboxPortraitArtworkRule || document.querySelector('script[data-stashbox-portrait-artwork-rule]')) return;
+    if (
+      window.StashboxPortraitArtworkRule ||
+      document.querySelector('script[data-stashbox-portrait-artwork-rule], script[src*="v2-portrait-artwork-reliability.js"]')
+    ) return;
     const script = document.createElement('script');
     script.src = '/radio/dev/v2/v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1';
     script.defer = true;
