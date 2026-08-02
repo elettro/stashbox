@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Campaign Review | Stashbox Social Factory</title>
 <link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-review/campaign-review.css?v=20260801-1">
-<link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-review/campaign-review-fixes.css?v=20260801-2">
+<link rel="stylesheet" href="/radio-admin/dev/social-factory/campaign-review/campaign-review-fixes.css?v=20260801-3">
 
 </head>
 <body>
@@ -23,7 +23,7 @@
   </header>
 
   <section class="panel auth" id="authPanel">
-    <input id="token" type="password" autocomplete="off" placeholder="Paste Social Factory DEV admin token">
+    <input id="token" name="social-factory-dev-token" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" placeholder="Paste Social Factory DEV admin token">
     <button class="btn primary" id="saveToken" type="button">Save token</button>
     <button class="btn" id="clearToken" type="button">Clear token</button>
   </section>
@@ -55,7 +55,7 @@
   </section>
 
   <section class="panel toolbar">
-    <input id="search" placeholder="Search song, artist, review ID, or render job">
+    <input id="search" name="campaign-review-filter" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" placeholder="Search song, artist, review ID, or render job">
     <select id="reviewFilter">
       <option value="all">All review statuses</option>
       <option value="in_review">In review</option>
@@ -95,7 +95,7 @@
 
   <section class="grid" id="grid"></section>
 </main>
-<script src="/radio-admin/dev/social-factory/campaign-review/campaign-review-fixes.js?v=20260801-2"></script>
+<script src="/radio-admin/dev/social-factory/campaign-review/campaign-review-fixes.js?v=20260801-3"></script>
 <script src="/radio-admin/dev/social-factory/campaign-review/campaign-review.js?v=20260801-1"></script>
 </body>
 </html>
