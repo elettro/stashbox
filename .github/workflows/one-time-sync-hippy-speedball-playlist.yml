@@ -27,183 +27,139 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Locate Hippy Speedball and sync playlist
+      - name: Locate video, insert it, and verify playlist membership
         shell: bash
         run: |
           set -euo pipefail
 
-          BASE_URL=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" \
-            --output text)
-          CONFIG_SECRET=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" \
-            --output text)
-          TOKEN_SECRET=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthTokenSecretArn'].OutputValue" \
-            --output text)
+          CONFIG_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" --output text)
+          TOKEN_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthTokenSecretArn'].OutputValue" --output text)
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
 
-          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/youtube-config.json
-          aws secretsmanager get-secret-value --secret-id "$TOKEN_SECRET" --query SecretString --output text > /tmp/youtube-tokens.json
+          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/config.json
+          aws secretsmanager get-secret-value --secret-id "$TOKEN_SECRET" --query SecretString --output text > /tmp/tokens.json
 
-          ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/youtube-config.json)
-          CLIENT_ID=$(jq -r '.client_id // empty' /tmp/youtube-config.json)
-          CLIENT_SECRET=$(jq -r '.client_secret // empty' /tmp/youtube-config.json)
-          REFRESH_TOKEN=$(jq -r '.refresh_token // empty' /tmp/youtube-tokens.json)
-          STORED_SCOPE=$(jq -r '.scope // ""' /tmp/youtube-tokens.json)
+          CLIENT_ID=$(jq -r '.client_id // empty' /tmp/config.json)
+          CLIENT_SECRET=$(jq -r '.client_secret // empty' /tmp/config.json)
+          ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/config.json)
+          REFRESH_TOKEN=$(jq -r '.refresh_token // empty' /tmp/tokens.json)
+          STORED_SCOPE=$(jq -r '.scope // ""' /tmp/tokens.json)
 
-          test -n "$ADMIN_TOKEN"
-          test -n "$CLIENT_ID"
-          test -n "$CLIENT_SECRET"
-          test -n "$REFRESH_TOKEN"
-
-          REVIEWS_STATUS=$(curl --silent --show-error --max-time 60 \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -o /tmp/reviews.json -w '%{http_code}' \
-            "${BASE_URL}/social/review-items?limit=250&include_hidden=true")
-          test "$REVIEWS_STATUS" = '200'
-
-          jq '[.items[]? | select(((.title // .selected_title // .song_title // "") | ascii_downcase) | contains("hippy speedball"))] | sort_by(.published_at // .updated_at // "") | reverse | .[0] // {}' /tmp/reviews.json > /tmp/hippy-review.json
-
-          REVIEW_ID=$(jq -r '.id // .review_id // empty' /tmp/hippy-review.json)
-          VIDEO_ID=$(jq -r '.platform_results.youtube.video_id // .platform_results.youtube.youtube_video_id // .youtube_video_id // empty' /tmp/hippy-review.json)
-          YOUTUBE_URL=$(jq -r '.platform_results.youtube.url // .youtube_url // empty' /tmp/hippy-review.json)
-
-          if [ -z "$VIDEO_ID" ] && [[ "$YOUTUBE_URL" == *"v="* ]]; then
-            VIDEO_ID="${YOUTUBE_URL##*v=}"
-            VIDEO_ID="${VIDEO_ID%%&*}"
-          fi
-          if [ -z "$VIDEO_ID" ] && [[ "$YOUTUBE_URL" == *"youtu.be/"* ]]; then
-            VIDEO_ID="${YOUTUBE_URL##*/}"
-            VIDEO_ID="${VIDEO_ID%%\?*}"
-          fi
-
-          TOKEN_STATUS=$(curl --silent --show-error --max-time 60 \
-            -o /tmp/token-refresh.json -w '%{http_code}' \
+          TOKEN_HTTP=$(curl -sS --max-time 60 -o /tmp/refresh.json -w '%{http_code}' \
             -X POST 'https://oauth2.googleapis.com/token' \
             -H 'Content-Type: application/x-www-form-urlencoded' \
-            --data-urlencode "client_id=${CLIENT_ID}" \
-            --data-urlencode "client_secret=${CLIENT_SECRET}" \
-            --data-urlencode "refresh_token=${REFRESH_TOKEN}" \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$REFRESH_TOKEN" \
             --data-urlencode 'grant_type=refresh_token')
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' /tmp/refresh.json)
 
-          ACCESS_TOKEN=$(jq -r '.access_token // empty' /tmp/token-refresh.json)
-          if [ "$TOKEN_STATUS" != '200' ] || [ -z "$ACCESS_TOKEN" ]; then
-            ERROR_REASON=$(jq -r '.error_description // .error // "youtube_token_refresh_failed"' /tmp/token-refresh.json)
-            jq -n \
-              --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-              --arg review_id "$REVIEW_ID" \
-              --arg stored_scope "$STORED_SCOPE" \
-              --arg error "$ERROR_REASON" \
-              '{status:"blocked",recorded_at:$recorded_at,review_id:($review_id|select(length>0)),playlist_title:"Stashbox Radio - Video Library - Stashbox",playlist_id:"PLYQleZVJh2Jo",stored_scope:$stored_scope,reconnect_required:true,mutation_performed:false,error:$error}' > "$REPORT_PATH"
-            exit 0
-          fi
+          REVIEW_ID=''
+          VIDEO_ID=''
+          VIDEO_TITLE=''
+          ERROR=''
+          RECONNECT_REQUIRED=false
+          MUTATION_PERFORMED=false
+          ALREADY_PRESENT=false
+          PRESENT_AFTER=false
+          INSERT_HTTP='not_attempted'
 
-          if [ -z "$VIDEO_ID" ]; then
-            SEARCH_STATUS=$(curl --silent --show-error --max-time 60 \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-              -o /tmp/youtube-search.json -w '%{http_code}' \
+          if [ "$TOKEN_HTTP" = '200' ] && [ -n "$ACCESS_TOKEN" ]; then
+            SEARCH_HTTP=$(curl -sS --max-time 60 -o /tmp/search.json -w '%{http_code}' \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
               --get 'https://www.googleapis.com/youtube/v3/search' \
               --data-urlencode 'part=snippet' \
               --data-urlencode 'forMine=true' \
               --data-urlencode 'type=video' \
-              --data-urlencode 'maxResults=25' \
+              --data-urlencode 'order=date' \
+              --data-urlencode 'maxResults=50' \
               --data-urlencode 'q=Hippy Speedball')
-            if [ "$SEARCH_STATUS" = '200' ]; then
-              VIDEO_ID=$(jq -r '[.items[]? | select((.snippet.title // "" | ascii_downcase) | contains("hippy speedball"))][0].id.videoId // empty' /tmp/youtube-search.json)
+            if [ "$SEARCH_HTTP" = '200' ]; then
+              VIDEO_ID=$(jq -r '[.items[]? | select(((.snippet.title // "") | ascii_downcase) as $t | ($t|contains("hippy")) and ($t|contains("speedball")))][0].id.videoId // empty' /tmp/search.json)
+              VIDEO_TITLE=$(jq -r --arg id "$VIDEO_ID" '[.items[]? | select(.id.videoId == $id)][0].snippet.title // empty' /tmp/search.json)
             fi
-          fi
 
-          if [ -z "$VIDEO_ID" ]; then
-            jq -n \
-              --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-              --arg review_id "$REVIEW_ID" \
-              --arg stored_scope "$STORED_SCOPE" \
-              '{status:"blocked",recorded_at:$recorded_at,review_id:($review_id|select(length>0)),playlist_title:"Stashbox Radio - Video Library - Stashbox",playlist_id:"PLYQleZVJh2Jo",stored_scope:$stored_scope,reconnect_required:false,mutation_performed:false,error:"hippy_speedball_youtube_video_id_not_found"}' > "$REPORT_PATH"
-            exit 0
-          fi
+            REVIEWS_HTTP=$(curl -sS --max-time 60 -o /tmp/reviews.json -w '%{http_code}' \
+              -H "x-admin-token: $ADMIN_TOKEN" \
+              "$BASE_URL/social/review-items?limit=250&include_hidden=true")
+            if [ "$REVIEWS_HTTP" = '200' ]; then
+              jq '[.items[]? | select((([.title,.selected_title,.song_title,.song_name,.description] | map(. // "") | join(" ") | ascii_downcase) as $t | ($t|contains("hippy")) and ($t|contains("speedball"))))] | sort_by(.published_at // .updated_at // "") | reverse | .[0] // {}' /tmp/reviews.json > /tmp/review.json
+              REVIEW_ID=$(jq -r '.id // .review_id // empty' /tmp/review.json)
+              if [ -z "$VIDEO_ID" ]; then
+                VIDEO_ID=$(jq -r '.platform_results.youtube.video_id // .platform_results.youtube.youtube_video_id // .youtube_video_id // empty' /tmp/review.json)
+              fi
+              if [ -z "$VIDEO_TITLE" ]; then VIDEO_TITLE=$(jq -r '.title // .selected_title // .song_title // empty' /tmp/review.json); fi
+              URL=$(jq -r '.platform_results.youtube.url // .youtube_url // empty' /tmp/review.json)
+              if [ -z "$VIDEO_ID" ] && [[ "$URL" == *"v="* ]]; then VIDEO_ID="${URL##*v=}"; VIDEO_ID="${VIDEO_ID%%&*}"; fi
+              if [ -z "$VIDEO_ID" ] && [[ "$URL" == *"youtu.be/"* ]]; then VIDEO_ID="${URL##*/}"; VIDEO_ID="${VIDEO_ID%%\?*}"; fi
+            fi
 
-          VERIFY_BEFORE_STATUS=$(curl --silent --show-error --max-time 60 \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -o /tmp/playlist-before.json -w '%{http_code}' \
-            --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
-            --data-urlencode 'part=id,snippet' \
-            --data-urlencode "playlistId=${PLAYLIST_ID}" \
-            --data-urlencode "videoId=${VIDEO_ID}" \
-            --data-urlencode 'maxResults=5')
+            if [ -n "$VIDEO_ID" ]; then
+              BEFORE_HTTP=$(curl -sS --max-time 60 -o /tmp/before.json -w '%{http_code}' \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
+                --data-urlencode 'part=id,snippet' \
+                --data-urlencode "playlistId=$PLAYLIST_ID" \
+                --data-urlencode "videoId=$VIDEO_ID" \
+                --data-urlencode 'maxResults=5')
+              if [ "$BEFORE_HTTP" = '200' ] && [ "$(jq '.items|length' /tmp/before.json)" -gt 0 ]; then ALREADY_PRESENT=true; fi
 
-          ALREADY_PRESENT=false
-          if [ "$VERIFY_BEFORE_STATUS" = '200' ] && [ "$(jq '.items | length' /tmp/playlist-before.json)" -gt 0 ]; then
-            ALREADY_PRESENT=true
-          fi
+              if [ "$ALREADY_PRESENT" != 'true' ]; then
+                jq -n --arg p "$PLAYLIST_ID" --arg v "$VIDEO_ID" '{snippet:{playlistId:$p,resourceId:{kind:"youtube#video",videoId:$v}}}' > /tmp/insert-body.json
+                INSERT_HTTP=$(curl -sS --max-time 60 -o /tmp/insert.json -w '%{http_code}' \
+                  -X POST 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet' \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" \
+                  -H 'Content-Type: application/json' \
+                  --data-binary @/tmp/insert-body.json)
+                if [ "$INSERT_HTTP" = '200' ]; then
+                  MUTATION_PERFORMED=true
+                else
+                  ERROR=$(jq -r '.error.errors[0].reason // .error.message // "playlist_insert_failed"' /tmp/insert.json)
+                  case "$ERROR" in insufficientPermissions|forbidden|youtubeSignupRequired) RECONNECT_REQUIRED=true;; esac
+                fi
+              else
+                INSERT_HTTP='already_present'
+              fi
 
-          INSERT_STATUS='not_needed'
-          ERROR_REASON=''
-          RECONNECT_REQUIRED=false
-          MUTATION_PERFORMED=false
-
-          if [ "$ALREADY_PRESENT" != 'true' ]; then
-            jq -n --arg playlist_id "$PLAYLIST_ID" --arg video_id "$VIDEO_ID" \
-              '{snippet:{playlistId:$playlist_id,resourceId:{kind:"youtube#video",videoId:$video_id}}}' > /tmp/playlist-insert-body.json
-            INSERT_STATUS=$(curl --silent --show-error --max-time 60 \
-              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-              -H 'Content-Type: application/json' \
-              -o /tmp/playlist-insert.json -w '%{http_code}' \
-              -X POST 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet' \
-              --data-binary @/tmp/playlist-insert-body.json)
-
-            if [ "$INSERT_STATUS" = '200' ]; then
-              MUTATION_PERFORMED=true
+              AFTER_HTTP=$(curl -sS --max-time 60 -o /tmp/after.json -w '%{http_code}' \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
+                --data-urlencode 'part=id,snippet' \
+                --data-urlencode "playlistId=$PLAYLIST_ID" \
+                --data-urlencode "videoId=$VIDEO_ID" \
+                --data-urlencode 'maxResults=5')
+              if [ "$AFTER_HTTP" = '200' ] && [ "$(jq '.items|length' /tmp/after.json)" -gt 0 ]; then PRESENT_AFTER=true; fi
             else
-              ERROR_REASON=$(jq -r '.error.errors[0].reason // .error.message // "playlist_insert_failed"' /tmp/playlist-insert.json)
-              case "$ERROR_REASON" in
-                insufficientPermissions|forbidden|youtubeSignupRequired) RECONNECT_REQUIRED=true ;;
-              esac
+              ERROR='hippy_speedball_youtube_video_id_not_found'
             fi
+          else
+            ERROR=$(jq -r '.error_description // .error // "youtube_token_refresh_failed"' /tmp/refresh.json)
+            RECONNECT_REQUIRED=true
           fi
 
-          VERIFY_AFTER_STATUS=$(curl --silent --show-error --max-time 60 \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -o /tmp/playlist-after.json -w '%{http_code}' \
-            --get 'https://www.googleapis.com/youtube/v3/playlistItems' \
-            --data-urlencode 'part=id,snippet' \
-            --data-urlencode "playlistId=${PLAYLIST_ID}" \
-            --data-urlencode "videoId=${VIDEO_ID}" \
-            --data-urlencode 'maxResults=5')
-
-          PRESENT_AFTER=false
-          if [ "$VERIFY_AFTER_STATUS" = '200' ] && [ "$(jq '.items | length' /tmp/playlist-after.json)" -gt 0 ]; then
-            PRESENT_AFTER=true
-          fi
-
-          STATUS='blocked'
-          if [ "$PRESENT_AFTER" = 'true' ]; then STATUS='success'; fi
-
+          STATUS='blocked'; if [ "$PRESENT_AFTER" = 'true' ]; then STATUS='success'; fi
           jq -n \
             --arg status "$STATUS" \
             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --arg review_id "$REVIEW_ID" \
             --arg video_id "$VIDEO_ID" \
+            --arg video_title "$VIDEO_TITLE" \
             --arg playlist_title "$PLAYLIST_TITLE" \
             --arg playlist_id "$PLAYLIST_ID" \
             --arg stored_scope "$STORED_SCOPE" \
-            --arg insert_http_status "$INSERT_STATUS" \
-            --arg error "$ERROR_REASON" \
+            --arg insert_http_status "$INSERT_HTTP" \
+            --arg error "$ERROR" \
             --argjson already_present "$ALREADY_PRESENT" \
             --argjson present_after "$PRESENT_AFTER" \
             --argjson reconnect_required "$RECONNECT_REQUIRED" \
             --argjson mutation_performed "$MUTATION_PERFORMED" \
-            '{status:$status,recorded_at:$recorded_at,review_id:($review_id|select(length>0)),youtube_video_id:$video_id,playlist_title:$playlist_title,playlist_id:$playlist_id,stored_scope:$stored_scope,already_present:$already_present,present_after:$present_after,insert_http_status:$insert_http_status,reconnect_required:$reconnect_required,mutation_performed:$mutation_performed,error:($error|select(length>0))}' \
-            > "$REPORT_PATH"
+            '{status:$status,recorded_at:$recorded_at,review_id:(if $review_id=="" then null else $review_id end),youtube_video_id:(if $video_id=="" then null else $video_id end),youtube_title:(if $video_title=="" then null else $video_title end),playlist_title:$playlist_title,playlist_id:$playlist_id,stored_scope:$stored_scope,already_present:$already_present,present_after:$present_after,insert_http_status:$insert_http_status,reconnect_required:$reconnect_required,mutation_performed:$mutation_performed,error:(if $error=="" then null else $error end)}' > "$REPORT_PATH"
 
       - name: Commit playlist sync receipt
         shell: bash
@@ -211,7 +167,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "${REPORT_PATH}"
-          git commit -m 'Record Hippy Speedball playlist sync [skip ci]'
+          git add "$REPORT_PATH"
+          git commit -m 'Record Hippy Speedball playlist sync retry [skip ci]'
           git pull --rebase origin main
           git push origin HEAD:main
