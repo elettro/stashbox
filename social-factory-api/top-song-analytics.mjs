@@ -1,13 +1,13 @@
 const DEFAULT_RADIO_API_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const METRICS = new Map([
-  ['plays', 'total_plays'],
-  ['full_plays', 'full_play_count'],
-  ['likes', 'like_count'],
-  ['shares', 'share_count'],
-  ['share_visits', 'share_link_visits'],
-  ['video_clicks', 'video_clicks'],
-  ['product_clicks', 'product_clicks'],
-  ['listening_seconds', 'total_seconds_played']
+  ['plays', ['total_plays', 'play_count', 'plays', 'total_play_count', 'play_start_count']],
+  ['full_plays', ['full_play_count', 'total_full_plays', 'full_plays', 'play_full_count']],
+  ['likes', ['like_count', 'total_likes', 'likes']],
+  ['shares', ['share_count', 'total_shares', 'shares']],
+  ['share_visits', ['share_link_visits', 'share_visit_count', 'share_visits']],
+  ['video_clicks', ['video_clicks', 'video_click_count']],
+  ['product_clicks', ['product_clicks', 'product_click_count']],
+  ['listening_seconds', ['total_seconds_played', 'listening_seconds', 'seconds_played']]
 ]);
 
 function serviceError(message, statusCode = 400, details) {
@@ -24,6 +24,15 @@ function clean(value) {
 function number(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function firstNumber(row, fields = []) {
+  for (const field of fields) {
+    if (row?.[field] === null || row?.[field] === undefined || row?.[field] === '') continue;
+    const parsed = Number(row[field]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
 }
 
 function limitValue(value) {
@@ -86,9 +95,9 @@ export function createTopSongAnalyticsService({
       const artist = clean(query.artist).toLowerCase();
       const genre = clean(query.genre).toLowerCase();
       const limit = limitValue(query.limit);
-      const field = METRICS.get(metric);
+      const metricFields = METRICS.get(metric);
 
-      if (!field) {
+      if (!metricFields) {
         throw serviceError('unsupported_metric', 422, { supported_metrics: [...METRICS.keys()] });
       }
 
@@ -130,6 +139,16 @@ export function createTopSongAnalyticsService({
             ...normalizeGenreValue(primaryGenre),
             ...normalizeGenreValue(secondaryGenre)
           ];
+          const metrics = {
+            plays: firstNumber(row, METRICS.get('plays')),
+            full_plays: firstNumber(row, METRICS.get('full_plays')),
+            likes: firstNumber(row, METRICS.get('likes')),
+            shares: firstNumber(row, METRICS.get('shares')),
+            share_visits: firstNumber(row, METRICS.get('share_visits')),
+            video_clicks: firstNumber(row, METRICS.get('video_clicks')),
+            product_clicks: firstNumber(row, METRICS.get('product_clicks')),
+            listening_seconds: firstNumber(row, METRICS.get('listening_seconds'))
+          };
 
           return {
             song_key: key,
@@ -138,17 +157,8 @@ export function createTopSongAnalyticsService({
             genre: primaryGenre || secondaryGenre || 'Other',
             secondary_genre: secondaryGenre,
             genre_values: genreValues,
-            metric_total: number(row[field]),
-            metrics: {
-              plays: number(row.total_plays),
-              full_plays: number(row.full_play_count),
-              likes: number(row.like_count ?? row.total_likes),
-              shares: number(row.share_count ?? row.total_shares),
-              share_visits: number(row.share_link_visits),
-              video_clicks: number(row.video_clicks),
-              product_clicks: number(row.product_clicks),
-              listening_seconds: number(row.total_seconds_played)
-            }
+            metric_total: firstNumber(row, metricFields),
+            metrics
           };
         })
         .filter((row) => row.song_key)
