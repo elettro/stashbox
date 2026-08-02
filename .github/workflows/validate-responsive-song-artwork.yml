@@ -10,7 +10,12 @@ on:
       - 'radio/dev/responsive-song-artwork.js'
       - 'radio/dev/notifications.js'
       - 'radio/dev/v2/v2-responsive-song-artwork.js'
+      - 'radio/dev/v2/v2-portrait-artwork-reliability.js'
+      - 'radio/dev/v2/v2-page-overlay.js'
       - 'radio/dev/v2/index.html'
+      - 'radio/dev/v2/artist/index.html'
+      - 'radio-api/tests/responsive-prepared-artwork.test.mjs'
+      - 'radio-api/tests/portrait-artwork-reliability.test.mjs'
 
 permissions:
   contents: read
@@ -33,11 +38,20 @@ jobs:
           node --check radio/dev/responsive-song-artwork.js
           node --check radio/dev/notifications.js
           node --check radio/dev/v2/v2-responsive-song-artwork.js
+          node --check radio/dev/v2/v2-portrait-artwork-reliability.js
+          node --check radio/dev/v2/v2-page-overlay.js
+
+      - name: Run responsive artwork tests
+        run: |
+          node --test radio-api/tests/responsive-prepared-artwork.test.mjs
+          node --test radio-api/tests/portrait-artwork-reliability.test.mjs
 
       - name: Verify player loaders
         run: |
           grep -q "responsive-song-artwork.js" radio/dev/notifications.js
           grep -q "v2-responsive-song-artwork.js" radio/dev/v2/index.html
+          grep -q "v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1" radio/dev/v2/index.html
+          grep -q "v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1" radio/dev/v2/artist/index.html
 
       - name: Verify breakpoint and fallback policy
         run: |
@@ -45,3 +59,4 @@ jobs:
           grep -q "width >= 1800" radio/dev/responsive-song-artwork.js
           grep -q "\['9x16', '4x5', '3x4', '1x1'\]" radio/dev/responsive-song-artwork.js
           grep -q "\['21x9', '16x9', '1x1'\]" radio/dev/v2/v2-responsive-song-artwork.js
+          grep -q "\['9x16', '3x4', '4x5', '1x1'\]" radio/dev/v2/v2-portrait-artwork-reliability.js
