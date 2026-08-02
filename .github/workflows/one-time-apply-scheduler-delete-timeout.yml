@@ -1,0 +1,42 @@
+name: Apply Scheduler Delete Timeout
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply timeout patch
+        run: node social-factory-api/scripts/apply-scheduler-delete-timeout.mjs
+
+      - name: Install dependencies
+        working-directory: social-factory-api
+        run: npm ci
+
+      - name: Run scheduling tests
+        working-directory: social-factory-api
+        run: npm test -- --test-name-pattern='schedule|cancel'
+
+      - name: Commit backend patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/schedule-publish.mjs
+          git commit -m "Bound AWS Scheduler cancellation latency" || true
+          git pull --rebase origin main
+          git push origin HEAD:main
