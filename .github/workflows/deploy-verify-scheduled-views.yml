@@ -1,0 +1,49 @@
+name: Deploy and Verify Scheduled Views
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-verify-scheduled-views.yml'
+      - 'radio-admin/dev/social-factory/scheduled/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Confirm scheduled view files exist
+        run: |
+          set -euo pipefail
+          test -f radio-admin/dev/social-factory/scheduled/index.html
+          test -f radio-admin/dev/social-factory/scheduled/scheduled.css
+          test -f radio-admin/dev/social-factory/scheduled/scheduled.js
+          test -f radio-admin/dev/social-factory/scheduled/calendar/index.html
+
+      - name: Wait for live list and calendar pages
+        run: |
+          set -euo pipefail
+          LIST_URL='https://stashbox.com/radio-admin/dev/social-factory/scheduled/'
+          CAL_URL='https://stashbox.com/radio-admin/dev/social-factory/scheduled/calendar/'
+          ready=false
+          for attempt in $(seq 1 80); do
+            list_status=$(curl -L -sS --max-time 30 -o /tmp/list.html -w '%{http_code}' "${LIST_URL}" || true)
+            cal_status=$(curl -L -sS --max-time 30 -o /tmp/calendar.html -w '%{http_code}' "${CAL_URL}" || true)
+            echo "Attempt ${attempt}: list=${list_status}, calendar=${cal_status}"
+            if [ "${list_status}" = '200' ] && [ "${cal_status}" = '200' ] \
+              && grep -Fq 'Scheduled Posts' /tmp/list.html \
+              && grep -Fq 'Scheduled Calendar' /tmp/calendar.html; then
+              ready=true
+              break
+            fi
+            sleep 15
+          done
+          test "${ready}" = 'true'
