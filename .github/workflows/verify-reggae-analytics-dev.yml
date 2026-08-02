@@ -1,0 +1,45 @@
+name: Verify Reggae Analytics DEV
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-reggae-analytics-dev.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify all-time reggae plays analytics
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id stashbox/social-factory/dev/custom-gpt --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+          URL="${BASE_URL}/social/analytics/top-songs?metric=plays&limit=5&period=all_time&genre=reggae"
+          STATUS=$(curl --silent --show-error --max-time 60 \
+            -H "x-admin-token: ${GPT_TOKEN}" \
+            -o /tmp/reggae.json -w '%{http_code}' \
+            "$URL")
+          echo "HTTP status: ${STATUS}"
+          echo "Safe response body:"
+          jq 'del(.preview_url, .signed_url, .token, .api_key)' /tmp/reggae.json 2>/dev/null || cat /tmp/reggae.json
+          test "${STATUS}" = '200'
+          jq -e '.ok == true and .mode == "read_only_analytics"' /tmp/reggae.json >/dev/null
+          jq -e '.metric == "plays" and .period == "all_time" and .genre_filter == "reggae"' /tmp/reggae.json >/dev/null
+          jq -e '(.songs | type == "array") and .mutation_performed == false and .publishing_triggered == false' /tmp/reggae.json >/dev/null
