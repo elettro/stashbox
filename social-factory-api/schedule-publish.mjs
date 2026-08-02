@@ -92,7 +92,7 @@ export function createAwsScheduleStore({
   }
 
   async function getClient() {
-    if (!clientPromise) clientPromise = getSdk().then(({ SchedulerClient }) => new SchedulerClient({}));
+    if (!clientPromise) clientPromise = getSdk().then(({ SchedulerClient }) => new SchedulerClient({ maxAttempts: 1 }));
     return clientPromise;
   }
 
@@ -103,12 +103,29 @@ export function createAwsScheduleStore({
 
     async delete(name) {
       const [{ DeleteScheduleCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
       try {
-        await client.send(new DeleteScheduleCommand({ Name: name, GroupName: groupName }));
+        await client.send(
+          new DeleteScheduleCommand({ Name: name, GroupName: groupName }),
+          { abortSignal: controller.signal }
+        );
         return { deleted: true, already_missing: false };
       } catch (error) {
         if (error?.name === 'ResourceNotFoundException') {
           return { deleted: false, already_missing: true };
+        }
+        if (error?.name === 'AbortError') {
+          throw serviceError('schedule_delete_timeout', 504, {
+            operation: 'scheduler:DeleteSchedule',
+            schedule_name: String(name || ''),
+            schedule_group: String(groupName || ''),
+            aws_error_name: 'AbortError',
+            aws_error_message: 'AWS Scheduler deletion exceeded 8 seconds.',
+            aws_http_status: null,
+            aws_request_id: '',
+            retryable: false
+          });
         }
         throw serviceError('schedule_delete_failed', 502, {
           operation: 'scheduler:DeleteSchedule',
@@ -120,6 +137,8 @@ export function createAwsScheduleStore({
           aws_request_id: String(error?.$metadata?.requestId || ''),
           retryable: Boolean(error?.$retryable)
         });
+      } finally {
+        clearTimeout(timer);
       }
     },
 
