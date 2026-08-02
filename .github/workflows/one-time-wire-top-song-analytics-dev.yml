@@ -1,0 +1,299 @@
+name: Wire top-song analytics into Social Factory DEV
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-wire-top-song-analytics-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  implement-test-deploy-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      REPORT_PATH: deployment-reports/top-song-analytics-dev.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Wire analytics route, permission, schema, and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f'Expected marker missing in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          index = 'social-factory-api/index.mjs'
+          replace_once(
+              index,
+              "import { createRequestAuthenticator } from './request-auth.mjs';\n",
+              "import { createRequestAuthenticator } from './request-auth.mjs';\nimport { createTopSongAnalyticsService } from './top-song-analytics.mjs';\n"
+          )
+          replace_once(index, "const SERVICE_VERSION = '0.7.0';", "const SERVICE_VERSION = '0.8.0';")
+          replace_once(
+              index,
+              "  batchScheduler = null,\n  requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null\n",
+              "  batchScheduler = null,\n  topSongAnalytics = null,\n  requestAuthenticator = process.env.SOCIAL_CUSTOM_GPT_SECRET ? createRequestAuthenticator() : null\n"
+          )
+          replace_once(
+              index,
+              "  let resolvedBatchScheduler = batchScheduler;\n",
+              "  let resolvedBatchScheduler = batchScheduler;\n  let resolvedTopSongAnalytics = topSongAnalytics;\n"
+          )
+          replace_once(
+              index,
+              "  function getBatchScheduler() {\n    if (!resolvedBatchScheduler) {\n      resolvedBatchScheduler = createBatchScheduleService({ scheduler: getReviewScheduler() });\n    }\n    return resolvedBatchScheduler;\n  }\n\n  return async function socialFactoryHandler(event = {}) {",
+              "  function getBatchScheduler() {\n    if (!resolvedBatchScheduler) {\n      resolvedBatchScheduler = createBatchScheduleService({ scheduler: getReviewScheduler() });\n    }\n    return resolvedBatchScheduler;\n  }\n\n  function getTopSongAnalytics() {\n    if (!resolvedTopSongAnalytics) resolvedTopSongAnalytics = createTopSongAnalyticsService();\n    return resolvedTopSongAnalytics;\n  }\n\n  return async function socialFactoryHandler(event = {}) {"
+          )
+          replace_once(
+              index,
+              "            radioApiBridgeSupported: true,\n            batchCampaignPlanningSupported: true,",
+              "            radioApiBridgeSupported: true,\n            topSongAnalyticsSupported: true,\n            batchCampaignPlanningSupported: true,"
+          )
+          replace_once(
+              index,
+              "      if (method === 'GET' && path === '/social/orchestration/candidates') {",
+              "      if (method === 'GET' && path === '/social/analytics/top-songs') {\n        return json(200, { ok: true, ...(await getTopSongAnalytics().topSongs(event)) });\n      }\n\n      if (method === 'GET' && path === '/social/orchestration/candidates') {"
+          )
+
+          auth = 'social-factory-api/request-auth.mjs'
+          replace_once(
+              auth,
+              "  if (method === 'GET' && path === '/social/orchestration/candidates') return 'songs:read';",
+              "  if (method === 'GET' && path === '/social/analytics/top-songs') return 'songs:read';\n  if (method === 'GET' && path === '/social/orchestration/candidates') return 'songs:read';"
+          )
+
+          schema = 'custom-gpt/stashbox-radio/openapi.yaml'
+          p = Path(schema)
+          text = p.read_text()
+          text = text.replace('  version: 0.8.1', '  version: 0.9.0', 1)
+          analytics_path = r'''  /social/analytics/top-songs:
+    get:
+      operationId: getTopSongAnalytics
+      summary: Rank Stashbox songs by an all-time engagement metric using live Radio dashboard totals.
+      description: Read-only. Use this operation for most liked, most shared, most played, most completed, most clicked, or longest-listened song requests. It never creates campaigns, drafts, renders, schedules, uploads, or publications.
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 25, default: 5}
+        - name: period
+          in: query
+          required: false
+          schema: {type: string, enum: [all_time], default: all_time}
+        - name: artist
+          in: query
+          required: false
+          schema: {type: string}
+        - name: genre
+          in: query
+          required: false
+          schema: {type: string}
+      responses:
+        '200':
+          description: Ranked songs and exact metric totals.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+                  mode: {type: string, enum: [read_only_analytics]}
+                  metric: {type: string}
+                  period: {type: string, enum: [all_time]}
+                  count: {type: integer}
+                  songs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rank: {type: integer}
+                        song_key: {type: string}
+                        title: {type: string}
+                        artist: {type: string}
+                        genre: {type: string}
+                        metric_total: {type: number}
+                        metrics:
+                          type: object
+                          properties:
+                            plays: {type: number}
+                            full_plays: {type: number}
+                            likes: {type: number}
+                            shares: {type: number}
+                            share_visits: {type: number}
+                            video_clicks: {type: number}
+                            product_clicks: {type: number}
+                            listening_seconds: {type: number}
+                  campaign_song_keys:
+                    type: array
+                    items: {type: string}
+                  publishing_triggered: {type: boolean}
+                  mutation_performed: {type: boolean}
+                  generated_at: {type: string, format: date-time}
+                additionalProperties: true
+'''
+          if '/social/analytics/top-songs:' not in text:
+              marker = '  /social/orchestration/candidates:\n'
+              if marker not in text:
+                  raise SystemExit('OpenAPI insertion marker missing')
+              text = text.replace(marker, analytics_path + marker, 1)
+          p.write_text(text)
+
+          test = Path('social-factory-api/tests/top-song-analytics-route.test.mjs')
+          test.write_text(r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHandler } from '../index.mjs';
+
+function event(metric = 'likes') {
+  return {
+    rawPath: '/social/analytics/top-songs',
+    requestContext: { http: { method: 'GET', path: '/social/analytics/top-songs' } },
+    queryStringParameters: { metric, limit: '5', period: 'all_time' },
+    headers: {}
+  };
+}
+
+test('top-song analytics route is read-only and returns ranked rows', async () => {
+  const handler = createHandler({
+    requestAuthenticator: null,
+    topSongAnalytics: {
+      async topSongs(input) {
+        assert.equal(input.queryStringParameters.metric, 'likes');
+        return {
+          mode: 'read_only_analytics',
+          metric: 'likes',
+          period: 'all_time',
+          count: 1,
+          songs: [{ rank: 1, song_key: 'song-a', title: 'Song A', metric_total: 12 }],
+          campaign_song_keys: ['song-a'],
+          publishing_triggered: false,
+          mutation_performed: false
+        };
+      }
+    }
+  });
+  const response = await handler(event());
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.ok, true);
+  assert.equal(body.metric, 'likes');
+  assert.equal(body.songs[0].song_key, 'song-a');
+  assert.equal(body.mutation_performed, false);
+  assert.equal(body.publishing_triggered, false);
+});
+''')
+          PY
+
+      - name: Validate and test implementation
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit analytics implementation
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/index.mjs social-factory-api/request-auth.mjs social-factory-api/tests/top-song-analytics-route.test.mjs custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m 'Expose read-only top-song analytics to Custom GPT'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy isolated DEV API
+        working-directory: social-factory-api
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="stashbox-social-deploy-${ACCOUNT_ID}-us-east-1"
+          ROLE=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].RoleARN' --output text)
+          sam build --template-file infrastructure/template.yaml
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "$ROLE" \
+            --s3-bucket "$BUCKET" \
+            --s3-prefix "social-factory-api/${GITHUB_SHA}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides EnvironmentName=dev AllowedOrigin=https://stashbox.com
+
+      - name: Verify live likes and shares analytics
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id stashbox/social-factory/dev/custom-gpt --query SecretString --output text > /tmp/gpt.json
+          GPT_TOKEN=$(jq -r '.api_key' /tmp/gpt.json)
+
+          for METRIC in likes shares; do
+            STATUS=$(curl --silent --show-error --max-time 60 \
+              -H "x-admin-token: ${GPT_TOKEN}" \
+              -o "/tmp/${METRIC}.json" -w '%{http_code}' \
+              "${BASE_URL}/social/analytics/top-songs?metric=${METRIC}&limit=5&period=all_time")
+            test "${STATUS}" = '200'
+            jq -e '.ok == true and .mode == "read_only_analytics"' "/tmp/${METRIC}.json" >/dev/null
+            jq -e --arg metric "${METRIC}" '.metric == $metric and (.songs | type == "array")' "/tmp/${METRIC}.json" >/dev/null
+            jq -e 'all(.songs[]; (.rank | type == "number") and (.song_key | type == "string") and (.metric_total | type == "number"))' "/tmp/${METRIC}.json" >/dev/null
+            jq -e '.mutation_performed == false and .publishing_triggered == false' "/tmp/${METRIC}.json" >/dev/null
+          done
+
+          mkdir -p "$(dirname "${REPORT_PATH}")"
+          jq -n \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commit_sha "$(git rev-parse HEAD)" \
+            --arg stack_status "$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)" \
+            --argjson likes_count "$(jq '.songs | length' /tmp/likes.json)" \
+            --argjson shares_count "$(jq '.songs | length' /tmp/shares.json)" \
+            '{status:"success",recorded_at:$recorded_at,commit_sha:$commit_sha,stack_status:$stack_status,likes_verified:true,shares_verified:true,likes_count:$likes_count,shares_count:$shares_count,mutation_performed:false,publishing_triggered:false}' \
+            > "${REPORT_PATH}"
+          rm -f /tmp/gpt.json /tmp/likes.json /tmp/shares.json
+
+      - name: Commit deployment receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${REPORT_PATH}"
+          git commit -m 'Record top-song analytics DEV deployment [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
