@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/stats-gpt-analytics-dev-deploy.yml'
       - 'scripts/wire-top-song-analytics.py'
+      - 'social-factory-api/top-song-analytics.mjs'
   workflow_dispatch:
 
 permissions:
@@ -108,7 +109,7 @@ jobs:
             exit "$DEPLOY_STATUS"
           done
 
-      - name: Verify live likes and shares analytics
+      - name: Verify live analytics and reggae genre enrichment
         run: |
           set -euo pipefail
           BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
@@ -117,13 +118,9 @@ jobs:
 
           for METRIC in likes shares; do
             URL="${BASE_URL}/social/analytics/top-songs?metric=${METRIC}&limit=5&period=all_time"
-            STATUS=$(curl --silent --show-error --max-time 60 \
-              -H "x-admin-token: ${GPT_TOKEN}" \
-              -o "/tmp/${METRIC}.json" -w '%{http_code}' \
-              "$URL")
+            STATUS=$(curl --silent --show-error --max-time 60 -H "x-admin-token: ${GPT_TOKEN}" -o "/tmp/${METRIC}.json" -w '%{http_code}' "$URL")
             echo "${METRIC} verification status: ${STATUS}"
             if [ "${STATUS}" != '200' ]; then
-              echo "Safe response body:"
               jq 'del(.preview_url, .signed_url, .token, .api_key)' "/tmp/${METRIC}.json" 2>/dev/null || cat "/tmp/${METRIC}.json"
               exit 1
             fi
@@ -132,6 +129,18 @@ jobs:
             jq -e '.mutation_performed == false and .publishing_triggered == false' "/tmp/${METRIC}.json" >/dev/null
           done
 
+          REGGAE_URL="${BASE_URL}/social/analytics/top-songs?metric=plays&limit=5&period=all_time&genre=reggae"
+          REGGAE_STATUS=$(curl --silent --show-error --max-time 60 -H "x-admin-token: ${GPT_TOKEN}" -o /tmp/reggae.json -w '%{http_code}' "$REGGAE_URL")
+          echo "reggae verification status: ${REGGAE_STATUS}"
+          if [ "${REGGAE_STATUS}" != '200' ]; then
+            jq 'del(.preview_url, .signed_url, .token, .api_key)' /tmp/reggae.json 2>/dev/null || cat /tmp/reggae.json
+            exit 1
+          fi
+          jq -e '.ok == true and .mode == "read_only_analytics" and .metric == "plays" and (.genre_filter | ascii_downcase) == "reggae"' /tmp/reggae.json >/dev/null
+          jq -e '.count > 0 and (.songs | length) > 0' /tmp/reggae.json >/dev/null
+          jq -e '[.songs[] | ((.genre // "") + " " + (.secondary_genre // "")) | ascii_downcase | contains("reggae")] | all' /tmp/reggae.json >/dev/null
+          jq -e '.mutation_performed == false and .publishing_triggered == false' /tmp/reggae.json >/dev/null
+
           mkdir -p "$(dirname "${REPORT_PATH}")"
           jq -n \
             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
@@ -139,7 +148,8 @@ jobs:
             --arg stack_status "$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query 'Stacks[0].StackStatus' --output text)" \
             --argjson likes_count "$(jq '.songs | length' /tmp/likes.json)" \
             --argjson shares_count "$(jq '.songs | length' /tmp/shares.json)" \
-            '{status:"success",recorded_at:$recorded_at,commit_sha:$commit_sha,stack_status:$stack_status,likes_verified:true,shares_verified:true,likes_count:$likes_count,shares_count:$shares_count,mutation_performed:false,publishing_triggered:false}' \
+            --argjson reggae_count "$(jq '.songs | length' /tmp/reggae.json)" \
+            '{status:"success",recorded_at:$recorded_at,commit_sha:$commit_sha,stack_status:$stack_status,likes_verified:true,shares_verified:true,reggae_verified:true,likes_count:$likes_count,shares_count:$shares_count,reggae_count:$reggae_count,mutation_performed:false,publishing_triggered:false}' \
             > "${REPORT_PATH}"
 
       - name: Commit deployment receipt
