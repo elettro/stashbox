@@ -9,6 +9,7 @@ on:
       - 'radio/dev/v2/profile/**'
       - 'radio/dev/v2/v2-profile-entry.js'
       - 'radio/dev/v2/v2-account-preferences.js'
+      - 'radio/dev/v2/v2-session-manager.js'
       - 'radio/dev/v2/index.html'
   workflow_dispatch:
 
@@ -28,3 +29,7 @@ jobs:
           node --check radio/dev/v2/profile/profile.js
           node --check radio/dev/v2/v2-profile-entry.js
           node --check radio/dev/v2/v2-account-preferences.js
+          node --check radio/dev/v2/v2-session-manager.js
+      - name: Verify standalone profile session recovery
+        run: |
+          grep -q 'v2-session-manager.js?v=20260802-profile-login-repair1' radio/dev/v2/profile/index.html
