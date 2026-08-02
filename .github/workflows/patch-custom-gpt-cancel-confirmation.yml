@@ -1,0 +1,29 @@
+name: Patch Custom GPT Cancel Confirmation
+
+on:
+  push:
+    paths:
+      - 'scripts/patch-custom-gpt-cancel-confirmation.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch OpenAPI schema
+        run: python scripts/patch-custom-gpt-cancel-confirmation.py
+      - name: Commit updated schema
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom-gpt/stashbox-radio/openapi.yaml
+          git commit -m "Expose confirmed schedule cancellation in Custom GPT action"
+          git push
