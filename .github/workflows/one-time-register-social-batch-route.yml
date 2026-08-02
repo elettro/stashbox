@@ -1,0 +1,52 @@
+name: One-time register Social Factory batch schedule route
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-time-register-social-batch-route.yml
+
+permissions:
+  contents: write
+
+jobs:
+  register-route:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add API Gateway route to SAM template
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('social-factory-api/infrastructure/template.yaml')
+          text = path.read_text()
+          route = '''        ReviewItemsBatchSchedule:\n          Type: HttpApi\n          Properties:\n            ApiId: !Ref SocialFactoryHttpApi\n            Path: /social/review-items/batch-schedule\n            Method: POST\n'''
+          anchor = '''        ReviewItemSchedule:\n          Type: HttpApi\n          Properties:\n            ApiId: !Ref SocialFactoryHttpApi\n            Path: /social/review-items/{reviewId}/schedule\n            Method: POST\n'''
+
+          if 'Path: /social/review-items/batch-schedule' in text:
+              print('Batch schedule route is already registered.')
+          else:
+              if anchor not in text:
+                  raise SystemExit('Could not find ReviewItemSchedule anchor in SAM template.')
+              text = text.replace(anchor, route + anchor, 1)
+              path.write_text(text)
+              print('Registered POST /social/review-items/batch-schedule.')
+          PY
+
+      - name: Commit route registration
+        run: |
+          if git diff --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add social-factory-api/infrastructure/template.yaml
+          git commit -m "Register Social Factory batch schedule API route"
+          git push
