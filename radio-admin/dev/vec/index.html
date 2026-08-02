@@ -53,6 +53,27 @@
       mode: 'lab',
       songKey: '',
     });
+
+    const sortLoadedSongOptions = window.setInterval(() => {
+      const select = document.querySelector('[data-vec-song-select]');
+      if (!select || select.disabled || select.options.length < 2) return;
+      if (select.options[0]?.textContent === 'Loading songs...') return;
+
+      const selectedValue = select.value;
+      const placeholder = select.querySelector('option[value=""]');
+      const songOptions = [...select.options]
+        .filter((option) => option.value)
+        .sort((a, b) => a.textContent.localeCompare(b.textContent, undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        }));
+
+      select.replaceChildren(...(placeholder ? [placeholder] : []), ...songOptions);
+      select.value = selectedValue;
+      window.clearInterval(sortLoadedSongOptions);
+    }, 100);
+
+    window.setTimeout(() => window.clearInterval(sortLoadedSongOptions), 10000);
   </script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260721-shared-header1" defer></script>
 </body>
