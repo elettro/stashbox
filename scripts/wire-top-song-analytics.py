@@ -65,7 +65,8 @@ replace_once(
 
 schema_path = Path("custom-gpt/stashbox-radio/openapi.yaml")
 schema = schema_path.read_text()
-schema = schema.replace("  version: 0.8.1", "  version: 0.9.0", 1)
+schema = schema.replace("  version: 0.8.1", "  version: 0.9.1", 1)
+schema = schema.replace("  version: 0.9.0", "  version: 0.9.1", 1)
 analytics_path = """  /social/analytics/top-songs:
     get:
       operationId: getTopSongAnalytics
@@ -110,13 +111,70 @@ analytics_path = """  /social/analytics/top-songs:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                required: [ok, mode, metric, period, count, songs, mutation_performed, publishing_triggered]
+                properties:
+                  ok:
+                    type: boolean
+                  mode:
+                    type: string
+                    enum: [read_only_analytics]
+                  metric:
+                    type: string
+                    enum: [plays, full_plays, likes, shares, share_visits, video_clicks, product_clicks, listening_seconds]
+                  period:
+                    type: string
+                    enum: [all_time]
+                  count:
+                    type: integer
+                  songs:
+                    type: array
+                    items:
+                      type: object
+                      required: [rank, song_key, title, metric_total]
+                      properties:
+                        rank:
+                          type: integer
+                        song_key:
+                          type: string
+                        title:
+                          type: string
+                        artist:
+                          type: string
+                        genre:
+                          type: string
+                        metric_total:
+                          type: number
+                        metrics:
+                          type: object
+                          properties:
+                            plays: {type: number}
+                            full_plays: {type: number}
+                            likes: {type: number}
+                            shares: {type: number}
+                            share_visits: {type: number}
+                            video_clicks: {type: number}
+                            product_clicks: {type: number}
+                            listening_seconds: {type: number}
+                  campaign_song_keys:
+                    type: array
+                    items:
+                      type: string
+                  mutation_performed:
+                    type: boolean
+                  publishing_triggered:
+                    type: boolean
+                  generated_at:
+                    type: string
+                    format: date-time
 """
-if "/social/analytics/top-songs:" not in schema:
-    marker = "  /social/orchestration/candidates:\n"
-    if marker not in schema:
-        raise SystemExit("OpenAPI insertion marker missing")
-    schema = schema.replace(marker, analytics_path + marker, 1)
+start = schema.find("  /social/analytics/top-songs:\n")
+end = schema.find("  /social/orchestration/candidates:\n")
+if start >= 0 and end > start:
+    schema = schema[:start] + analytics_path + schema[end:]
+elif end >= 0:
+    schema = schema[:end] + analytics_path + schema[end:]
+else:
+    raise SystemExit("OpenAPI analytics insertion marker missing")
 schema_path.write_text(schema)
 
 print("Top-song analytics wiring complete")
