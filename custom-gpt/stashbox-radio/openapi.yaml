@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Stashbox Radio Social Factory API
-  version: 0.9.1
+  version: 0.9.2
   description: Controlled DEV actions for Stashbox Radio campaign planning, Video Factory orchestration, Content Review, scheduling, and YouTube operations.
 servers:
   - url: https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev
@@ -78,6 +78,10 @@ paths:
                   period:
                     type: string
                     enum: [all_time]
+                  artist_filter:
+                    type: string
+                  genre_filter:
+                    type: string
                   count:
                     type: integer
                   songs:
