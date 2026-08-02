@@ -10,47 +10,17 @@
 </head>
 <body data-view="list">
   <main class="shell">
-    <header class="top">
-      <div>
-        <p class="eyebrow">Stashbox Social Factory · DEV</p>
-        <h1>Scheduled Posts</h1>
-        <p class="sub">View upcoming Social Factory posts, open details, move a schedule, or remove a scheduled post without publishing it.</p>
-      </div>
-      <nav class="nav" aria-label="Scheduled post views">
-        <a class="button" href="/radio-admin/dev/social-factory/">Content Review</a>
-        <a class="button" aria-current="true" href="/radio-admin/dev/social-factory/scheduled/">List View</a>
-        <a class="button" href="/radio-admin/dev/social-factory/scheduled/calendar/">Calendar View</a>
-      </nav>
-    </header>
-
-    <section class="auth" aria-label="Authorization">
-      <div><strong>Social Factory Admin Token</strong><span id="tokenStatus" class="muted">Token not saved</span></div>
-      <input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" />
-      <button id="saveToken" class="button primary" type="button">Use Token</button>
-      <button id="clearToken" class="button" type="button">Clear</button>
-    </section>
-
-    <section class="toolbar" aria-label="Scheduled post filters">
-      <input id="search" type="search" placeholder="Search title, artist, review ID, or platform" />
-      <select id="platform" aria-label="Platform filter"><option value="all">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option></select>
-      <select id="visibility" aria-label="Visibility filter"><option value="all">All visibility</option><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public</option></select>
-      <button id="refresh" class="button" type="button">Refresh</button>
-    </section>
-
-    <section class="summary" aria-label="Scheduled post summary">
-      <div class="stat"><strong id="count-total">0</strong><span>Total scheduled</span></div>
-      <div class="stat"><strong id="count-day">0</strong><span>Next 24 hours</span></div>
-      <div class="stat"><strong id="count-week">0</strong><span>Next 7 days</span></div>
-      <div class="stat"><strong id="count-overdue">0</strong><span>Past scheduled time</span></div>
-    </section>
-
+    <header class="top"><div><p class="eyebrow">Stashbox Social Factory · DEV</p><h1>Scheduled Posts</h1><p class="sub">View upcoming Social Factory posts, open details, move a schedule, or remove a scheduled post without publishing it.</p></div><nav class="nav" aria-label="Scheduled post views"><a class="button" href="/radio-admin/dev/social-factory/">Content Review</a><a class="button" aria-current="true" href="/radio-admin/dev/social-factory/scheduled/">List View</a><a class="button" href="/radio-admin/dev/social-factory/scheduled/calendar/">Calendar View</a></nav></header>
+    <section class="auth" aria-label="Authorization"><div><strong>Social Factory Admin Token</strong><span id="tokenStatus" class="muted">Token not saved</span></div><input id="adminToken" type="password" autocomplete="off" placeholder="Paste the Social Factory DEV token" /><button id="saveToken" class="button primary" type="button">Use Token</button><button id="clearToken" class="button" type="button">Clear</button></section>
+    <section class="toolbar" aria-label="Scheduled post filters"><input id="search" type="search" placeholder="Search title, artist, review ID, or platform" /><select id="platform" aria-label="Platform filter"><option value="all">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option></select><select id="visibility" aria-label="Visibility filter"><option value="all">All visibility</option><option value="unlisted">Unlisted</option><option value="private">Private</option><option value="public">Public</option></select><button id="refresh" class="button" type="button">Refresh</button></section>
+    <section class="summary" aria-label="Scheduled post summary"><div class="stat"><strong id="count-total">0</strong><span>Total scheduled</span></div><div class="stat"><strong id="count-day">0</strong><span>Next 24 hours</span></div><div class="stat"><strong id="count-week">0</strong><span>Next 7 days</span></div><div class="stat"><strong id="count-overdue">0</strong><span>Past scheduled time</span></div></section>
     <div id="message" class="message" hidden></div>
     <section id="scheduledList" class="cards" aria-live="polite"></section>
     <p id="empty" class="empty">No scheduled posts were found.</p>
-    <p class="readonly"><strong>Safety:</strong> rescheduling validates first, confirms cancellation, verifies it, then creates the replacement. Deleting a scheduled post removes the active schedule but preserves the video and Content Review item.</p>
+    <p class="readonly"><strong>Default timezone:</strong> Eastern Time (America/New_York), with automatic EST/EDT adjustment. Rescheduling validates, cancels and verifies the old schedule, then creates the replacement.</p>
   </main>
   <script src="/radio-admin/dev/social-factory/scheduled/scheduled.js?v=20260802-1"></script>
-  <script src="/radio-admin/dev/social-factory/scheduled/scheduled-modal.js?v=20260802-2"></script>
+  <script src="/radio-admin/dev/social-factory/scheduled/scheduled-modal.js?v=20260802-et1"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260802-scheduled-nav1" defer></script>
 </body>
 </html>
