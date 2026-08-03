@@ -176,8 +176,16 @@ Partial failure test:
 - [ ] Exact dimensions match sr-profile-image-set.md.
 - [ ] No filler bars, blurred filler, mirrored edges, stretched artwork, or mechanical crops appear.
 - [ ] Each output contains exactly one complete STASHBOX title and one complete song title.
+- [ ] Before the first generation round, the GPT explicitly treats the source typography as protected content.
+- [ ] The first-round generation instruction prohibits stuttered, slurred, smeared, ghosted, melted, fused, warped, duplicated, repeated, hallucinated, or partially redrawn lettering.
+- [ ] STASHBOX spelling, letter order, spacing, and letter count match the source in all six outputs.
+- [ ] The song-title spelling, word order, spacing, and letter count match the source in all six outputs.
+- [ ] No output contains doubled letters, repeated words, ghost copies, extra title fragments, or decorative marks that read as additional text.
+- [ ] The GPT performs a character-by-character text-integrity check before presenting the first round.
+- [ ] Any output with malformed or uncertain typography is regenerated or repaired before delivery rather than shown for user correction.
 - [ ] Failed typography or composition is regenerated.
 - [ ] The ZIP contains exactly six correctly named PNG files.
+- [ ] The ZIP is delivered as a clickable sandbox download link rather than a raw path or unclickable URL.
 - [ ] The GPT does not claim completion before the ZIP exists.
 
 ## Failure handling
