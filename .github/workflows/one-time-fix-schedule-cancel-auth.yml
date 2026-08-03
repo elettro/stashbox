@@ -1,0 +1,59 @@
+name: One-time fix schedule cancel auth
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-fix-schedule-cancel-auth.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Preserve authentication errors on schedule cancellation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('social-factory-api/index.mjs')
+          text = path.read_text()
+          needle = """        } catch (error) {
+          const details = error?.details && typeof error.details === 'object'
+"""
+          replacement = """        } catch (error) {
+          const statusCode = Number(error?.statusCode || 500);
+          if (statusCode === 401 || statusCode === 403) {
+            throw error;
+          }
+
+          const details = error?.details && typeof error.details === 'object'
+"""
+          if needle not in text:
+              raise SystemExit('Expected schedule cancellation catch block was not found')
+          path.write_text(text.replace(needle, replacement, 1))
+          PY
+
+      - name: Validate source and tests
+        working-directory: social-factory-api
+        run: |
+          npm install --omit=dev --no-audit --no-fund
+          npm run check
+          npm test
+
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add social-factory-api/index.mjs
+          git commit -m 'Fix schedule cancellation authentication handling'
+          git pull --rebase origin main
+          git push origin HEAD:main
