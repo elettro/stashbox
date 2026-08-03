@@ -396,6 +396,11 @@ export function createHandler({
             ...(await getReviewScheduler().cancel(event, review.cancelScheduleReviewId))
           });
         } catch (error) {
+          const statusCode = Number(error?.statusCode || 500);
+          if (statusCode === 401 || statusCode === 403) {
+            throw error;
+          }
+
           const details = error?.details && typeof error.details === 'object'
             ? error.details
             : {};
