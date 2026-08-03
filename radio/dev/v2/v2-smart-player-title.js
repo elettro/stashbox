@@ -2,43 +2,51 @@
   'use strict';
 
   const desktop = window.matchMedia('(min-width: 700px)');
-  const MAX_SIZE = 78;
-  const MIN_SIZE = 24;
+  const DESKTOP_MAX_SIZE = 78;
+  const DESKTOP_MIN_SIZE = 24;
+  const MOBILE_MAX_SIZE = 38;
+  const MOBILE_MIN_SIZE = 26;
   let frame = 0;
   let resizeObserver = null;
 
-  function resetTitle(title) {
-    title.style.removeProperty('font-size');
+  function clearFitStyles(title) {
+    [
+      'display',
+      'font-size',
+      'max-height',
+      'overflow',
+      'overflow-wrap',
+      'text-overflow',
+      'white-space',
+      'word-break',
+      '-webkit-box-orient',
+      '-webkit-line-clamp'
+    ].forEach(property => title.style.removeProperty(property));
     title.removeAttribute('data-v2-title-fit');
   }
 
-  function fitTitle(title) {
-    if (!(title instanceof HTMLElement)) return;
-
-    if (!desktop.matches) {
-      resetTitle(title);
-      return;
-    }
-
+  function fitSingleLine(title, maxSize, minSize) {
     const text = String(title.textContent || '').trim();
     const available = title.clientWidth;
-    if (!text || available < 40) return;
+    if (!text || available < 40) return false;
 
+    title.style.display = 'block';
     title.style.whiteSpace = 'nowrap';
     title.style.overflow = 'visible';
     title.style.textOverflow = 'clip';
-    title.style.fontSize = `${MAX_SIZE}px`;
+    title.style.maxHeight = 'none';
+    title.style.fontSize = `${maxSize}px`;
 
     if (title.scrollWidth <= available + 1) {
-      title.dataset.v2TitleFit = String(MAX_SIZE);
-      return;
+      title.dataset.v2TitleFit = String(maxSize);
+      return true;
     }
 
-    let low = MIN_SIZE;
-    let high = MAX_SIZE;
-    let best = MIN_SIZE;
+    let low = minSize;
+    let high = maxSize;
+    let best = minSize;
 
-    for (let step = 0; step < 9; step += 1) {
+    for (let step = 0; step < 10; step += 1) {
       const size = (low + high) / 2;
       title.style.fontSize = `${size}px`;
 
@@ -50,9 +58,39 @@
       }
     }
 
-    const finalSize = Math.max(MIN_SIZE, Math.floor(best * 2) / 2);
+    const finalSize = Math.max(minSize, Math.floor(best * 2) / 2);
     title.style.fontSize = `${finalSize}px`;
-    title.dataset.v2TitleFit = String(finalSize);
+    const fits = title.scrollWidth <= available + 1;
+
+    if (fits) title.dataset.v2TitleFit = String(finalSize);
+    return fits;
+  }
+
+  function fitMobileTitle(title) {
+    clearFitStyles(title);
+
+    if (fitSingleLine(title, MOBILE_MAX_SIZE, MOBILE_MIN_SIZE)) return;
+
+    title.style.display = 'block';
+    title.style.fontSize = `${MOBILE_MIN_SIZE}px`;
+    title.style.whiteSpace = 'normal';
+    title.style.overflow = 'visible';
+    title.style.textOverflow = 'clip';
+    title.style.maxHeight = 'none';
+    title.style.overflowWrap = 'anywhere';
+    title.style.wordBreak = 'normal';
+    title.dataset.v2TitleFit = `wrapped-${MOBILE_MIN_SIZE}`;
+  }
+
+  function fitDesktopTitle(title) {
+    clearFitStyles(title);
+    fitSingleLine(title, DESKTOP_MAX_SIZE, DESKTOP_MIN_SIZE);
+  }
+
+  function fitTitle(title) {
+    if (!(title instanceof HTMLElement)) return;
+    if (desktop.matches) fitDesktopTitle(title);
+    else fitMobileTitle(title);
   }
 
   function getTitles() {
