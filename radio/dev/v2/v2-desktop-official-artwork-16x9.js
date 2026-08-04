@@ -8,19 +8,17 @@
   const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const SONGS_URL = `${API}/radio/songs`;
   const DESKTOP_MIN_WIDTH = 900;
-  const requestCache = new Map();
   const artworkCache = new Map();
-  const imageLoads = new Map();
+  const requestCache = new Map();
+  const imageCache = new Map();
 
-  let catalogPromise = null;
+  let songsPromise = null;
   let activeSongKey = '';
-  let activeAssetSource = '';
+  let activeSource = '';
   let operation = 0;
   let scheduled = 0;
-  let resizeTimer = 0;
   let titleObserver = null;
   let observedTitle = null;
-  let observerInstallTimer = 0;
 
   const clean = value => String(value ?? '').trim();
   const normalize = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
@@ -66,15 +64,15 @@
     return currentPlayer?.querySelector('[data-mobile-vec-stage]') || null;
   }
 
-  function activeMedia(currentStage = stage()) {
-    return currentStage?.querySelector('.v2-mobile-vec-media.is-active')
-      || [...(currentStage?.querySelectorAll('.v2-mobile-vec-media') || [])].at(-1)
+  function activeImage(currentStage = stage()) {
+    return currentStage?.querySelector('img.v2-mobile-vec-media.is-active')
+      || [...(currentStage?.querySelectorAll('img.v2-mobile-vec-media') || [])].at(-1)
       || null;
   }
 
   function desktopSurface(currentPlayer = player()) {
-    const currentStage = stage(currentPlayer);
-    const rect = currentStage?.getBoundingClientRect?.() || currentPlayer?.getBoundingClientRect?.();
+    const surface = stage(currentPlayer) || currentPlayer;
+    const rect = surface?.getBoundingClientRect?.();
     const width = Math.max(1, rect?.width || window.innerWidth || 1);
     const height = Math.max(1, rect?.height || window.innerHeight || 1);
     return width >= DESKTOP_MIN_WIDTH && width / height >= 1.25;
@@ -92,16 +90,16 @@
     }
   }
 
-  async function catalog() {
-    if (!catalogPromise) {
-      catalogPromise = getJson(SONGS_URL).then(data => rows(data).map((row, index) => ({
+  async function songs() {
+    if (!songsPromise) {
+      songsPromise = getJson(SONGS_URL).then(data => rows(data).map((row, index) => ({
         key: clean(row.song_key || row.songKey || row.id || `song-${index}`),
         title: clean(row.display_title || row.song_name || row.title),
         artist: clean(row.artist || row.artist_name || 'Stashbox'),
         square: fixUrl(row.resolved_artwork_url || row.song_artwork_url || row.artwork_url || row.cover_art_url || row.image_url)
-      })).filter(song => song.key && song.title));
+      })).filter(item => item.key && item.title));
     }
-    return catalogPromise;
+    return songsPromise;
   }
 
   function identity(currentPlayer = player()) {
@@ -111,15 +109,15 @@
     };
   }
 
-  function findSong(songs, currentIdentity) {
+  function findSong(list, currentIdentity) {
     const title = normalize(currentIdentity?.title);
     const artist = normalize(currentIdentity?.artist);
-    return songs.find(song => normalize(song.title) === title && (!artist || normalize(song.artist) === artist))
-      || songs.find(song => normalize(song.title) === title)
+    return list.find(item => normalize(item.title) === title && (!artist || normalize(item.artist) === artist))
+      || list.find(item => normalize(item.title) === title)
       || null;
   }
 
-  function artworkFromPayload(payload) {
+  function artworkPayload(payload) {
     const data = unwrap(payload) || {};
     const media = data.media || data.data?.media || data.data || data;
     const images = media.artwork_images && typeof media.artwork_images === 'object'
@@ -132,34 +130,7 @@
     };
   }
 
-  function preload(url) {
-    const source = fixUrl(url);
-    if (!source) return Promise.resolve(false);
-    if (imageLoads.has(source)) return imageLoads.get(source);
-
-    const promise = new Promise(resolve => {
-      const image = new Image();
-      let settled = false;
-      const finish = loaded => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        if (!loaded) imageLoads.delete(source);
-        resolve(Boolean(loaded));
-      };
-      const timer = window.setTimeout(() => finish(false), 16000);
-      image.onload = () => finish(image.naturalWidth > 0);
-      image.onerror = () => finish(false);
-      image.decoding = 'async';
-      image.src = source;
-      if (image.complete) finish(image.naturalWidth > 0);
-    });
-
-    imageLoads.set(source, promise);
-    return promise;
-  }
-
-  async function artworkForSong(songKey, { force = false } = {}) {
+  async function artwork(songKey, { force = false } = {}) {
     const key = clean(songKey);
     if (!key) return {};
     if (force) artworkCache.delete(key);
@@ -167,11 +138,9 @@
     if (requestCache.has(key)) return requestCache.get(key);
 
     const promise = getJson(`${API}/radio/songs/${encodeURIComponent(key)}/artwork-images`)
-      .then(artworkFromPayload)
+      .then(artworkPayload)
       .then(images => {
         artworkCache.set(key, images);
-        const horizontal = fixUrl(images['16x9'] || images['21x9']);
-        if (horizontal) preload(horizontal);
         return images;
       })
       .finally(() => requestCache.delete(key));
@@ -180,100 +149,83 @@
     return promise;
   }
 
-  function isOfficialImage(media, song) {
-    if (!media || media.tagName !== 'IMG') return false;
-    if (
-      media.dataset.desktopOfficialArtwork === 'true' ||
-      media.dataset.responsiveOfficialArtwork === 'true' ||
-      media.dataset.vecAssetSource === 'official-artwork' ||
-      activeAssetSource === 'official-artwork'
-    ) return true;
+  function preload(url) {
+    const source = fixUrl(url);
+    if (!source) return Promise.resolve(false);
+    if (imageCache.has(source)) return imageCache.get(source);
 
-    const current = canonicalUrl(media.currentSrc || media.src);
+    const promise = new Promise(resolve => {
+      const image = new Image();
+      let settled = false;
+      const finish = loaded => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        if (!loaded) imageCache.delete(source);
+        resolve(Boolean(loaded));
+      };
+      const timer = window.setTimeout(() => finish(false), 12000);
+      image.onload = () => finish(image.naturalWidth > 0);
+      image.onerror = () => finish(false);
+      image.decoding = 'async';
+      image.src = source;
+      if (image.complete) finish(image.naturalWidth > 0);
+    });
+
+    imageCache.set(source, promise);
+    return promise;
+  }
+
+  function choose(images, song) {
+    if (images?.['16x9']) return { url: images['16x9'], ratio: '16x9', exact: true };
+    if (images?.['21x9']) return { url: images['21x9'], ratio: '21x9', exact: true };
+    return { url: images?.['1x1'] || song?.square || '', ratio: '1x1', exact: false };
+  }
+
+  function isOfficial(image, song) {
+    if (!image || image.tagName !== 'IMG') return false;
+    if (
+      image.dataset.desktopOfficialArtwork === 'true' ||
+      image.dataset.responsiveOfficialArtwork === 'true' ||
+      image.dataset.vecAssetSource === 'official-artwork' ||
+      activeSource === 'official-artwork'
+    ) return true;
+    const current = canonicalUrl(image.currentSrc || image.src);
     return Boolean(current && song?.square && current === canonicalUrl(song.square));
   }
 
-  function chooseHorizontal(images, song) {
-    if (images?.['16x9']) {
-      return { url: fixUrl(images['16x9']), sourceRatio: '16x9', exactHorizontal: true, fit: 'contain' };
-    }
-    if (images?.['21x9']) {
-      return { url: fixUrl(images['21x9']), sourceRatio: '21x9', exactHorizontal: true, fit: 'contain' };
-    }
-    return {
-      url: fixUrl(images?.['1x1'] || song?.square),
-      sourceRatio: '1x1',
-      exactHorizontal: false,
-      fit: 'contain'
-    };
-  }
+  function applySelected(currentPlayer, currentStage, image, selected, songKey) {
+    if (!currentPlayer || !currentStage || !image || !selected.url) return false;
+    const signature = `${songKey}|${selected.ratio}|${canonicalUrl(selected.url)}`;
+    if (
+      currentPlayer.dataset.desktopArtworkSignature === signature &&
+      image.dataset.desktopArtworkSignature === signature &&
+      canonicalUrl(image.currentSrc || image.src) === canonicalUrl(selected.url)
+    ) return true;
 
-  function signature(songKey, selected) {
-    return `${clean(songKey)}|${selected.sourceRatio}|${canonicalUrl(selected.url)}`;
-  }
-
-  function alreadyApplied(currentPlayer, currentImage, songKey, selected) {
-    const expected = signature(songKey, selected);
-    return Boolean(
-      currentPlayer?.dataset?.desktopArtworkSignature === expected &&
-      currentImage?.dataset?.desktopArtworkSignature === expected &&
-      canonicalUrl(currentImage.currentSrc || currentImage.src) === canonicalUrl(selected.url)
-    );
-  }
-
-  function prepareWaitingFrame(songKey) {
-    if (!desktopSurface()) return;
-    const currentPlayer = player();
-    const currentStage = stage(currentPlayer);
-    const image = activeMedia(currentStage);
-    if (!currentPlayer || !currentStage || !image || image.tagName !== 'IMG') return;
-
-    image.dataset.desktopArtworkState = 'waiting-horizontal';
+    image.dataset.desktopOfficialArtwork = 'true';
+    image.dataset.responsiveOfficialArtwork = 'true';
+    image.dataset.vecAssetSource = 'official-artwork';
+    image.dataset.desktopArtworkSignature = signature;
+    image.dataset.responsiveArtworkRatio = selected.ratio;
+    image.style.display = 'block';
+    image.style.width = '100%';
+    image.style.height = '100%';
+    image.style.maxWidth = 'none';
+    image.style.maxHeight = 'none';
     image.style.objectFit = 'contain';
     image.style.objectPosition = 'center center';
     image.style.transition = 'none';
     image.style.transform = 'none';
     image.style.removeProperty('visibility');
     image.style.setProperty('opacity', '1', 'important');
-    currentStage.style.backgroundColor = '#050607';
-    currentPlayer.dataset.desktopArtworkState = 'waiting-horizontal';
-    currentPlayer.dataset.desktopArtworkSongKey = clean(songKey);
-  }
-
-  function applyArtwork(currentPlayer, currentStage, image, selected, songKey) {
-    if (!currentPlayer || !currentStage || !image || !selected.url) return false;
-    const nextSignature = signature(songKey, selected);
-    if (alreadyApplied(currentPlayer, image, songKey, selected)) return true;
-
-    image.dataset.desktopOfficialArtwork = 'true';
-    image.dataset.responsiveOfficialArtwork = 'true';
-    image.dataset.vecAssetSource = 'official-artwork';
-    image.dataset.desktopArtworkState = selected.exactHorizontal ? 'ready-horizontal' : 'missing-horizontal';
-    image.dataset.responsiveArtworkRequestedRatio = '16x9';
-    image.dataset.responsiveArtworkRatio = selected.sourceRatio;
-    image.dataset.responsiveArtworkUrl = selected.url;
-    image.dataset.desktopArtworkSignature = nextSignature;
-    image.style.display = 'block';
-    image.style.width = '100%';
-    image.style.height = '100%';
-    image.style.maxWidth = 'none';
-    image.style.maxHeight = 'none';
-    image.style.objectFit = selected.fit;
-    image.style.objectPosition = 'center center';
-    image.style.transition = 'none';
-    image.style.transform = 'none';
-    image.style.removeProperty('visibility');
-    image.style.setProperty('opacity', '1', 'important');
-
     if (canonicalUrl(image.currentSrc || image.src) !== canonicalUrl(selected.url)) image.src = selected.url;
 
     currentStage.style.backgroundImage = 'none';
     currentStage.style.backgroundColor = '#050607';
-    currentStage.dataset.desktopArtworkState = selected.exactHorizontal ? 'ready-horizontal' : 'missing-horizontal';
+    currentStage.dataset.desktopArtworkSignature = signature;
     currentStage.dataset.songArtworkRequestedRatio = '16x9';
-    currentStage.dataset.songArtworkSourceRatio = selected.sourceRatio;
-    currentStage.dataset.responsiveArtworkUrl = selected.url;
-    currentStage.dataset.desktopArtworkSignature = nextSignature;
+    currentStage.dataset.songArtworkSourceRatio = selected.ratio;
     currentStage.classList.add('responsive-artwork-surface-ready');
 
     const backdrop = currentPlayer.querySelector('[data-backdrop]');
@@ -283,76 +235,52 @@
       backdrop.classList.remove('responsive-artwork-surface-ready');
     }
 
-    currentPlayer.dataset.desktopArtworkState = selected.exactHorizontal ? 'ready-horizontal' : 'missing-horizontal';
+    currentPlayer.dataset.desktopArtworkSignature = signature;
     currentPlayer.dataset.desktopArtworkSongKey = songKey;
-    currentPlayer.dataset.desktopArtworkSignature = nextSignature;
     currentPlayer.dataset.songArtworkRequestedRatio = '16x9';
-    currentPlayer.dataset.songArtworkSourceRatio = selected.sourceRatio;
-    currentPlayer.dataset.responsiveArtworkUrl = selected.url;
+    currentPlayer.dataset.songArtworkSourceRatio = selected.ratio;
     currentPlayer.classList.add('responsive-artwork-ready');
     currentPlayer.classList.remove('responsive-artwork-pending');
-    currentPlayer.classList.toggle('has-exact-responsive-artwork', selected.exactHorizontal);
+    currentPlayer.classList.toggle('has-exact-responsive-artwork', selected.exact);
     currentPlayer.setAttribute('aria-busy', 'false');
-
     return true;
   }
 
-  async function applyForSong(song, { force = false, trustSongKey = false } = {}) {
+  async function applySong(song, { force = false, trustKey = false } = {}) {
     if (!song?.key || !desktopSurface()) return false;
     const token = ++operation;
     activeSongKey = song.key;
 
-    const currentPlayer = player();
-    const currentStage = stage(currentPlayer);
-    const currentImage = activeMedia(currentStage);
-    if (!currentPlayer || !currentStage || !isOfficialImage(currentImage, song)) return false;
-
-    let images = {};
-    try {
-      images = await artworkForSong(song.key, { force });
-    } catch (error) {
+    const images = await artwork(song.key, { force }).catch(error => {
       console.warn('[V2 desktop artwork] Canonical artwork request failed.', error?.message || error);
-    }
+      return {};
+    });
     if (token !== operation || !desktopSurface()) return false;
 
-    const selected = chooseHorizontal(images, song);
+    const selected = choose(images, song);
     if (!selected.url) return false;
-    if (alreadyApplied(currentPlayer, currentImage, song.key, selected)) return true;
-
     const loaded = await preload(selected.url);
     if (!loaded || token !== operation || !desktopSurface()) return false;
 
-    const latestPlayer = player();
-    const latestStage = stage(latestPlayer);
-    const latestImage = activeMedia(latestStage);
-    const latestIdentity = identity(latestPlayer);
-    const stillSameSong = trustSongKey
+    const currentPlayer = player();
+    const currentStage = stage(currentPlayer);
+    const image = activeImage(currentStage);
+    const currentIdentity = identity(currentPlayer);
+    const sameSong = trustKey
       ? activeSongKey === song.key
-      : normalize(latestIdentity.title) === normalize(song.title);
+      : normalize(currentIdentity.title) === normalize(song.title);
 
-    if (
-      !latestPlayer ||
-      !latestStage ||
-      !isOfficialImage(latestImage, song) ||
-      !stillSameSong
-    ) return false;
-
-    const applied = applyArtwork(latestPlayer, latestStage, latestImage, selected, song.key);
-    if (!selected.exactHorizontal) {
-      console.warn('[V2 desktop artwork] No 16x9 or 21x9 artwork exists. Showing the square image without cropping.', {
-        song_key: song.key
-      });
-    }
-    return applied;
+    if (!currentPlayer || !currentStage || !isOfficial(image, song) || !sameSong) return false;
+    return applySelected(currentPlayer, currentStage, image, selected, song.key);
   }
 
   async function applySongKey(songKey, options = {}) {
     const key = clean(songKey);
     if (!key || !desktopSurface()) return false;
-    const songs = await catalog();
-    const song = songs.find(item => item.key === key);
+    const list = await songs();
+    const song = list.find(item => item.key === key);
     if (!song) return false;
-    return applyForSong(song, { ...options, trustSongKey: true });
+    return applySong(song, { ...options, trustKey: true });
   }
 
   async function applyCurrent(options = {}) {
@@ -360,13 +288,13 @@
     const currentPlayer = player();
     const currentIdentity = identity(currentPlayer);
     if (!currentPlayer || !currentIdentity.title) return false;
-    const songs = await catalog();
-    const song = findSong(songs, currentIdentity);
+    const list = await songs();
+    const song = findSong(list, currentIdentity);
     if (!song) return false;
-    return applyForSong(song, options);
+    return applySong(song, options);
   }
 
-  function scheduleApply(delay = 60, options = {}) {
+  function scheduleApply(delay = 30, options = {}) {
     window.clearTimeout(scheduled);
     scheduled = window.setTimeout(() => {
       applyCurrent(options).catch(error => {
@@ -376,71 +304,46 @@
   }
 
   function installTitleObserver() {
-    const currentPlayer = player();
-    const title = currentPlayer?.querySelector('[data-ptitle]') || null;
+    const title = player()?.querySelector('[data-ptitle]') || null;
     if (!title || title === observedTitle) return Boolean(title);
-
     titleObserver?.disconnect();
     observedTitle = title;
     titleObserver = new MutationObserver(() => {
-      activeSongKey = '';
       operation += 1;
-      scheduleApply(10);
+      scheduleApply(20);
     });
     titleObserver.observe(title, { childList: true, characterData: true, subtree: true });
     return true;
   }
 
   window.addEventListener('stashbox:vec-asset-change', event => {
-    const detail = event?.detail || {};
-    const songKey = clean(detail.songKey);
-    activeSongKey = songKey;
-    activeAssetSource = clean(detail?.asset?.source).toLowerCase();
+    const key = clean(event?.detail?.songKey);
+    activeSongKey = key;
+    activeSource = clean(event?.detail?.asset?.source).toLowerCase();
     installTitleObserver();
-
-    if (activeAssetSource !== 'official-artwork' || !desktopSurface() || !songKey) return;
-    prepareWaitingFrame(songKey);
-    applySongKey(songKey).catch(error => {
-      console.warn('[V2 desktop artwork] Immediate horizontal artwork application failed.', error?.message || error);
-    });
+    if (activeSource === 'official-artwork' && key && desktopSurface()) {
+      applySongKey(key).catch(() => scheduleApply(20));
+    }
   });
 
-  document.addEventListener('pointerdown', event => {
-    const songElement = event.target.closest?.('#v2App [data-song]');
-    if (!songElement) return;
-    const key = clean(songElement.dataset.song);
-    if (!key) return;
-    artworkForSong(key).catch(() => {});
-  }, true);
+  ['pointerenter', 'pointerdown', 'focusin'].forEach(eventName => {
+    document.addEventListener(eventName, event => {
+      if (!desktopSurface()) return;
+      const key = clean(event.target.closest?.('#v2App [data-song]')?.dataset?.song);
+      if (!key) return;
+      artwork(key).then(images => preload(images['16x9'] || images['21x9'])).catch(() => {});
+    }, { capture: true, passive: true });
+  });
 
-  window.addEventListener('resize', () => {
-    window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(() => {
-      installTitleObserver();
-      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(40);
-    }, 100);
-  }, { passive: true });
+  window.addEventListener('resize', () => scheduleApply(60), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(() => scheduleApply(60), 100), { passive: true });
 
-  window.addEventListener('orientationchange', () => {
-    window.setTimeout(() => {
-      installTitleObserver();
-      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(50);
-    }, 120);
-  }, { passive: true });
-
-  observerInstallTimer = window.setInterval(() => {
+  const installTimer = window.setInterval(() => {
     if (installTitleObserver() && player()) {
-      window.clearInterval(observerInstallTimer);
-      scheduleApply(40);
+      window.clearInterval(installTimer);
+      scheduleApply(30);
     }
-  }, 60);
-
-  catalog().then(songs => {
-    if (!desktopSurface()) return;
-    songs.slice(0, 12).forEach(song => {
-      artworkForSong(song.key).catch(() => {});
-    });
-  }).catch(() => {});
+  }, 80);
 
   window.StashboxDesktopOfficialArtwork16x9 = Object.freeze({
     refresh: () => scheduleApply(0, { force: true }),
@@ -448,6 +351,4 @@
     applySong: applySongKey,
     desktopSurface
   });
-
-  scheduleApply(60);
 })();
