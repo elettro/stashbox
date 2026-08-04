@@ -375,8 +375,13 @@
     }, 140);
   }, { passive: true });
 
+  install();
   installTimer = window.setInterval(() => {
-    if (install()) window.clearInterval(installTimer);
+    const installed = install();
+    observeStage();
+    if (installed && player?.querySelector('[data-mobile-vec-stage]')) {
+      window.clearInterval(installTimer);
+    }
   }, 50);
 
   window.StashboxV2MediaTransitionGuard = Object.freeze({
