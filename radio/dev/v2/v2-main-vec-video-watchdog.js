@@ -10,23 +10,21 @@
   const RECIPE_URL = `${API}/radio/vec/recipe`;
   const SONG_ASSETS_URL = `${API}/radio/vec/song-assets`;
   const FOLDERS_URL = `${API}/radio/visuals/folders`;
-  const START_DELAY_MS = 5500;
+  const INTRO_SECONDS = 4.25;
+  const POLL_MS = 350;
+  const DESKTOP_MIN_WIDTH = 900;
 
   let songsPromise = null;
   const clipCache = new Map();
-  let player = null;
-  let stage = null;
-  let titleNode = null;
-  let titleObserver = null;
-  let stageObserver = null;
-  let installTimer = 0;
-  let startTimer = 0;
-  let nativePoll = 0;
+  const failedClipUrls = new Set();
+  let pollTimer = 0;
   let run = 0;
-  let rescueVideo = null;
+  let activeSongKey = '';
   let activeClips = [];
   let clipIndex = 0;
-  let activeSongKey = '';
+  let rescueVideo = null;
+  let rescueUrl = '';
+  let lastDiscoveryAt = 0;
 
   const clean = value => String(value ?? '').trim();
   const normalize = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
@@ -34,20 +32,18 @@
     .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
     .replace(/\?dl=[01]/, '');
 
-  function unwrap(data) {
-    if (typeof data?.body === 'string') {
-      try { return unwrap(JSON.parse(data.body)); } catch (_) { return data; }
+  function unwrap(value) {
+    if (typeof value?.body === 'string') {
+      try { return unwrap(JSON.parse(value.body)); } catch (_) { return value; }
     }
-    return data;
+    return value;
   }
 
-  function rows(data, keys = ['assets', 'items', 'data']) {
-    data = unwrap(data);
-    if (Array.isArray(data)) return data;
-    for (const key of keys) {
-      if (Array.isArray(data?.[key])) return data[key];
-    }
-    return [];
+  function parseMaybeJson(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed || !/^[\[{]/.test(trimmed)) return value;
+    try { return JSON.parse(trimmed); } catch (_) { return value; }
   }
 
   async function getJson(url) {
@@ -68,7 +64,18 @@
     )) || null;
   }
 
-  function currentIdentity() {
+  function activeStage(player = activePlayer()) {
+    return player?.querySelector('[data-mobile-vec-stage]') || null;
+  }
+
+  function desktopSurface(player = activePlayer()) {
+    const surface = activeStage(player) || player;
+    const rect = surface?.getBoundingClientRect?.();
+    const width = Math.max(1, rect?.width || window.innerWidth || 1);
+    return width >= DESKTOP_MIN_WIDTH;
+  }
+
+  function currentIdentity(player = activePlayer()) {
     return {
       title: clean(player?.querySelector('[data-ptitle]')?.textContent),
       artist: clean(player?.querySelector('[data-partist]')?.textContent)
@@ -83,10 +90,21 @@
     return clean(song?.artist || song?.artist_name || 'Stashbox');
   }
 
+  function songKey(song) {
+    return clean(song?.song_key || song?.songKey || song?.id);
+  }
+
   async function catalog() {
     if (!songsPromise) {
       songsPromise = getJson(SONGS_URL)
-        .then(data => rows(data, ['songs', 'items', 'data']))
+        .then(data => {
+          data = unwrap(data);
+          if (Array.isArray(data)) return data;
+          for (const key of ['songs', 'items', 'data']) {
+            if (Array.isArray(data?.[key])) return data[key];
+          }
+          return [];
+        })
         .catch(error => {
           songsPromise = null;
           throw error;
@@ -103,35 +121,47 @@
       || null;
   }
 
-  function assetType(asset) {
-    const value = clean(asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type).toLowerCase();
-    return value === 'clip' || value === 'video' || value.startsWith('video/') ? 'clip' : 'image';
+  function typeLooksLikeClip(asset, url = '') {
+    const value = clean(
+      asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type
+    ).toLowerCase();
+    if (value === 'clip' || value === 'video' || value.startsWith('video/')) return true;
+    return /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(url);
   }
 
   function normalizeClip(asset) {
-    if (!asset || typeof asset !== 'object' || assetType(asset) !== 'clip') return null;
+    if (!asset || typeof asset !== 'object') return null;
     const status = clean(asset.status).toLowerCase();
     if (['hidden', 'deleted', 'archived', 'inactive'].includes(status) || asset.hidden === true || asset.deleted === true) return null;
-    const url = fixUrl(asset.public_url || asset.url || asset.asset_url || asset.src || asset.file_url || asset.s3_url);
-    if (!url) return null;
+    const url = fixUrl(asset.public_url || asset.url || asset.asset_url || asset.src || asset.file_url || asset.s3_url || asset.video_url);
+    if (!url || !typeLooksLikeClip(asset, url) || failedClipUrls.has(url)) return null;
     return {
-      id: clean(asset.id || asset.asset_id || asset.key || url),
+      id: clean(asset.id || asset.asset_id || asset.s3_key || asset.key || url),
       url,
-      durationSeconds: Math.max(1, Number(asset.duration_seconds || asset.durationSeconds || 0) || 0)
+      durationSeconds: Math.max(1, Number(asset.duration_seconds || asset.durationSeconds || asset.duration || 0) || 0)
     };
   }
 
-  function idSet(values) {
-    return new Set((Array.isArray(values) ? values : []).map(clean).filter(Boolean));
-  }
+  function collectClips(value, output = [], seen = new WeakSet(), depth = 0) {
+    value = parseMaybeJson(unwrap(value));
+    if (depth > 8 || value == null) return output;
+    if (Array.isArray(value)) {
+      value.forEach(item => collectClips(item, output, seen, depth + 1));
+      return output;
+    }
+    if (typeof value !== 'object') return output;
+    if (seen.has(value)) return output;
+    seen.add(value);
 
-  function includeByRecipe(clips, part = {}) {
-    const active = idSet(part.active_clip_ids || part.activeClipIds);
-    const excluded = idSet(part.excluded_clip_ids || part.excludedClipIds);
-    return clips.filter(clip => {
-      if (excluded.has(clip.id) || excluded.has(clip.url)) return false;
-      return !active.size || active.has(clip.id) || active.has(clip.url);
+    const clip = normalizeClip(value);
+    if (clip) output.push(clip);
+
+    Object.values(value).forEach(child => {
+      if (child && (typeof child === 'object' || typeof child === 'string')) {
+        collectClips(child, output, seen, depth + 1);
+      }
     });
+    return output;
   }
 
   function recipeFrom(body) {
@@ -139,55 +169,71 @@
     return body.recipe || body.vec_recipe || body.data?.recipe || body.data || body;
   }
 
-  function folderId(folder) {
-    return clean(folder?.folder_id || folder?.visual_folder_id || folder?.id);
+  function visualMode(recipe) {
+    return clean(recipe?.visual_mode || recipe?.visualMode).toLowerCase();
   }
 
-  async function clipsForSong(songKey) {
-    const key = clean(songKey);
+  function folderIds(recipe) {
+    const ids = new Set();
+    const folders = Array.isArray(recipe?.folders) ? recipe.folders : [];
+    folders.forEach(folder => {
+      if (folder?.enabled === false || clean(folder?.status).toLowerCase() === 'hidden') return;
+      const id = clean(folder?.folder_id || folder?.visual_folder_id || folder?.id);
+      if (id) ids.add(id);
+    });
+    return [...ids];
+  }
+
+  function borrowedSongKeys(recipe) {
+    const source = [recipe?.borrowed_song_assets, recipe?.borrowed_sources, recipe?.borrowedSongs, recipe?.borrowed_songs]
+      .find(candidate => Array.isArray(candidate) || Array.isArray(candidate?.sources) || Array.isArray(candidate?.songs));
+    const rows = Array.isArray(source) ? source : (source?.sources || source?.songs || []);
+    return [...new Set(rows
+      .filter(row => row?.enabled !== false)
+      .map(row => clean(row.song_key || row.source_song_key || row.key || row.id))
+      .filter(Boolean))];
+  }
+
+  function uniqueClips(clips) {
+    const seen = new Set();
+    return clips.filter(clip => {
+      const signature = clip.url.toLowerCase();
+      if (!signature || seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    });
+  }
+
+  async function discoverClips(song) {
+    const key = songKey(song);
     if (!key) return { artworkOnly: false, clips: [] };
     if (clipCache.has(key)) return clipCache.get(key);
 
     const promise = Promise.all([
       getJson(`${SONG_ASSETS_URL}?song_key=${encodeURIComponent(key)}`).catch(() => ({})),
       getJson(`${RECIPE_URL}?song_key=${encodeURIComponent(key)}`).catch(() => ({}))
-    ]).then(async ([directBody, recipeBody]) => {
+    ]).then(async ([assetBody, recipeBody]) => {
       const recipe = recipeFrom(recipeBody);
-      const visualMode = clean(recipe?.visual_mode || recipe?.visualMode).toLowerCase();
-      if (visualMode === 'artwork_only') return { artworkOnly: true, clips: [] };
+      if (visualMode(recipe) === 'artwork_only') return { artworkOnly: true, clips: [] };
 
-      const direct = includeByRecipe(
-        rows(directBody).map(normalizeClip).filter(Boolean),
-        recipe?.song_assets || recipe?.songAssets || {}
-      );
+      const clips = [
+        ...collectClips(assetBody),
+        ...collectClips(recipe),
+        ...collectClips(song?.visual_assets),
+        ...collectClips(song?.raw?.visual_assets)
+      ];
 
-      const folders = (Array.isArray(recipe?.folders) ? recipe.folders : [])
-        .filter(folder => folder?.enabled !== false && clean(folder?.status).toLowerCase() !== 'hidden');
-      const folderGroups = await Promise.all(folders.map(async folder => {
-        const id = folderId(folder);
-        if (!id) return [];
-        const body = await getJson(`${FOLDERS_URL}/${encodeURIComponent(id)}/assets`).catch(() => ({}));
-        return includeByRecipe(rows(body).map(normalizeClip).filter(Boolean), folder);
-      }));
+      const folderBodies = await Promise.all(folderIds(recipe).map(id => (
+        getJson(`${FOLDERS_URL}/${encodeURIComponent(id)}/assets`).catch(() => ({}))
+      )));
+      folderBodies.forEach(body => clips.push(...collectClips(body)));
 
-      const borrowedSource = [recipe?.borrowed_song_assets, recipe?.borrowed_sources, recipe?.borrowedSongs, recipe?.borrowed_songs]
-        .find(candidate => Array.isArray(candidate) || Array.isArray(candidate?.sources) || Array.isArray(candidate?.songs));
-      const borrowed = Array.isArray(borrowedSource) ? borrowedSource : (borrowedSource?.sources || borrowedSource?.songs || []);
-      const borrowedGroups = await Promise.all(borrowed.filter(source => source?.enabled !== false).map(async source => {
-        const borrowedKey = clean(source.song_key || source.source_song_key || source.key || source.id);
-        if (!borrowedKey) return [];
-        const body = await getJson(`${SONG_ASSETS_URL}?song_key=${encodeURIComponent(borrowedKey)}`).catch(() => ({}));
-        return includeByRecipe(rows(body).map(normalizeClip).filter(Boolean), source);
-      }));
+      const borrowedBodies = await Promise.all(borrowedSongKeys(recipe).map(borrowedKey => (
+        getJson(`${SONG_ASSETS_URL}?song_key=${encodeURIComponent(borrowedKey)}`).catch(() => ({}))
+      )));
+      borrowedBodies.forEach(body => clips.push(...collectClips(body)));
 
-      const seen = new Set();
-      const clips = [...direct, ...folderGroups.flat(), ...borrowedGroups.flat()].filter(clip => {
-        const signature = clip.url.toLowerCase();
-        if (seen.has(signature)) return false;
-        seen.add(signature);
-        return true;
-      });
-      return { artworkOnly: false, clips };
+      return { artworkOnly: false, clips: uniqueClips(clips) };
     }).catch(error => {
       clipCache.delete(key);
       console.warn('[Main VEC watchdog] Clip discovery failed.', error?.message || error);
@@ -198,66 +244,57 @@
     return promise;
   }
 
-  function audioElement() {
-    return player?.querySelector('[data-audio]') || null;
+  function allAudio() {
+    return [...document.querySelectorAll('#v2App audio, audio[data-audio]')];
   }
 
-  function audioPlaying() {
-    const audio = audioElement();
-    return Boolean(audio && !audio.paused && !audio.ended);
+  function playingAudio(player = activePlayer()) {
+    const local = player?.querySelector('[data-audio]');
+    if (local && !local.paused && !local.ended) return local;
+    return allAudio().find(audio => !audio.paused && !audio.ended) || local || allAudio()[0] || null;
   }
 
-  function nativeVideoActive() {
-    return [...(stage?.querySelectorAll('video.v2-mobile-vec-media') || [])].some(video => (
-      video !== rescueVideo &&
-      video.classList.contains('is-active') &&
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-      !video.paused
-    ));
+  function nativeVideoActive(stage = activeStage()) {
+    return [...(stage?.querySelectorAll('video.v2-mobile-vec-media') || [])].some(video => {
+      if (video === rescueVideo || video.paused || video.ended || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return false;
+      const style = getComputedStyle(video);
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 0) > 0.05;
+    });
   }
 
   function removeRescue({ resetIndex = false } = {}) {
-    window.clearTimeout(startTimer);
-    startTimer = 0;
-    window.clearInterval(nativePoll);
-    nativePoll = 0;
     if (rescueVideo) {
       try { rescueVideo.pause(); } catch (_) {}
       rescueVideo.removeAttribute('src');
       try { rescueVideo.load(); } catch (_) {}
       rescueVideo.remove();
       rescueVideo = null;
+      rescueUrl = '';
     }
     if (resetIndex) clipIndex = 0;
   }
 
-  function injectStyle() {
-    if (document.getElementById('mainVecVideoWatchdogStyle')) return;
-    const style = document.createElement('style');
-    style.id = 'mainVecVideoWatchdogStyle';
-    style.textContent = `
-      .v2-main-watchdog-video{
-        position:absolute;inset:0;z-index:2;width:100%;height:100%;display:block;
-        object-fit:contain;object-position:center center;background:transparent;
-        opacity:0;transition:opacity .3s ease;pointer-events:none;
-      }
-      .v2-main-watchdog-video.is-active{opacity:1}
-    `;
-    document.head.appendChild(style);
+  function markState(player, state, extra = {}) {
+    if (!player) return;
+    player.dataset.mainVecWatchdogState = state;
+    player.dataset.mainVecWatchdogSongKey = activeSongKey;
+    player.dataset.mainVecWatchdogClipCount = String(activeClips.length);
+    Object.entries(extra).forEach(([key, value]) => {
+      player.dataset[key] = String(value ?? '');
+    });
   }
 
-  function playRescueClip(token) {
-    if (token !== run || !stage || !activeClips.length) return;
-    if (nativeVideoActive()) {
-      removeRescue();
+  function playNextRescue(player, stage, audio, token) {
+    if (token !== run || !player || !stage || !audio || !activeClips.length || nativeVideoActive(stage)) return;
+    if (audio.paused || audio.ended) {
+      markState(player, 'waiting-for-audio');
       return;
     }
-    if (!audioPlaying()) return;
 
+    removeRescue();
     const clip = activeClips[clipIndex % activeClips.length];
     clipIndex = (clipIndex + 1) % activeClips.length;
-    removeRescue();
-    injectStyle();
+    rescueUrl = clip.url;
 
     const video = document.createElement('video');
     rescueVideo = video;
@@ -272,139 +309,176 @@
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.dataset.mainVecWatchdog = 'true';
+    video.dataset.vecAssetSource = 'desktop-watchdog';
+    video.style.position = 'absolute';
+    video.style.inset = '0';
+    video.style.zIndex = '2';
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'contain';
+    video.style.objectPosition = 'center center';
+    video.style.background = '#050607';
+    video.style.pointerEvents = 'none';
+    video.style.setProperty('opacity', '0', 'important');
     video.src = clip.url;
 
-    video.addEventListener('playing', () => {
-      if (token !== run) return;
-      video.classList.add('is-active');
-      player.dataset.mainVecWatchdogState = 'rescue-playing';
-    }, { once: true });
-    video.addEventListener('ended', () => {
-      if (token !== run) return;
-      window.setTimeout(() => playRescueClip(token), 120);
-    }, { once: true });
-    video.addEventListener('error', () => {
-      if (token !== run) return;
-      window.setTimeout(() => playRescueClip(token), 240);
-    }, { once: true });
+    const attemptPlay = () => {
+      if (token !== run || video !== rescueVideo || !video.isConnected || audio.paused || audio.ended) return;
+      const result = video.play();
+      if (result?.catch) result.catch(() => {});
+    };
 
-    stage.appendChild(video);
-    video.play().catch(() => {
-      if (token !== run) return;
-      window.setTimeout(() => playRescueClip(token), 500);
+    video.addEventListener('playing', () => {
+      if (token !== run || video !== rescueVideo) return;
+      video.style.setProperty('opacity', '1', 'important');
+      video.style.setProperty('visibility', 'visible', 'important');
+      markState(player, 'rescue-playing', { mainVecWatchdogUrl: clip.url });
+    });
+    ['loadedmetadata', 'loadeddata', 'canplay'].forEach(eventName => {
+      video.addEventListener(eventName, attemptPlay, { passive: true });
+    });
+    video.addEventListener('ended', () => {
+      if (token !== run || video !== rescueVideo) return;
+      playNextRescue(player, stage, audio, token);
+    });
+    video.addEventListener('error', () => {
+      if (token !== run || video !== rescueVideo) return;
+      failedClipUrls.add(clip.url);
+      activeClips = activeClips.filter(item => item.url !== clip.url);
+      markState(player, 'clip-error', { mainVecWatchdogUrl: clip.url });
+      if (activeClips.length) window.setTimeout(() => playNextRescue(player, stage, audio, token), 150);
+      else removeRescue();
     });
 
-    nativePoll = window.setInterval(() => {
-      if (token !== run || nativeVideoActive()) removeRescue();
-    }, 350);
+    stage.appendChild(video);
+    try { video.load(); } catch (_) {}
+    attemptPlay();
+    window.setTimeout(attemptPlay, 150);
+    window.setTimeout(attemptPlay, 500);
+    markState(player, 'starting-rescue', { mainVecWatchdogUrl: clip.url });
   }
 
-  function scheduleRescue(token, delay = START_DELAY_MS) {
-    window.clearTimeout(startTimer);
-    startTimer = window.setTimeout(() => {
-      if (token !== run || nativeVideoActive() || !activeClips.length) return;
-      if (audioPlaying()) playRescueClip(token);
-      else player.dataset.mainVecWatchdogState = 'waiting-for-audio';
-    }, delay);
-  }
-
-  async function armForCurrentSong() {
+  async function refreshSong(player, stage, identity) {
     const token = ++run;
     removeRescue({ resetIndex: true });
     activeClips = [];
     activeSongKey = '';
-    if (!player || player.hidden || !stage) return;
 
-    const identity = currentIdentity();
-    if (!identity.title) return;
     const songs = await catalog().catch(() => []);
     if (token !== run) return;
     const song = findSong(songs, identity);
-    const key = clean(song?.song_key);
-    if (!key) return;
+    const key = songKey(song);
+    if (!key) {
+      markState(player, 'song-not-found');
+      return;
+    }
 
     activeSongKey = key;
-    const result = await clipsForSong(key);
-    if (token !== run || result.artworkOnly || !result.clips.length) return;
-    activeClips = result.clips;
-    scheduleRescue(token);
-  }
+    markState(player, 'discovering');
+    const result = await discoverClips(song);
+    if (token !== run) return;
+    lastDiscoveryAt = Date.now();
 
-  function bindAudio() {
-    const audio = audioElement();
-    if (!audio || audio.dataset.mainVecWatchdogBound === 'true') return;
-    audio.dataset.mainVecWatchdogBound = 'true';
-    audio.addEventListener('pause', () => {
-      if (rescueVideo && !rescueVideo.paused) rescueVideo.pause();
-    }, { passive: true });
-    audio.addEventListener('play', () => {
-      if (rescueVideo) rescueVideo.play().catch(() => {});
-      else if (activeClips.length && !nativeVideoActive()) scheduleRescue(run, 350);
-    }, { passive: true });
-    audio.addEventListener('ended', () => removeRescue(), { passive: true });
-  }
-
-  function observeStage() {
-    if (!stage) return;
-    stageObserver?.disconnect();
-    stageObserver = new MutationObserver(records => {
-      records.forEach(record => {
-        record.addedNodes.forEach(node => {
-          if (!(node instanceof HTMLVideoElement) || !node.matches('video.v2-mobile-vec-media')) return;
-          ['playing', 'loadeddata', 'canplay'].forEach(eventName => {
-            node.addEventListener(eventName, () => {
-              if (nativeVideoActive()) removeRescue();
-            }, { passive: true });
-          });
-        });
-      });
-    });
-    stageObserver.observe(stage, { childList: true });
-  }
-
-  function install() {
-    const nextPlayer = activePlayer();
-    const nextStage = nextPlayer?.querySelector('[data-mobile-vec-stage]') || null;
-    const nextTitle = nextPlayer?.querySelector('[data-ptitle]') || null;
-    if (!nextPlayer || !nextStage || !nextTitle) return false;
-
-    player = nextPlayer;
-    stage = nextStage;
-    bindAudio();
-    observeStage();
-
-    if (titleNode !== nextTitle) {
-      titleObserver?.disconnect();
-      titleNode = nextTitle;
-      titleObserver = new MutationObserver(() => armForCurrentSong());
-      titleObserver.observe(titleNode, { childList: true, characterData: true, subtree: true });
+    if (result.artworkOnly) {
+      markState(player, 'artwork-only');
+      return;
     }
-    return true;
+
+    activeClips = result.clips;
+    markState(player, activeClips.length ? 'ready' : 'no-clips');
   }
 
-  window.addEventListener('stashbox:vec-asset-change', event => {
-    const detail = event?.detail || {};
-    const key = clean(detail.songKey);
-    const type = clean(detail.asset?.type || detail.asset?.asset_type || detail.asset?.media_type).toLowerCase();
-    install();
-    if (key && key !== activeSongKey) armForCurrentSong();
-    if (type === 'clip' || type === 'video') {
-      window.setTimeout(() => {
-        if (nativeVideoActive()) removeRescue();
-      }, 250);
+  async function tick() {
+    const player = activePlayer();
+    const stage = activeStage(player);
+    if (!player || !stage || !desktopSurface(player)) {
+      removeRescue({ resetIndex: true });
+      return;
+    }
+
+    const identity = currentIdentity(player);
+    if (!identity.title) return;
+    const signature = `${normalize(identity.artist)}|${normalize(identity.title)}`;
+    if (player.dataset.mainVecWatchdogIdentity !== signature) {
+      player.dataset.mainVecWatchdogIdentity = signature;
+      await refreshSong(player, stage, identity);
+      return;
+    }
+
+    if (!activeSongKey) return;
+    if (!activeClips.length) {
+      if (Date.now() - lastDiscoveryAt > 5000) {
+        clipCache.delete(activeSongKey);
+        await refreshSong(player, stage, identity);
+      }
+      return;
+    }
+
+    const audio = playingAudio(player);
+    if (!audio || audio.paused || audio.ended) {
+      if (rescueVideo && !rescueVideo.paused) rescueVideo.pause();
+      markState(player, 'waiting-for-audio');
+      return;
+    }
+
+    if (nativeVideoActive(stage)) {
+      removeRescue();
+      markState(player, 'native-video-playing');
+      return;
+    }
+
+    if (Number(audio.currentTime || 0) < INTRO_SECONDS) {
+      markState(player, 'artwork-intro');
+      return;
+    }
+
+    if (!rescueVideo || !rescueVideo.isConnected) {
+      playNextRescue(player, stage, audio, run);
+      return;
+    }
+
+    if (rescueVideo.paused && !rescueVideo.ended) {
+      rescueVideo.play().catch(() => {});
+    }
+  }
+
+  pollTimer = window.setInterval(() => tick().catch(error => {
+    console.warn('[Main VEC watchdog] Tick failed.', error?.message || error);
+  }), POLL_MS);
+
+  ['stashbox:vec-asset-change', 'stashbox:v2-session-changed', 'stashbox:v2-auth-changed'].forEach(eventName => {
+    window.addEventListener(eventName, () => tick().catch(() => {}));
+  });
+  document.addEventListener('play', event => {
+    if (event.target instanceof HTMLAudioElement) tick().catch(() => {});
+  }, true);
+  document.addEventListener('pause', event => {
+    if (event.target instanceof HTMLAudioElement && rescueVideo && !rescueVideo.paused) rescueVideo.pause();
+  }, true);
+  window.addEventListener('resize', () => tick().catch(() => {}), { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (rescueVideo && !rescueVideo.paused) rescueVideo.pause();
+    } else {
+      tick().catch(() => {});
     }
   });
 
-  installTimer = window.setInterval(() => {
-    if (install()) {
-      window.clearInterval(installTimer);
-      armForCurrentSong();
-    }
-  }, 80);
+  tick().catch(() => {});
 
   window.StashboxMainVecVideoWatchdog = Object.freeze({
-    refresh: armForCurrentSong,
+    refresh: () => {
+      const player = activePlayer();
+      if (player) delete player.dataset.mainVecWatchdogIdentity;
+      return tick();
+    },
     activeSongKey: () => activeSongKey,
-    rescueActive: () => Boolean(rescueVideo)
+    clipCount: () => activeClips.length,
+    rescueActive: () => Boolean(rescueVideo),
+    rescueUrl: () => rescueUrl,
+    stop: () => {
+      window.clearInterval(pollTimer);
+      removeRescue({ resetIndex: true });
+    }
   });
 })();
