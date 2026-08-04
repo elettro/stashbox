@@ -25,12 +25,26 @@
   let rescueVideo = null;
   let rescueUrl = '';
   let lastDiscoveryAt = 0;
+  let clickedSongKey = '';
 
   const clean = value => String(value ?? '').trim();
   const normalize = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
   const fixUrl = value => clean(value)
     .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
     .replace(/\?dl=[01]/, '');
+
+  function canonicalMediaUrl(value) {
+    const source = fixUrl(value);
+    if (!source) return '';
+    try {
+      const url = new URL(source, window.location.href);
+      url.hash = '';
+      ['X-Amz-Algorithm', 'X-Amz-Credential', 'X-Amz-Date', 'X-Amz-Expires', 'X-Amz-SignedHeaders', 'X-Amz-Signature', 'response-content-disposition'].forEach(key => url.searchParams.delete(key));
+      return `${url.origin}${url.pathname}${url.searchParams.toString() ? `?${url.searchParams}` : ''}`.toLowerCase();
+    } catch (_) {
+      return source.split('#')[0].toLowerCase();
+    }
+  }
 
   function unwrap(value) {
     if (typeof value?.body === 'string') {
@@ -94,6 +108,21 @@
     return clean(song?.song_key || song?.songKey || song?.id);
   }
 
+  function songAudio(song) {
+    return canonicalMediaUrl(song?.audio_url || song?.audioUrl || song?.stream_url || song?.streamUrl || song?.audio);
+  }
+
+  function playerSongKeyHint(player = activePlayer()) {
+    const activeCard = document.querySelector('#v2App [data-song].is-active, #v2App [data-song][aria-current="true"], #v2App [data-song][data-active="true"]');
+    return clean(
+      player?.dataset?.songKey ||
+      player?.dataset?.currentSongKey ||
+      player?.dataset?.song ||
+      activeCard?.dataset?.song ||
+      clickedSongKey
+    );
+  }
+
   async function catalog() {
     if (!songsPromise) {
       songsPromise = getJson(SONGS_URL)
@@ -113,19 +142,43 @@
     return songsPromise;
   }
 
-  function findSong(songs, identity) {
+  function findSong(songs, identity, player = activePlayer()) {
     const title = normalize(identity?.title);
     const artist = normalize(identity?.artist);
-    return songs.find(song => normalize(songTitle(song)) === title && (!artist || normalize(songArtist(song)) === artist))
-      || songs.find(song => normalize(songTitle(song)) === title)
-      || null;
+    const currentAudio = canonicalMediaUrl(playingAudio(player)?.currentSrc || playingAudio(player)?.src);
+    const hintedKey = playerSongKeyHint(player);
+    const hinted = hintedKey ? songs.find(song => songKey(song) === hintedKey) : null;
+    if (hinted) {
+      const titleMatches = title && normalize(songTitle(hinted)) === title;
+      const audioMatches = currentAudio && songAudio(hinted) === currentAudio;
+      if (titleMatches || audioMatches || (!title && !currentAudio)) return hinted;
+    }
+
+    const titleMatch = songs.find(song => normalize(songTitle(song)) === title && (!artist || normalize(songArtist(song)) === artist))
+      || songs.find(song => normalize(songTitle(song)) === title);
+    if (titleMatch) return titleMatch;
+
+    if (currentAudio) {
+      const exactAudio = songs.find(song => songAudio(song) === currentAudio);
+      if (exactAudio) return exactAudio;
+      const currentPath = (() => {
+        try { return new URL(currentAudio).pathname.toLowerCase(); } catch (_) { return currentAudio; }
+      })();
+      const pathMatch = songs.find(song => {
+        const source = songAudio(song);
+        if (!source) return false;
+        try { return new URL(source).pathname.toLowerCase() === currentPath; } catch (_) { return source === currentPath; }
+      });
+      if (pathMatch) return pathMatch;
+    }
+    return null;
   }
 
   function typeLooksLikeClip(asset, url = '') {
     const value = clean(
-      asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type
+      asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type || asset?.kind
     ).toLowerCase();
-    if (value === 'clip' || value === 'video' || value.startsWith('video/')) return true;
+    if (value === 'clip' || value === 'video' || value.startsWith('video/') || value.includes('clip') || value.includes('video')) return true;
     return /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(url);
   }
 
@@ -133,7 +186,10 @@
     if (!asset || typeof asset !== 'object') return null;
     const status = clean(asset.status).toLowerCase();
     if (['hidden', 'deleted', 'archived', 'inactive'].includes(status) || asset.hidden === true || asset.deleted === true) return null;
-    const url = fixUrl(asset.public_url || asset.url || asset.asset_url || asset.src || asset.file_url || asset.s3_url || asset.video_url);
+    const url = fixUrl(
+      asset.public_url || asset.url || asset.asset_url || asset.src || asset.file_url || asset.s3_url ||
+      asset.video_url || asset.clip_url || asset.media_url || asset.source_url
+    );
     if (!url || !typeLooksLikeClip(asset, url) || failedClipUrls.has(url)) return null;
     return {
       id: clean(asset.id || asset.asset_id || asset.s3_key || asset.key || url),
@@ -175,11 +231,25 @@
 
   function folderIds(recipe) {
     const ids = new Set();
-    const folders = Array.isArray(recipe?.folders) ? recipe.folders : [];
-    folders.forEach(folder => {
-      if (folder?.enabled === false || clean(folder?.status).toLowerCase() === 'hidden') return;
-      const id = clean(folder?.folder_id || folder?.visual_folder_id || folder?.id);
-      if (id) ids.add(id);
+    const groups = [
+      recipe?.folders,
+      recipe?.selected_folders,
+      recipe?.selectedFolders,
+      recipe?.approved_folders,
+      recipe?.approvedFolders,
+      recipe?.visual_folders,
+      recipe?.visualFolders,
+      recipe?.folder_sources,
+      recipe?.folderSources,
+      recipe?.sources?.folders
+    ];
+    groups.forEach(group => {
+      const rows = Array.isArray(group) ? group : (Array.isArray(group?.items) ? group.items : []);
+      rows.forEach(folder => {
+        if (!folder || folder.enabled === false || clean(folder.status).toLowerCase() === 'hidden') return;
+        const id = clean(folder.folder_id || folder.visual_folder_id || folder.folderId || folder.id || folder.key);
+        if (id) ids.add(id);
+      });
     });
     return [...ids];
   }
@@ -197,7 +267,7 @@
   function uniqueClips(clips) {
     const seen = new Set();
     return clips.filter(clip => {
-      const signature = clip.url.toLowerCase();
+      const signature = canonicalMediaUrl(clip.url) || clip.url.toLowerCase();
       if (!signature || seen.has(signature)) return false;
       seen.add(signature);
       return true;
@@ -366,14 +436,18 @@
 
     const songs = await catalog().catch(() => []);
     if (token !== run) return;
-    const song = findSong(songs, identity);
+    const song = findSong(songs, identity, player);
     const key = songKey(song);
     if (!key) {
-      markState(player, 'song-not-found');
+      markState(player, 'song-not-found', {
+        mainVecWatchdogAudio: canonicalMediaUrl(playingAudio(player)?.currentSrc || playingAudio(player)?.src),
+        mainVecWatchdogHint: playerSongKeyHint(player)
+      });
       return;
     }
 
     activeSongKey = key;
+    player.dataset.songKey = key;
     markState(player, 'discovering');
     const result = await discoverClips(song);
     if (token !== run) return;
@@ -398,7 +472,8 @@
 
     const identity = currentIdentity(player);
     if (!identity.title) return;
-    const signature = `${normalize(identity.artist)}|${normalize(identity.title)}`;
+    const audioSource = canonicalMediaUrl(playingAudio(player)?.currentSrc || playingAudio(player)?.src);
+    const signature = `${normalize(identity.artist)}|${normalize(identity.title)}|${playerSongKeyHint(player)}|${audioSource}`;
     if (player.dataset.mainVecWatchdogIdentity !== signature) {
       player.dataset.mainVecWatchdogIdentity = signature;
       await refreshSong(player, stage, identity);
@@ -442,11 +517,29 @@
     }
   }
 
+  document.addEventListener('click', event => {
+    const songNode = event.target.closest?.('#v2App [data-song]');
+    const key = clean(songNode?.dataset?.song);
+    if (!key) return;
+    clickedSongKey = key;
+    const player = activePlayer();
+    if (player) player.dataset.songKey = key;
+  }, true);
+
   pollTimer = window.setInterval(() => tick().catch(error => {
     console.warn('[Main VEC watchdog] Tick failed.', error?.message || error);
   }), POLL_MS);
 
-  ['stashbox:vec-asset-change', 'stashbox:v2-session-changed', 'stashbox:v2-auth-changed'].forEach(eventName => {
+  window.addEventListener('stashbox:vec-asset-change', event => {
+    const key = clean(event?.detail?.songKey);
+    if (key) {
+      clickedSongKey = key;
+      const player = activePlayer();
+      if (player) player.dataset.songKey = key;
+    }
+    tick().catch(() => {});
+  });
+  ['stashbox:v2-session-changed', 'stashbox:v2-auth-changed'].forEach(eventName => {
     window.addEventListener(eventName, () => tick().catch(() => {}));
   });
   document.addEventListener('play', event => {
