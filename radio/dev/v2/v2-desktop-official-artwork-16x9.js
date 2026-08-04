@@ -132,25 +132,6 @@
     };
   }
 
-  async function artworkForSong(songKey, { force = false } = {}) {
-    const key = clean(songKey);
-    if (!key) return {};
-    if (force) artworkCache.delete(key);
-    if (artworkCache.has(key)) return artworkCache.get(key);
-    if (requestCache.has(key)) return requestCache.get(key);
-
-    const promise = getJson(`${API}/radio/songs/${encodeURIComponent(key)}/artwork-images`)
-      .then(artworkFromPayload)
-      .then(images => {
-        artworkCache.set(key, images);
-        return images;
-      })
-      .finally(() => requestCache.delete(key));
-
-    requestCache.set(key, promise);
-    return promise;
-  }
-
   function preload(url) {
     const source = fixUrl(url);
     if (!source) return Promise.resolve(false);
@@ -178,6 +159,27 @@
     return promise;
   }
 
+  async function artworkForSong(songKey, { force = false } = {}) {
+    const key = clean(songKey);
+    if (!key) return {};
+    if (force) artworkCache.delete(key);
+    if (artworkCache.has(key)) return artworkCache.get(key);
+    if (requestCache.has(key)) return requestCache.get(key);
+
+    const promise = getJson(`${API}/radio/songs/${encodeURIComponent(key)}/artwork-images`)
+      .then(artworkFromPayload)
+      .then(images => {
+        artworkCache.set(key, images);
+        const horizontal = fixUrl(images['16x9'] || images['21x9']);
+        if (horizontal) preload(horizontal);
+        return images;
+      })
+      .finally(() => requestCache.delete(key));
+
+    requestCache.set(key, promise);
+    return promise;
+  }
+
   function isOfficialImage(media, song) {
     if (!media || media.tagName !== 'IMG') return false;
     if (
@@ -193,10 +195,10 @@
 
   function chooseHorizontal(images, song) {
     if (images?.['16x9']) {
-      return { url: fixUrl(images['16x9']), sourceRatio: '16x9', exactHorizontal: true, fit: 'cover' };
+      return { url: fixUrl(images['16x9']), sourceRatio: '16x9', exactHorizontal: true, fit: 'contain' };
     }
     if (images?.['21x9']) {
-      return { url: fixUrl(images['21x9']), sourceRatio: '21x9', exactHorizontal: true, fit: 'cover' };
+      return { url: fixUrl(images['21x9']), sourceRatio: '21x9', exactHorizontal: true, fit: 'contain' };
     }
     return {
       url: fixUrl(images?.['1x1'] || song?.square),
@@ -217,6 +219,25 @@
       currentImage?.dataset?.desktopArtworkSignature === expected &&
       canonicalUrl(currentImage.currentSrc || currentImage.src) === canonicalUrl(selected.url)
     );
+  }
+
+  function prepareWaitingFrame(songKey) {
+    if (!desktopSurface()) return;
+    const currentPlayer = player();
+    const currentStage = stage(currentPlayer);
+    const image = activeMedia(currentStage);
+    if (!currentPlayer || !currentStage || !image || image.tagName !== 'IMG') return;
+
+    image.dataset.desktopArtworkState = 'waiting-horizontal';
+    image.style.objectFit = 'contain';
+    image.style.objectPosition = 'center center';
+    image.style.transition = 'none';
+    image.style.transform = 'none';
+    image.style.removeProperty('visibility');
+    image.style.setProperty('opacity', '1', 'important');
+    currentStage.style.backgroundColor = '#050607';
+    currentPlayer.dataset.desktopArtworkState = 'waiting-horizontal';
+    currentPlayer.dataset.desktopArtworkSongKey = clean(songKey);
   }
 
   function applyArtwork(currentPlayer, currentStage, image, selected, songKey) {
@@ -276,7 +297,7 @@
     return true;
   }
 
-  async function applyForSong(song, { force = false } = {}) {
+  async function applyForSong(song, { force = false, trustSongKey = false } = {}) {
     if (!song?.key || !desktopSurface()) return false;
     const token = ++operation;
     activeSongKey = song.key;
@@ -305,11 +326,15 @@
     const latestStage = stage(latestPlayer);
     const latestImage = activeMedia(latestStage);
     const latestIdentity = identity(latestPlayer);
+    const stillSameSong = trustSongKey
+      ? activeSongKey === song.key
+      : normalize(latestIdentity.title) === normalize(song.title);
+
     if (
       !latestPlayer ||
       !latestStage ||
       !isOfficialImage(latestImage, song) ||
-      normalize(latestIdentity.title) !== normalize(song.title)
+      !stillSameSong
     ) return false;
 
     const applied = applyArtwork(latestPlayer, latestStage, latestImage, selected, song.key);
@@ -319,6 +344,15 @@
       });
     }
     return applied;
+  }
+
+  async function applySongKey(songKey, options = {}) {
+    const key = clean(songKey);
+    if (!key || !desktopSurface()) return false;
+    const songs = await catalog();
+    const song = songs.find(item => item.key === key);
+    if (!song) return false;
+    return applyForSong(song, { ...options, trustSongKey: true });
   }
 
   async function applyCurrent(options = {}) {
@@ -351,7 +385,7 @@
     titleObserver = new MutationObserver(() => {
       activeSongKey = '';
       operation += 1;
-      scheduleApply(40);
+      scheduleApply(10);
     });
     titleObserver.observe(title, { childList: true, characterData: true, subtree: true });
     return true;
@@ -359,46 +393,61 @@
 
   window.addEventListener('stashbox:vec-asset-change', event => {
     const detail = event?.detail || {};
-    activeSongKey = clean(detail.songKey);
+    const songKey = clean(detail.songKey);
+    activeSongKey = songKey;
     activeAssetSource = clean(detail?.asset?.source).toLowerCase();
     installTitleObserver();
-    if (activeAssetSource === 'official-artwork' && desktopSurface()) scheduleApply(20);
+
+    if (activeAssetSource !== 'official-artwork' || !desktopSurface() || !songKey) return;
+    prepareWaitingFrame(songKey);
+    applySongKey(songKey).catch(error => {
+      console.warn('[V2 desktop artwork] Immediate horizontal artwork application failed.', error?.message || error);
+    });
   });
 
   document.addEventListener('pointerdown', event => {
     const songElement = event.target.closest?.('#v2App [data-song]');
     if (!songElement) return;
     const key = clean(songElement.dataset.song);
-    if (key) artworkForSong(key).catch(() => {});
+    if (!key) return;
+    artworkForSong(key).catch(() => {});
   }, true);
 
   window.addEventListener('resize', () => {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       installTitleObserver();
-      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(80);
-    }, 140);
+      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(40);
+    }, 100);
   }, { passive: true });
 
   window.addEventListener('orientationchange', () => {
     window.setTimeout(() => {
       installTitleObserver();
-      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(100);
-    }, 160);
+      if (desktopSurface() && activeAssetSource === 'official-artwork') scheduleApply(50);
+    }, 120);
   }, { passive: true });
 
   observerInstallTimer = window.setInterval(() => {
     if (installTitleObserver() && player()) {
       window.clearInterval(observerInstallTimer);
-      scheduleApply(120);
+      scheduleApply(40);
     }
-  }, 100);
+  }, 60);
+
+  catalog().then(songs => {
+    if (!desktopSurface()) return;
+    songs.slice(0, 12).forEach(song => {
+      artworkForSong(song.key).catch(() => {});
+    });
+  }).catch(() => {});
 
   window.StashboxDesktopOfficialArtwork16x9 = Object.freeze({
     refresh: () => scheduleApply(0, { force: true }),
     applyCurrent,
+    applySong: applySongKey,
     desktopSurface
   });
 
-  scheduleApply(200);
+  scheduleApply(60);
 })();
