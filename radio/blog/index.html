@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stashbox Radio Blog | Articles, Infographics and One-Sheets</title>
+  <meta name="description" content="The centralized Stashbox Radio library for articles, infographics, one-sheets, audio podcasts, video clips and platform explainers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0d0c0a;
+      --surface:#17140f;
+      --surface2:#211b13;
+      --text:#f7f1e6;
+      --muted:#b9ad9a;
+      --faint:#817665;
+      --gold:#f2a93b;
+      --orange:#e8863a;
+      --green:#3c7a4a;
+      --red:#c1453b;
+      --line:rgba(242,169,59,.18);
+      --line2:rgba(242,169,59,.36);
+      --display:'Barlow Condensed',sans-serif;
+      --body:'Work Sans',sans-serif;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);background-image:radial-gradient(ellipse 900px 520px at 10% -10%,rgba(242,169,59,.12),transparent 60%),radial-gradient(ellipse 700px 480px at 100% 15%,rgba(60,122,74,.08),transparent 60%)}
+    a{color:inherit}
+    button,input{font:inherit}
+    .nav{position:sticky;top:0;z-index:20;background:rgba(13,12,10,.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .nav-inner{max-width:1280px;margin:auto;padding:15px 24px;display:flex;align-items:center;gap:22px}
+    .brand{font-family:var(--display);font-size:26px;font-weight:900;letter-spacing:.02em;text-decoration:none;white-space:nowrap}.brand i{color:var(--gold);font-style:normal}
+    .nav-links{margin-left:auto;display:flex;gap:18px;align-items:center}.nav-links a{text-decoration:none;color:var(--muted);font-size:14px;font-weight:600}.nav-links a:hover{color:var(--gold)}
+    .wrap{max-width:1280px;margin:auto;padding:0 24px}
+    .hero{padding:76px 0 42px;display:grid;grid-template-columns:1.25fr .75fr;gap:48px;align-items:end}
+    .eyebrow{font-family:var(--display);color:var(--gold);font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px}
+    h1{font-family:var(--display);font-size:clamp(56px,8vw,112px);line-height:.87;margin:0 0 24px;letter-spacing:-.02em;text-transform:uppercase}.dot{color:var(--gold)}
+    .hero p{font-size:clamp(18px,2vw,25px);line-height:1.5;color:var(--muted);max-width:750px;margin:0}
+    .hero-note{border-left:3px solid var(--gold);padding:6px 0 6px 20px;color:var(--faint);line-height:1.65}
+    .gpt-cta{margin:12px 0 42px;border:1px solid var(--line2);border-radius:24px;padding:30px;background:linear-gradient(135deg,rgba(242,169,59,.16),rgba(232,134,58,.05) 55%,rgba(60,122,74,.09));display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center}
+    .gpt-cta small{font-family:var(--display);font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)}
+    .gpt-cta h2{font-family:var(--display);font-size:clamp(32px,4vw,52px);line-height:1;margin:7px 0 9px;text-transform:uppercase}.gpt-cta p{margin:0;color:var(--muted);line-height:1.55;max-width:760px}
+    .cta-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:var(--gold);color:#111;font-family:var(--display);font-weight:900;text-transform:uppercase;letter-spacing:.05em;padding:15px 22px;border-radius:999px;white-space:nowrap}.cta-button:hover{background:#ffc45f}
+    .tools{display:grid;grid-template-columns:1fr minmax(240px,380px);gap:20px;align-items:center;padding:18px 0 30px;border-top:1px solid var(--line)}
+    .filters{display:flex;flex-wrap:wrap;gap:9px}.filter{border:1px solid var(--line);background:var(--surface);color:var(--muted);padding:10px 15px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:700}.filter:hover,.filter.active{background:var(--gold);border-color:var(--gold);color:#111}
+    .search{width:100%;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:999px;padding:12px 17px;outline:none}.search:focus{border-color:var(--gold)}
+    .section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin:12px 0 22px}.section-head h2{font-family:var(--display);font-size:40px;text-transform:uppercase;margin:0}.count{color:var(--faint);font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;padding-bottom:70px}
+    .card{background:linear-gradient(180deg,var(--surface),var(--surface2));border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;min-height:100%;transition:transform .18s ease,border-color .18s ease}.card:hover{transform:translateY(-4px);border-color:var(--line2)}
+    .thumb{aspect-ratio:16/10;background:#090909;overflow:hidden;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--line)}
+    .thumb img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+    .article-thumb{padding:32px;background:radial-gradient(circle at 20% 10%,rgba(242,169,59,.2),transparent 45%),#15100a;align-items:flex-end;justify-content:flex-start}
+    .article-thumb span{font-family:var(--display);font-size:48px;line-height:.9;text-transform:uppercase;font-weight:900;max-width:290px}.article-thumb b{color:var(--gold)}
+    .card-body{padding:21px;display:flex;flex-direction:column;gap:10px;flex:1}
+    .type{font-family:var(--display);font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--gold)}
+    .card h3{font-family:var(--display);font-size:28px;line-height:1.05;margin:0;text-transform:uppercase}.card p{color:var(--muted);font-size:14px;line-height:1.55;margin:0}.card-link{margin-top:auto;padding-top:8px;color:var(--gold);text-decoration:none;font-weight:700;font-size:14px}.card-link:hover{text-decoration:underline}
+    .empty{display:none;grid-column:1/-1;border:1px dashed var(--line2);border-radius:18px;padding:36px;text-align:center;color:var(--muted)}
+    footer{border-top:1px solid var(--line);padding:32px 24px 48px;color:var(--faint);text-align:center;font-size:14px}
+    @media(max-width:920px){.hero{grid-template-columns:1fr}.hero-note{display:none}.gpt-cta{grid-template-columns:1fr}.cta-button{justify-self:start}.tools{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:620px){.nav-links{display:none}.wrap{padding:0 16px}.hero{padding-top:50px}.grid{grid-template-columns:1fr}.gpt-cta{padding:24px}.section-head h2{font-size:34px}.thumb{aspect-ratio:4/3}}
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="/radio/">STASHBOX<i>•</i>RADIO</a>
+      <div class="nav-links">
+        <a href="/radio/">Listen</a>
+        <a href="/radio/dashboard/">Dashboard</a>
+        <a href="/radio/blog/" aria-current="page">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">The Stashbox Radio Knowledge and Media Hub</div>
+        <h1>BUILDING<br>IN PUBLIC<span class="dot">.</span></h1>
+        <p>Articles, infographics, one-sheets, audio podcasts, video clips and explainers documenting the Stashbox Radio ecosystem as it grows.</p>
+      </div>
+      <div class="hero-note">Newest material appears first. Use the filters to move between formats. Every item receives a permanent page or full-size viewing link.</div>
+    </section>
+
+    <section class="gpt-cta">
+      <div>
+        <small>Featured Platform Guide</small>
+        <h2>Meet the Stashbox RadioGPT</h2>
+        <p>Explore the Custom GPT built to explain, manage and operate the growing Stashbox Radio ecosystem.</p>
+      </div>
+      <a class="cta-button" href="https://stashbox.com/report/customgpt/index.html#capabilities">Explore RadioGPT</a>
+    </section>
+
+    <section class="tools" aria-label="Content filters and search">
+      <div class="filters" role="group" aria-label="Filter by content type">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="infographic">Infographics</button>
+        <button class="filter" data-filter="article">Articles</button>
+        <button class="filter" data-filter="audio">Audio Podcasts</button>
+        <button class="filter" data-filter="video">Video Clips</button>
+        <button class="filter" data-filter="one-sheet">One-Sheets</button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="Search the library" aria-label="Search the library">
+    </section>
+
+    <div class="section-head">
+      <h2>Latest Additions</h2>
+      <div class="count" id="count">6 items</div>
+    </div>
+
+    <section class="grid" id="library">
+      <article class="card" data-type="article" data-search="the future of sound industry briefing modern label mood economy ecommerce video audio house brand">
+        <div class="thumb article-thumb"><span>The Future of <b>Sound.</b></span></div>
+        <div class="card-body">
+          <div class="type">Article</div>
+          <h3>The Future of Sound</h3>
+          <p>How Stashbox Radio is building a 360-degree blueprint for the modern label.</p>
+          <a class="card-link" href="/radio/blog/the-future-of-sound/">Read the article</a>
+        </div>
+      </article>
+
+      <article class="card" data-type="one-sheet" data-search="stashbox radio one sheet collection platform explainer">
+        <a class="thumb" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_43_13%20PM.png" target="_blank" rel="noopener"><img src="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_43_13%20PM.png" alt="Stashbox Radio one-sheet"></a>
+        <div class="card-body"><div class="type">One-Sheet</div><h3>Stashbox Radio Overview</h3><p>A visual platform explainer from the current one-sheet collection.</p><a class="card-link" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_43_13%20PM.png" target="_blank" rel="noopener">View full size</a></div>
+      </article>
+
+      <article class="card" data-type="one-sheet" data-search="stashbox radio ecosystem visual one sheet">
+        <a class="thumb" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_48%20PM%20%281%29.png" target="_blank" rel="noopener"><img src="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_48%20PM%20%281%29.png" alt="Stashbox Radio ecosystem one-sheet"></a>
+        <div class="card-body"><div class="type">One-Sheet</div><h3>Stashbox Radio Ecosystem</h3><p>A visual overview of the connected Stashbox Radio platform.</p><a class="card-link" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_48%20PM%20%281%29.png" target="_blank" rel="noopener">View full size</a></div>
+      </article>
+
+      <article class="card" data-type="one-sheet" data-search="stashbox radio features one sheet">
+        <a class="thumb" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_49%20PM%20%282%29.png" target="_blank" rel="noopener"><img src="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_49%20PM%20%282%29.png" alt="Stashbox Radio feature one-sheet"></a>
+        <div class="card-body"><div class="type">One-Sheet</div><h3>Platform Features</h3><p>A concise visual breakdown of current Stashbox Radio capabilities.</p><a class="card-link" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2010_58_49%20PM%20%282%29.png" target="_blank" rel="noopener">View full size</a></div>
+      </article>
+
+      <article class="card" data-type="one-sheet" data-search="stashbox radio strategy value one sheet">
+        <a class="thumb" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_48_46%20PM.png" target="_blank" rel="noopener"><img src="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_48_46%20PM.png" alt="Stashbox Radio strategy one-sheet"></a>
+        <div class="card-body"><div class="type">One-Sheet</div><h3>Platform Strategy</h3><p>A one-page visual explaining the strategic value of the system.</p><a class="card-link" href="/onesheets/ChatGPT%20Image%20Jul%2026%2C%202026%2C%2011_48_46%20PM.png" target="_blank" rel="noopener">View full size</a></div>
+      </article>
+
+      <article class="card" data-type="one-sheet" data-search="stashbox social factory custom gpt campaigns video scheduling one sheet">
+        <a class="thumb" href="/onesheets/stasbhox-social-factory.png" target="_blank" rel="noopener"><img src="/onesheets/stasbhox-social-factory.png" alt="Stashbox Social Factory one-sheet"></a>
+        <div class="card-body"><div class="type">One-Sheet</div><h3>Stashbox Social Factory</h3><p>How Stashbox turns songs and visual assets into organized social campaigns.</p><a class="card-link" href="/onesheets/stasbhox-social-factory.png" target="_blank" rel="noopener">View full size</a></div>
+      </article>
+
+      <div class="empty" id="empty">No published items match this filter yet.</div>
+    </section>
+  </main>
+
+  <footer>Stashbox Radio. Listen. Watch. Shop. Share.</footer>
+
+  <script>
+    const buttons=[...document.querySelectorAll('.filter')];
+    const cards=[...document.querySelectorAll('.card')];
+    const search=document.getElementById('search');
+    const count=document.getElementById('count');
+    const empty=document.getElementById('empty');
+    let active='all';
+    function apply(){
+      const q=search.value.trim().toLowerCase();
+      let shown=0;
+      cards.forEach(card=>{
+        const typeOK=active==='all'||card.dataset.type===active;
+        const searchOK=!q||card.dataset.search.includes(q)||card.innerText.toLowerCase().includes(q);
+        const visible=typeOK&&searchOK;
+        card.style.display=visible?'flex':'none';
+        if(visible)shown++;
+      });
+      count.textContent=shown+(shown===1?' item':' items');
+      empty.style.display=shown?'none':'block';
+    }
+    buttons.forEach(button=>button.addEventListener('click',()=>{
+      active=button.dataset.filter;
+      buttons.forEach(b=>b.classList.toggle('active',b===button));
+      apply();
+    }));
+    search.addEventListener('input',apply);
+    apply();
+  </script>
+</body>
+</html>
