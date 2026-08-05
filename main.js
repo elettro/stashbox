@@ -3,8 +3,6 @@
 (function () {
   'use strict';
 
-  document.write('<script src="/main-core.js?v=20260805"><\/script>');
-
   function ensureRadioBlogLink() {
     document.querySelectorAll('.nav__dropdown-menu[aria-label="Radio submenu"]').forEach(function (menu) {
       var exists = Array.from(menu.querySelectorAll('a')).some(function (link) {
@@ -25,6 +23,13 @@
       menu.appendChild(item);
     });
   }
+
+  var core = document.createElement('script');
+  core.src = '/main-core.js?v=20260805';
+  core.async = false;
+  core.addEventListener('load', ensureRadioBlogLink, { once: true });
+  core.addEventListener('error', ensureRadioBlogLink, { once: true });
+  document.head.appendChild(core);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', ensureRadioBlogLink, { once: true });
