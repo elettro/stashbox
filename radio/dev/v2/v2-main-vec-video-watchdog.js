@@ -20,6 +20,7 @@
     generation: 0,
     signature: '',
     songKey: '',
+    pool: [],
     clips: [],
     introSeconds: DEFAULT_INTRO_SECONDS,
     index: 0,
@@ -244,7 +245,7 @@
     return new Set(fields.flatMap(field => array(section?.[field])).map(clean).filter(Boolean));
   }
 
-  function selectedClips(assets, section = {}) {
+  function selectedClips(assets, section = {}, source = 'unknown') {
     const activeClips = idSet(section, ['active_clip_ids', 'activeClipIds']);
     const activeImages = idSet(section, ['active_image_ids', 'activeImageIds']);
     const excludedClips = idSet(section, ['excluded_clip_ids', 'excludedClipIds']);
@@ -256,7 +257,7 @@
       const url = assetUrl(asset);
       if (excludedClips.has(id) || excludedClips.has(url)) return false;
       return !restricted || activeClips.has(id) || activeClips.has(url);
-    }).map(asset => ({ id: assetId(asset), url: assetUrl(asset) }));
+    }).map(asset => ({ id: assetId(asset), url: assetUrl(asset), source }));
   }
 
   function folderRecipes(recipe) {
@@ -290,6 +291,30 @@
     return Number.isFinite(configured) ? Math.max(0, Math.min(15, configured)) : DEFAULT_INTRO_SECONDS;
   }
 
+  function localShuffle(list) {
+    const output = [...list];
+    for (let index = output.length - 1; index > 0; index -= 1) {
+      let random = Math.floor(Math.random() * (index + 1));
+      try {
+        const values = new Uint32Array(1);
+        crypto.getRandomValues(values);
+        random = values[0] % (index + 1);
+      } catch (_) {}
+      [output[index], output[random]] = [output[random], output[index]];
+    }
+    return output;
+  }
+
+  function buildShuffleBag(songKeyValue, clips) {
+    const manager = window.StashboxVecShuffleMemory;
+    if (manager?.build) return manager.build(songKeyValue, clips);
+    return localShuffle(clips);
+  }
+
+  function markPlayed(clip) {
+    window.StashboxVecShuffleMemory?.mark?.(state.songKey, clip);
+  }
+
   async function discover(song) {
     const key = songKey(song);
     const [recipeResult, directResult] = await Promise.allSettled([
@@ -305,14 +330,14 @@
     }
 
     const clips = [];
-    clips.push(...selectedClips(normalizeAssets(directBody), recipe?.song_assets || recipe?.songAssets || {}));
+    clips.push(...selectedClips(normalizeAssets(directBody), recipe?.song_assets || recipe?.songAssets || {}, `song:${key}`));
 
     const folderResults = await Promise.all(folderRecipes(recipe).map(async folder => {
       const id = clean(folder?.folder_id || folder?.visual_folder_id || folder?.folderId || folder?.id || folder?.key);
       if (!id) return [];
       try {
         const body = await getJson(`${FOLDERS_URL}/${encodeURIComponent(id)}/assets`);
-        return selectedClips(normalizeAssets(body), folder);
+        return selectedClips(normalizeAssets(body), folder, `folder:${id}`);
       } catch (_) {
         return [];
       }
@@ -324,7 +349,7 @@
       if (!sourceKey || sourceKey === key) return [];
       try {
         const body = await getJson(`${SONG_ASSETS_URL}?song_key=${encodeURIComponent(sourceKey)}`);
-        return selectedClips(normalizeAssets(body), source);
+        return selectedClips(normalizeAssets(body), source, `borrowed:${sourceKey}`);
       } catch (_) {
         return [];
       }
@@ -368,14 +393,21 @@
     state.player.dataset.mainVecWatchdogState = status;
     state.player.dataset.mainVecWatchdogReason = reason;
     state.player.dataset.mainVecWatchdogSongKey = state.songKey;
-    state.player.dataset.mainVecWatchdogClipCount = String(state.clips.length);
+    state.player.dataset.mainVecWatchdogClipCount = String(state.pool.length);
+    state.player.dataset.mainVecWatchdogBagCount = String(state.clips.length);
     state.player.dataset.mainVecWatchdogIntroSeconds = String(state.introSeconds);
+    state.player.dataset.mainVecWatchdogBagIndex = String(state.index);
   }
 
   function nextClip() {
     cleanupVideo();
-    if (!state.clips.length) return;
-    state.index = (state.index + 1) % state.clips.length;
+    if (!state.pool.length) return;
+    if (state.index + 1 >= state.clips.length) {
+      state.clips = buildShuffleBag(state.songKey, state.pool);
+      state.index = 0;
+    } else {
+      state.index += 1;
+    }
     startFallback();
   }
 
@@ -398,7 +430,8 @@
     state.videoUrl = clip.url;
     video.className = 'v2-main-watchdog-video';
     video.dataset.mainVecWatchdog = 'true';
-    video.dataset.vecAssetSource = 'desktop-recovery';
+    video.dataset.vecAssetSource = clip.source || 'desktop-recovery';
+    video.dataset.vecAssetId = clip.id || '';
     video.muted = true;
     video.defaultMuted = true;
     video.volume = 0;
@@ -421,7 +454,8 @@
       video.style.setProperty('opacity', '1', 'important');
       state.lastVideoTime = Number(video.currentTime || 0);
       state.lastVideoAdvanceAt = performance.now();
-      mark('recovery-video-playing', clip.url);
+      markPlayed(clip);
+      mark('recovery-video-playing', `${clip.source || 'unknown'}|${clip.url}`);
     });
     video.addEventListener('timeupdate', () => {
       const current = Number(video.currentTime || 0);
@@ -439,7 +473,7 @@
     play();
     window.setTimeout(play, 120);
     window.setTimeout(play, 450);
-    mark('starting-recovery-video', clip.url);
+    mark('starting-recovery-video', `${clip.source || 'unknown'}|${clip.url}`);
   }
 
   async function resolveCurrent(player, identity, signature) {
@@ -448,6 +482,7 @@
     const generation = ++state.generation;
     cleanupVideo();
     state.songKey = '';
+    state.pool = [];
     state.clips = [];
     state.index = 0;
     mark('resolving-song');
@@ -468,10 +503,12 @@
       const result = await discover(song);
       if (generation !== state.generation || signature !== state.signature) return;
       state.introSeconds = result.introSeconds;
-      state.clips = result.clips;
+      state.pool = result.clips;
+      state.clips = buildShuffleBag(key, result.clips);
+      state.index = 0;
       if (result.artworkOnly) mark('artwork-only');
       else if (!state.clips.length) mark('zero-greenlit-videos');
-      else mark('ready');
+      else mark('ready', `${state.clips.length} clips randomized across ${new Set(state.clips.map(clip => clip.source)).size} sources`);
     } catch (error) {
       mark('recovery-error', error?.message || 'Unknown error');
     } finally {
@@ -582,12 +619,16 @@
       tick();
     },
     activeSongKey: () => state.songKey,
-    clipCount: () => state.clips.length,
+    clipCount: () => state.pool.length,
+    bagCount: () => state.clips.length,
     rescueActive: () => Boolean(state.video && !state.video.paused),
     rescueUrl: () => state.videoUrl,
+    shuffleHistory: () => window.StashboxVecShuffleMemory?.inspect?.(state.songKey) || [],
     state: () => ({
       songKey: state.songKey,
-      clipCount: state.clips.length,
+      clipCount: state.pool.length,
+      bagCount: state.clips.length,
+      bagIndex: state.index,
       introSeconds: state.introSeconds,
       status: state.player?.dataset?.mainVecWatchdogState || '',
       reason: state.player?.dataset?.mainVecWatchdogReason || ''
