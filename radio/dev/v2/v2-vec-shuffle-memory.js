@@ -143,7 +143,7 @@
 
     const fresh = unique.filter(clip => !recentKeys.has(clipKey(clip)));
     const recent = unique.filter(clip => recentKeys.has(clipKey(clip)));
-    let output = [
+    const output = [
       ...balanceSources(shuffle(fresh), lastRow?.source || ''),
       ...balanceSources(shuffle(recent), fresh.length ? sourceKey(fresh.at(-1)) : (lastRow?.source || ''))
     ];
@@ -170,6 +170,18 @@
     writeStore(store);
   }
 
+  function wasRecent(songKey, clip, limit = 12) {
+    const key = clipKey(clip);
+    if (!key) return false;
+    const history = historyFor(songKey);
+    return history.slice(-Math.max(1, Number(limit) || 12)).some(row => row.key === key);
+  }
+
+  function last(songKey) {
+    const history = historyFor(songKey);
+    return history.at(-1) || null;
+  }
+
   function inspect(songKey) {
     return historyFor(songKey).map(row => ({ ...row }));
   }
@@ -180,12 +192,16 @@
     const type = lower(asset?.type || asset?.asset_type || asset?.media_type);
     const url = clean(asset?.url || asset?.public_url || asset?.src || asset?.asset_url);
     const video = type === 'clip' || type === 'video' || type.includes('video') || type.includes('clip') || /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(url);
-    if (songKey && asset && video) mark(songKey, asset);
+    if (!songKey || !asset || !video) return;
+    window.setTimeout(() => mark(songKey, asset), 900);
   });
 
   window.StashboxVecShuffleMemory = Object.freeze({
     build,
     mark,
+    wasRecent,
+    last,
+    clipKey,
     inspect,
     clear: songKey => {
       const store = readStore();
