@@ -1,0 +1,35 @@
+name: Fix RadioGPT article link
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-radiogpt-article-link.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove capabilities anchor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('radio/blog/the-future-of-sound/index.html')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace(
+              'https://stashbox.com/report/customgpt/index.html#capabilities',
+              'https://stashbox.com/report/customgpt/index.html'
+          )
+          path.write_text(content, encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "Stashbox Site Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add radio/blog/the-future-of-sound/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Fix RadioGPT article link"
+          git push origin HEAD:main
