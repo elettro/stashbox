@@ -2,6 +2,45 @@
   'use strict';
 
   const mobile = window.matchMedia('(max-width: 699px)');
+
+  // Mobile titles are presentation-only CSS. No observers, DOM rewriting,
+  // resize loops, or runtime measurements are allowed on the mobile player.
+  // This keeps title layout completely isolated from VEC video playback.
+  if (mobile.matches) {
+    if (!document.getElementById('v2-mobile-title-wrap-style')) {
+      const style = document.createElement('style');
+      style.id = 'v2-mobile-title-wrap-style';
+      style.textContent = `
+        @media (max-width: 699px) {
+          #v2App .v2-player [data-ptitle],
+          #v2App .v2-player .v2-player-content > h2 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-bottom: 5px !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+            overflow-wrap: normal !important;
+            word-break: normal !important;
+            hyphens: none !important;
+            text-wrap: balance !important;
+            font-family: var(--font-body) !important;
+            font-size: clamp(24px, 7.8vw, 34px) !important;
+            font-weight: 700 !important;
+            line-height: 1.02 !important;
+            letter-spacing: -0.025em !important;
+            text-transform: none !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    return;
+  }
+
+  // Desktop-only title fitting. It never changes title child nodes and does
+  // not run on phones or small tablets.
   const TITLE_SELECTOR = '#v2App .v2-player [data-ptitle], #v2App .v2-player .v2-player-content > h2';
   let frame = 0;
 
@@ -9,54 +48,8 @@
     node.style.setProperty(property, value, 'important');
   }
 
-  function lineCount(title, size) {
-    setImportant(title, 'font-size', `${size}px`);
-    const style = getComputedStyle(title);
-    const lineHeight = Number.parseFloat(style.lineHeight) || size * 1.02;
-    return Math.max(1, Math.round(title.scrollHeight / lineHeight));
-  }
-
-  function fitMobile(title) {
-    const text = String(title.textContent || '').trim();
-    if (!text || title.clientWidth < 80) return;
-
-    setImportant(title, 'display', 'block');
-    setImportant(title, 'width', '100%');
-    setImportant(title, 'max-width', '100%');
-    setImportant(title, 'white-space', 'normal');
-    setImportant(title, 'overflow', 'visible');
-    setImportant(title, 'text-overflow', 'clip');
-    setImportant(title, 'overflow-wrap', 'normal');
-    setImportant(title, 'word-break', 'normal');
-    setImportant(title, 'hyphens', 'none');
-    setImportant(title, 'text-wrap', 'balance');
-    setImportant(title, 'line-height', '1.02');
-    setImportant(title, 'max-height', 'none');
-    setImportant(title, 'text-transform', 'none');
-
-    const maxSize = 36;
-    const minSize = 16;
-    let low = minSize;
-    let high = maxSize;
-    let best = minSize;
-
-    for (let step = 0; step < 9; step += 1) {
-      const size = (low + high) / 2;
-      if (lineCount(title, size) <= 2) {
-        best = size;
-        low = size;
-      } else {
-        high = size;
-      }
-    }
-
-    const finalSize = Math.max(minSize, Math.floor(best * 2) / 2);
-    setImportant(title, 'font-size', `${finalSize}px`);
-    title.dataset.v2TitleFit = `mobile-two-line-${finalSize}`;
-    title.dataset.v2TitleLines = String(Math.min(2, lineCount(title, finalSize)));
-  }
-
-  function fitDesktop(title) {
+  function fitTitle(title) {
+    if (!(title instanceof HTMLElement)) return;
     const text = String(title.textContent || '').trim();
     const available = title.clientWidth;
     if (!text || available < 80) return;
@@ -81,12 +74,6 @@
       }
     }
     setImportant(title, 'font-size', `${Math.floor(best * 2) / 2}px`);
-  }
-
-  function fitTitle(title) {
-    if (!(title instanceof HTMLElement)) return;
-    if (mobile.matches) fitMobile(title);
-    else fitDesktop(title);
   }
 
   function fitAll() {
@@ -115,9 +102,7 @@
     characterData: true
   });
 
-  mobile.addEventListener?.('change', schedule);
   window.addEventListener('resize', schedule, { passive: true });
-  window.addEventListener('orientationchange', schedule, { passive: true });
   document.fonts?.ready?.then(schedule).catch(() => {});
   schedule();
 })();
