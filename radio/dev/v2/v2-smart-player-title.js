@@ -11,7 +11,6 @@
   const MOBILE_LINE_HEIGHT = 1.02;
   let frame = 0;
   let resizeObserver = null;
-  let rendering = false;
 
   const FIT_PROPERTIES = [
     'display',
@@ -23,6 +22,7 @@
     'overflow',
     'overflow-wrap',
     'text-overflow',
+    'text-transform',
     'text-wrap',
     'white-space',
     'word-break',
@@ -51,6 +51,8 @@
     if (!storedSource || (current && current !== previouslyRendered)) {
       title.dataset.v2TitleSource = current;
       title.dataset.v2TitleRendered = current;
+      title.removeAttribute('data-v2-title-line-one');
+      title.removeAttribute('data-v2-title-line-two');
       return current;
     }
     return storedSource;
@@ -61,18 +63,29 @@
       title.textContent = text;
     }
     title.dataset.v2TitleRendered = text;
+    title.removeAttribute('data-v2-title-line-one');
+    title.removeAttribute('data-v2-title-line-two');
     title.setAttribute('aria-label', text);
   }
 
   function renderTwoLines(title, firstLine, secondLine, size) {
-    const first = document.createElement('span');
-    const second = document.createElement('span');
-    first.textContent = firstLine;
-    second.textContent = secondLine;
-    first.style.cssText = 'display:block;white-space:nowrap;overflow:visible;text-overflow:clip;';
-    second.style.cssText = 'display:block;white-space:nowrap;overflow:visible;text-overflow:clip;';
+    const alreadyRendered =
+      title.dataset.v2TitleLineOne === firstLine &&
+      title.dataset.v2TitleLineTwo === secondLine &&
+      title.children.length === 2;
 
-    title.replaceChildren(first, document.createTextNode('\n'), second);
+    if (!alreadyRendered) {
+      const first = document.createElement('span');
+      const second = document.createElement('span');
+      first.textContent = firstLine;
+      second.textContent = secondLine;
+      first.style.cssText = 'display:block;white-space:nowrap;overflow:visible;text-overflow:clip;';
+      second.style.cssText = 'display:block;white-space:nowrap;overflow:visible;text-overflow:clip;';
+      title.replaceChildren(first, document.createTextNode('\n'), second);
+    }
+
+    title.dataset.v2TitleLineOne = firstLine;
+    title.dataset.v2TitleLineTwo = secondLine;
     title.dataset.v2TitleRendered = `${firstLine} ${secondLine}`;
     title.dataset.v2TitleFit = `two-lines-${size}`;
     title.dataset.v2TitleLines = '2';
@@ -113,7 +126,7 @@
       const score = Math.abs(ratio - MOBILE_TARGET_FIRST_LINE_RATIO) + firstLinePenalty + veryShortSecondPenalty;
 
       if (!best || score < best.score) {
-        best = { firstLine, secondLine, score, firstWidth, secondWidth };
+        best = { firstLine, secondLine, score };
       }
     }
     return best;
@@ -179,7 +192,6 @@
     const available = title.clientWidth;
     if (available < 80) return;
 
-    // Short titles remain on one line at a readable, consistent mobile size.
     important(title, 'white-space', 'nowrap');
     important(title, 'font-size', `${MOBILE_SINGLE_LINE_SIZE}px`);
     if (title.scrollWidth <= available + 1) {
@@ -188,9 +200,6 @@
       return;
     }
 
-    // Long titles are always formatted into exactly two complete lines. The
-    // preferred break gives the first line roughly two-thirds of the title,
-    // matching: "I Should Be Back In a" / "Week Or So".
     important(title, 'white-space', 'normal');
     important(title, 'overflow-wrap', 'normal');
     important(title, 'word-break', 'normal');
@@ -240,10 +249,8 @@
   }
 
   function schedule() {
-    if (rendering) return;
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      rendering = true;
       const current = getTitles();
       current.forEach(fitTitle);
 
@@ -252,21 +259,24 @@
         entries.forEach(entry => fitTitle(entry.target));
       });
       current.forEach(title => resizeObserver.observe(title));
-      rendering = false;
+    });
+  }
+
+  function mutationTouchesTitle(mutation) {
+    const target = mutation.target instanceof Element
+      ? mutation.target
+      : mutation.target?.parentElement;
+    if (target?.closest?.('[data-ptitle]')) return true;
+
+    return [...mutation.addedNodes].some(node => {
+      if (!(node instanceof Element)) return false;
+      return node.matches?.('[data-ptitle]') || Boolean(node.querySelector?.('[data-ptitle]'));
     });
   }
 
   const root = document.getElementById('v2App') || document.documentElement;
   new MutationObserver(mutations => {
-    if (rendering) return;
-    const meaningful = mutations.some(mutation => {
-      if (mutation.type === 'characterData') return true;
-      return [...mutation.addedNodes].some(node => {
-        if (!(node instanceof Element)) return false;
-        return node.matches?.('[data-ptitle]') || node.querySelector?.('[data-ptitle]');
-      });
-    });
-    if (meaningful) schedule();
+    if (mutations.some(mutationTouchesTitle)) schedule();
   }).observe(root, {
     childList: true,
     subtree: true,
