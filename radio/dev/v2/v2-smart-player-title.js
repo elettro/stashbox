@@ -1,56 +1,48 @@
 (() => {
   'use strict';
 
-  const desktop = window.matchMedia('(min-width: 700px)');
-  const DESKTOP_MAX_SIZE = 78;
-  const DESKTOP_MIN_SIZE = 24;
-  const MOBILE_MAX_SIZE = 38;
-  const MOBILE_MIN_SIZE = 26;
+  const mobile = window.matchMedia('(max-width: 699px)');
+  const TITLE_SELECTOR = '#v2App .v2-player [data-ptitle], #v2App .v2-player .v2-player-content > h2';
   let frame = 0;
-  let resizeObserver = null;
 
-  function clearFitStyles(title) {
-    [
-      'display',
-      'font-size',
-      'max-height',
-      'overflow',
-      'overflow-wrap',
-      'text-overflow',
-      'white-space',
-      'word-break',
-      '-webkit-box-orient',
-      '-webkit-line-clamp'
-    ].forEach(property => title.style.removeProperty(property));
-    title.removeAttribute('data-v2-title-fit');
+  function setImportant(node, property, value) {
+    node.style.setProperty(property, value, 'important');
   }
 
-  function fitSingleLine(title, maxSize, minSize) {
+  function lineCount(title, size) {
+    setImportant(title, 'font-size', `${size}px`);
+    const style = getComputedStyle(title);
+    const lineHeight = Number.parseFloat(style.lineHeight) || size * 1.02;
+    return Math.max(1, Math.round(title.scrollHeight / lineHeight));
+  }
+
+  function fitMobile(title) {
     const text = String(title.textContent || '').trim();
-    const available = title.clientWidth;
-    if (!text || available < 40) return false;
+    if (!text || title.clientWidth < 80) return;
 
-    title.style.display = 'block';
-    title.style.whiteSpace = 'nowrap';
-    title.style.overflow = 'visible';
-    title.style.textOverflow = 'clip';
-    title.style.maxHeight = 'none';
-    title.style.fontSize = `${maxSize}px`;
+    setImportant(title, 'display', 'block');
+    setImportant(title, 'width', '100%');
+    setImportant(title, 'max-width', '100%');
+    setImportant(title, 'white-space', 'normal');
+    setImportant(title, 'overflow', 'visible');
+    setImportant(title, 'text-overflow', 'clip');
+    setImportant(title, 'overflow-wrap', 'normal');
+    setImportant(title, 'word-break', 'normal');
+    setImportant(title, 'hyphens', 'none');
+    setImportant(title, 'text-wrap', 'balance');
+    setImportant(title, 'line-height', '1.02');
+    setImportant(title, 'max-height', 'none');
+    setImportant(title, 'text-transform', 'none');
 
-    if (title.scrollWidth <= available + 1) {
-      title.dataset.v2TitleFit = String(maxSize);
-      return true;
-    }
-
+    const maxSize = 36;
+    const minSize = 16;
     let low = minSize;
     let high = maxSize;
     let best = minSize;
 
-    for (let step = 0; step < 10; step += 1) {
+    for (let step = 0; step < 9; step += 1) {
       const size = (low + high) / 2;
-      title.style.fontSize = `${size}px`;
-
-      if (title.scrollWidth <= available + 1) {
+      if (lineCount(title, size) <= 2) {
         best = size;
         low = size;
       } else {
@@ -59,67 +51,73 @@
     }
 
     const finalSize = Math.max(minSize, Math.floor(best * 2) / 2);
-    title.style.fontSize = `${finalSize}px`;
-    const fits = title.scrollWidth <= available + 1;
-
-    if (fits) title.dataset.v2TitleFit = String(finalSize);
-    return fits;
+    setImportant(title, 'font-size', `${finalSize}px`);
+    title.dataset.v2TitleFit = `mobile-two-line-${finalSize}`;
+    title.dataset.v2TitleLines = String(Math.min(2, lineCount(title, finalSize)));
   }
 
-  function fitMobileTitle(title) {
-    clearFitStyles(title);
+  function fitDesktop(title) {
+    const text = String(title.textContent || '').trim();
+    const available = title.clientWidth;
+    if (!text || available < 80) return;
 
-    if (fitSingleLine(title, MOBILE_MAX_SIZE, MOBILE_MIN_SIZE)) return;
+    setImportant(title, 'display', 'block');
+    setImportant(title, 'white-space', 'nowrap');
+    setImportant(title, 'overflow', 'visible');
+    setImportant(title, 'text-overflow', 'clip');
+    setImportant(title, 'max-height', 'none');
 
-    title.style.display = 'block';
-    title.style.fontSize = `${MOBILE_MIN_SIZE}px`;
-    title.style.whiteSpace = 'normal';
-    title.style.overflow = 'visible';
-    title.style.textOverflow = 'clip';
-    title.style.maxHeight = 'none';
-    title.style.overflowWrap = 'anywhere';
-    title.style.wordBreak = 'normal';
-    title.dataset.v2TitleFit = `wrapped-${MOBILE_MIN_SIZE}`;
-  }
-
-  function fitDesktopTitle(title) {
-    clearFitStyles(title);
-    fitSingleLine(title, DESKTOP_MAX_SIZE, DESKTOP_MIN_SIZE);
+    let low = 24;
+    let high = 78;
+    let best = 24;
+    for (let step = 0; step < 9; step += 1) {
+      const size = (low + high) / 2;
+      setImportant(title, 'font-size', `${size}px`);
+      if (title.scrollWidth <= available + 1) {
+        best = size;
+        low = size;
+      } else {
+        high = size;
+      }
+    }
+    setImportant(title, 'font-size', `${Math.floor(best * 2) / 2}px`);
   }
 
   function fitTitle(title) {
     if (!(title instanceof HTMLElement)) return;
-    if (desktop.matches) fitDesktopTitle(title);
-    else fitMobileTitle(title);
+    if (mobile.matches) fitMobile(title);
+    else fitDesktop(title);
   }
 
-  function getTitles() {
-    return [...document.querySelectorAll('#v2App .v2-player .v2-player-content > h2')];
+  function fitAll() {
+    document.querySelectorAll(TITLE_SELECTOR).forEach(fitTitle);
   }
 
   function schedule() {
     cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      const current = getTitles();
-      current.forEach(fitTitle);
+    frame = requestAnimationFrame(fitAll);
+  }
 
-      resizeObserver?.disconnect();
-      resizeObserver = new ResizeObserver(entries => {
-        entries.forEach(entry => fitTitle(entry.target));
-      });
-      current.forEach(title => resizeObserver.observe(title));
-    });
+  function touchesTitle(mutation) {
+    const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
+    if (target?.matches?.(TITLE_SELECTOR) || target?.closest?.('[data-ptitle]')) return true;
+    return [...mutation.addedNodes].some(node =>
+      node instanceof Element && (node.matches?.(TITLE_SELECTOR) || node.querySelector?.('[data-ptitle]'))
+    );
   }
 
   const root = document.getElementById('v2App') || document.documentElement;
-  new MutationObserver(schedule).observe(root, {
+  new MutationObserver(mutations => {
+    if (mutations.some(touchesTitle)) schedule();
+  }).observe(root, {
     childList: true,
     subtree: true,
     characterData: true
   });
 
-  desktop.addEventListener?.('change', schedule);
+  mobile.addEventListener?.('change', schedule);
   window.addEventListener('resize', schedule, { passive: true });
+  window.addEventListener('orientationchange', schedule, { passive: true });
   document.fonts?.ready?.then(schedule).catch(() => {});
   schedule();
 })();
