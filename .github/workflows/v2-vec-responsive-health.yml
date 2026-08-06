@@ -1,0 +1,139 @@
+name: V2 VEC Responsive Health
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'radio/dev/v2/**'
+      - 'radio-api/scripts/smoke-test-v2-vec-responsive.mjs'
+      - '.github/workflows/v2-vec-responsive-health.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'radio/dev/v2/**'
+      - 'radio-api/scripts/smoke-test-v2-vec-responsive.mjs'
+      - '.github/workflows/v2-vec-responsive-health.yml'
+  schedule:
+    - cron: '17 * * * *'
+
+concurrency:
+  group: v2-vec-responsive-health
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  responsive-vec-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Test mobile, tablet, and desktop VEC playback
+        id: vec_test
+        continue-on-error: true
+        env:
+          V2_URL: https://stashbox.com/radio/dev/v2/
+          VEC_HEALTH_SONG_TITLE: Freedom Street
+          VEC_HEALTH_OUTPUT_DIR: artifacts/vec-health
+          V2_COGNITO_TOKENS_JSON: ${{ secrets.V2_COGNITO_TOKENS_JSON }}
+        run: |
+          set +e
+          node radio-api/scripts/smoke-test-v2-vec-responsive.mjs
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload health evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-vec-health-${{ github.run_id }}
+          path: artifacts/vec-health
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open or update VEC health incident
+        if: steps.vec_test.outputs.exit_code != '0' && github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const title = '[VEC Health] Responsive playback regression';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            let summary = {};
+            try {
+              summary = JSON.parse(fs.readFileSync('artifacts/vec-health/summary.json', 'utf8'));
+            } catch (_) {}
+            const failures = (summary.reports || []).flatMap(report =>
+              (report.grade?.failures || []).map(message => `- **${report.device}:** ${message}`)
+            );
+            const body = [
+              `Automated responsive VEC testing failed on ${new Date().toISOString()}.`,
+              '',
+              ...failures,
+              '',
+              `Run evidence: ${runUrl}`,
+            ].join('\n');
+            const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+            const found = await github.rest.search.issuesAndPullRequests({ q: query, per_page: 10 });
+            const existing = found.data.items.find(item => item.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
+
+      - name: Close recovered VEC health incident
+        if: steps.vec_test.outputs.exit_code == '0' && github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '[VEC Health] Responsive playback regression';
+            const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+            const found = await github.rest.search.issuesAndPullRequests({ q: query, per_page: 10 });
+            const existing = found.data.items.find(item => item.title === title);
+            if (!existing) return;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              body: `Responsive VEC playback recovered on ${new Date().toISOString()}.\n\nPassing run: ${runUrl}`,
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              state: 'closed',
+              state_reason: 'completed',
+            });
+
+      - name: Fail workflow when VEC health fails
+        if: steps.vec_test.outputs.exit_code != '0'
+        run: exit 1
