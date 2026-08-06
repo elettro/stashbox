@@ -1,5 +1,6 @@
 name: V2 VEC Responsive Health
 
+# Read-only browser health guard. It never modifies playback, recipes, or assets.
 on:
   workflow_dispatch:
   pull_request:
