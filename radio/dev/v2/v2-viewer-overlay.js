@@ -100,8 +100,6 @@
       badge.appendChild(text);
     }
 
-    // Preserve the existing compact appearance while retaining the full VEC
-    // state for diagnostics and future accessible descriptions.
     text.textContent = 'VEC';
     badge.dataset.vecState = String(label || 'VEC');
     return badge;
@@ -113,16 +111,48 @@
     });
   }
 
+  function placeDesktopBadge(player, badge) {
+    const header = player?.querySelector('.v2-player-header');
+    const mark = header?.querySelector('.v2-player-mark');
+    if (!header || !mark || !badge) return false;
+
+    if (badge.parentElement !== header || badge.previousElementSibling !== mark) {
+      mark.insertAdjacentElement('afterend', badge);
+    }
+    header.classList.add('has-desktop-vec-badge');
+
+    overlayCandidates(player).forEach(overlay => {
+      const back = overlay.querySelector('[data-close], [data-close-player]');
+      if (back && back.parentElement === overlay) header.prepend(back);
+      if (!overlay.children.length) overlay.remove();
+    });
+    return true;
+  }
+
+  function placeMobileBadge(player, badge) {
+    const overlay = ensureOverlay(player);
+    ensureBackButton(player, overlay);
+    if (badge && badge.parentElement !== overlay) overlay.appendChild(badge);
+    player?.querySelector('.v2-player-header')?.classList.remove('has-desktop-vec-badge');
+    return overlay;
+  }
+
+  function placeBadge(player, badge) {
+    if (!player || !badge) return null;
+    if (MOBILE.matches) return placeMobileBadge(player, badge);
+    placeDesktopBadge(player, badge);
+    return badge;
+  }
+
   function setVecStatus(player = currentPlayer(), label = 'VEC') {
     if (!player) return null;
-    const overlay = ensureOverlay(player);
     const candidates = badgeCandidates(player);
     let badge = candidates.find(node => node.id === BADGE_ID) || candidates[0] || null;
     if (!badge) badge = createBadge();
 
     updateBadge(badge, label);
     removeDuplicateBadges(player, badge);
-    if (badge.parentElement !== overlay) overlay.appendChild(badge);
+    placeBadge(player, badge);
     return badge;
   }
 
@@ -130,35 +160,38 @@
     if (!player) return null;
     const candidates = badgeCandidates(player);
     if (!candidates.length) {
-      const overlays = overlayCandidates(player);
-      overlays.slice(1).forEach(node => node.remove());
-      const rail = player.querySelector('.v2-li-player-rail');
-      rail?.classList.add('viewer-action-rail');
+      if (MOBILE.matches) {
+        const overlays = overlayCandidates(player);
+        overlays.slice(1).forEach(node => node.remove());
+        player.querySelector('.v2-li-player-rail')?.classList.add('viewer-action-rail');
+      } else {
+        player.querySelector('.v2-player-header')?.classList.remove('has-desktop-vec-badge');
+      }
       return null;
     }
 
     const badge = candidates.find(node => node.id === BADGE_ID) || candidates[0];
-    const overlay = ensureOverlay(player);
     updateBadge(badge, badge.dataset.vecState || 'VEC');
     removeDuplicateBadges(player, badge);
-    if (badge.parentElement !== overlay) overlay.appendChild(badge);
-    ensureBackButton(player, overlay);
-    player.querySelector('.v2-li-player-rail')?.classList.add('viewer-action-rail');
+    placeBadge(player, badge);
+    if (MOBILE.matches) player.querySelector('.v2-li-player-rail')?.classList.add('viewer-action-rail');
     return badge;
   }
 
   function sync() {
     queued = false;
-    if (syncing || !MOBILE.matches) return;
+    if (syncing) return;
     const player = currentPlayer();
     if (!player) return;
 
     syncing = true;
     try {
-      const overlay = ensureOverlay(player);
-      ensureBackButton(player, overlay);
       cleanExisting(player);
-      player.querySelector('.v2-li-player-rail')?.classList.add('viewer-action-rail');
+      if (MOBILE.matches) {
+        const overlay = ensureOverlay(player);
+        ensureBackButton(player, overlay);
+        player.querySelector('.v2-li-player-rail')?.classList.add('viewer-action-rail');
+      }
     } finally {
       syncing = false;
     }
