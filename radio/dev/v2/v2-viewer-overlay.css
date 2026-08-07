@@ -1,7 +1,12 @@
 @media (min-width: 900px) {
+  .v2-player .v2-swipe-hint {
+    display: none !important;
+  }
+
   .v2-player .v2-player-header.has-desktop-vec-badge {
     grid-template-columns: 46px auto auto minmax(0, 1fr);
     column-gap: 10px;
+    overflow: visible;
   }
 
   .v2-player .v2-player-header.has-desktop-vec-badge .v2-player-mark {
@@ -24,6 +29,64 @@
     max-width: max-content;
     margin: 0 0 0 2px !important;
     transform: none !important;
+    cursor: help;
+    overflow: visible;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status::after {
+    content: attr(data-vec-explainer);
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    z-index: 120;
+    width: 310px;
+    max-width: min(310px, calc(100vw - 40px));
+    padding: 11px 13px;
+    border: 1px solid rgba(104,232,149,.34);
+    border-radius: 12px;
+    background: rgba(7,10,9,.96);
+    box-shadow: 0 14px 38px rgba(0,0,0,.44);
+    color: rgba(255,255,255,.9);
+    font: 700 12px/1.4 Karla, system-ui, sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+    pointer-events: none;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status::before {
+    content: "";
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 15px;
+    z-index: 121;
+    width: 10px;
+    height: 10px;
+    border-top: 1px solid rgba(104,232,149,.34);
+    border-left: 1px solid rgba(104,232,149,.34);
+    background: rgba(7,10,9,.96);
+    opacity: 0;
+    visibility: hidden;
+    transform: rotate(45deg);
+    transition: opacity .16s ease, visibility .16s ease;
+    pointer-events: none;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:hover::after,
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:focus-visible::after,
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:hover::before,
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:focus-visible::before {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:hover::after,
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status:focus-visible::after {
+    transform: translateY(0);
   }
 
   .v2-player .v2-player-header.has-desktop-vec-badge .v2-player-head-actions {
