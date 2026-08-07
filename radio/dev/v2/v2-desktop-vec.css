@@ -197,12 +197,15 @@
   }
 }
 
-/* Desktop has one permanent presentation mode: complete, centered media.
-   This is CSS-only and does not observe, reload, pause, replace, or otherwise
-   interact with the VEC playback runtime. */
+/* Desktop uses one permanent, uncropped viewing mode.
+   The official artwork is an explicit media item during the intro. Once a
+   video takes over, the stage behind it stays solid black so artwork can never
+   flash through between clips. The swap itself is immediate after the next
+   media element is ready, which avoids translucent crossfade flicker. */
 @media (min-width: 900px) {
   .v2-mobile-vec-stage {
     background-color: #050607 !important;
+    background-image: none !important;
     background-size: contain !important;
     background-position: center center !important;
     background-repeat: no-repeat !important;
@@ -210,17 +213,20 @@
 
   .v2-mobile-vec-stage img,
   .v2-mobile-vec-stage video,
-  .v2-mobile-vec-stage .v2-mobile-vec-media {
+  .v2-mobile-vec-stage .v2-mobile-vec-media,
+  .v2-mobile-vec-stage .v2-main-watchdog-video {
     object-fit: contain !important;
     object-position: center center !important;
     transform: none !important;
-    transition: opacity .24s ease !important;
+    transition: none !important;
+    animation: none !important;
     background-color: transparent !important;
   }
 
   .v2-mobile-vec-stage img.is-active,
   .v2-mobile-vec-stage video.is-active,
-  .v2-mobile-vec-stage .v2-mobile-vec-media.is-active {
+  .v2-mobile-vec-stage .v2-mobile-vec-media.is-active,
+  .v2-mobile-vec-stage .v2-main-watchdog-video.is-active {
     transform: none !important;
   }
 }
