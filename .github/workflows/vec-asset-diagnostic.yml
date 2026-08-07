@@ -1,0 +1,28 @@
+name: VEC Asset Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'radio-api/scripts/diagnose-vec-assets.mjs'
+      - '.github/workflows/vec-asset-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect selected Freedom Street VEC media
+        env:
+          VEC_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          VEC_SONG_KEY: freedom-street-002b-stashbox
+          VEC_ORIGIN: https://stashbox.com
+        run: node radio-api/scripts/diagnose-vec-assets.mjs
