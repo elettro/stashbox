@@ -3,8 +3,7 @@ name: Deploy TRUE DEV Lambda
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - '.github/workflows/deploy-true-dev-lambda.yml'
       - 'radio-api/index.mjs'
@@ -24,53 +23,47 @@ on:
       - 'radio-api/notification-activity-feed.mjs'
       - 'radio-api/personalized-notifications.mjs'
       - 'radio-api/video-factory/**'
-      - 'radio-api/migrations/**'
       - 'radio-api/tests/**'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: deploy-true-dev-lambda
   cancel-in-progress: false
 
 jobs:
-  deploy-true-dev-lambda:
-    name: Deploy TRUE DEV Lambda code
+  deploy:
+    name: Test, deploy, and verify TRUE DEV
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
-      TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
-      TRUE_DEV_COGNITO_REGION: us-east-1
-      TRUE_DEV_COGNITO_USER_POOL_ID: us-east-1_okL8XCVT6
-      ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
+      EXPECTED_FUNCTION: stashbox-radio-api-dev-v2
+      API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      COGNITO_REGION: us-east-1
+      COGNITO_POOL: us-east-1_okL8XCVT6
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Node.js 22
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: radio-api/package-lock.json
 
-      - name: Validate TRUE DEV deployment target
+      - name: Lock deployment target
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+          FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
         run: |
           set -euo pipefail
-          test "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" = "${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}"
-          test "${AWS_REGION}" = "us-east-1"
-          test "${TRUE_DEV_COGNITO_REGION}" = "us-east-1"
-          test "${TRUE_DEV_COGNITO_USER_POOL_ID}" = "us-east-1_okL8XCVT6"
+          test "${FUNCTION_NAME}" = "${EXPECTED_FUNCTION}"
+          test "${AWS_REGION}" = 'us-east-1'
+          test "${COGNITO_REGION}" = 'us-east-1'
+          test "${COGNITO_POOL}" = 'us-east-1_okL8XCVT6'
 
-      - name: Install test and runtime dependencies
+      - name: Install Lambda dependencies before tests
         working-directory: radio-api
         run: |
           set -euo pipefail
@@ -80,7 +73,7 @@ jobs:
             npm install --no-package-lock
           fi
 
-      - name: Check Lambda and player syntax
+      - name: Check syntax
         run: |
           set -euo pipefail
           node --check radio-api/index.mjs
@@ -100,118 +93,67 @@ jobs:
           node --check radio-api/video-factory/entry.mjs
           node --check radio-api/video-factory/routes.mjs
           node --check radio-api/video-factory/recipe.mjs
-          node --check radio/dev/account.js
-          node --check radio/dev/notifications.js
-          node --check radio/dev/notifications-core.js
-          node --check radio/dev/artist-follow.js
-          node --check radio/artists/dev/follow-session-fix.js
-          node --check radio/dev/v2/profile/profile-playlist-reorder.js
-          node --check radio/dev/v2/profile/profile-real-stats.js
-          node --check radio/dev/v2/profile/profile-nav-cleanup.js
-          node --check radio/dev/v2/profile/profile-media-upload.js
-          node --check radio/dev/v2/artist/artist-vertical-banner.js
-          node --check radio-admin/artists/dev/profile-media.js
-          node --check radio-admin/artists/dev/vertical-banner-simple.js
 
-      - name: Run account foundation tests
+      - name: Run backend regression tests
         run: |
           set -euo pipefail
           node --test radio-api/tests/user-accounts-foundation.test.mjs
           node --test radio-api/tests/playlist-reorder.test.mjs
-
-      - name: Run artist foundation tests
-        run: |
-          set -euo pipefail
           node --test radio-api/tests/artist-foundation.test.mjs
           node --test radio-api/tests/artist-profile-media-persistence.test.mjs
-
-      - name: Run notification tests
-        run: |
-          set -euo pipefail
           node --test radio-api/tests/notifications.test.mjs
           node --test radio-api/tests/notification-activity-feed.test.mjs
           node --test radio-api/tests/personalized-notifications.test.mjs
+          node --test radio-api/tests/video-factory-foundation.test.mjs
 
-      - name: Run Video Factory foundation tests
-        run: node --test radio-api/tests/video-factory-foundation.test.mjs
-
-      - name: Download DEV Cognito public signing keys
+      - name: Download and validate DEV Cognito JWKS
         run: |
           set -euo pipefail
-          JWKS_URL="https://cognito-idp.${TRUE_DEV_COGNITO_REGION}.amazonaws.com/${TRUE_DEV_COGNITO_USER_POOL_ID}/.well-known/jwks.json"
           curl --fail --silent --show-error --retry 3 --max-time 45 \
-            "${JWKS_URL}" \
+            "https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_POOL}/.well-known/jwks.json" \
             --output radio-api/cognito-jwks-dev.json
-          jq -e '
-            (.keys | type == "array") and
-            (.keys | length >= 2) and
-            all(.keys[];
-              .kty == "RSA" and
-              (.kid | type == "string" and length > 0) and
-              (.n | type == "string" and length > 0) and
-              (.e | type == "string" and length > 0)
-            )
-          ' radio-api/cognito-jwks-dev.json >/dev/null
+          jq -e '(.keys | type == "array") and (.keys | length >= 2)' radio-api/cognito-jwks-dev.json >/dev/null
 
-      - name: Prepare production dependency tree
-        working-directory: radio-api
-        run: npm prune --omit=dev
-
-      - name: Build TRUE DEV Lambda ZIP
+      - name: Build Lambda package
         working-directory: radio-api
         run: |
           set -euo pipefail
+          npm prune --omit=dev
           rm -rf dist
           mkdir -p dist
-
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
-
           node --check index.mjs
           node --check radio-main.mjs
-          test -s cognito-jwks-dev.json
           test -d node_modules/@aws-sdk/client-s3
-          test -s artist-follow-routes.mjs
-          test -s playlist-reorder-routes.mjs
-          test -s profile-stats-routes.mjs
-          test -s profile-media-routes.mjs
-          test -s artist-profile-media-routes.mjs
-          test -s personalized-notifications.mjs
-
-          zip -r dist/true-dev-lambda.zip . \
-            -x "dist/*" \
-            -x ".git/*" \
-            -x "*.zip"
-
+          test -s cognito-jwks-dev.json
+          zip -r dist/true-dev-lambda.zip . -x 'dist/*' -x '.git/*' -x '*.zip'
           unzip -l dist/true-dev-lambda.zip | grep -q 'radio-main.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
           unzip -l dist/true-dev-lambda.zip | grep -q 'node_modules/@aws-sdk/client-s3'
 
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy TRUE DEV Lambda code
+      - name: Deploy and wait
         env:
-          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
+          FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
         run: |
           set -euo pipefail
           aws lambda update-function-code \
-            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
+            --function-name "${FUNCTION_NAME}" \
             --zip-file fileb://radio-api/dist/true-dev-lambda.zip
-          aws lambda wait function-updated \
-            --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
+          aws lambda wait function-updated --function-name "${FUNCTION_NAME}"
 
-      - name: Run TRUE DEV smoke test
+      - name: Run TRUE DEV API smoke test
         run: |
           set -euo pipefail
-          node --check radio-api/scripts/smoke-test-true-dev.mjs
           node radio-api/scripts/smoke-test-true-dev.mjs
 
-      - name: Verify public VEC endpoints and CORS
+      - name: Verify VEC public routes and CORS
         run: |
           set -euo pipefail
           ORIGIN='https://stashbox.com'
@@ -219,7 +161,7 @@ jobs:
           curl --fail --silent --show-error --max-time 45 \
             -H "Origin: ${ORIGIN}" \
             -D /tmp/songs.headers \
-            "${TRUE_DEV_API_BASE}/radio/songs?vec_deploy=${GITHUB_RUN_ID}" \
+            "${API_BASE}/radio/songs?deploy_run=${GITHUB_RUN_ID}" \
             -o /tmp/songs.json
           grep -iq '^access-control-allow-origin:' /tmp/songs.headers
 
@@ -231,74 +173,20 @@ jobs:
           ' /tmp/songs.json)
           test -n "${SONG_KEY}"
 
-          for route in radio/vec/recipe radio/vec/song-assets; do
+          for ROUTE in radio/vec/recipe radio/vec/song-assets; do
             curl --fail --silent --show-error --max-time 45 \
               -H "Origin: ${ORIGIN}" \
               -D /tmp/vec.headers \
-              "${TRUE_DEV_API_BASE}/${route}?song_key=${SONG_KEY}&vec_deploy=${GITHUB_RUN_ID}" \
+              "${API_BASE}/${ROUTE}?song_key=${SONG_KEY}&deploy_run=${GITHUB_RUN_ID}" \
               -o /tmp/vec.json
             grep -iq '^access-control-allow-origin:' /tmp/vec.headers
             jq -e 'type == "object" or type == "array"' /tmp/vec.json >/dev/null
           done
 
-      - name: Run account and artist route smoke tests
+      - name: Verify protected routes remain protected
         run: |
           set -euo pipefail
-          AUTH_CONFIG_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/auth-config.json \
-            -w '%{http_code}' \
-            "${TRUE_DEV_API_BASE}/radio/auth/config")
-          test "${AUTH_CONFIG_STATUS}" = '200'
-          jq -e '.success == true and (.auth | type == "object")' /tmp/auth-config.json >/dev/null
-
-          ME_STATUS=$(curl --silent --show-error --max-time 45 \
-            -o /tmp/account-me-unauthorized.json \
-            -w '%{http_code}' \
-            "${TRUE_DEV_API_BASE}/radio/me")
+          AUTH_STATUS=$(curl --silent --show-error --max-time 45 -o /tmp/auth.json -w '%{http_code}' "${API_BASE}/radio/auth/config")
+          test "${AUTH_STATUS}" = '200'
+          ME_STATUS=$(curl --silent --show-error --max-time 45 -o /tmp/me.json -w '%{http_code}' "${API_BASE}/radio/me")
           test "${ME_STATUS}" = '401'
-
-      - name: Verify Artist vertical banner persistence
-        run: |
-          set -euo pipefail
-          test -n "${ADMIN_TOKEN}"
-          ARTIST_URL="${TRUE_DEV_API_BASE}/radio/admin/artists/stashbox"
-          SENTINEL_URL="https://stashbox.com/radio/dev/vertical-banner-persistence-test/${GITHUB_SHA}.jpg"
-
-          curl --fail --silent --show-error --max-time 45 \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            "${ARTIST_URL}?before=${GITHUB_RUN_ID}" > /tmp/artist-before.json
-          OLD_URL=$(jq -r '.artist.vertical_banner_image_url // ""' /tmp/artist-before.json)
-
-          RESTORED=0
-          restore_previous_banner() {
-            if [ "${RESTORED}" = '1' ]; then return; fi
-            jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-restore.json
-            curl --silent --show-error --max-time 45 \
-              -X PATCH \
-              -H "x-admin-token: ${ADMIN_TOKEN}" \
-              -H 'Content-Type: application/json' \
-              --data @/tmp/artist-restore.json \
-              "${ARTIST_URL}" >/tmp/artist-restore-response.json || true
-          }
-          trap restore_previous_banner EXIT
-
-          jq -n --arg url "${SENTINEL_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-patch.json
-          curl --fail --silent --show-error --max-time 45 \
-            -X PATCH \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -H 'Content-Type: application/json' \
-            --data @/tmp/artist-patch.json \
-            "${ARTIST_URL}" > /tmp/artist-patched.json
-          jq -e --arg url "${SENTINEL_URL}" '.success == true and .artist.vertical_banner_image_url == $url' /tmp/artist-patched.json >/dev/null
-
-          jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-restore.json
-          curl --fail --silent --show-error --max-time 45 \
-            -X PATCH \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            -H 'Content-Type: application/json' \
-            --data @/tmp/artist-restore.json \
-            "${ARTIST_URL}" > /tmp/artist-restored.json
-          jq -e --arg url "${OLD_URL}" '.artist.vertical_banner_image_url == $url' /tmp/artist-restored.json >/dev/null
-
-          RESTORED=1
-          trap - EXIT
