@@ -52,12 +52,14 @@ body.artist-realm-open{overflow:hidden!important}
 }
 @media (max-width:390px){.artist-realm-meta h2{font-size:32px}.artist-realm-bottom{padding-left:13px;padding-right:13px}}
 
-/* Desktop Artist player has one permanent uncropped presentation mode.
-   No JavaScript, toggle state, observers, source replacement, or playback
-   control is involved. */
+/* Desktop Artist player uses one permanent uncropped mode. The artwork is an
+   explicit intro media item; the stage behind active media stays black. There
+   is no opacity crossfade on desktop, so the artwork cannot flash through
+   between two ready video elements. */
 @media (min-width:900px){
   .artist-realm-stage{
     background-color:#050607!important;
+    background-image:none!important;
     background-size:contain!important;
     background-position:center center!important;
     background-repeat:no-repeat!important;
@@ -66,7 +68,8 @@ body.artist-realm-open{overflow:hidden!important}
     object-fit:contain!important;
     object-position:center center!important;
     transform:none!important;
-    transition:opacity .24s ease!important;
+    transition:none!important;
+    animation:none!important;
     background-color:transparent!important;
   }
   .artist-realm-media.is-active{transform:none!important}
