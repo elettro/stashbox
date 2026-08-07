@@ -13,8 +13,11 @@
     stage: null,
     songKey: '',
     artworkUrl: '',
+    artworkToken: 0,
+    artworkState: 'idle',
     frame: 0,
     timer: 0,
+    retryTimer: 0,
   };
 
   function visible(node) {
@@ -37,24 +40,11 @@
       .replace(/\?dl=[01]/, '');
   }
 
-  function backgroundUrl(stage) {
-    const value = stage?.style?.backgroundImage || getComputedStyle(stage || document.body).backgroundImage || '';
-    const match = value.match(/^url\(["']?(.*?)["']?\)$/i);
-    return cleanUrl(match?.[1] || '');
-  }
-
-  function artworkCandidate(stage) {
-    const image = [...(stage?.querySelectorAll('img.v2-mobile-vec-media, img') || [])]
-      .find(item => cleanUrl(item.currentSrc || item.src));
-    return cleanUrl(image?.currentSrc || image?.src || backgroundUrl(stage));
-  }
-
   function songIdentity(player) {
     return String(
       player?.dataset?.mobileVecMotionSongKey ||
       player?.dataset?.songKey ||
       player?.dataset?.currentSongKey ||
-      player?.querySelector('[data-ptitle]')?.textContent ||
       ''
     ).trim();
   }
@@ -72,20 +62,17 @@
           animation: none !important;
         }
 
-        #v2App [data-player].vec-stable-artwork [data-mobile-vec-stage] img.v2-mobile-vec-media {
-          visibility: visible !important;
-          opacity: 1 !important;
-          transition: none !important;
-          animation: none !important;
-        }
-
+        #v2App [data-player].vec-stable-artwork [data-mobile-vec-stage] .v2-mobile-vec-media,
+        #v2App [data-player].vec-stable-artwork [data-mobile-vec-stage] img,
         #v2App [data-player].vec-stable-artwork .mobile-vec-motion-video {
           visibility: hidden !important;
           opacity: 0 !important;
           transition: none !important;
+          animation: none !important;
         }
 
-        #v2App [data-player].vec-stable-video [data-mobile-vec-stage] .v2-mobile-vec-media {
+        #v2App [data-player].vec-stable-video [data-mobile-vec-stage] .v2-mobile-vec-media,
+        #v2App [data-player].vec-stable-video [data-mobile-vec-stage] img {
           visibility: hidden !important;
           opacity: 0 !important;
           transition: none !important;
@@ -104,16 +91,71 @@
     document.head.appendChild(style);
   }
 
-  function applyStableArtwork(stage, url) {
+  function applyExactArtwork(stage, url) {
     const source = cleanUrl(url);
-    if (!stage || !source) return;
+    if (!stage || !source) return false;
     const encoded = source.replaceAll('"', '%22');
     const next = `url("${encoded}")`;
+
     if (stage.style.backgroundImage !== next) stage.style.backgroundImage = next;
     if (stage.style.backgroundPosition !== 'center center') stage.style.backgroundPosition = 'center center';
     if (stage.style.backgroundRepeat !== 'no-repeat') stage.style.backgroundRepeat = 'no-repeat';
-    if (stage.style.backgroundSize !== 'cover') stage.style.backgroundSize = 'cover';
+    if (stage.style.backgroundSize !== 'contain') stage.style.backgroundSize = 'contain';
     if (stage.style.backgroundColor !== 'rgb(5, 6, 7)') stage.style.backgroundColor = '#050607';
+
+    stage.dataset.mobileVecArtworkRatio = '9x16';
+    stage.dataset.mobileVecArtworkState = 'ready';
+    stage.dataset.mobileVecArtworkUrl = source;
+    state.player.dataset.mobileVecArtworkRatio = '9x16';
+    state.player.dataset.mobileVecArtworkState = 'ready';
+    return true;
+  }
+
+  function clearSquareArtwork(stage) {
+    if (!stage || state.artworkUrl) return;
+    stage.style.backgroundImage = 'none';
+    stage.style.backgroundColor = '#050607';
+    stage.dataset.mobileVecArtworkState = 'loading-9x16';
+  }
+
+  function scheduleArtworkRetry(songKey, token) {
+    clearTimeout(state.retryTimer);
+    state.retryTimer = window.setTimeout(() => {
+      if (token !== state.artworkToken || songKey !== state.songKey) return;
+      resolveExactArtwork(songKey, true);
+    }, 1200);
+  }
+
+  async function resolveExactArtwork(songKey, force = false) {
+    const key = String(songKey || '').trim();
+    if (!key) return;
+    const token = ++state.artworkToken;
+    state.artworkState = 'loading';
+
+    const resolver = window.StashboxMobileOfficialArtwork9x16;
+    let url = cleanUrl(!force ? resolver?.cachedUrl?.(key) : '');
+
+    if (!url) {
+      try {
+        url = cleanUrl(await resolver?.prefetchSong?.(key));
+      } catch (_) {
+        url = '';
+      }
+    }
+
+    if (token !== state.artworkToken || key !== state.songKey) return;
+
+    if (!url) {
+      state.artworkState = 'missing';
+      state.player?.setAttribute('data-mobile-vec-artwork-state', 'missing-9x16');
+      scheduleArtworkRetry(key, token);
+      return;
+    }
+
+    state.artworkUrl = url;
+    state.artworkState = 'ready';
+    applyExactArtwork(state.stage, url);
+    schedule();
   }
 
   function stabilize() {
@@ -129,6 +171,10 @@
     if (key && key !== state.songKey) {
       state.songKey = key;
       state.artworkUrl = '';
+      state.artworkState = 'loading';
+      state.artworkToken += 1;
+      clearSquareArtwork(stage);
+      resolveExactArtwork(key);
     }
 
     const customVideo = stage.querySelector('.mobile-vec-motion-video');
@@ -149,9 +195,8 @@
     player.classList.add('vec-stable-artwork');
     player.classList.remove('vec-stable-video');
 
-    const candidate = artworkCandidate(stage);
-    if (!state.artworkUrl && candidate) state.artworkUrl = candidate;
-    if (state.artworkUrl) applyStableArtwork(stage, state.artworkUrl);
+    if (state.artworkUrl) applyExactArtwork(stage, state.artworkUrl);
+    else clearSquareArtwork(stage);
   }
 
   function schedule() {
@@ -164,7 +209,7 @@
     subtree: true,
     childList: true,
     attributes: true,
-    attributeFilter: ['class', 'style', 'src', 'data-song-key', 'data-mobile-vec-motion-song-key'],
+    attributeFilter: ['class', 'src', 'data-song-key', 'data-mobile-vec-motion-song-key'],
   });
 
   document.addEventListener('play', schedule, true);
@@ -172,20 +217,28 @@
   window.addEventListener('stashbox:vec-asset-change', schedule, true);
   window.addEventListener('stashbox:player-view-mode-change', schedule, true);
   window.addEventListener('orientationchange', () => setTimeout(schedule, 120), { passive: true });
+  window.addEventListener('online', () => {
+    if (state.songKey) resolveExactArtwork(state.songKey, true);
+  });
 
   installCss();
   state.timer = window.setInterval(stabilize, 250);
   stabilize();
 
   window.StashboxMobileVecFlickerGuard = Object.freeze({
-    refresh: schedule,
+    refresh: () => {
+      if (state.songKey) resolveExactArtwork(state.songKey, true);
+      schedule();
+    },
     state: () => ({
       songKey: state.songKey,
       artworkUrl: state.artworkUrl,
+      artworkState: state.artworkState,
       mode: state.player?.classList.contains('vec-stable-video') ? 'video' : 'artwork',
     }),
     stop: () => {
       clearInterval(state.timer);
+      clearTimeout(state.retryTimer);
       observer.disconnect();
       state.player?.classList.remove('vec-presentation-stable', 'vec-stable-artwork', 'vec-stable-video');
     },
