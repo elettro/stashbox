@@ -8,7 +8,7 @@
   const CONTROL_CLASS = 'desktop-media-fit-control';
   const BUTTON_CLASS = 'desktop-media-fit-switch';
   let mode = readMode();
-  let frame = 0;
+  let scanTimer = 0;
 
   function readMode() {
     try {
@@ -36,12 +36,8 @@
           align-items: center;
           justify-content: flex-end;
           width: 100%;
-          margin: 10px 0 7px;
+          margin: 4px 0 7px;
           pointer-events: auto;
-        }
-
-        #v2App [data-player] .${CONTROL_CLASS} {
-          margin-top: 4px;
         }
 
         .artist-realm-bottom .${CONTROL_CLASS} {
@@ -65,10 +61,8 @@
           letter-spacing: .08em;
           text-transform: uppercase;
           cursor: pointer;
-          box-shadow: 0 8px 26px rgba(0,0,0,.28);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
-          transition: border-color .18s ease, background .18s ease, color .18s ease;
         }
 
         .${BUTTON_CLASS}:hover,
@@ -85,7 +79,6 @@
           border: 1px solid rgba(255,255,255,.22);
           border-radius: 999px;
           background: rgba(255,255,255,.1);
-          transition: background .18s ease, border-color .18s ease;
         }
 
         .${BUTTON_CLASS} .desktop-media-fit-thumb {
@@ -96,7 +89,6 @@
           height: 13px;
           border-radius: 50%;
           background: #fff;
-          box-shadow: 0 2px 8px rgba(0,0,0,.38);
           transition: transform .18s ease, background .18s ease;
         }
 
@@ -116,72 +108,24 @@
           background: #ffad2f;
         }
 
-        .${BUTTON_CLASS} .desktop-media-fit-fill,
-        .${BUTTON_CLASS}[aria-pressed="true"] .desktop-media-fit-full {
-          color: #fff;
-        }
-
-        .${BUTTON_CLASS}[aria-pressed="true"] .desktop-media-fit-fill,
-        .${BUTTON_CLASS}:not([aria-pressed="true"]) .desktop-media-fit-full {
-          color: rgba(255,255,255,.44);
-        }
-
-        body.desktop-media-fill-view #v2App [data-player] [data-mobile-vec-stage] {
-          background-size: cover !important;
-          background-position: center center !important;
-          background-color: #050607 !important;
-        }
-
-        body.desktop-media-fill-view #v2App [data-player] [data-mobile-vec-stage] > img,
-        body.desktop-media-fill-view #v2App [data-player] [data-mobile-vec-stage] > video,
-        body.desktop-media-fill-view #v2App [data-player] [data-mobile-vec-stage] .v2-mobile-vec-media {
+        /* Only change fit on media that the existing player has already made active.
+           Do not touch opacity, visibility, z-index, backgrounds, sources, playback,
+           stage ownership, or runtime classes. */
+        #v2App [data-player][data-desktop-media-fit-mode="fill"] [data-mobile-vec-stage] > img.is-active,
+        #v2App [data-player][data-desktop-media-fit-mode="fill"] [data-mobile-vec-stage] > video.is-active,
+        #v2App [data-player][data-desktop-media-fit-mode="fill"] [data-mobile-vec-stage] .v2-mobile-vec-media.is-active,
+        .artist-realm-player[data-desktop-media-fit-mode="fill"] .artist-realm-media.is-active {
           object-fit: cover !important;
           object-position: center center !important;
         }
 
-        body.desktop-media-full-view #v2App [data-player] [data-mobile-vec-stage] {
-          background-size: contain !important;
-          background-position: center center !important;
-          background-repeat: no-repeat !important;
-          background-color: #050607 !important;
-        }
-
-        body.desktop-media-full-view #v2App [data-player] [data-mobile-vec-stage] > img,
-        body.desktop-media-full-view #v2App [data-player] [data-mobile-vec-stage] > video,
-        body.desktop-media-full-view #v2App [data-player] [data-mobile-vec-stage] .v2-mobile-vec-media {
-          max-width: 100% !important;
-          max-height: 100% !important;
+        #v2App [data-player][data-desktop-media-fit-mode="full"] [data-mobile-vec-stage] > img.is-active,
+        #v2App [data-player][data-desktop-media-fit-mode="full"] [data-mobile-vec-stage] > video.is-active,
+        #v2App [data-player][data-desktop-media-fit-mode="full"] [data-mobile-vec-stage] .v2-mobile-vec-media.is-active,
+        .artist-realm-player[data-desktop-media-fit-mode="full"] .artist-realm-media.is-active {
           object-fit: contain !important;
           object-position: center center !important;
           transform: none !important;
-          background: #050607 !important;
-        }
-
-        body.desktop-media-fill-view .artist-realm-stage {
-          background-size: cover !important;
-          background-position: center center !important;
-          background-color: #050607 !important;
-        }
-
-        body.desktop-media-fill-view .artist-realm-stage .artist-realm-media {
-          object-fit: cover !important;
-          object-position: center center !important;
-        }
-
-        body.desktop-media-full-view .artist-realm-stage {
-          background-size: contain !important;
-          background-position: center center !important;
-          background-repeat: no-repeat !important;
-          background-color: #050607 !important;
-        }
-
-        body.desktop-media-full-view .artist-realm-stage .artist-realm-media {
-          max-width: 100% !important;
-          max-height: 100% !important;
-          object-fit: contain !important;
-          object-position: center center !important;
-          transform: none !important;
-          background: #050607 !important;
         }
       }
 
@@ -200,17 +144,17 @@
     const button = document.createElement('button');
     button.type = 'button';
     button.className = BUTTON_CLASS;
-    button.setAttribute('aria-label', 'Toggle between cropped fill view and complete 9 by 16 view');
-    button.title = 'Switch between edge-to-edge fill and the complete uncropped artwork or video';
+    button.setAttribute('aria-label', 'Toggle between cropped fill view and complete media view');
+    button.title = 'Switch between edge-to-edge fill and complete uncropped artwork or video';
     button.innerHTML = `
-      <span class="desktop-media-fit-fill">Fill</span>
+      <span>Fill</span>
       <span class="desktop-media-fit-track" aria-hidden="true"><i class="desktop-media-fit-thumb"></i></span>
-      <span class="desktop-media-fit-full">Full 9:16</span>
+      <span>Full 9:16</span>
     `;
     button.addEventListener('click', () => {
       mode = mode === 'full' ? 'fill' : 'full';
       saveMode(mode);
-      applyMode(true);
+      applyMode();
     });
 
     wrapper.appendChild(button);
@@ -219,65 +163,52 @@
 
   function placeMainControl() {
     const timeline = document.querySelector('#v2App [data-player] .v2-timeline');
-    if (!timeline || timeline.parentElement?.querySelector(`:scope > .${CONTROL_CLASS}[data-desktop-media-fit-context="main"]`)) return;
-    timeline.parentElement?.insertBefore(buildControl('main'), timeline);
+    if (!timeline) return;
+    const parent = timeline.parentElement;
+    if (!parent || parent.querySelector(`:scope > .${CONTROL_CLASS}[data-desktop-media-fit-context="main"]`)) return;
+    parent.insertBefore(buildControl('main'), timeline);
   }
 
   function placeArtistControl() {
     const progress = document.querySelector('.artist-realm-player .artist-realm-progress-row');
-    if (!progress || progress.parentElement?.querySelector(`:scope > .${CONTROL_CLASS}[data-desktop-media-fit-context="artist"]`)) return;
-    progress.parentElement?.insertBefore(buildControl('artist'), progress);
+    if (!progress) return;
+    const parent = progress.parentElement;
+    if (!parent || parent.querySelector(`:scope > .${CONTROL_CLASS}[data-desktop-media-fit-context="artist"]`)) return;
+    parent.insertBefore(buildControl('artist'), progress);
   }
 
-  function updateButtons() {
+  function applyMode() {
+    if (!desktop.matches) return;
     const full = mode === 'full';
+    document.querySelectorAll('#v2App [data-player], .artist-realm-player').forEach(player => {
+      player.dataset.desktopMediaFitMode = mode;
+    });
     document.querySelectorAll(`.${BUTTON_CLASS}`).forEach(button => {
       button.setAttribute('aria-pressed', String(full));
       button.dataset.mediaFitMode = mode;
     });
   }
 
-  function applyMode(announce = false) {
-    if (!desktop.matches) {
-      document.body.classList.remove('desktop-media-fill-view', 'desktop-media-full-view');
-      return;
-    }
-
-    const full = mode === 'full';
-    document.body.classList.toggle('desktop-media-full-view', full);
-    document.body.classList.toggle('desktop-media-fill-view', !full);
-    document.documentElement.dataset.desktopMediaFitMode = mode;
-    updateButtons();
-
-    document.querySelectorAll('#v2App [data-player], .artist-realm-player').forEach(player => {
-      player.dataset.desktopMediaFitMode = mode;
-    });
-
-    window.dispatchEvent(new CustomEvent('stashbox:desktop-media-fit-change', {
-      detail: { mode, full, userInitiated: announce }
-    }));
-  }
-
   function scan() {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      if (!desktop.matches) {
-        applyMode(false);
-        return;
-      }
-      installStyles();
-      placeMainControl();
-      placeArtistControl();
-      applyMode(false);
-    });
+    if (!desktop.matches) return;
+    installStyles();
+    placeMainControl();
+    placeArtistControl();
+    applyMode();
   }
 
-  const observer = new MutationObserver(scan);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  desktop.addEventListener?.('change', scan);
-  window.addEventListener('resize', scan, { passive: true });
+  function scheduleScan() {
+    window.clearTimeout(scanTimer);
+    scanTimer = window.setTimeout(scan, 60);
+  }
 
-  installStyles();
+  const observer = new MutationObserver(records => {
+    if (records.some(record => record.addedNodes.length)) scheduleScan();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  desktop.addEventListener?.('change', scheduleScan);
+  window.addEventListener('resize', scheduleScan, { passive: true });
+
   scan();
 
   window.StashboxDesktopMediaFitToggle = Object.freeze({
@@ -285,7 +216,7 @@
     setMode: nextMode => {
       mode = nextMode === 'full' ? 'full' : 'fill';
       saveMode(mode);
-      applyMode(false);
+      applyMode();
     },
     refresh: scan,
   });
