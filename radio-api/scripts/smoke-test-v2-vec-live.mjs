@@ -15,17 +15,11 @@ const profiles = [
   { name: 'desktop', viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 },
 ];
 
-function visible(node) {
-  if (!node || !node.isConnected || node.hidden) return false;
-  const style = getComputedStyle(node);
-  return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0.05;
-}
-
 async function pickSong(page) {
   const songs = page.locator('#v2App [data-song]');
   await songs.first().waitFor({ state: 'visible', timeout: TIMEOUT_MS });
   let target = songs.filter({ hasText: SONG_TITLE }).first();
-  if (await target.count() === 0) target = songs.first();
+  if ((await target.count()) === 0) target = songs.first();
   const selected = await target.evaluate(node => ({
     songKey: node.getAttribute('data-song') || '',
     text: String(node.textContent || '').trim().replace(/\s+/g, ' '),
@@ -44,8 +38,13 @@ async function startAudio(page, player) {
   const playButton = player.locator('[data-play]').first();
   if (await playButton.count()) await playButton.click({ force: true });
   await page.waitForFunction(() => {
-    const player = [...document.querySelectorAll('#v2App [data-player]')].find(visible);
-    const audio = player?.querySelector('audio');
+    const visible = node => {
+      if (!node || !node.isConnected || node.hidden) return false;
+      const style = getComputedStyle(node);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const activePlayer = [...document.querySelectorAll('#v2App [data-player]')].find(visible);
+    const audio = activePlayer?.querySelector('audio');
     return Boolean(audio && !audio.paused && !audio.ended && audio.currentTime > 0.1);
   }, null, { timeout: TIMEOUT_MS });
 }
