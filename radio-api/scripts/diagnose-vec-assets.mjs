@@ -1,4 +1,8 @@
 import process from 'node:process';
+import { writeFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import os from 'node:os';
 
 const API = process.env.VEC_API_BASE || 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const SONG_KEY = process.env.VEC_SONG_KEY || 'freedom-street-002b-stashbox';
@@ -60,6 +64,28 @@ async function probeMedia(url) {
   }
 }
 
+async function inspectCodec(item, index) {
+  const url = item?.preferred?.value;
+  if (!/^https?:\/\//i.test(url || '')) return null;
+  const filename = path.join(os.tmpdir(), `stashbox-vec-codec-${index}.mp4`);
+  try {
+    const response = await fetch(url, { redirect: 'follow' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await writeFile(filename, Buffer.from(await response.arrayBuffer()));
+    const output = execFileSync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'stream=index,codec_name,codec_long_name,profile,pix_fmt,width,height,r_frame_rate:format=format_name,duration,size',
+      '-of', 'json',
+      filename,
+    ], { encoding: 'utf8', maxBuffer: 1024 * 1024 * 5 });
+    return JSON.parse(output);
+  } catch (error) {
+    return { error: error?.message || String(error) };
+  } finally {
+    await rm(filename, { force: true }).catch(() => {});
+  }
+}
+
 const recipeResponse = await json(`${API}/radio/vec/recipe?song_key=${encodeURIComponent(SONG_KEY)}`);
 const recipe = recipeResponse.body?.recipe || recipeResponse.body?.data?.recipe || recipeResponse.body?.data || recipeResponse.body || {};
 const folderRecipes = Array.isArray(recipe.folders) ? recipe.folders.filter(folder => folder?.enabled !== false) : [];
@@ -92,4 +118,10 @@ for (const folder of folderRecipes) {
 
 const usable = selected.filter(item => item.probe?.ok && /^video\//i.test(item.probe?.contentType || ''));
 console.log(`\nSUMMARY selected=${selected.length} usableVideoResponses=${usable.length}`);
+
+for (let index = 0; index < Math.min(3, usable.length); index += 1) {
+  const codec = await inspectCodec(usable[index], index);
+  console.log(`CODEC ${usable[index].id} ${JSON.stringify(codec)}`);
+}
+
 if (!selected.length || !usable.length) process.exitCode = 1;
