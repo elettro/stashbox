@@ -37,8 +37,16 @@ test('artist vertical banner survives a save followed by a fresh read', async ()
       if (normalized.includes('select * from') && normalized.includes('artists')) {
         return { rowCount: 1, rows: [{ ...artist }] };
       }
-      if (normalized.includes('update') && normalized.includes('set vertical_banner_image_url')) {
-        artist.vertical_banner_image_url = values[0] || '';
+      if (normalized.includes('update') && normalized.includes('vertical_banner_image_url')) {
+        // The route supports partial media updates through CASE flags:
+        // profile flag/url, horizontal flag/url, vertical flag/url, artist id.
+        if (values.length >= 7) {
+          if (values[0]) artist.profile_image_url = values[1] || '';
+          if (values[2]) artist.banner_image_url = values[3] || '';
+          if (values[4]) artist.vertical_banner_image_url = values[5] || '';
+        } else {
+          artist.vertical_banner_image_url = values[0] || '';
+        }
         artist.updated_at = '2026-07-23T12:01:00.000Z';
         return { rowCount: 1, rows: [{ ...artist }] };
       }
