@@ -6,7 +6,12 @@ on:
     branches: [main]
     paths:
       - 'radio/dev/v2/**'
+      - 'radio-api/index.mjs'
+      - 'radio-api/auth.mjs'
+      - 'radio-api/rate-limit.mjs'
+      - 'radio-api/video-factory/**'
       - 'radio-api/scripts/smoke-test-v2-vec-live.mjs'
+      - '.github/workflows/deploy-true-dev-lambda.yml'
       - '.github/workflows/v2-vec-live-health.yml'
   schedule:
     - cron: '17 * * * *'
@@ -33,7 +38,7 @@ jobs:
 
       - name: Allow live DEV deployment to settle
         if: github.event_name == 'push'
-        run: sleep 75
+        run: sleep 90
 
       - name: Install Playwright Chromium
         run: |
@@ -74,9 +79,14 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             let summary = {};
             try { summary = JSON.parse(fs.readFileSync('artifacts/vec-live-health/summary.json', 'utf8')); } catch (_) {}
-            const failures = (summary.results || []).flatMap(result =>
+            const apiFailures = summary.api?.failures || [];
+            const browserFailures = (summary.results || []).flatMap(result =>
               (result.grade?.failures || []).map(message => `- **${result.profile}:** ${message}`)
             );
+            const failures = [
+              ...apiFailures.map(message => `- **Public VEC API:** ${message}`),
+              ...browserFailures,
+            ];
             const body = [`Live VEC health failed on ${new Date().toISOString()}.`, '', ...failures, '', `Evidence: ${runUrl}`].join('\n');
             const q = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
             const found = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
