@@ -4,16 +4,81 @@ import process from 'node:process';
 import { chromium } from 'playwright';
 
 const BASE_URL = process.env.V2_URL || 'https://stashbox.com/radio/dev/v2/';
+const API_BASE = process.env.VEC_API_BASE || 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const SONG_TITLE = process.env.VEC_HEALTH_SONG_TITLE || 'Freedom Street';
 const OUTPUT_DIR = path.resolve(process.env.VEC_HEALTH_OUTPUT_DIR || 'artifacts/vec-live-health');
 const TIMEOUT_MS = Number(process.env.VEC_HEALTH_TIMEOUT_MS || 45000);
 const TOKEN_JSON = process.env.V2_COGNITO_TOKENS_JSON || '';
+const TEST_ORIGIN = new URL(BASE_URL).origin;
+const SYNTHETIC_TOKENS = JSON.stringify({
+  accessToken: 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDM5ODgwMDB9.',
+  idToken: '',
+  refreshToken: '',
+  expiresAt: 4103988000000,
+});
 
 const profiles = [
   { name: 'mobile', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 },
   { name: 'tablet', viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   { name: 'desktop', viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 },
 ];
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    cache: 'no-store',
+    ...options,
+    headers: { Origin: TEST_ORIGIN, ...(options.headers || {}) },
+  });
+  const text = await response.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch (_) { body = text; }
+  return {
+    url,
+    status: response.status,
+    ok: response.ok,
+    allowOrigin: response.headers.get('access-control-allow-origin') || '',
+    contentType: response.headers.get('content-type') || '',
+    body,
+  };
+}
+
+function rows(value) {
+  if (typeof value?.body === 'string') {
+    try { value = JSON.parse(value.body); } catch (_) {}
+  }
+  if (Array.isArray(value)) return value;
+  return value?.songs || value?.items || value?.data || [];
+}
+
+function songKey(song) {
+  return String(song?.song_key || song?.songKey || song?.key || song?.id || '').trim();
+}
+
+function songTitle(song) {
+  return String(song?.display_title || song?.song_name || song?.title || '').trim();
+}
+
+async function probePublicVecApi() {
+  const catalog = await fetchJson(`${API_BASE}/radio/songs`);
+  const songs = rows(catalog.body);
+  const song = songs.find(item => songTitle(item).toLowerCase().includes(SONG_TITLE.toLowerCase())) || songs[0];
+  const key = songKey(song);
+  const probes = [catalog];
+  if (key) {
+    probes.push(await fetchJson(`${API_BASE}/radio/vec/recipe?song_key=${encodeURIComponent(key)}`));
+    probes.push(await fetchJson(`${API_BASE}/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`));
+  }
+  const failures = [];
+  for (const probe of probes) {
+    if (!probe.ok) failures.push(`${probe.url} returned HTTP ${probe.status}.`);
+    if (!probe.allowOrigin) failures.push(`${probe.url} omitted Access-Control-Allow-Origin.`);
+    else if (probe.allowOrigin !== '*' && probe.allowOrigin !== TEST_ORIGIN) {
+      failures.push(`${probe.url} returned unexpected Access-Control-Allow-Origin: ${probe.allowOrigin}`);
+    }
+  }
+  if (!key) failures.push(`No catalog song matched ${SONG_TITLE}.`);
+  return { ok: failures.length === 0, songKey: key, failures, probes };
+}
 
 async function pickSong(page) {
   const songs = page.locator('#v2App [data-song]');
@@ -35,18 +100,35 @@ async function waitForPlayer(page) {
 }
 
 async function startAudio(page, player) {
-  const playButton = player.locator('[data-play]').first();
+  const playButton = player.locator('[data-play], .v2-main-play').first();
   if (await playButton.count()) await playButton.click({ force: true });
-  await page.waitForFunction(() => {
-    const visible = node => {
-      if (!node || !node.isConnected || node.hidden) return false;
-      const style = getComputedStyle(node);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    const activePlayer = [...document.querySelectorAll('#v2App [data-player]')].find(visible);
-    const audio = activePlayer?.querySelector('audio');
-    return Boolean(audio && !audio.paused && !audio.ended && audio.currentTime > 0.1);
-  }, null, { timeout: TIMEOUT_MS });
+  try {
+    await page.waitForFunction(() => {
+      const visible = node => {
+        if (!node || !node.isConnected || node.hidden) return false;
+        const style = getComputedStyle(node);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const activePlayer = [...document.querySelectorAll('#v2App [data-player]')].find(visible);
+      const audio = activePlayer?.querySelector('audio');
+      return Boolean(audio && !audio.paused && !audio.ended && audio.currentTime > 0.1);
+    }, null, { timeout: 8000 });
+  } catch (_) {
+    await page.evaluate(async () => {
+      const activePlayer = [...document.querySelectorAll('#v2App [data-player]')].find(node => {
+        if (!node || node.hidden) return false;
+        const style = getComputedStyle(node);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      const audio = activePlayer?.querySelector('audio');
+      if (!audio) throw new Error('Active audio element missing.');
+      await audio.play();
+    });
+    await page.waitForFunction(() => {
+      const audio = [...document.querySelectorAll('#v2App [data-player] audio')].find(item => !item.paused && !item.ended);
+      return Boolean(audio && audio.currentTime > 0.1);
+    }, null, { timeout: 8000 });
+  }
 }
 
 async function waitForVideoMotion(page) {
@@ -66,10 +148,10 @@ async function waitForVideoMotion(page) {
       player.dataset.mainVecWatchdogIntroSeconds ||
       2
     );
-
     const started = performance.now();
     let firstVideoTime = null;
     let firstWallTime = null;
+
     while (performance.now() - started < timeoutMs) {
       const stage = player.querySelector('[data-mobile-vec-stage]');
       const videos = [...(stage?.querySelectorAll('video') || [])];
@@ -85,7 +167,7 @@ async function waitForVideoMotion(page) {
             introSeconds: intro,
             audioTime: Number(audio.currentTime || 0),
             videoTime: current,
-            startupAfterIntroMs: Math.max(0, performance.now() - firstWallTime),
+            startupAfterFirstPlayableMs: Math.max(0, performance.now() - firstWallTime),
             source: video.currentSrc || video.src || '',
             readyState: video.readyState,
             visibleVideoCount: videos.filter(visible).length,
@@ -119,7 +201,6 @@ async function sampleMotion(page) {
     const qualityEnd = video.getVideoPlaybackQuality?.() || null;
     const frameDelta = (qualityEnd?.totalVideoFrames || 0) - (qualityStart?.totalVideoFrames || 0);
     const droppedDelta = (qualityEnd?.droppedVideoFrames || 0) - (qualityStart?.droppedVideoFrames || 0);
-    const droppedRatio = frameDelta > 0 ? droppedDelta / frameDelta : 0;
 
     return {
       build: document.querySelector('meta[name="stashbox-v2-build"]')?.content || '',
@@ -134,12 +215,12 @@ async function sampleMotion(page) {
       videoHeight: video.videoHeight,
       motionSeconds: end - start,
       visibleVideoCount: videos.filter(visible).length,
-      droppedRatio,
+      droppedRatio: frameDelta > 0 ? droppedDelta / frameDelta : 0,
     };
   });
 }
 
-function grade(result) {
+function gradeBrowser(result) {
   const failures = [];
   if (result.sample.audioPaused) failures.push('Audio paused during the sample.');
   if (result.sample.videoPaused) failures.push('Video paused during the sample.');
@@ -161,9 +242,10 @@ async function runProfile(browser, profile) {
     deviceScaleFactor: profile.deviceScaleFactor,
     reducedMotion: 'no-preference',
   });
-  if (TOKEN_JSON) {
-    await context.addInitScript(tokens => localStorage.setItem('stashbox_radio_dev_cognito_tokens', tokens), TOKEN_JSON);
-  }
+  await context.addInitScript(tokens => {
+    localStorage.setItem('stashbox_radio_dev_cognito_tokens', tokens);
+  }, TOKEN_JSON || SYNTHETIC_TOKENS);
+
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
@@ -183,7 +265,7 @@ async function runProfile(browser, profile) {
     const startup = await waitForVideoMotion(page);
     const sample = await sampleMotion(page);
     result = { profile: profile.name, selectedSong, startup, sample, pageErrors, consoleErrors };
-    result.grade = grade(result);
+    result.grade = gradeBrowser(result);
   } catch (error) {
     result = {
       profile: profile.name,
@@ -194,18 +276,24 @@ async function runProfile(browser, profile) {
     };
   }
 
-  await page.screenshot({ path: path.join(OUTPUT_DIR, `${profile.name}.png`), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join(OUTPUT_DIR, `${profile.name}.png`), fullPage: false }).catch(() => {});
   await fs.writeFile(path.join(OUTPUT_DIR, `${profile.name}.json`), JSON.stringify(result, null, 2));
   await context.close();
   return result;
 }
 
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
+const api = await probePublicVecApi().catch(error => ({
+  ok: false,
+  songKey: '',
+  failures: [error?.message || String(error)],
+  probes: [],
+}));
+
 const browser = await chromium.launch({
   headless: true,
   args: ['--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
-
 const results = [];
 try {
   for (const profile of profiles) results.push(await runProfile(browser, profile));
@@ -216,12 +304,16 @@ try {
 const summary = {
   generatedAt: new Date().toISOString(),
   baseUrl: BASE_URL,
+  apiBase: API_BASE,
   songTitle: SONG_TITLE,
-  ok: results.every(result => result.grade?.ok),
+  api,
+  ok: api.ok && results.every(result => result.grade?.ok),
   results,
 };
 await fs.writeFile(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
 
+console.log(`[${api.ok ? 'HEALTHY' : 'FAILED'}] public VEC API`);
+for (const failure of api.failures || []) console.error(`  ${failure}`);
 for (const result of results) {
   console.log(`[${result.grade?.ok ? 'HEALTHY' : 'FAILED'}] ${result.profile}`);
   for (const failure of result.grade?.failures || []) console.error(`  ${failure}`);
