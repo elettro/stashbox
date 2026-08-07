@@ -57,11 +57,6 @@ body.artist-realm-open{overflow:hidden!important}
    is no opacity crossfade on desktop, so the artwork cannot flash through
    between two ready video elements. */
 @media (min-width:900px){
-  .artist-realm-swipe-hint,
-  .artist-realm-restore-hint,
-  [data-artist-realm-swipe-hint],
-  [data-artist-realm-restore-hint]{display:none!important}
-
   .artist-realm-stage{
     background-color:#050607!important;
     background-image:none!important;
