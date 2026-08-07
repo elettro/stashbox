@@ -1,3 +1,37 @@
+@media (min-width: 900px) {
+  .v2-player .v2-player-header.has-desktop-vec-badge {
+    grid-template-columns: 46px auto auto minmax(0, 1fr);
+    column-gap: 10px;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge .v2-player-mark {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge #viewer-vec-status {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    grid-column: 3;
+    align-self: center;
+    justify-self: start;
+    display: inline-flex !important;
+    width: auto !important;
+    max-width: max-content;
+    margin: 0 0 0 2px !important;
+    transform: none !important;
+  }
+
+  .v2-player .v2-player-header.has-desktop-vec-badge .v2-player-head-actions {
+    grid-column: 4;
+    justify-self: end;
+  }
+}
+
 @media (max-width: 699px) {
   .v2-player .viewer-overlay-left {
     position: absolute;
