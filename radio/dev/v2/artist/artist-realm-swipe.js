@@ -78,7 +78,14 @@
     return hint;
   }
 
+  function removeDesktopRestoreHints(realm) {
+    if (!realm || MOBILE.matches) return false;
+    realm.querySelectorAll('[data-artist-realm-restore-hint], .artist-realm-restore-hint').forEach(node => node.remove());
+    return true;
+  }
+
   function ensureRestoreHint(realm) {
+    if (removeDesktopRestoreHints(realm)) return null;
     let hint = realm.querySelector('[data-artist-realm-restore-hint]');
     if (hint) return hint;
     hint = document.createElement('div');
@@ -92,6 +99,7 @@
 
   function syncRestoreHint(realm) {
     const hint = ensureRestoreHint(realm);
+    if (!hint) return;
     const active = realm.classList.contains('is-video-focus-mode');
     hint.classList.toggle('is-visible', active);
     hint.setAttribute('aria-hidden', active ? 'false' : 'true');
@@ -106,6 +114,7 @@
   }
 
   function showHint(realm, action) {
+    if (!MOBILE.matches) return;
     const hint = ensureHint(realm);
     const details = actionDetails(action);
     hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-focus-off', 'is-visible');
@@ -314,5 +323,10 @@
     subtree: true,
     attributes: true,
     attributeFilter: ['hidden']
+  });
+
+  MOBILE.addEventListener?.('change', () => {
+    const realm = document.querySelector('.artist-realm-player');
+    if (realm) syncRestoreHint(realm);
   });
 })();
