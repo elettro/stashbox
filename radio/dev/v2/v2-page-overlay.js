@@ -28,17 +28,19 @@
     document.head.appendChild(script);
   }
 
-  function loadDesktopMediaFitToggle() {
-    if (!window.matchMedia('(min-width: 900px)').matches) return;
-    if (
-      window.StashboxDesktopMediaFitToggle ||
-      document.querySelector('script[data-stashbox-desktop-media-fit], script[src*="v2-desktop-media-fit-toggle.js"]')
-    ) return;
-    const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-desktop-media-fit-toggle.js?v=20260807-full916-1';
-    script.defer = true;
-    script.dataset.stashboxDesktopMediaFit = 'true';
-    document.head.appendChild(script);
+  function removeLegacyDesktopMediaFitToggle() {
+    document.querySelectorAll(
+      '.desktop-media-fit-control, script[data-stashbox-desktop-media-fit], script[src*="v2-desktop-media-fit-toggle.js"]'
+    ).forEach(node => node.remove());
+
+    document.querySelectorAll('#v2App [data-player], .artist-realm-player').forEach(player => {
+      delete player.dataset.desktopMediaFitMode;
+    });
+
+    document.body?.classList.remove('desktop-media-fill-view', 'desktop-media-full-view');
+    document.documentElement.removeAttribute('data-desktop-media-fit-mode');
+    try { localStorage.removeItem('stashbox_v2_desktop_media_fit_mode'); }
+    catch (_) {}
   }
 
   function markInteractive(root = document) {
@@ -184,11 +186,15 @@
     if (overlay && !history.state?.stashboxOverlay) closeRoute(true);
   });
 
-  const observer = new MutationObserver(() => markInteractive());
+  const observer = new MutationObserver(() => {
+    markInteractive();
+    removeLegacyDesktopMediaFitToggle();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
   markInteractive();
+  removeLegacyDesktopMediaFitToggle();
   loadPortraitArtworkReliability();
-  loadDesktopMediaFitToggle();
 
   window.StashboxPageOverlay = {
     open: openRoute,
