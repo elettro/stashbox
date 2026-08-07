@@ -3,13 +3,15 @@
 
   if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(max-width: 899px)').matches) return;
-  if (window.StashboxMobileExactArtworkAuthority) return;
+  if (window.StashboxMobileArtworkAuthority) return;
 
   const app = document.getElementById('v2App');
   if (!app) return;
 
   const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const CACHE_KEY = 'stashbox_mobile_exact_9x16_v2';
+  const CACHE_KEY = 'stashbox_mobile_artwork_policy_v3';
+  const EXACT_TTL_MS = 24 * 60 * 60 * 1000;
+  const FALLBACK_TTL_MS = 5 * 60 * 1000;
   const requests = new Map();
   const imageLoads = new Map();
 
@@ -18,7 +20,7 @@
     stage: null,
     songKey: '',
     pendingSongKey: '',
-    artworkUrl: '',
+    selection: null,
     token: 0,
     retryCount: 0,
     retryTimer: 0,
@@ -66,14 +68,29 @@
     }
   }
 
-  function cachedUrl(songKey) {
-    return fixUrl(readCache()[songKey]?.url);
+  function cachedSelection(songKey) {
+    const entry = readCache()[songKey];
+    if (!entry?.url || !entry?.ratio || !entry?.verifiedAt) return null;
+    const age = Date.now() - Number(entry.verifiedAt || 0);
+    const ttl = entry.ratio === '9x16' ? EXACT_TTL_MS : FALLBACK_TTL_MS;
+    if (!Number.isFinite(age) || age < 0 || age > ttl) return null;
+    return {
+      url: fixUrl(entry.url),
+      ratio: clean(entry.ratio),
+      exact: clean(entry.ratio) === '9x16',
+      verifiedAt: Number(entry.verifiedAt),
+    };
   }
 
-  function writeCache(songKey, url) {
+  function writeCache(songKey, selection) {
+    if (!songKey || !selection?.url || !selection?.ratio) return;
     try {
       const cache = readCache();
-      cache[songKey] = { url: fixUrl(url), savedAt: Date.now() };
+      cache[songKey] = {
+        url: fixUrl(selection.url),
+        ratio: clean(selection.ratio),
+        verifiedAt: Date.now(),
+      };
       localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
     } catch (_) {}
   }
@@ -85,35 +102,56 @@
     return value;
   }
 
-  function exact9x16FromPayload(payload) {
+  function artworkSelection(payload) {
     const data = unwrap(payload) || {};
     const media = data.media || data.data?.media || data.data || data;
     const images = media?.artwork_images && typeof media.artwork_images === 'object'
       ? media.artwork_images
       : (media?.images && typeof media.images === 'object' ? media.images : {});
-    const resolved = media?.resolved_artwork?.['9x16'] || data?.resolved_artwork?.['9x16'] || {};
-    const resolvedExact = clean(resolved?.source_ratio) === '9x16' ? resolved?.url : '';
+    const prepared = media?.prepared_artwork_images && typeof media.prepared_artwork_images === 'object'
+      ? media.prepared_artwork_images
+      : {};
+    const resolved = media?.resolved_artwork || data?.resolved_artwork || {};
+    const exactResolved = clean(resolved?.['9x16']?.source_ratio) === '9x16'
+      ? resolved?.['9x16']?.url
+      : '';
 
-    return fixUrl(
+    const exactUrl = fixUrl(
       images['9x16'] ||
+      prepared['9x16'] ||
       media?.song_artwork_9x16_url ||
       data?.song_artwork_9x16_url ||
-      resolvedExact
+      exactResolved
     );
+    if (exactUrl) return { url: exactUrl, ratio: '9x16', exact: true };
+
+    // A fallback is acceptable only after the canonical payload confirms
+    // that no exact 9x16 image exists for this song.
+    const fallbackOrder = [
+      ['4x5', images['4x5'] || prepared['4x5'] || resolved?.['4x5']?.url],
+      ['3x4', images['3x4'] || prepared['3x4'] || resolved?.['3x4']?.url],
+      ['1x1', images['1x1'] || prepared['1x1'] || resolved?.['1x1']?.url],
+      ['1x1', media?.song_artwork_url || media?.artwork_url || data?.song_artwork_url || data?.artwork_url],
+    ];
+    for (const [ratio, candidate] of fallbackOrder) {
+      const url = fixUrl(candidate);
+      if (url) return { url, ratio, exact: false };
+    }
+    return null;
   }
 
-  async function fetchExact9x16(songKey, { force = false } = {}) {
+  async function fetchSelection(songKey, { force = false } = {}) {
     const key = clean(songKey);
-    if (!key) return '';
+    if (!key) return null;
     if (!force) {
-      const cached = cachedUrl(key);
+      const cached = cachedSelection(key);
       if (cached) return cached;
     }
     if (requests.has(key)) return requests.get(key);
 
     const request = (async () => {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 18000);
+      const timeout = setTimeout(() => controller.abort(), 18000);
       try {
         const response = await fetch(`${API}/radio/songs/${encodeURIComponent(key)}/artwork-images`, {
           cache: 'no-store',
@@ -124,11 +162,11 @@
         let body = {};
         try { body = text ? JSON.parse(text) : {}; } catch (_) { body = {}; }
         if (!response.ok) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
-        const url = exact9x16FromPayload(body);
-        if (url) writeCache(key, url);
-        return url;
+        const selection = artworkSelection(body);
+        if (selection) writeCache(key, selection);
+        return selection;
       } finally {
-        window.clearTimeout(timeout);
+        clearTimeout(timeout);
       }
     })().finally(() => requests.delete(key));
 
@@ -136,10 +174,12 @@
     return request;
   }
 
-  function preloadExactPortrait(url) {
-    const source = fixUrl(url);
-    if (!source) return Promise.resolve(false);
-    if (imageLoads.has(source)) return imageLoads.get(source);
+  function preload(selection) {
+    const source = fixUrl(selection?.url);
+    const ratio = clean(selection?.ratio);
+    if (!source || !ratio) return Promise.resolve(false);
+    const cacheKey = `${ratio}|${source}`;
+    if (imageLoads.has(cacheKey)) return imageLoads.get(cacheKey);
 
     const promise = new Promise(resolve => {
       const image = new Image();
@@ -148,55 +188,57 @@
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        if (!loaded) imageLoads.delete(source);
+        if (!loaded) imageLoads.delete(cacheKey);
         resolve(Boolean(loaded));
       };
-      const timer = window.setTimeout(() => finish(false), 18000);
+      const timer = setTimeout(() => finish(false), 18000);
       image.onload = () => {
-        const portraitRatio = image.naturalHeight / Math.max(1, image.naturalWidth);
-        finish(image.naturalWidth > 0 && portraitRatio >= 1.45);
+        const aspect = image.naturalHeight / Math.max(1, image.naturalWidth);
+        const valid = ratio === '9x16'
+          ? aspect >= 1.55
+          : ratio === '1x1'
+            ? aspect >= 0.8 && aspect <= 1.25
+            : aspect > 1.1;
+        finish(image.naturalWidth > 0 && valid);
       };
       image.onerror = () => finish(false);
       image.decoding = 'async';
       image.src = source;
-      if (image.complete) {
-        const portraitRatio = image.naturalHeight / Math.max(1, image.naturalWidth);
-        finish(image.naturalWidth > 0 && portraitRatio >= 1.45);
-      }
+      if (image.complete) image.onload();
     });
 
-    imageLoads.set(source, promise);
+    imageLoads.set(cacheKey, promise);
     return promise;
   }
 
   function installCss() {
-    if (document.getElementById('v2-mobile-exact-9x16-css')) return;
+    if (document.getElementById('v2-mobile-artwork-policy-css')) return;
     const style = document.createElement('style');
-    style.id = 'v2-mobile-exact-9x16-css';
+    style.id = 'v2-mobile-artwork-policy-css';
     style.textContent = `
       @media (max-width: 899px) {
-        #v2App [data-player].mobile-exact-artwork-authority [data-mobile-vec-stage] {
+        #v2App [data-player].mobile-artwork-authority [data-mobile-vec-stage] {
           background-color: #050607 !important;
           background-position: center center !important;
           background-repeat: no-repeat !important;
-          background-size: contain !important;
+          background-size: cover !important;
           transition: none !important;
           animation: none !important;
         }
 
-        #v2App [data-player].mobile-exact-artwork-loading [data-mobile-vec-stage] {
+        #v2App [data-player].mobile-artwork-loading [data-mobile-vec-stage] {
           background-image: none !important;
         }
 
-        #v2App [data-player].mobile-exact-artwork-authority [data-mobile-vec-stage] .v2-mobile-vec-media,
-        #v2App [data-player].mobile-exact-artwork-authority [data-mobile-vec-stage] img {
+        #v2App [data-player].mobile-artwork-authority [data-mobile-vec-stage] .v2-mobile-vec-media,
+        #v2App [data-player].mobile-artwork-authority [data-mobile-vec-stage] img {
           visibility: hidden !important;
           opacity: 0 !important;
           transition: none !important;
           animation: none !important;
         }
 
-        #v2App [data-player].mobile-exact-artwork-authority .mobile-vec-motion-video.is-moving {
+        #v2App [data-player].mobile-artwork-authority .mobile-vec-motion-video.is-moving {
           visibility: visible !important;
           opacity: 1 !important;
         }
@@ -207,27 +249,32 @@
 
   function markLoading(player, stage, songKey) {
     if (!player || !stage) return;
-    player.classList.add('mobile-exact-artwork-authority', 'mobile-exact-artwork-loading');
-    player.classList.remove('mobile-exact-artwork-ready');
-    player.dataset.mobileVecArtworkState = 'loading-9x16';
+    player.classList.add('mobile-artwork-authority', 'mobile-artwork-loading');
+    player.classList.remove('mobile-artwork-ready', 'mobile-artwork-fallback');
+    player.dataset.mobileVecArtworkState = 'loading';
     player.dataset.mobileVecArtworkRatio = '';
+    player.dataset.mobileVecArtworkPolicy = 'checking-9x16';
     player.dataset.mobileVecArtworkSongKey = songKey;
-    stage.dataset.mobileVecArtworkState = 'loading-9x16';
+    stage.dataset.mobileVecArtworkState = 'loading';
     stage.dataset.mobileVecArtworkRatio = '';
-    stage.dataset.mobileVecArtworkSongKey = songKey;
+    stage.dataset.mobileVecArtworkPolicy = 'checking-9x16';
     stage.style.backgroundImage = 'none';
     stage.style.backgroundColor = '#050607';
   }
 
-  function applyExactArtwork(player, stage, songKey, url) {
-    const source = fixUrl(url);
-    if (!player || !stage || !songKey || !source) return false;
+  function applySelection(player, stage, songKey, selection) {
+    const source = fixUrl(selection?.url);
+    const ratio = clean(selection?.ratio);
+    if (!player || !stage || !songKey || !source || !ratio) return false;
     const safe = source.replaceAll('"', '%22');
+    const exact = ratio === '9x16';
 
-    player.classList.add('mobile-exact-artwork-authority', 'mobile-exact-artwork-ready');
-    player.classList.remove('mobile-exact-artwork-loading');
-    player.dataset.mobileVecArtworkState = 'ready-9x16';
-    player.dataset.mobileVecArtworkRatio = '9x16';
+    player.classList.add('mobile-artwork-authority', 'mobile-artwork-ready');
+    player.classList.toggle('mobile-artwork-fallback', !exact);
+    player.classList.remove('mobile-artwork-loading');
+    player.dataset.mobileVecArtworkState = exact ? 'ready-9x16' : `ready-fallback-${ratio}`;
+    player.dataset.mobileVecArtworkRatio = ratio;
+    player.dataset.mobileVecArtworkPolicy = exact ? 'exact-9x16' : 'fallback-no-9x16';
     player.dataset.mobileVecArtworkSongKey = songKey;
     player.dataset.mobileVecArtworkUrl = source;
 
@@ -235,9 +282,10 @@
     stage.style.backgroundColor = '#050607';
     stage.style.backgroundPosition = 'center center';
     stage.style.backgroundRepeat = 'no-repeat';
-    stage.style.backgroundSize = 'contain';
-    stage.dataset.mobileVecArtworkState = 'ready-9x16';
-    stage.dataset.mobileVecArtworkRatio = '9x16';
+    stage.style.backgroundSize = 'cover';
+    stage.dataset.mobileVecArtworkState = exact ? 'ready-9x16' : `ready-fallback-${ratio}`;
+    stage.dataset.mobileVecArtworkRatio = ratio;
+    stage.dataset.mobileVecArtworkPolicy = exact ? 'exact-9x16' : 'fallback-no-9x16';
     stage.dataset.mobileVecArtworkSongKey = songKey;
     stage.dataset.mobileVecArtworkUrl = source;
     return true;
@@ -245,73 +293,54 @@
 
   function scheduleRetry(songKey, token) {
     clearTimeout(state.retryTimer);
-    const delay = Math.min(8000, 1500 + state.retryCount * 1000);
-    state.retryTimer = window.setTimeout(() => {
+    const delay = Math.min(10000, 1500 + state.retryCount * 1200);
+    state.retryTimer = setTimeout(() => {
       if (token !== state.token || songKey !== state.songKey) return;
       state.retryCount += 1;
-      resolveExactArtwork(songKey, true);
+      resolveArtwork(songKey, true);
     }, delay);
   }
 
-  async function resolveExactArtwork(songKey, force = false) {
+  async function resolveArtwork(songKey, force = false) {
     const key = clean(songKey);
     if (!key) return;
     const token = ++state.token;
-    state.retryCount = force ? state.retryCount : 0;
+    if (!force) state.retryCount = 0;
 
-    const player = activePlayer();
-    const stage = player?.querySelector('[data-mobile-vec-stage]') || null;
-    state.player = player;
-    state.stage = stage;
-    if (player && stage) markLoading(player, stage, key);
-
-    let url = !force ? cachedUrl(key) : '';
-    if (!url) {
-      try { url = await fetchExact9x16(key, { force }); }
-      catch (_) { url = ''; }
-    }
-
+    let selection = null;
+    try { selection = await fetchSelection(key, { force }); }
+    catch (_) { selection = null; }
     if (token !== state.token || key !== state.songKey) return;
-    if (!url) {
-      if (state.player) state.player.dataset.mobileVecArtworkState = 'missing-9x16';
-      if (state.stage) state.stage.dataset.mobileVecArtworkState = 'missing-9x16';
+
+    if (!selection) {
+      state.player.dataset.mobileVecArtworkState = 'missing-all-artwork';
+      state.stage.dataset.mobileVecArtworkState = 'missing-all-artwork';
       scheduleRetry(key, token);
       return;
     }
 
-    const loaded = await preloadExactPortrait(url);
+    const loaded = await preload(selection);
     if (token !== state.token || key !== state.songKey) return;
     if (!loaded) {
-      if (state.player) state.player.dataset.mobileVecArtworkState = 'invalid-or-unloaded-9x16';
-      if (state.stage) state.stage.dataset.mobileVecArtworkState = 'invalid-or-unloaded-9x16';
-      imageLoads.delete(url);
+      state.player.dataset.mobileVecArtworkState = selection.exact ? 'retrying-exact-9x16' : `retrying-fallback-${selection.ratio}`;
+      state.stage.dataset.mobileVecArtworkState = state.player.dataset.mobileVecArtworkState;
       scheduleRetry(key, token);
       return;
     }
 
-    state.artworkUrl = url;
-    state.retryCount = 0;
-    applyExactArtwork(state.player, state.stage, key, url);
+    state.selection = selection;
+    applySelection(state.player, state.stage, key, selection);
   }
 
-  function beginSong(songKey) {
-    const key = clean(songKey);
-    if (!key) return;
-    if (key === state.songKey && state.artworkUrl) return;
-
-    state.songKey = key;
-    state.pendingSongKey = key;
-    state.artworkUrl = '';
-    state.retryCount = 0;
-    clearTimeout(state.retryTimer);
-    state.token += 1;
-
-    const player = activePlayer();
-    const stage = player?.querySelector('[data-mobile-vec-stage]') || null;
-    state.player = player;
-    state.stage = stage;
-    if (player && stage) markLoading(player, stage, key);
-    resolveExactArtwork(key);
+  function videoMoving(stage) {
+    const video = stage?.querySelector('.mobile-vec-motion-video');
+    return Boolean(
+      video &&
+      video.classList.contains('is-moving') &&
+      !video.paused &&
+      !video.ended &&
+      Number(video.currentTime || 0) > 0.04
+    );
   }
 
   function stabilize() {
@@ -321,18 +350,29 @@
 
     state.player = player;
     state.stage = stage;
-    player.classList.add('mobile-exact-artwork-authority');
+    player.classList.add('mobile-artwork-authority');
 
     const key = runtimeSongKey(player);
-    if (key && key !== state.songKey) beginSong(key);
+    if (key && key !== state.songKey) {
+      state.songKey = key;
+      state.selection = null;
+      state.token += 1;
 
-    if (!state.songKey) return;
-    if (!state.artworkUrl) {
-      markLoading(player, stage, state.songKey);
-      return;
+      const cached = cachedSelection(key);
+      if (cached) {
+        state.selection = cached;
+        applySelection(player, stage, key, cached);
+        preload(cached);
+        if (!cached.exact) resolveArtwork(key, true);
+      } else {
+        markLoading(player, stage, key);
+        resolveArtwork(key);
+      }
     }
 
-    applyExactArtwork(player, stage, state.songKey, state.artworkUrl);
+    if (videoMoving(stage)) return;
+    if (state.selection) applySelection(player, stage, state.songKey, state.selection);
+    else markLoading(player, stage, state.songKey);
   }
 
   function schedule() {
@@ -340,15 +380,14 @@
     state.frame = requestAnimationFrame(stabilize);
   }
 
-  function prefetchFromTarget(target, activate = false) {
+  function prefetchFromTarget(target) {
     const song = target?.closest?.('#v2App [data-song]');
     const key = clean(song?.dataset?.song);
     if (!key) return;
     state.pendingSongKey = key;
-    const cached = cachedUrl(key);
-    if (cached) preloadExactPortrait(cached);
-    else fetchExact9x16(key).then(preloadExactPortrait).catch(() => {});
-    if (activate) window.setTimeout(() => beginSong(key), 0);
+    const cached = cachedSelection(key);
+    if (cached) preload(cached);
+    else fetchSelection(key).then(selection => selection && preload(selection)).catch(() => {});
   }
 
   const observer = new MutationObserver(schedule);
@@ -359,45 +398,39 @@
     attributeFilter: ['class', 'data-song-key', 'data-mobile-vec-motion-song-key'],
   });
 
-  document.addEventListener('pointerdown', event => prefetchFromTarget(event.target, false), true);
-  document.addEventListener('touchstart', event => prefetchFromTarget(event.target, false), { capture: true, passive: true });
-  document.addEventListener('click', event => prefetchFromTarget(event.target, true), true);
+  document.addEventListener('pointerdown', event => prefetchFromTarget(event.target), true);
+  document.addEventListener('touchstart', event => prefetchFromTarget(event.target), { capture: true, passive: true });
   document.addEventListener('play', schedule, true);
   document.addEventListener('pause', schedule, true);
-  window.addEventListener('orientationchange', () => window.setTimeout(schedule, 120), { passive: true });
+  window.addEventListener('stashbox:vec-asset-change', schedule, true);
+  window.addEventListener('stashbox:player-view-mode-change', schedule, true);
+  window.addEventListener('orientationchange', () => setTimeout(schedule, 120), { passive: true });
   window.addEventListener('online', () => {
-    if (state.songKey) resolveExactArtwork(state.songKey, true);
+    if (state.songKey) resolveArtwork(state.songKey, true);
   });
 
   installCss();
-  state.timer = window.setInterval(stabilize, 200);
+  state.timer = setInterval(stabilize, 250);
   stabilize();
 
-  const api = Object.freeze({
+  window.StashboxMobileArtworkAuthority = Object.freeze({
     refresh: () => {
-      if (state.songKey) resolveExactArtwork(state.songKey, true);
+      if (state.songKey) resolveArtwork(state.songKey, true);
       schedule();
     },
-    prefetchSong: fetchExact9x16,
-    cachedUrl,
+    prefetchSong: fetchSelection,
     state: () => ({
       songKey: state.songKey,
-      artworkUrl: state.artworkUrl,
-      artworkState: state.player?.dataset?.mobileVecArtworkState || 'idle',
-      artworkRatio: state.player?.dataset?.mobileVecArtworkRatio || '',
+      artworkUrl: state.selection?.url || '',
+      artworkRatio: state.selection?.ratio || '',
+      artworkPolicy: state.selection?.exact ? 'exact-9x16' : state.selection ? 'fallback-no-9x16' : 'loading',
+      videoMoving: videoMoving(state.stage),
     }),
     stop: () => {
       clearInterval(state.timer);
       clearTimeout(state.retryTimer);
       observer.disconnect();
-      state.player?.classList.remove(
-        'mobile-exact-artwork-authority',
-        'mobile-exact-artwork-loading',
-        'mobile-exact-artwork-ready'
-      );
+      state.player?.classList.remove('mobile-artwork-authority', 'mobile-artwork-loading', 'mobile-artwork-ready', 'mobile-artwork-fallback');
     },
   });
-
-  window.StashboxMobileExactArtworkAuthority = api;
-  window.StashboxMobileVecFlickerGuard = api;
 })();
