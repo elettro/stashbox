@@ -6,13 +6,9 @@
 
   const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
   const SONGS_URL = `${API}/radio/songs`;
-  const RECIPE_URL = `${API}/radio/vec/recipe`;
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const FEATURE_COUNT = 8;
   const FRESH_WINDOW = 24;
-  const CONCURRENCY = 6;
-  const CACHE_TTL_MS = 15 * 60 * 1000;
-  const FEED_CACHE_KEY = 'stashbox_v2_global_vec_feed_v1';
   const PREVIOUS_KEY = 'stashbox_v2_previous_featured_song_keys';
 
   let catalogPromise = null;
@@ -98,7 +94,8 @@
       audio: clean(row.audio_url || row.audioUrl || row.mp3_url || row.stream_url || row.audio_file_url || row.file_url),
       plays: number(row.total_plays ?? row.plays ?? row.play_count),
       date: Math.max(dateStamp(row.updated_at), dateStamp(row.created_at), dateStamp(row.release_date)),
-      moods: moodsFor(row)
+      moods: moodsFor(row),
+      vecEnabled: row.enhanced_visuals_enabled !== false
     };
   }
 
@@ -128,80 +125,17 @@
     return list;
   }
 
-  async function mapWithConcurrency(items, worker, concurrency = CONCURRENCY) {
-    const results = new Array(items.length);
-    let cursor = 0;
-    async function run() {
-      while (cursor < items.length) {
-        const index = cursor++;
-        try { results[index] = await worker(items[index], index); }
-        catch (_) { results[index] = null; }
-      }
-    }
-    await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, items.length)) }, run));
-    return results;
-  }
-
-  function recipeTimestamp(body) {
-    body = unwrap(body) || {};
-    const recipe = body.recipe && typeof body.recipe === 'object' ? body.recipe : {};
-    return Math.max(
-      dateStamp(body.updated_at),
-      dateStamp(body.updatedAt),
-      dateStamp(body.saved_at),
-      dateStamp(body.savedAt),
-      dateStamp(recipe.updated_at),
-      dateStamp(recipe.updatedAt),
-      dateStamp(recipe.saved_at),
-      dateStamp(recipe.savedAt)
-    );
-  }
-
-  function readFeedCache(songs) {
-    try {
-      const cached = JSON.parse(sessionStorage.getItem(FEED_CACHE_KEY) || 'null');
-      if (!cached || Date.now() - number(cached.savedAt) > CACHE_TTL_MS) return null;
-      const expected = songs.map(song => song.key).sort().join('|');
-      const actual = (cached.songKeys || []).map(String).sort().join('|');
-      if (expected !== actual || !Array.isArray(cached.feed)) return null;
-      const byKey = new Map(songs.map(song => [song.key, song]));
-      return cached.feed.map(item => ({ song: byKey.get(item.songKey), vecStamp: number(item.vecStamp) })).filter(item => item.song);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function saveFeedCache(songs, feed) {
-    try {
-      sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify({
-        savedAt: Date.now(),
-        songKeys: songs.map(song => song.key),
-        feed: feed.map(item => ({ songKey: item.song.key, vecStamp: item.vecStamp }))
-      }));
-    } catch (_) {}
-  }
-
-  async function buildVecFeed(songs) {
-    const cached = readFeedCache(songs);
-    if (cached) return cached;
-
-    const feed = (await mapWithConcurrency(songs, async song => {
-      try {
-        const body = await json(`${RECIPE_URL}?song_key=${encodeURIComponent(song.key)}`);
-        return { song, vecStamp: recipeTimestamp(body) };
-      } catch (_) {
-        return { song, vecStamp: 0 };
-      }
-    })).filter(Boolean);
-
-    feed.sort((a, b) =>
-      b.vecStamp - a.vecStamp ||
-      b.song.date - a.song.date ||
-      b.song.plays - a.song.plays ||
-      a.song.title.localeCompare(b.song.title)
-    );
-    saveFeedCache(songs, feed);
-    return feed;
+  // Discovery is catalog-only. It must never fetch one VEC recipe per song.
+  // The active player is the only component allowed to resolve a recipe.
+  function buildVecFeed(songs) {
+    return songs
+      .map(song => ({ song, vecStamp: song.vecEnabled ? song.date : 0 }))
+      .sort((a, b) =>
+        b.vecStamp - a.vecStamp ||
+        b.song.date - a.song.date ||
+        b.song.plays - a.song.plays ||
+        a.song.title.localeCompare(b.song.title)
+      );
   }
 
   function readPrevious() {
@@ -237,7 +171,7 @@
 
   function featureMarkup(item) {
     const song = item.song;
-    const label = item.vecStamp > 0 ? 'Fresh VEC' : 'Recently Added';
+    const label = song.vecEnabled ? 'VEC Enabled' : 'Recently Added';
     return `
       <article class="v2-feature-card" data-song="${escapeHtml(song.key)}" tabindex="0">
         <div class="v2-feature-art">
@@ -253,17 +187,16 @@
       </article>`;
   }
 
-  async function renderFeatured(songs) {
+  function renderFeatured(songs) {
     const row = app.querySelector('.v2-featured-row');
     if (!row || !songs.length) return false;
-    const feed = await buildVecFeed(songs);
-    const featured = chooseFeatured(feed);
+    const featured = chooseFeatured(buildVecFeed(songs));
     if (!featured.length) return false;
     row.innerHTML = featured.map(featureMarkup).join('');
     row.scrollLeft = 0;
     row.closest('[data-carousel-shell]')?.dispatchEvent(new Event('scroll'));
     window.dispatchEvent(new CustomEvent('stashbox:featured-vec-feed-ready', {
-      detail: { count: featured.length, vecCount: featured.filter(item => item.vecStamp > 0).length }
+      detail: { count: featured.length, vecCount: featured.filter(item => item.song.vecEnabled).length }
     }));
     return true;
   }
@@ -402,9 +335,12 @@
         if ((moodReady && featuredReady) || attempts >= 200) {
           window.clearInterval(timer);
           bindMoodFilter(songs);
-          const build = () => renderFeatured(songs).catch(error => console.warn('[V2 Featured VEC Feed]', error));
-          if ('requestIdleCallback' in window) window.requestIdleCallback(build, { timeout: 2200 });
-          else window.setTimeout(build, 250);
+          const build = () => {
+            try { renderFeatured(songs); }
+            catch (error) { console.warn('[V2 Featured Feed]', error); }
+          };
+          if ('requestIdleCallback' in window) window.requestIdleCallback(build, { timeout: 1200 });
+          else window.setTimeout(build, 150);
         }
       }, 50);
     } catch (error) {
