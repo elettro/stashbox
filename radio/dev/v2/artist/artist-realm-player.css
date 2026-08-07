@@ -88,6 +88,53 @@ body.artist-realm-open{overflow:hidden!important}
   }
   .artist-realm-brand::before{content:"STASH";order:1;color:#fff}
   .artist-realm-brand::after{content:"BOX";order:2;color:var(--artist-accent,#ff9f0a)}
-  .artist-realm-vec{order:3;margin-left:10px}
+  .artist-realm-vec{order:3;margin-left:10px;position:relative;overflow:visible;cursor:help}
   .artist-realm-brand strong{order:4;margin-left:14px}
+
+  .artist-realm-vec::after{
+    content:"VEC = Visual Experience Controller. The green status means this player is actively pulling the current song’s visual experience from VEC, including its artwork and video clips.";
+    position:absolute;
+    top:calc(100% + 12px);
+    left:0;
+    z-index:120;
+    width:310px;
+    max-width:min(310px,calc(100vw - 40px));
+    padding:11px 13px;
+    border:1px solid rgba(104,232,149,.34);
+    border-radius:12px;
+    background:rgba(7,10,9,.96);
+    box-shadow:0 14px 38px rgba(0,0,0,.44);
+    color:rgba(255,255,255,.9);
+    font:700 12px/1.4 Karla,system-ui,sans-serif;
+    letter-spacing:0;
+    text-transform:none;
+    white-space:normal;
+    opacity:0;
+    visibility:hidden;
+    transform:translateY(-4px);
+    transition:opacity .16s ease,transform .16s ease,visibility .16s ease;
+    pointer-events:none;
+  }
+
+  .artist-realm-vec::before{
+    content:"";
+    position:absolute;
+    top:calc(100% + 6px);
+    left:15px;
+    z-index:121;
+    width:10px;
+    height:10px;
+    border-top:1px solid rgba(104,232,149,.34);
+    border-left:1px solid rgba(104,232,149,.34);
+    background:rgba(7,10,9,.96);
+    opacity:0;
+    visibility:hidden;
+    transform:rotate(45deg);
+    transition:opacity .16s ease,visibility .16s ease;
+    pointer-events:none;
+  }
+
+  .artist-realm-vec:hover::after,
+  .artist-realm-vec:hover::before{opacity:1;visibility:visible}
+  .artist-realm-vec:hover::after{transform:translateY(0)}
 }
