@@ -8,6 +8,11 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
+  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const CACHE_KEY = 'stashbox_mobile_exact_9x16_v1';
+  const artworkRequests = new Map();
+  const imageLoads = new Map();
+
   const state = {
     player: null,
     stage: null,
@@ -19,6 +24,11 @@
     timer: 0,
     retryTimer: 0,
   };
+
+  const clean = value => String(value ?? '').trim();
+  const fixUrl = value => clean(value)
+    .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+    .replace(/\?dl=[01]/, '');
 
   function visible(node) {
     if (!node || !node.isConnected || node.hidden) return false;
@@ -33,20 +43,112 @@
     return [...app.querySelectorAll('[data-player]')].find(visible) || null;
   }
 
-  function cleanUrl(value) {
-    return String(value || '')
-      .trim()
-      .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
-      .replace(/\?dl=[01]/, '');
-  }
-
   function songIdentity(player) {
-    return String(
+    return clean(
       player?.dataset?.mobileVecMotionSongKey ||
       player?.dataset?.songKey ||
-      player?.dataset?.currentSongKey ||
-      ''
-    ).trim();
+      player?.dataset?.currentSongKey
+    );
+  }
+
+  function readCache() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function cachedUrl(songKey) {
+    return fixUrl(readCache()[songKey]?.url);
+  }
+
+  function writeCache(songKey, url) {
+    try {
+      const cache = readCache();
+      cache[songKey] = { url: fixUrl(url), savedAt: Date.now() };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch (_) {}
+  }
+
+  function unwrap(value) {
+    if (typeof value?.body === 'string') {
+      try { return unwrap(JSON.parse(value.body)); } catch (_) { return value; }
+    }
+    return value;
+  }
+
+  function exact9x16FromPayload(payload) {
+    const data = unwrap(payload) || {};
+    const media = data.media || data.data?.media || data.data || data;
+    const images = media?.artwork_images && typeof media.artwork_images === 'object'
+      ? media.artwork_images
+      : (media?.images && typeof media.images === 'object' ? media.images : {});
+    return fixUrl(
+      images['9x16'] ||
+      media?.song_artwork_9x16_url ||
+      data?.song_artwork_9x16_url
+    );
+  }
+
+  async function fetchExact9x16(songKey, { force = false } = {}) {
+    const key = clean(songKey);
+    if (!key) return '';
+    if (!force) {
+      const cached = cachedUrl(key);
+      if (cached) return cached;
+    }
+    if (artworkRequests.has(key)) return artworkRequests.get(key);
+
+    const request = (async () => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 16000);
+      try {
+        const response = await fetch(`${API}/radio/songs/${encodeURIComponent(key)}/artwork-images`, {
+          cache: 'no-store',
+          credentials: 'omit',
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        let body = {};
+        try { body = text ? JSON.parse(text) : {}; } catch (_) { body = {}; }
+        if (!response.ok) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
+        const url = exact9x16FromPayload(body);
+        if (url) writeCache(key, url);
+        return url;
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    })().finally(() => artworkRequests.delete(key));
+
+    artworkRequests.set(key, request);
+    return request;
+  }
+
+  function preload(url) {
+    const source = fixUrl(url);
+    if (!source) return Promise.resolve(false);
+    if (imageLoads.has(source)) return imageLoads.get(source);
+    const promise = new Promise(resolve => {
+      const image = new Image();
+      let settled = false;
+      const finish = loaded => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        if (!loaded) imageLoads.delete(source);
+        resolve(Boolean(loaded));
+      };
+      const timer = window.setTimeout(() => finish(false), 16000);
+      image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > image.naturalWidth);
+      image.onerror = () => finish(false);
+      image.decoding = 'async';
+      image.src = source;
+      if (image.complete) finish(image.naturalWidth > 0 && image.naturalHeight > image.naturalWidth);
+    });
+    imageLoads.set(source, promise);
+    return promise;
   }
 
   function installCss() {
@@ -92,63 +194,68 @@
   }
 
   function applyExactArtwork(stage, url) {
-    const source = cleanUrl(url);
+    const source = fixUrl(url);
     if (!stage || !source) return false;
     const encoded = source.replaceAll('"', '%22');
     const next = `url("${encoded}")`;
 
     if (stage.style.backgroundImage !== next) stage.style.backgroundImage = next;
-    if (stage.style.backgroundPosition !== 'center center') stage.style.backgroundPosition = 'center center';
-    if (stage.style.backgroundRepeat !== 'no-repeat') stage.style.backgroundRepeat = 'no-repeat';
-    if (stage.style.backgroundSize !== 'contain') stage.style.backgroundSize = 'contain';
-    if (stage.style.backgroundColor !== 'rgb(5, 6, 7)') stage.style.backgroundColor = '#050607';
-
+    stage.style.backgroundPosition = 'center center';
+    stage.style.backgroundRepeat = 'no-repeat';
+    stage.style.backgroundSize = 'cover';
+    stage.style.backgroundColor = '#050607';
     stage.dataset.mobileVecArtworkRatio = '9x16';
     stage.dataset.mobileVecArtworkState = 'ready';
     stage.dataset.mobileVecArtworkUrl = source;
+
     state.player.dataset.mobileVecArtworkRatio = '9x16';
     state.player.dataset.mobileVecArtworkState = 'ready';
+    state.player.dataset.mobileVecArtworkUrl = source;
     return true;
   }
 
-  function clearSquareArtwork(stage) {
+  function holdForExactArtwork(stage) {
     if (!stage || state.artworkUrl) return;
     stage.style.backgroundImage = 'none';
     stage.style.backgroundColor = '#050607';
     stage.dataset.mobileVecArtworkState = 'loading-9x16';
   }
 
-  function scheduleArtworkRetry(songKey, token) {
+  function scheduleRetry(songKey, token) {
     clearTimeout(state.retryTimer);
     state.retryTimer = window.setTimeout(() => {
       if (token !== state.artworkToken || songKey !== state.songKey) return;
       resolveExactArtwork(songKey, true);
-    }, 1200);
+    }, 1600);
   }
 
   async function resolveExactArtwork(songKey, force = false) {
-    const key = String(songKey || '').trim();
+    const key = clean(songKey);
     if (!key) return;
     const token = ++state.artworkToken;
     state.artworkState = 'loading';
 
-    const resolver = window.StashboxMobileOfficialArtwork9x16;
-    let url = cleanUrl(!force ? resolver?.cachedUrl?.(key) : '');
-
+    let url = !force ? cachedUrl(key) : '';
     if (!url) {
-      try {
-        url = cleanUrl(await resolver?.prefetchSong?.(key));
-      } catch (_) {
-        url = '';
-      }
+      try { url = await fetchExact9x16(key, { force }); }
+      catch (_) { url = ''; }
     }
 
     if (token !== state.artworkToken || key !== state.songKey) return;
 
     if (!url) {
       state.artworkState = 'missing';
-      state.player?.setAttribute('data-mobile-vec-artwork-state', 'missing-9x16');
-      scheduleArtworkRetry(key, token);
+      state.player.dataset.mobileVecArtworkState = 'missing-9x16';
+      scheduleRetry(key, token);
+      return;
+    }
+
+    const loaded = await preload(url);
+    if (token !== state.artworkToken || key !== state.songKey) return;
+    if (!loaded) {
+      state.artworkState = 'load-failed';
+      state.player.dataset.mobileVecArtworkState = 'retrying-9x16';
+      scheduleRetry(key, token);
       return;
     }
 
@@ -173,7 +280,7 @@
       state.artworkUrl = '';
       state.artworkState = 'loading';
       state.artworkToken += 1;
-      clearSquareArtwork(stage);
+      holdForExactArtwork(stage);
       resolveExactArtwork(key);
     }
 
@@ -196,12 +303,21 @@
     player.classList.remove('vec-stable-video');
 
     if (state.artworkUrl) applyExactArtwork(stage, state.artworkUrl);
-    else clearSquareArtwork(stage);
+    else holdForExactArtwork(stage);
   }
 
   function schedule() {
     cancelAnimationFrame(state.frame);
     state.frame = requestAnimationFrame(stabilize);
+  }
+
+  function prefetchFromTarget(target) {
+    const song = target?.closest?.('#v2App [data-song]');
+    const key = clean(song?.dataset?.song);
+    if (!key) return;
+    const url = cachedUrl(key);
+    if (url) preload(url);
+    else fetchExact9x16(key).then(preload).catch(() => {});
   }
 
   const observer = new MutationObserver(schedule);
@@ -212,6 +328,8 @@
     attributeFilter: ['class', 'src', 'data-song-key', 'data-mobile-vec-motion-song-key'],
   });
 
+  document.addEventListener('pointerdown', event => prefetchFromTarget(event.target), true);
+  document.addEventListener('touchstart', event => prefetchFromTarget(event.target), { capture: true, passive: true });
   document.addEventListener('play', schedule, true);
   document.addEventListener('pause', schedule, true);
   window.addEventListener('stashbox:vec-asset-change', schedule, true);
@@ -230,6 +348,8 @@
       if (state.songKey) resolveExactArtwork(state.songKey, true);
       schedule();
     },
+    prefetchSong: fetchExact9x16,
+    cachedUrl,
     state: () => ({
       songKey: state.songKey,
       artworkUrl: state.artworkUrl,
