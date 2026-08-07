@@ -196,3 +196,31 @@
     pointer-events: none !important;
   }
 }
+
+/* Desktop has one permanent presentation mode: complete, centered media.
+   This is CSS-only and does not observe, reload, pause, replace, or otherwise
+   interact with the VEC playback runtime. */
+@media (min-width: 900px) {
+  .v2-mobile-vec-stage {
+    background-color: #050607 !important;
+    background-size: contain !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+  }
+
+  .v2-mobile-vec-stage img,
+  .v2-mobile-vec-stage video,
+  .v2-mobile-vec-stage .v2-mobile-vec-media {
+    object-fit: contain !important;
+    object-position: center center !important;
+    transform: none !important;
+    transition: opacity .24s ease !important;
+    background-color: transparent !important;
+  }
+
+  .v2-mobile-vec-stage img.is-active,
+  .v2-mobile-vec-stage video.is-active,
+  .v2-mobile-vec-stage .v2-mobile-vec-media.is-active {
+    transform: none !important;
+  }
+}
