@@ -68,7 +68,14 @@
     return hint;
   }
 
+  function removeDesktopModeHints(player) {
+    if (!player || MOBILE.matches) return false;
+    player.querySelectorAll('[data-interface-restore-hint], .v2-interface-restore-hint').forEach(node => node.remove());
+    return true;
+  }
+
   function ensureModeHint(player) {
+    if (removeDesktopModeHints(player)) return null;
     let hint = player.querySelector('[data-interface-restore-hint]');
     if (hint) return hint;
     hint = document.createElement('div');
@@ -93,6 +100,7 @@
 
   function syncModeHint(player) {
     const hint = ensureModeHint(player);
+    if (!hint) return;
     const mode = currentMode(player);
     const visible = mode !== 'full';
     const label = mode === 'focus'
@@ -115,6 +123,7 @@
   }
 
   function showHint(player, action) {
+    if (!MOBILE.matches) return;
     const hint = ensureHint(player);
     const details = actionDetails(action);
     hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-cinema', 'is-focus-off', 'is-visible');
@@ -204,7 +213,10 @@
   }
 
   function observePlayer(player) {
-    if (!player || player === observedPlayer) return;
+    if (!player || player === observedPlayer) {
+      removeDesktopModeHints(player);
+      return;
+    }
     playerObserver?.disconnect();
     observedPlayer = player;
     playerObserver = new MutationObserver(() => {
@@ -299,6 +311,7 @@
   window.addEventListener('blur', resetGesture);
   window.addEventListener('pagehide', resetGesture);
   window.addEventListener('stashbox:v2-session-changed', () => observePlayer(activePlayer()));
+  MOBILE.addEventListener?.('change', () => observePlayer(app.querySelector('[data-player]')));
 
   const installTimer = window.setInterval(() => {
     const player = app.querySelector('[data-player]');
