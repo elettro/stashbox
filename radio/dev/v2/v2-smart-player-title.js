@@ -1,20 +1,10 @@
 (() => {
   'use strict';
 
-  const mobileVec = window.matchMedia('(max-width: 899px)');
-  if (mobileVec.matches && !document.querySelector('script[data-v2-mobile-vec-flicker-guard]')) {
-    const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-mobile-vec-flicker-guard.js?v=20260806-stable1';
-    script.defer = true;
-    script.dataset.v2MobileVecFlickerGuard = 'true';
-    document.head.appendChild(script);
-  }
-
   const mobile = window.matchMedia('(max-width: 699px)');
 
   // Mobile titles are presentation-only CSS. No observers, DOM rewriting,
-  // resize loops, or runtime measurements are allowed on the mobile player.
-  // This keeps title layout completely isolated from VEC video playback.
+  // resize loops, script loading, or runtime measurements are allowed here.
   if (mobile.matches) {
     if (!document.getElementById('v2-mobile-title-wrap-style')) {
       const style = document.createElement('style');
@@ -48,8 +38,6 @@
     return;
   }
 
-  // Desktop-only title fitting. It never changes title child nodes and does
-  // not run on phones or small tablets.
   const TITLE_SELECTOR = '#v2App .v2-player [data-ptitle], #v2App .v2-player .v2-player-content > h2';
   let frame = 0;
 
