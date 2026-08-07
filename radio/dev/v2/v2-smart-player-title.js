@@ -1,6 +1,15 @@
 (() => {
   'use strict';
 
+  const mobileVec = window.matchMedia('(max-width: 899px)');
+  if (mobileVec.matches && !document.querySelector('script[data-v2-mobile-vec-flicker-guard]')) {
+    const script = document.createElement('script');
+    script.src = '/radio/dev/v2/v2-mobile-vec-flicker-guard.js?v=20260806-stable1';
+    script.defer = true;
+    script.dataset.v2MobileVecFlickerGuard = 'true';
+    document.head.appendChild(script);
+  }
+
   const mobile = window.matchMedia('(max-width: 699px)');
 
   // Mobile titles are presentation-only CSS. No observers, DOM rewriting,
