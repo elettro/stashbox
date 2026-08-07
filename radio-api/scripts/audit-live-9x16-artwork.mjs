@@ -4,9 +4,7 @@ const API = process.env.VEC_API_BASE || 'https://d21fbe6u80.execute-api.us-east-
 const ORIGIN = process.env.VEC_ORIGIN || 'https://stashbox.com';
 const CONCURRENCY = Math.max(1, Number(process.env.ARTWORK_AUDIT_CONCURRENCY || 8));
 
-function clean(value) {
-  return String(value ?? '').trim();
-}
+const clean = value => String(value ?? '').trim();
 
 function unwrap(value) {
   if (typeof value?.body === 'string') {
@@ -24,20 +22,40 @@ function rows(value) {
   return [];
 }
 
-function exact9x16(payload) {
+function selection(payload) {
   const data = unwrap(payload) || {};
   const media = data.media || data.data?.media || data.data || data;
   const images = media?.artwork_images && typeof media.artwork_images === 'object'
     ? media.artwork_images
     : (media?.images && typeof media.images === 'object' ? media.images : {});
-  const resolved = media?.resolved_artwork?.['9x16'] || data?.resolved_artwork?.['9x16'] || {};
-  const resolvedExact = clean(resolved?.source_ratio) === '9x16' ? resolved?.url : '';
-  return clean(
+  const prepared = media?.prepared_artwork_images && typeof media.prepared_artwork_images === 'object'
+    ? media.prepared_artwork_images
+    : {};
+  const resolved = media?.resolved_artwork || data?.resolved_artwork || {};
+  const exactResolved = clean(resolved?.['9x16']?.source_ratio) === '9x16'
+    ? resolved?.['9x16']?.url
+    : '';
+
+  const exactUrl = clean(
     images['9x16'] ||
+    prepared['9x16'] ||
     media?.song_artwork_9x16_url ||
     data?.song_artwork_9x16_url ||
-    resolvedExact
+    exactResolved
   );
+  if (exactUrl) return { url: exactUrl, ratio: '9x16', exact: true };
+
+  const fallbackOrder = [
+    ['4x5', images['4x5'] || prepared['4x5'] || resolved?.['4x5']?.url],
+    ['3x4', images['3x4'] || prepared['3x4'] || resolved?.['3x4']?.url],
+    ['1x1', images['1x1'] || prepared['1x1'] || resolved?.['1x1']?.url],
+    ['1x1', media?.song_artwork_url || media?.artwork_url || data?.song_artwork_url || data?.artwork_url],
+  ];
+  for (const [ratio, candidate] of fallbackOrder) {
+    const url = clean(candidate);
+    if (url) return { url, ratio, exact: false };
+  }
+  return null;
 }
 
 async function getJson(url) {
@@ -54,8 +72,8 @@ async function getJson(url) {
   return body;
 }
 
-async function probeImage(url) {
-  const response = await fetch(url, {
+async function probeImage(candidate) {
+  const response = await fetch(candidate.url, {
     cache: 'no-store',
     redirect: 'follow',
     headers: {
@@ -65,7 +83,7 @@ async function probeImage(url) {
   });
   const ok = response.ok || response.status === 206;
   const contentType = clean(response.headers.get('content-type')).toLowerCase();
-  const extensionLooksLikeImage = /\.(png|jpe?g|webp)(?:$|[?#])/i.test(response.url || url);
+  const extensionLooksLikeImage = /\.(png|jpe?g|webp)(?:$|[?#])/i.test(response.url || candidate.url);
   if (!ok) throw new Error(`Artwork URL returned HTTP ${response.status}`);
   if (!contentType.startsWith('image/') && !extensionLooksLikeImage) {
     throw new Error(`Artwork URL returned ${contentType || 'an unknown content type'}`);
@@ -84,10 +102,10 @@ async function auditSong(song) {
 
   try {
     const payload = await getJson(`${API}/radio/songs/${encodeURIComponent(songKey)}/artwork-images`);
-    const url = exact9x16(payload);
-    if (!url) throw new Error('Canonical artwork payload has no exact 9x16 URL');
-    const probe = await probeImage(url);
-    return { songKey, title, ok: true, url, probe };
+    const candidate = selection(payload);
+    if (!candidate) throw new Error('Canonical artwork payload has no usable artwork');
+    const probe = await probeImage(candidate);
+    return { songKey, title, ok: true, ...candidate, probe };
   } catch (error) {
     return { songKey, title, ok: false, error: error?.message || String(error) };
   }
@@ -114,8 +132,15 @@ if (!songs.length) throw new Error('Live song catalog returned no songs.');
 
 const results = await mapLimit(songs, CONCURRENCY, auditSong);
 const failures = results.filter(result => !result.ok);
+const exact = results.filter(result => result.ok && result.exact);
+const fallback = results.filter(result => result.ok && !result.exact);
 
-console.log(`Exact 9x16 artwork audit: ${results.length - failures.length}/${results.length} songs passed.`);
+console.log(`Mobile artwork audit: ${results.length - failures.length}/${results.length} songs have usable artwork.`);
+console.log(`Exact 9x16: ${exact.length}`);
+console.log(`Fallback because no exact 9x16 exists: ${fallback.length}`);
+for (const item of fallback) {
+  console.log(`FALLBACK ${item.songKey} | ${item.title} | ${item.ratio}`);
+}
 for (const failure of failures) {
   console.error(`FAIL ${failure.songKey} | ${failure.title} | ${failure.error}`);
 }
