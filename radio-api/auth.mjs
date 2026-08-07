@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
+// Deployment refresh marker: keep the TRUE DEV Lambda package synchronized
+// with the repository's public VEC routes and response headers.
 let verifierCache = null;
 
 function authError(statusCode, message, code = 'AUTH_ERROR') {
