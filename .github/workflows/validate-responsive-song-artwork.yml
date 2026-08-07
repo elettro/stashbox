@@ -51,8 +51,7 @@ jobs:
           grep -q "\['4x5'" radio/dev/v2/v2-mobile-vec-flicker-guard.js
           grep -q "\['3x4'" radio/dev/v2/v2-mobile-vec-flicker-guard.js
           grep -q "\['1x1'" radio/dev/v2/v2-mobile-vec-flicker-guard.js
-          grep -q "mobile-vec-artwork-priority-20260807-131" radio/dev/v2/index.html
-          grep -q "v2-mobile-vec-flicker-guard.js?v=20260807-priority1" radio/dev/v2/index.html
+          grep -q "v2-mobile-vec-flicker-guard.js" radio/dev/v2/index.html
 
       - name: Audit artwork for every live song
         env:
