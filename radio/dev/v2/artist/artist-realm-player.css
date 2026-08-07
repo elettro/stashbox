@@ -73,4 +73,21 @@ body.artist-realm-open{overflow:hidden!important}
     background-color:transparent!important;
   }
   .artist-realm-media.is-active{transform:none!important}
+
+  /* Match the Main desktop player: STASHBOX, then the live VEC badge, on the
+     same top row. The existing artist name remains immediately after it. */
+  .artist-realm-brand{justify-content:flex-start;gap:0}
+  .artist-realm-brand::before,
+  .artist-realm-brand::after{
+    flex:0 0 auto;
+    font-family:var(--artist-display);
+    font-size:29px;
+    font-weight:400;
+    line-height:.85;
+    letter-spacing:.005em;
+  }
+  .artist-realm-brand::before{content:"STASH";order:1;color:#fff}
+  .artist-realm-brand::after{content:"BOX";order:2;color:var(--artist-accent,#ff9f0a)}
+  .artist-realm-vec{order:3;margin-left:10px}
+  .artist-realm-brand strong{order:4;margin-left:14px}
 }
