@@ -1,5 +1,10 @@
 @media (min-width: 900px) {
-  .v2-player .v2-swipe-hint {
+  .v2-player .v2-swipe-hint,
+  .v2-player .v2-interface-restore-hint,
+  .v2-player .v2-player-swipe-hint,
+  .v2-player [data-swipe-hint],
+  .v2-player [data-interface-restore-hint],
+  .v2-player [data-player-swipe-hint] {
     display: none !important;
   }
 
