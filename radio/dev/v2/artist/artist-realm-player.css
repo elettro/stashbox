@@ -52,14 +52,11 @@ body.artist-realm-open{overflow:hidden!important}
 }
 @media (max-width:390px){.artist-realm-meta h2{font-size:32px}.artist-realm-bottom{padding-left:13px;padding-right:13px}}
 
-/* Desktop Artist player uses one permanent uncropped mode. The artwork is an
-   explicit intro media item; the stage behind active media stays black. There
-   is no opacity crossfade on desktop, so the artwork cannot flash through
-   between two ready video elements. */
+/* Desktop Artist player keeps the stable visible VEC media behavior and the
+   permanent uncropped presentation. */
 @media (min-width:900px){
   .artist-realm-stage{
     background-color:#050607!important;
-    background-image:none!important;
     background-size:contain!important;
     background-position:center center!important;
     background-repeat:no-repeat!important;
@@ -68,14 +65,11 @@ body.artist-realm-open{overflow:hidden!important}
     object-fit:contain!important;
     object-position:center center!important;
     transform:none!important;
-    transition:none!important;
-    animation:none!important;
+    transition:opacity .24s ease!important;
     background-color:transparent!important;
   }
   .artist-realm-media.is-active{transform:none!important}
 
-  /* Match the Main desktop player: STASHBOX, then the live VEC badge, on the
-     same top row. The existing artist name remains immediately after it. */
   .artist-realm-brand{justify-content:flex-start;gap:0}
   .artist-realm-brand::before,
   .artist-realm-brand::after{
