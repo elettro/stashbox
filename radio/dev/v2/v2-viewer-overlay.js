@@ -9,6 +9,7 @@
   const MOBILE = window.matchMedia('(max-width: 699px)');
   const OVERLAY_ID = 'viewer-overlay-left';
   const BADGE_ID = 'viewer-vec-status';
+  const VEC_EXPLAINER = 'VEC = Visual Experience Controller. The green status means this player is actively pulling the current song’s visual experience from VEC, including its artwork and video clips.';
   const BACK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>';
 
   let queued = false;
@@ -82,10 +83,11 @@
     badge.id = BADGE_ID;
     badge.classList.add('v2-mobile-vec-status', 'v2-vec-header-pill');
     badge.dataset.mobileVecStatus = 'true';
-    badge.setAttribute('role', 'link');
+    badge.dataset.vecExplainer = VEC_EXPLAINER;
+    badge.setAttribute('role', 'status');
     badge.setAttribute('tabindex', '0');
-    badge.setAttribute('aria-label', 'About the Stashbox Visual Experience Controller. Information page coming soon.');
-    badge.title = 'About VEC — information coming soon';
+    badge.setAttribute('aria-label', VEC_EXPLAINER);
+    badge.title = VEC_EXPLAINER;
 
     let dot = badge.querySelector('i');
     if (!dot) {
