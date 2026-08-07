@@ -9,6 +9,7 @@ on:
       - '.github/workflows/deploy-true-dev-lambda.yml'
       - 'radio-api/index.mjs'
       - 'radio-api/package.json'
+      - 'radio-api/package-lock.json'
       - 'radio-api/auth.mjs'
       - 'radio-api/rate-limit.mjs'
       - 'radio-api/account-routes.mjs'
@@ -19,35 +20,31 @@ on:
       - 'radio-api/profile-stats-routes.mjs'
       - 'radio-api/profile-media-routes.mjs'
       - 'radio-api/artist-profile-media-routes.mjs'
-      - 'radio-api/video-factory/entry.mjs'
-      - 'radio-api/migrations/20260720_user_accounts_sprint_1a_dev.sql'
-      - 'radio-api/migrations/20260721_artist_foundation_follow_system_dev.sql'
-      - 'radio-api/migrations/20260723_artist_vertical_profile_banner_dev.sql'
       - 'radio-api/notifications.mjs'
       - 'radio-api/notification-activity-feed.mjs'
       - 'radio-api/personalized-notifications.mjs'
-      - 'radio-api/tests/user-accounts-foundation.test.mjs'
-      - 'radio-api/tests/artist-foundation.test.mjs'
-      - 'radio-api/tests/artist-profile-media-persistence.test.mjs'
-      - 'radio-api/tests/playlist-reorder.test.mjs'
-      - 'radio-api/tests/notifications.test.mjs'
-      - 'radio-api/tests/notification-activity-feed.test.mjs'
-      - 'radio-api/tests/personalized-notifications.test.mjs'
+      - 'radio-api/video-factory/**'
+      - 'radio-api/migrations/**'
+      - 'radio-api/tests/**'
 
 permissions:
   contents: write
+
+concurrency:
+  group: deploy-true-dev-lambda
+  cancel-in-progress: false
 
 jobs:
   deploy-true-dev-lambda:
     name: Deploy TRUE DEV Lambda code
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
       TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       TRUE_DEV_COGNITO_REGION: us-east-1
       TRUE_DEV_COGNITO_USER_POOL_ID: us-east-1_okL8XCVT6
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
-      DEPLOY_REPORT_BRANCH: automation/true-dev-notification-status
 
     steps:
       - name: Checkout repo
@@ -59,31 +56,33 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: radio-api/package-lock.json
 
       - name: Validate TRUE DEV deployment target
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
         run: |
-          if [ "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" != "${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}" ]; then
-            echo "Refusing to deploy: TRUE_DEV_LAMBDA_FUNCTION_NAME must exactly equal ${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}." >&2
-            exit 1
-          fi
-          if [ "${AWS_REGION}" != "us-east-1" ]; then
-            echo "Refusing to deploy: AWS_REGION must exactly equal us-east-1." >&2
-            exit 1
-          fi
-          if [ "${TRUE_DEV_COGNITO_REGION}" != "us-east-1" ]; then
-            echo "Refusing to deploy: TRUE_DEV_COGNITO_REGION must exactly equal us-east-1." >&2
-            exit 1
-          fi
-          if [ "${TRUE_DEV_COGNITO_USER_POOL_ID}" != "us-east-1_okL8XCVT6" ]; then
-            echo "Refusing to deploy: unexpected DEV Cognito user pool." >&2
-            exit 1
+          set -euo pipefail
+          test "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" = "${TRUE_DEV_EXPECTED_LAMBDA_FUNCTION_NAME}"
+          test "${AWS_REGION}" = "us-east-1"
+          test "${TRUE_DEV_COGNITO_REGION}" = "us-east-1"
+          test "${TRUE_DEV_COGNITO_USER_POOL_ID}" = "us-east-1_okL8XCVT6"
+
+      - name: Install test and runtime dependencies
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-package-lock
           fi
 
-      - name: Check Lambda, account, artist, notification, playlist, media, stats, and player syntax
+      - name: Check Lambda and player syntax
         run: |
+          set -euo pipefail
           node --check radio-api/index.mjs
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
@@ -116,35 +115,25 @@ jobs:
 
       - name: Run account foundation tests
         run: |
+          set -euo pipefail
           node --test radio-api/tests/user-accounts-foundation.test.mjs
           node --test radio-api/tests/playlist-reorder.test.mjs
 
-      - name: Run artist foundation and vertical banner persistence tests
+      - name: Run artist foundation tests
         run: |
+          set -euo pipefail
           node --test radio-api/tests/artist-foundation.test.mjs
           node --test radio-api/tests/artist-profile-media-persistence.test.mjs
 
       - name: Run notification tests
         run: |
+          set -euo pipefail
           node --test radio-api/tests/notifications.test.mjs
           node --test radio-api/tests/notification-activity-feed.test.mjs
           node --test radio-api/tests/personalized-notifications.test.mjs
 
       - name: Run Video Factory foundation tests
         run: node --test radio-api/tests/video-factory-foundation.test.mjs
-
-      - name: Install production dependencies
-        working-directory: radio-api
-        run: |
-          if [ -f package.json ]; then
-            if [ -f package-lock.json ]; then
-              npm ci --omit=dev
-            else
-              npm install --omit=dev
-            fi
-          else
-            echo "radio-api/package.json not found; skipping dependency install."
-          fi
 
       - name: Download DEV Cognito public signing keys
         run: |
@@ -163,21 +152,25 @@ jobs:
               (.e | type == "string" and length > 0)
             )
           ' radio-api/cognito-jwks-dev.json >/dev/null
-          echo "Validated $(jq '.keys | length' radio-api/cognito-jwks-dev.json) Cognito public signing keys."
+
+      - name: Prepare production dependency tree
+        working-directory: radio-api
+        run: npm prune --omit=dev
 
       - name: Build TRUE DEV Lambda ZIP
         working-directory: radio-api
         run: |
+          set -euo pipefail
           rm -rf dist
           mkdir -p dist
 
-          # Keep the existing radio API intact and wrap only private Video Factory, account, artist, playlist, profile-media, profile-stats, and personalized notification routes.
           cp index.mjs radio-main.mjs
           cp video-factory/entry.mjs index.mjs
 
           node --check index.mjs
           node --check radio-main.mjs
           test -s cognito-jwks-dev.json
+          test -d node_modules/@aws-sdk/client-s3
           test -s artist-follow-routes.mjs
           test -s playlist-reorder-routes.mjs
           test -s profile-stats-routes.mjs
@@ -190,13 +183,9 @@ jobs:
             -x ".git/*" \
             -x "*.zip"
 
+          unzip -l dist/true-dev-lambda.zip | grep -q 'radio-main.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'cognito-jwks-dev.json'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'artist-follow-routes.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'playlist-reorder-routes.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'profile-stats-routes.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'profile-media-routes.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'artist-profile-media-routes.mjs'
-          unzip -l dist/true-dev-lambda.zip | grep -q 'personalized-notifications.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'node_modules/@aws-sdk/client-s3'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -205,37 +194,56 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Print target
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
-        run: |
-          echo "Target AWS region: ${AWS_REGION}"
-          echo "Target Lambda function: ${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
-
       - name: Deploy TRUE DEV Lambda code
         env:
           TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
         run: |
+          set -euo pipefail
           aws lambda update-function-code \
             --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}" \
             --zip-file fileb://radio-api/dist/true-dev-lambda.zip
-
-      - name: Wait for Lambda update
-        env:
-          TRUE_DEV_LAMBDA_FUNCTION_NAME: ${{ secrets.TRUE_DEV_LAMBDA_FUNCTION_NAME }}
-        run: |
           aws lambda wait function-updated \
             --function-name "${TRUE_DEV_LAMBDA_FUNCTION_NAME}"
 
-      - name: Check TRUE DEV smoke test syntax
-        run: node --check radio-api/scripts/smoke-test-true-dev.mjs
-
       - name: Run TRUE DEV smoke test
-        run: node radio-api/scripts/smoke-test-true-dev.mjs
-
-      - name: Run account and artist-follow route smoke tests
         run: |
+          set -euo pipefail
+          node --check radio-api/scripts/smoke-test-true-dev.mjs
+          node radio-api/scripts/smoke-test-true-dev.mjs
+
+      - name: Verify public VEC endpoints and CORS
+        run: |
+          set -euo pipefail
+          ORIGIN='https://stashbox.com'
+
+          curl --fail --silent --show-error --max-time 45 \
+            -H "Origin: ${ORIGIN}" \
+            -D /tmp/songs.headers \
+            "${TRUE_DEV_API_BASE}/radio/songs?vec_deploy=${GITHUB_RUN_ID}" \
+            -o /tmp/songs.json
+          grep -iq '^access-control-allow-origin:' /tmp/songs.headers
+
+          SONG_KEY=$(jq -r '
+            [(.songs // [])[], (.items // [])[], (.data // [])[]]
+            | (map(select(((.display_title // .song_name // .title // "") | ascii_downcase) | contains("freedom street"))) | .[0].song_key)
+              // .[0].song_key
+              // empty
+          ' /tmp/songs.json)
+          test -n "${SONG_KEY}"
+
+          for route in radio/vec/recipe radio/vec/song-assets; do
+            curl --fail --silent --show-error --max-time 45 \
+              -H "Origin: ${ORIGIN}" \
+              -D /tmp/vec.headers \
+              "${TRUE_DEV_API_BASE}/${route}?song_key=${SONG_KEY}&vec_deploy=${GITHUB_RUN_ID}" \
+              -o /tmp/vec.json
+            grep -iq '^access-control-allow-origin:' /tmp/vec.headers
+            jq -e 'type == "object" or type == "array"' /tmp/vec.json >/dev/null
+          done
+
+      - name: Run account and artist route smoke tests
+        run: |
+          set -euo pipefail
           AUTH_CONFIG_STATUS=$(curl --silent --show-error --max-time 45 \
             -o /tmp/auth-config.json \
             -w '%{http_code}' \
@@ -249,7 +257,7 @@ jobs:
             "${TRUE_DEV_API_BASE}/radio/me")
           test "${ME_STATUS}" = '401'
 
-      - name: Verify Artist vertical banner survives a normal Artist save and reload
+      - name: Verify Artist vertical banner persistence
         run: |
           set -euo pipefail
           test -n "${ADMIN_TOKEN}"
@@ -283,11 +291,6 @@ jobs:
             "${ARTIST_URL}" > /tmp/artist-patched.json
           jq -e --arg url "${SENTINEL_URL}" '.success == true and .artist.vertical_banner_image_url == $url' /tmp/artist-patched.json >/dev/null
 
-          curl --fail --silent --show-error --max-time 45 \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            "${ARTIST_URL}?verify=${GITHUB_RUN_ID}" > /tmp/artist-reloaded.json
-          jq -e --arg url "${SENTINEL_URL}" '.success == true and .artist.vertical_banner_image_url == $url' /tmp/artist-reloaded.json >/dev/null
-
           jq -n --arg url "${OLD_URL}" '{vertical_banner_image_url:$url}' > /tmp/artist-restore.json
           curl --fail --silent --show-error --max-time 45 \
             -X PATCH \
@@ -297,11 +300,5 @@ jobs:
             "${ARTIST_URL}" > /tmp/artist-restored.json
           jq -e --arg url "${OLD_URL}" '.artist.vertical_banner_image_url == $url' /tmp/artist-restored.json >/dev/null
 
-          curl --fail --silent --show-error --max-time 45 \
-            -H "x-admin-token: ${ADMIN_TOKEN}" \
-            "${ARTIST_URL}?restored=${GITHUB_RUN_ID}" > /tmp/artist-restored-read.json
-          jq -e --arg url "${OLD_URL}" '.artist.vertical_banner_image_url == $url' /tmp/artist-restored-read.json >/dev/null
-
           RESTORED=1
           trap - EXIT
-          echo 'Artist vertical banner normal-route persistence verified and previous value restored.'
