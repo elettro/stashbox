@@ -51,3 +51,23 @@ body.artist-realm-open{overflow:hidden!important}
   .artist-realm-control{width:43px;height:43px}.artist-realm-control.primary{width:64px;height:64px}
 }
 @media (max-width:390px){.artist-realm-meta h2{font-size:32px}.artist-realm-bottom{padding-left:13px;padding-right:13px}}
+
+/* Desktop Artist player has one permanent uncropped presentation mode.
+   No JavaScript, toggle state, observers, source replacement, or playback
+   control is involved. */
+@media (min-width:900px){
+  .artist-realm-stage{
+    background-color:#050607!important;
+    background-size:contain!important;
+    background-position:center center!important;
+    background-repeat:no-repeat!important;
+  }
+  .artist-realm-media{
+    object-fit:contain!important;
+    object-position:center center!important;
+    transform:none!important;
+    transition:opacity .24s ease!important;
+    background-color:transparent!important;
+  }
+  .artist-realm-media.is-active{transform:none!important}
+}
