@@ -2,19 +2,11 @@ name: V2 VEC Live Health
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'radio/dev/v2/**'
-      - 'radio-api/index.mjs'
-      - 'radio-api/auth.mjs'
-      - 'radio-api/rate-limit.mjs'
-      - 'radio-api/video-factory/**'
-      - 'radio-api/scripts/smoke-test-v2-vec-live.mjs'
-      - '.github/workflows/deploy-true-dev-lambda.yml'
-      - '.github/workflows/v2-vec-live-health.yml'
   schedule:
-    - cron: '17 * * * *'
+    - cron: '30 9 * * *'
+      timezone: 'America/New_York'
+    - cron: '0 18 * * *'
+      timezone: 'America/New_York'
 
 concurrency:
   group: v2-vec-live-health
