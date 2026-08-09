@@ -1,0 +1,31 @@
+name: Resync Radio Blog One-Sheets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/resync-radio-blog-onesheets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sync current one-sheet collection
+        run: python .github/scripts/resync_radio_blog_onesheets.py
+      - name: Commit blog update
+        run: |
+          git config user.name "elettro"
+          git config user.email "dpalermo@elettro.com"
+          git add radio/blog/index.html
+          if git diff --cached --quiet; then
+            echo "No blog changes"
+            exit 0
+          fi
+          git commit -m "Resync Radio blog one-sheet collection"
+          git pull --rebase origin main
+          git push origin main
