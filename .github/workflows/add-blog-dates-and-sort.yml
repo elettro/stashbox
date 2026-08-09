@@ -1,0 +1,31 @@
+name: Add Blog Dates and Sort
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-blog-dates-and-sort.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update blog dates and ordering
+        run: python .github/scripts/add_blog_dates_and_sort.py
+      - name: Commit changes
+        run: |
+          git config user.name "elettro"
+          git config user.email "dpalermo@elettro.com"
+          git add radio/blog/index.html
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Add posted dates and newest-first blog ordering"
+          git pull --rebase origin main
+          git push origin main
