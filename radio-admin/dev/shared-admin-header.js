@@ -16,7 +16,7 @@
     { key: 'ads', label: 'Ads', href: '/radio-admin/ads/dev/' },
     { key: 'artists', label: 'Artists', href: '/radio-admin/artists/dev/' },
     { key: 'notifications', label: 'Notifications', href: '/radio-admin/notifications/dev/' },
-    { key: 'bugs', label: 'Bug & Fix Log', href: '/radio-admin/dev/bugs/' },
+    { key: 'bugs', label: 'Bug Base', href: '/radio-admin/dev/bugs/' },
     { key: 'dashboard', label: 'Dashboard', href: '/radio/dashboard/dev/' },
     { key: 'system-health', label: 'System Health', href: 'https://stashbox.com/radio-admin/dev/system-health/' },
     { key: 'radio', label: 'Radio Dev', href: '/radio/dev/' },
@@ -39,7 +39,7 @@
     if (path.includes('/radio-admin/dev/social-factory/')) return { key: 'social-factory', title: 'Social Factory · Content Review' };
     if (path.includes('/radio-admin/ads/dev/') || path.includes('/radio-admin/dev/ads/')) return { key: 'ads', title: 'Ads CMS' };
     if (path.includes('/radio-admin/notifications/dev/')) return { key: 'notifications', title: 'Notifications CMS' };
-    if (path.includes('/radio-admin/dev/bugs/')) return { key: 'bugs', title: 'Bug & Fix Log' };
+    if (path.includes('/radio-admin/dev/bugs/')) return { key: 'bugs', title: 'Bug Base' };
     if (path.includes('/radio-admin/dev/system-health/')) return { key: 'system-health', title: 'System Health' };
     if (path.includes('/radio/dashboard/dev/') || path === '/radio-admin/dev/') return { key: 'dashboard', title: 'Dashboard' };
     return null;
