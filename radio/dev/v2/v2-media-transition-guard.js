@@ -70,6 +70,17 @@
     return !video.paused || video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
   }
 
+  function watchdogOwnsVideoStage(player = activePlayer()) {
+    if (!player) return false;
+    const owner = String(player.dataset.mainVecWatchdogOwner || '').trim().toLowerCase();
+    const status = String(player.dataset.mainVecWatchdogState || '').trim().toLowerCase();
+    return owner === 'fallback'
+      || owner === 'native'
+      || status.includes('fallback-video')
+      || status.includes('starting-fallback-video')
+      || status.includes('native-video');
+  }
+
   function lockArtworkBehindVideo(stage = activeStage()) {
     if (!stage || !desktopWideSurface()) return;
     window.clearTimeout(releaseTimer);
@@ -94,7 +105,7 @@
     const release = () => {
       const stage = lockedStage;
       if (!stage) return;
-      if (stageVideos(stage).some(videoIsActive)) {
+      if (watchdogOwnsVideoStage() || stageVideos(stage).some(videoIsActive)) {
         lockArtworkBehindVideo(stage);
         return;
       }
@@ -117,13 +128,17 @@
   }
 
   function syncVideoArtworkLock() {
-    const stage = activeStage();
+    const player = activePlayer();
+    const stage = activeStage(player);
     if (!stage || !desktopWideSurface()) {
       releaseArtworkLock({ immediate: true });
       return;
     }
-    if (stageVideos(stage).some(videoIsActive)) lockArtworkBehindVideo(stage);
-    else if (lockedStage) releaseArtworkLock();
+    if (watchdogOwnsVideoStage(player) || stageVideos(stage).some(videoIsActive)) {
+      lockArtworkBehindVideo(stage);
+    } else if (lockedStage) {
+      releaseArtworkLock();
+    }
   }
 
   function bindMedia(media) {
@@ -205,6 +220,7 @@
     refresh: inspectStage,
     isDesktopWideSurface: desktopWideSurface,
     minHorizontalRatio: 0,
-    videoArtworkLocked: () => Boolean(lockedStage)
+    videoArtworkLocked: () => Boolean(lockedStage),
+    watchdogOwnsVideoStage
   });
 })();
