@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Bug & Fix Log · DEV</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    :root{color-scheme:dark;--bg:#07090c;--panel:#101319;--panel2:#151922;--line:#2a303a;--text:#f4f6f8;--muted:#9ca6b5;--gold:#f0a500;--green:#45c77a;--red:#ff6b6b;--blue:#61a8ff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Karla,Arial,sans-serif}.bug-shell{width:min(1500px,calc(100% - 28px));margin:24px auto 60px}.bug-hero,.bug-controls,.bug-card,.empty{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel2),var(--panel));box-shadow:0 18px 48px rgba(0,0,0,.18)}.bug-hero{padding:24px;display:grid;grid-template-columns:1fr auto;gap:22px;align-items:end}.eyebrow{margin:0 0 8px;color:var(--gold);font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.bug-hero h1{margin:0;font-size:clamp(30px,5vw,58px);line-height:.95}.bug-hero p{max-width:880px;margin:13px 0 0;color:var(--muted);font-size:15px;line-height:1.55}.stats{display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:9px}.stat{min-width:110px;padding:13px;border:1px solid var(--line);border-radius:12px;background:#0b0e13}.stat small{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}.stat strong{display:block;margin-top:5px;font-size:25px}.bug-controls{margin-top:14px;padding:14px;display:grid;grid-template-columns:minmax(220px,1fr) repeat(4,minmax(130px,auto));gap:10px}.bug-controls input,.bug-controls select{width:100%;min-height:42px;border:1px solid #343b46;border-radius:10px;background:#090c10;color:var(--text);padding:0 12px;font:inherit}.bug-controls input:focus,.bug-controls select:focus{outline:2px solid rgba(240,165,0,.28);border-color:var(--gold)}.bug-list{display:grid;gap:12px;margin-top:14px}.bug-card{padding:18px}.bug-card-top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}.bug-id{color:var(--gold);font-weight:900;letter-spacing:.04em}.bug-card h2{margin:5px 0 0;font-size:22px;line-height:1.15}.pills{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}.pill{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:#0a0d12;color:#cfd5dd;font-size:11px;font-weight:800}.pill.high{border-color:#704545;color:#ffb2b2}.pill.fixed{border-color:#356448;color:#8ce8ad}.pill.pending{border-color:#655731;color:#f3ce68}.bug-meta{display:flex;flex-wrap:wrap;gap:14px;margin:13px 0;color:var(--muted);font-size:12px}.bug-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bug-detail{border-top:1px solid var(--line);padding-top:12px}.bug-detail h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;color:#d9dee5;letter-spacing:.05em}.bug-detail p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}.bug-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.bug-links a{display:inline-flex;align-items:center;min-height:34px;padding:7px 10px;border:1px solid #39414d;border-radius:9px;background:#0a0d12;color:#e9edf2;text-decoration:none;font-size:12px;font-weight:800}.bug-links a:hover{border-color:var(--gold);color:#ffd36b}.empty{padding:26px;text-align:center;color:var(--muted)}.load-error{border-color:#7a3e3e;color:#ffb3b3}.source-note{margin:14px 2px 0;color:#7f8997;font-size:11px}.source-note code{color:#aab4c1}@media(max-width:980px){.bug-hero{grid-template-columns:1fr}.stats{max-width:500px}.bug-controls{grid-template-columns:1fr 1fr}.bug-controls input{grid-column:1/-1}.bug-grid{grid-template-columns:1fr}}@media(max-width:620px){.bug-shell{width:min(100% - 18px,1500px);margin-top:14px}.stats{grid-template-columns:1fr 1fr 1fr}.stat{min-width:0}.bug-controls{grid-template-columns:1fr}.bug-controls input{grid-column:auto}.bug-card-top{display:block}.pills{justify-content:flex-start;margin-top:12px}.bug-card h2{font-size:19px}}
+  </style>
+</head>
+<body>
+  <main class="bug-shell">
+    <section class="bug-hero">
+      <div>
+        <p class="eyebrow">Permanent repair memory</p>
+        <h1>Bug & Fix Log</h1>
+        <p>Search every retained Stashbox Radio defect by symptom, system area, status, severity, file, commit, or known working comparison. GitHub documentation remains the source of truth. This dashboard is the operational view.</p>
+      </div>
+      <div class="stats" aria-label="Bug totals">
+        <div class="stat"><small>Total</small><strong id="statTotal">—</strong></div>
+        <div class="stat"><small>Open</small><strong id="statOpen">—</strong></div>
+        <div class="stat"><small>Verified</small><strong id="statVerified">—</strong></div>
+      </div>
+    </section>
+
+    <section class="bug-controls" aria-label="Bug filters">
+      <input id="search" type="search" placeholder="Search symptom, title, file, commit, example…" autocomplete="off" />
+      <select id="status"><option value="">All statuses</option></select>
+      <select id="area"><option value="">All areas</option></select>
+      <select id="severity"><option value="">All severities</option></select>
+      <select id="environment"><option value="">All environments</option></select>
+    </section>
+
+    <section id="bugList" class="bug-list" aria-live="polite">
+      <div class="empty">Loading bug registry…</div>
+    </section>
+    <p class="source-note">Source of truth: <code>radio/docs/bug-fix/</code> · Registry: <code>radio-admin/dev/bugs/bugs.json</code></p>
+  </main>
+
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const els = {search:$('search'),status:$('status'),area:$('area'),severity:$('severity'),environment:$('environment'),list:$('bugList')};
+      let bugs = [];
+      const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+      const arr = value => Array.isArray(value) ? value : [];
+      const uniq = key => [...new Set(bugs.map(item => item[key]).filter(Boolean))].sort();
+      const fill = (select, values) => values.forEach(value => { const option=document.createElement('option'); option.value=value; option.textContent=value; select.appendChild(option); });
+      const statusClass = value => String(value).toLowerCase().replace(/\s+/g,'-');
+      const github = path => `https://github.com/elettro/stashbox/blob/main/${path}`;
+      function haystack(bug){ return [bug.id,bug.title,bug.status,bug.verification,bug.severity,bug.area,bug.environment,bug.symptom,bug.root_cause,bug.fix_summary,bug.future_repair,...arr(bug.affected_examples),...arr(bug.working_comparisons),...arr(bug.files_changed),...arr(bug.commits),...arr(bug.related_bugs)].join(' ').toLowerCase(); }
+      function updateStats(){
+        $('statTotal').textContent=bugs.length;
+        $('statOpen').textContent=bugs.filter(b=>['Open','Investigating','Reopened'].includes(b.status)).length;
+        $('statVerified').textContent=bugs.filter(b=>b.status==='Verified').length;
+      }
+      function render(){
+        const q=els.search.value.trim().toLowerCase();
+        const filtered=bugs.filter(b=>(!q||haystack(b).includes(q))&&(!els.status.value||b.status===els.status.value)&&(!els.area.value||b.area===els.area.value)&&(!els.severity.value||b.severity===els.severity.value)&&(!els.environment.value||b.environment===els.environment.value));
+        if(!filtered.length){ els.list.innerHTML='<div class="empty">No bugs match these filters.</div>'; return; }
+        els.list.innerHTML=filtered.map(b=>`<article class="bug-card">
+          <div class="bug-card-top"><div><div class="bug-id">${escapeHtml(b.id)}</div><h2>${escapeHtml(b.title)}</h2></div><div class="pills"><span class="pill ${statusClass(b.severity)}">${escapeHtml(b.severity)}</span><span class="pill ${statusClass(b.status)}">${escapeHtml(b.status)}</span>${b.verification?`<span class="pill ${statusClass(b.verification)}">Verification: ${escapeHtml(b.verification)}</span>`:''}</div></div>
+          <div class="bug-meta"><span>${escapeHtml(b.area)}</span><span>${escapeHtml(b.environment)}</span><span>Reported ${escapeHtml(b.reported_at||'—')}</span>${b.fixed_at?`<span>Fixed ${escapeHtml(b.fixed_at)}</span>`:''}</div>
+          <div class="bug-grid"><div class="bug-detail"><h3>Symptom</h3><p>${escapeHtml(b.symptom)}</p></div><div class="bug-detail"><h3>Root cause</h3><p>${escapeHtml(b.root_cause||'Not established yet.')}</p></div><div class="bug-detail"><h3>Fix</h3><p>${escapeHtml(b.fix_summary||'No fix recorded yet.')}</p></div><div class="bug-detail"><h3>Future repair</h3><p>${escapeHtml(b.future_repair||'Not documented yet.')}</p></div></div>
+          <div class="bug-links">${b.record_path?`<a href="${github(b.record_path)}" target="_blank" rel="noreferrer">Full Bug Record</a>`:''}${b.repair_playbook?`<a href="${github(b.repair_playbook)}" target="_blank" rel="noreferrer">Repair Playbook</a>`:''}${arr(b.commits).map(c=>`<a href="https://github.com/elettro/stashbox/commit/${encodeURIComponent(c)}" target="_blank" rel="noreferrer">Commit ${escapeHtml(c.slice(0,8))}</a>`).join('')}</div>
+        </article>`).join('');
+      }
+      ['input','change'].forEach(type=>Object.values(els).filter(el=>el instanceof HTMLInputElement||el instanceof HTMLSelectElement).forEach(el=>el.addEventListener(type,render)));
+      fetch('./bugs.json?v=20260809-1',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}).then(data=>{
+        bugs=arr(data.bugs);
+        fill(els.status,uniq('status')); fill(els.area,uniq('area')); fill(els.severity,uniq('severity')); fill(els.environment,uniq('environment')); updateStats(); render();
+      }).catch(error=>{els.list.innerHTML=`<div class="empty load-error">Bug registry failed to load: ${escapeHtml(error.message||error)}</div>`;});
+    })();
+  </script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260809-buglog1" defer></script>
+</body>
+</html>
