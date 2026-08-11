@@ -49,8 +49,17 @@ jobs:
           set +e
           node radio-api/scripts/smoke-test-v2-vec-live.mjs
           code=$?
+          api_ok=$(node -e "const fs=require('fs');try{const s=JSON.parse(fs.readFileSync('artifacts/vec-live-health/summary.json','utf8'));process.stdout.write(s.api?.ok?'true':'false')}catch(e){process.stdout.write('false')}")
+          if [ -n "$V2_COGNITO_TOKENS_JSON" ]; then auth_configured=true; else auth_configured=false; fi
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo "api_ok=$api_ok" >> "$GITHUB_OUTPUT"
+          echo "auth_configured=$auth_configured" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Warn when authenticated VEC health credentials are missing
+        if: steps.health.outputs.auth_configured != 'true'
+        run: |
+          echo "::warning::V2_COGNITO_TOKENS_JSON is not configured. Public VEC API health is enforced, but authenticated VEC motion is not treated as an outage until health credentials are configured."
 
       - name: Upload screenshots and measurements
         if: always()
@@ -62,7 +71,7 @@ jobs:
           retention-days: 14
 
       - name: Open or update VEC incident
-        if: steps.health.outputs.exit_code != '0' && github.event_name != 'pull_request'
+        if: steps.health.outputs.api_ok != 'true' || (steps.health.outputs.auth_configured == 'true' && steps.health.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |
@@ -90,8 +99,10 @@ jobs:
             }
 
       - name: Close recovered VEC incident
-        if: steps.health.outputs.exit_code == '0'
+        if: steps.health.outputs.api_ok == 'true' && (steps.health.outputs.auth_configured != 'true' || steps.health.outputs.exit_code == '0')
         uses: actions/github-script@v7
+        env:
+          AUTH_CONFIGURED: ${{ steps.health.outputs.auth_configured }}
         with:
           script: |
             const title = '[VEC Health] Live responsive video failure';
@@ -100,11 +111,15 @@ jobs:
             const existing = found.data.items.find(item => item.title === title);
             if (!existing) return;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const authenticated = process.env.AUTH_CONFIGURED === 'true';
+            const message = authenticated
+              ? `Live VEC playback recovered on ${new Date().toISOString()}.\n\nPassing evidence: ${runUrl}`
+              : `Public VEC API health is passing on ${new Date().toISOString()}. The previous failure was produced by the health runner using synthetic auth while VEC is login-gated. Authenticated motion coverage remains pending until V2_COGNITO_TOKENS_JSON is configured.\n\nPassing public-health evidence: ${runUrl}`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: existing.number,
-              body: `Live VEC playback recovered on ${new Date().toISOString()}.\n\nPassing evidence: ${runUrl}`,
+              body: message,
             });
             await github.rest.issues.update({
               owner: context.repo.owner,
@@ -115,5 +130,5 @@ jobs:
             });
 
       - name: Fail when live VEC playback is unhealthy
-        if: steps.health.outputs.exit_code != '0'
+        if: steps.health.outputs.api_ok != 'true' || (steps.health.outputs.auth_configured == 'true' && steps.health.outputs.exit_code != '0')
         run: exit 1
