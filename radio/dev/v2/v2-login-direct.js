@@ -2,6 +2,7 @@
   'use strict';
 
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const VEC_API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
 
   const readAccessToken = () => {
     try {
@@ -10,6 +11,46 @@
       return '';
     }
   };
+
+  const isProtectedVecRequest = input => {
+    try {
+      const value = input instanceof Request ? input.url : String(input || '');
+      const url = new URL(value, window.location.href);
+      if (url.origin !== VEC_API_ORIGIN) return false;
+      return url.pathname.includes('/dev/radio/visuals/') || url.pathname.includes('/dev/radio/vec/');
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const installAuthenticatedVecFetch = () => {
+    if (window.__stashboxV2AuthenticatedVecFetchInstalled) return;
+    window.__stashboxV2AuthenticatedVecFetchInstalled = true;
+
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init = {}) => {
+      if (!isProtectedVecRequest(input)) return nativeFetch(input, init);
+
+      const token = readAccessToken();
+      if (!token) return nativeFetch(input, init);
+
+      const headers = new Headers(input instanceof Request ? input.headers : undefined);
+      new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
+      if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+
+      return nativeFetch(input, { ...init, headers });
+    };
+  };
+
+  const refreshVecRuntime = () => {
+    window.setTimeout(() => {
+      try { window.StashboxMainVecVideoWatchdog?.refresh?.(); } catch (_) {}
+      try { window.StashboxMobileVecMotionRuntime?.refresh?.(); } catch (_) {}
+      try { window.StashboxMobileVecMotionOverride?.refresh?.(); } catch (_) {}
+    }, 120);
+  };
+
+  installAuthenticatedVecFetch();
 
   const finishSuccessfulLogin = () => {
     const overlay = document.querySelector('.v2-auth-overlay');
@@ -26,6 +67,7 @@
     window.dispatchEvent(new CustomEvent('stashbox:v2-session-changed', { detail }));
     window.dispatchEvent(new CustomEvent('stashbox:v2-auth-changed', { detail }));
     window.dispatchEvent(new CustomEvent('stashbox:v2-auth-ready', { detail }));
+    refreshVecRuntime();
   };
 
   document.addEventListener('submit', event => {
@@ -45,6 +87,9 @@
       if (attempts >= 120) window.clearInterval(timer);
     }, 100);
   }, true);
+
+  window.addEventListener('stashbox:v2-auth-changed', refreshVecRuntime);
+  window.addEventListener('stashbox:v2-session-changed', refreshVecRuntime);
 
   const install = () => {
     const actions = document.querySelector('#v2App .v2-header-actions');
