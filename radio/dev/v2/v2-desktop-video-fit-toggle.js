@@ -5,6 +5,14 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopVideoFitToggle) return;
 
+  if (!document.querySelector('link[data-desktop-video-fit-toggle-style="true"]')) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/radio/dev/v2/v2-desktop-video-fit-toggle.css?v=20260815-fitfill1';
+    style.dataset.desktopVideoFitToggleStyle = 'true';
+    document.head.appendChild(style);
+  }
+
   const STORAGE_KEY = 'stashbox_desktop_video_fit';
   const app = document.getElementById('v2App');
   if (!app) return;
