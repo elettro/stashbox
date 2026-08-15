@@ -5,12 +5,26 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
+  const loadDirectRescue = () => {
+    if (document.querySelector('script[data-desktop-direct-video-rescue="true"]')) return;
+    const rescue = document.createElement('script');
+    rescue.src = '/radio/dev/v2/v2-desktop-direct-video-rescue-20260815.js?v=20260815-direct-rescue1';
+    rescue.async = false;
+    rescue.dataset.desktopDirectVideoRescue = 'true';
+    document.head.appendChild(rescue);
+  };
+
   const loadForceRepair = () => {
-    if (document.querySelector('script[data-desktop-video-force="true"]')) return;
+    if (document.querySelector('script[data-desktop-video-force="true"]')) {
+      loadDirectRescue();
+      return;
+    }
     const repair = document.createElement('script');
     repair.src = '/radio/dev/v2/v2-desktop-video-force-20260815.js?v=20260815-force2';
     repair.async = false;
     repair.dataset.desktopVideoForce = 'true';
+    repair.onload = loadDirectRescue;
+    repair.onerror = loadDirectRescue;
     document.head.appendChild(repair);
   };
 
