@@ -9,9 +9,12 @@
   const SONG_ASSETS = `${API}/radio/vec/song-assets`;
   const RECIPE = `${API}/radio/vec/recipe`;
   const FOLDERS = `${API}/radio/visuals/folders`;
+  const FIT_KEY = 'stashbox_desktop_video_fit';
   const clean = value => String(value ?? '').trim();
   const lower = value => clean(value).toLowerCase();
-  const state = { songKey: '', clips: [], video: null, timer: 0, loading: false };
+  const state = { songKey: '', clips: [], video: null, timer: 0, loading: false, fitMode: 'fill' };
+
+  try { state.fitMode = localStorage.getItem(FIT_KEY) === 'fit' ? 'fit' : 'fill'; } catch (_) {}
 
   function player() {
     return [...document.querySelectorAll('#v2App [data-player]')].find(node => {
@@ -141,6 +144,42 @@
     state.video = null;
   }
 
+  function applyFitMode(p = player()) {
+    if (!p) return;
+    const fit = state.fitMode === 'fit' ? 'contain' : 'cover';
+    p.querySelectorAll('[data-mobile-vec-stage] video').forEach(video => {
+      video.style.setProperty('object-fit', fit, 'important');
+      video.style.setProperty('object-position', 'center center', 'important');
+    });
+    const button = p.querySelector('[data-desktop-rescue-fit-toggle]');
+    if (button) {
+      button.textContent = state.fitMode === 'fit' ? 'FIT' : 'FILL';
+      button.title = state.fitMode === 'fit' ? 'Show full video with no cropping' : 'Fill viewer area';
+      button.setAttribute('aria-label', state.fitMode === 'fit' ? 'Switch to fill video' : 'Switch to fit full video');
+    }
+  }
+
+  function installFitButton(p = player()) {
+    const row = p?.querySelector('.v2-artist-row');
+    if (!row || row.querySelector('[data-desktop-rescue-fit-toggle]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.desktopRescueFitToggle = 'true';
+    button.className = 'v2-desktop-video-fit-toggle';
+    button.style.cssText = 'margin-left:auto;min-width:46px;height:30px;padding:0 9px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(5,6,7,.5);color:#fff;font:700 10px/1 Karla,Arial,sans-serif;letter-spacing:.08em;cursor:pointer;flex:0 0 auto;';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.fitMode = state.fitMode === 'fit' ? 'fill' : 'fit';
+      try { localStorage.setItem(FIT_KEY, state.fitMode); } catch (_) {}
+      applyFitMode(p);
+    });
+    const more = row.querySelector('.v2-li-song-more');
+    if (more) row.insertBefore(button, more);
+    else row.appendChild(button);
+    applyFitMode(p);
+  }
+
   function visibleVideo(p) {
     return [...(p?.querySelectorAll('[data-mobile-vec-stage] video') || [])].some(video => {
       if (video === state.video) return !video.paused && video.readyState >= 2;
@@ -168,7 +207,7 @@
     video.disablePictureInPicture = true;
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
-    video.style.cssText = 'position:absolute;inset:0;z-index:6;width:100%;height:100%;object-fit:contain;object-position:center;background:#050607;pointer-events:none;opacity:0;visibility:hidden;';
+    video.style.cssText = `position:absolute;inset:0;z-index:6;width:100%;height:100%;object-fit:${state.fitMode === 'fit' ? 'contain' : 'cover'};object-position:center;background:#050607;pointer-events:none;opacity:0;visibility:hidden;`;
     video.src = clip.url;
     stage.appendChild(video);
     const reveal = () => {
@@ -176,6 +215,7 @@
       video.style.setProperty('opacity', '1', 'important');
       video.style.setProperty('visibility', 'visible', 'important');
       p.dataset.desktopVideoRescueState = 'playing';
+      applyFitMode(p);
     };
     video.addEventListener('playing', reveal, { once: true });
     video.addEventListener('ended', () => {
@@ -200,6 +240,8 @@
     const p = player();
     const a = audio(p);
     if (!p || !a) return;
+    installFitButton(p);
+    applyFitMode(p);
     const key = currentSongKey(p);
     if (key && (force || key !== state.songKey)) {
       state.songKey = key;
@@ -238,6 +280,7 @@
   window.StashboxDesktopVideoMinimalRescue20260815 = Object.freeze({
     refresh: () => refresh(true),
     clipCount: () => state.clips.length,
+    fitMode: () => state.fitMode,
     stop: () => { window.clearInterval(state.timer); removeVideo(); }
   });
 })();
