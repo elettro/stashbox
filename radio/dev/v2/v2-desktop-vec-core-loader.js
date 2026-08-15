@@ -8,7 +8,7 @@
   const loadMinimalRescue = () => {
     if (document.querySelector('script[data-desktop-video-minimal-rescue="true"]')) return;
     const rescue = document.createElement('script');
-    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-20260815.js?v=20260815-minrescue3';
+    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-stable-20260815-152.js';
     rescue.async = false;
     rescue.dataset.desktopVideoMinimalRescue = 'true';
     document.head.appendChild(rescue);
