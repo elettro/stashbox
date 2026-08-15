@@ -5,13 +5,24 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
+  const loadFitToggle = () => {
+    if (document.querySelector('script[data-desktop-video-fit-toggle="true"]')) return;
+    const toggle = document.createElement('script');
+    toggle.src = '/radio/dev/v2/v2-desktop-video-fit-toggle.js?v=20260815-fitfill1';
+    toggle.async = false;
+    toggle.dataset.desktopVideoFitToggle = 'true';
+    document.head.appendChild(toggle);
+  };
+
   const loadMinimalRescue = () => {
-    if (document.querySelector('script[data-desktop-video-minimal-rescue="true"]')) return;
-    const rescue = document.createElement('script');
-    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-20260815.js?v=20260815-minrescue1';
-    rescue.async = false;
-    rescue.dataset.desktopVideoMinimalRescue = 'true';
-    document.head.appendChild(rescue);
+    if (!document.querySelector('script[data-desktop-video-minimal-rescue="true"]')) {
+      const rescue = document.createElement('script');
+      rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-20260815.js?v=20260815-minrescue1';
+      rescue.async = false;
+      rescue.dataset.desktopVideoMinimalRescue = 'true';
+      document.head.appendChild(rescue);
+    }
+    loadFitToggle();
   };
 
   const script = document.createElement('script');
