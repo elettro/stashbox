@@ -5,20 +5,10 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
-  const loadFitPreferences = () => {
-    if (document.querySelector('script[data-desktop-video-fit-preferences="true"]')) return;
-    const preferences = document.createElement('script');
-    preferences.src = '/radio/dev/v2/v2-desktop-video-fit-preferences-20260815.js?v=20260815-fitprefs1';
-    preferences.async = false;
-    preferences.dataset.desktopVideoFitPreferences = 'true';
-    document.head.appendChild(preferences);
-  };
-
   const loadMinimalRescue = () => {
-    loadFitPreferences();
     if (document.querySelector('script[data-desktop-video-minimal-rescue="true"]')) return;
     const rescue = document.createElement('script');
-    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-20260815.js?v=20260815-minrescue2';
+    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-20260815.js?v=20260815-minrescue3';
     rescue.async = false;
     rescue.dataset.desktopVideoMinimalRescue = 'true';
     document.head.appendChild(rescue);
