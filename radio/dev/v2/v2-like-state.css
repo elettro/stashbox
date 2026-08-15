@@ -1,12 +1,15 @@
 .v2-side-action[data-like] {
-  transition: color .2s ease, transform .2s ease, background .2s ease, border-color .2s ease;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: color .2s ease, transform .2s ease;
 }
 
 .v2-side-action[data-like].is-liked {
   color: #ff3b30;
-  border-color: rgba(255, 59, 48, .72);
-  background: rgba(255, 59, 48, .1);
-  box-shadow: 0 0 0 1px rgba(255, 59, 48, .12), 0 10px 28px rgba(255, 59, 48, .14);
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .v2-side-action[data-like].is-liked svg,
