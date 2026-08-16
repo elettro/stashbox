@@ -8,7 +8,7 @@
   const loadDesktopVideoRuntime = () => {
     if (document.querySelector('script[data-desktop-video-runtime="true"]')) return;
     const runtime = document.createElement('script');
-    runtime.src = '/radio/dev/v2/v2-desktop-video-runtime-20260816-153.js?v=20260816-directsong1';
+    runtime.src = '/radio/dev/v2/v2-desktop-video-runtime-20260816-153.js?v=20260816-faststart1';
     runtime.async = false;
     runtime.dataset.desktopVideoRuntime = 'true';
     document.head.appendChild(runtime);
