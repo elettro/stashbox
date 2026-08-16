@@ -4,6 +4,9 @@ const DEFAULT_TRUE_DEV_API_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amaz
 const TRUE_DEV_API_BASE = (process.env.TRUE_DEV_API_BASE || DEFAULT_TRUE_DEV_API_BASE).replace(/\/+$/, '');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const TIMEOUT_MS = Number.parseInt(process.env.TRUE_DEV_SMOKE_TIMEOUT_MS || '15000', 10);
+const FETCH_ATTEMPTS = Number.parseInt(process.env.TRUE_DEV_FETCH_ATTEMPTS || '4', 10);
+const FETCH_RETRY_DELAY_MS = Number.parseInt(process.env.TRUE_DEV_FETCH_RETRY_DELAY_MS || '1500', 10);
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
 if (process.argv.includes('--write')) {
   console.log('Write smoke tests are not implemented yet.');
@@ -19,36 +22,51 @@ function statusText(status) {
   return status === null || status === undefined ? 'n/a' : String(status);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function fetchJson(pathname, { admin = false } = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number.isFinite(TIMEOUT_MS) ? TIMEOUT_MS : 15000);
-  const headers = { accept: 'application/json' };
+  const attempts = Math.max(1, Number.isFinite(FETCH_ATTEMPTS) ? FETCH_ATTEMPTS : 4);
+  let lastResult = null;
 
-  if (admin && ADMIN_TOKEN) {
-    headers['x-admin-token'] = ADMIN_TOKEN;
-  }
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Number.isFinite(TIMEOUT_MS) ? TIMEOUT_MS : 15000);
+    const headers = { accept: 'application/json' };
 
-  try {
-    const response = await fetch(`${TRUE_DEV_API_BASE}${pathname}`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal
-    });
-    const text = await response.text();
-    let body = null;
-
-    try {
-      body = text ? JSON.parse(text) : null;
-    } catch {
-      body = { parse_error: 'Response was not valid JSON.', preview: text.slice(0, 160) };
+    if (admin && ADMIN_TOKEN) {
+      headers['x-admin-token'] = ADMIN_TOKEN;
     }
 
-    return { ok: response.ok, status: response.status, body };
-  } catch (error) {
-    return { ok: false, status: null, body: null, error };
-  } finally {
-    clearTimeout(timeout);
+    try {
+      const response = await fetch(`${TRUE_DEV_API_BASE}${pathname}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      const text = await response.text();
+      let body = null;
+
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        body = { parse_error: 'Response was not valid JSON.', preview: text.slice(0, 160) };
+      }
+
+      lastResult = { ok: response.ok, status: response.status, body, attempts: attempt };
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt === attempts) return lastResult;
+    } catch (error) {
+      lastResult = { ok: false, status: null, body: null, error, attempts: attempt };
+      if (attempt === attempts) return lastResult;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    await sleep(Math.max(0, FETCH_RETRY_DELAY_MS));
   }
+
+  return lastResult;
 }
 
 function addResult(results, { name, endpoint, status, pass, reason, required = true, skipped = false }) {
@@ -65,7 +83,7 @@ async function checkRadioSongs(results) {
     endpoint,
     status: result.status,
     pass: result.status === 200,
-    reason: result.status === 200 ? 'Returned HTTP 200.' : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)}.`)
+    reason: result.status === 200 ? `Returned HTTP 200${result.attempts > 1 ? ` after ${result.attempts} attempts` : ''}.` : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)} after ${result.attempts || 1} attempt(s).`)
   });
   addResult(results, {
     name: 'radio songs success flag',
@@ -92,7 +110,7 @@ async function checkDashboardSummary(results) {
     endpoint,
     status: result.status,
     pass: result.status === 200,
-    reason: result.status === 200 ? 'Returned HTTP 200.' : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)}.`)
+    reason: result.status === 200 ? `Returned HTTP 200${result.attempts > 1 ? ` after ${result.attempts} attempts` : ''}.` : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)} after ${result.attempts || 1} attempt(s).`)
   });
   addResult(results, {
     name: 'dashboard summary success flag',
@@ -144,7 +162,7 @@ async function checkAdminRoute(results, endpoint) {
     endpoint,
     status: result.status,
     pass: result.status === 200,
-    reason: result.status === 200 ? 'Returned HTTP 200 with ADMIN_TOKEN.' : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)}.`)
+    reason: result.status === 200 ? `Returned HTTP 200 with ADMIN_TOKEN${result.attempts > 1 ? ` after ${result.attempts} attempts` : ''}.` : (result.error?.message || `Expected HTTP 200, got ${statusText(result.status)} after ${result.attempts || 1} attempt(s).`)
   });
 }
 
@@ -166,7 +184,7 @@ async function checkVisualFolderAssetSchema(results) {
       name: 'visual folder clip-product schema', endpoint: foldersEndpoint,
       status: foldersResult.status, pass: false,
       reason: foldersResult.status !== 200
-        ? `Expected HTTP 200, got ${statusText(foldersResult.status)}.`
+        ? `Expected HTTP 200, got ${statusText(foldersResult.status)} after ${foldersResult.attempts || 1} attempt(s).`
         : 'Expected at least one DEV Visuals Folder.'
     });
     return;
@@ -182,7 +200,7 @@ async function checkVisualFolderAssetSchema(results) {
     status: assetsResult.status,
     pass: assetsResult.status === 200 && arraysValid,
     reason: assetsResult.status !== 200
-      ? `Expected HTTP 200, got ${statusText(assetsResult.status)}.`
+      ? `Expected HTTP 200, got ${statusText(assetsResult.status)} after ${assetsResult.attempts || 1} attempt(s).`
       : arraysValid
         ? `Verified shopify_product_urls arrays on ${assets.length} asset(s).`
         : 'Expected every asset to return shopify_product_urls as an array.'
@@ -193,6 +211,7 @@ function printResults(results) {
   console.log('TRUE DEV smoke test checklist');
   console.log(`API base: ${TRUE_DEV_API_BASE}`);
   console.log(`Admin routes: ${ADMIN_TOKEN ? 'enabled (ADMIN_TOKEN set)' : 'skipped (ADMIN_TOKEN missing)'}`);
+  console.log(`Per-endpoint transient retry: ${Math.max(1, Number.isFinite(FETCH_ATTEMPTS) ? FETCH_ATTEMPTS : 4)} attempt(s)`);
   console.log('');
 
   for (const result of results) {
