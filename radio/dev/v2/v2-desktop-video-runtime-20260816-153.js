@@ -102,13 +102,13 @@
     catch (_) { return clean(url).split(/[/?#]/).filter(Boolean).pop()?.toLowerCase() || ''; }
   }
   async function resolveSongKey(p, a) {
-    const fromUrl = urlSongKey();
-    if (fromUrl) return fromUrl;
     const direct = clean(p?.dataset?.songKey || p?.dataset?.currentSongKey || p?.dataset?.song || '');
     if (direct) return direct;
     const activeCard = document.querySelector('#v2App [data-song].is-playing, #v2App [data-song][aria-current="true"]');
     const activeKey = clean(activeCard?.dataset?.song);
     if (activeKey) return activeKey;
+    const fromUrl = urlSongKey();
+    if (fromUrl) return fromUrl;
     const catalog = await loadCatalog();
     if (!catalog.length) return '';
     const audioSrc = clean(a?.currentSrc || a?.src);
@@ -125,25 +125,46 @@
     }
     return '';
   }
+  function mergeClips(next) {
+    if (!Array.isArray(next) || !next.length) return false;
+    const seen = new Set(state.clips.map(clip => clip.url.toLowerCase()));
+    let added = false;
+    next.forEach(clip => {
+      const key = clean(clip?.url).toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      state.clips.push(clip);
+      added = true;
+    });
+    if (added) state.clips.sort(() => Math.random() - 0.5);
+    return added;
+  }
+  function tryStartVideo() {
+    const p = player();
+    const a = audio(p);
+    if (!p || !a || a.paused || a.ended || !state.clips.length) return;
+    showRescue(p, a);
+  }
   async function loadClips(songKey) {
     if (!songKey || state.loading) return;
     state.loading = true;
     state.lastLoadAt = Date.now();
+    const directPromise = json(`${SONG_ASSETS}?song_key=${encodeURIComponent(songKey)}`);
+    const recipePromise = json(`${RECIPE}?song_key=${encodeURIComponent(songKey)}`);
     try {
-      const [directResult, recipeResult] = await Promise.allSettled([
-        json(`${SONG_ASSETS}?song_key=${encodeURIComponent(songKey)}`),
-        json(`${RECIPE}?song_key=${encodeURIComponent(songKey)}`)
-      ]);
+      const directBody = await directPromise.catch(() => null);
       if (songKey !== state.songKey) return;
-      let clips = directResult.status === 'fulfilled' ? clipsFrom(directResult.value) : [];
-      if (recipeResult.status === 'fulfilled') {
-        const folders = folderEntries(recipeResult.value);
-        const folderResults = await Promise.allSettled(folders.map(id => json(`${FOLDERS}/${encodeURIComponent(id)}/assets`)));
-        if (songKey !== state.songKey) return;
-        folderResults.forEach(result => { if (result.status === 'fulfilled') clips.push(...clipsFrom(result.value)); });
-      }
-      const seen = new Set();
-      state.clips = clips.filter(clip => clip.url && !seen.has(clip.url.toLowerCase()) && seen.add(clip.url.toLowerCase())).sort(() => Math.random() - 0.5);
+      if (directBody && mergeClips(clipsFrom(directBody))) tryStartVideo();
+
+      const recipeBody = await recipePromise.catch(() => null);
+      if (songKey !== state.songKey || !recipeBody) return;
+      const folders = folderEntries(recipeBody);
+      await Promise.allSettled(folders.map(id =>
+        json(`${FOLDERS}/${encodeURIComponent(id)}/assets`).then(body => {
+          if (songKey !== state.songKey) return;
+          if (mergeClips(clipsFrom(body))) tryStartVideo();
+        })
+      ));
     } finally { state.loading = false; }
   }
   function removeVideo() {
@@ -202,8 +223,8 @@
     video.src = clip.url; stage.appendChild(video);
     const reveal = () => { if (video !== state.video) return; video.style.setProperty('opacity', '1', 'important'); video.style.setProperty('visibility', 'visible', 'important'); p.dataset.desktopVideoRescueState = 'playing'; applyFitMode(p); };
     video.addEventListener('playing', reveal, { once: true });
-    video.addEventListener('ended', () => { removeVideo(); window.setTimeout(() => showRescue(player(), audio(player())), 250); }, { once: true });
-    video.addEventListener('error', () => { state.clips = state.clips.filter(item => item.url !== clip.url); removeVideo(); window.setTimeout(() => showRescue(player(), audio(player())), 300); }, { once: true });
+    video.addEventListener('ended', () => { removeVideo(); window.setTimeout(() => showRescue(player(), audio(player())), 120); }, { once: true });
+    video.addEventListener('error', () => { state.clips = state.clips.filter(item => item.url !== clip.url); removeVideo(); window.setTimeout(() => showRescue(player(), audio(player())), 150); }, { once: true });
     const play = () => { if (video === state.video && !a.paused && !a.ended) video.play().catch(() => {}); };
     video.addEventListener('canplay', play, { once: true }); play();
   }
@@ -213,25 +234,25 @@
     installFitButton(p); applyFitMode(p);
     const key = await resolveSongKey(p, a);
     if (key && key !== state.songKey) {
-      state.songKey = key; p.dataset.songKey = key; state.clips = []; removeVideo(); await loadClips(key);
-    } else if (key && (force || (!state.clips.length && Date.now() - state.lastLoadAt > 8000))) {
-      state.songKey = key; await loadClips(key);
+      state.songKey = key; p.dataset.songKey = key; state.clips = []; removeVideo(); loadClips(key);
+    } else if (key && (force || (!state.clips.length && Date.now() - state.lastLoadAt > 4000))) {
+      state.songKey = key; loadClips(key);
     }
-    if (!a.paused && !a.ended && a.currentTime >= 2.5) showRescue(p, a);
+    if (!a.paused && !a.ended && a.currentTime >= 0.15) showRescue(p, a);
   }
   document.addEventListener('click', event => {
     const song = event.target.closest?.('#v2App [data-song]'); const key = clean(song?.dataset?.song); if (!key) return;
-    const p = player(); if (p) p.dataset.songKey = key; state.songKey = key; state.clips = []; removeVideo(); window.setTimeout(() => refresh(true), 200);
+    const p = player(); if (p) p.dataset.songKey = key; state.songKey = key; state.clips = []; removeVideo(); loadClips(key); window.setTimeout(() => refresh(true), 50);
   }, true);
   document.addEventListener('play', event => {
     if (!(event.target instanceof HTMLAudioElement)) return;
-    window.setTimeout(() => refresh(true), 120); window.setTimeout(() => refresh(true), 1200);
+    refresh(true); window.setTimeout(() => refresh(true), 250); window.setTimeout(() => refresh(false), 750);
   }, true);
   document.addEventListener('pause', event => {
     if (!(event.target instanceof HTMLAudioElement)) return;
     if (state.video && !state.video.paused) state.video.pause();
   }, true);
-  state.timer = window.setInterval(() => refresh(false), 1000);
+  state.timer = window.setInterval(() => refresh(false), 750);
   loadCatalog(); refresh(false);
   window.StashboxDesktopVideoRuntime20260816 = Object.freeze({ refresh: () => refresh(true), clipCount: () => state.clips.length, songKey: () => state.songKey, fitMode: () => state.fitMode, stop: () => { window.clearInterval(state.timer); removeVideo(); } });
 })();
