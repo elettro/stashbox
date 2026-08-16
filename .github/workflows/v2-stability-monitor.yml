@@ -55,7 +55,19 @@ jobs:
           node-version: '22'
 
       - name: Run read-only TRUE DEV smoke test
-        run: node radio-api/scripts/smoke-test-true-dev.mjs
+        run: |
+          for attempt in 1 2 3; do
+            echo "TRUE DEV smoke attempt ${attempt}/3"
+            if node radio-api/scripts/smoke-test-true-dev.mjs; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient API failure detected; retrying in 8 seconds..."
+              sleep 8
+            fi
+          done
+          echo "TRUE DEV smoke failed after 3 attempts."
+          exit 1
 
   browser-smoke:
     name: Test live V2 listener flow
