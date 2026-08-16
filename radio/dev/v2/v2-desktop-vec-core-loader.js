@@ -5,13 +5,13 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
-  const loadMinimalRescue = () => {
-    if (document.querySelector('script[data-desktop-video-minimal-rescue="true"]')) return;
-    const rescue = document.createElement('script');
-    rescue.src = '/radio/dev/v2/v2-desktop-video-minimal-rescue-stable-20260815-152.js';
-    rescue.async = false;
-    rescue.dataset.desktopVideoMinimalRescue = 'true';
-    document.head.appendChild(rescue);
+  const loadDesktopVideoRuntime = () => {
+    if (document.querySelector('script[data-desktop-video-runtime="true"]')) return;
+    const runtime = document.createElement('script');
+    runtime.src = '/radio/dev/v2/v2-desktop-video-runtime-20260816-153.js';
+    runtime.async = false;
+    runtime.dataset.desktopVideoRuntime = 'true';
+    document.head.appendChild(runtime);
   };
 
   const script = document.createElement('script');
@@ -21,12 +21,12 @@
   script.onerror = () => {
     const player = [...document.querySelectorAll('#v2App [data-player]')].find(node => !node.hidden);
     if (player) player.dataset.desktopVecCoreState = 'load-error';
-    loadMinimalRescue();
+    loadDesktopVideoRuntime();
   };
   script.onload = () => {
     const player = [...document.querySelectorAll('#v2App [data-player]')].find(node => !node.hidden);
     if (player) player.dataset.desktopVecCoreState = 'loaded';
-    loadMinimalRescue();
+    loadDesktopVideoRuntime();
   };
   document.head.appendChild(script);
 })();
