@@ -14,9 +14,14 @@
   const clean = value => String(value ?? '').trim();
   const lower = value => clean(value).toLowerCase();
   const normalize = value => lower(value).replace(/\s+/g, ' ');
-  const state = { songKey: '', clips: [], video: null, timer: 0, loading: false, fitMode: 'fill', catalog: [], catalogLoaded: false, lastLoadAt: 0 };
+  const state = { songKey: '', clips: [], video: null, timer: 0, loading: false, fitMode: 'fit', catalog: [], catalogLoaded: false, lastLoadAt: 0 };
 
-  try { state.fitMode = localStorage.getItem(FIT_KEY) === 'fit' ? 'fit' : 'fill'; } catch (_) {}
+  try {
+    const savedFitMode = localStorage.getItem(FIT_KEY);
+    state.fitMode = savedFitMode === 'fill' ? 'fill' : 'fit';
+  } catch (_) {
+    state.fitMode = 'fit';
+  }
 
   const player = () => [...document.querySelectorAll('#v2App [data-player]')].find(node => {
     if (node.hidden || !node.isConnected) return false;
@@ -172,33 +177,46 @@
     try { state.video.pause(); } catch (_) {}
     state.video.remove(); state.video = null;
   }
+  function saveFitMode() {
+    try { localStorage.setItem(FIT_KEY, state.fitMode); } catch (_) {}
+  }
   function applyFitMode(p = player()) {
     if (!p) return;
     const fit = state.fitMode === 'fit' ? 'contain' : 'cover';
-    p.querySelectorAll('[data-mobile-vec-stage] video').forEach(video => {
+    p.dataset.desktopVideoFit = state.fitMode;
+    p.querySelectorAll('[data-mobile-vec-stage] video, video[data-desktop-minimal-rescue="true"]').forEach(video => {
       video.style.setProperty('object-fit', fit, 'important');
       video.style.setProperty('object-position', 'center center', 'important');
     });
     const button = p.querySelector('[data-desktop-rescue-fit-toggle]');
     if (button) {
       button.textContent = state.fitMode === 'fit' ? 'FIT' : 'FILL';
-      button.title = state.fitMode === 'fit' ? 'FIT: shows the entire video with no cropping. Click for FILL.' : 'FILL: fills the player and may crop the video. Click for FIT.';
+      button.dataset.mode = state.fitMode;
+      button.setAttribute('aria-pressed', state.fitMode === 'fit' ? 'true' : 'false');
+      button.title = state.fitMode === 'fit'
+        ? 'FIT: shows the entire video with no cropping. Click for FILL.'
+        : 'FILL: fills the player and may crop the video. Click for FIT.';
       button.setAttribute('aria-label', button.title);
     }
   }
+  function toggleFitMode() {
+    state.fitMode = state.fitMode === 'fit' ? 'fill' : 'fit';
+    saveFitMode();
+    applyFitMode(player());
+  }
   function installFitButton(p = player()) {
     const row = p?.querySelector('.v2-artist-row');
-    if (!row || row.querySelector('[data-desktop-rescue-fit-toggle]')) return;
-    const button = document.createElement('button');
-    button.type = 'button'; button.dataset.desktopRescueFitToggle = 'true'; button.className = 'v2-desktop-video-fit-toggle';
-    button.style.cssText = 'margin-left:auto;min-width:46px;height:30px;padding:0 9px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(5,6,7,.5);color:#fff;font:700 10px/1 Karla,Arial,sans-serif;letter-spacing:.08em;cursor:pointer;flex:0 0 auto;';
-    button.addEventListener('click', event => {
-      event.preventDefault(); event.stopPropagation(); state.fitMode = state.fitMode === 'fit' ? 'fill' : 'fit';
-      try { localStorage.setItem(FIT_KEY, state.fitMode); } catch (_) {}
-      applyFitMode(p);
-    });
-    const more = row.querySelector('.v2-li-song-more');
-    if (more) row.insertBefore(button, more); else row.appendChild(button);
+    if (!row) return;
+    let button = row.querySelector('[data-desktop-rescue-fit-toggle]');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.desktopRescueFitToggle = 'true';
+      button.className = 'v2-desktop-video-fit-toggle';
+      button.style.cssText = 'margin-left:auto;min-width:46px;height:30px;padding:0 9px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(5,6,7,.5);color:#fff;font:700 10px/1 Karla,Arial,sans-serif;letter-spacing:.08em;cursor:pointer;flex:0 0 auto;position:relative;z-index:20;pointer-events:auto;';
+      const more = row.querySelector('.v2-li-song-more');
+      if (more) row.insertBefore(button, more); else row.appendChild(button);
+    }
     applyFitMode(p);
   }
   function visibleVideo(p) {
@@ -241,6 +259,13 @@
     if (!a.paused && !a.ended && a.currentTime >= 0.15) showRescue(p, a);
   }
   document.addEventListener('click', event => {
+    const fitToggle = event.target.closest?.('[data-desktop-rescue-fit-toggle]');
+    if (fitToggle) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toggleFitMode();
+      return;
+    }
     const song = event.target.closest?.('#v2App [data-song]'); const key = clean(song?.dataset?.song); if (!key) return;
     const p = player(); if (p) p.dataset.songKey = key; state.songKey = key; state.clips = []; removeVideo(); loadClips(key); window.setTimeout(() => refresh(true), 50);
   }, true);
@@ -254,5 +279,16 @@
   }, true);
   state.timer = window.setInterval(() => refresh(false), 750);
   loadCatalog(); refresh(false);
-  window.StashboxDesktopVideoRuntime20260816 = Object.freeze({ refresh: () => refresh(true), clipCount: () => state.clips.length, songKey: () => state.songKey, fitMode: () => state.fitMode, stop: () => { window.clearInterval(state.timer); removeVideo(); } });
+  window.StashboxDesktopVideoRuntime20260816 = Object.freeze({
+    refresh: () => refresh(true),
+    clipCount: () => state.clips.length,
+    songKey: () => state.songKey,
+    fitMode: () => state.fitMode,
+    setFitMode: mode => {
+      state.fitMode = mode === 'fill' ? 'fill' : 'fit';
+      saveFitMode();
+      applyFitMode(player());
+    },
+    stop: () => { window.clearInterval(state.timer); removeVideo(); }
+  });
 })();
