@@ -6,6 +6,22 @@
 
   const DESKTOP = window.matchMedia('(min-width: 700px)');
   const retryTimers = new WeakMap();
+  const stageState = new WeakMap();
+
+  // Demo stability: keep desktop VEC on one renderer. The recovery watchdog
+  // otherwise competes with the native VEC stage by hiding/pausing native
+  // videos while also creating its own video elements.
+  if (DESKTOP.matches && !window.StashboxMainVecVideoWatchdog) {
+    window.StashboxMainVecVideoWatchdog = Object.freeze({
+      disabled: true,
+      reason: 'desktop-native-vec-owner',
+      refresh: () => syncDesktopVideo(),
+      rescueActive: () => false,
+      rescueUrl: () => '',
+      state: () => ({ owner: 'native', status: 'desktop-native-vec-owner' }),
+      stop: () => {}
+    });
+  }
 
   function isVisible(node) {
     if (!node || node.hidden || !node.isConnected) return false;
@@ -28,23 +44,22 @@
       .find(audio => audio.isConnected && !audio.paused && !audio.ended) || local || null;
   }
 
+  function stageFor(player) {
+    return player?.querySelector('[data-mobile-vec-stage]') || null;
+  }
+
   function vecVideos(player) {
-    return [...(player?.querySelectorAll(
-      '[data-mobile-vec-stage] video.v2-mobile-vec-media, [data-mobile-vec-stage] video[data-main-vec-watchdog="true"]'
-    ) || [])];
+    return [...(player?.querySelectorAll('[data-mobile-vec-stage] video.v2-mobile-vec-media') || [])];
   }
 
   function videoEligible(video) {
-    if (!video || !video.isConnected || video.ended) return false;
-    if (video.matches('video[data-main-vec-watchdog="true"]')) return true;
-    return video.classList.contains('is-active');
+    return Boolean(video && video.isConnected && !video.ended && video.classList.contains('is-active'));
   }
 
   function activeVideo(player) {
     const videos = vecVideos(player).filter(videoEligible);
     return videos.findLast?.(video => video.classList.contains('is-active'))
       || [...videos].reverse().find(video => video.classList.contains('is-active'))
-      || videos.at(-1)
       || null;
   }
 
@@ -60,6 +75,58 @@
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
     video.removeAttribute('controls');
+    video.style.setProperty('z-index', '8', 'important');
+    video.style.setProperty('visibility', 'visible', 'important');
+  }
+
+  function suppressArtwork(player, video) {
+    const stage = stageFor(player);
+    if (!stage || !videoEligible(video)) return;
+
+    if (!stageState.has(stage)) {
+      stageState.set(stage, {
+        backgroundImage: stage.style.getPropertyValue('background-image'),
+        backgroundPriority: stage.style.getPropertyPriority('background-image')
+      });
+    }
+
+    stage.dataset.desktopVecVideoOwner = 'native';
+    stage.style.setProperty('background-image', 'none', 'important');
+    player?.classList.add('is-desktop-video-artwork-locked');
+
+    stage.querySelectorAll('.v2-mobile-vec-media').forEach(media => {
+      if (media === video || media instanceof HTMLVideoElement) return;
+      if (media.dataset.desktopVecPreviousVisibility === undefined) {
+        media.dataset.desktopVecPreviousVisibility = media.style.visibility || '';
+        media.dataset.desktopVecPreviousOpacity = media.style.opacity || '';
+      }
+      media.style.setProperty('visibility', 'hidden', 'important');
+      media.style.setProperty('opacity', '0', 'important');
+    });
+  }
+
+  function restoreArtwork(player) {
+    const stage = stageFor(player);
+    if (!stage) return;
+    const saved = stageState.get(stage);
+    if (saved) {
+      if (saved.backgroundImage) {
+        stage.style.setProperty('background-image', saved.backgroundImage, saved.backgroundPriority || '');
+      } else {
+        stage.style.removeProperty('background-image');
+      }
+      stageState.delete(stage);
+    }
+    delete stage.dataset.desktopVecVideoOwner;
+    player?.classList.remove('is-desktop-video-artwork-locked');
+    stage.querySelectorAll('[data-desktop-vec-previous-visibility]').forEach(media => {
+      media.style.removeProperty('visibility');
+      media.style.removeProperty('opacity');
+      if (media.dataset.desktopVecPreviousVisibility) media.style.visibility = media.dataset.desktopVecPreviousVisibility;
+      if (media.dataset.desktopVecPreviousOpacity) media.style.opacity = media.dataset.desktopVecPreviousOpacity;
+      delete media.dataset.desktopVecPreviousVisibility;
+      delete media.dataset.desktopVecPreviousOpacity;
+    });
   }
 
   function clearRetries(video) {
@@ -91,6 +158,7 @@
   function tryPlay(player, video) {
     if (!canPlayWithAudio(player, video)) return;
     prepareVideo(video);
+    suppressArtwork(player, video);
 
     if (video.readyState === HTMLMediaElement.HAVE_NOTHING) {
       try { video.load(); } catch (_) {}
@@ -106,7 +174,6 @@
       result.catch(error => {
         if (!canPlayWithAudio(player, video)) return;
         console.warn('[V2 desktop VEC] Video play retry needed', error?.name || error?.message || error);
-        try { video.load(); } catch (_) {}
       });
     }
   }
@@ -114,8 +181,9 @@
   function scheduleRetries(player, video) {
     if (!video) return;
     clearRetries(video);
-    const timers = [0, 100, 300, 700, 1400, 2400].map(delay => window.setTimeout(() => {
+    const timers = [0, 100, 300, 700, 1400, 2400, 4000, 6500].map(delay => window.setTimeout(() => {
       if (!canPlayWithAudio(player, video)) return;
+      if (!video.paused && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
       tryPlay(player, video);
     }, delay));
     retryTimers.set(video, timers);
@@ -132,14 +200,23 @@
 
     if (!DESKTOP.matches || !audio || audio.paused || audio.ended) {
       videos.forEach(pauseVideo);
+      restoreArtwork(player);
       return;
     }
 
     videos.forEach(item => {
-      if (item !== video && !item.matches('video[data-main-vec-watchdog="true"]')) pauseVideo(item);
+      if (item !== video) pauseVideo(item);
     });
 
-    if (video) scheduleRetries(player, video);
+    if (!video) {
+      restoreArtwork(player);
+      return;
+    }
+
+    suppressArtwork(player, video);
+    if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      scheduleRetries(player, video);
+    }
   }
 
   function bindAudio(player) {
@@ -148,7 +225,6 @@
     audio.dataset.desktopVecPlaybackRepairBound = 'true';
     audio.addEventListener('play', syncDesktopVideo);
     audio.addEventListener('playing', syncDesktopVideo);
-    audio.addEventListener('timeupdate', syncDesktopVideo);
     audio.addEventListener('pause', syncDesktopVideo);
     audio.addEventListener('ended', syncDesktopVideo);
     audio.addEventListener('emptied', syncDesktopVideo);
@@ -161,11 +237,18 @@
     ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough'].forEach(eventName => {
       video.addEventListener(eventName, syncDesktopVideo, { passive: true });
     });
+    video.addEventListener('playing', () => {
+      const player = currentPlayer();
+      if (player && videoEligible(video)) suppressArtwork(player, video);
+    }, { passive: true });
     ['stalled', 'suspend', 'waiting'].forEach(eventName => {
       video.addEventListener(eventName, () => {
         const player = currentPlayer();
         if (player && canPlayWithAudio(player, video)) scheduleRetries(player, video);
       }, { passive: true });
+    });
+    ['ended', 'error', 'emptied'].forEach(eventName => {
+      video.addEventListener(eventName, syncDesktopVideo, { passive: true });
     });
   }
 
