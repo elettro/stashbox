@@ -7,22 +7,41 @@
   const DESKTOP = window.matchMedia('(min-width: 700px)');
   const retryTimers = new WeakMap();
 
+  function isVisible(node) {
+    if (!node || node.hidden || !node.isConnected) return false;
+    const style = getComputedStyle(node);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
   function currentPlayer() {
-    const player = app.querySelector('[data-player]');
-    if (!player || player.hidden || getComputedStyle(player).display === 'none') return null;
-    return player;
+    const playingAudio = [...app.querySelectorAll('audio[data-audio], [data-player] audio')]
+      .find(audio => audio.isConnected && !audio.paused && !audio.ended);
+    const audioPlayer = playingAudio?.closest?.('[data-player]');
+    if (audioPlayer && isVisible(audioPlayer)) return audioPlayer;
+    return [...app.querySelectorAll('[data-player]')].find(isVisible) || null;
   }
 
   function audioFor(player) {
-    return player?.querySelector('[data-audio]') || null;
+    const local = player?.querySelector('[data-audio], audio');
+    if (local && !local.paused && !local.ended) return local;
+    return [...app.querySelectorAll('audio[data-audio], [data-player] audio')]
+      .find(audio => audio.isConnected && !audio.paused && !audio.ended) || local || null;
   }
 
   function vecVideos(player) {
-    return [...(player?.querySelectorAll('[data-mobile-vec-stage] video.v2-mobile-vec-media') || [])];
+    return [...(player?.querySelectorAll(
+      '[data-mobile-vec-stage] video.v2-mobile-vec-media, [data-mobile-vec-stage] video[data-main-vec-watchdog="true"]'
+    ) || [])];
+  }
+
+  function videoEligible(video) {
+    if (!video || !video.isConnected || video.ended) return false;
+    if (video.matches('video[data-main-vec-watchdog="true"]')) return true;
+    return video.classList.contains('is-active');
   }
 
   function activeVideo(player) {
-    const videos = vecVideos(player);
+    const videos = vecVideos(player).filter(videoEligible);
     return videos.findLast?.(video => video.classList.contains('is-active'))
       || [...videos].reverse().find(video => video.classList.contains('is-active'))
       || videos.at(-1)
@@ -35,9 +54,12 @@
     video.defaultMuted = true;
     video.volume = 0;
     video.playsInline = true;
+    video.autoplay = true;
     video.preload = 'auto';
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
+    video.setAttribute('autoplay', '');
+    video.removeAttribute('controls');
   }
 
   function clearRetries(video) {
@@ -59,7 +81,7 @@
       player &&
       video &&
       video.isConnected &&
-      video.classList.contains('is-active') &&
+      videoEligible(video) &&
       audio &&
       !audio.paused &&
       !audio.ended
@@ -69,11 +91,22 @@
   function tryPlay(player, video) {
     if (!canPlayWithAudio(player, video)) return;
     prepareVideo(video);
-    const result = video.play();
+
+    if (video.readyState === HTMLMediaElement.HAVE_NOTHING) {
+      try { video.load(); } catch (_) {}
+    }
+
+    let result;
+    try { result = video.play(); } catch (error) {
+      console.warn('[V2 desktop VEC] Video play threw', error?.name || error?.message || error);
+      return;
+    }
+
     if (result?.catch) {
       result.catch(error => {
         if (!canPlayWithAudio(player, video)) return;
         console.warn('[V2 desktop VEC] Video play retry needed', error?.name || error?.message || error);
+        try { video.load(); } catch (_) {}
       });
     }
   }
@@ -81,11 +114,8 @@
   function scheduleRetries(player, video) {
     if (!video) return;
     clearRetries(video);
-    const timers = [0, 120, 420, 1000].map(delay => window.setTimeout(() => {
+    const timers = [0, 100, 300, 700, 1400, 2400].map(delay => window.setTimeout(() => {
       if (!canPlayWithAudio(player, video)) return;
-      if (video.readyState === HTMLMediaElement.HAVE_NOTHING) {
-        try { video.load(); } catch (_) {}
-      }
       tryPlay(player, video);
     }, delay));
     retryTimers.set(video, timers);
@@ -95,14 +125,19 @@
     const player = currentPlayer();
     if (!player) return;
     const audio = audioFor(player);
+    const videos = vecVideos(player);
     const video = activeVideo(player);
 
-    vecVideos(player).forEach(prepareVideo);
+    videos.forEach(prepareVideo);
 
     if (!DESKTOP.matches || !audio || audio.paused || audio.ended) {
-      vecVideos(player).forEach(pauseVideo);
+      videos.forEach(pauseVideo);
       return;
     }
+
+    videos.forEach(item => {
+      if (item !== video && !item.matches('video[data-main-vec-watchdog="true"]')) pauseVideo(item);
+    });
 
     if (video) scheduleRetries(player, video);
   }
@@ -113,6 +148,7 @@
     audio.dataset.desktopVecPlaybackRepairBound = 'true';
     audio.addEventListener('play', syncDesktopVideo);
     audio.addEventListener('playing', syncDesktopVideo);
+    audio.addEventListener('timeupdate', syncDesktopVideo);
     audio.addEventListener('pause', syncDesktopVideo);
     audio.addEventListener('ended', syncDesktopVideo);
     audio.addEventListener('emptied', syncDesktopVideo);
@@ -122,11 +158,14 @@
     if (!video || video.dataset.desktopVecPlaybackRepairBound === 'true') return;
     video.dataset.desktopVecPlaybackRepairBound = 'true';
     prepareVideo(video);
-    video.addEventListener('loadeddata', syncDesktopVideo);
-    video.addEventListener('canplay', syncDesktopVideo);
-    video.addEventListener('stalled', () => {
-      const player = currentPlayer();
-      if (player && canPlayWithAudio(player, video)) scheduleRetries(player, video);
+    ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough'].forEach(eventName => {
+      video.addEventListener(eventName, syncDesktopVideo, { passive: true });
+    });
+    ['stalled', 'suspend', 'waiting'].forEach(eventName => {
+      video.addEventListener(eventName, () => {
+        const player = currentPlayer();
+        if (player && canPlayWithAudio(player, video)) scheduleRetries(player, video);
+      }, { passive: true });
     });
   }
 
@@ -142,12 +181,15 @@
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['class', 'hidden']
+    attributeFilter: ['class', 'hidden', 'src']
   });
+
+  window.addEventListener('stashbox:vec-asset-change', syncDesktopVideo);
 
   if (typeof DESKTOP.addEventListener === 'function') {
     DESKTOP.addEventListener('change', syncDesktopVideo);
   }
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       const player = currentPlayer();
@@ -156,7 +198,8 @@
     }
     syncDesktopVideo();
   });
-  window.addEventListener('resize', syncDesktopVideo);
+
+  window.addEventListener('resize', syncDesktopVideo, { passive: true });
 
   const player = currentPlayer();
   if (player) {
