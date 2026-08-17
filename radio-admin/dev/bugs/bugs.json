@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-17T13:23:00-04:00",
+  "updated_at": "2026-08-17T17:02:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -30,25 +30,25 @@
     {
       "id": "SR-BUG-0002",
       "title": "Full song titles truncate with ellipses in media players",
-      "status": "Open",
+      "status": "Fixed",
       "verification": "Pending",
       "severity": "High",
       "area": "Player",
       "environment": "Both",
       "reported_at": "2026-07-24",
-      "fixed_at": null,
+      "fixed_at": "2026-08-17",
       "verified_at": null,
       "symptom": "Long song titles are shortened with ellipses instead of remaining fully visible.",
       "affected_examples": ["Media player layouts with long song titles"],
       "working_comparisons": ["Short song titles"],
-      "root_cause": "Unknown. Historical backfill awaiting current-code diagnosis.",
-      "fix_summary": "No verified fix is recorded yet.",
+      "root_cause": "Not recorded during the original repair. Historical backfill.",
+      "fix_summary": "User confirmed on 2026-08-17 that the song-title truncation issue is fixed.",
       "files_changed": [],
       "commits": [],
       "related_bugs": [],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0002.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0002.md",
       "repair_playbook": null,
-      "future_repair": "Inspect title container width, overflow, white-space, line-clamp, font sizing, and responsive breakpoints. Verify with the longest known titles on desktop and mobile."
+      "future_repair": "If truncation returns, inspect title container width, overflow, white-space, line-clamp, font sizing, and responsive breakpoints. Verify with the longest known titles on desktop and mobile."
     },
     {
       "id": "SR-BUG-0003",
