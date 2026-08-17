@@ -5,7 +5,7 @@ Last updated: 2026-08-17
 | ID | Title | Area | Severity | Environment | Status | Reported | Fix commit |
 |---|---|---|---|---|---|---|---|
 | SR-BUG-0001 | Desktop VEC video flickers to song artwork during unstable clips | VEC Player | High | DEV V2 | Fixed, verification pending | 2026-08-09 | `3f7a43f9` |
-| SR-BUG-0002 | Full song titles truncate with ellipses in media players | Player | High | Both | Open | 2026-07-24 | - |
+| SR-BUG-0002 | Full song titles truncate with ellipses in media players | Player | High | Both | Fixed, verification pending | 2026-07-24 | - |
 | SR-BUG-0003 | VEC badge duplicates and pushes controls down | VEC | Medium | DEV | Open | 2026-07-25 | - |
 | SR-BUG-0004 | Notification feed remains stale for more than a day | Notifications | High | Both | Open | 2026-07-25 | - |
 | SR-BUG-0005 | Share events do not increment retained share counts | Dashboard | High | Both | Open | 2026-06 | - |
@@ -18,7 +18,6 @@ Last updated: 2026-08-17
 
 ## Open / investigating
 
-- `SR-BUG-0002` - Full song titles truncate with ellipses in media players.
 - `SR-BUG-0003` - VEC badge duplicates and pushes controls down.
 - `SR-BUG-0004` - Notification feed remains stale for more than a day.
 - `SR-BUG-0005` - Share events do not increment retained share counts.
@@ -32,6 +31,7 @@ Last updated: 2026-08-17
 ## Fixed, awaiting verification
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
+- `SR-BUG-0002` - Full song titles truncate with ellipses in media players.
 
 ## Verified
 
