@@ -5,14 +5,25 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
+  const loadVisibilityRepair = () => {
+    if (document.querySelector('script[data-desktop-rescue-visibility-repair="true"]')) return;
+    const repair = document.createElement('script');
+    repair.src = '/radio/dev/v2/v2-desktop-rescue-visibility-repair-20260817.js?v=20260817-desktopvideo1';
+    repair.async = false;
+    repair.dataset.desktopRescueVisibilityRepair = 'true';
+    document.head.appendChild(repair);
+  };
+
   const loadDesktopVideoRuntime = () => {
     if (document.querySelector('script[data-desktop-video-runtime="true"]')) return;
     const runtime = document.createElement('script');
-    runtime.src = '/radio/dev/v2/v2-desktop-video-runtime-20260816-153.js?v=20260816-fitfix1';
+    runtime.src = '/radio/dev/v2/v2-desktop-video-runtime-20260816-153.js?v=20260817-visibilityrepair1';
     runtime.async = false;
     runtime.dataset.desktopVideoRuntime = 'true';
     document.head.appendChild(runtime);
   };
+
+  loadVisibilityRepair();
 
   const script = document.createElement('script');
   script.src = '/radio/dev/v2/v2-vec-player-controller.js?v=20260806-desktop-only1';
