@@ -236,26 +236,26 @@
     },
     {
       "id": "SR-BUG-0011",
-      "title": "Desktop media video does not play",
+      "title": "Desktop VEC media flickers and video does not trigger",
       "status": "Open",
       "verification": "Pending",
       "severity": "High",
-      "area": "Player",
-      "environment": "DEV",
+      "area": "VEC Player",
+      "environment": "DEV V2",
       "reported_at": "2026-08-11",
       "fixed_at": null,
       "verified_at": null,
-      "symptom": "Desktop playback fails to start or display the intended video while the media player otherwise loads.",
-      "affected_examples": ["Desktop report during the 2026-08-11 health-scan repair session"],
-      "working_comparisons": [],
-      "root_cause": "Unknown. Historical backfill awaiting current-code and browser-console diagnosis.",
-      "fix_summary": "No verified fix is recorded in the bug system yet.",
+      "symptom": "Desktop VEC playback can flicker between song artwork, graphics, and video states, while intended VEC videos fail to trigger or start. On Firefox desktop, song graphics may also fail to appear and VEC videos may neither appear nor start.",
+      "affected_examples": ["Desktop health-scan playback report from 2026-08-11", "Renewed VEC flicker report from 2026-08-17", "Firefox desktop missing graphics and videos on 2026-08-17"],
+      "working_comparisons": ["Desktop browser/device combinations where VEC assets render normally"],
+      "root_cause": "Unknown. Investigation targets include desktop VEC renderer/media lifecycle, asset handoff state, video readiness/play triggering, browser autoplay or play() behavior, and competing artwork fallback/transition state. Renewed flicker may represent a regression of SR-BUG-0001.",
+      "fix_summary": "No verified fix is recorded yet. Current repair must address both flicker and failed video triggering, with Firefox desktop explicitly included in verification.",
       "files_changed": [],
       "commits": [],
       "related_bugs": ["SR-BUG-0001", "SR-BUG-0009"],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "Inspect video source resolution, play promise errors, media readiness, VEC ownership state, transition guards, and browser console output."
+      "future_repair": "Trace selected VEC assets from eligibility through render/playback. Log image/video load state, play() success or failure, fallback activation, stage ownership, and browser. Verify Firefox, Chrome, and Edge desktop plus mixed image/video handoffs and unattended playback before marking fixed."
     }
   ]
 }
