@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-17T17:07:00-04:00",
+  "updated_at": "2026-08-17T17:42:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -191,25 +191,25 @@
     {
       "id": "SR-BUG-0009",
       "title": "Wide desktop player selects square artwork instead of wide assets",
-      "status": "Open",
+      "status": "Fixed",
       "verification": "Pending",
       "severity": "High",
       "area": "Player",
       "environment": "DEV",
       "reported_at": "2026-08-04",
-      "fixed_at": null,
+      "fixed_at": "2026-08-17",
       "verified_at": null,
       "symptom": "A wide desktop player selects 1:1 artwork and heavily crops it instead of using an available 16:9 or 21:9 asset.",
       "affected_examples": ["Desktop player report from 2026-08-04"],
       "working_comparisons": ["Square artwork in square or narrow placements"],
-      "root_cause": "Unknown. Historical backfill awaiting inspection of ratio selection, asset metadata, fallback order, and responsive breakpoints.",
-      "fix_summary": "No verified fix is recorded yet.",
+      "root_cause": "Not recorded during the original repair. Historical backfill awaited inspection of ratio selection, asset metadata, fallback order, and responsive breakpoints.",
+      "fix_summary": "User confirmed on 2026-08-17 that the wide desktop artwork selection issue is fixed.",
       "files_changed": [],
       "commits": [],
       "related_bugs": ["SR-BUG-0001", "SR-BUG-0011"],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0009.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0009.md",
       "repair_playbook": null,
-      "future_repair": "Inspect desktop ratio selection and metadata. Verify deterministic wide-first fallback with complete and partial ratio sets."
+      "future_repair": "If the issue returns, inspect desktop ratio selection and metadata. Verify deterministic wide-first fallback with complete and partial ratio sets."
     },
     {
       "id": "SR-BUG-0010",
