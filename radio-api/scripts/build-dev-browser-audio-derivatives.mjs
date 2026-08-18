@@ -12,8 +12,10 @@ const API = process.env.DEV_RADIO_API || 'https://d21fbe6u80.execute-api.us-east
 const BUCKET = process.env.DEV_MEDIA_BUCKET || 'stashbox-radio-media-dev-us-east-1';
 const CDN = process.env.DEV_MEDIA_CDN || 'https://d1ufj7xan6uxy0.cloudfront.net';
 const OUTPUT = process.env.BROWSER_AUDIO_MAP_OUTPUT || 'radio/dev/v2/desktop/browser-audio-map.js';
+const REPORT_OUTPUT = process.env.BROWSER_AUDIO_REPORT_OUTPUT || '/tmp/browser-audio-derivatives-report.json';
 const CONCURRENCY = Math.max(1, Math.min(6, Number(process.env.BROWSER_AUDIO_CONCURRENCY || 3)));
 const TITLE_FILTER = String(process.env.BROWSER_AUDIO_TITLE_FILTER || '').trim().toLowerCase();
+const STRICT = String(process.env.BROWSER_AUDIO_STRICT || '').toLowerCase() === 'true';
 
 const clean = value => String(value ?? '').trim();
 const unwrap = value => {
@@ -79,7 +81,13 @@ async function buildOne(item, index) {
 
   if (await exists(browserKey)) {
     console.log(`[${index + 1}] exists ${browserKey}`);
-    return [original, browser];
+    return { original, browser, sourceKey, browserKey, title: item.title, status: 'existing' };
+  }
+
+  if (!(await exists(sourceKey))) {
+    const error = new Error(`source-missing:${sourceKey}`);
+    error.code = 'SOURCE_MISSING';
+    throw error;
   }
 
   const work = await fs.mkdtemp(path.join(os.tmpdir(), 'stashbox-audio-'));
@@ -105,21 +113,29 @@ async function buildOne(item, index) {
       '--only-show-errors'
     ], { maxBuffer: 4 * 1024 * 1024 });
 
-    return [original, browser];
+    return { original, browser, sourceKey, browserKey, title: item.title, status: 'created' };
   } finally {
     await fs.rm(work, { recursive: true, force: true });
   }
 }
 
-async function worker(queue, results) {
+async function worker(queue, successes, failures) {
   while (queue.length) {
     const task = queue.shift();
     if (!task) return;
     try {
-      results.push(await buildOne(task.item, task.index));
+      successes.push(await buildOne(task.item, task.index));
     } catch (error) {
-      console.error(`[${task.index + 1}] failed ${task.item.sourceKey}: ${error?.stderr || error?.message || error}`);
-      throw error;
+      const detail = {
+        index: task.index,
+        title: task.item.title,
+        original: task.item.original,
+        sourceKey: task.item.sourceKey,
+        code: clean(error?.code || 'BUILD_FAILED'),
+        error: clean(error?.stderr || error?.message || error).slice(0, 2000)
+      };
+      failures.push(detail);
+      console.error(`[${task.index + 1}] skipped ${task.item.sourceKey}: ${detail.error}`);
     }
   }
 }
@@ -151,13 +167,37 @@ console.log(`Filter: ${TITLE_FILTER || '(all WAV songs)'}`);
 console.log(`WAV derivatives requested: ${items.length}`);
 
 const queue = items.map((item, index) => ({ item, index }));
-const results = [];
-await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(1, queue.length)) }, () => worker(queue, results)));
+const successes = [];
+const failures = [];
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(1, queue.length)) }, () => worker(queue, successes, failures)));
 
 const map = await readExistingMap();
-for (const [original, browser] of results) map[original] = browser;
+for (const result of successes) map[result.original] = result.browser;
 const sorted = Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
 const content = `(() => {\n  'use strict';\n  window.STASHBOX_BROWSER_AUDIO_MAP = Object.freeze(${JSON.stringify(sorted, null, 2)});\n})();\n`;
 await fs.mkdir(path.dirname(OUTPUT), { recursive: true });
 await fs.writeFile(OUTPUT, content);
-console.log(`Wrote ${Object.keys(sorted).length} total browser audio mappings to ${OUTPUT} (${results.length} processed in this batch)`);
+
+const report = {
+  generatedAt: new Date().toISOString(),
+  catalogSongs: catalog.length,
+  filter: TITLE_FILTER || null,
+  requested: items.length,
+  successful: successes.length,
+  created: successes.filter(item => item.status === 'created').length,
+  existing: successes.filter(item => item.status === 'existing').length,
+  failed: failures.length,
+  mapSize: Object.keys(sorted).length,
+  failures,
+  successes: successes.map(({ original, browser, sourceKey, browserKey, title, status }) => ({ original, browser, sourceKey, browserKey, title, status }))
+};
+await fs.mkdir(path.dirname(REPORT_OUTPUT), { recursive: true });
+await fs.writeFile(REPORT_OUTPUT, `${JSON.stringify(report, null, 2)}\n`);
+
+console.log(`Wrote ${report.mapSize} total browser audio mappings to ${OUTPUT}`);
+console.log(`Batch result: ${report.successful} successful, ${report.failed} skipped.`);
+if (failures.length) console.log(`Skipped sources are recorded in ${REPORT_OUTPUT}.`);
+
+if (STRICT && failures.length) {
+  throw new Error(`Strict derivative batch failed for ${failures.length} source(s).`);
+}
