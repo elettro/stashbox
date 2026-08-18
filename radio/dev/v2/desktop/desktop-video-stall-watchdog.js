@@ -3,14 +3,6 @@
 
   if (!matchMedia('(min-width: 900px)').matches || window.StashboxDesktopVideoStallWatchdog) return;
 
-  if (!window.StashboxV2PlayTracker && !document.querySelector('script[data-v2-play-tracker-loader]')) {
-    const tracker = document.createElement('script');
-    tracker.src = '/radio/dev/v2/v2-play-tracker.js?v=20260818-play10-1';
-    tracker.defer = true;
-    tracker.dataset.v2PlayTrackerLoader = '1';
-    document.head.appendChild(tracker);
-  }
-
   const STALL_MS = 3200;
   const RETRY_GRACE_MS = 1400;
   const MIN_PROGRESS = 0.08;
