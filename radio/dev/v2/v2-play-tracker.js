@@ -19,7 +19,10 @@
     lastWallMs: 0,
     qualified: false,
     pending: false,
-    sourceToken: ''
+    sourceToken: '',
+    persistAttempts: 0,
+    persistSuccesses: 0,
+    lastPersistedTotal: null
   };
 
   const clean = value => String(value ?? '').trim();
@@ -117,6 +120,9 @@
     state.qualified = false;
     state.pending = false;
     state.sourceToken = audio ? canonicalPath(audio.currentSrc || audio.src) : '';
+    state.persistAttempts = 0;
+    state.persistSuccesses = 0;
+    state.lastPersistedTotal = null;
   }
 
   async function ensureSession(audio) {
@@ -132,9 +138,22 @@
     return song;
   }
 
+  function syncVisiblePlayTotal(song, total) {
+    if (!song?.key || !Number.isFinite(Number(total))) return;
+    const player = activePlayer(state.audio);
+    if (!player) return;
+    const value = String(Math.max(0, Number(total)));
+    player.dataset.totalPlays = value;
+    player.querySelectorAll('[data-plays], [data-play-count], [data-total-plays]').forEach(node => {
+      if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) node.value = value;
+      else node.textContent = value;
+    });
+  }
+
   async function persistQualifiedPlay(song) {
     if (!song?.key || state.qualified || state.pending) return false;
     state.pending = true;
+    state.persistAttempts += 1;
     const sessionId = state.sessionId || makeSessionId(song.key);
     try {
       const response = await fetch(TRACK_URL, {
@@ -152,16 +171,29 @@
           source: 'v2_play_tracker'
         })
       });
-      if (!response.ok) throw new Error(`track ${response.status}`);
+      const text = await response.text();
+      let body = {};
+      try { body = text ? JSON.parse(text) : {}; } catch (_) {}
+      if (!response.ok) throw new Error(body?.error || `track ${response.status}`);
+
       state.qualified = true;
       state.pending = false;
-      song.totalPlays = Math.max(0, Number(song.totalPlays || 0)) + 1;
+      state.persistSuccesses += 1;
+      const serverTotal = Number(body?.total_plays ?? body?.play_count ?? body?.plays);
+      song.totalPlays = Number.isFinite(serverTotal)
+        ? Math.max(0, serverTotal)
+        : Math.max(0, Number(song.totalPlays || 0)) + 1;
+      state.lastPersistedTotal = song.totalPlays;
+      syncVisiblePlayTotal(song, song.totalPlays);
+
       window.dispatchEvent(new CustomEvent('stashbox:qualified-play', {
         detail: {
           songKey: song.key,
           sessionId,
           listenedSeconds: state.listenedSeconds,
-          totalPlays: song.totalPlays
+          totalPlays: song.totalPlays,
+          persistAttempts: state.persistAttempts,
+          persistSuccesses: state.persistSuccesses
         }
       }));
       return true;
@@ -251,7 +283,10 @@
       listenedSeconds: state.listenedSeconds,
       qualified: state.qualified,
       pending: state.pending,
-      sourceToken: state.sourceToken
+      sourceToken: state.sourceToken,
+      persistAttempts: state.persistAttempts,
+      persistSuccesses: state.persistSuccesses,
+      lastPersistedTotal: state.lastPersistedTotal
     })
   });
 })();
