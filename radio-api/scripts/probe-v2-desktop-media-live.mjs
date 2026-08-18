@@ -20,8 +20,6 @@ const browsers = [
   { name: 'firefox', type: firefox, launch: { headless: true } },
 ];
 
-const clean = value => String(value ?? '').trim();
-
 async function run(def) {
   const browser = await def.type.launch(def.launch);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -92,7 +90,7 @@ async function run(def) {
     if ((await target.count()) === 0) target = cards.first();
     const selected = await target.evaluate(node => ({
       key: node.getAttribute('data-song') || '',
-      text: clean(node.textContent).replace(/\s+/g, ' '),
+      text: String(node.textContent || '').trim().replace(/\s+/g, ' '),
     }));
     await target.click();
 
