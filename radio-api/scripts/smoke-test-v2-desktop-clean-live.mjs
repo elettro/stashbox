@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { chromium, firefox } from 'playwright';
+import { chromium } from 'playwright';
 
 const BASE_URL = process.env.V2_URL || 'https://stashbox.com/radio/dev/v2/';
 const API_BASE = process.env.VEC_API_BASE || 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
@@ -10,13 +10,14 @@ const OUTPUT_DIR = path.resolve(process.env.DESKTOP_HEALTH_OUTPUT_DIR || 'artifa
 const TIMEOUT_MS = Number(process.env.DESKTOP_HEALTH_TIMEOUT_MS || 60000);
 const TEST_ORIGIN = new URL(BASE_URL).origin;
 
+// Generic interaction health runs in Chromium. Native media compatibility is
+// verified separately by the official system Firefox and Microsoft Edge probes.
 const browserDefs = [
   {
     name: 'chromium',
     type: chromium,
     launch: { headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'] },
   },
-  { name: 'firefox', type: firefox, launch: { headless: true } },
 ];
 
 const forbiddenRuntimeFragments = [
@@ -303,34 +304,27 @@ async function runBrowser(def, api) {
       consoleErrors,
       grade: { ok: false, failures: [error?.message || String(error)] },
     };
+  } finally {
+    await page.screenshot({ path: path.join(OUTPUT_DIR, `${def.name}.png`), fullPage: true }).catch(() => {});
+    await context.close();
+    await browser.close();
   }
-
-  await page.screenshot({ path: path.join(OUTPUT_DIR, `${def.name}.png`), fullPage: false }).catch(() => {});
-  await fs.writeFile(path.join(OUTPUT_DIR, `${def.name}.json`), JSON.stringify(result, null, 2));
-  await context.close();
-  await browser.close();
   return result;
 }
 
+await fs.rm(OUTPUT_DIR, { recursive: true, force: true });
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
-const api = await probeApi().catch(error => ({ ok: false, failures: [error?.message || String(error)], songKey: '', songTitle: '', catalogCount: 0, directAssetCount: 0, statuses: {} }));
+
+const api = await probeApi();
 const results = [];
 for (const def of browserDefs) results.push(await runBrowser(def, api));
-
 const summary = {
   generatedAt: new Date().toISOString(),
   baseUrl: BASE_URL,
-  apiBase: API_BASE,
   api,
-  ok: api.ok && results.every(result => result.grade?.ok),
   results,
+  ok: api.ok && results.every(result => result.grade?.ok),
 };
-await fs.writeFile(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
-
-console.log(`[${api.ok ? 'HEALTHY' : 'FAILED'}] DEV API`);
-for (const failure of api.failures || []) console.error(`  ${failure}`);
-for (const result of results) {
-  console.log(`[${result.grade?.ok ? 'HEALTHY' : 'FAILED'}] ${result.browser}`);
-  for (const failure of result.grade?.failures || []) console.error(`  ${failure}`);
-}
-if (!summary.ok) process.exitCode = 1;
+await fs.writeFile(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
+console.log(JSON.stringify(summary, null, 2));
+process.exit(summary.ok ? 0 : 1);
