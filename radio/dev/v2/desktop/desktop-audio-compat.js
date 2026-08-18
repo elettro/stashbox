@@ -21,15 +21,28 @@
     return clean(MAP[raw] || MAP[canonical(raw)] || '');
   }
 
+  function preferredStream(song, original) {
+    const stream = clean(song?.audio_stream_url || song?.stream_url || song?.mp3_url || song?.preferred_audio_url);
+    const status = clean(song?.audio_transcode_status).toLowerCase();
+    if (stream && (!status || status === 'ready')) return stream;
+    return derivativeFor(original);
+  }
+
   function rewriteSong(song) {
     if (!song || typeof song !== 'object') return song;
-    const original = clean(song.audio_url || song.resolved_audio_url || song.audioUrl || song.stream_url || song.mp3_url);
-    const browser = derivativeFor(original);
+    const original = clean(song.audio_master_url || song.audio_url || song.resolved_audio_url || song.audioUrl || song.stream_url || song.mp3_url);
+    const browser = preferredStream(song, original);
     if (!browser) return song;
+
+    reverse.set(canonical(browser), original);
+    reverse.set(clean(browser), original);
+
     return {
       ...song,
       browser_original_audio_url: original,
       browser_audio_url: browser,
+      preferred_audio_url: browser,
+      audio_master_url: clean(song.audio_master_url || original),
       audio_url: browser,
       resolved_audio_url: browser,
       audioUrl: browser,
@@ -58,14 +71,14 @@
 
   window.fetch = async (input, init = {}) => {
     const response = await underlyingFetch(input, init);
-    if (!isSongsRequest(input) || !response.ok || !Object.keys(MAP).length) return response;
+    if (!isSongsRequest(input) || !response.ok) return response;
     try {
       const text = await response.clone().text();
       const parsed = text ? JSON.parse(text) : {};
       const rewritten = rewritePayload(parsed);
       const headers = new Headers(response.headers);
       headers.set('content-type', 'application/json');
-      headers.set('x-stashbox-audio-source', 'browser-derivative-map');
+      headers.set('x-stashbox-audio-source', 'rds-stream-preferred');
       return new Response(JSON.stringify(rewritten), {
         status: response.status,
         statusText: response.statusText,
@@ -102,6 +115,6 @@
     mapSize: () => Object.keys(MAP).length,
     derivativeFor,
     originalFor: value => reverse.get(canonical(value)) || reverse.get(clean(value)) || '',
-    state: () => ({ mapSize: Object.keys(MAP).length })
+    state: () => ({ mapSize: Object.keys(MAP).length, dynamicMappings: reverse.size })
   });
 })();
