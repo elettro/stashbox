@@ -73,6 +73,12 @@
   function getShareButton() {
     const player = app.querySelector('.v2-player:not([hidden])') || app.querySelector('[data-player]:not([hidden])');
     if (!player) return null;
+
+    if (matchMedia('(max-width: 899px)').matches) {
+      const railShare = player.querySelector('[data-li-share]');
+      if (railShare) return railShare;
+    }
+
     const buttons = [...player.querySelectorAll('[data-share]')];
     const visible = buttons.find(button => button.getClientRects().length && getComputedStyle(button).display !== 'none');
     return visible || buttons[0] || null;
@@ -84,30 +90,20 @@
 
     let count = shareButton.querySelector('[data-shares]');
     if (!count) {
-      count = document.createElement('span');
+      count = document.createElement('strong');
       count.setAttribute('data-shares', '');
       count.className = 'v2-share-count';
       count.textContent = '0';
     }
 
     if (matchMedia('(max-width: 899px)').matches) {
-      let label = shareButton.querySelector('[data-share-label]');
-      if (!label) {
-        label = [...shareButton.children].find(child => child !== count && child.tagName !== 'SVG' && norm(child.textContent) === 'share') || null;
-      }
-      if (!label) {
-        label = document.createElement('span');
-        label.setAttribute('data-share-label', '');
-        label.className = 'v2-share-label';
-        label.textContent = 'Share';
-        shareButton.appendChild(label);
-      } else if (!label.hasAttribute('data-share-label')) {
-        label.setAttribute('data-share-label', '');
-        label.classList.add('v2-share-label');
-      }
-
-      if (count.parentElement !== shareButton || count.nextElementSibling !== label) {
-        shareButton.insertBefore(count, label);
+      const label = [...shareButton.children].find(child => child.tagName === 'SMALL') || null;
+      if (label) {
+        if (count.parentElement !== shareButton || count.nextElementSibling !== label) {
+          shareButton.insertBefore(count, label);
+        }
+      } else if (count.parentElement !== shareButton) {
+        shareButton.appendChild(count);
       }
     } else if (count.parentElement !== shareButton) {
       shareButton.appendChild(count);
@@ -164,9 +160,6 @@
 
   function countShare(song = currentSong()) {
     if (!song?.key) return;
-
-    // Count immediately and never roll the UI back because a native share sheet was
-    // dismissed or an analytics request was slow. Each physical Share click is valid.
     song.shares = Math.max(0, Number(song.shares || 0)) + 1;
     render();
 
@@ -185,8 +178,6 @@
       url: location.href
     };
 
-    // navigator.share must be invoked synchronously from the physical click. Do not
-    // await it and do not retain its Promise; every later click gets a fresh request.
     try {
       if (typeof navigator.share === 'function') {
         Promise.resolve(navigator.share(payload)).catch(() => {});
@@ -208,27 +199,13 @@
       pointer-events: none;
     }
     @media (max-width: 899px) {
-      .v2-player [data-share] {
-        position: relative;
-      }
-      .v2-player [data-share] .v2-share-count {
+      .v2-li-player-rail [data-li-share] .v2-share-count {
         display: block;
-        order: 2;
         margin: 2px 0 1px;
-        font-size: 11px;
-        line-height: 1;
-      }
-      .v2-player [data-share] > svg {
-        order: 1;
-      }
-      .v2-player [data-share] .v2-share-label {
-        display: block;
-        order: 3;
-        font-size: 10px;
+        font-size: 12px;
         font-weight: 700;
         line-height: 1;
-        opacity: .78;
-        pointer-events: none;
+        text-align: center;
       }
     }
     @media (min-width: 900px) {
@@ -243,20 +220,13 @@
         display: inline-block;
         font-size: 13px;
       }
-      .v2-player [data-share] .v2-share-label {
-        display: none !important;
-      }
     }
   `;
   document.head.appendChild(style);
 
   document.addEventListener('click', event => {
-    const shareButton = event.target.closest('#v2App [data-share]');
-    if (!shareButton) return;
-
-    if (matchMedia('(min-width: 900px)').matches) {
-      // The legacy recovery handler also owns [data-share]. Take desktop Share over
-      // here so its async native-share flow cannot consume/freeze the player.
+    const desktopShareButton = event.target.closest('#v2App [data-share]');
+    if (desktopShareButton && matchMedia('(min-width: 900px)').matches) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -266,7 +236,13 @@
       return;
     }
 
-    countShare();
+    const mobileRailShare = event.target.closest('#v2App [data-li-share]');
+    if (mobileRailShare && matchMedia('(max-width: 899px)').matches) {
+      countShare();
+      return;
+    }
+
+    if (desktopShareButton) countShare();
   }, true);
 
   state.observer = new MutationObserver(() => render());
