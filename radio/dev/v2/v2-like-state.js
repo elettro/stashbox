@@ -35,6 +35,13 @@
     };
   }
 
+  function fallbackUiKey() {
+    const title = document.querySelector('#v2App [data-ptitle]')?.textContent?.trim() || '';
+    const artist = document.querySelector('#v2App [data-partist]')?.textContent?.trim() || '';
+    if (!title) return '';
+    return `ui:${title.toLowerCase()}::${artist.toLowerCase()}`;
+  }
+
   function resolveCurrentKey() {
     const player = document.querySelector('#v2App [data-player]');
     const button = player?.querySelector('[data-like]');
@@ -44,16 +51,14 @@
       button?.dataset.likeSongKey ||
       ''
     ).trim();
-    if (explicitKey) {
+    if (explicitKey && !explicitKey.startsWith('ui:')) {
       currentKey = explicitKey;
       return currentKey;
     }
 
-    if (currentKey) return currentKey;
-
     const title = document.querySelector('#v2App [data-ptitle]')?.textContent?.trim() || '';
     const artist = document.querySelector('#v2App [data-partist]')?.textContent?.trim() || '';
-    if (!title) return '';
+    if (!title) return currentKey || '';
 
     const exact = songElements().find(element => {
       const elementTitle = element.querySelector('h3')?.textContent?.trim() || '';
@@ -61,8 +66,13 @@
       return elementTitle === title && (!artist || elementArtist === artist);
     });
     const titleOnly = exact || songElements().find(element => (element.querySelector('h3')?.textContent?.trim() || '') === title);
+    const resolved = String(titleOnly?.dataset.song || '').trim();
+    if (resolved) {
+      currentKey = resolved;
+      return currentKey;
+    }
 
-    currentKey = String(titleOnly?.dataset.song || '');
+    currentKey = fallbackUiKey();
     return currentKey;
   }
 
@@ -91,7 +101,7 @@
     if (!player || player.hidden) return;
 
     const primaryButton = player.querySelector('[data-like]');
-    const primaryCount = player.querySelector('[data-likes]');
+    const primaryCount = player.querySelector('[data-likes]') || primaryButton?.querySelector('span');
     const railButton = player.querySelector('[data-li-favorite]');
     const railCount = player.querySelector('[data-li-like-count]');
 
@@ -125,7 +135,7 @@
   function syncLikeUi() {
     const player = document.querySelector('#v2App [data-player]');
     const button = player?.querySelector('[data-like]');
-    const count = player?.querySelector('[data-likes]');
+    const count = player?.querySelector('[data-likes]') || button?.querySelector('span');
     if (!player || player.hidden || !button || !count) return;
 
     const key = resolveCurrentKey();
@@ -147,6 +157,7 @@
   }
 
   async function sendLikeOnce(key) {
+    if (!key || key.startsWith('ui:')) throw new Error('Song key is still resolving.');
     const details = songDetails(key);
     const response = await fetch(TRACK_URL, {
       method: 'POST',
@@ -196,12 +207,13 @@
   }
 
   async function handleLike(button) {
-    const count = document.querySelector('#v2App [data-likes]');
-    const key = resolveCurrentKey();
+    const player = document.querySelector('#v2App [data-player]');
+    const count = player?.querySelector('[data-likes]') || button?.querySelector('span');
+    const key = resolveCurrentKey() || fallbackUiKey();
     if (!button || !count || !key || button.dataset.likeSaving === 'true') return;
 
     if (numberValue(likedCounts[key]) > 0) {
-      syncLikeUi();
+      applyLikeUi({ key, count: numberValue(likedCounts[key]), liked: true, source: 'already-liked' });
       return;
     }
 
@@ -220,9 +232,6 @@
       delete button.dataset.likePending;
       applyLikeUi({ key, count: confirmedCount, liked: true, source: 'confirmed' });
     } catch (error) {
-      // Keep the user's visible heart and +1 instead of making the control appear
-      // dead. The authenticated Favorites write is handled separately, and this
-      // local state remains available for a later server reconciliation.
       button.dataset.likePending = 'true';
       applyLikeUi({ key, count: likedCount, liked: true, source: 'pending' });
       dispatchLikeUpdate(key, likedCount, true, 'error', error.message || 'Like count is awaiting synchronization.');
@@ -277,12 +286,12 @@
 
     playerObserver?.disconnect();
     playerObserver = new MutationObserver(() => {
-      currentKey = String(player.dataset.currentSongKey || '');
+      const explicit = String(player.dataset.currentSongKey || '').trim();
+      currentKey = explicit && !explicit.startsWith('ui:') ? explicit : '';
       scheduleSync(20);
     });
     playerObserver.observe(player, { attributes: true, attributeFilter: ['hidden', 'data-current-song-key'] });
     playerObserver.observe(title, { childList: true, characterData: true, subtree: true });
-    playerObserver.observe(player, { childList: true, subtree: true });
     scheduleSync();
     return true;
   }
