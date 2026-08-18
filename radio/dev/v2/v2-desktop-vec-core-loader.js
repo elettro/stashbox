@@ -36,7 +36,7 @@
     if (!document.querySelector('link[data-vec2-style="true"]')) {
       const css = document.createElement('link');
       css.rel = 'stylesheet';
-      css.href = '/radio/dev/v2/vec2/vec2-stage.css?v=20260817-core4';
+      css.href = '/radio/dev/v2/vec2/vec2-stage.css?v=20260817-controls1';
       css.dataset.vec2Style = 'true';
       document.head.appendChild(css);
     }
