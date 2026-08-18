@@ -68,8 +68,16 @@
       || null;
   }
 
+  function getShareButton() {
+    const player = app.querySelector('.v2-player:not([hidden])') || app.querySelector('[data-player]:not([hidden])');
+    if (!player) return null;
+    const buttons = [...player.querySelectorAll('[data-share]')];
+    const visible = buttons.find(button => button.getClientRects().length && getComputedStyle(button).display !== 'none');
+    return visible || buttons[0] || null;
+  }
+
   function ensureCountNode() {
-    const shareButton = app.querySelector('[data-player] [data-share], .v2-player [data-share]');
+    const shareButton = getShareButton();
     if (!shareButton) return null;
 
     let count = shareButton.querySelector('[data-shares]');
@@ -78,8 +86,32 @@
       count.setAttribute('data-shares', '');
       count.className = 'v2-share-count';
       count.textContent = '0';
+    }
+
+    if (matchMedia('(max-width: 899px)').matches) {
+      // Use the original Share button only. The count belongs between its icon and label.
+      let label = shareButton.querySelector('[data-share-label]');
+      if (!label) {
+        label = [...shareButton.children].find(child => child !== count && child.tagName !== 'SVG' && norm(child.textContent) === 'share') || null;
+      }
+      if (!label) {
+        label = document.createElement('span');
+        label.setAttribute('data-share-label', '');
+        label.className = 'v2-share-label';
+        label.textContent = 'Share';
+        shareButton.appendChild(label);
+      } else if (!label.hasAttribute('data-share-label')) {
+        label.setAttribute('data-share-label', '');
+        label.classList.add('v2-share-label');
+      }
+
+      if (count.parentElement !== shareButton || count.nextElementSibling !== label) {
+        shareButton.insertBefore(count, label);
+      }
+    } else if (count.parentElement !== shareButton) {
       shareButton.appendChild(count);
     }
+
     return count;
   }
 
@@ -106,7 +138,6 @@
   const style = document.createElement('style');
   style.textContent = `
     .v2-share-count {
-      display: block;
       min-width: 1ch;
       font: inherit;
       line-height: 1;
@@ -114,27 +145,43 @@
       pointer-events: none;
     }
     @media (max-width: 899px) {
-      [data-share] {
-        display: inline-flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 3px !important;
+      .v2-player [data-share] {
+        position: relative;
       }
-      [data-share] .v2-share-count {
+      .v2-player [data-share] .v2-share-count {
+        display: block;
+        order: 2;
+        margin: 2px 0 1px;
         font-size: 11px;
+        line-height: 1;
+      }
+      .v2-player [data-share] > svg {
+        order: 1;
+      }
+      .v2-player [data-share] .v2-share-label {
+        display: block;
+        order: 3;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        opacity: .78;
+        pointer-events: none;
       }
     }
     @media (min-width: 900px) {
-      [data-share] {
+      .v2-player [data-share] {
         display: inline-flex !important;
         flex-direction: row !important;
         align-items: center !important;
         justify-content: center !important;
         gap: 7px !important;
       }
-      [data-share] .v2-share-count {
+      .v2-player [data-share] .v2-share-count {
+        display: inline-block;
         font-size: 13px;
+      }
+      .v2-player [data-share] .v2-share-label {
+        display: none !important;
       }
     }
   `;
@@ -151,6 +198,7 @@
   refresh();
   window.addEventListener('pageshow', () => refresh(true));
   window.addEventListener('focus', () => refresh(true));
+  window.addEventListener('resize', render, { passive: true });
 
   window.StashboxV2ShareCount = Object.freeze({ refresh: () => refresh(true) });
 })();
