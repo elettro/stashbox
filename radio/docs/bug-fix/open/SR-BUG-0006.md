@@ -65,6 +65,12 @@ The former dynamic play-tracker loaders were removed from:
 
 The global `window.StashboxV2PlayTracker` guard remains as a second line of duplicate protection. A legacy secondary loader remains in `v2-spacebar-transport.js`, but the global guard prevents a second tracker instance. Future cleanup should remove that loader after confirming every supported V2 shell directly loads the tracker.
 
+## Live verification gate
+
+A dedicated Playwright gate now exists at `radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs`, with workflow `.github/workflows/v2-qualified-plays-live.yml`.
+
+The gate waits for the exact mobile build, desktop build, and tracker bytes to reach stashbox.com. It then tests mobile and desktop separately. For each mode it records the starting `total_plays`, proves no qualifying request occurs before 10 seconds, waits for qualification, requires exactly one tracker-owned `POST /radio/track`, requires one successful response, continues playback to detect duplicate writes, and requires a fresh catalog readback of exactly +1. Evidence is written to `radio/docs/ci/v2-qualified-plays-live.json` after the workflow runs.
+
 ## Files changed in current repair
 
 - `radio/dev/v2/v2-play-tracker.js`
@@ -73,16 +79,19 @@ The global `window.StashboxV2PlayTracker` guard remains as a second line of dupl
 - `radio/dev/v2/v2-mobile-audio-stream-preference.js`
 - `radio/dev/v2/desktop/desktop-video-stall-watchdog.js`
 - `radio/dev/v2/v2-spacebar-transport.js` from the initial repair pass
+- `radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs`
+- `.github/workflows/v2-qualified-plays-live.yml`
 
 ## Current hardening commits
 
-- `403b8c913904e981066464dcbc76ed70b56b415a` - harden tracker response parsing, visible count sync, and diagnostics
-- `d096dc03d3f39b6f90864fe4841f1ff39dd611e8` - load tracker directly on mobile V2
-- `990de95f84b6b5da4c5d2832a58f05a97f8c436d` - load tracker directly on clean desktop V2
-- `20a02eaec40fb6a66c7f5659ad54aec46b6ebcd9` - remove redundant mobile dynamic loader
-- `147e2b71d32a274e290742c0d2957b5c379ace01` - remove redundant desktop dynamic loader
-
-Earlier implementation commits remain part of the repair history.
+- `0c2d7e76a1c93886ea4acf5ebe19aa5840bce907` - harden tracker response parsing, visible count sync, and diagnostics
+- `990542a0bb37ecde460c464263583d452d22eca6` - load tracker directly on mobile V2
+- `403b8c913904e981066464dcbc76ed70b56b415a` - load tracker directly on clean desktop V2
+- `573ac94f0fc0f4f19c832a2a8f88be7dd2a97e9a` - remove redundant mobile dynamic loader
+- `01237875126c00de65ad3faf3e1e701a52c6ef00` - remove redundant desktop dynamic loader
+- `80a9f3a04e63fe9ec73e0518d26fd17d0db847f4` - add live mobile/desktop qualified-play probe
+- `ecb36838cd01eccfd5eb8f6146d6ffa32353d564` - fix browser-context helpers in the probe
+- `4ad3afb0d00e04037f40b6c2bb97422ab474e703` - add the live qualified-play persistence workflow
 
 ## Verification status
 
