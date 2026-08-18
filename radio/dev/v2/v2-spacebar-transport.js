@@ -4,6 +4,17 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
+  // Shared by both the mobile and clean desktop V2 shells. Keep play analytics
+  // ownership here so one tracker instance covers both runtimes without touching
+  // the separate Share implementations.
+  if (!window.StashboxV2PlayTracker && !document.querySelector('script[data-v2-play-tracker-loader]')) {
+    const tracker = document.createElement('script');
+    tracker.src = `/radio/dev/v2/v2-play-tracker.js?v=20260818-play10-1`;
+    tracker.defer = true;
+    tracker.dataset.v2PlayTrackerLoader = '1';
+    document.head.appendChild(tracker);
+  }
+
   function isTypingOrInteractive(target) {
     if (!(target instanceof Element)) return false;
     if (target.isContentEditable || target.closest('[contenteditable="true"]')) return true;
