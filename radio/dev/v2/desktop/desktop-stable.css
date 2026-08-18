@@ -116,3 +116,20 @@ html, body { min-height: 100%; }
   pointer-events: none;
   white-space: pre-wrap;
 }
+
+/* Artist profile controls stay visually consistent with the player while clickable. */
+.desktop-clean-runtime .v2-artist-profile-anchor,
+.desktop-clean-runtime .v2-artist-profile-anchor:link,
+.desktop-clean-runtime .v2-artist-profile-anchor:visited,
+.desktop-clean-runtime .v2-artist-profile-anchor:hover,
+.desktop-clean-runtime .v2-artist-profile-anchor:active,
+.desktop-clean-runtime .v2-artist-profile-link {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+.desktop-clean-runtime .v2-artist-profile-anchor strong,
+.desktop-clean-runtime .v2-artist-profile-link {
+  color: #fff !important;
+  text-decoration: none !important;
+}
