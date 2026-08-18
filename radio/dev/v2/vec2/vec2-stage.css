@@ -7,10 +7,17 @@ html[data-vec-engine="2"] [data-mobile-vec-stage] {
 .vec2-stage {
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: -2;
   overflow: hidden;
   background: #050607;
   isolation: isolate;
+  pointer-events: none !important;
+  user-select: none;
+}
+
+.vec2-stage,
+.vec2-stage * {
+  pointer-events: none !important;
 }
 
 .vec2-stage[hidden] {
@@ -41,6 +48,7 @@ html[data-vec-engine="2"] [data-mobile-vec-stage] {
   object-fit: contain;
   object-position: center center;
   background: #050607;
+  pointer-events: none;
 }
 
 .vec2-stage[data-state="ARTWORK_INTRO"] .vec2-artwork {
@@ -58,6 +66,7 @@ html[data-vec-engine="2"] [data-mobile-vec-stage] {
   background-color: #050607;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 .vec2-layer[data-slot="a"] { z-index: 2; }
