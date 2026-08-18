@@ -34,6 +34,9 @@
     nextPrepared: null,
     nextPromise: null,
     introTimer: 0,
+    introTargetMs: 0,
+    introComplete: false,
+    introHandoffRunning: false,
     imageTimer: 0,
     debugNode: null,
     diagnostics: []
@@ -393,6 +396,9 @@
     state.pool = [];
     state.played = new Set();
     state.failed = new Set();
+    state.introTargetMs = 0;
+    state.introComplete = false;
+    state.introHandoffRunning = false;
     if (state.stage && hide) state.stage.hidden = true;
   }
 
@@ -627,12 +633,60 @@
     state.debugNode.textContent = JSON.stringify({
       songKey: state.songKey,
       status: state.status,
+      introTargetMs: state.introTargetMs,
+      introComplete: state.introComplete,
       pool: state.pool.length,
       played: state.played.size,
       failed: state.failed.size,
       current: state.currentAsset?.id || null,
       next: state.nextAsset?.id || null
     }, null, 2);
+  }
+
+  async function finishIntro(generation) {
+    if (generation !== state.generation || !state.introComplete || state.introHandoffRunning || state.currentAsset) return;
+    const audio = currentAudio();
+    if (!audio || audio.paused || audio.ended) return;
+
+    state.introHandoffRunning = true;
+    try {
+      const prepared = state.nextPrepared || await preloadNext(generation);
+      if (generation !== state.generation) return;
+      if (!prepared) {
+        setStatus('FALLBACK', 'artwork-only-or-no-playable-assets');
+        return;
+      }
+      if (audio.paused || audio.ended) return;
+      await promote(prepared, generation, 'artwork-intro-complete');
+    } finally {
+      if (generation === state.generation) state.introHandoffRunning = false;
+    }
+  }
+
+  function scheduleIntroCheck(generation) {
+    if (generation !== state.generation || state.introComplete) return;
+    const audio = currentAudio();
+    if (!audio || audio.ended) return;
+
+    clearTimeout(state.introTimer);
+    state.introTimer = 0;
+
+    const elapsedMs = Math.max(0, Number(audio.currentTime || 0) * 1000);
+    const remainingMs = Math.max(0, state.introTargetMs - elapsedMs);
+    if (remainingMs <= 25) {
+      state.introComplete = true;
+      log('artwork-intro-complete', { elapsedMs, targetMs: state.introTargetMs });
+      finishIntro(generation);
+      return;
+    }
+
+    if (audio.paused) {
+      setStatus('ARTWORK_INTRO', `paused:${Math.round(elapsedMs)}/${state.introTargetMs}ms`);
+      return;
+    }
+
+    setStatus('ARTWORK_INTRO', `${Math.round(elapsedMs)}/${state.introTargetMs}ms`);
+    state.introTimer = setTimeout(() => scheduleIntroCheck(generation), Math.max(40, remainingMs + 20));
   }
 
   async function startFromAudio(audio) {
@@ -643,9 +697,8 @@
     const generation = ++state.generation;
     clearTimers();
     ensureStage(player);
-    resetVisuals();
-    state.stage.hidden = false;
-    setStatus('LOADING_SESSION', 'audio-play');
+    resetVisuals({ hide: true });
+    setStatus('LOADING_SESSION', 'base-artwork-visible');
 
     try {
       const items = await catalog();
@@ -660,26 +713,24 @@
       state.pool = [...built.assets];
       state.played = new Set();
       state.failed = new Set();
+      state.introTargetMs = built.introMs;
+      state.introComplete = false;
       state.artwork.style.backgroundImage = built.artworkUrl ? `url("${built.artworkUrl.replace(/"/g, '\\"')}")` : 'none';
       state.stage.hidden = false;
-      setStatus('ARTWORK_INTRO', `${built.introMs}ms`);
-      log('session-start', { introMs: built.introMs, assets: state.pool.length, visualMode: built.visualMode });
+      log('session-start', {
+        introMs: built.introMs,
+        audioCurrentTimeMs: Math.round(Number(audio.currentTime || 0) * 1000),
+        assets: state.pool.length,
+        visualMode: built.visualMode
+      });
 
-      const firstPromise = state.pool.length ? preloadNext(generation) : Promise.resolve(null);
-      state.introTimer = setTimeout(async () => {
-        if (generation !== state.generation) return;
-        const prepared = state.nextPrepared || await firstPromise;
-        if (generation !== state.generation) return;
-        if (!prepared) {
-          setStatus('FALLBACK', 'artwork-only-or-no-playable-assets');
-          return;
-        }
-        await promote(prepared, generation, 'artwork-intro-complete');
-      }, built.introMs);
+      if (state.pool.length) preloadNext(generation);
+      scheduleIntroCheck(generation);
     } catch (error) {
       if (generation !== state.generation) return;
       log('session-error', { error: error?.message || String(error) });
       setStatus('FALLBACK', error?.message || 'session-error');
+      if (state.stage) state.stage.hidden = true;
     } finally {
       if (generation === state.generation) state.starting = false;
     }
@@ -687,16 +738,30 @@
 
   function pauseVisuals(audio) {
     if (!audio?.paused) return;
+    clearTimeout(state.introTimer);
+    state.introTimer = 0;
     state.layers.forEach(layer => layer.querySelectorAll('video').forEach(video => {
       try { video.pause(); } catch (_) {}
     }));
+    if (!state.introComplete && state.songKey) setStatus('ARTWORK_INTRO', 'paused');
   }
 
   function resumeVisuals(audio) {
     if (!audio || audio.paused || audio.ended || state.starting) return;
+    if (!state.songKey) {
+      startFromAudio(audio);
+      return;
+    }
+    if (!state.introComplete) {
+      scheduleIntroCheck(state.generation);
+      return;
+    }
+    if (!state.currentAsset) {
+      finishIntro(state.generation);
+      return;
+    }
     const video = state.currentLayer >= 0 ? state.layers[state.currentLayer]?.querySelector('video') : null;
     if (video && state.currentAsset?.type === 'video') video.play().catch(() => {});
-    else if (!state.songKey) startFromAudio(audio);
   }
 
   function clearForAudioChange(reason) {
@@ -723,6 +788,11 @@
     if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) resumeVisuals(event.target);
   }, true);
 
+  document.addEventListener('timeupdate', event => {
+    if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
+    if (state.songKey && !state.introComplete) scheduleIntroCheck(state.generation);
+  }, true);
+
   document.addEventListener('emptied', event => {
     if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) clearForAudioChange('audio-emptied');
   }, true);
@@ -746,6 +816,8 @@
       starting: state.starting,
       songKey: state.songKey,
       status: state.status,
+      introTargetMs: state.introTargetMs,
+      introComplete: state.introComplete,
       poolSize: state.pool.length,
       playedCount: state.played.size,
       failedCount: state.failed.size,
