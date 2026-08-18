@@ -16,6 +16,7 @@
 
   const state = {
     generation: 0,
+    starting: false,
     songKey: '',
     status: 'IDLE',
     catalogPromise: null,
@@ -31,6 +32,7 @@
     currentAsset: null,
     nextAsset: null,
     nextPrepared: null,
+    nextPromise: null,
     introTimer: 0,
     imageTimer: 0,
     debugNode: null,
@@ -67,6 +69,25 @@
     return body;
   }
 
+  function currentPlayer() {
+    return [...document.querySelectorAll('#v2App [data-player]')].find(player => {
+      if (!player?.isConnected || player.hidden) return false;
+      const style = getComputedStyle(player);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    }) || document.querySelector('#v2App [data-player]');
+  }
+
+  function currentAudio(player = currentPlayer()) {
+    return player?.querySelector('[data-audio], audio') || null;
+  }
+
+  function log(type, detail = {}) {
+    const entry = { at: Date.now(), generation: state.generation, songKey: state.songKey, status: state.status, type, ...detail };
+    state.diagnostics.push(entry);
+    if (state.diagnostics.length > 120) state.diagnostics.shift();
+    window.dispatchEvent(new CustomEvent('stashbox:desktop-vec2-diagnostic', { detail: entry }));
+  }
+
   function setStatus(next, detail = '') {
     state.status = next;
     const player = currentPlayer();
@@ -80,25 +101,6 @@
     }
     log('state', { next, detail });
     renderDebug();
-  }
-
-  function log(type, detail = {}) {
-    const entry = { at: Date.now(), generation: state.generation, songKey: state.songKey, status: state.status, type, ...detail };
-    state.diagnostics.push(entry);
-    if (state.diagnostics.length > 120) state.diagnostics.shift();
-    window.dispatchEvent(new CustomEvent('stashbox:desktop-vec2-diagnostic', { detail: entry }));
-  }
-
-  function currentPlayer() {
-    return [...document.querySelectorAll('#v2App [data-player]')].find(player => {
-      if (!player?.isConnected || player.hidden) return false;
-      const style = getComputedStyle(player);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    }) || document.querySelector('#v2App [data-player]');
-  }
-
-  function currentAudio(player = currentPlayer()) {
-    return player?.querySelector('[data-audio], audio') || null;
   }
 
   function canonical(value) {
@@ -132,23 +134,22 @@
   }
 
   function findSong(items, player, audio) {
-    const hinted = clean(player?.dataset?.songKey || player?.dataset?.currentSongKey || player?.dataset?.song);
-    if (hinted) {
-      const found = items.find(item => songKey(item) === hinted);
-      if (found) return found;
-    }
-
     const audioPath = canonicalPath(audio?.currentSrc || audio?.src);
     if (audioPath) {
-      const found = items.find(item => canonicalPath(songAudio(item)) === audioPath);
-      if (found) return found;
+      const byAudio = items.find(item => canonicalPath(songAudio(item)) === audioPath);
+      if (byAudio) return byAudio;
     }
 
     const title = normalize(player?.querySelector('[data-ptitle]')?.textContent);
     const artist = normalize(player?.querySelector('[data-partist]')?.textContent);
-    return items.find(item => normalize(songTitle(item)) === title && (!artist || normalize(songArtist(item)) === artist))
-      || items.find(item => normalize(songTitle(item)) === title)
-      || null;
+    if (title) {
+      const byMeta = items.find(item => normalize(songTitle(item)) === title && (!artist || normalize(songArtist(item)) === artist))
+        || items.find(item => normalize(songTitle(item)) === title);
+      if (byMeta) return byMeta;
+    }
+
+    const hinted = clean(player?.dataset?.songKey || player?.dataset?.currentSongKey || player?.dataset?.song);
+    return hinted ? items.find(item => songKey(item) === hinted) || null : null;
   }
 
   function recipeFrom(body) {
@@ -388,6 +389,7 @@
     state.currentAsset = null;
     state.nextAsset = null;
     state.nextPrepared = null;
+    state.nextPromise = null;
     state.pool = [];
     state.played = new Set();
     state.failed = new Set();
@@ -396,6 +398,7 @@
 
   function cancel(reason = 'cancel') {
     state.generation += 1;
+    state.starting = false;
     resetVisuals({ hide: true });
     state.songKey = '';
     setStatus('IDLE', reason);
@@ -426,7 +429,7 @@
       image.alt = '';
       image.decoding = 'async';
       let settled = false;
-      const finish = (error) => {
+      const finish = error => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
@@ -495,9 +498,7 @@
     if (!layer || !asset) throw new Error('missing-layer-or-asset');
     disposeLayer(layer);
     layer.dataset.assetKey = assetKey(asset);
-    const node = asset.type === 'video'
-      ? await preloadVideo(asset, generation)
-      : await preloadImage(asset, generation);
+    const node = asset.type === 'video' ? await preloadVideo(asset, generation) : await preloadImage(asset, generation);
     if (generation !== state.generation) throw new Error('stale-session');
     layer.replaceChildren(node);
     log('asset-ready', { asset: assetKey(asset), layer: layerIndex, readyState: node.readyState ?? null });
@@ -505,14 +506,19 @@
   }
 
   async function preloadNext(generation) {
-    if (generation !== state.generation || state.nextPrepared) return state.nextPrepared;
+    if (generation !== state.generation) return null;
+    if (state.nextPrepared) return state.nextPrepared;
+    if (state.nextPromise) return state.nextPromise;
+
     const asset = pickNext();
     if (!asset || assetKey(asset) === assetKey(state.currentAsset)) return null;
     state.nextAsset = asset;
-    const promise = prepare(asset, state.nextLayer, generation)
+
+    state.nextPromise = prepare(asset, state.nextLayer, generation)
       .then(prepared => {
         if (generation !== state.generation) throw new Error('stale-session');
         state.nextPrepared = prepared;
+        state.nextPromise = null;
         return prepared;
       })
       .catch(error => {
@@ -520,10 +526,11 @@
         state.failed.add(assetKey(asset));
         state.nextAsset = null;
         state.nextPrepared = null;
+        state.nextPromise = null;
         log('asset-failed', { asset: assetKey(asset), error: error?.message || String(error) });
         return preloadNext(generation);
       });
-    return promise;
+    return state.nextPromise;
   }
 
   async function promote(prepared, generation, reason = 'promote') {
@@ -542,6 +549,7 @@
         disposeLayer(state.layers[layerIndex]);
         state.nextAsset = null;
         state.nextPrepared = null;
+        state.nextPromise = null;
         log('asset-failed', { asset: assetKey(asset), error: `play:${error?.name || error?.message || 'unknown'}` });
         const replacement = await preloadNext(generation);
         return promote(replacement, generation, 'skip-play-failed');
@@ -559,6 +567,7 @@
     state.currentAsset = asset;
     state.nextAsset = null;
     state.nextPrepared = null;
+    state.nextPromise = null;
     state.played.add(assetKey(asset));
     setStatus(asset.type === 'video' ? 'PLAYING_VIDEO' : 'PLAYING_IMAGE', reason);
 
@@ -628,7 +637,8 @@
 
   async function startFromAudio(audio) {
     const player = audio?.closest?.('[data-player]') || currentPlayer();
-    if (!player || !audio || audio.paused || audio.ended) return;
+    if (!player || !audio || audio.paused || audio.ended || state.starting) return;
+    state.starting = true;
 
     const generation = ++state.generation;
     clearTimers();
@@ -670,6 +680,8 @@
       if (generation !== state.generation) return;
       log('session-error', { error: error?.message || String(error) });
       setStatus('FALLBACK', error?.message || 'session-error');
+    } finally {
+      if (generation === state.generation) state.starting = false;
     }
   }
 
@@ -681,14 +693,25 @@
   }
 
   function resumeVisuals(audio) {
-    if (!audio || audio.paused || audio.ended) return;
+    if (!audio || audio.paused || audio.ended || state.starting) return;
     const video = state.currentLayer >= 0 ? state.layers[state.currentLayer]?.querySelector('video') : null;
     if (video && state.currentAsset?.type === 'video') video.play().catch(() => {});
     else if (!state.songKey) startFromAudio(audio);
   }
 
+  function clearForAudioChange(reason) {
+    state.generation += 1;
+    state.starting = false;
+    resetVisuals({ hide: true });
+    state.songKey = '';
+    const player = currentPlayer();
+    if (player) delete player.dataset.songKey;
+    setStatus('IDLE', reason);
+  }
+
   document.addEventListener('play', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
+    if (state.songKey || state.starting) return resumeVisuals(event.target);
     startFromAudio(event.target);
   }, true);
 
@@ -701,30 +724,26 @@
   }, true);
 
   document.addEventListener('emptied', event => {
-    if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
-    state.generation += 1;
-    resetVisuals({ hide: true });
-    state.songKey = '';
-    setStatus('IDLE', 'audio-emptied');
+    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) clearForAudioChange('audio-emptied');
   }, true);
 
   document.addEventListener('ended', event => {
-    if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
-    state.generation += 1;
-    resetVisuals({ hide: true });
-    state.songKey = '';
-    setStatus('IDLE', 'audio-ended');
+    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) clearForAudioChange('audio-ended');
   }, true);
 
   window.StashboxDesktopVec2 = Object.freeze({
     stop: () => cancel('manual-stop'),
     refresh: () => {
       const audio = currentAudio();
-      if (audio && !audio.paused && !audio.ended) startFromAudio(audio);
+      if (audio && !audio.paused && !audio.ended) {
+        state.songKey = '';
+        startFromAudio(audio);
+      }
     },
     clearCache: () => state.cache.clear(),
     state: () => ({
       generation: state.generation,
+      starting: state.starting,
       songKey: state.songKey,
       status: state.status,
       poolSize: state.pool.length,
