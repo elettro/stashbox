@@ -1,8 +1,8 @@
 {
   "v2_qualified_plays_live": "PASS",
-  "source_commit": "4ad3afb0d00e04037f40b6c2bb97422ab474e703",
-  "workflow_run_id": "32187556283",
-  "tested_at_utc": "2026-08-18T21:26:31.954Z",
+  "source_commit": "049c75aaf68f3ef6f7c987760e731e8bef56f2b5",
+  "workflow_run_id": "32187950914",
+  "tested_at_utc": "2026-08-18T21:30:35.141Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -14,8 +14,8 @@
       "build": "mobile-play10-2-20260818-twomodes1",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 1,
-      "afterTotal": 2,
+      "beforeTotal": 3,
+      "afterTotal": 4,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
@@ -28,8 +28,8 @@
       "build": "desktop-clean-20260818-play10-2-sharecopy1-likestate2-vecstall1",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 2,
-      "afterTotal": 3,
+      "beforeTotal": 4,
+      "afterTotal": 5,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
