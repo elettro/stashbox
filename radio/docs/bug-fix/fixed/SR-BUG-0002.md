@@ -6,7 +6,7 @@ Area: Player
 Environment: Both
 Date reported: 2026-07-24
 Date fixed: 2026-08-17
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -46,7 +46,7 @@ Not recorded.
 
 ## Verification
 
-Fixed status confirmed by the user on 2026-08-17. Formal verification remains pending.
+Verified by explicit user confirmation on 2026-08-18.
 
 ## Regression risk
 
@@ -62,4 +62,4 @@ If truncation returns, inspect title container width, overflow, white-space, lin
 
 ## Notes
 
-Backfilled on 2026-08-17 from Stashbox Radio development history. Marked fixed at the user's direction on 2026-08-17.
+Backfilled on 2026-08-17 from Stashbox Radio development history. Marked fixed at the user's direction on 2026-08-17 and verified by the user on 2026-08-18.
