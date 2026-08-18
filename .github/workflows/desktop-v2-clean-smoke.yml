@@ -29,6 +29,7 @@ jobs:
       - name: Compile-check desktop browser scripts
         run: |
           node --check radio/dev/v2/desktop/desktop-vec2.js
+          node --check radio/dev/v2/desktop/desktop-audio-master.js
           node --check radio/dev/v2/desktop/desktop-health.js
           node --check radio-api/scripts/smoke-test-v2-desktop-clean-live.mjs
       - name: Run clean desktop structural smoke test
