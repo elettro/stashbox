@@ -6,7 +6,7 @@ Area: Ads
 Environment: DEV
 Date reported: 2026-07 (historical)
 Date fixed: 2026-08-18
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -23,7 +23,7 @@ User confirmed on 2026-08-18 that this issue should be considered fixed. No addi
 
 ## Verification
 
-Pending.
+Verified by explicit user confirmation on 2026-08-18.
 
 ## Regression risk
 
