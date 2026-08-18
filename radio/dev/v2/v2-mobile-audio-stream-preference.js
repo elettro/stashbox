@@ -3,6 +3,14 @@
 
   if (matchMedia('(min-width: 900px)').matches || window.StashboxMobileAudioStreamPreference) return;
 
+  if (!window.StashboxV2PlayTracker && !document.querySelector('script[data-v2-play-tracker-loader]')) {
+    const tracker = document.createElement('script');
+    tracker.src = '/radio/dev/v2/v2-play-tracker.js?v=20260818-play10-1';
+    tracker.defer = true;
+    tracker.dataset.v2PlayTrackerLoader = '1';
+    document.head.appendChild(tracker);
+  }
+
   const API_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
   const MAP = window.STASHBOX_BROWSER_AUDIO_MAP || {};
   const reverse = new Map();
