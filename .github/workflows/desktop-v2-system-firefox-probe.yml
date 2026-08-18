@@ -21,7 +21,7 @@ permissions:
 jobs:
   firefox:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,8 +40,11 @@ jobs:
         run: |
           firefox --version
           ffmpeg -version | head -n 3
-      - name: Allow DEV static deployment to settle
-        run: sleep 45
+      - name: Wait for exact DEV desktop deployment
+        env:
+          V2_DESKTOP_DEPLOY_ATTEMPTS: '20'
+          V2_DESKTOP_DEPLOY_SLEEP_SECONDS: '30'
+        run: bash radio/dev/v2/desktop/wait-for-live-build.sh
       - name: Probe official Firefox desktop playback
         id: probe
         continue-on-error: true
