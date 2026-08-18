@@ -3,6 +3,14 @@
 
   if (!matchMedia('(min-width: 900px)').matches || window.StashboxDesktopVideoStallWatchdog) return;
 
+  if (!window.StashboxV2PlayTracker && !document.querySelector('script[data-v2-play-tracker-loader]')) {
+    const tracker = document.createElement('script');
+    tracker.src = '/radio/dev/v2/v2-play-tracker.js?v=20260818-play10-1';
+    tracker.defer = true;
+    tracker.dataset.v2PlayTrackerLoader = '1';
+    document.head.appendChild(tracker);
+  }
+
   const STALL_MS = 3200;
   const RETRY_GRACE_MS = 1400;
   const MIN_PROGRESS = 0.08;
@@ -57,7 +65,6 @@
       }
     }));
 
-    // desktop-vec2 owns the video error path and advances to the next prepared asset.
     try { current.dispatchEvent(new Event('error')); } catch (_) {}
     reset(null);
   }
@@ -103,8 +110,6 @@
     if (timeProgressed) lastVideoTime = currentTime;
     if (frameCount !== null) lastFrameCount = frameCount;
 
-    // Prefer actual presented-frame progress. Some browsers continue advancing
-    // currentTime after video rendering has frozen, which previously hid stalls.
     if (framesProgressed || (frameCount === null && timeProgressed)) {
       lastProgressAt = now;
       armedAt = 0;
