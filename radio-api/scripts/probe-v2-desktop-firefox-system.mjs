@@ -82,16 +82,42 @@ try {
     };
   `);
 
+  const progressStart = Number(snapshot?.audio?.currentTime || 0);
+  await sleep(1800);
+  const progressEnd = await driver.executeScript(`
+    const audio = document.querySelector('#v2App [data-player]:not([hidden]) audio');
+    return audio ? {
+      currentTime: Number(audio.currentTime || 0),
+      paused: audio.paused,
+      ended: audio.ended,
+      readyState: audio.readyState,
+      networkState: audio.networkState,
+      errorCode: audio.error?.code || 0,
+      errorMessage: audio.error?.message || '',
+      currentSrc: audio.currentSrc || ''
+    } : null;
+  `);
+  const audioProgress = {
+    startTime: progressStart,
+    endTime: Number(progressEnd?.currentTime || 0),
+    advancedSeconds: Math.max(0, Number(progressEnd?.currentTime || 0) - progressStart),
+    sustained: Boolean(progressEnd && !progressEnd.paused && !progressEnd.ended && progressEnd.readyState >= 3 && Number(progressEnd.currentTime || 0) - progressStart > 0.8),
+    final: progressEnd
+  };
+  const staleMediaError = Boolean(snapshot?.audio?.errorCode && audioProgress.sustained && progressEnd?.currentSrc === snapshot?.audio?.currentSrc);
+
   result = {
     browser: 'system-firefox',
     ok: Boolean(
       snapshot?.state?.currentAsset &&
-      snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2 && snapshot.audio.errorCode === 0 &&
+      snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2 && audioProgress.sustained &&
       snapshot?.activeVideo && !snapshot.activeVideo.paused && snapshot.activeVideo.currentTime > 0.15 && snapshot.activeVideo.errorCode === 0 &&
       snapshot?.safety?.tripped !== true &&
       Array.isArray(snapshot?.legacyScripts) && snapshot.legacyScripts.length === 0
     ),
     selected,
+    audioProgress,
+    staleMediaError,
     ...snapshot
   };
 } catch (error) {
