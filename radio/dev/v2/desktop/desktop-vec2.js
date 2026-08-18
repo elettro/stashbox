@@ -255,7 +255,7 @@
   function dedupe(assets) {
     const seen = new Set();
     return assets.filter(asset => {
-      const key = `${asset.type}:${asset.id || asset.url}`.toLowerCase();
+      const key = `${asset.type}:${canonical(asset.url) || asset.id}`.toLowerCase();
       if (!asset.url || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -412,7 +412,7 @@
     setStatus('IDLE', reason);
   }
 
-  function assetKey(asset) { return asset ? `${asset.type}:${asset.id || asset.url}` : ''; }
+  function assetKey(asset) { return asset ? `${asset.type}:${canonical(asset.url) || asset.id}` : ''; }
 
   function pickNext() {
     const usable = state.pool.filter(asset => !state.failed.has(assetKey(asset)));
@@ -423,6 +423,9 @@
       candidates = [...usable];
       log('pool-reset', { size: usable.length });
     }
+    const currentKey = assetKey(state.currentAsset);
+    const withoutCurrent = currentKey ? candidates.filter(asset => assetKey(asset) !== currentKey) : candidates;
+    if (withoutCurrent.length) candidates = withoutCurrent;
     const folder = state.currentAsset?.folderId || '';
     if (folder) {
       const different = candidates.filter(asset => !asset.folderId || asset.folderId !== folder);
@@ -519,7 +522,7 @@
     if (state.nextPromise) return state.nextPromise;
 
     const asset = pickNext();
-    if (!asset || assetKey(asset) === assetKey(state.currentAsset)) return null;
+    if (!asset) return null;
     state.nextAsset = asset;
 
     state.nextPromise = prepare(asset, state.nextLayer, generation)
