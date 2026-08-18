@@ -82,9 +82,11 @@
     const detail = event?.detail || {};
     const type = clean(detail.type);
     const nextSong = clean(detail.songKey);
-    const nextGeneration = Number(detail.generation || 0);
 
-    if (type === 'session-start' || (nextSong && nextSong !== state.songKey) || (nextGeneration && nextGeneration !== state.generation && type === 'state')) {
+    // A trip remains latched for the current song even though Vec2.stop()
+    // increments the engine generation and emits another IDLE state event.
+    // Only a real new session/song is allowed to clear the circuit breaker.
+    if (type === 'session-start' || (nextSong && nextSong !== state.songKey && type !== 'state')) {
       reset(detail);
     }
 
