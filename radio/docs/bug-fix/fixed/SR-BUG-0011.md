@@ -7,7 +7,7 @@ Environment: DEV V2
 Date reported: 2026-08-11
 Date updated: 2026-08-18
 Date fixed: 2026-08-18
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -164,7 +164,7 @@ A later soak, run `32104564030`, also passed 30 minutes with zero failures, 120 
 
 ## Current disposition
 
-Marked Fixed for now at the user's direction on 2026-08-18. Verification remains Pending. If flicker, video-trigger failures, or player freezing return, reopen this record and resume from the clean desktop runtime and exact-deployment verification barriers rather than restoring legacy observer/watchdog/rescue logic.
+Verified by explicit user confirmation on 2026-08-18. If flicker, video-trigger failures, or player freezing return, reopen this record and resume from the clean desktop runtime and exact-deployment verification barriers rather than restoring legacy observer/watchdog/rescue logic.
 
 ## Regression rules
 
