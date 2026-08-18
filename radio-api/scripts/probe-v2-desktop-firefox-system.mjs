@@ -46,9 +46,10 @@ try {
 
   await driver.wait(async () => driver.executeScript(`
     const state = window.StashboxDesktopVec2?.state?.();
-    return Boolean(state && state.songKey && (state.currentAsset || state.status === 'FALLBACK' || state.failedCount > 0));
+    const video = document.querySelector('#v2App [data-player]:not([hidden]) .desktop-vec2-layer.is-current video');
+    return Boolean(state && state.songKey && state.currentAsset && video && !video.paused && video.currentTime > 0.15);
   `), 35000);
-  await sleep(1500);
+  await sleep(1200);
 
   const snapshot = await driver.executeScript(`
     const state = window.StashboxDesktopVec2?.state?.() || null;
@@ -56,9 +57,11 @@ try {
     const audio = document.querySelector('#v2App [data-player]:not([hidden]) audio');
     const video = document.querySelector('#v2App [data-player]:not([hidden]) .desktop-vec2-layer.is-current video');
     const probe = document.createElement('video');
+    const legacy = [...document.scripts].map(script => script.src || '').filter(src => /watchdog|rescue|v2-desktop-video-runtime|v2-desktop-vec-video-start-fix|v2-media-transition-guard/.test(src));
     return {
       state,
       diagnostics: diagnostics.slice(-100),
+      legacyScripts: legacy,
       capabilities: {
         h264Baseline: probe.canPlayType('video/mp4; codecs="avc1.42E01E"'),
         h264High: probe.canPlayType('video/mp4; codecs="avc1.64001F"'),
@@ -79,7 +82,12 @@ try {
 
   result = {
     browser: 'system-firefox',
-    ok: Boolean(snapshot?.state?.currentAsset && snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2),
+    ok: Boolean(
+      snapshot?.state?.currentAsset &&
+      snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2 &&
+      snapshot?.activeVideo && !snapshot.activeVideo.paused && snapshot.activeVideo.currentTime > 0.15 &&
+      Array.isArray(snapshot?.legacyScripts) && snapshot.legacyScripts.length === 0
+    ),
     selected,
     ...snapshot
   };
@@ -90,10 +98,13 @@ try {
       const state = window.StashboxDesktopVec2?.state?.() || null;
       const diagnostics = window.StashboxDesktopVec2?.diagnostics?.() || [];
       const audio = document.querySelector('#v2App audio');
-      return { state, diagnostics: diagnostics.slice(-100), audio: audio ? {
-        currentTime: Number(audio.currentTime || 0), paused: audio.paused, readyState: audio.readyState,
-        networkState: audio.networkState, errorCode: audio.error?.code || 0, errorMessage: audio.error?.message || '', currentSrc: audio.currentSrc || ''
-      } : null };
+      const video = document.querySelector('#v2App .desktop-vec2-layer.is-current video');
+      return {
+        state,
+        diagnostics: diagnostics.slice(-100),
+        audio: audio ? { currentTime: Number(audio.currentTime || 0), paused: audio.paused, readyState: audio.readyState, networkState: audio.networkState, errorCode: audio.error?.code || 0, errorMessage: audio.error?.message || '', currentSrc: audio.currentSrc || '' } : null,
+        activeVideo: video ? { currentTime: Number(video.currentTime || 0), paused: video.paused, readyState: video.readyState, networkState: video.networkState, errorCode: video.error?.code || 0, errorMessage: video.error?.message || '', currentSrc: video.currentSrc || '' } : null
+      };
     `);
   } catch (_) {}
   result = { browser: 'system-firefox', ok: false, fatalError: error?.stack || error?.message || String(error), snapshot };
