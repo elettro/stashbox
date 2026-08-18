@@ -38,6 +38,7 @@ html, body { min-height: 100%; }
   z-index: 1;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none !important;
   transition: opacity 140ms linear;
 }
 
@@ -59,23 +60,24 @@ html, body { min-height: 100%; }
   pointer-events: none !important;
 }
 
+/* Keep the base artwork as a true fallback beneath VEC instead of removing it. */
 .desktop-clean-runtime .v2-player-backdrop {
-  opacity: 0 !important;
   pointer-events: none !important;
 }
 
+/* Shade sits above visual media but below all player controls. */
 .desktop-clean-runtime .v2-player-shade {
   z-index: 3 !important;
   pointer-events: none !important;
 }
 
-.desktop-clean-runtime .v2-player-header,
-.desktop-clean-runtime .v2-player-content,
-.desktop-clean-runtime .player-info,
-.desktop-clean-runtime [data-player] button,
-.desktop-clean-runtime [data-player] a,
-.desktop-clean-runtime [data-player] input {
+/* Preserve the base layout geometry. Only add stacking where necessary. */
+.desktop-clean-runtime .v2-player-header {
   position: relative;
+  z-index: 5;
+}
+
+.desktop-clean-runtime .v2-player-content {
   z-index: 5;
 }
 
@@ -86,7 +88,8 @@ html, body { min-height: 100%; }
 }
 
 .desktop-clean-runtime [data-player][data-vec2-state="ARTWORK_INTRO"] .desktop-vec2-artwork,
-.desktop-clean-runtime [data-player][data-vec2-state="FALLBACK"] .desktop-vec2-artwork {
+.desktop-clean-runtime [data-player][data-vec2-state="FALLBACK"] .desktop-vec2-artwork,
+.desktop-clean-runtime [data-player][data-vec2-state="LOADING_SESSION"] .desktop-vec2-artwork {
   opacity: 1;
   visibility: visible;
 }
