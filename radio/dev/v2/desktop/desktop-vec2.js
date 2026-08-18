@@ -38,6 +38,7 @@
     introComplete: false,
     introHandoffRunning: false,
     imageTimer: 0,
+    imageDeadlineAudioSeconds: 0,
     debugNode: null,
     diagnostics: []
   };
@@ -399,6 +400,7 @@
     state.introTargetMs = 0;
     state.introComplete = false;
     state.introHandoffRunning = false;
+    state.imageDeadlineAudioSeconds = 0;
     if (state.stage && hide) state.stage.hidden = true;
   }
 
@@ -539,6 +541,24 @@
     return state.nextPromise;
   }
 
+  function scheduleImageAdvance(generation) {
+    if (generation !== state.generation || state.currentAsset?.type !== 'image') return;
+    const audio = currentAudio();
+    if (!audio || audio.ended) return;
+
+    clearTimeout(state.imageTimer);
+    state.imageTimer = 0;
+
+    const remainingMs = Math.max(0, (state.imageDeadlineAudioSeconds - Number(audio.currentTime || 0)) * 1000);
+    if (remainingMs <= 25) {
+      advance(generation, 'image-audio-duration');
+      return;
+    }
+    if (audio.paused) return;
+
+    state.imageTimer = setTimeout(() => scheduleImageAdvance(generation), Math.max(40, remainingMs + 20));
+  }
+
   async function promote(prepared, generation, reason = 'promote') {
     if (!prepared || generation !== state.generation) return false;
     const { asset, layerIndex, node } = prepared;
@@ -585,6 +605,7 @@
     }
 
     if (asset.type === 'video') {
+      state.imageDeadlineAudioSeconds = 0;
       node.addEventListener('ended', () => {
         if (generation === state.generation && node === state.layers[state.currentLayer]?.firstElementChild) advance(generation, 'video-ended');
       }, { once: true });
@@ -594,8 +615,8 @@
         advance(generation, 'video-error');
       }, { once: true });
     } else {
-      clearTimeout(state.imageTimer);
-      state.imageTimer = setTimeout(() => advance(generation, 'image-duration'), asset.durationMs);
+      state.imageDeadlineAudioSeconds = Number(audio.currentTime || 0) + asset.durationMs / 1000;
+      scheduleImageAdvance(generation);
     }
 
     preloadNext(generation);
@@ -606,6 +627,7 @@
     if (generation !== state.generation) return;
     clearTimeout(state.imageTimer);
     state.imageTimer = 0;
+    state.imageDeadlineAudioSeconds = 0;
     setStatus('TRANSITIONING', reason);
     let prepared = state.nextPrepared;
     if (!prepared) prepared = await preloadNext(generation);
@@ -639,7 +661,8 @@
       played: state.played.size,
       failed: state.failed.size,
       current: state.currentAsset?.id || null,
-      next: state.nextAsset?.id || null
+      next: state.nextAsset?.id || null,
+      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds || null
     }, null, 2);
   }
 
@@ -739,7 +762,9 @@
   function pauseVisuals(audio) {
     if (!audio?.paused) return;
     clearTimeout(state.introTimer);
+    clearTimeout(state.imageTimer);
     state.introTimer = 0;
+    state.imageTimer = 0;
     state.layers.forEach(layer => layer.querySelectorAll('video').forEach(video => {
       try { video.pause(); } catch (_) {}
     }));
@@ -760,8 +785,12 @@
       finishIntro(state.generation);
       return;
     }
+    if (state.currentAsset.type === 'image') {
+      scheduleImageAdvance(state.generation);
+      return;
+    }
     const video = state.currentLayer >= 0 ? state.layers[state.currentLayer]?.querySelector('video') : null;
-    if (video && state.currentAsset?.type === 'video') video.play().catch(() => {});
+    if (video && state.currentAsset.type === 'video') video.play().catch(() => {});
   }
 
   function clearForAudioChange(reason) {
@@ -822,7 +851,8 @@
       playedCount: state.played.size,
       failedCount: state.failed.size,
       currentAsset: state.currentAsset,
-      nextAsset: state.nextAsset
+      nextAsset: state.nextAsset,
+      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds
     }),
     diagnostics: () => [...state.diagnostics]
   });
