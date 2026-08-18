@@ -73,6 +73,30 @@ async function exists(key) {
   } catch (_) { return false; }
 }
 
+async function downloadMaster(item, destination) {
+  if (await exists(item.sourceKey)) {
+    await exec('aws', ['s3', 'cp', `s3://${BUCKET}/${item.sourceKey}`, destination, '--only-show-errors'], { maxBuffer: 4 * 1024 * 1024 });
+    return 's3';
+  }
+
+  try {
+    await exec('curl', [
+      '--fail', '--location', '--silent', '--show-error',
+      '--retry', '2', '--retry-delay', '2',
+      '--connect-timeout', '15', '--max-time', '180',
+      '--output', destination,
+      item.original
+    ], { maxBuffer: 4 * 1024 * 1024 });
+    const stat = await fs.stat(destination);
+    if (stat.size <= 4096) throw new Error(`public-source-too-small:${stat.size}`);
+    return 'public-url';
+  } catch (error) {
+    const missing = new Error(`source-missing:${item.sourceKey}; public-url-unavailable:${clean(error?.stderr || error?.message || error)}`);
+    missing.code = 'SOURCE_MISSING';
+    throw missing;
+  }
+}
+
 async function buildOne(item, index) {
   const original = item.original;
   const sourceKey = item.sourceKey;
@@ -81,23 +105,17 @@ async function buildOne(item, index) {
 
   if (await exists(browserKey)) {
     console.log(`[${index + 1}] exists ${browserKey}`);
-    return { original, browser, sourceKey, browserKey, title: item.title, status: 'existing' };
-  }
-
-  if (!(await exists(sourceKey))) {
-    const error = new Error(`source-missing:${sourceKey}`);
-    error.code = 'SOURCE_MISSING';
-    throw error;
+    return { original, browser, sourceKey, browserKey, title: item.title, status: 'existing', sourceMode: 'existing-derivative' };
   }
 
   const work = await fs.mkdtemp(path.join(os.tmpdir(), 'stashbox-audio-'));
   const source = path.join(work, 'source.wav');
   const output = path.join(work, 'browser.mp3');
   try {
-    console.log(`[${index + 1}] download ${sourceKey}`);
-    await exec('aws', ['s3', 'cp', `s3://${BUCKET}/${sourceKey}`, source, '--only-show-errors'], { maxBuffer: 4 * 1024 * 1024 });
+    console.log(`[${index + 1}] acquire ${sourceKey}`);
+    const sourceMode = await downloadMaster(item, source);
 
-    console.log(`[${index + 1}] transcode ${browserKey}`);
+    console.log(`[${index + 1}] transcode ${browserKey} from ${sourceMode}`);
     await exec('ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', source,
@@ -113,7 +131,7 @@ async function buildOne(item, index) {
       '--only-show-errors'
     ], { maxBuffer: 4 * 1024 * 1024 });
 
-    return { original, browser, sourceKey, browserKey, title: item.title, status: 'created' };
+    return { original, browser, sourceKey, browserKey, title: item.title, status: 'created', sourceMode };
   } finally {
     await fs.rm(work, { recursive: true, force: true });
   }
@@ -186,16 +204,17 @@ const report = {
   successful: successes.length,
   created: successes.filter(item => item.status === 'created').length,
   existing: successes.filter(item => item.status === 'existing').length,
+  recoveredFromPublicUrl: successes.filter(item => item.sourceMode === 'public-url').length,
   failed: failures.length,
   mapSize: Object.keys(sorted).length,
   failures,
-  successes: successes.map(({ original, browser, sourceKey, browserKey, title, status }) => ({ original, browser, sourceKey, browserKey, title, status }))
+  successes: successes.map(({ original, browser, sourceKey, browserKey, title, status, sourceMode }) => ({ original, browser, sourceKey, browserKey, title, status, sourceMode }))
 };
 await fs.mkdir(path.dirname(REPORT_OUTPUT), { recursive: true });
 await fs.writeFile(REPORT_OUTPUT, `${JSON.stringify(report, null, 2)}\n`);
 
 console.log(`Wrote ${report.mapSize} total browser audio mappings to ${OUTPUT}`);
-console.log(`Batch result: ${report.successful} successful, ${report.failed} skipped.`);
+console.log(`Batch result: ${report.successful} successful, ${report.failed} skipped, ${report.recoveredFromPublicUrl} recovered from public master URLs.`);
 if (failures.length) console.log(`Skipped sources are recorded in ${REPORT_OUTPUT}.`);
 
 if (STRICT && failures.length) {
