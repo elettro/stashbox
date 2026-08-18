@@ -7,7 +7,7 @@ Environment: DEV
 Date reported: 2026-08-04
 Date fixed: 2026-08-17
 Date closed: 2026-08-17
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -47,7 +47,7 @@ None recorded.
 
 ## Verification
 
-Pending when the issue was closed.
+Verified by explicit user confirmation on 2026-08-18.
 
 ## Regression risk
 
@@ -64,4 +64,4 @@ If the issue returns, inspect the desktop ratio-selection path and verify asset 
 
 ## Notes
 
-Backfilled on 2026-08-17 from the 2026-08-04 desktop artwork report. Marked fixed by user on 2026-08-17 and then closed by user on 2026-08-17.
+Backfilled on 2026-08-17 from the 2026-08-04 desktop artwork report. Marked fixed and closed by user on 2026-08-17, then explicitly verified by the user on 2026-08-18.
