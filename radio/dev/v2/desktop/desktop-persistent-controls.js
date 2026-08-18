@@ -9,6 +9,7 @@
   const login = root.querySelector('[data-desktop-login]');
   const bell = root.querySelector('[data-desktop-notifications]');
   let positionFrame = 0;
+  let positionedSearch = null;
 
   const hasSession = () => {
     try {
@@ -26,26 +27,58 @@
     login.setAttribute('aria-label', active ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio');
   };
 
-  const positionBesideSearch = () => {
+  const clearSearchPosition = () => {
+    if (!positionedSearch) return;
+    positionedSearch.style.removeProperty('position');
+    positionedSearch.style.removeProperty('left');
+    positionedSearch.style.removeProperty('right');
+    positionedSearch.style.removeProperty('top');
+    positionedSearch.style.removeProperty('z-index');
+    positionedSearch = null;
+  };
+
+  const positionAtContentBoundary = () => {
     window.cancelAnimationFrame(positionFrame);
     positionFrame = window.requestAnimationFrame(() => {
       const search = app.querySelector('.v2-header [data-search]');
-      if (!search) {
+      const content = app.querySelector('.v2-home') || app.querySelector('.v2-section');
+      if (!search || !content) {
         root.removeAttribute('data-anchored');
+        clearSearchPosition();
         return;
       }
 
+      if (positionedSearch && positionedSearch !== search) clearSearchPosition();
+      positionedSearch = search;
+
+      const contentRect = content.getBoundingClientRect();
       const searchRect = search.getBoundingClientRect();
       const rootRect = root.getBoundingClientRect();
       const gap = 10;
-      const maxLeft = Math.max(18, window.innerWidth - rootRect.width - 18);
-      const left = Math.min(maxLeft, Math.round(searchRect.right + gap));
+      const viewportPad = 18;
+
+      // The right edge of the DEAN/account pill defines the same visual boundary
+      // as the right edge of the main content column.
+      const boundaryRight = Math.min(
+        window.innerWidth - viewportPad,
+        Math.max(viewportPad + rootRect.width, Math.round(contentRect.right))
+      );
+      const rootLeft = Math.max(viewportPad, Math.round(boundaryRight - rootRect.width));
       const top = Math.max(8, Math.round(searchRect.top + (searchRect.height - rootRect.height) / 2));
 
-      root.style.left = `${left}px`;
+      root.style.left = `${rootLeft}px`;
       root.style.top = `${top}px`;
       root.style.right = 'auto';
       root.setAttribute('data-anchored', 'true');
+
+      // Keep the header sequence literal: Search -> Bell -> Account -> boundary.
+      const searchLeft = Math.max(viewportPad, Math.round(rootLeft - gap - searchRect.width));
+      const searchTop = Math.max(8, Math.round(top + (rootRect.height - searchRect.height) / 2));
+      search.style.setProperty('position', 'fixed', 'important');
+      search.style.setProperty('left', `${searchLeft}px`, 'important');
+      search.style.setProperty('right', 'auto', 'important');
+      search.style.setProperty('top', `${searchTop}px`, 'important');
+      search.style.setProperty('z-index', '10050', 'important');
     });
   };
 
@@ -74,25 +107,25 @@
     proxy.click();
   }, true);
 
-  const appObserver = new MutationObserver(positionBesideSearch);
+  const appObserver = new MutationObserver(positionAtContentBoundary);
   appObserver.observe(app, { childList: true });
 
-  window.addEventListener('resize', positionBesideSearch, { passive: true });
-  window.addEventListener('pageshow', positionBesideSearch);
-  window.addEventListener('focus', positionBesideSearch);
+  window.addEventListener('resize', positionAtContentBoundary, { passive: true });
+  window.addEventListener('pageshow', positionAtContentBoundary);
+  window.addEventListener('focus', positionAtContentBoundary);
   window.addEventListener('stashbox:v2-auth-changed', syncLogin);
   window.addEventListener('stashbox:v2-session-changed', syncLogin);
   window.addEventListener('storage', event => {
     if (!event.key || event.key === TOKEN_KEY) syncLogin();
   });
 
-  [0, 50, 150, 350, 750, 1500, 3000].forEach(delay => window.setTimeout(positionBesideSearch, delay));
+  [0, 50, 150, 350, 750, 1500, 3000].forEach(delay => window.setTimeout(positionAtContentBoundary, delay));
   syncLogin();
 
   window.StashboxDesktopPersistentControls = Object.freeze({
     refresh: () => {
       syncLogin();
-      positionBesideSearch();
+      positionAtContentBoundary();
     }
   });
 })();
