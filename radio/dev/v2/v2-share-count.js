@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs';
+  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_URL = `${API_ROOT}/radio/songs`;
+  const TRACK_URL = `${API_ROOT}/radio/track`;
   const app = document.getElementById('v2App');
   if (!app) return;
 
@@ -9,7 +11,8 @@
     songs: [],
     loading: null,
     observer: null,
-    refreshTimer: 0
+    refreshTimer: 0,
+    pendingShares: new Map()
   };
 
   const clean = value => String(value ?? '').trim();
@@ -89,7 +92,6 @@
     }
 
     if (matchMedia('(max-width: 899px)').matches) {
-      // Use the original Share button only. The count belongs between its icon and label.
       let label = shareButton.querySelector('[data-share-label]');
       if (!label) {
         label = [...shareButton.children].find(child => child !== count && child.tagName !== 'SVG' && norm(child.textContent) === 'share') || null;
@@ -115,11 +117,16 @@
     return count;
   }
 
+  function displayedShares(song) {
+    if (!song) return 0;
+    return Math.max(0, Number(song.shares || 0) + Number(state.pendingShares.get(song.key) || 0));
+  }
+
   function render() {
     const count = ensureCountNode();
     if (!count) return;
     const song = currentSong();
-    const value = String(song?.shares ?? 0);
+    const value = String(displayedShares(song));
     const aria = `${value} shares`;
     if (count.textContent !== value) count.textContent = value;
     if (count.getAttribute('aria-label') !== aria) count.setAttribute('aria-label', aria);
@@ -130,9 +137,57 @@
     render();
   }
 
-  function scheduleRefresh() {
+  function scheduleRefresh(delay = 900) {
     window.clearTimeout(state.refreshTimer);
-    state.refreshTimer = window.setTimeout(() => refresh(true), 1400);
+    state.refreshTimer = window.setTimeout(() => refresh(true), delay);
+  }
+
+  function shareSessionId() {
+    try {
+      return crypto.randomUUID?.() || `share-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    } catch (_) {
+      return `share-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+  }
+
+  async function persistShare(song) {
+    if (!song?.key) return false;
+
+    const response = await fetch(TRACK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({
+        song_key: song.key,
+        event_type: 'share',
+        session_id: shareSessionId()
+      })
+    });
+
+    if (!response.ok) throw new Error(`share track ${response.status}`);
+    return true;
+  }
+
+  async function countShare() {
+    const song = currentSong();
+    if (!song?.key) return;
+
+    state.pendingShares.set(song.key, Number(state.pendingShares.get(song.key) || 0) + 1);
+    render();
+
+    try {
+      await persistShare(song);
+      song.shares = Number(song.shares || 0) + 1;
+      state.pendingShares.set(song.key, Math.max(0, Number(state.pendingShares.get(song.key) || 0) - 1));
+      render();
+      scheduleRefresh(700);
+    } catch (_) {
+      state.pendingShares.set(song.key, Math.max(0, Number(state.pendingShares.get(song.key) || 0) - 1));
+      render();
+      scheduleRefresh(250);
+    }
   }
 
   const style = document.createElement('style');
@@ -189,7 +244,7 @@
 
   document.addEventListener('click', event => {
     if (!event.target.closest('#v2App [data-share]')) return;
-    scheduleRefresh();
+    countShare();
   }, true);
 
   state.observer = new MutationObserver(() => render());
