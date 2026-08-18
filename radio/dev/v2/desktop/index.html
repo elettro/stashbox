@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050607">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="stashbox-v2-build" content="desktop-clean-20260818-authrestore-safety2">
+  <meta name="stashbox-v2-build" content="desktop-clean-20260818-authrestore-staticlogin1">
   <script>
     (() => {
       try {
@@ -36,7 +36,9 @@
   <div id="v2App" class="v2-app" aria-live="polite">
     <header class="v2-header">
       <a class="v2-wordmark" href="/radio/dev/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
-      <div class="v2-header-actions" aria-label="Account actions"></div>
+      <div class="v2-header-actions" aria-label="Account actions">
+        <a class="v2-header-login" href="/radio/dev/v2/?auth=login" data-v2-auth-open="login" aria-label="Log in to Stashbox Radio">Log In</a>
+      </div>
     </header>
     <main class="v2-home">
       <section class="v2-guest-meter" data-v2-boot-status>
@@ -63,7 +65,7 @@
   <script src="/radio/dev/v2/v2-auth-sheet.js?v=20260818-authrestore1" defer></script>
   <script src="/radio/dev/v2/v2-auth-input-case-fix.js?v=20260726-authcase90" defer></script>
   <script src="/radio/dev/v2/v2-login-direct.js?v=20260811-vecauth1" defer></script>
-  <script src="/radio/dev/v2/v2-header-login.js?v=20260818-authrestore1" defer></script>
+  <script src="/radio/dev/v2/v2-header-login.js?v=20260818-staticlogin1" defer></script>
   <script src="/radio/dev/v2/v2-profile-entry.js?v=20260725-session80" defer></script>
   <script src="/radio/dev/v2/desktop/browser-audio-map.js?v=20260818-audiocompat1" defer></script>
   <script src="/radio/dev/v2/desktop/desktop-audio-compat.js?v=20260818-audiocompat1" defer></script>
