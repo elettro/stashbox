@@ -8,12 +8,16 @@
     status: 'BOOTING',
     playerReady: false,
     audioState: 'IDLE',
+    audioSourceMode: 'UNKNOWN',
+    audioCompatMapSize: 0,
     songKey: '',
     title: '',
     vecState: 'IDLE',
     vecPoolSize: 0,
     vecPlayedCount: 0,
     vecFailedCount: 0,
+    vecSafetyTripped: false,
+    vecSafetyTripCount: 0,
     lastVecAsset: null,
     lastError: null,
     events: []
@@ -36,12 +40,30 @@
     return player()?.querySelector('[data-audio], audio') || null;
   }
 
+  function syncAudioSource(a = audio()) {
+    const source = String(a?.currentSrc || a?.src || '');
+    health.audioCompatMapSize = Number(window.StashboxDesktopAudioCompat?.mapSize?.() || 0);
+    if (!source) health.audioSourceMode = 'NONE';
+    else if (a?.dataset?.browserAudioFallback === 'true') health.audioSourceMode = 'MASTER_FALLBACK';
+    else if (/\.browser\.mp3(?:$|[?#])/i.test(source)) health.audioSourceMode = 'BROWSER_DERIVATIVE';
+    else if (/\.wav(?:$|[?#])/i.test(source)) health.audioSourceMode = 'WAV_MASTER';
+    else health.audioSourceMode = 'DIRECT';
+  }
+
+  function syncSafety() {
+    const safety = window.StashboxDesktopVecSafety?.state?.() || null;
+    health.vecSafetyTripped = Boolean(safety?.tripped);
+    health.vecSafetyTripCount = Number(safety?.tripCount || 0);
+  }
+
   function syncPlayer() {
     const p = player();
     const a = audio();
     health.playerReady = Boolean(p && a);
     health.title = p?.querySelector('[data-ptitle]')?.textContent?.trim() || '';
     health.songKey = p?.dataset?.songKey || p?.dataset?.vec2SongKey || health.songKey || '';
+    syncAudioSource(a);
+    syncSafety();
     if (health.playerReady && health.status === 'BOOTING') health.status = 'READY';
   }
 
@@ -50,7 +72,7 @@
     syncPlayer();
     health.status = 'PLAYING';
     health.audioState = 'PLAY_REQUESTED';
-    push('audio-play', { title: health.title, songKey: health.songKey });
+    push('audio-play', { title: health.title, songKey: health.songKey, sourceMode: health.audioSourceMode });
   }, true);
 
   document.addEventListener('playing', event => {
@@ -58,34 +80,43 @@
     syncPlayer();
     health.status = 'PLAYING';
     health.audioState = 'PLAYING';
-    push('audio-playing', { currentTime: event.target.currentTime });
+    if (!event.target.error) health.lastError = null;
+    push('audio-playing', { currentTime: event.target.currentTime, sourceMode: health.audioSourceMode });
   }, true);
 
   document.addEventListener('pause', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
+    syncAudioSource(event.target);
     health.audioState = event.target.ended ? 'ENDED' : 'PAUSED';
     if (!event.target.ended) health.status = 'PAUSED';
-    push('audio-pause', { currentTime: event.target.currentTime });
+    push('audio-pause', { currentTime: event.target.currentTime, sourceMode: health.audioSourceMode });
   }, true);
 
   document.addEventListener('waiting', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
+    syncAudioSource(event.target);
     health.audioState = 'WAITING';
-    push('audio-waiting', { currentTime: event.target.currentTime, readyState: event.target.readyState });
+    push('audio-waiting', { currentTime: event.target.currentTime, readyState: event.target.readyState, sourceMode: health.audioSourceMode });
   }, true);
 
   document.addEventListener('stalled', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
+    syncAudioSource(event.target);
     health.audioState = 'STALLED';
-    push('audio-stalled', { currentTime: event.target.currentTime, readyState: event.target.readyState });
+    push('audio-stalled', { currentTime: event.target.currentTime, readyState: event.target.readyState, sourceMode: health.audioSourceMode });
   }, true);
 
   document.addEventListener('error', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
-    health.status = 'ERROR';
+    syncAudioSource(event.target);
+    health.status = event.target.dataset.browserAudioFallback === 'true' ? 'DEGRADED' : 'ERROR';
     health.audioState = 'ERROR';
     health.lastError = `audio:${event.target.error?.code || 'unknown'}`;
-    push('audio-error', { code: event.target.error?.code || null, message: event.target.error?.message || '' });
+    push('audio-error', {
+      code: event.target.error?.code || null,
+      message: event.target.error?.message || '',
+      sourceMode: health.audioSourceMode
+    });
   }, true);
 
   window.addEventListener('stashbox:desktop-vec2-diagnostic', event => {
@@ -96,6 +127,7 @@
     health.vecPoolSize = Number(vec.poolSize || 0);
     health.vecPlayedCount = Number(vec.playedCount || 0);
     health.vecFailedCount = Number(vec.failedCount || 0);
+    syncSafety();
     if (vec.currentAsset) health.lastVecAsset = vec.currentAsset;
     if (detail.type === 'session-error' || detail.type === 'asset-failed') {
       health.lastError = detail.error || detail.detail || detail.type;
@@ -105,7 +137,20 @@
       vecState: health.vecState,
       pool: health.vecPoolSize,
       failed: health.vecFailedCount,
+      safetyTripped: health.vecSafetyTripped,
       error: detail.error || null
+    });
+  });
+
+  window.addEventListener('stashbox:desktop-vec-safety-trip', event => {
+    syncSafety();
+    health.status = health.audioState === 'PLAYING' ? 'DEGRADED' : health.status;
+    health.vecState = 'FALLBACK';
+    health.lastError = `vec-safety:${event.detail?.reason || 'rapid-media-failures'}`;
+    push('vec-safety-trip', {
+      reason: event.detail?.reason || 'rapid-media-failures',
+      failures: Number(event.detail?.failures || 0),
+      songKey: event.detail?.songKey || health.songKey
     });
   });
 
@@ -124,7 +169,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     syncPlayer();
-    push('dom-ready', { playerReady: health.playerReady });
+    push('dom-ready', { playerReady: health.playerReady, audioCompatMapSize: health.audioCompatMapSize });
   }, { once: true });
 
   window.STASHBOX_DESKTOP_HEALTH = Object.freeze({
