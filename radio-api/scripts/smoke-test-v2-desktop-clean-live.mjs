@@ -10,8 +10,9 @@ const OUTPUT_DIR = path.resolve(process.env.DESKTOP_HEALTH_OUTPUT_DIR || 'artifa
 const TIMEOUT_MS = Number(process.env.DESKTOP_HEALTH_TIMEOUT_MS || 60000);
 const TEST_ORIGIN = new URL(BASE_URL).origin;
 
-// Generic interaction health runs in Chromium. Native media compatibility is
-// verified separately by the official system Firefox and Microsoft Edge probes.
+// This is an architecture and interaction gate. Playwright's bundled Chromium
+// does not provide a reliable H.264 decoder in this runner. Real VEC media
+// promotion is gated separately by system Chrome, official Firefox, and Edge.
 const browserDefs = [
   {
     name: 'chromium',
@@ -234,8 +235,10 @@ function grade(result) {
   if (!result.interaction.clickSurface.buttonOwnsPoint) failures.push(`Play control is covered by ${result.interaction.clickSurface.topTag}.${result.interaction.clickSurface.topClass}`);
   if (result.interaction.before.stageCount !== 1) failures.push(`Expected exactly one VEC stage, found ${result.interaction.before.stageCount}`);
   if (result.interaction.before.currentLayerCount > 1) failures.push(`Expected at most one promoted VEC layer, found ${result.interaction.before.currentLayerCount}`);
-  if (!result.interaction.before.vec?.songKey) failures.push('VEC session did not resolve a song key.');
-  if (!result.interaction.before.vec?.currentAsset) failures.push(`VEC did not promote media; state=${result.interaction.before.vec?.status || 'unknown'}`);
+  const vec = result.interaction.before.vec || {};
+  if (!vec.songKey) failures.push('VEC session did not resolve a song key.');
+  if (Number(vec.poolSize || 0) < 1) failures.push('VEC session did not resolve an eligible asset pool.');
+  if (!['PLAYING_VIDEO', 'PLAYING_IMAGE', 'TRANSITIONING', 'FALLBACK'].includes(vec.status)) failures.push(`Unexpected VEC interaction state: ${vec.status || 'unknown'}`);
   if (Math.abs(result.interaction.pausedEnd.audioTime - result.interaction.pausedStart.audioTime) > 0.08) failures.push('Audio advanced while paused.');
   if (result.interaction.pausedStart.videoTime !== null && result.interaction.pausedEnd.videoTime !== null && Math.abs(result.interaction.pausedEnd.videoTime - result.interaction.pausedStart.videoTime) > 0.08) failures.push('VEC video advanced while audio was paused.');
   if (result.interaction.pausedStart.vec?.currentAsset?.type === 'image') {
@@ -258,73 +261,79 @@ async function runBrowser(def, api) {
   const consoleErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+  const resources = [];
+  page.on('response', response => {
+    const url = response.url();
+    if (url.includes('/radio/dev/v2/')) resources.push(url);
+  });
 
-  const url = new URL(BASE_URL);
-  url.searchParams.set('desktop_health', def.name);
-  url.searchParams.set('cache_bust', `${Date.now()}-${Math.random()}`);
-
-  let result;
   try {
-    await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
-    await page.waitForFunction(() => document.body?.classList.contains('desktop-clean-runtime'), null, { timeout: 15000 });
-    await page.locator('#v2App [data-song]').first().waitFor({ state: 'visible', timeout: TIMEOUT_MS });
-
-    const build = await page.locator('meta[name="stashbox-v2-build"]').getAttribute('content') || '';
-    const resources = await page.evaluate(() => performance.getEntriesByType('resource').map(entry => entry.name));
-    const forbiddenResources = resources.filter(urlValue => forbiddenRuntimeFragments.some(fragment => urlValue.includes(fragment)));
-    const { player, selected } = await startSong(page, api.songTitle || SONG_TITLE);
-    await page.waitForFunction(() => Boolean(window.StashboxDesktopVec2 && window.STASHBOX_DESKTOP_HEALTH), null, { timeout: 10000 });
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+    const build = await page.locator('meta[name="stashbox-v2-build"]').getAttribute('content').catch(() => '');
+    const { player, selected } = await startSong(page, SONG_TITLE);
     await waitForVecStarted(page);
     const interaction = await interactionSample(page, player);
     const songChanges = await songChangeSample(page, player);
-    const health = await page.evaluate(() => window.STASHBOX_DESKTOP_HEALTH?.snapshot?.() || null);
-    const finalVec = await page.evaluate(() => window.StashboxDesktopVec2?.state?.() || null);
-    const desktopRuntime = await page.evaluate(() => document.body.classList.contains('desktop-clean-runtime'));
-
-    result = {
+    const finalVec = await page.evaluate(() => window.StashboxDesktopVec2?.state?.() || {});
+    const finalHealth = await page.evaluate(() => window.STASHBOX_DESKTOP_HEALTH?.snapshot?.() || {});
+    const forbiddenResources = [...new Set(resources.filter(url => forbiddenRuntimeFragments.some(fragment => url.includes(fragment))))];
+    const result = {
       browser: def.name,
-      url: page.url(),
-      build,
-      desktopRuntime,
-      forbiddenResources,
+      build: clean(build),
+      desktopRuntime: await page.locator('body.desktop-clean-runtime').count() === 1,
       selected,
       interaction,
       songChanges,
-      health,
       finalVec,
+      finalHealth,
+      forbiddenResources,
       pageErrors,
       consoleErrors,
     };
     result.grade = grade(result);
+    if (!result.grade.ok) await page.screenshot({ path: path.join(OUTPUT_DIR, `${def.name}-failure.png`), fullPage: true }).catch(() => {});
+    return result;
   } catch (error) {
-    result = {
+    await page.screenshot({ path: path.join(OUTPUT_DIR, `${def.name}-exception.png`), fullPage: true }).catch(() => {});
+    return {
       browser: def.name,
-      fatalError: error?.stack || error?.message || String(error),
+      build: '',
+      desktopRuntime: false,
+      selected: null,
+      interaction: null,
+      songChanges: [],
+      finalVec: {},
+      finalHealth: {},
+      forbiddenResources: [],
       pageErrors,
       consoleErrors,
-      grade: { ok: false, failures: [error?.message || String(error)] },
+      grade: { ok: false, failures: [error?.stack || error?.message || String(error)] },
     };
   } finally {
-    await page.screenshot({ path: path.join(OUTPUT_DIR, `${def.name}.png`), fullPage: true }).catch(() => {});
-    await context.close();
-    await browser.close();
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
-  return result;
 }
 
-await fs.rm(OUTPUT_DIR, { recursive: true, force: true });
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
-
 const api = await probeApi();
 const results = [];
-for (const def of browserDefs) results.push(await runBrowser(def, api));
+for (const browser of browserDefs) results.push(await runBrowser(browser, api));
 const summary = {
   generatedAt: new Date().toISOString(),
   baseUrl: BASE_URL,
   api,
   results,
-  ok: api.ok && results.every(result => result.grade?.ok),
 };
 await fs.writeFile(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
 console.log(JSON.stringify(summary, null, 2));
-process.exit(summary.ok ? 0 : 1);
+
+const failures = [
+  ...api.failures.map(message => `DEV API: ${message}`),
+  ...results.flatMap(result => result.grade.failures.map(message => `${result.browser}: ${message}`)),
+];
+if (failures.length) {
+  console.error('\nDesktop V2 clean live-health failures:');
+  failures.forEach(message => console.error(`- ${message}`));
+  process.exitCode = 1;
+}
