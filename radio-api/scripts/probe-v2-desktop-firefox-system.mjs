@@ -54,12 +54,14 @@ try {
   const snapshot = await driver.executeScript(`
     const state = window.StashboxDesktopVec2?.state?.() || null;
     const diagnostics = window.StashboxDesktopVec2?.diagnostics?.() || [];
+    const safety = window.StashboxDesktopVecSafety?.state?.() || null;
     const audio = document.querySelector('#v2App [data-player]:not([hidden]) audio');
     const video = document.querySelector('#v2App [data-player]:not([hidden]) .desktop-vec2-layer.is-current video');
     const probe = document.createElement('video');
     const legacy = [...document.scripts].map(script => script.src || '').filter(src => /watchdog|rescue|v2-desktop-video-runtime|v2-desktop-vec-video-start-fix|v2-media-transition-guard/.test(src));
     return {
       state,
+      safety,
       diagnostics: diagnostics.slice(-100),
       legacyScripts: legacy,
       capabilities: {
@@ -84,8 +86,9 @@ try {
     browser: 'system-firefox',
     ok: Boolean(
       snapshot?.state?.currentAsset &&
-      snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2 &&
-      snapshot?.activeVideo && !snapshot.activeVideo.paused && snapshot.activeVideo.currentTime > 0.15 &&
+      snapshot?.audio && !snapshot.audio.paused && snapshot.audio.currentTime > 0.2 && snapshot.audio.errorCode === 0 &&
+      snapshot?.activeVideo && !snapshot.activeVideo.paused && snapshot.activeVideo.currentTime > 0.15 && snapshot.activeVideo.errorCode === 0 &&
+      snapshot?.safety?.tripped !== true &&
       Array.isArray(snapshot?.legacyScripts) && snapshot.legacyScripts.length === 0
     ),
     selected,
@@ -97,10 +100,12 @@ try {
     snapshot = await driver.executeScript(`
       const state = window.StashboxDesktopVec2?.state?.() || null;
       const diagnostics = window.StashboxDesktopVec2?.diagnostics?.() || [];
+      const safety = window.StashboxDesktopVecSafety?.state?.() || null;
       const audio = document.querySelector('#v2App audio');
       const video = document.querySelector('#v2App .desktop-vec2-layer.is-current video');
       return {
         state,
+        safety,
         diagnostics: diagnostics.slice(-100),
         audio: audio ? { currentTime: Number(audio.currentTime || 0), paused: audio.paused, readyState: audio.readyState, networkState: audio.networkState, errorCode: audio.error?.code || 0, errorMessage: audio.error?.message || '', currentSrc: audio.currentSrc || '' } : null,
         activeVideo: video ? { currentTime: Number(video.currentTime || 0), paused: video.paused, readyState: video.readyState, networkState: video.networkState, errorCode: video.error?.code || 0, errorMessage: video.error?.message || '', currentSrc: video.currentSrc || '' } : null
