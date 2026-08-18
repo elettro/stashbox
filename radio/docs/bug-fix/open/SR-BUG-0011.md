@@ -5,147 +5,145 @@ Severity: Critical
 Area: VEC Player
 Environment: DEV V2
 Date reported: 2026-08-11
-Date updated: 2026-08-17
+Date updated: 2026-08-18
 Date fixed:
 Date verified:
 Reported by: User
 
 ## Symptom
 
-Desktop VEC playback is unstable. The media stage can flicker between song artwork, VEC graphics, and video states, intended VEC videos may fail to trigger or start, and the desktop player can become effectively frozen after selecting a song.
-
-On Firefox desktop, the failure has been especially severe: song graphics may not appear, VEC videos may not appear/start, or the player screen may become nonresponsive after song selection.
-
-## Reproduction
-
-1. Open the DEV V2 desktop player.
-2. Select a song.
-3. Start or allow song playback to begin.
-4. Allow the desktop VEC/artwork enhancement stack to react to the player opening and audio state.
-5. Observe the visual stage and player controls.
-6. Repeat in Firefox, Chrome, and Edge.
-7. Expected: song starts, artwork displays for the CMS-defined intro duration, the first VEC media is already preloaded, media takes over without flicker, controls remain responsive, and subsequent assets hand off only when ready.
-8. Actual: artwork/video may flicker, selected videos may not trigger, expected graphics may not render, and the desktop player can freeze or become nonresponsive after selecting a song.
-
-## Affected examples
-
-- Desktop media playback originally reported during the 2026-08-11 health-scan repair session.
-- Renewed desktop VEC flicker reported on 2026-08-17.
-- Firefox desktop reported on 2026-08-17 with missing song graphics and videos not appearing/triggering.
-- Desktop player reported on 2026-08-17 as freezing after a song is selected.
-
-## Working comparison
-
-Mobile playback has remained substantially more reliable during the same period. The desktop renderer must be independently stabilized and verified across Chrome, Firefox, and Edge before this bug is considered fixed.
+Desktop VEC playback became unstable. The stage could flicker between artwork and VEC media, videos could fail to trigger, and the desktop player could become effectively frozen after selecting a song. Firefox showed especially severe failures in the legacy desktop stack.
 
 ## Root cause / architecture finding
 
-The base V2 song-selection path in `v2-recovery.js` is small and deterministic: it reveals the player, writes song metadata/artwork, sets `audio.src`, calls `audio.load()`, and requests playback. Source inspection did not reveal a self-feeding loop in that core path.
+The core V2 song-selection path is small and deterministic. The unsafe behavior came from the accumulated desktop enhancement stack around it.
 
-The desktop page had accumulated multiple independent post-song-start systems that could all observe and/or mutate the same player and visual stage. These included desktop VEC controller/runtime code, video rescue/start logic, watchdog behavior, artwork replacement logic, transition guards, and other enhancement observers.
+Multiple independent systems were observing and mutating the same player/stage. These included VEC controllers, rescue video logic, watchdogs, artwork replacement code, transition guards, and document-wide MutationObservers. `v2-portrait-artwork-reliability.js` was a concrete high-risk feedback path because it observed `hidden`, `class`, `src`, and `style` while its own apply path changed the same state.
 
-A concrete high-risk feedback path was identified in `v2-portrait-artwork-reliability.js`: it installed a document-wide `MutationObserver` watching `hidden`, `class`, `src`, and `style` mutations inside the player/stage, while its own apply path changed player/stage styles, classes, image sources, and related state. This creates a credible self-triggering render/observer loop under desktop song changes.
+The repair direction is therefore architectural. Do not restore the legacy desktop observer/watchdog/rescue stack.
 
-Additional desktop enhancement scripts also used global observers or polling, increasing the number of independent owners reacting to the same state. The older desktop video runtime separately fetched VEC data, created rescue video elements, and attempted to take over the visual stage after audio began.
+## Clean desktop architecture
 
-The exact historical freeze may involve more than one of these scripts, but the architecture itself is confirmed unsafe: too many independent systems were allowed to own or repair the same stage.
+Desktop DEV V2 now routes internally to `radio/dev/v2/desktop/` before legacy desktop scripts boot. Browser history is rewritten back to `/radio/dev/v2/` so the implementation split does not create a separate public route.
 
-## Rebuild strategy
+The clean runtime uses:
 
-Do not continue repairing the old desktop VEC stack by layering additional watchdogs, MutationObservers, or rescue renderers.
+- one VEC renderer and one stage owner
+- no VEC MutationObserver
+- no VEC polling watchdog
+- CMS-defined artwork intro timing measured against `audio.currentTime`
+- first VEC asset preloaded during the artwork intro
+- permanent A/B media layers for buffered handoff
+- outgoing media retained until incoming media is ready
+- muted browser-safe video playback before promotion
+- generation-based cancellation for song changes
+- failed-asset exclusion for the current song session
+- full-pool consumption before reset
+- URL-first asset identity so duplicate media URLs do not masquerade as separate assets
+- same-folder back-to-back avoidance when alternatives exist
+- current-asset exclusion when a pool cycle resets, while still allowing a true one-asset pool to replay
+- pointer-inert VEC layers below all controls
+- event-driven diagnostics only
 
-Desktop DEV V2 is being split internally from the currently working mobile runtime:
+## Audio master clock hardening
 
-- Mobile keeps its existing runtime while the desktop rebuild is proven.
-- Desktop is routed before legacy scripts boot to a clean runtime under `radio/dev/v2/desktop/`.
-- Browser history is rewritten back to `/radio/dev/v2/` so this remains an internal implementation split rather than a new user-facing product URL.
-- The clean desktop page uses the existing core player plus one event-driven VEC engine.
-- The new desktop VEC engine uses no `MutationObserver` and no polling interval.
-- One song session/generation owns all timers, async work, media layers, and asset-pool state.
-- Artwork stays visible for the exact CMS intro duration.
-- The first VEC asset preloads during the artwork intro.
-- Two permanent media layers provide A/B buffering.
-- The current visual remains visible until the next visual is loaded/ready.
-- Videos are promoted only after muted browser-safe `play()` succeeds.
-- Failed assets are excluded for the current song session and skipped.
-- No asset repeats until the eligible pool is exhausted.
-- Same-folder back-to-back selection is avoided when alternatives exist.
-- Song changes invalidate prior timers, preloads, and async responses through a generation ID.
-- VEC media remains pointer-inert and below all controls.
-- Diagnostics are event-driven and expose catalog/audio/VEC state without adding another polling loop.
+`desktop-audio-master.js` now freezes the active VEC video when audio enters `waiting`, `seeking`, or a low-ready-state `stalled` condition. It resumes VEC only after audio transport is healthy again. It also mirrors audio playback-rate changes to the active VEC video.
 
-## Clean desktop files
+Image rotation and artwork-intro timing already use the audio clock, so pause and buffering do not advance those timers ahead of the song.
 
-- `radio/dev/v2/desktop/index.html`
-- `radio/dev/v2/desktop/desktop-stable.css`
-- `radio/dev/v2/desktop/desktop-vec2.js`
-- `radio/dev/v2/desktop/desktop-health.js`
-- `radio/dev/v2/desktop/smoke-test.mjs`
-- `.github/workflows/desktop-v2-clean-smoke.yml`
-- `radio/dev/v2/index.html` desktop router
-
-## Rebuild commits
-
-Key clean-runtime commits include:
+## Key rebuild commits
 
 - `1db4fb5fde9a6c121834eb43addc95f761da4a17` - clean desktop shell
-- `0d004934b3d2fb45e1e82a7d7ba7910b72a7b46e` - stable desktop VEC stage CSS
-- `e504f797f6134c1123381312004bf666270d3861` - first event-driven desktop VEC engine
+- `0d004934b3d2fb45e1e82a7d7ba7910b72a7b46e` - stable desktop stage CSS
+- `e504f797f6134c1123381312004bf666270d3861` - event-driven VEC engine
 - `e5e63e09b821fe768a6e131fcb5fc13712c90cd0` - session identity/preload race hardening
-- `3cb6edb5e52efaa1133aecef8497735a49f52fbb` - route desktop before legacy scripts boot
-- `2884b6bbc720270bdbfc52fe0a606e512d41bb9f` - event-driven desktop diagnostics
-- `41293279ead5ed7f34d9975edf02b9cacd7f20de` - reduce clean desktop runtime to essential scripts
+- `3cb6edb5e52efaa1133aecef8497735a49f52fbb` - desktop routing before legacy boot
+- `2884b6bbc720270bdbfc52fe0a606e512d41bb9f` - event-driven diagnostics
 - `ebcaf0e2a182c4dd05929fa8845f624ce0590a0c` - structural smoke test
-- `41649bc933ee40eb2740c353ad66dbfe3c4e32e3` - CI guard workflow
+- `41649bc933ee40eb2740c353ad66dbfe3c4e32e3` - CI structural guard
+- `3bc2eb81fef5229240769cae86437415c0b3fa60` - keep inactive A/B buffer decode-active
+- `4ebc8228cb707098d5d72d8c4ae5f39f62397e2d` - freeze VEC video on audio transport stalls
+- `42539a0377dd458c528f5d63a6bd517e0fc42d94` - load audio-master transport guard
+- `6d9e34cde94e3cdebf3cbc85e3c7c88f51aca145` - structural guard for master-clock transport
+- `b0a05b1e9927b5c3029270c9d6e57131fe69c3b9` - fix pool exhaustion and URL-first dedupe
+- `4486cd48b2954cc73503be98f44cd8332b8baac9` - generic live health uses Chromium interaction gate
+- `ebf6b96c9f74f664c8d2d63805e641b4d486e26c` - align live-health workflow with native browser gates
 
-## Current verification state
+## Verification completed on 2026-08-18
 
-Pending. Do not mark fixed yet.
+### Structural smoke
 
-The execution environment used for this repair can inspect/write GitHub but cannot open the deployed `stashbox.com` player in its local Chromium runtime because outbound browser access is blocked. Repository/source-level verification is therefore possible, but real browser media verification must remain a separate requirement.
+The clean runtime structural guard passed after the audio-master changes. Receipt:
 
-Required verification before marking fixed:
+- source commit `d4d66370b59f0790e3f2f846f8d3f31b59edeaf5`
+- passed at `2026-08-18T04:56:41Z`
 
-- Desktop page loads and remains responsive after repeated song selections.
-- Audio plays and remains controllable for repeated next/back operations.
-- CMS-defined artwork intro duration is honored exactly.
-- First video/image is preloaded during the intro.
-- Artwork -> video/image handoff contains no blank/artwork flicker.
-- Video -> video and video -> image handoffs keep the outgoing visual until incoming media is ready.
-- Firefox desktop: graphics render and videos trigger/play.
-- Chrome desktop: graphics render and videos trigger/play.
-- Edge desktop: graphics render and videos trigger/play.
-- Full eligible VEC pool is consumed without repeats before exhaustion.
-- Song changes cleanly cancel the prior VEC session.
-- 30-60 minute unattended playback remains responsive and stable.
-- Only after the stable core passes should authentication UI, Media Session integration, Focus Mode, Cinema Mode, clip-linked commerce, and other enhancements be reintroduced one at a time.
+### Google Chrome
 
-## Regression risk
+System Chrome playback has promoted Freedom Street VEC video successfully with audio moving, a 27-asset eligible pool, failed count 0, and the next VEC video preloaded. Chrome media responses returned successful byte ranges for the active and buffered MP4 files.
 
-High until browser verification is complete. The new architecture deliberately lowers this risk by reducing desktop stage ownership to one renderer and eliminating persistent DOM observers from the VEC runtime.
+### Official Firefox
+
+Issue `#995`, run `32101065385`, returned `ok: true` using official system Firefox plus system media codecs.
+
+Verified:
+
+- Freedom Street audio moving
+- active H.264 VEC video moving
+- active video readyState 4 with no video error
+- CMS intro target 2000 ms completed on the audio clock
+- 27 eligible assets
+- failed count 0
+- next video preloaded
+- zero legacy desktop VEC scripts loaded
+
+Firefox exposes a stale WAV `MediaError` object in this headless environment while audio remains unpaused, currentTime advances, and readyState remains 4. It is recorded as diagnostic noise unless transport behavior fails.
+
+### Microsoft Edge
+
+Issue `#996`, run `32101080392`, returned `ok: true` using Microsoft Edge installed from the official Linux package repository.
+
+Verified:
+
+- Freedom Street audio moving with no media error
+- active H.264 VEC video moving with no media error
+- CMS intro target 2000 ms completed on the audio clock
+- 27 eligible assets
+- failed count 0
+- next video preloaded
+- zero legacy desktop VEC scripts loaded
+
+## Verification still required before closing
+
+Do not mark fixed yet.
+
+Remaining gates:
+
+- rerun structural and native browser checks against the pool-exhaustion build or later
+- generic Chromium live-health pass after removing the bundled Playwright Firefox false-negative gate
+- 30-minute unattended Chrome soak
+- confirm repeated automatic song transitions remain responsive during soak
+- confirm no duplicate VEC stage owners appear during soak
+- confirm VEC media continues advancing across long playback
+
+A dedicated 30-minute Chrome soak workflow now checks the deployed DEV player at 15-second intervals for audio-clock stalls, unexpected pauses, duplicate stages/current layers, lost VEC session identity, legacy script loading, and VEC asset progression.
+
+## Regression rules
+
+For future desktop VEC repairs:
+
+1. Start from the clean desktop runtime.
+2. Read `window.STASHBOX_DESKTOP_HEALTH.snapshot()`, `window.StashboxDesktopVec2.state()`, and `window.StashboxDesktopAudioMaster.state()`.
+3. Fix one layer only.
+4. Do not add a second stage owner.
+5. Do not add MutationObserver-based VEC repair.
+6. Do not add polling watchdogs.
+7. Run structural smoke.
+8. Cache-bust changed desktop assets.
+9. Verify Chrome, official Firefox, and Edge before closing.
+10. Require a 30-minute unattended soak before marking this critical bug fixed.
 
 ## Related bugs
 
 - SR-BUG-0001 - Desktop VEC video flickers to song artwork during unstable clips
 - SR-BUG-0009 - Wide desktop player selects square artwork instead of wide assets
-
-## Future repair procedure
-
-Start from the clean desktop runtime, not the legacy patch stack.
-
-For each regression:
-
-1. Read `window.STASHBOX_DESKTOP_HEALTH.snapshot()` and `window.StashboxDesktopVec2.state()`.
-2. Determine whether the failure is catalog, audio, recipe, asset eligibility, preload, browser `play()`, handoff, or song-session cancellation.
-3. Fix that single layer without introducing a second stage owner, MutationObserver-based repair loop, or polling watchdog.
-4. Run the desktop structural smoke test.
-5. Cache-bust changed desktop JS/CSS.
-6. Verify repeated song changes and long playback across Firefox, Chrome, and Edge before closing the bug.
-
-## Notes
-
-Backfilled on 2026-08-17 from the 2026-08-11 desktop playback report.
-
-Updated on 2026-08-17 after renewed testing showed VEC flicker plus videos failing to trigger, Firefox failing to display expected graphics, and the desktop interface freezing after song selection.
-
-The repair direction is now a clean desktop playback/VEC runtime rather than continued patching of the legacy desktop observer/watchdog stack.
