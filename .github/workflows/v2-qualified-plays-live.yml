@@ -1,0 +1,145 @@
+name: V2 Qualified Plays Live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio/dev/v2/v2-play-tracker.js'
+      - 'radio/dev/v2/index.html'
+      - 'radio/dev/v2/desktop/index.html'
+      - 'radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs'
+      - '.github/workflows/v2-qualified-plays-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: v2-qualified-plays-live
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  qualified-plays:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Wait for exact play-tracker deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_tracker_sha="$(sha256sum radio/dev/v2/v2-play-tracker.js | awk '{print $1}')"
+          expected_mobile="$(grep -oP 'meta name="stashbox-v2-build" content="\K[^"]+' radio/dev/v2/index.html | head -1)"
+          expected_desktop="$(grep -oP 'meta name="stashbox-v2-build" content="\K[^"]+' radio/dev/v2/desktop/index.html | head -1)"
+
+          for attempt in $(seq 1 30); do
+            probe="qualified-play-${GITHUB_RUN_ID}-${attempt}-$(date +%s)"
+            mobile_html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/?deploy_probe=${probe}" || true)"
+            desktop_html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/desktop/?deploy_probe=${probe}" || true)"
+            live_mobile="$(printf '%s' "$mobile_html" | grep -oP 'meta name="stashbox-v2-build" content="\K[^"]+' | head -1 || true)"
+            live_desktop="$(printf '%s' "$desktop_html" | grep -oP 'meta name="stashbox-v2-build" content="\K[^"]+' | head -1 || true)"
+            curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/v2-play-tracker.js?v=20260818-play10-2&deploy_probe=${probe}" -o /tmp/live-play-tracker.js || true
+            live_tracker_sha="$(test -s /tmp/live-play-tracker.js && sha256sum /tmp/live-play-tracker.js | awk '{print $1}' || true)"
+
+            echo "attempt ${attempt}: mobile=${live_mobile:-missing} desktop=${live_desktop:-missing} tracker=${live_tracker_sha:-missing}"
+            if [[ "$live_mobile" == "$expected_mobile" && "$live_desktop" == "$expected_desktop" && "$live_tracker_sha" == "$expected_tracker_sha" ]]; then
+              echo 'Exact mobile, desktop, and tracker deployment confirmed.'
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo 'Timed out waiting for exact qualified-play deployment.' >&2
+          exit 1
+
+      - name: Run mobile and desktop qualified-play E2E
+        id: play_health
+        continue-on-error: true
+        env:
+          V2_URL: https://stashbox.com/radio/dev/v2/
+          V2_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          PLAY_HEALTH_SONG_TITLE: Freedom Street
+          PLAY_HEALTH_OUTPUT_DIR: artifacts/v2-qualified-plays
+          PLAY_HEALTH_TIMEOUT_MS: '60000'
+          PLAY_TRACKER_TOKEN: '20260818-play10-2'
+          PLAY_MOBILE_BUILD: 'mobile-play10-2-'
+          PLAY_DESKTOP_BUILD: 'desktop-clean-20260818-play10-2-'
+        shell: bash
+        run: |
+          set +e
+          node radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload play evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-qualified-plays-${{ github.run_id }}
+          path: artifacts/v2-qualified-plays
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Record qualified-play receipt
+        if: always()
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          EXIT_CODE: ${{ steps.play_health.outputs.exit_code }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          mkdir -p radio/docs/ci
+          node <<'NODE'
+          const fs = require('fs');
+          let summary = {};
+          try { summary = JSON.parse(fs.readFileSync('artifacts/v2-qualified-plays/summary.json', 'utf8')); } catch (_) {}
+          const receipt = {
+            v2_qualified_plays_live: Number(process.env.EXIT_CODE || 1) === 0 && summary.ok === true ? 'PASS' : 'FAIL',
+            source_commit: process.env.SOURCE_SHA,
+            workflow_run_id: process.env.RUN_ID,
+            tested_at_utc: new Date().toISOString(),
+            chosen: summary.chosen || null,
+            results: (summary.results || []).map(result => ({
+              name: result.name,
+              ok: Boolean(result.ok),
+              build: result.build || result.snapshot?.build || '',
+              songKey: result.songKey || '',
+              songTitle: result.songTitle || result.snapshot?.title || '',
+              beforeTotal: result.beforeTotal ?? null,
+              afterTotal: result.afterTotal ?? null,
+              qualifyingRequestCount: result.qualifyingRequests?.length || 0,
+              qualifyingResponseCount: result.qualifyingResponses?.length || 0,
+              persistAttempts: result.qualified?.persistAttempts ?? result.snapshot?.tracker?.persistAttempts ?? null,
+              persistSuccesses: result.qualified?.persistSuccesses ?? result.snapshot?.tracker?.persistSuccesses ?? null,
+              error: result.error || '',
+            })),
+          };
+          fs.writeFileSync('radio/docs/ci/v2-qualified-plays-live.json', JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+          git add radio/docs/ci/v2-qualified-plays-live.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Record V2 qualified play live receipt [skip ci]"
+          git push
+
+      - name: Fail if qualified-play E2E failed
+        if: steps.play_health.outputs.exit_code != '0'
+        run: exit 1
