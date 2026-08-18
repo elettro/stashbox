@@ -11,7 +11,7 @@
   if (!app) return;
 
   let songs = [];
-  let panel = null;
+  let menu = null;
 
   const clean = value => String(value ?? '').trim();
   const norm = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
@@ -99,59 +99,60 @@
     }).catch(() => {});
   }
 
-  function closePanel() {
-    if (!panel) return;
-    panel.remove();
-    panel = null;
+  function closeMenu() {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
   }
 
-  function openPanel(song) {
-    closePanel();
+  function copyText(value, button) {
+    const done = () => {
+      if (!button) return;
+      const original = button.textContent;
+      button.textContent = 'Copied';
+      setTimeout(() => { if (button.isConnected) button.textContent = original; }, 900);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(value).then(done).catch(() => {});
+      return;
+    }
+    const input = document.createElement('textarea');
+    input.value = value;
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+    input.select();
+    try { document.execCommand('copy'); done(); } catch (_) {}
+    input.remove();
+  }
+
+  function openMenu(button, song) {
+    closeMenu();
+    if (!button || !song) return;
+
     const url = shareUrl(song);
-    const title = song?.artist ? `${song.title} — ${song.artist}` : (song?.title || 'Stashbox Radio');
+    const title = song.artist ? `${song.title} — ${song.artist}` : song.title;
+    const rect = button.getBoundingClientRect();
 
-    panel = document.createElement('div');
-    panel.className = 'desktop-share-lite-panel';
-    panel.innerHTML = `
-      <div class="desktop-share-lite-card" role="dialog" aria-modal="true" aria-label="Share song">
-        <button type="button" class="desktop-share-lite-close" data-share-lite-close aria-label="Close">×</button>
-        <strong>Share ${escapeHtml(song?.title || 'this song')}</strong>
-        <div class="desktop-share-lite-actions">
-          <button type="button" data-share-lite-copy>Copy Link</button>
-          <a href="mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(url)}">Email</a>
-          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}" target="_blank" rel="noopener">Facebook</a>
-          <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}" target="_blank" rel="noopener">X</a>
-        </div>
-      </div>`;
-    document.body.appendChild(panel);
+    menu = document.createElement('div');
+    menu.className = 'desktop-share-lite-menu';
+    menu.innerHTML = `
+      <button type="button" data-share-lite-copy>Copy Link</button>
+      <a href="mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(url)}">Email</a>
+      <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}" target="_blank" rel="noopener">Facebook</a>
+      <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}" target="_blank" rel="noopener">X</a>`;
 
-    panel.addEventListener('click', event => {
-      if (event.target === panel || event.target.closest('[data-share-lite-close]')) {
-        closePanel();
-        return;
-      }
-      if (event.target.closest('[data-share-lite-copy]')) {
-        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).catch(() => {});
-        else {
-          const input = document.createElement('textarea');
-          input.value = url;
-          document.body.appendChild(input);
-          input.select();
-          try { document.execCommand('copy'); } catch (_) {}
-          input.remove();
-        }
-        event.target.textContent = 'Copied';
+    menu.style.left = `${Math.max(12, Math.min(window.innerWidth - 232, rect.right - 220))}px`;
+    menu.style.top = `${Math.max(12, Math.min(window.innerHeight - 132, rect.bottom + 10))}px`;
+    document.body.appendChild(menu);
+
+    menu.addEventListener('click', event => {
+      const copy = event.target.closest('[data-share-lite-copy]');
+      if (copy) {
+        event.preventDefault();
+        copyText(url, copy);
       }
     });
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
   }
 
   const style = document.createElement('style');
@@ -159,35 +160,61 @@
     @media (min-width: 900px) {
       .v2-player [data-share] { display:inline-flex !important; align-items:center !important; gap:7px !important; }
       .v2-player [data-share] .v2-share-count { display:inline-block; font-size:13px; line-height:1; pointer-events:none; }
-      .desktop-share-lite-panel { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:rgba(0,0,0,.55); }
-      .desktop-share-lite-card { position:relative; width:min(440px,calc(100vw - 48px)); padding:28px; border:1px solid rgba(255,255,255,.16); border-radius:22px; background:#111317; color:#fff; box-shadow:0 24px 80px rgba(0,0,0,.55); }
-      .desktop-share-lite-card > strong { display:block; margin:0 34px 20px 0; font-size:20px; }
-      .desktop-share-lite-close { position:absolute; top:12px; right:14px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(255,255,255,.08); color:#fff; font-size:26px; cursor:pointer; }
-      .desktop-share-lite-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-      .desktop-share-lite-actions a,.desktop-share-lite-actions button { min-height:44px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.16); border-radius:12px; background:rgba(255,255,255,.06); color:#fff; text-decoration:none; font:inherit; font-weight:800; cursor:pointer; }
+      .desktop-share-lite-menu {
+        position:fixed;
+        z-index:20000;
+        width:220px;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:8px;
+        padding:10px;
+        border:1px solid rgba(255,255,255,.16);
+        border-radius:14px;
+        background:#111317;
+        box-shadow:0 16px 45px rgba(0,0,0,.45);
+      }
+      .desktop-share-lite-menu a,
+      .desktop-share-lite-menu button {
+        min-height:38px;
+        display:grid;
+        place-items:center;
+        border:1px solid rgba(255,255,255,.14);
+        border-radius:9px;
+        background:rgba(255,255,255,.06);
+        color:#fff;
+        text-decoration:none;
+        font:inherit;
+        font-size:12px;
+        font-weight:800;
+        cursor:pointer;
+      }
     }
   `;
   document.head.appendChild(style);
 
+  // Capture only the Share click so the legacy desktop navigator.share handler never runs.
+  // No overlay, no DOM replacement, no MutationObserver, and no stopImmediatePropagation.
   document.addEventListener('click', event => {
     if (!matchMedia('(min-width: 900px)').matches) return;
     const button = event.target.closest('#v2App [data-share]');
-    if (!button) return;
+    if (!button) {
+      if (menu && !event.target.closest('.desktop-share-lite-menu')) closeMenu();
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
-    event.stopImmediatePropagation();
 
     const song = currentSong();
     if (!song) return;
     song.shares += 1;
     paintCount(song);
     persistShare(song);
-    openPanel(song);
+    openMenu(button, song);
   }, true);
 
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closePanel();
+    if (event.key === 'Escape') closeMenu();
   });
 
   fetch(`${SONGS_URL}?limit=500&desktop_share_lite=${Date.now()}`, { cache: 'no-store', headers: { Accept: 'application/json' } })
@@ -195,7 +222,5 @@
     .then(payload => { songs = rows(payload).map(normalizeSong); paintCount(); })
     .catch(() => {});
 
-  // Player markup is replaced when a song opens. A few finite checks are enough to
-  // attach the count without a MutationObserver that can interfere with media playback.
   [250, 750, 1500, 3000].forEach(delay => setTimeout(() => paintCount(), delay));
 })();
