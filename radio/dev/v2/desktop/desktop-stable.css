@@ -37,7 +37,7 @@ html, body { min-height: 100%; }
 .desktop-clean-runtime .desktop-vec2-layer {
   z-index: 1;
   opacity: 0;
-  visibility: hidden;
+  visibility: visible;
   pointer-events: none !important;
   transition: opacity 140ms linear;
 }
