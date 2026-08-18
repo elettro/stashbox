@@ -1,0 +1,49 @@
+name: Desktop V2 Asset Delivery Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio-api/scripts/probe-v2-vec-asset-delivery.mjs'
+      - '.github/workflows/desktop-v2-asset-delivery-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe Freedom Street VEC delivery and codecs
+        env:
+          VEC_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          V2_ORIGIN: https://stashbox.com
+          DESKTOP_HEALTH_SONG_TITLE: Freedom Street
+          VEC_ASSET_PROBE_COUNT: '5'
+        run: node radio-api/scripts/probe-v2-vec-asset-delivery.mjs | tee /tmp/vec-asset-probe.json
+      - name: Publish diagnostic issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const title = '[Desktop V2 Probe] VEC asset delivery';
+            let text = '';
+            try { text = fs.readFileSync('/tmp/vec-asset-probe.json', 'utf8'); } catch (_) { text = 'Probe did not produce JSON output.'; }
+            if (text.length > 55000) text = text.slice(0, 55000) + '\n...truncated';
+            const body = `Source commit: \`${context.sha}\`\n\n\`\`\`json\n${text}\n\`\`\``;
+            const q = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+            const found = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
+            const existing = found.data.items.find(item => item.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body });
+            }
