@@ -45,8 +45,8 @@ function s3KeyFromUrl(value) {
 }
 
 function targetKey(sourceKey) {
-  if (/\.wav$/i.test(sourceKey)) return sourceKey.replace(/\.wav$/i, '.browser.mp3');
-  return `${sourceKey}.browser.mp3`;
+  if (/\.wav$/i.test(sourceKey)) return sourceKey.replace(/\.wav$/i, '.stream320.mp3');
+  return `${sourceKey}.stream320.mp3`;
 }
 
 function cdnUrl(key) {
@@ -120,7 +120,7 @@ async function buildOne(item, index) {
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', source,
       '-vn', '-map_metadata', '-1',
-      '-c:a', 'libmp3lame', '-b:a', '256k', '-ar', '44100', '-ac', '2',
+      '-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '44100', '-ac', '2',
       output
     ], { maxBuffer: 4 * 1024 * 1024 });
 
@@ -200,6 +200,7 @@ const report = {
   generatedAt: new Date().toISOString(),
   catalogSongs: catalog.length,
   filter: TITLE_FILTER || null,
+  bitrateKbps: 320,
   requested: items.length,
   successful: successes.length,
   created: successes.filter(item => item.status === 'created').length,
