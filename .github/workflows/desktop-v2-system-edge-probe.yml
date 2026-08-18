@@ -27,14 +27,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install Microsoft Edge
-        uses: browser-actions/setup-edge@v1
-        with:
-          edge-version: stable
+      - name: Install Microsoft Edge from official repository
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-edge.gpg >/dev/null
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y microsoft-edge-stable
       - name: Install Selenium
         run: npm install --no-save --no-package-lock selenium-webdriver@4.35.0
       - name: Show Edge version
-        run: microsoft-edge --version || microsoft-edge-stable --version
+        run: microsoft-edge-stable --version
       - name: Allow DEV static deployment to settle
         run: sleep 45
       - name: Probe official Edge desktop playback
