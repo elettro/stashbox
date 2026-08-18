@@ -10,15 +10,17 @@ const main = read(`${root}/index.html`);
 const desktop = read(`${root}/desktop/index.html`);
 const vec = read(`${root}/desktop/desktop-vec2.js`);
 const vecSafety = read(`${root}/desktop/desktop-vec-safety.js`);
+const authPersist = read(`${root}/desktop/desktop-auth-persist.js`);
 const audioMap = read(`${root}/desktop/browser-audio-map.js`);
 const audioCompat = read(`${root}/desktop/desktop-audio-compat.js`);
 const audioMaster = read(`${root}/desktop/desktop-audio-master.js`);
 const health = read(`${root}/desktop/desktop-health.js`);
 const css = read(`${root}/desktop/desktop-stable.css`);
 
-// Compile browser JavaScript without executing it.
+// Compile critical browser JavaScript without executing it.
 new vm.Script(vec, { filename: 'desktop-vec2.js' });
 new vm.Script(vecSafety, { filename: 'desktop-vec-safety.js' });
+new vm.Script(authPersist, { filename: 'desktop-auth-persist.js' });
 new vm.Script(audioMap, { filename: 'browser-audio-map.js' });
 new vm.Script(audioCompat, { filename: 'desktop-audio-compat.js' });
 new vm.Script(audioMaster, { filename: 'desktop-audio-master.js' });
@@ -30,9 +32,11 @@ assert(main.includes("desktopruntime') === 'legacy'"), 'Desktop legacy escape ha
 
 const requiredDesktopScripts = [
   '/radio/dev/v2/v2-boot-guard.js',
+  '/radio/dev/v2/v2-session-manager.js',
   '/radio/dev/v2/desktop/browser-audio-map.js',
   '/radio/dev/v2/desktop/desktop-audio-compat.js',
   '/radio/dev/v2/v2-recovery.js',
+  '/radio/dev/v2/desktop/desktop-auth-persist.js',
   '/radio/dev/v2/desktop/desktop-vec2.js',
   '/radio/dev/v2/desktop/desktop-vec-safety.js',
   '/radio/dev/v2/desktop/desktop-audio-master.js',
@@ -54,7 +58,6 @@ const forbiddenDesktopScripts = [
   'v2-portrait-artwork-reliability.js',
   'v2-media-transition-guard.js',
   'v2-media-session.js',
-  'v2-session-manager.js',
   'v2-health.js'
 ];
 for (const script of forbiddenDesktopScripts) {
@@ -68,6 +71,9 @@ assert(!vecSafety.includes('setInterval('), 'Desktop VEC safety must remain free
 assert(vecSafety.includes("addEventListener('stashbox:desktop-vec2-diagnostic'"), 'Desktop VEC safety must consume VEC diagnostics.');
 assert(vecSafety.includes('FAILURE_LIMIT = 4'), 'Desktop VEC safety must cap rapid media failures.');
 assert(vecSafety.includes('StashboxDesktopVec2?.stop?.()'), 'Desktop VEC safety must stop only the visual engine when tripped.');
+assert(!authPersist.includes('MutationObserver'), 'Desktop auth persistence must not observe the player/VEC subtree.');
+assert(!authPersist.includes('setInterval('), 'Desktop auth persistence must use bounded boot repairs, not polling.');
+assert(authPersist.includes('const bootDelays = ['), 'Desktop auth persistence must use finite boot repair timers.');
 assert(!audioCompat.includes('MutationObserver'), 'Desktop audio compatibility must remain observer-free.');
 assert(!audioCompat.includes('setInterval('), 'Desktop audio compatibility must remain free of polling intervals.');
 assert(audioCompat.includes('browser_original_audio_url'), 'Desktop audio compatibility must preserve original master audio as fallback.');
