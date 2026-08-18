@@ -92,16 +92,17 @@
   document.addEventListener('error', event => {
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App')) return;
-    const browserUrl = canonical(audio.currentSrc || audio.src);
-    const original = reverse.get(browserUrl) || reverse.get(clean(audio.currentSrc || audio.src));
-    if (!original || audio.dataset.browserAudioFallback === 'true') return;
+
+    const failedUrl = canonical(audio.currentSrc || audio.src);
+    const browserUrl = derivativeFor(failedUrl);
+    if (!browserUrl || canonical(browserUrl) === failedUrl || audio.dataset.browserAudioFallback === 'true') return;
 
     const resumeAt = Number.isFinite(audio.currentTime) ? Number(audio.currentTime || 0) : 0;
     const shouldResume = !audio.paused && !audio.ended;
     audio.dataset.browserAudioFallback = 'true';
-    audio.dataset.browserAudioFailedUrl = browserUrl;
-    audio.dataset.browserAudioOriginalUrl = original;
-    audio.src = original;
+    audio.dataset.browserAudioFailedUrl = failedUrl;
+    audio.dataset.browserAudioOriginalUrl = failedUrl;
+    audio.src = browserUrl;
     try { audio.load(); } catch (_) {}
 
     const resume = () => {
