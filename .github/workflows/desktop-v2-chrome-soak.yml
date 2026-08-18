@@ -1,0 +1,78 @@
+name: Desktop V2 Chrome Soak
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio/dev/v2/desktop/**'
+      - 'radio/dev/v2/index.html'
+      - 'radio-api/scripts/soak-v2-desktop-chrome.mjs'
+      - '.github/workflows/desktop-v2-chrome-soak.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-v2-chrome-soak
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Google Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      - name: Install Selenium
+        run: npm install --no-save --no-package-lock selenium-webdriver@4.35.0
+      - name: Show Chrome version
+        run: google-chrome --version || chrome --version
+      - name: Allow DEV static deployment to settle
+        run: sleep 90
+      - name: Run 30-minute unattended desktop soak
+        id: soak
+        continue-on-error: true
+        env:
+          V2_URL: https://stashbox.com/radio/dev/v2/
+          DESKTOP_HEALTH_SONG_TITLE: Freedom Street
+          DESKTOP_HEALTH_TIMEOUT_MS: '60000'
+          DESKTOP_SOAK_MS: '1800000'
+          DESKTOP_SOAK_SAMPLE_MS: '15000'
+          DESKTOP_SOAK_OUTPUT: /tmp/desktop-v2-chrome-soak.json
+        run: node radio-api/scripts/soak-v2-desktop-chrome.mjs
+      - name: Preserve soak evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-v2-chrome-soak-${{ github.run_id }}
+          path: /tmp/desktop-v2-chrome-soak.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish soak status issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const title = '[Desktop V2 Probe] 30-minute Chrome soak';
+            let text = '';
+            try { text = fs.readFileSync('/tmp/desktop-v2-chrome-soak.json', 'utf8'); } catch (_) { text = 'Soak did not produce JSON output.'; }
+            if (text.length > 55000) text = text.slice(0, 55000) + '\n...truncated';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `Source commit: \`${context.sha}\`\n\nEvidence: ${runUrl}\n\n\`\`\`json\n${text}\n\`\`\``;
+            const q = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+            const found = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
+            const existing = found.data.items.find(item => item.title === title);
+            if (existing) await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body });
+      - name: Fail when soak fails
+        if: steps.soak.outcome == 'failure'
+        run: exit 1
