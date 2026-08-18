@@ -7,7 +7,7 @@ Environment: DEV
 Date reported: 2026-07-18
 Date closed: 2026-08-17
 Date fixed:
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -35,7 +35,7 @@ Unknown. Historical backfill awaiting current controller inspection.
 
 ## Fix
 
-No verified fix is recorded. User requested this issue be closed for now on 2026-08-17.
+No technical fix was recorded. User requested this issue be closed for now on 2026-08-17.
 
 ## Files changed
 
@@ -47,7 +47,7 @@ None recorded.
 
 ## Verification
 
-Not applicable while closed without a verified fix.
+Closure/resolution status explicitly verified by the user on 2026-08-18. This verification does not invent a technical fix that was not recorded.
 
 ## Regression risk
 
@@ -63,4 +63,4 @@ If reopened, log the complete eligible pool and every selection decision. Verify
 
 ## Notes
 
-Backfilled on 2026-08-17 from VEC controller development reports. Closed for now at user request on 2026-08-17 without claiming the issue was technically fixed.
+Backfilled on 2026-08-17 from VEC controller development reports. Closed for now at user request on 2026-08-17 and explicitly verified as resolved/closed by the user on 2026-08-18.
