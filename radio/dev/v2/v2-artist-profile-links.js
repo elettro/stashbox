@@ -13,7 +13,7 @@
     .replace(/^-+|-+$/g, '') || 'stashbox';
 
   const playerArtistTarget = target => target.closest(
-    '#v2App [data-partist], #v2App [data-player-artist]'
+    '#v2App [data-partist], #v2App [data-player-artist], #v2App [data-avatar], #v2App [data-player-avatar]'
   );
 
   function artistNameFor(target) {
@@ -40,8 +40,9 @@
   }
 
   function activateNames() {
-    document.querySelectorAll('#v2App [data-partist], #v2App [data-player-artist]').forEach(node => {
-      const name = String(node.textContent || '').trim();
+    document.querySelectorAll('#v2App [data-partist], #v2App [data-player-artist], #v2App [data-avatar], #v2App [data-player-avatar]').forEach(node => {
+      const player = node.closest('[data-player], .v2-player');
+      const name = String(player?.querySelector('[data-partist], [data-player-artist]')?.textContent || '').trim();
       if (!name) return;
       node.classList.add('v2-artist-profile-link');
       node.setAttribute('role', 'link');
@@ -79,16 +80,16 @@
 
   const style = document.createElement('style');
   style.textContent = `
+    #v2App .v2-artist-profile-anchor,
     #v2App .v2-artist-profile-link {
+      color: inherit;
       cursor: pointer;
-      text-decoration: underline;
-      text-decoration-thickness: 1px;
-      text-underline-offset: 3px;
+      text-decoration: none;
     }
-    #v2App .v2-artist-profile-link:hover,
-    #v2App .v2-artist-profile-link:focus-visible {
-      color: #fff;
-      text-decoration-thickness: 2px;
+    #v2App .v2-artist-profile-link:focus-visible,
+    #v2App .v2-artist-profile-anchor:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
     }
   `;
   document.head.appendChild(style);
