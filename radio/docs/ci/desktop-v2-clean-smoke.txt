@@ -1,3 +1,3 @@
 desktop_v2_clean_smoke=PASS
-source_commit=6d9e34cde94e3cdebf3cbc85e3c7c88f51aca145
-passed_at_utc=2026-08-18T04:55:58Z
+source_commit=d4d66370b59f0790e3f2f846f8d3f31b59edeaf5
+passed_at_utc=2026-08-18T04:56:41Z
