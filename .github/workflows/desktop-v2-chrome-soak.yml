@@ -21,7 +21,7 @@ permissions:
 jobs:
   soak:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,8 +35,11 @@ jobs:
         run: npm install --no-save --no-package-lock selenium-webdriver@4.35.0
       - name: Show Chrome version
         run: google-chrome --version || chrome --version
-      - name: Allow DEV static deployment to settle
-        run: sleep 90
+      - name: Wait for exact DEV desktop deployment
+        env:
+          V2_DESKTOP_DEPLOY_ATTEMPTS: '20'
+          V2_DESKTOP_DEPLOY_SLEEP_SECONDS: '30'
+        run: bash radio/dev/v2/desktop/wait-for-live-build.sh
       - name: Run 30-minute unattended desktop soak
         id: soak
         continue-on-error: true
