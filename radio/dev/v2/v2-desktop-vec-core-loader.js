@@ -3,6 +3,14 @@
 
   if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(min-width: 900px)').matches) return;
+
+  const params = new URLSearchParams(location.search);
+  const allowLegacyDesktopVec = params.get('desktopvec') === 'legacy';
+  if (!allowLegacyDesktopVec) {
+    document.documentElement.dataset.desktopVecSafeMode = 'artwork-only';
+    return;
+  }
+
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
   const loadVisibilityRepair = () => {
