@@ -1,6 +1,13 @@
+html[data-vec-engine="2"] [data-mobile-vec-stage] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .vec2-stage {
   position: absolute;
   inset: 0;
+  z-index: 8;
   overflow: hidden;
   background: #050607;
   isolation: isolate;
@@ -48,6 +55,7 @@
   background-repeat: no-repeat;
   background-position: center center;
   background-size: contain;
+  background-color: #050607;
   opacity: 0;
   visibility: hidden;
 }
@@ -57,7 +65,8 @@
 
 .vec2-stage[data-state="PLAYING_VIDEO"] .vec2-artwork,
 .vec2-stage[data-state="PLAYING_IMAGE"] .vec2-artwork,
-.vec2-stage[data-state="TRANSITIONING"] .vec2-artwork {
+.vec2-stage[data-state="TRANSITIONING"] .vec2-artwork,
+.vec2-stage[data-state="PRELOADING"] .vec2-artwork {
   opacity: 0 !important;
   visibility: hidden !important;
 }
