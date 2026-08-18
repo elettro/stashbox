@@ -22,6 +22,8 @@
 
     const clone = original.cloneNode(true);
     clone.dataset.desktopShareIsolation = 'true';
+    clone.setAttribute('title', 'Share this song');
+    clone.setAttribute('aria-label', 'Share this song');
 
     let count = clone.querySelector('[data-shares]');
     if (!count) {
@@ -37,7 +39,7 @@
       event.stopPropagation();
       localCount += 1;
       count.textContent = String(localCount);
-      clone.setAttribute('aria-label', `Share isolation test ${localCount}`);
+      clone.setAttribute('aria-label', `Share this song. ${localCount} shares`);
     }, false);
 
     original.replaceWith(clone);
