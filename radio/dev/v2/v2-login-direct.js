@@ -95,18 +95,22 @@
     const actions = document.querySelector('#v2App .v2-header-actions');
     if (!actions) return false;
 
-    actions.querySelectorAll('.v2-header-login').forEach(element => element.remove());
     actions.querySelectorAll('.stashbox-action-row').forEach(row => {
       if (!row.children.length) row.remove();
     });
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'v2-header-login';
+    let button = actions.querySelector('.v2-header-login');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'v2-header-login';
+      actions.appendChild(button);
+    }
+
     button.dataset.v2AuthOpen = 'login';
     button.textContent = readAccessToken() ? 'Account' : 'Log In';
-    button.setAttribute('aria-label', 'Log in to Stashbox Radio');
-    actions.appendChild(button);
+    button.setAttribute('aria-label', readAccessToken() ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio');
+    button.removeAttribute('hidden');
     return true;
   };
 
