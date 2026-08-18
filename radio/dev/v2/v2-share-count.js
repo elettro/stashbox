@@ -13,7 +13,8 @@
     observer: null,
     refreshTimer: 0,
     lastMobileShareAt: 0,
-    lastMobileShareKey: ''
+    lastMobileShareKey: '',
+    desktopOptimistic: new Map()
   };
 
   const clean = value => String(value ?? '').trim();
@@ -37,6 +38,19 @@
     shares: Number(row.total_shares ?? row.shares ?? row.share_count ?? 0) || 0
   });
 
+  function reconcileDesktopOptimistic(nextSongs) {
+    for (const song of nextSongs) {
+      const pending = state.desktopOptimistic.get(song.key);
+      if (!pending) continue;
+      const confirmed = Math.max(0, Number(song.shares || 0) - Number(pending.baseline || 0));
+      if (confirmed <= 0) continue;
+      pending.pending = Math.max(0, Number(pending.pending || 0) - confirmed);
+      pending.baseline = Number(song.shares || 0);
+      if (pending.pending <= 0) state.desktopOptimistic.delete(song.key);
+      else state.desktopOptimistic.set(song.key, pending);
+    }
+  }
+
   async function loadSongs(force = false) {
     if (state.loading && !force) return state.loading;
     state.loading = fetch(`${API_URL}?limit=500&share_count_ui=${Date.now()}`, {
@@ -45,7 +59,9 @@
     })
       .then(response => response.ok ? response.json() : Promise.reject(new Error(`songs ${response.status}`)))
       .then(payload => {
-        state.songs = rows(payload).map(normalizeSong);
+        const nextSongs = rows(payload).map(normalizeSong);
+        reconcileDesktopOptimistic(nextSongs);
+        state.songs = nextSongs;
         return state.songs;
       })
       .catch(() => state.songs)
@@ -101,9 +117,7 @@
     if (matchMedia('(max-width: 899px)').matches) {
       const label = [...shareButton.children].find(child => child.tagName === 'SMALL') || null;
       if (label) {
-        if (count.parentElement !== shareButton || count.nextElementSibling !== label) {
-          shareButton.insertBefore(count, label);
-        }
+        if (count.parentElement !== shareButton || count.nextElementSibling !== label) shareButton.insertBefore(count, label);
       } else if (count.parentElement !== shareButton) {
         shareButton.appendChild(count);
       }
@@ -114,11 +128,17 @@
     return count;
   }
 
+  function displayedShares(song) {
+    if (!song) return 0;
+    const optimistic = state.desktopOptimistic.get(song.key);
+    return Math.max(0, Number(song.shares || 0) + Number(optimistic?.pending || 0));
+  }
+
   function render() {
     const count = ensureCountNode();
     if (!count) return;
     const song = currentSong();
-    const value = String(Math.max(0, Number(song?.shares || 0)));
+    const value = String(displayedShares(song));
     const aria = `${value} shares`;
     if (count.textContent !== value) count.textContent = value;
     if (count.getAttribute('aria-label') !== aria) count.setAttribute('aria-label', aria);
@@ -160,16 +180,26 @@
     return true;
   }
 
-  function countShare(song = currentSong()) {
+  function countMobileShare(song = currentSong()) {
     if (!song?.key) return;
     song.shares = Math.max(0, Number(song.shares || 0)) + 1;
     render();
-
     persistShare(song)
       .then(() => scheduleRefresh(900))
-      .catch(error => {
-        console.warn('[V2 Share] persistence failed; keeping optimistic count', error);
-      });
+      .catch(error => console.warn('[V2 Share] mobile persistence failed; keeping optimistic count', error));
+  }
+
+  function countDesktopShare(song = currentSong()) {
+    if (!song?.key) return;
+    const current = state.desktopOptimistic.get(song.key) || {
+      baseline: Number(song.shares || 0),
+      pending: 0
+    };
+    current.pending += 1;
+    state.desktopOptimistic.set(song.key, current);
+    render();
+    // Desktop persistence remains owned by the existing player share() function.
+    // This layer only renders the immediate +1 and never interferes with the popup.
   }
 
   function sharePayload(song) {
@@ -188,9 +218,7 @@
         Promise.resolve(navigator.share(payload)).catch(() => {});
         return;
       }
-      if (navigator.clipboard?.writeText) {
-        Promise.resolve(navigator.clipboard.writeText(payload.url)).catch(() => {});
-      }
+      if (navigator.clipboard?.writeText) Promise.resolve(navigator.clipboard.writeText(payload.url)).catch(() => {});
     } catch (_) {}
   }
 
@@ -241,31 +269,22 @@
   document.addEventListener('click', event => {
     const desktopShareButton = event.target.closest('#v2App [data-share]');
     if (desktopShareButton && matchMedia('(min-width: 900px)').matches) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      const song = currentSong();
-      triggerNativeShare(song);
-      countShare(song);
+      // Do not prevent, stop, or replace this click. The existing player handler
+      // owns the native desktop share popup. We only add the visible +1 here.
+      countDesktopShare(currentSong());
       return;
     }
 
     const mobileRailShare = event.target.closest('#v2App [data-li-share]');
     if (mobileRailShare && matchMedia('(max-width: 899px)').matches) {
-      // This controller is the single owner of the mobile rail Share tap. Blocking
-      // the legacy/logged-in handlers prevents one physical tap from generating
-      // multiple analytics writes and +3/+4 counter jumps.
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
       const song = currentSong();
       if (!acceptSingleMobileTap(song)) return;
       triggerNativeShare(song);
-      countShare(song);
-      return;
+      countMobileShare(song);
     }
-
-    if (desktopShareButton) countShare();
   }, true);
 
   state.observer = new MutationObserver(() => render());
@@ -274,6 +293,9 @@
   refresh();
   window.addEventListener('pageshow', () => refresh(true));
   window.addEventListener('focus', () => refresh(true));
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refresh(true);
+  });
   window.addEventListener('resize', render, { passive: true });
 
   window.StashboxV2ShareCount = Object.freeze({ refresh: () => refresh(true) });
