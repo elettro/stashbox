@@ -63,6 +63,9 @@ for (const expected of [
   'artwork-intro-complete',
   'state.introTargetMs',
   'audio.currentTime',
+  'state.imageDeadlineAudioSeconds',
+  'scheduleImageAdvance(',
+  'clearTimeout(state.imageTimer)',
   'state.played.clear()',
   'state.failed.add(',
   'folderId !== folder'
