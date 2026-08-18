@@ -14,80 +14,94 @@ Reported by: User
 
 Song plays were not reliably retained in stats, including the intended qualifying play event after 10 seconds of listening.
 
-## Reproduction
+## Required behavior
 
-1. Start a song in DEV V2.
-2. Listen continuously beyond 10 seconds.
-3. Inspect the browser event path, `POST /radio/track`, persisted song metrics, and dashboard/API readback.
-4. Expected: exactly one qualifying play is recorded for that playback session after 10 seconds of actual listening.
-5. Previous behavior: V2 had no dedicated 10-second qualifying tracker, so the event or resulting play count could be missing.
+A song earns exactly one play after 10 seconds of accumulated actual listening in one playback session.
 
-## Root cause / architecture finding
+Pause, buffering, and seeking do not count as listening time. Seeking forward past 10 seconds must not immediately qualify. A qualified session must not write a second play because of repeated media events or duplicate script mounting.
 
-The backend contract already supports `event_type: play_start`, and song responses expose `total_plays`. The missing link was the current V2 frontend runtime. Mobile and clean desktop had no single owner responsible for waiting until 10 seconds of real playback and then emitting exactly one persisted `play_start` event.
+## Backend contract verified in source
 
-This is separate from Share. The repair deliberately does not modify Share handlers.
+`radio-api/index.mjs` already supports the required analytics contract:
 
-## Repair implemented on 2026-08-18
+- `play_start` is an allowed song event type.
+- `POST /radio/track` routes song events through the song event persistence path.
+- A persisted `play_start` increments the song play counter.
+- Song API responses expose `total_plays`.
+- The track response can return the updated `total_plays` aggregate.
 
-Added `radio/dev/v2/v2-play-tracker.js` as the single V2 owner for qualified play counting.
+The backend does not currently provide proven session-level idempotency for `session_id`. The frontend therefore prevents duplicate writes within one mounted playback session, but a true exactly-once guarantee across an uncertain network retry still requires server-side idempotency or equivalent database uniqueness. This remains part of the open verification/hardening work.
 
-Rules implemented:
+## Frontend repair
 
-- A play qualifies only after 10 seconds of accumulated actual listening.
-- Pause, waiting/buffering, and seeking stop the listening clock.
-- Seeking forward does not satisfy the threshold because the tracker uses bounded wall-clock playback deltas instead of trusting `audio.currentTime` jumps.
-- One playback session receives one generated `session_id`.
-- Once a session qualifies, the tracker refuses further writes for that session.
-- Song/source changes reset the session.
-- Ended/emptied media resets the session.
-- The persisted event uses `POST /radio/track` with `event_type: play_start`, `song_key`, and the playback `session_id`.
-- The tracker dispatches `stashbox:qualified-play` after a successful API response so visible counters or diagnostics can refresh without adding another analytics writer.
+`radio/dev/v2/v2-play-tracker.js` is the single V2 owner for qualified play counting.
 
-The tracker is loaded in both active V2 paths:
+Current rules:
 
-- Mobile through `v2-mobile-audio-stream-preference.js`.
-- Clean desktop through `desktop-video-stall-watchdog.js`.
-- `v2-spacebar-transport.js` also contains an idempotent shared loader as a secondary shell path. The loader guard prevents duplicate tracker instances.
+- Qualification threshold is 10 seconds.
+- Listening time uses bounded wall-clock deltas while audio is actively playing.
+- Pause, `waiting`, and `seeking` reset the active timing tick without erasing accumulated listening time.
+- Seeking forward cannot manufacture elapsed listening time.
+- One song/source playback session receives one generated `session_id`.
+- Once the API accepts the qualified event, the session latches `qualified = true` and refuses further writes.
+- Song/source changes, `ended`, and `emptied` create a fresh playback session.
+- The persisted event is `event_type: play_start` with `song_key`, `session_id`, `seconds_played: 10`, and tracker source metadata.
+- The tracker parses the successful `/radio/track` response and uses returned `total_plays` when present.
+- It updates visible nodes matching `[data-plays]`, `[data-play-count]`, or `[data-total-plays]` and stores the value on the player as `data-total-plays`.
+- Diagnostics expose `persistAttempts`, `persistSuccesses`, and `lastPersistedTotal` through `window.StashboxV2PlayTracker.state()`.
+- A `stashbox:qualified-play` event fires only after successful persistence.
 
-## Files changed
+## Single-owner loading architecture
+
+The tracker now loads directly from both active V2 HTML entry points instead of depending on unrelated runtime modules:
+
+- Mobile: `radio/dev/v2/index.html`
+- Clean desktop: `radio/dev/v2/desktop/index.html`
+
+The former dynamic play-tracker loaders were removed from:
+
+- `v2-mobile-audio-stream-preference.js`
+- `desktop-video-stall-watchdog.js`
+
+The global `window.StashboxV2PlayTracker` guard remains as a second line of duplicate protection. A legacy secondary loader remains in `v2-spacebar-transport.js`, but the global guard prevents a second tracker instance. Future cleanup should remove that loader after confirming every supported V2 shell directly loads the tracker.
+
+## Files changed in current repair
 
 - `radio/dev/v2/v2-play-tracker.js`
+- `radio/dev/v2/index.html`
+- `radio/dev/v2/desktop/index.html`
 - `radio/dev/v2/v2-mobile-audio-stream-preference.js`
 - `radio/dev/v2/desktop/desktop-video-stall-watchdog.js`
-- `radio/dev/v2/v2-spacebar-transport.js`
+- `radio/dev/v2/v2-spacebar-transport.js` from the initial repair pass
 
-## Commits
+## Current hardening commits
 
-- `859e7e578128746061e2e1665b1a46742e776775` - add qualified V2 play tracker
-- `3e802bcb445e6522020b623fa3d5542fdefe4986` - load tracker from shared V2 transport path
-- `a528cd5c21c6c0d301e54f4108b38e36da1cd8c4` - load tracker on mobile runtime
-- `d1f24dc580f3c1b8fe8e7ef93c8d730de95ed907` - load tracker on clean desktop runtime
+- `403b8c913904e981066464dcbc76ed70b56b415a` - harden tracker response parsing, visible count sync, and diagnostics
+- `d096dc03d3f39b6f90864fe4841f1ff39dd611e8` - load tracker directly on mobile V2
+- `990de95f84b6b5da4c5d2832a58f05a97f8c436d` - load tracker directly on clean desktop V2
+- `20a02eaec40fb6a66c7f5659ad54aec46b6ebcd9` - remove redundant mobile dynamic loader
+- `147e2b71d32a274e290742c0d2957b5c379ace01` - remove redundant desktop dynamic loader
+
+Earlier implementation commits remain part of the repair history.
 
 ## Verification status
 
-Pending end-to-end verification.
+Pending true end-to-end verification. Do not mark Fixed or Verified from source inspection alone.
 
-Code-level evidence now confirms:
+Code-level evidence now establishes the intended path from the 10-second client threshold through the existing `/radio/track` `play_start` contract and back to `total_plays`.
 
-- `radio-api/index.mjs` includes `play_start` in `SONG_EVENT_TYPES`.
-- Song API responses expose `total_plays` as a response-only analytics field.
-- Both active V2 runtimes now load one guarded tracker implementation.
-- The frontend emits only after 10 accumulated seconds and blocks repeat emission once qualified.
+Still required before closure:
 
-Still required before marking Fixed/Verified:
-
-1. Confirm the changed files are live on stashbox.com rather than cached older assets.
-2. Observe one real song before and after the 10-second threshold.
-3. Confirm exactly one `POST /radio/track` request occurs.
-4. Confirm the API/database `total_plays` value increases by exactly one.
-5. Confirm pause/resume still reaches 10 seconds cumulatively without duplicate writes.
-6. Confirm seeking past 10 seconds does not create an immediate play.
-7. Repeat on mobile and desktop V2.
-
-## Regression risk
-
-Play tracking changes can overcount when playback restarts, seeks, resumes, multiple scripts mount, or a browser re-emits media events. The current repair uses one guarded global tracker, session identity, a qualified latch, and bounded real-listening deltas to reduce those risks.
+1. Confirm the exact cache-busted mobile and desktop builds are live on stashbox.com.
+2. Capture the starting `total_plays` for a known song.
+3. Play the song for less than 10 seconds and confirm the total does not change.
+4. Continue through 10 seconds of actual listening and confirm exactly one `POST /radio/track` request.
+5. Confirm the track response and fresh song readback both show exactly +1.
+6. Continue playing past 10 seconds and confirm no second write occurs.
+7. Verify pause/resume accumulates listening time correctly without duplicate writes.
+8. Verify seeking forward past 10 seconds does not immediately qualify.
+9. Repeat the exact suite on mobile and clean desktop V2.
+10. Add server-side session idempotency if testing exposes retry ambiguity or duplicate writes beyond the client owner guard.
 
 ## Related bugs
 
@@ -95,8 +109,8 @@ Play tracking changes can overcount when playback restarts, seeks, resumes, mult
 
 ## Future repair procedure
 
-Start from `v2-play-tracker.js`. Do not add another independent play-count writer. Trace one qualifying playback through browser state, `/radio/track`, persistence, API readback, and dashboard totals before changing aggregation logic.
+Start from `v2-play-tracker.js` and the `/radio/track` song event handler. Do not add another independent play-count writer. Trace one playback session from browser timing through the API write, database persistence, response aggregate, fresh song readback, and visible count update.
 
 ## Notes
 
-Backfilled on 2026-08-17 from June 2026 stats failure reports. Active V2 repair began on 2026-08-18 after user identified play totals as a vital system statistic.
+Backfilled on 2026-08-17 from June 2026 stats failure reports. Active V2 repair began on 2026-08-18 after the user identified reliable play totals as a vital system statistic.
