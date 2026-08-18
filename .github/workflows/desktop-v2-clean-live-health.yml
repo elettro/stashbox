@@ -37,10 +37,10 @@ jobs:
       - name: Run structural smoke guard
         run: node radio/dev/v2/desktop/smoke-test.mjs
 
-      - name: Install Playwright Chromium and Firefox
+      - name: Install Playwright Chromium
         run: |
           npm install --no-save --no-package-lock playwright@1.54.2
-          npx playwright install --with-deps chromium firefox
+          npx playwright install --with-deps chromium
 
       - name: Allow DEV static deployment to settle
         if: github.event_name == 'push'
@@ -116,6 +116,7 @@ jobs:
               finalVecStatus: result.finalVec?.status || '',
               finalSongKey: result.finalVec?.songKey || '',
             })),
+            native_media_gates: ['system-firefox', 'system-edge'],
           };
           fs.writeFileSync('radio/docs/ci/desktop-v2-clean-live-health.json', JSON.stringify(receipt, null, 2) + '\n');
           NODE
@@ -145,6 +146,8 @@ jobs:
               `Source commit: \`${context.sha}\``,
               ...failures,
               '',
+              'Generic interaction health uses Chromium. Native media compatibility is gated separately by official system Firefox and Microsoft Edge probes.',
+              '',
               `Evidence: ${runUrl}`,
             ].join('\n');
             const q = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
@@ -171,7 +174,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: existing.number,
-              body: `Clean desktop V2 live health recovered on ${new Date().toISOString()}.\n\nPassing evidence: ${runUrl}`,
+              body: `Clean desktop V2 Chromium interaction health recovered on ${new Date().toISOString()}. Native Firefox and Edge media probes remain separate gates.\n\nPassing evidence: ${runUrl}`,
             });
             await github.rest.issues.update({
               owner: context.repo.owner,
