@@ -1,0 +1,31 @@
+{
+  "desktop_v2_clean_live_health": "PASS",
+  "source_commit": "a65e0855494cc889340619221d53ead3901023b8",
+  "passed_at_utc": "2026-08-18T07:01:15.224Z",
+  "build": "desktop-clean-20260818-pool1",
+  "api": {
+    "ok": true,
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)",
+    "catalogCount": 80,
+    "directAssetCount": 0,
+    "statuses": {
+      "catalog": 200,
+      "recipe": 200,
+      "assets": 200
+    }
+  },
+  "browsers": [
+    {
+      "browser": "chromium",
+      "ok": true,
+      "failures": [],
+      "finalVecStatus": "ARTWORK_INTRO",
+      "finalSongKey": "space-jam-05d-stashbox"
+    }
+  ],
+  "native_media_gates": [
+    "system-firefox",
+    "system-edge"
+  ]
+}
