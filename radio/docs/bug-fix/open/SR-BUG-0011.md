@@ -55,7 +55,26 @@ Image rotation and artwork-intro timing already use the audio clock, so pause an
 
 The pool-exhaustion repair changed `desktop-vec2.js`, but the clean desktop shell still referenced the previous `clean4` query token. A browser with a cached copy could therefore continue running the pre-pool engine even after the source repair landed.
 
-Commit `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` updates the clean desktop build marker to `desktop-clean-20260818-pool1` and cache-busts `desktop-vec2.js` as `20260818-pool1`. This commit is the exact-build target for the next Chrome, Firefox, Edge, structural, and soak gates.
+Commit `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` updates the clean desktop build marker to `desktop-clean-20260818-pool1` and cache-busts `desktop-vec2.js` as `20260818-pool1`.
+
+### Exact-deployment verification repair
+
+A later soak exposed a second verification-boundary flaw. Issue `#997`, run `32104564030`, was labeled with source commit `ca278754e6ecb9157ea9ae658b29a41f3f30d65e`, but the live browser health snapshot still reported build `desktop-clean-20260818-audiomaster1`. The soak itself passed for 30 minutes, but it proved fixed 45-90 second deployment sleeps were not sufficient to guarantee the browser was exercising the checked-out build.
+
+The browser gates now use `radio/dev/v2/desktop/wait-for-live-build.sh` before playback testing. The barrier requires both:
+
+- the live `/radio/dev/v2/desktop/` build marker to equal the checked-out `desktop/index.html` build marker
+- the SHA256 of the live cache-busted `desktop-vec2.js` bytes to equal the checked-out engine bytes
+
+A unique `deploy_probe` query and `Cache-Control: no-cache` are used for both checks. Browser evidence is no longer accepted merely because its workflow source SHA is new.
+
+Deployment-barrier commits:
+
+- `27c1f00dda1c6ad2edc77662336a5316a48335c8` - add exact live build/engine barrier
+- `cbe6e2467790e43f7c4a9a202d3c29fae61a124e` - gate official Firefox
+- `85e7d2dc1a419edf788c59e538a7d0d807330830` - gate official Edge
+- `5bdf2ec10949dced27c76a38e662793c2b4da5f7` - gate 30-minute Chrome soak
+- `cf0a06efdd74d1a4b18a4bf6c0de4726a4388855` - gate generic Chromium live health
 
 ## Key rebuild commits
 
@@ -93,9 +112,9 @@ System Chrome playback has promoted Freedom Street VEC video successfully with a
 
 ### Official Firefox
 
-Issue `#995`, run `32101065385`, returned `ok: true` using official system Firefox plus system media codecs.
+The exact-deployment-gated Firefox run is issue `#995`, run `32109054304`, source commit `cbe6e2467790e43f7c4a9a202d3c29fae61a124e`, and returned `ok: true`.
 
-Verified:
+Verified after the live build/engine barrier passed:
 
 - Freedom Street audio moving
 - active H.264 VEC video moving
@@ -110,9 +129,9 @@ Firefox exposes a stale WAV `MediaError` object in this headless environment whi
 
 ### Microsoft Edge
 
-Issue `#996`, run `32101080392`, returned `ok: true` using Microsoft Edge installed from the official Linux package repository.
+The exact-deployment-gated Edge run is issue `#996`, run `32109072346`, source commit `85e7d2dc1a419edf788c59e538a7d0d807330830`, and returned `ok: true`.
 
-Verified:
+Verified after the live build/engine barrier passed:
 
 - Freedom Street audio moving with no media error
 - active H.264 VEC video moving with no media error
@@ -124,7 +143,7 @@ Verified:
 
 ### 30-minute unattended Chrome soak
 
-Issue `#997`, run `32101436504`, returned `ok: true` for a full 30-minute system-Chrome soak.
+Issue `#997`, run `32101436504`, returned `ok: true` for the original full 30-minute system-Chrome soak.
 
 Verified across 120 samples taken every 15 seconds:
 
@@ -141,20 +160,24 @@ Verified across 120 samples taken every 15 seconds:
 - VEC media continued advancing after song changes
 - sample sessions showed failed asset count 0
 
-This soak is strong evidence that the original desktop freeze and long-run stage ownership failure are repaired in the clean architecture.
+A later soak, run `32104564030`, also passed 30 minutes with zero failures, 120 samples, 8 songs, and 66 unique VEC assets. It is retained as stability evidence only because it exposed that the browser was still serving `desktop-clean-20260818-audiomaster1` despite being triggered by the pool cache-bust source commit.
 
 ## Verification still required before closing
 
 Do not mark fixed yet.
 
+Completed with exact deployment gating:
+
+- official Firefox
+- official Edge
+
 Remaining gates:
 
-- official Firefox pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
-- official Edge pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
-- generic Chromium live-health pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
-- confirm the cache-busted pool build remains the served desktop engine during those browser gates
+- generic Chromium live-health pass after the exact deployment barrier
+- 30-minute Chrome soak after the exact deployment barrier
+- confirm the passing Chromium/soak evidence reports the expected pool build and engine bytes through the barrier
 
-The 30-minute soak requirement itself is satisfied. A new soak was also triggered by the cache-boundary commit so the exact pool build receives the same unattended coverage.
+The original 30-minute soak requirement is satisfied as stability evidence. The new gated soak is required to tie that stability proof to the exact pool engine revision.
 
 ## Regression rules
 
@@ -168,8 +191,9 @@ For future desktop VEC repairs:
 6. Do not add polling watchdogs.
 7. Run structural smoke.
 8. Cache-bust changed desktop assets.
-9. Verify Chrome, official Firefox, and Edge before closing.
-10. Require a 30-minute unattended soak before marking this critical bug fixed.
+9. Wait until the live desktop build marker and VEC engine SHA256 match checked-out source.
+10. Verify Chrome, official Firefox, and Edge before closing.
+11. Require a 30-minute unattended soak before marking this critical bug fixed.
 
 ## Related bugs
 
