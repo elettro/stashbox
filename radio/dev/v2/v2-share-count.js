@@ -11,7 +11,9 @@
     songs: [],
     loading: null,
     observer: null,
-    refreshTimer: 0
+    refreshTimer: 0,
+    lastMobileShareAt: 0,
+    lastMobileShareKey: ''
   };
 
   const clean = value => String(value ?? '').trim();
@@ -170,14 +172,17 @@
       });
   }
 
-  function triggerDesktopShare(song) {
-    if (!song) return;
-    const payload = {
-      title: song.title || 'Stashbox Radio',
-      text: song.artist ? `${song.title} — ${song.artist}` : song.title,
+  function sharePayload(song) {
+    return {
+      title: song?.title || 'Stashbox Radio',
+      text: song?.artist ? `${song.title} — ${song.artist}` : (song?.title || 'Stashbox Radio'),
       url: location.href
     };
+  }
 
+  function triggerNativeShare(song) {
+    if (!song) return;
+    const payload = sharePayload(song);
     try {
       if (typeof navigator.share === 'function') {
         Promise.resolve(navigator.share(payload)).catch(() => {});
@@ -187,6 +192,15 @@
         Promise.resolve(navigator.clipboard.writeText(payload.url)).catch(() => {});
       }
     } catch (_) {}
+  }
+
+  function acceptSingleMobileTap(song) {
+    if (!song?.key) return false;
+    const now = Date.now();
+    if (state.lastMobileShareKey === song.key && now - state.lastMobileShareAt < 900) return false;
+    state.lastMobileShareKey = song.key;
+    state.lastMobileShareAt = now;
+    return true;
   }
 
   const style = document.createElement('style');
@@ -231,14 +245,23 @@
       event.stopPropagation();
       event.stopImmediatePropagation();
       const song = currentSong();
-      triggerDesktopShare(song);
+      triggerNativeShare(song);
       countShare(song);
       return;
     }
 
     const mobileRailShare = event.target.closest('#v2App [data-li-share]');
     if (mobileRailShare && matchMedia('(max-width: 899px)').matches) {
-      countShare();
+      // This controller is the single owner of the mobile rail Share tap. Blocking
+      // the legacy/logged-in handlers prevents one physical tap from generating
+      // multiple analytics writes and +3/+4 counter jumps.
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const song = currentSong();
+      if (!acceptSingleMobileTap(song)) return;
+      triggerNativeShare(song);
+      countShare(song);
       return;
     }
 
