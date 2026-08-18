@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'radio/dev/v2/desktop/**'
+      - 'radio/dev/v2/index.html'
       - 'radio-api/scripts/probe-v2-desktop-media-live.mjs'
       - '.github/workflows/desktop-v2-media-probe.yml'
   workflow_dispatch:
