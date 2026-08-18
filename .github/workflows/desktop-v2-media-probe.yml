@@ -1,0 +1,56 @@
+name: Desktop V2 Media Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio-api/scripts/probe-v2-desktop-media-live.mjs'
+      - '.github/workflows/desktop-v2-media-probe.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-v2-media-probe
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  media-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Firefox support
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.2
+          npx playwright install --with-deps firefox
+      - name: Allow DEV static deployment to settle
+        run: sleep 45
+      - name: Probe live desktop media
+        id: probe
+        continue-on-error: true
+        env:
+          V2_URL: https://stashbox.com/radio/dev/v2/
+          DESKTOP_HEALTH_SONG_TITLE: Freedom Street
+          DESKTOP_MEDIA_PROBE_OUTPUT_DIR: artifacts/desktop-v2-media-probe
+          DESKTOP_HEALTH_TIMEOUT_MS: '60000'
+        run: |
+          node radio-api/scripts/probe-v2-desktop-media-live.mjs
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+      - name: Preserve probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-v2-media-probe-${{ github.run_id }}
+          path: artifacts/desktop-v2-media-probe
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Fail when probe fails
+        if: steps.probe.outcome == 'failure'
+        run: exit 1
