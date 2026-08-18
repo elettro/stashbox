@@ -111,7 +111,10 @@ async function startSong(page, preferredTitle) {
   await cards.first().waitFor({ state: 'visible', timeout: TIMEOUT_MS });
   let target = cards.filter({ hasText: preferredTitle }).first();
   if ((await target.count()) === 0) target = cards.first();
-  const selected = await target.evaluate(node => ({ key: node.getAttribute('data-song') || '', text: clean(node.textContent).replace(/\s+/g, ' ') }));
+  const selected = await target.evaluate(node => ({
+    key: node.getAttribute('data-song') || '',
+    text: String(node.textContent || '').trim().replace(/\s+/g, ' '),
+  }));
   await target.click();
   const player = page.locator('#v2App [data-player]:visible').first();
   await player.waitFor({ state: 'visible', timeout: 10000 });
@@ -204,17 +207,17 @@ async function interactionSample(page, player) {
 async function songChangeSample(page, player) {
   const changes = [];
   for (let index = 0; index < 3; index += 1) {
-    const before = await player.locator('[data-ptitle]').textContent();
+    const before = clean(await player.locator('[data-ptitle]').textContent());
     await player.locator('[data-next]').click();
     await page.waitForFunction(previous => {
       const player = document.querySelector('#v2App [data-player]:not([hidden])');
-      const title = clean(player?.querySelector('[data-ptitle]')?.textContent);
+      const title = String(player?.querySelector('[data-ptitle]')?.textContent || '').trim();
       const audio = player?.querySelector('audio');
       return Boolean(title && title !== previous && audio && !audio.paused && audio.currentTime > 0.1);
-    }, clean(before), { timeout: 10000 });
+    }, before, { timeout: 10000 });
     await page.waitForFunction(() => Boolean(window.StashboxDesktopVec2?.state?.().songKey), null, { timeout: 10000 });
     changes.push(await page.evaluate(() => ({
-      title: clean(document.querySelector('#v2App [data-player]:not([hidden]) [data-ptitle]')?.textContent),
+      title: String(document.querySelector('#v2App [data-player]:not([hidden]) [data-ptitle]')?.textContent || '').trim(),
       songKey: window.StashboxDesktopVec2?.state?.().songKey || '',
       vecStatus: window.StashboxDesktopVec2?.state?.().status || '',
     })));
