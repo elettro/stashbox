@@ -1,0 +1,27 @@
+name: Desktop V2 Clean Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio/dev/v2/index.html'
+      - 'radio/dev/v2/desktop/**'
+      - '.github/workflows/desktop-v2-clean-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-clean-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run clean desktop structural smoke test
+        run: node radio/dev/v2/desktop/smoke-test.mjs
