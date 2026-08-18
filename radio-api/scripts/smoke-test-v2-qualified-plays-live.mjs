@@ -67,7 +67,7 @@ async function startSong(page, preferredTitle) {
   if ((await target.count()) === 0) target = cards.first();
   const selected = await target.evaluate(node => ({
     key: node.getAttribute('data-song') || '',
-    text: clean(node.textContent),
+    text: String(node.textContent || '').trim().replace(/\s+/g, ' '),
   }));
   await target.click();
   const player = page.locator('#v2App [data-player]:visible').first();
@@ -182,7 +182,7 @@ async function runMode({ name, viewport, buildPrefix, chosen }) {
 
     const visible = await player.evaluate(node => ({
       datasetTotal: node.dataset.totalPlays || '',
-      counts: [...node.querySelectorAll('[data-plays], [data-play-count], [data-total-plays]')].map(item => clean(item.textContent || item.value)),
+      counts: [...node.querySelectorAll('[data-plays], [data-play-count], [data-total-plays]')].map(item => String(item.textContent || item.value || '').trim()),
     }));
 
     return {
@@ -234,9 +234,7 @@ const modes = [
 ];
 
 const results = [];
-for (const mode of modes) {
-  results.push(await runMode(mode));
-}
+for (const mode of modes) results.push(await runMode(mode));
 
 const summary = {
   ranAt: new Date().toISOString(),
