@@ -41,7 +41,9 @@ const forbiddenDesktopScripts = [
   'v2-desktop-artwork-runtime-loader.js',
   'v2-portrait-artwork-reliability.js',
   'v2-media-transition-guard.js',
-  'v2-media-session.js'
+  'v2-media-session.js',
+  'v2-session-manager.js',
+  'v2-health.js'
 ];
 for (const script of forbiddenDesktopScripts) {
   assert(!desktop.includes(script), `Clean desktop runtime must not load legacy/observer script ${script}`);
@@ -59,9 +61,11 @@ for (const expected of [
   "addEventListener('emptied'",
   'preloadNext(',
   'artwork-intro-complete',
+  'state.introTargetMs',
+  'audio.currentTime',
   'state.played.clear()',
   'state.failed.add(',
-  "folderId !== folder"
+  'folderId !== folder'
 ]) {
   assert(vec.includes(expected), `Desktop VEC 2 is missing expected stability behavior: ${expected}`);
 }
@@ -69,6 +73,7 @@ for (const expected of [
 assert(css.includes('.desktop-vec2-stage'), 'Clean desktop VEC stage CSS is missing.');
 assert(css.includes('pointer-events: none !important'), 'VEC visual stage must remain click-through.');
 assert(css.includes('z-index: 5'), 'Player controls must remain above VEC visual layers.');
+assert(css.includes('Keep the base artwork as a true fallback'), 'Base artwork fallback must remain visible beneath VEC.');
 assert(desktop.includes("history.replaceState"), 'Clean desktop runtime must preserve the normal V2 URL in browser history.');
 
 console.log('Desktop V2 clean runtime smoke test passed.');
