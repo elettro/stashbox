@@ -36,18 +36,27 @@
     }
 
     const active = hasSession();
-    login.textContent = active ? 'Account' : 'Log In';
-    login.setAttribute('aria-label', active ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio');
+    const label = active ? 'Account' : 'Log In';
+    const aria = active ? 'Open your Stashbox Radio account' : 'Log in to Stashbox Radio';
+    if (login.textContent !== label) login.textContent = label;
+    if (login.getAttribute('aria-label') !== aria) login.setAttribute('aria-label', aria);
     return true;
   };
 
-  ensureLogin();
-
-  const observer = new MutationObserver(() => ensureLogin());
-  observer.observe(app, { childList: true, subtree: true });
+  // v2-recovery performs one asynchronous app render after its catalog request.
+  // Use a finite set of one-shot repairs around that boot window instead of a
+  // subtree MutationObserver. The old observer was triggered by every VEC media
+  // append/remove and then mutated the header again, creating a feedback loop.
+  const bootDelays = [0, 50, 250, 750, 2000, 5000, 10000, 20000, 26000];
+  const bootTimers = bootDelays.map(delay => window.setTimeout(ensureLogin, delay));
 
   window.addEventListener('stashbox:v2-auth-changed', ensureLogin);
   window.addEventListener('stashbox:v2-session-changed', ensureLogin);
   window.addEventListener('pageshow', ensureLogin);
   window.addEventListener('focus', ensureLogin);
+
+  window.StashboxDesktopAuthPersist = Object.freeze({
+    refresh: ensureLogin,
+    stopBootRepairs: () => bootTimers.forEach(timer => window.clearTimeout(timer))
+  });
 })();
