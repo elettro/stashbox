@@ -31,9 +31,14 @@ function recipeFrom(body) {
   body = unwrap(body) || {};
   return body.recipe || body.vec_recipe || body.data?.recipe || body.data || body;
 }
+function canonical(value) {
+  return clean(value).replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '');
+}
 function assetUrl(asset) {
-  return clean(asset?.public_url || asset?.url || asset?.asset_url || asset?.src || asset?.file_url || asset?.s3_url || asset?.video_url || asset?.clip_url || asset?.media_url || asset?.source_url)
-    .replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace(/\?dl=[01]/, '');
+  return canonical(asset?.public_url || asset?.url || asset?.asset_url || asset?.src || asset?.file_url || asset?.s3_url || asset?.video_url || asset?.clip_url || asset?.media_url || asset?.source_url);
+}
+function audioUrl(song) {
+  return canonical(song?.audio_url || song?.resolved_audio_url || song?.audioUrl || song?.stream_url || song?.mp3_url || song?.file_url);
 }
 function assetType(asset) {
   const type = clean(asset?.asset_type || asset?.type || asset?.media_type || asset?.content_type || asset?.mime_type || asset?.kind).toLowerCase();
@@ -54,36 +59,50 @@ function folders(recipe) {
   }
   return out;
 }
-async function probeUrl(url) {
+const responseHeaders = response => response?.headers ? {
+  status: response.status,
+  ok: response.ok,
+  contentType: response.headers.get('content-type') || '',
+  contentLength: response.headers.get('content-length') || '',
+  acceptRanges: response.headers.get('accept-ranges') || '',
+  contentRange: response.headers.get('content-range') || '',
+  allowOrigin: response.headers.get('access-control-allow-origin') || '',
+} : { error: response?.error?.message || 'request failed' };
+async function delivery(url) {
+  if (!url) return null;
   const head = await fetch(url, { method: 'HEAD', redirect: 'follow', headers: { Origin: ORIGIN } }).catch(error => ({ error }));
   const range = await fetch(url, { headers: { Range: 'bytes=0-1048575', Origin: ORIGIN }, redirect: 'follow' }).catch(error => ({ error }));
-  const headers = response => response?.headers ? {
-    status: response.status,
-    ok: response.ok,
-    contentType: response.headers.get('content-type') || '',
-    contentLength: response.headers.get('content-length') || '',
-    acceptRanges: response.headers.get('accept-ranges') || '',
-    contentRange: response.headers.get('content-range') || '',
-    allowOrigin: response.headers.get('access-control-allow-origin') || '',
-  } : { error: response?.error?.message || 'request failed' };
   let rangeBytes = 0;
   if (range?.arrayBuffer) {
     try { rangeBytes = (await range.arrayBuffer()).byteLength; } catch (_) {}
   }
-  const ffprobe = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,codec_long_name,profile,pix_fmt,width,height,r_frame_rate', '-of', 'json', url], { encoding: 'utf8', timeout: 30000 });
+  return { head: responseHeaders(head), range: { ...responseHeaders(range), bytesRead: rangeBytes } };
+}
+function ffprobe(url, args) {
+  if (!url) return null;
+  const result = spawnSync('ffprobe', ['-v', 'error', ...args, '-of', 'json', url], { encoding: 'utf8', timeout: 30000 });
   let codec = null;
-  try { codec = JSON.parse(ffprobe.stdout || '{}'); } catch (_) { codec = { raw: ffprobe.stdout || '' }; }
+  try { codec = JSON.parse(result.stdout || '{}'); } catch (_) { codec = { raw: result.stdout || '' }; }
+  return {
+    status: result.status,
+    signal: result.signal,
+    error: result.error?.message || '',
+    stderr: clean(result.stderr).slice(0, 1200),
+    codec,
+  };
+}
+async function probeVideo(url) {
   return {
     url,
-    head: headers(head),
-    range: { ...headers(range), bytesRead: rangeBytes },
-    ffprobe: {
-      status: ffprobe.status,
-      signal: ffprobe.signal,
-      error: ffprobe.error?.message || '',
-      stderr: clean(ffprobe.stderr).slice(0, 800),
-      codec,
-    },
+    ...(await delivery(url)),
+    ffprobe: ffprobe(url, ['-select_streams', 'v:0', '-show_entries', 'stream=codec_name,codec_long_name,profile,pix_fmt,width,height,r_frame_rate'])
+  };
+}
+async function probeAudio(url) {
+  return {
+    url,
+    ...(await delivery(url)),
+    ffprobe: ffprobe(url, ['-show_entries', 'format=format_name,duration:stream=codec_name,codec_long_name,codec_type,sample_fmt,sample_rate,channels,bits_per_sample,bits_per_raw_sample'])
   };
 }
 
@@ -91,6 +110,7 @@ const catalog = rows(await json(`${API}/radio/songs`), ['songs', 'items', 'data'
 const song = catalog.find(item => clean(item.display_title || item.song_name || item.title).toLowerCase().includes(SONG_TITLE.toLowerCase())) || catalog[0];
 if (!song) throw new Error('No song found');
 const key = clean(song.song_key || song.songKey || song.id || song.key);
+const songAudioUrl = audioUrl(song);
 const recipe = recipeFrom(await json(`${API}/radio/vec/recipe?song_key=${encodeURIComponent(key)}`));
 const assets = [];
 const direct = rows(await json(`${API}/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`));
@@ -109,11 +129,12 @@ for (const asset of assets) {
 const selected = unique.filter(asset => asset.type === 'video').slice(0, MAX_ASSETS);
 if (!selected.length) selected.push(...unique.slice(0, MAX_ASSETS));
 const probes = [];
-for (const asset of selected) probes.push({ asset, delivery: await probeUrl(asset.url) });
+for (const asset of selected) probes.push({ asset, delivery: await probeVideo(asset.url) });
 const summary = {
   generatedAt: new Date().toISOString(),
   songKey: key,
   songTitle: clean(song.display_title || song.song_name || song.title),
+  audio: songAudioUrl ? await probeAudio(songAudioUrl) : null,
   folderCount: folders(recipe).length,
   uniqueAssetCount: unique.length,
   videoCount: unique.filter(asset => asset.type === 'video').length,
