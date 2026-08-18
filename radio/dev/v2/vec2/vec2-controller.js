@@ -218,7 +218,11 @@
     if (!slot || !asset) throw new Error('missing-slot-or-asset');
     stopMedia(slot);
     slot.dataset.assetKey = assetKey(asset);
-    setState(session.currentAsset ? STATES.TRANSITIONING : STATES.PRELOADING, `prepare:${asset.type}`);
+    if (session.state !== STATES.ARTWORK_INTRO) {
+      setState(session.currentAsset ? STATES.TRANSITIONING : STATES.PRELOADING, `prepare:${asset.type}`);
+    } else {
+      log('intro-preload-start', { asset: assetKey(asset), slot: slotIndex });
+    }
     const node = asset.type === 'video'
       ? await makeVideo(asset, ownedSessionId)
       : await makeImage(asset, ownedSessionId);
