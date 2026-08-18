@@ -19,6 +19,13 @@
     .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
     .replace(/\?dl=[01]/, '');
 
+  function preferredAudioUrl(row = {}) {
+    const streamReady = clean(row.audio_transcode_status).toLowerCase() === 'ready';
+    const streamUrl = fixUrl(row.audio_stream_url || row.stream_url || row.mp3_url);
+    const masterUrl = fixUrl(row.audio_master_url || row.audio_url || row.audioUrl);
+    return streamReady && streamUrl ? streamUrl : (streamUrl || masterUrl);
+  }
+
   function unwrap(data) {
     if (typeof data?.body === 'string') {
       try { return unwrap(JSON.parse(data.body)); } catch (_) { return data; }
@@ -45,7 +52,7 @@
         .then(data => {
           rows(data).forEach((row, index) => {
             const key = clean(row.song_key || row.songKey || row.song_id || row.id || `song-${index}`);
-            const audio = fixUrl(row.audio_url || row.audioUrl || row.mp3_url || row.stream_url);
+            const audio = preferredAudioUrl(row);
             if (!key || !audio) return;
             songMap.set(key, audio);
             songOrder.push(key);
@@ -161,6 +168,7 @@
   window.StashboxAudioFastStart = Object.freeze({
     warmSong,
     warmAdjacent,
+    preferredAudioUrl,
     refresh: configurePrimaryAudio,
     state: () => ({ catalogSize: songMap.size, warmed: warmers.size })
   });
