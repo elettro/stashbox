@@ -167,7 +167,7 @@
         <div class="v2-player-content player-info">
           <div class="v2-player-labels"><span data-pgenre></span><b><i></i>Now Playing</b></div>
           <h2 data-ptitle></h2>
-          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><a class="v2-artist-profile-anchor" data-artist-profile-link href="/radio/dev/v2/artist/"><strong data-partist></strong></a></div>
+          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><a class="v2-artist-profile-anchor" data-artist-profile-link href="/radio/dev/v2/artist/" style="color:#fff!important;text-decoration:none!important"><strong data-partist style="color:#fff!important;text-decoration:none!important;border-bottom:0!important"></strong></a></div>
           <div class="v2-timeline"><input type="range" min="0" max="0" value="0" step=".1" data-scrub><div><span data-now>0:00</span><span data-total>0:00</span></div></div>
           <div class="v2-player-controls"><button class="v2-side-action" data-like>${icon.heart}<span data-likes>0</span></button><button class="v2-transport" data-prev>${icon.previousTrack}</button><button class="v2-main-play" data-play>${icon.play}</button><button class="v2-transport" data-next>${icon.nextTrack}</button><button class="v2-side-action" data-share>${icon.share}</button></div>
         </div>
