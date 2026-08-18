@@ -1,6 +1,6 @@
 # Stashbox Radio Bug Index
 
-Last updated: 2026-08-17
+Last updated: 2026-08-18
 
 | ID | Title | Area | Severity | Environment | Status | Reported | Fix commit |
 |---|---|---|---|---|---|---|---|
@@ -15,6 +15,7 @@ Last updated: 2026-08-17
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, fixed 2026-08-17 | 2026-08-04 | - |
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Open | 2026-07-30 | - |
 | SR-BUG-0011 | Desktop VEC media flickers and video does not trigger | VEC Player | High | DEV V2 | Open | 2026-08-11 | - |
+| SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
 
 ## Open / investigating
 
@@ -23,6 +24,7 @@ Last updated: 2026-08-17
 - `SR-BUG-0007` - Ad video uploads are rejected by presign purpose validation.
 - `SR-BUG-0010` - Mobile admin navigation remains visible before hamburger activation.
 - `SR-BUG-0011` - Desktop VEC media flickers and video does not trigger.
+- `SR-BUG-0012` - Desktop clean runtime removes login and account interface. Initial repair committed, verification pending.
 
 ## Fixed, awaiting verification
 
