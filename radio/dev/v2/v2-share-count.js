@@ -87,8 +87,10 @@
     const count = ensureCountNode();
     if (!count) return;
     const song = currentSong();
-    count.textContent = String(song?.shares ?? 0);
-    count.setAttribute('aria-label', `${song?.shares ?? 0} shares`);
+    const value = String(song?.shares ?? 0);
+    const aria = `${value} shares`;
+    if (count.textContent !== value) count.textContent = value;
+    if (count.getAttribute('aria-label') !== aria) count.setAttribute('aria-label', aria);
   }
 
   async function refresh(force = false) {
@@ -144,7 +146,7 @@
   }, true);
 
   state.observer = new MutationObserver(() => render());
-  state.observer.observe(app, { childList: true, subtree: true, characterData: true });
+  state.observer.observe(app, { childList: true, subtree: true });
 
   refresh();
   window.addEventListener('pageshow', () => refresh(true));
