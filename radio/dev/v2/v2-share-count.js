@@ -11,8 +11,7 @@
     songs: [],
     loading: null,
     observer: null,
-    refreshTimer: 0,
-    pendingShares: new Map()
+    refreshTimer: 0
   };
 
   const clean = value => String(value ?? '').trim();
@@ -117,16 +116,11 @@
     return count;
   }
 
-  function displayedShares(song) {
-    if (!song) return 0;
-    return Math.max(0, Number(song.shares || 0) + Number(state.pendingShares.get(song.key) || 0));
-  }
-
   function render() {
     const count = ensureCountNode();
     if (!count) return;
     const song = currentSong();
-    const value = String(displayedShares(song));
+    const value = String(Math.max(0, Number(song?.shares || 0)));
     const aria = `${value} shares`;
     if (count.textContent !== value) count.textContent = value;
     if (count.getAttribute('aria-label') !== aria) count.setAttribute('aria-label', aria);
@@ -152,7 +146,6 @@
 
   async function persistShare(song) {
     if (!song?.key) return false;
-
     const response = await fetch(TRACK_URL, {
       method: 'POST',
       headers: {
@@ -165,29 +158,44 @@
         session_id: shareSessionId()
       })
     });
-
     if (!response.ok) throw new Error(`share track ${response.status}`);
     return true;
   }
 
-  async function countShare() {
-    const song = currentSong();
+  function countShare(song = currentSong()) {
     if (!song?.key) return;
 
-    state.pendingShares.set(song.key, Number(state.pendingShares.get(song.key) || 0) + 1);
+    // Count immediately and never roll the UI back because a native share sheet was
+    // dismissed or an analytics request was slow. Each physical Share click is valid.
+    song.shares = Math.max(0, Number(song.shares || 0)) + 1;
     render();
 
+    persistShare(song)
+      .then(() => scheduleRefresh(900))
+      .catch(error => {
+        console.warn('[V2 Share] persistence failed; keeping optimistic count', error);
+      });
+  }
+
+  function triggerDesktopShare(song) {
+    if (!song) return;
+    const payload = {
+      title: song.title || 'Stashbox Radio',
+      text: song.artist ? `${song.title} — ${song.artist}` : song.title,
+      url: location.href
+    };
+
+    // navigator.share must be invoked synchronously from the physical click. Do not
+    // await it and do not retain its Promise; every later click gets a fresh request.
     try {
-      await persistShare(song);
-      song.shares = Number(song.shares || 0) + 1;
-      state.pendingShares.set(song.key, Math.max(0, Number(state.pendingShares.get(song.key) || 0) - 1));
-      render();
-      scheduleRefresh(700);
-    } catch (_) {
-      state.pendingShares.set(song.key, Math.max(0, Number(state.pendingShares.get(song.key) || 0) - 1));
-      render();
-      scheduleRefresh(250);
-    }
+      if (typeof navigator.share === 'function') {
+        Promise.resolve(navigator.share(payload)).catch(() => {});
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        Promise.resolve(navigator.clipboard.writeText(payload.url)).catch(() => {});
+      }
+    } catch (_) {}
   }
 
   const style = document.createElement('style');
@@ -243,7 +251,21 @@
   document.head.appendChild(style);
 
   document.addEventListener('click', event => {
-    if (!event.target.closest('#v2App [data-share]')) return;
+    const shareButton = event.target.closest('#v2App [data-share]');
+    if (!shareButton) return;
+
+    if (matchMedia('(min-width: 900px)').matches) {
+      // The legacy recovery handler also owns [data-share]. Take desktop Share over
+      // here so its async native-share flow cannot consume/freeze the player.
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const song = currentSong();
+      triggerDesktopShare(song);
+      countShare(song);
+      return;
+    }
+
     countShare();
   }, true);
 
