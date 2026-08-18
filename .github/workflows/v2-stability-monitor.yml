@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: v2-stability-monitor
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   static-contract:
@@ -73,6 +73,7 @@ jobs:
     name: Test live V2 listener flow
     needs: static-contract
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       V2_URL: https://stashbox.com/radio/dev/v2/
       V2_SMOKE_ATTEMPTS: '5'
@@ -90,8 +91,8 @@ jobs:
 
       - name: Install Playwright
         run: |
-          npm install --no-save --package-lock=false playwright@1.54.1
-          npx playwright install --with-deps chromium
+          timeout 2m npm install --no-save --package-lock=false playwright@1.54.1
+          timeout 5m npx playwright install --with-deps chromium
 
       - name: Run live browser smoke test
         run: node radio-api/scripts/smoke-test-v2-browser.mjs
