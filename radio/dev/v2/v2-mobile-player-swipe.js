@@ -10,7 +10,7 @@
   const MIN_VELOCITY = 0.28;
   const AXIS_LOCK_DISTANCE = 12;
   const COOLDOWN_MS = 650;
-  const VIEW_MODES = ['full', 'focus', 'cinema'];
+  const VIEW_MODES = ['full', 'cinema'];
 
   let gesture = null;
   let lastSwitchAt = 0;
@@ -89,7 +89,6 @@
 
   function currentMode(player) {
     if (player?.classList.contains('is-video-cinema-mode')) return 'cinema';
-    if (player?.classList.contains('is-video-focus-mode')) return 'focus';
     return 'full';
   }
 
@@ -102,13 +101,8 @@
     const hint = ensureModeHint(player);
     if (!hint) return;
     const mode = currentMode(player);
-    const visible = mode !== 'full';
-    const label = mode === 'focus'
-      ? 'Flick down for Cinema Mode'
-      : mode === 'cinema'
-        ? 'Flick down for Full Interface'
-        : '';
-    hint.querySelector('strong').textContent = label;
+    const visible = mode === 'cinema';
+    hint.querySelector('strong').textContent = visible ? 'Flick down for Full Intense' : '';
     hint.classList.toggle('is-visible', visible);
     hint.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
@@ -116,9 +110,8 @@
   function actionDetails(action) {
     if (action === 'shuffle') return { icon: '↑', label: 'Shuffle All', className: 'is-shuffle' };
     if (action === 'previous') return { icon: '←', label: 'Previous Song', className: 'is-previous' };
-    if (action === 'mode-focus') return { icon: '↓', label: 'Focus Mode', className: 'is-focus-on' };
     if (action === 'mode-cinema') return { icon: '↓', label: 'Cinema Mode', className: 'is-cinema' };
-    if (action === 'mode-full') return { icon: '↓', label: 'Full Interface', className: 'is-focus-off' };
+    if (action === 'mode-full') return { icon: '↓', label: 'Full Intense', className: 'is-focus-off' };
     return { icon: '→', label: 'Next Song', className: 'is-next' };
   }
 
@@ -177,17 +170,16 @@
     if (!player) return;
     clearCinemaPeek(player);
     player.classList.remove('is-video-focus-mode', 'is-video-cinema-mode');
-    if (mode === 'focus') player.classList.add('is-video-focus-mode');
     if (mode === 'cinema') player.classList.add('is-video-cinema-mode');
     player.dataset.playerViewMode = mode;
     lastModeChangeAt = Date.now();
     syncModeHint(player);
     if (announce) showHint(player, `mode-${mode}`);
     try {
-      navigator.vibrate?.(mode === 'focus' ? [10, 22, 10] : mode === 'cinema' ? [9, 18, 9, 18, 9] : 14);
+      navigator.vibrate?.(mode === 'cinema' ? [9, 18, 9, 18, 9] : 14);
     } catch (_) {}
     window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
-      detail: { active: mode !== 'full', mode, source }
+      detail: { active: mode === 'cinema', mode, source }
     }));
     window.dispatchEvent(new CustomEvent('stashbox:player-view-mode-change', {
       detail: { mode, source }
