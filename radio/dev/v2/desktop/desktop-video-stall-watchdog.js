@@ -9,6 +9,7 @@
 
   let watchedVideo = null;
   let lastVideoTime = 0;
+  let lastFrameCount = null;
   let lastProgressAt = 0;
   let retryTimer = 0;
   let armedAt = 0;
@@ -16,6 +17,17 @@
   const player = () => document.querySelector('#v2App [data-player]:not([hidden])');
   const audio = () => player()?.querySelector('[data-audio], audio') || null;
   const video = () => player()?.querySelector('.desktop-vec2-layer.is-current video') || null;
+
+  function renderedFrames(node) {
+    if (!node) return null;
+    try {
+      const quality = node.getVideoPlaybackQuality?.();
+      const frames = Number(quality?.totalVideoFrames);
+      if (Number.isFinite(frames)) return frames;
+    } catch (_) {}
+    const fallback = Number(node.webkitDecodedFrameCount ?? node.mozPresentedFrames);
+    return Number.isFinite(fallback) ? fallback : null;
+  }
 
   function clearRetry() {
     clearTimeout(retryTimer);
@@ -26,6 +38,7 @@
     clearRetry();
     watchedVideo = nextVideo || null;
     lastVideoTime = Number(watchedVideo?.currentTime || 0);
+    lastFrameCount = renderedFrames(watchedVideo);
     lastProgressAt = performance.now();
     armedAt = 0;
   }
@@ -83,8 +96,16 @@
 
     const now = performance.now();
     const currentTime = Number(current.currentTime || 0);
-    if (currentTime > lastVideoTime + MIN_PROGRESS) {
-      lastVideoTime = currentTime;
+    const frameCount = renderedFrames(current);
+    const timeProgressed = currentTime > lastVideoTime + MIN_PROGRESS;
+    const framesProgressed = frameCount !== null && (lastFrameCount === null || frameCount > lastFrameCount);
+
+    if (timeProgressed) lastVideoTime = currentTime;
+    if (frameCount !== null) lastFrameCount = frameCount;
+
+    // Prefer actual presented-frame progress. Some browsers continue advancing
+    // currentTime after video rendering has frozen, which previously hid stalls.
+    if (framesProgressed || (frameCount === null && timeProgressed)) {
       lastProgressAt = now;
       armedAt = 0;
       clearRetry();
