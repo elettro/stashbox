@@ -3,6 +3,7 @@
 
   const app = document.getElementById('v2App');
   if (!app) return;
+  if (document.documentElement.dataset.vecEngine === '2') return;
 
   const DESKTOP = window.matchMedia('(min-width: 700px)');
   const retryTimers = new WeakMap();
