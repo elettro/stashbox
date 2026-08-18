@@ -51,6 +51,12 @@ The clean runtime uses:
 
 Image rotation and artwork-intro timing already use the audio clock, so pause and buffering do not advance those timers ahead of the song.
 
+## Cache boundary repair
+
+The pool-exhaustion repair changed `desktop-vec2.js`, but the clean desktop shell still referenced the previous `clean4` query token. A browser with a cached copy could therefore continue running the pre-pool engine even after the source repair landed.
+
+Commit `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` updates the clean desktop build marker to `desktop-clean-20260818-pool1` and cache-busts `desktop-vec2.js` as `20260818-pool1`. This commit is the exact-build target for the next Chrome, Firefox, Edge, structural, and soak gates.
+
 ## Key rebuild commits
 
 - `1db4fb5fde9a6c121834eb43addc95f761da4a17` - clean desktop shell
@@ -68,6 +74,7 @@ Image rotation and artwork-intro timing already use the audio clock, so pause an
 - `b0a05b1e9927b5c3029270c9d6e57131fe69c3b9` - fix pool exhaustion and URL-first dedupe
 - `4486cd48b2954cc73503be98f44cd8332b8baac9` - generic live health uses Chromium interaction gate
 - `ebf6b96c9f74f664c8d2d63805e641b4d486e26c` - align live-health workflow with native browser gates
+- `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` - cache-bust the pool-exhaustion engine and mark the exact pool build
 
 ## Verification completed on 2026-08-18
 
@@ -77,6 +84,8 @@ The clean runtime structural guard passed after the audio-master changes. Receip
 
 - source commit `d4d66370b59f0790e3f2f846f8d3f31b59edeaf5`
 - passed at `2026-08-18T04:56:41Z`
+
+The exact cache-busted pool build also produced a structural PASS receipt immediately after `ca278754e6ecb9157ea9ae658b29a41f3f30d65e`.
 
 ### Google Chrome
 
@@ -113,20 +122,39 @@ Verified:
 - next video preloaded
 - zero legacy desktop VEC scripts loaded
 
+### 30-minute unattended Chrome soak
+
+Issue `#997`, run `32101436504`, returned `ok: true` for a full 30-minute system-Chrome soak.
+
+Verified across 120 samples taken every 15 seconds:
+
+- full requested duration completed: 1,800,009 ms
+- 8 songs played automatically
+- 68 unique VEC asset URLs appeared
+- zero soak failures
+- player body remained responsive
+- exactly one VEC stage owner remained present
+- no multiple-current-layer condition appeared
+- no legacy watchdog/rescue/transition scripts loaded
+- audio continued advancing without a three-sample clock stall
+- automatic song transitions created fresh VEC sessions
+- VEC media continued advancing after song changes
+- sample sessions showed failed asset count 0
+
+This soak is strong evidence that the original desktop freeze and long-run stage ownership failure are repaired in the clean architecture.
+
 ## Verification still required before closing
 
 Do not mark fixed yet.
 
 Remaining gates:
 
-- rerun structural and native browser checks against the pool-exhaustion build or later
-- generic Chromium live-health pass after removing the bundled Playwright Firefox false-negative gate
-- 30-minute unattended Chrome soak
-- confirm repeated automatic song transitions remain responsive during soak
-- confirm no duplicate VEC stage owners appear during soak
-- confirm VEC media continues advancing across long playback
+- official Firefox pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
+- official Edge pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
+- generic Chromium live-health pass against `ca278754e6ecb9157ea9ae658b29a41f3f30d65e` or later
+- confirm the cache-busted pool build remains the served desktop engine during those browser gates
 
-A dedicated 30-minute Chrome soak workflow now checks the deployed DEV player at 15-second intervals for audio-clock stalls, unexpected pauses, duplicate stages/current layers, lost VEC session identity, legacy script loading, and VEC asset progression.
+The 30-minute soak requirement itself is satisfied. A new soak was also triggered by the cache-boundary commit so the exact pool build receives the same unattended coverage.
 
 ## Regression rules
 
