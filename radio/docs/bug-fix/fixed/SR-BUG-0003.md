@@ -6,7 +6,7 @@ Area: VEC
 Environment: DEV
 Date reported: 2026-07-25
 Date fixed: 2026-08-17
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -46,7 +46,7 @@ None recorded.
 
 ## Verification
 
-Pending.
+Verified by explicit user confirmation on 2026-08-18.
 
 ## Regression risk
 
@@ -62,4 +62,4 @@ If the issue returns, search for every VEC badge creation path. Ensure initializ
 
 ## Notes
 
-Backfilled on 2026-08-17 from the 2026-07-25 viewer report. Marked fixed by user on 2026-08-17.
+Backfilled on 2026-08-17 from the 2026-07-25 viewer report. Marked fixed by user on 2026-08-17 and verified by the user on 2026-08-18.
