@@ -1,8 +1,8 @@
-# SR-BUG-0012 - Desktop clean runtime removes login and account interface
+# SR-BUG-0012 - Desktop clean runtime loses login/account and notifications controls
 
 Status: Open
 Severity: High
-Area: Auth
+Area: Auth / Notifications
 Environment: DEV V2 Desktop
 Date reported: 2026-08-18
 Date fixed:
@@ -11,47 +11,77 @@ Reported by: User
 
 ## Symptom
 
-On desktop, the User ID / password login experience disappeared entirely. The desktop player no longer showed the Log In entry point or account/session UI.
+On desktop, the User ID / password login experience disappeared. After initial repairs, the Log In button could flash briefly and then disappear again. The notifications control was also nonfunctional on the clean desktop runtime.
 
 ## Reproduction
 
 1. Open `/radio/dev/v2/` at a desktop viewport.
 2. Allow the desktop router to send the session into `/radio/dev/v2/desktop/`.
-3. Expected: the desktop header exposes Log In and the existing auth sheet supports email/password, account creation, password reset, and logged-in account/profile state.
-4. Actual: the clean desktop runtime contains no account action slot and does not load the auth/session/profile scripts.
-
-## Affected examples
-
-- DEV V2 desktop clean runtime
-- Desktop login/account entry point
-
-## Working comparison
-
-The standard V2 runtime still includes the auth CSS, session manager, auth sheet, login-direct, profile-entry, and related account wiring.
+3. Allow the catalog/recovery render to complete.
+4. Expected: Log In / Account remains visible, opens the auth experience, and Notifications opens the notification sheet.
+5. Actual before the latest repair: recovery could replace the header and remove the restored login control; the clean desktop page also did not load the notification sheet/desktop notification runtime.
 
 ## Root cause
 
-The desktop routing change moved desktop users into a separate clean runtime at `radio/dev/v2/desktop/index.html`. That runtime omitted the `.v2-header-actions` mount point and omitted the auth/session/profile script stack. Existing `v2-header-login.js` therefore had nowhere to mount the Log In control, and the auth UI was never initialized.
+The desktop routing change moved desktop users into the separate clean runtime at `radio/dev/v2/desktop/index.html`.
 
-## Fix
+Two shell-level regressions were identified:
 
-Restore the `.v2-header-actions` container to the desktop header. Load the existing auth sheet CSS plus session manager, auth sheet, input-case repair, login-direct, header-login, and profile-entry scripts while preserving the newer desktop VEC and audio runtime.
+1. The clean runtime initially omitted the auth/session/profile stack and the login mount point.
+2. `v2-recovery.js` later replaces the direct children of `#v2App`, including the entire header. Its recovery header did not preserve the restored login control. Separately, the clean desktop shell did not load the notification sheet CSS/JS and desktop notification behavior, so a rendered bell had no working notification UI behind it.
+
+## Repair history
+
+### Initial auth restoration
+
+Restored the header action slot and auth/session/profile stack while preserving the clean VEC/audio runtime.
+
+Commit:
+
+- `8f46d70a6e0eb67f2c759979d4780f3140fdc042`
+
+### Login render-race repairs
+
+Additional repairs made the login control part of the desktop HTML and removed competing login installers. These reduced startup races but did not address the later full-app recovery replacement.
+
+### Persistent desktop shell repair
+
+A dedicated `desktop-shell-controls.js` now observes only direct-child replacement of `#v2App`. When recovery replaces the app shell, it restores Log In / Account and Notifications immediately without observing the VEC/media subtree and without creating a media MutationObserver feedback loop.
+
+The clean desktop page now also loads:
+
+- `v2-notifications-sheet.css`
+- `v2-notifications-desktop.css`
+- `v2-notifications-desktop.js`
+- `v2-notifications-sheet.js`
+- `v2-notifications-seen-on-open.js`
+
+Commits:
+
+- `38affbd8624ccd41eadf175fd617cb2fc24874eb` - add persistent desktop shell controls
+- `ce4e0e2c991f3e8471990a9f1a3e801a028b88a5` - load shell controls and restore desktop notification runtime
 
 ## Files changed
 
 - `radio/dev/v2/desktop/index.html`
-
-## Commits
-
-- `8f46d70a6e0eb67f2c759979d4780f3140fdc042`
+- `radio/dev/v2/desktop/desktop-shell-controls.js`
 
 ## Verification
 
 Pending user verification on desktop.
 
+Verify:
+
+- Log In remains visible after initial page paint and after the catalog/recovery render.
+- Clicking Log In opens the email/password auth sheet.
+- Logged-in state shows Account and opens the profile.
+- Notifications remains visible after recovery.
+- Clicking Notifications opens the notification sheet and loads current notifications.
+- The clean desktop VEC/audio runtime remains stable.
+
 ## Regression risk
 
-Auth scripts must coexist with the clean desktop audio/VEC runtime without reintroducing legacy desktop media behavior. Verify guest playback, login sheet opening, login success, account/profile entry, and logged-out state.
+Shell controls must coexist with recovery rendering without reintroducing legacy desktop VEC observers/watchdogs. The shell observer intentionally watches only direct children of `#v2App`, not the media subtree.
 
 ## Related bugs
 
@@ -59,8 +89,8 @@ Auth scripts must coexist with the clean desktop audio/VEC runtime without reint
 
 ## Future repair procedure
 
-If desktop login disappears again, first verify desktop routing target, `.v2-header-actions`, `v2-header-login.js`, `v2-auth-sheet.js`, and `v2-session-manager.js` are all present before changing Cognito or backend auth.
+If either control disappears again, inspect the clean desktop shell and recovery boundary first. Do not add a document-wide or VEC-subtree MutationObserver. Keep account/notification controls owned by the desktop shell layer and verify recovery cannot permanently remove them.
 
 ## Notes
 
-Root cause identified and initial restoration committed on 2026-08-18.
+SR-BUG-0012 remains Open until the user confirms both desktop login/account and notifications survive the complete desktop boot cycle and function correctly.
