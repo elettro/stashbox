@@ -10,6 +10,7 @@ const TIMEOUT_MS = Number(process.env.DESKTOP_HEALTH_TIMEOUT_MS || 60000);
 const browsers = [
   {
     name: 'chrome',
+    authoritative: true,
     type: chromium,
     launch: {
       channel: 'chrome',
@@ -17,7 +18,13 @@ const browsers = [
       args: ['--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
     },
   },
-  { name: 'firefox', type: firefox, launch: { headless: true } },
+  {
+    name: 'firefox',
+    authoritative: false,
+    type: firefox,
+    launch: { headless: true },
+    note: 'GitHub-hosted Playwright Firefox is diagnostic only. System Firefox parity is enforced by the dedicated system-firefox probe.',
+  },
 ];
 
 async function run(def) {
@@ -80,7 +87,7 @@ async function run(def) {
   url.searchParams.set('desktop_media_probe', def.name);
   url.searchParams.set('cache_bust', `${Date.now()}-${Math.random()}`);
 
-  let result = { browser: def.name, ok: false };
+  let result = { browser: def.name, authoritative: def.authoritative, note: def.note || '', ok: false };
   try {
     await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
     await page.waitForFunction(() => document.body?.classList.contains('desktop-clean-runtime'), null, { timeout: 15000 });
@@ -125,6 +132,8 @@ async function run(def) {
 
     result = {
       browser: def.name,
+      authoritative: def.authoritative,
+      note: def.note || '',
       ok: Boolean(state?.currentAsset),
       selected,
       state,
@@ -139,6 +148,8 @@ async function run(def) {
   } catch (error) {
     result = {
       browser: def.name,
+      authoritative: def.authoritative,
+      note: def.note || '',
       ok: false,
       fatalError: error?.stack || error?.message || String(error),
       mediaResponses: mediaResponses.slice(0, 40),
@@ -156,13 +167,33 @@ await fs.mkdir(OUTPUT_DIR, { recursive: true });
 const results = [];
 for (const def of browsers) {
   try { results.push(await run(def)); }
-  catch (error) { results.push({ browser: def.name, ok: false, fatalError: error?.stack || error?.message || String(error) }); }
+  catch (error) {
+    results.push({
+      browser: def.name,
+      authoritative: def.authoritative,
+      note: def.note || '',
+      ok: false,
+      fatalError: error?.stack || error?.message || String(error),
+    });
+  }
 }
-const summary = { generatedAt: new Date().toISOString(), baseUrl: BASE_URL, ok: results.every(result => result.ok), results };
+const authoritativeResults = results.filter(result => result.authoritative !== false);
+const summary = {
+  generatedAt: new Date().toISOString(),
+  baseUrl: BASE_URL,
+  ok: authoritativeResults.length > 0 && authoritativeResults.every(result => result.ok),
+  parityEnforcement: {
+    chrome: 'this probe',
+    firefox: 'dedicated system-firefox probe',
+    edge: 'dedicated system-edge probe',
+  },
+  results,
+};
 await fs.writeFile(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
 for (const result of results) await fs.writeFile(path.join(OUTPUT_DIR, `${result.browser}.json`), JSON.stringify(result, null, 2) + '\n');
 for (const result of results) {
-  console.log(`[${result.ok ? 'PASS' : 'FAIL'}] ${result.browser}`);
+  console.log(`[${result.ok ? 'PASS' : 'FAIL'}] ${result.browser}${result.authoritative === false ? ' (diagnostic)' : ''}`);
+  if (result.note) console.log(`  ${result.note}`);
   if (result.state) console.log(`  VEC ${result.state.status} pool=${result.state.poolSize} failed=${result.state.failedCount}`);
   for (const item of result.mediaErrors || []) console.log(`  media error code=${item.errorCode} ready=${item.readyState} network=${item.networkState} ${item.src}`);
   for (const item of result.mediaResponses || []) console.log(`  HTTP ${item.status} ${item.contentType} ${item.url}`);
