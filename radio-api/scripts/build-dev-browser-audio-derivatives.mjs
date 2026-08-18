@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -12,6 +13,7 @@ const BUCKET = process.env.DEV_MEDIA_BUCKET || 'stashbox-radio-media-dev-us-east
 const CDN = process.env.DEV_MEDIA_CDN || 'https://d1ufj7xan6uxy0.cloudfront.net';
 const OUTPUT = process.env.BROWSER_AUDIO_MAP_OUTPUT || 'radio/dev/v2/desktop/browser-audio-map.js';
 const CONCURRENCY = Math.max(1, Math.min(6, Number(process.env.BROWSER_AUDIO_CONCURRENCY || 3)));
+const TITLE_FILTER = String(process.env.BROWSER_AUDIO_TITLE_FILTER || '').trim().toLowerCase();
 
 const clean = value => String(value ?? '').trim();
 const unwrap = value => {
@@ -31,6 +33,10 @@ function audioUrl(song) {
   return clean(song?.audio_url || song?.resolved_audio_url || song?.audioUrl || song?.stream_url || song?.mp3_url);
 }
 
+function songTitle(song) {
+  return clean(song?.display_title || song?.song_name || song?.title);
+}
+
 function s3KeyFromUrl(value) {
   const url = new URL(value);
   return decodeURIComponent(url.pathname.replace(/^\/+/, ''));
@@ -44,6 +50,18 @@ function targetKey(sourceKey) {
 function cdnUrl(key) {
   const encoded = key.split('/').map(part => encodeURIComponent(part)).join('/');
   return `${CDN.replace(/\/$/, '')}/${encoded}`;
+}
+
+async function readExistingMap() {
+  try {
+    const code = await fs.readFile(OUTPUT, 'utf8');
+    const sandbox = { window: {} };
+    vm.runInNewContext(code, sandbox, { filename: OUTPUT });
+    const map = sandbox.window.STASHBOX_BROWSER_AUDIO_MAP;
+    return map && typeof map === 'object' ? { ...map } : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 async function exists(key) {
@@ -117,25 +135,29 @@ const items = [];
 for (const song of catalog) {
   const original = audioUrl(song);
   if (!original) continue;
+  const title = songTitle(song);
+  if (TITLE_FILTER && !`${title} ${original}`.toLowerCase().includes(TITLE_FILTER)) continue;
   let parsed;
   try { parsed = new URL(original); } catch (_) { continue; }
   if (!/\.wav$/i.test(parsed.pathname)) continue;
   const sourceKey = s3KeyFromUrl(original);
   if (!sourceKey || seen.has(original)) continue;
   seen.add(original);
-  items.push({ original, sourceKey });
+  items.push({ original, sourceKey, title });
 }
 
 console.log(`Catalog songs: ${catalog.length}`);
+console.log(`Filter: ${TITLE_FILTER || '(all WAV songs)'}`);
 console.log(`WAV derivatives requested: ${items.length}`);
 
 const queue = items.map((item, index) => ({ item, index }));
 const results = [];
 await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(1, queue.length)) }, () => worker(queue, results)));
 
-results.sort(([a], [b]) => a.localeCompare(b));
-const map = Object.fromEntries(results);
-const content = `(() => {\n  'use strict';\n  window.STASHBOX_BROWSER_AUDIO_MAP = Object.freeze(${JSON.stringify(map, null, 2)});\n})();\n`;
+const map = await readExistingMap();
+for (const [original, browser] of results) map[original] = browser;
+const sorted = Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
+const content = `(() => {\n  'use strict';\n  window.STASHBOX_BROWSER_AUDIO_MAP = Object.freeze(${JSON.stringify(sorted, null, 2)});\n})();\n`;
 await fs.mkdir(path.dirname(OUTPUT), { recursive: true });
 await fs.writeFile(OUTPUT, content);
-console.log(`Wrote ${results.length} browser audio mappings to ${OUTPUT}`);
+console.log(`Wrote ${Object.keys(sorted).length} total browser audio mappings to ${OUTPUT} (${results.length} processed in this batch)`);
