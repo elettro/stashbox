@@ -162,4 +162,13 @@
   window.setTimeout(() => {
     if (!app.querySelector('[data-song]')) showFailure('No catalog source responded within 22 seconds.');
   }, 24000);
+
+  // Shared player stat UI: load once for both mobile and clean desktop runtimes.
+  if (!document.querySelector('script[data-v2-share-count-loader]')) {
+    const script = document.createElement('script');
+    script.src = '/radio/dev/v2/v2-share-count.js?v=20260818-sharecount1';
+    script.defer = true;
+    script.dataset.v2ShareCountLoader = 'true';
+    document.head.appendChild(script);
+  }
 })();
