@@ -69,7 +69,8 @@ jobs:
             let text = '';
             try { text = fs.readFileSync('/tmp/desktop-v2-system-firefox.json', 'utf8'); } catch (_) { text = 'Probe did not produce JSON output.'; }
             if (text.length > 55000) text = text.slice(0, 55000) + '\n...truncated';
-            const body = `Source commit: \`${context.sha}\`\n\n\`\`\`json\n${text}\n\`\`\``;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `Source commit: \`${context.sha}\`\n\nEvidence: ${runUrl}\n\n\`\`\`json\n${text}\n\`\`\``;
             const q = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
             const found = await github.rest.search.issuesAndPullRequests({ q, per_page: 10 });
             const existing = found.data.items.find(item => item.title === title);
