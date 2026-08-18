@@ -1,0 +1,89 @@
+name: Build DEV Browser Audio Derivatives
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-dev-browser-audio-derivatives.yml'
+      - 'radio-api/scripts/build-dev-browser-audio-derivatives.mjs'
+
+concurrency:
+  group: build-dev-browser-audio-derivatives
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build missing browser audio derivatives
+        env:
+          DEV_RADIO_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          DEV_MEDIA_BUCKET: stashbox-radio-media-dev-us-east-1
+          DEV_MEDIA_CDN: https://d1ufj7xan6uxy0.cloudfront.net
+          BROWSER_AUDIO_CONCURRENCY: '3'
+          BROWSER_AUDIO_MAP_OUTPUT: radio/dev/v2/desktop/browser-audio-map.js
+        run: |
+          set -euo pipefail
+          node radio-api/scripts/build-dev-browser-audio-derivatives.mjs
+          node --check radio/dev/v2/desktop/browser-audio-map.js
+          node --check radio/dev/v2/desktop/desktop-audio-compat.js
+
+      - name: Publish derivative map
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- radio/dev/v2/desktop/browser-audio-map.js; then
+            echo 'Browser audio map already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/dev/v2/desktop/browser-audio-map.js
+          git commit -m 'Publish DEV browser-safe audio derivatives'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verify Freedom Street browser derivative
+        env:
+          DEV_RADIO_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const code = fs.readFileSync('radio/dev/v2/desktop/browser-audio-map.js', 'utf8');
+          const sandbox = { window: {} };
+          vm.runInNewContext(code, sandbox);
+          const map = sandbox.window.STASHBOX_BROWSER_AUDIO_MAP || {};
+          const match = Object.entries(map).find(([source]) => source.toLowerCase().includes('freedom-street'));
+          if (!match) throw new Error('Freedom Street browser audio derivative is missing from generated map.');
+          const [source, target] = match;
+          console.log({ source, target });
+          if (!target.endsWith('.browser.mp3')) throw new Error('Unexpected browser derivative URL.');
+          NODE
