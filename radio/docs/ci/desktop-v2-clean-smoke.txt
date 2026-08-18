@@ -1,0 +1,3 @@
+desktop_v2_clean_smoke=PASS
+source_commit=c9c80b011fcae9c5d0dc5373cbd943081e9dec1f
+passed_at_utc=2026-08-18T02:10:44Z
