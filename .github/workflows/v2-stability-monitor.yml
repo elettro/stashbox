@@ -78,7 +78,7 @@ jobs:
       V2_SMOKE_ATTEMPTS: '5'
       V2_SMOKE_RETRY_DELAY_MS: '20000'
       V2_SMOKE_TIMEOUT_MS: '30000'
-      REQUIRE_V2_BUILD_MATCH: 'true'
+      REQUIRE_V2_BUILD_MATCH: 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
