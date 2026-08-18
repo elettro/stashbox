@@ -27,6 +27,52 @@
     }
   }
 
+  function preferStreamSong(song) {
+    if (!song || typeof song !== 'object') return song;
+    const master = String(song.audio_master_url || song.audio_url || song.audioUrl || '').trim();
+    const stream = String(song.audio_stream_url || song.stream_url || song.mp3_url || '').trim();
+    const status = String(song.audio_transcode_status || '').trim().toLowerCase();
+    if (!stream || (status && status !== 'ready')) return song;
+    return {
+      ...song,
+      audio_master_url: master || song.audio_master_url || '',
+      audio_url: stream,
+      audioUrl: stream,
+      stream_url: stream,
+      mp3_url: stream,
+      preferred_audio_url: stream
+    };
+  }
+
+  function preferStreamPayload(payload) {
+    if (Array.isArray(payload)) return payload.map(preferStreamSong);
+    if (!payload || typeof payload !== 'object') return payload;
+    const clone = { ...payload };
+    for (const key of ['songs', 'items', 'data']) {
+      if (Array.isArray(clone[key])) clone[key] = clone[key].map(preferStreamSong);
+    }
+    return clone;
+  }
+
+  async function preferStreamResponse(response) {
+    if (!response?.ok) return response;
+    try {
+      const text = await response.clone().text();
+      const parsed = text ? JSON.parse(text) : {};
+      const rewritten = preferStreamPayload(parsed);
+      const headers = new Headers(response.headers);
+      headers.set('content-type', 'application/json');
+      headers.set('x-stashbox-audio-preference', 'mp3-stream-first');
+      return new Response(JSON.stringify(rewritten), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    } catch (_) {
+      return response;
+    }
+  }
+
   async function rememberCatalog(response) {
     if (!response?.ok) return response;
     try {
@@ -61,7 +107,7 @@
   async function fetchSongsWithFallback(input, init = {}) {
     try {
       const response = await timeoutFetch(input, init, 9000);
-      if (response.ok) return rememberCatalog(response);
+      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
     } catch (_) {}
 
     try {
@@ -71,11 +117,11 @@
         body: undefined,
         headers: { Accept: 'application/json' }
       }, 9000);
-      if (response.ok) return rememberCatalog(response);
+      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
     } catch (_) {}
 
     const cached = cachedCatalogResponse();
-    if (cached) return cached;
+    if (cached) return preferStreamResponse(cached);
     throw new Error('Both the DEV and production song catalogs are unavailable.');
   }
 
