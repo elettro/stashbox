@@ -10,8 +10,9 @@ const script = read('radio/dev/v2/v2-mobile-player-swipe.js');
 const styles = read('radio/dev/v2/v2-video-focus-mode.css');
 const html = read('radio/dev/v2/index.html');
 
-test('down flick cycles full, focus, cinema, then full', () => {
-  assert.match(script, /const VIEW_MODES = \['full', 'focus', 'cinema'\]/);
+test('down flick cycles full intense, cinema, then full intense', () => {
+  assert.match(script, /const VIEW_MODES = \['full', 'cinema'\]/);
+  assert.doesNotMatch(script, /\['full', 'focus', 'cinema'\]/);
   assert.match(script, /cyclePlayerMode\(current\.player\)/);
   assert.match(script, /nextMode\(currentMode\(player\)\)/);
 });
@@ -29,12 +30,12 @@ test('renewable sessions keep song-navigation flicks active', () => {
   assert.doesNotMatch(script, /classList\.contains\('is-logged-in-player'\) && loggedIn\(\)/);
 });
 
-test('each player mode has a distinct user-facing message', () => {
-  assert.match(script, /label: 'Focus Mode'/);
+test('mobile mode messaging only exposes cinema and full intense', () => {
+  assert.doesNotMatch(script, /label: 'Focus Mode'/);
   assert.match(script, /label: 'Cinema Mode'/);
-  assert.match(script, /label: 'Full Interface'/);
-  assert.match(script, /Flick down for Cinema Mode/);
-  assert.match(script, /Flick down for Full Interface/);
+  assert.match(script, /label: 'Full Intense'/);
+  assert.match(script, /Flick down for Full Intense/);
+  assert.doesNotMatch(script, /Flick down for Cinema Mode/);
 });
 
 test('cinema mode supports temporary tap-to-peek controls', () => {
@@ -50,9 +51,8 @@ test('gesture observer is scoped to the player instead of the whole app subtree'
   assert.doesNotMatch(script, /observer\.observe\(app,[\s\S]*attributeFilter: \['hidden'\]/);
 });
 
-test('published V2 entry loads the current gesture build', () => {
-  assert.match(html, /vec-badge-idempotent-20260725-81/);
-  assert.match(html, /v2-mobile-player-swipe\.js\?v=20260725-flick80/);
+test('published V2 entry loads the current two-mode gesture build', () => {
+  assert.match(html, /v2-mobile-player-swipe\.js\?v=20260818-twomodes1/);
   assert.match(html, /v2-mobile-player-swipe\.css\?v=20260725-flick80/);
   assert.match(html, /v2-video-focus-mode\.css\?v=20260725-flick80/);
 });
