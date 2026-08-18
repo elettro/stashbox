@@ -6,7 +6,7 @@ Area: Dashboard
 Environment: DEV
 Date reported: 2026-07-30
 Date fixed: 2026-08-18
-Date verified:
+Date verified: 2026-08-18
 Reported by: User
 
 ## Symptom
@@ -27,7 +27,7 @@ Marked Fixed for now at the user's direction on 2026-08-18 because the interface
 
 ## Verification
 
-Pending.
+Verified by explicit user confirmation on 2026-08-18.
 
 ## Regression risk
 
