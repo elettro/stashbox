@@ -21,7 +21,7 @@ permissions:
 jobs:
   desktop-clean-live-health:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -42,9 +42,11 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.54.2
           npx playwright install --with-deps chromium
 
-      - name: Allow DEV static deployment to settle
-        if: github.event_name == 'push'
-        run: sleep 90
+      - name: Wait for exact DEV desktop deployment
+        env:
+          V2_DESKTOP_DEPLOY_ATTEMPTS: '20'
+          V2_DESKTOP_DEPLOY_SLEEP_SECONDS: '30'
+        run: bash radio/dev/v2/desktop/wait-for-live-build.sh
 
       - name: Test deployed clean desktop runtime
         id: health
