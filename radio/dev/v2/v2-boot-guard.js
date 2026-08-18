@@ -163,13 +163,6 @@
     if (!app.querySelector('[data-song]')) showFailure('No catalog source responded within 22 seconds.');
   }, 24000);
 
-  // Shared share-count UI is mobile-only. Clean desktop has an observer-free
-  // controller because the previous MutationObserver path could interfere with playback.
-  if (matchMedia('(max-width: 899px)').matches && !document.querySelector('script[data-v2-share-count-loader]')) {
-    const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-share-count.js?v=20260818-sharecount1';
-    script.defer = true;
-    script.dataset.v2ShareCountLoader = 'true';
-    document.head.appendChild(script);
-  }
+  // Share-count is loaded explicitly by the mobile entry page and by a separate
+  // observer-free controller on clean desktop. Do not inject a second copy here.
 })();
