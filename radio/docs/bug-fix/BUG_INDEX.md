@@ -9,7 +9,7 @@ Last updated: 2026-08-18
 | SR-BUG-0003 | VEC badge duplicates and pushes controls down | VEC | Medium | DEV | Fixed, verified | 2026-07-25 | - |
 | SR-BUG-0004 | Notification feed remains stale for more than a day | Notifications | High | Both | Fixed, verified | 2026-07-25 | - |
 | SR-BUG-0005 | Share events do not increment retained share counts | Dashboard | High | Both | Open | 2026-06 | - |
-| SR-BUG-0006 | Plays do not persist and 10-second play events are not recorded | Dashboard / Analytics | High | DEV V2 Mobile + Desktop | Open, hardened repair pending E2E verification | 2026-06 | `0c2d7e76` |
+| SR-BUG-0006 | Plays do not persist and 10-second play events are not recorded | Dashboard / Analytics | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-06 | `0c2d7e76` |
 | SR-BUG-0007 | Ad video uploads are rejected by presign purpose validation | Ads | High | DEV | Fixed, verified | 2026-07 | - |
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, verified | 2026-08-04 | - |
@@ -21,7 +21,6 @@ Last updated: 2026-08-18
 ## Open / investigating
 
 - `SR-BUG-0005` - Share events do not increment retained share counts.
-- `SR-BUG-0006` - Direct single-owner 10-second tracker now loads on mobile and desktop, parses persisted `total_plays`, and updates visible play totals. Core mobile and desktop exact +1 live gate passed; pause/resume and seek-protection live gate is running before final verification status changes.
 - `SR-BUG-0012` - Desktop clean runtime removes login and account interface. Initial repair committed, verification pending.
 - `SR-BUG-0013` - Desktop login disappears after boot and notifications do not work.
 
@@ -39,6 +38,7 @@ Last updated: 2026-08-18
 - `SR-BUG-0002` - Full song titles truncate with ellipses in media players.
 - `SR-BUG-0003` - VEC badge duplicates and pushes controls down.
 - `SR-BUG-0004` - Notification feed remains stale for more than a day.
+- `SR-BUG-0006` - 10-second qualified play tracking. Live mobile and desktop gates each persisted exactly one `play_start`, each changed `total_plays` by exactly +1, and the stronger pause/resume plus forward-seek protection gate passed on workflow run `32187950914` from source commit `049c75aa`.
 - `SR-BUG-0007` - Ad video uploads are rejected by presign purpose validation.
 - `SR-BUG-0008` - VEC reuses a subset and repeats assets before the pool is exhausted.
 - `SR-BUG-0009` - Wide desktop player selects square artwork instead of wide assets.
