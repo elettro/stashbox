@@ -155,6 +155,33 @@
     });
   }
 
+  function onShareClick(event) {
+    if (!matchMedia('(min-width: 900px)').matches) return;
+
+    // Local isolation only: keep this Share click out of the legacy app.onclick
+    // navigator.share path without suppressing document/player clicks globally.
+    event.preventDefault();
+    event.stopPropagation();
+
+    const button = event.currentTarget;
+    const song = currentSong();
+    if (!song) return;
+
+    song.shares += 1;
+    paintCount(song);
+    persistShare(song);
+    openMenu(button, song);
+  }
+
+  function bindShareButton() {
+    if (!matchMedia('(min-width: 900px)').matches) return;
+    const button = shareButton();
+    if (!button || button.dataset.desktopShareLiteBound === 'true') return;
+    button.dataset.desktopShareLiteBound = 'true';
+    button.addEventListener('click', onShareClick, false);
+    paintCount();
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     @media (min-width: 900px) {
@@ -192,26 +219,13 @@
   `;
   document.head.appendChild(style);
 
-  // Capture only the Share click so the legacy desktop navigator.share handler never runs.
-  // No overlay, no DOM replacement, no MutationObserver, and no stopImmediatePropagation.
+  // Menu dismissal is ordinary bubble-phase handling; no capture listener and no
+  // global propagation suppression.
   document.addEventListener('click', event => {
-    if (!matchMedia('(min-width: 900px)').matches) return;
-    const button = event.target.closest('#v2App [data-share]');
-    if (!button) {
-      if (menu && !event.target.closest('.desktop-share-lite-menu')) closeMenu();
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const song = currentSong();
-    if (!song) return;
-    song.shares += 1;
-    paintCount(song);
-    persistShare(song);
-    openMenu(button, song);
-  }, true);
+    if (!menu) return;
+    if (event.target.closest('.desktop-share-lite-menu')) return;
+    closeMenu();
+  }, false);
 
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') closeMenu();
@@ -219,8 +233,12 @@
 
   fetch(`${SONGS_URL}?limit=500&desktop_share_lite=${Date.now()}`, { cache: 'no-store', headers: { Accept: 'application/json' } })
     .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-    .then(payload => { songs = rows(payload).map(normalizeSong); paintCount(); })
+    .then(payload => { songs = rows(payload).map(normalizeSong); paintCount(); bindShareButton(); })
     .catch(() => {});
 
-  [250, 750, 1500, 3000].forEach(delay => setTimeout(() => paintCount(), delay));
+  // Recovery can replace player markup. Rebind cheaply without a MutationObserver.
+  [0, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000].forEach(delay => {
+    setTimeout(() => { bindShareButton(); paintCount(); }, delay);
+  });
+  setInterval(bindShareButton, 1000);
 })();
