@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   desktop-clean-smoke:
@@ -19,9 +19,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Run clean desktop structural smoke test
         run: node radio/dev/v2/desktop/smoke-test.mjs
+      - name: Record successful smoke check
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          mkdir -p radio/docs/ci
+          {
+            echo "desktop_v2_clean_smoke=PASS"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "passed_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > radio/docs/ci/desktop-v2-clean-smoke.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio/docs/ci/desktop-v2-clean-smoke.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "Record desktop V2 smoke pass [skip ci]"
+          git push
