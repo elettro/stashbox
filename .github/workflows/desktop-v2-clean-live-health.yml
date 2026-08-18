@@ -89,6 +89,9 @@ jobs:
           SOURCE_SHA: ${{ github.sha }}
         shell: bash
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
           mkdir -p radio/docs/ci
           node <<'NODE'
           const fs = require('fs');
@@ -116,9 +119,6 @@ jobs:
           };
           fs.writeFileSync('radio/docs/ci/desktop-v2-clean-live-health.json', JSON.stringify(receipt, null, 2) + '\n');
           NODE
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
           git add radio/docs/ci/desktop-v2-clean-live-health.json
           git diff --cached --quiet && exit 0
           git commit -m "Record desktop V2 live health pass [skip ci]"
