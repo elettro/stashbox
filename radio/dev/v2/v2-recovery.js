@@ -20,6 +20,13 @@
   const fix = value => clean(value)
     .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
     .replace(/\?dl=[01]/, '');
+  const slug = value => clean(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'stashbox';
 
   const rows = (data, keys) => {
     if (typeof data?.body === 'string') {
@@ -160,7 +167,7 @@
         <div class="v2-player-content player-info">
           <div class="v2-player-labels"><span data-pgenre></span><b><i></i>Now Playing</b></div>
           <h2 data-ptitle></h2>
-          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><strong data-partist></strong></div>
+          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><a class="v2-artist-profile-anchor" data-artist-profile-link href="/radio/dev/v2/artist/"><strong data-partist></strong></a></div>
           <div class="v2-timeline"><input type="range" min="0" max="0" value="0" step=".1" data-scrub><div><span data-now>0:00</span><span data-total>0:00</span></div></div>
           <div class="v2-player-controls"><button class="v2-side-action" data-like>${icon.heart}<span data-likes>0</span></button><button class="v2-transport" data-prev>${icon.previousTrack}</button><button class="v2-main-play" data-play>${icon.play}</button><button class="v2-transport" data-next>${icon.nextTrack}</button><button class="v2-side-action" data-share>${icon.share}</button></div>
         </div>
@@ -351,6 +358,12 @@
     document.body.classList.add('v2-player-open');
     app.querySelector('[data-ptitle]').textContent = selected.title;
     app.querySelector('[data-partist]').textContent = selected.artist;
+    const artistLink = app.querySelector('[data-artist-profile-link]');
+    if (artistLink) {
+      artistLink.href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(slug(selected.artist))}`;
+      artistLink.title = `View ${selected.artist} artist profile`;
+      artistLink.setAttribute('aria-label', `View ${selected.artist} artist profile and follow artist`);
+    }
     app.querySelector('[data-pgenre]').textContent = selected.genre;
     app.querySelector('[data-avatar]').innerHTML = art(selected);
     app.querySelector('[data-likes]').textContent = selected.likes;
