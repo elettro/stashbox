@@ -4,8 +4,50 @@
   if (!matchMedia('(min-width: 900px)').matches || window.StashboxDesktopPlayStatUi) return;
 
   const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v2"/><path d="M4 13h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z"/></svg>';
+  const SONGS_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs';
   let timer = 0;
   let attempts = 0;
+  let catalog = [];
+  let catalogPromise = null;
+
+  const clean = value => String(value ?? '').trim();
+  const norm = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
+
+  function rows(data) {
+    if (typeof data?.body === 'string') {
+      try { data = JSON.parse(data.body); } catch (_) {}
+    }
+    if (Array.isArray(data)) return data;
+    for (const key of ['songs', 'items', 'rows', 'data']) {
+      if (Array.isArray(data?.[key])) return data[key];
+    }
+    return [];
+  }
+
+  function normalizeSong(row) {
+    return {
+      key: clean(row.song_key || row.songKey || row.song_id || row.id),
+      title: clean(row.display_title || row.song_name || row.title),
+      artist: clean(row.artist || row.artist_name || 'Stashbox'),
+      totalPlays: Number(row.total_plays ?? row.play_count ?? row.plays ?? 0) || 0
+    };
+  }
+
+  async function loadCatalog(force = false) {
+    if (catalogPromise && !force) return catalogPromise;
+    catalogPromise = fetch(`${SONGS_URL}?limit=500&play_rank=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(`songs ${response.status}`)))
+      .then(payload => {
+        catalog = rows(payload).map(normalizeSong).filter(song => song.key || song.title);
+        return catalog;
+      })
+      .catch(() => catalog)
+      .finally(() => { catalogPromise = null; });
+    return catalogPromise;
+  }
 
   function installStyles() {
     let style = document.getElementById('desktopPlayStatUiStyles');
@@ -104,6 +146,42 @@
     `;
   }
 
+  function resolveCurrentSong(player) {
+    if (!player || !catalog.length) return null;
+    const hintedKey = clean(player.dataset.songKey || player.dataset.currentSongKey || player.getAttribute('data-song-key'));
+    if (hintedKey) {
+      const byKey = catalog.find(song => song.key === hintedKey);
+      if (byKey) return byKey;
+    }
+    const title = norm(player.querySelector('[data-ptitle]')?.textContent);
+    const artist = norm(player.querySelector('[data-partist]')?.textContent);
+    if (!title) return null;
+    return catalog.find(song => norm(song.title) === title && (!artist || norm(song.artist) === artist))
+      || catalog.find(song => norm(song.title) === title)
+      || null;
+  }
+
+  function rankFor(song) {
+    if (!song) return null;
+    const sorted = [...catalog].sort((a, b) => b.totalPlays - a.totalPlays || a.title.localeCompare(b.title));
+    const index = sorted.findIndex(item => song.key ? item.key === song.key : (norm(item.title) === norm(song.title) && norm(item.artist) === norm(song.artist)));
+    return index >= 0 ? index + 1 : null;
+  }
+
+  function updateTooltip(player, stat) {
+    if (!player || !stat) return;
+    const visibleTotal = Number(stat.querySelector('[data-plays]')?.textContent || player.dataset.totalPlays || 0) || 0;
+    const song = resolveCurrentSong(player);
+    if (song) song.totalPlays = visibleTotal;
+    const rank = rankFor(song);
+    const text = rank
+      ? `Total plays: ${visibleTotal} · #${rank} most played on Stashbox Radio`
+      : `Total plays: ${visibleTotal}`;
+    stat.setAttribute('aria-label', text);
+    stat.setAttribute('title', text);
+    stat.querySelector('[data-plays]')?.setAttribute('title', text);
+  }
+
   function mount() {
     installStyles();
     const player = document.querySelector('#v2App [data-player]');
@@ -117,16 +195,18 @@
       stat.setAttribute('data-play-stat-desktop', '');
       stat.innerHTML = `${ICON}<span data-plays>0</span>`;
     }
-    stat.setAttribute('aria-label', 'Total plays');
-    stat.setAttribute('title', 'Total plays');
-    stat.querySelector('[data-plays]')?.setAttribute('title', 'Total plays');
     if (stat.previousElementSibling !== share) share.insertAdjacentElement('afterend', stat);
 
     const api = window.StashboxV2PlayTracker;
     if (api?.refreshUi) {
       try { api.refreshUi(); } catch (_) {}
     }
+    updateTooltip(player, stat);
     return true;
+  }
+
+  function refreshRank(force = false) {
+    return loadCatalog(force).then(() => mount()).catch(() => false);
   }
 
   function startRetryWindow() {
@@ -144,12 +224,22 @@
   }
 
   document.addEventListener('play', event => {
-    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) startRetryWindow();
+    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) {
+      startRetryWindow();
+      refreshRank(false);
+    }
   }, true);
   document.addEventListener('timeupdate', event => {
     if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) mount();
   }, true);
 
-  startRetryWindow();
-  window.StashboxDesktopPlayStatUi = Object.freeze({ refresh: mount });
+  window.addEventListener('stashbox:qualified-play', () => {
+    window.setTimeout(() => refreshRank(true), 250);
+  });
+
+  loadCatalog(false).then(() => startRetryWindow());
+  window.StashboxDesktopPlayStatUi = Object.freeze({
+    refresh: mount,
+    refreshRank: () => refreshRank(true)
+  });
 })();
