@@ -8,21 +8,65 @@
   let attempts = 0;
 
   function installStyles() {
-    if (document.getElementById('desktopPlayStatUiStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'desktopPlayStatUiStyles';
+    let style = document.getElementById('desktopPlayStatUiStyles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'desktopPlayStatUiStyles';
+      document.head.appendChild(style);
+    }
     style.textContent = `
       @media (min-width: 900px) {
         #v2App .v2-player-controls:has(> [data-play-stat-desktop]) {
-          grid-template-columns: 52px 52px 76px 52px 52px 64px !important;
+          position: relative !important;
+          display: block !important;
+          width: 100% !important;
+          min-height: 76px !important;
         }
-        #v2App .v2-player-controls > [data-like] { order: 1 !important; }
-        #v2App .v2-player-controls > [data-prev] { order: 2 !important; }
-        #v2App .v2-player-controls > [data-play] { order: 3 !important; }
-        #v2App .v2-player-controls > [data-next] { order: 4 !important; }
-        #v2App .v2-player-controls > [data-share] { order: 5 !important; }
-        #v2App .v2-player-controls > [data-play-stat-desktop] { order: 6 !important; }
-        #v2App [data-play-stat-desktop] {
+
+        /* Dead-center transport anchor: stats cannot shift this trio. */
+        #v2App .v2-player-controls > [data-play] {
+          position: absolute !important;
+          left: 50% !important;
+          top: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          margin: 0 !important;
+        }
+        #v2App .v2-player-controls > [data-prev] {
+          position: absolute !important;
+          left: calc(50% - 96px) !important;
+          top: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          margin: 0 !important;
+        }
+        #v2App .v2-player-controls > [data-next] {
+          position: absolute !important;
+          left: calc(50% + 96px) !important;
+          top: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          margin: 0 !important;
+        }
+
+        /* Engagement stats live around the fixed center transport. */
+        #v2App .v2-player-controls > [data-like] {
+          position: absolute !important;
+          left: 0 !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          margin: 0 !important;
+        }
+        #v2App .v2-player-controls > [data-share] {
+          position: absolute !important;
+          right: 76px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          margin: 0 !important;
+        }
+        #v2App .v2-player-controls > [data-play-stat-desktop] {
+          position: absolute !important;
+          right: 0 !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          margin: 0 !important;
           width: 64px;
           min-width: 64px;
           height: 52px;
@@ -57,7 +101,6 @@
         }
       }
     `;
-    document.head.appendChild(style);
   }
 
   function mount() {
@@ -74,9 +117,7 @@
       stat.setAttribute('aria-label', 'Song plays');
       stat.innerHTML = `${ICON}<span data-plays>0</span>`;
     }
-    if (stat.previousElementSibling !== share) {
-      share.insertAdjacentElement('afterend', stat);
-    }
+    if (stat.previousElementSibling !== share) share.insertAdjacentElement('afterend', stat);
 
     const api = window.StashboxV2PlayTracker;
     if (api?.refreshUi) {
