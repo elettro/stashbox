@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050607">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="stashbox-v2-build" content="desktop-clean-20260819-profilebridge2-playstats1-sharecopy2-likestate2-vecstall1">
+  <meta name="stashbox-v2-build" content="desktop-clean-20260819-profilebridge2-playstats3-sharecopy2-likestate2-vecstall1">
   <script>
     (() => {
       try {
@@ -35,38 +35,11 @@
   <link rel="stylesheet" href="/radio/dev/v2/v2-main-desktop-full-width.css?v=20260725-main87">
   <link rel="stylesheet" href="/radio/dev/v2/desktop/desktop-stable.css?v=20260818-artiststyle3">
   <style>
-    .desktop-persistent-controls {
-      position: fixed;
-      top: 14px;
-      left: 0;
-      right: auto;
-      z-index: 10050;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      visibility: hidden;
-    }
+    .desktop-persistent-controls { position: fixed; top: 14px; left: 0; right: auto; z-index: 10050; display: flex; align-items: center; gap: 10px; visibility: hidden; }
     .desktop-persistent-controls[data-anchored="true"] { visibility: visible; }
     .desktop-persistent-controls .v2-header-login { position: static !important; }
-    .desktop-persistent-notifications {
-      width: 44px;
-      height: 44px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 0;
-      border-radius: 999px;
-      background: rgba(255,255,255,.08);
-      color: #fff;
-      cursor: pointer;
-    }
-    .desktop-persistent-notifications svg {
-      width: 22px;
-      height: 22px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.8;
-    }
+    .desktop-persistent-notifications { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
+    .desktop-persistent-notifications svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; }
     #v2App .v2-header-actions > .v2-header-login,
     #v2App .v2-header-actions > .v2-notifications-trigger { display: none !important; }
   </style>
@@ -77,27 +50,11 @@
     <a class="v2-header-login" href="/radio/dev/v2/?auth=login" data-v2-auth-open="login" data-desktop-login aria-label="Log in to Stashbox Radio">Log In</a>
   </div>
   <div id="v2App" class="v2-app" aria-live="polite">
-    <header class="v2-header">
-      <a class="v2-wordmark" href="/radio/dev/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
-      <div class="v2-header-actions" aria-label="Account and notification actions"></div>
-    </header>
+    <header class="v2-header"><a class="v2-wordmark" href="/radio/dev/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a><div class="v2-header-actions" aria-label="Account and notification actions"></div></header>
     <main class="v2-home">
-      <section class="v2-guest-meter" data-v2-boot-status>
-        <span>Interface loaded</span>
-        <strong>Connecting to the live song catalog…</strong>
-      </section>
-      <section class="v2-section v2-featured-section">
-        <div class="v2-section-heading"><h2>Featured Songs</h2></div>
-        <div class="v2-horizontal v2-featured-row">
-          <article class="v2-feature-card"><div class="v2-feature-art"></div><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></article>
-        </div>
-      </section>
-      <section class="v2-section v2-songs-section">
-        <div class="v2-section-heading"><h2>Songs</h2></div>
-        <div class="v2-song-grid">
-          <article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article>
-        </div>
-      </section>
+      <section class="v2-guest-meter" data-v2-boot-status><span>Interface loaded</span><strong>Connecting to the live song catalog…</strong></section>
+      <section class="v2-section v2-featured-section"><div class="v2-section-heading"><h2>Featured Songs</h2></div><div class="v2-horizontal v2-featured-row"><article class="v2-feature-card"><div class="v2-feature-art"></div><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></article></div></section>
+      <section class="v2-section v2-songs-section"><div class="v2-section-heading"><h2>Songs</h2></div><div class="v2-song-grid"><article class="v2-song-card"><div class="v2-song-art"></div><div class="v2-song-copy"><h3>Loading track</h3><p>Stashbox</p><span>Live catalog</span></div></article></div></section>
     </main>
   </div>
   <noscript><section class="v2-load-error"><h1>JavaScript is disabled</h1><p>Enable JavaScript to load Stashbox Radio V2.</p></section></noscript>
@@ -123,7 +80,7 @@
   <script src="/radio/dev/v2/desktop/desktop-video-stall-watchdog.js?v=20260818-vecstall2" defer></script>
   <script src="/radio/dev/v2/desktop/desktop-vec-safety.js?v=20260818-safety2" defer></script>
   <script src="/radio/dev/v2/desktop/desktop-audio-master.js?v=20260818-audiomaster1" defer></script>
-  <script src="/radio/dev/v2/desktop/desktop-health.js?v=20260818-health2" defer></script>
+  <script src="/radio/dev/v2/desktop/desktop-health.js?v=20260819-playstats3" defer></script>
   <script src="/radio/dev/v2/v2-spacebar-transport.js?v=20260725-flick80" defer></script>
 </body>
 </html>
