@@ -37,7 +37,7 @@
       <div>
         <p class="eyebrow">Stability control center</p>
         <h2>Know which layer failed before troubleshooting begins.</h2>
-        <p>The dashboard runs read-only checks against the live V2 interface, core startup files, DEV song catalog, dashboard summary, Ads CMS, VEC, and Video Factory.</p>
+        <p>The dashboard runs read-only checks against the live V2 interface, core startup files, DEV song catalog, Ads CMS, VEC, and Video Factory. Heavy dashboard analytics are intentionally paused.</p>
       </div>
       <div class="health-overall" data-overall="checking">
         <span class="health-dot"></span>
@@ -79,8 +79,8 @@
       </article>
 
       <article class="card health-card" data-check-card="dashboard-api">
-        <div class="health-card-header"><div><p class="eyebrow">Analytics API</p><h2>Dashboard Summary</h2></div><span class="health-status">Waiting</span></div>
-        <p class="health-message">Checks event totals, event types, and top-song reporting.</p>
+        <div class="health-card-header"><div><p class="eyebrow">Analytics API · Paused</p><h2>Dashboard Summary Paused</h2></div><span class="health-status">Waiting</span></div>
+        <p class="health-message">Heavy dashboard analytics are intentionally paused for AWS optimization. No summary API request is sent.</p>
         <dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Events</dt><dd data-field="events">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl>
       </article>
 
@@ -105,12 +105,13 @@
 
     <section class="card health-notes">
       <div><p class="eyebrow">Automated monitoring</p><h2>GitHub checks run every 15 minutes</h2></div>
-      <p>The repository monitor validates the V2 script contract, tests the TRUE DEV API and CMS routes, opens the live interface in Chromium, stores failure screenshots, and creates one GitHub incident issue until the platform recovers.</p>
+      <p>The repository monitor validates the V2 script contract, tests the TRUE DEV API and CMS routes without the paused dashboard summary, opens the live interface in Chromium, stores failure screenshots, and creates one GitHub incident issue until the platform recovers.</p>
     </section>
   </main>
 
   <iframe id="v2HealthFrame" class="health-probe-frame" title="V2 health probe" aria-hidden="true"></iframe>
-  <script src="./system-health.js?v=20260724-health1"></script>
+  <script src="./dashboard-summary-freeze.js?v=20260819-aws-opt1"></script>
+  <script src="./system-health.js?v=20260819-aws-opt1"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260724-shared-health1" defer></script>
 </body>
 </html>
