@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T14:30:00-04:00",
+  "updated_at": "2026-08-19T14:45:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -341,10 +341,12 @@
         "Interface controls remain responsive during the frozen video",
         "Normal pool exhaustion is designed to clear played state and reuse the eligible pool",
         "Where Next? full-duration live run on continuity2 passed ~2:40, reached 3:54 with 16 played/0 failed assets, and auto-advanced with VEC active",
-        "Direct mobile comparison remained visually flawless beyond 3:35 while desktop continued to reproduce"
+        "Direct mobile comparison remained visually flawless beyond 3:35 while desktop continued to reproduce",
+        "Continuity3 live desktop check: Dirty Bird passed 0:30 and reached ~1:08 with seven assets played and zero failed",
+        "Continuity3 live desktop check: Right Between the Eyes passed 0:28 and reached ~0:31 with three assets played and zero failed"
       ],
       "root_cause": "Continuity2 closed the no-prepared-next-asset and missed-ended-handoff gaps, but post-repair desktop recurrences showed an additional path. The desktop stall watchdog treats media currentTime and decoded/presented-frame progress as healthy even when the composited frame visible to the user remains stuck. The early 0:28 to 0:30 failures rule out normal pool exhaustion, and the healthy mobile comparison keeps the remaining scope desktop-only.",
-      "fix_summary": "Continuity2 recovery remains in place. Continuity3 adds an independent audio-clock lease for every active desktop video: use the media duration when available, add a short grace period, cap ownership at 12 seconds, and advance through the existing single VEC engine when the lease expires even if media counters still report progress. Pause/resume and audio timeupdate re-arm the lease. Mobile is unchanged. Keep the bug Open until Dirty Bird and Right Between the Eyes pass their new early failure points and full-song desktop soak tests.",
+      "fix_summary": "Continuity2 recovery remains in place. Continuity3 adds an independent audio-clock lease for every active desktop video: use the media duration when available, add a short grace period, cap ownership at 12 seconds, and advance through the existing single VEC engine when the lease expires even if media counters still report progress. Pause/resume and audio timeupdate re-arm the lease. Mobile is unchanged. The exact continuity3-videolease1 live marker was confirmed; targeted live checks passed Dirty Bird beyond 0:30 and Right Between the Eyes beyond 0:28 with zero failed assets. Keep the bug Open until the user's desktop and full-song soak tests pass.",
       "files_changed": [
         "radio/dev/v2/desktop/index.html",
         "radio/dev/v2/desktop/desktop-vec2.js",
@@ -374,7 +376,7 @@
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "Verify the live continuity3-videolease1 marker before testing. Run Dirty Bird beyond 0:30 and Right Between the Eyes beyond 0:28, then complete both songs. Confirm video-lease-start diagnostics, that no desktop video owns the stage beyond 12 seconds of audio time, and that pause/resume does not duplicate timers. Continue full-song Chrome, Firefox, and Edge soak tests. Preserve the single desktop VEC stage owner and do not change mobile while its comparison remains healthy.",
+      "future_repair": "On the user's desktop, hard refresh until the continuity3-videolease1 build is loaded. Run Dirty Bird beyond 0:30 and Right Between the Eyes beyond 0:28, then complete both songs. Confirm video-lease-start diagnostics, that no desktop video owns the stage beyond 12 seconds of audio time, and that pause/resume does not duplicate timers. Continue full-song Chrome, Firefox, and Edge soak tests. Preserve the single desktop VEC stage owner and do not change mobile while its comparison remains healthy.",
       "reopened_at": "2026-08-18"
     },
     {
