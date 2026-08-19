@@ -16,6 +16,12 @@ Reported by: User
 
 The Dirty Bird recurrence confirms that this is not isolated to one song. Because audio and controls remained healthy, the failure is isolated to the active visual video playback or recovery path rather than the audio engine or the entire application. The bug remains Open after previously being marked Fixed/verified for the clean desktop runtime.
 
+## Investigation state
+
+As of 2026-08-19, the user reports that the freeze is recurring across playback sessions but has not identified a reliable trigger. Keep this bug Open while additional examples are collected under the same ID. Do not close it based on one successful replay or a short playback test.
+
+For each new recurrence, capture the song, approximate elapsed time, browser/device, whether the tab was foregrounded, whether audio and controls continued, whether playback recovered without intervention, and the active VEC asset when available.
+
 ## New architecture finding
 
 The clean desktop runtime already has `desktop-audio-master.js`, which freezes/resumes VEC video when the **audio** enters waiting, seeking, or stalled states. However, the active VEC **video element itself** did not have a corresponding stall-recovery path. A visual clip could therefore stop making progress while the song audio continued to advance, leaving a frozen video frame indefinitely.
