@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T16:35:00-04:00",
+  "updated_at": "2026-08-19T16:45:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -318,14 +318,14 @@
     {
       "id": "SR-BUG-0011",
       "title": "Desktop VEC media flickers, video fails to trigger, and player can freeze",
-      "status": "Open",
-      "verification": "Pending",
+      "status": "Fixed",
+      "verification": "Verified",
       "severity": "Critical",
       "area": "VEC Player",
       "environment": "DEV V2 Desktop",
       "reported_at": "2026-08-11",
-      "fixed_at": "2026-08-18",
-      "verified_at": null,
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
       "symptom": "The active desktop VEC video can freeze on a single frame while song audio continues smoothly and the interface remains responsive. Post-repair failures occurred from 0:28 through 0:48 on the user's desktop, while a direct mobile comparison remained visually flawless beyond 3:35.",
       "affected_examples": [
         "Post-continuity3: She's My Guru froze at ~0:48 on desktop",
@@ -351,7 +351,7 @@
         "User continuity5 desktop test: older catalog song Do You Love Me? passed the 2:00 to 2:45 failure zone and completed 100% with smooth video"
       ],
       "root_cause": "Live She's My Guru runs reproduced the desktop engine stuck in TRANSITIONING while audio continued. advance() held the serialized advancing lock while awaiting either the shared next-asset preload chain or a prepared video's play() promise. A slow preload could span sequential asset timeouts, while a prepared video could return a play promise that never settled. Lease and watchdog recovery calls then returned because advancing was already true, leaving the same ended video visible. Normal pool exhaustion is not the cause.",
-      "fix_summary": "Continuity5 removes the old current layer before every replacement start, revealing artwork before either preload or prepared-video startup. Transition preload waiting is capped at 2.6 seconds. A prepared video's play promise is capped at 1.6 seconds. Preload epochs prevent abandoned work from reinserting stale nodes, and both preload and promotion attempts are bounded before pool recovery. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification now includes two complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. Mobile is unchanged. Keep the bug Open until a previously failing song and broader desktop soak tests pass.",
+      "fix_summary": "Continuity5 removes the old current layer before every replacement start, caps transition preload waiting at 2.6 seconds, caps a prepared video's play promise at 1.6 seconds, and prevents abandoned preload work from reinserting stale nodes. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification included multiple complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. The user marked the repair verified and closed it on 2026-08-19. Mobile is unchanged.",
       "files_changed": [
         "radio/dev/v2/desktop/index.html",
         "radio/dev/v2/desktop/desktop-vec2.js",
@@ -385,22 +385,22 @@
         "SR-BUG-0001",
         "SR-BUG-0009"
       ],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "Run one previously failing song through 100% on the user's desktop, prioritizing She's My Guru, Dirty Bird, or Right Between the Eyes. Then continue Chrome, Firefox, and Edge full-song soak tests. Confirm every advance removes the old layer before replacement startup, missing preloads leave TRANSITIONING within 2.6 seconds, unsettled play promises fail within 1.6 seconds, and abandoned work cannot reinsert stale video. Preserve the single desktop VEC stage owner and leave mobile unchanged.",
+      "future_repair": "If the desktop freeze returns, reopen SR-BUG-0011 and verify the live build marker before changing code. Inspect TRANSITIONING, preload-abandoned, video-play-start-timeout, lease, and presentation-heartbeat diagnostics. Preserve the single desktop VEC stage owner and leave mobile unchanged.",
       "reopened_at": "2026-08-18"
     },
     {
       "id": "SR-BUG-0012",
       "title": "Desktop clean runtime removes login and account interface",
-      "status": "Open",
-      "verification": "Pending",
+      "status": "Fixed",
+      "verification": "Verified",
       "severity": "High",
       "area": "Auth",
       "environment": "DEV V2 Desktop",
       "reported_at": "2026-08-18",
-      "fixed_at": null,
-      "verified_at": null,
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
       "symptom": "Desktop users lose the User ID/password login entry point and account/session interface after routing into the clean desktop runtime.",
       "affected_examples": [
         "DEV V2 desktop clean runtime",
@@ -410,32 +410,35 @@
         "Standard V2 runtime with auth/session/profile stack"
       ],
       "root_cause": "The desktop clean runtime omitted both the .v2-header-actions mount point and the auth/session/profile scripts, so the login control had nowhere to mount and auth UI never initialized.",
-      "fix_summary": "Initial repair restores the desktop header action slot and existing auth/session/profile CSS and scripts while preserving the clean desktop VEC/audio runtime.",
+      "fix_summary": "Restored persistent desktop login/account and notification controls across clean-runtime boot and recovery rendering. The clean desktop page loads the auth/session/profile and notification runtimes, while desktop-shell-controls.js restores shell controls after direct #v2App child replacement without observing the media subtree. The user marked the repair verified and closed it on 2026-08-19.",
       "files_changed": [
-        "radio/dev/v2/desktop/index.html"
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-shell-controls.js"
       ],
       "commits": [
-        "8f46d70a6e0eb67f2c759979d4780f3140fdc042"
+        "8f46d70a6e0eb67f2c759979d4780f3140fdc042",
+        "38affbd8624ccd41eadf175fd617cb2fc24874eb",
+        "ce4e0e2c991f3e8471990a9f1a3e801a028b88a5"
       ],
       "related_bugs": [
         "SR-BUG-0011",
         "SR-BUG-0013"
       ],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0012.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0012.md",
       "repair_playbook": null,
-      "future_repair": "If desktop login disappears again, verify desktop routing target, header ownership, auth runtime, and recovery rendering before changing Cognito or backend auth."
+      "future_repair": "If desktop login/account or notifications disappear again, reopen SR-BUG-0012 and inspect the clean desktop shell and recovery boundary first. Verify the routing target, header ownership, auth runtime, notification sheet runtime, and recovery rendering before changing Cognito or backend auth. Do not add a document-wide or VEC-subtree MutationObserver."
     },
     {
       "id": "SR-BUG-0013",
       "title": "Desktop login disappears after boot and notifications do not work",
-      "status": "Open",
-      "verification": "Pending",
+      "status": "Fixed",
+      "verification": "Verified",
       "severity": "High",
       "area": "Desktop Shell / Auth / Notifications",
       "environment": "DEV V2 Desktop",
       "reported_at": "2026-08-18",
-      "fixed_at": null,
-      "verified_at": null,
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
       "symptom": "On desktop, the Log In control briefly appears during initial paint and then disappears after the app finishes booting. The Notifications control is also nonfunctional.",
       "affected_examples": [
         "DEV V2 desktop header after full boot",
@@ -445,15 +448,21 @@
         "Initial paint before recovery render"
       ],
       "root_cause": "The desktop clean runtime and recovery renderer both participate in header rendering. Recovery can replace #v2App after startup, discarding controls initialized earlier; notification behavior also depended on runtime wiring tied to controls inside the recoverable app container.",
-      "fix_summary": "No verified fix yet. Multiple repair attempts have not resolved the user-visible symptom.",
-      "files_changed": [],
-      "commits": [],
+      "fix_summary": "Resolved by the persistent desktop shell repair associated with SR-BUG-0012. desktop-shell-controls.js restores Log In / Account and Notifications after recovery replaces the direct children of #v2App, while the clean desktop page loads the required auth and notification runtimes. The user marked this duplicate symptom record verified and closed it on 2026-08-19.",
+      "files_changed": [
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-shell-controls.js"
+      ],
+      "commits": [
+        "38affbd8624ccd41eadf175fd617cb2fc24874eb",
+        "ce4e0e2c991f3e8471990a9f1a3e801a028b88a5"
+      ],
       "related_bugs": [
         "SR-BUG-0012"
       ],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0013.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0013.md",
       "repair_playbook": null,
-      "future_repair": "Verify the exact live boot path and ensure account and notification controls are owned outside the recovery-rendered app container or otherwise survive all recovery renders. Test full boot, auth sheet opening, account state, notification sheet opening, and live notification loading."
+      "future_repair": "If desktop login/account or notifications disappear again, reopen SR-BUG-0013 or SR-BUG-0012 and inspect shell ownership and recovery rendering first. Verify full boot, auth sheet opening, account state, notification sheet opening, and live notification loading. Do not add a document-wide or VEC-subtree MutationObserver."
     },
     {
       "id": "SR-BUG-0014",
