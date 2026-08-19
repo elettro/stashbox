@@ -8,6 +8,7 @@
   const TRACK_URL = `${API_ROOT}/radio/track`;
   const QUALIFY_SECONDS = 10;
   const MAX_TICK_SECONDS = 1.5;
+  const PLAY_STAT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v2"/><path d="M4 13h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z"/></svg>';
 
   const state = {
     songs: [],
@@ -69,6 +70,7 @@
       .then(response => response.ok ? response.json() : Promise.reject(new Error(`songs ${response.status}`)))
       .then(payload => {
         state.songs = rows(payload).map(normalizeSong).filter(song => song.key);
+        renderCurrentPlayStat();
         return state.songs;
       })
       .catch(() => state.songs)
@@ -78,6 +80,11 @@
 
   function activePlayer(audio) {
     return audio?.closest?.('#v2App [data-player]') || audio?.closest?.('[data-player]') || null;
+  }
+
+  function currentAudio() {
+    return document.querySelector('#v2App [data-player]:not([hidden]) [data-audio], #v2App [data-player]:not([hidden]) audio')
+      || document.querySelector('#v2App [data-player] [data-audio], #v2App [data-player] audio');
   }
 
   function resolveSong(audio = state.audio) {
@@ -101,6 +108,82 @@
     return state.songs.find(song => norm(song.title) === title && (!artist || norm(song.artist) === artist))
       || state.songs.find(song => norm(song.title) === title)
       || null;
+  }
+
+  function installPlayStatStyles() {
+    if (document.getElementById('v2PlayStatStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'v2PlayStatStyles';
+    style.textContent = `
+      .v2-play-stat-ui { pointer-events: none; }
+      .v2-play-stat-ui svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      @media (min-width: 900px) {
+        .v2-player-controls:has(> .v2-play-stat-desktop) {
+          grid-template-columns: 52px 52px 52px 76px 52px 52px !important;
+        }
+        .v2-play-stat-desktop {
+          width: 52px;
+          min-width: 52px;
+          height: 52px;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: #fff;
+        }
+        .v2-play-stat-desktop svg { width: 22px; height: 22px; }
+        .v2-play-stat-desktop [data-plays] { font-size: 13px; font-weight: 700; line-height: 1; }
+      }
+      @media (max-width: 699px) {
+        .v2-li-player-rail .v2-play-stat-mobile { width: 62px; display: grid; justify-items: center; gap: 4px; color: #fff; text-align: center; }
+        .v2-play-stat-mobile .v2-li-rail-circle svg { width: 23px; height: 23px; }
+        .v2-play-stat-mobile strong { max-width: 62px; overflow: hidden; color: #f3f1eb; font-size: 8px; font-weight: 700; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+        .v2-play-stat-mobile small { color: #c5c8cd; font-size: 8px; line-height: 1.05; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensurePlayStatUi(audio = currentAudio()) {
+    const player = activePlayer(audio);
+    if (!player) return;
+    installPlayStatStyles();
+
+    if (matchMedia('(max-width: 699px)').matches) {
+      const rail = player.querySelector('.v2-li-player-rail');
+      const share = rail?.querySelector('[data-li-share]');
+      if (rail && share && !rail.querySelector('[data-play-stat-mobile]')) {
+        const stat = document.createElement('div');
+        stat.className = 'v2-li-rail-item v2-play-stat-ui v2-play-stat-mobile';
+        stat.setAttribute('data-play-stat-mobile', '');
+        stat.setAttribute('aria-label', 'Song plays');
+        stat.innerHTML = `<span class="v2-li-rail-circle">${PLAY_STAT_ICON}</span><strong data-plays>0</strong><small>Plays</small>`;
+        rail.insertBefore(stat, share);
+      }
+      return;
+    }
+
+    const controls = player.querySelector('.v2-player-controls');
+    const like = controls?.querySelector('[data-like]');
+    if (controls && like && !controls.querySelector('[data-play-stat-desktop]')) {
+      const stat = document.createElement('span');
+      stat.className = 'v2-play-stat-ui v2-play-stat-desktop';
+      stat.setAttribute('data-play-stat-desktop', '');
+      stat.setAttribute('aria-label', 'Song plays');
+      stat.innerHTML = `${PLAY_STAT_ICON}<span data-plays>0</span>`;
+      like.insertAdjacentElement('afterend', stat);
+    }
+  }
+
+  function renderCurrentPlayStat(audio = currentAudio()) {
+    if (!audio) return;
+    ensurePlayStatUi(audio);
+    const song = resolveSong(audio);
+    if (song?.key) syncVisiblePlayTotal(song, song.totalPlays);
   }
 
   function makeSessionId(songKey) {
@@ -135,12 +218,15 @@
       resetSession(audio, song.key);
       state.sourceToken = sourceToken;
     }
+    ensurePlayStatUi(audio);
+    syncVisiblePlayTotal(song, song.totalPlays);
     return song;
   }
 
   function syncVisiblePlayTotal(song, total) {
     if (!song?.key || !Number.isFinite(Number(total))) return;
-    const player = activePlayer(state.audio);
+    const audio = state.audio || currentAudio();
+    const player = activePlayer(audio);
     if (!player) return;
     const value = String(Math.max(0, Number(total)));
     player.dataset.totalPlays = value;
@@ -227,8 +313,11 @@
   }
 
   function onPlay(audio) {
-    ensureSession(audio).then(() => {
+    ensureSession(audio).then(song => {
       state.lastWallMs = performance.now();
+      if (song) syncVisiblePlayTotal(song, song.totalPlays);
+      window.setTimeout(() => renderCurrentPlayStat(audio), 250);
+      window.setTimeout(() => renderCurrentPlayStat(audio), 900);
     }).catch(() => {});
   }
 
@@ -261,7 +350,10 @@
   }, true);
 
   document.addEventListener('timeupdate', event => {
-    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) tick(event.target).catch(() => {});
+    if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) {
+      ensurePlayStatUi(event.target);
+      tick(event.target).catch(() => {});
+    }
   }, true);
 
   document.addEventListener('ended', event => {
@@ -272,11 +364,15 @@
     if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App') && event.target === state.audio) resetSession(null, '');
   }, true);
 
+  installPlayStatStyles();
   loadSongs();
+  window.setTimeout(renderCurrentPlayStat, 500);
+  window.setTimeout(renderCurrentPlayStat, 1500);
 
   window.StashboxV2PlayTracker = Object.freeze({
     thresholdSeconds: QUALIFY_SECONDS,
     refreshCatalog: () => loadSongs(true),
+    refreshUi: () => renderCurrentPlayStat(),
     state: () => ({
       songKey: state.songKey,
       sessionId: state.sessionId,
