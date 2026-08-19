@@ -18,6 +18,7 @@ Last updated: 2026-08-19
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
+| SR-BUG-0015 | Profile song clicks return home instead of opening the selected song | Profile / Player | High | DEV V2 Mobile + Desktop | Fixed, verification pending | 2026-08-19 | `545071ea` |
 
 ## Open / investigating
 
@@ -30,6 +31,7 @@ Last updated: 2026-08-19
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
 - `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
+- `SR-BUG-0015` - Profile song clicks now hand the selected song to the main player; playlist launches also hand over the playlist's visible saved order for Next/Previous and song-end advance. Awaiting user verification.
 
 ## Closed
 
