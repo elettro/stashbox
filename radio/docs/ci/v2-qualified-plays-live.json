@@ -1,8 +1,40 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "545071ea64c68dd3cb4d4f02692bec97335473e8",
-  "workflow_run_id": "32274723779",
-  "tested_at_utc": "2026-08-19T16:16:42.895Z",
-  "chosen": null,
-  "results": []
+  "source_commit": "250fbafdfeb6aad1f11e108acbaf65de4af211b1",
+  "workflow_run_id": "32274944421",
+  "tested_at_utc": "2026-08-19T16:19:20.642Z",
+  "chosen": {
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)"
+  },
+  "results": [
+    {
+      "name": "mobile",
+      "ok": false,
+      "build": "mobile-playstats1-20260819-twomodes1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: mobile: unexpected live build mobile-playstats1-20260819-twomodes1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    },
+    {
+      "name": "desktop",
+      "ok": false,
+      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats6-centeredtransport1-sharecopy2-likestate2-vecstall1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats6-centeredtransport1-sharecopy2-likestate2-vecstall1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    }
+  ]
 }
