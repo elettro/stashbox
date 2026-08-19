@@ -1,8 +1,40 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "e4c8be5f58f7ae6b17b18a7e3f84db4b0f421e42",
-  "workflow_run_id": "32279322927",
-  "tested_at_utc": "2026-08-19T17:06:06.776Z",
-  "chosen": null,
-  "results": []
+  "source_commit": "d85020c0a76f4b51e2ffab1892b6af4e4063fbb6",
+  "workflow_run_id": "32279604691",
+  "tested_at_utc": "2026-08-19T17:11:00.784Z",
+  "chosen": {
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)"
+  },
+  "results": [
+    {
+      "name": "mobile",
+      "ok": false,
+      "build": "mobile-playstats1-20260819-twomodes1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: mobile: unexpected live build mobile-playstats1-20260819-twomodes1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    },
+    {
+      "name": "desktop",
+      "ok": false,
+      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity2",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity2\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    }
+  ]
 }
