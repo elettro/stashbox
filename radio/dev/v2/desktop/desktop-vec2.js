@@ -13,6 +13,8 @@
   const IMAGE_DEFAULT_MS = 8000;
   const SESSION_CACHE_MS = 60000;
   const PRELOAD_TIMEOUT_MS = 12000;
+  const RECOVERY_RETRY_MS = 1800;
+  const RECOVERY_RETRY_MAX_MS = 8000;
 
   const state = {
     generation: 0,
@@ -39,6 +41,9 @@
     introHandoffRunning: false,
     imageTimer: 0,
     imageDeadlineAudioSeconds: 0,
+    recoveryTimer: 0,
+    recoveryCycles: 0,
+    advancing: false,
     debugNode: null,
     diagnostics: []
   };
@@ -369,8 +374,10 @@
   function clearTimers() {
     clearTimeout(state.introTimer);
     clearTimeout(state.imageTimer);
+    clearTimeout(state.recoveryTimer);
     state.introTimer = 0;
     state.imageTimer = 0;
+    state.recoveryTimer = 0;
   }
 
   function disposeLayer(layer) {
@@ -401,6 +408,8 @@
     state.introComplete = false;
     state.introHandoffRunning = false;
     state.imageDeadlineAudioSeconds = 0;
+    state.recoveryCycles = 0;
+    state.advancing = false;
     if (state.stage && hide) state.stage.hidden = true;
   }
 
@@ -626,20 +635,102 @@
     return true;
   }
 
-  async function advance(generation, reason = 'advance') {
+  function showArtworkRecovery(generation, reason) {
     if (generation !== state.generation) return;
     clearTimeout(state.imageTimer);
     state.imageTimer = 0;
     state.imageDeadlineAudioSeconds = 0;
-    setStatus('TRANSITIONING', reason);
-    let prepared = state.nextPrepared;
-    if (!prepared) prepared = await preloadNext(generation);
-    if (!prepared || generation !== state.generation) {
-      if (!state.currentAsset) setStatus('FALLBACK', 'no-playable-assets');
-      else setStatus(state.currentAsset.type === 'video' ? 'PLAYING_VIDEO' : 'PLAYING_IMAGE', 'waiting-for-next');
-      return;
+    state.layers.forEach(disposeLayer);
+    state.currentLayer = -1;
+    state.nextLayer = 0;
+    state.currentAsset = null;
+    state.nextAsset = null;
+    state.nextPrepared = null;
+    state.nextPromise = null;
+    if (state.stage) state.stage.hidden = false;
+    setStatus('FALLBACK', reason);
+  }
+
+  function schedulePoolRecovery(generation, reason = 'pool-recovery') {
+    if (generation !== state.generation || !state.pool.length || state.recoveryTimer) return;
+    const audio = currentAudio();
+    if (!audio || audio.ended) return;
+
+    state.recoveryCycles += 1;
+    const delay = Math.min(RECOVERY_RETRY_MAX_MS, RECOVERY_RETRY_MS * state.recoveryCycles);
+    log('pool-recovery-scheduled', {
+      reason,
+      cycle: state.recoveryCycles,
+      delay,
+      failed: state.failed.size,
+      pool: state.pool.length
+    });
+
+    state.recoveryTimer = setTimeout(async () => {
+      state.recoveryTimer = 0;
+      if (generation !== state.generation) return;
+      const activeAudio = currentAudio();
+      if (!activeAudio || activeAudio.ended) return;
+      if (activeAudio.paused) return;
+
+      state.failed.clear();
+      state.played.clear();
+      state.nextAsset = null;
+      state.nextPrepared = null;
+      state.nextPromise = null;
+      log('pool-recovery-start', { cycle: state.recoveryCycles, pool: state.pool.length });
+
+      const prepared = await preloadNext(generation);
+      if (generation !== state.generation) return;
+      if (!prepared) {
+        showArtworkRecovery(generation, 'pool-recovery-no-playable-assets');
+        schedulePoolRecovery(generation, 'pool-recovery-repeat');
+        return;
+      }
+
+      const promoted = await promote(prepared, generation, 'pool-recovery');
+      if (promoted && generation === state.generation) {
+        state.recoveryCycles = 0;
+        log('pool-recovery-complete', { asset: assetKey(state.currentAsset) });
+      } else if (generation === state.generation) {
+        schedulePoolRecovery(generation, 'pool-recovery-promotion-deferred');
+      }
+    }, delay);
+  }
+
+  function recoverCurrent(reason = 'external-recovery') {
+    if (!state.currentAsset || state.generation <= 0) return false;
+    const generation = state.generation;
+    if (reason !== 'video-ended-without-handoff') {
+      state.failed.add(assetKey(state.currentAsset));
+      log('asset-failed', { asset: assetKey(state.currentAsset), error: reason });
+    } else {
+      log('missed-video-ended-handoff', { asset: assetKey(state.currentAsset) });
     }
-    await promote(prepared, generation, reason);
+    void advance(generation, reason);
+    return true;
+  }
+
+  async function advance(generation, reason = 'advance') {
+    if (generation !== state.generation || state.advancing) return false;
+    state.advancing = true;
+    try {
+      clearTimeout(state.imageTimer);
+      state.imageTimer = 0;
+      state.imageDeadlineAudioSeconds = 0;
+      setStatus('TRANSITIONING', reason);
+      let prepared = state.nextPrepared;
+      if (!prepared) prepared = await preloadNext(generation);
+      if (!prepared || generation !== state.generation) {
+        if (generation !== state.generation) return false;
+        showArtworkRecovery(generation, state.pool.length ? 'no-next-asset-recovering' : 'no-playable-assets');
+        if (state.pool.length) schedulePoolRecovery(generation, reason);
+        return false;
+      }
+      return await promote(prepared, generation, reason);
+    } finally {
+      if (generation === state.generation) state.advancing = false;
+    }
   }
 
   function renderDebug() {
@@ -785,7 +876,8 @@
       return;
     }
     if (!state.currentAsset) {
-      finishIntro(state.generation);
+      if (state.status === 'FALLBACK' && state.pool.length) schedulePoolRecovery(state.generation, 'audio-resume');
+      else finishIntro(state.generation);
       return;
     }
     if (state.currentAsset.type === 'image') {
@@ -822,7 +914,17 @@
 
   document.addEventListener('timeupdate', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
-    if (state.songKey && !state.introComplete) scheduleIntroCheck(state.generation);
+    if (state.songKey && !state.introComplete) {
+      scheduleIntroCheck(state.generation);
+      return;
+    }
+    if (state.currentAsset?.type === 'image') {
+      scheduleImageAdvance(state.generation);
+      return;
+    }
+    if (state.songKey && state.introComplete && !state.currentAsset && state.pool.length) {
+      schedulePoolRecovery(state.generation, 'audio-timeupdate-no-current-asset');
+    }
   }, true);
 
   document.addEventListener('emptied', event => {
@@ -843,6 +945,7 @@
       }
     },
     clearCache: () => state.cache.clear(),
+    recoverCurrent,
     state: () => ({
       generation: state.generation,
       starting: state.starting,
@@ -855,7 +958,10 @@
       failedCount: state.failed.size,
       currentAsset: state.currentAsset,
       nextAsset: state.nextAsset,
-      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds
+      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds,
+      recoveryCycles: state.recoveryCycles,
+      recoveryScheduled: Boolean(state.recoveryTimer),
+      advancing: state.advancing
     }),
     diagnostics: () => [...state.diagnostics]
   });
