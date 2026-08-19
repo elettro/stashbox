@@ -9,6 +9,8 @@
   const PROD_SONGS = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs';
   const CATALOG_CACHE_KEY = 'stashbox_radio_v2_catalog_cache';
   const guardedHosts = new Set([DEV_HOST, 'stashbox.ai']);
+  const AUTH_API_TIMEOUT_MS = 6500;
+  const COGNITO_TIMEOUT_MS = 9000;
 
   function timeoutFetch(input, init = {}, timeoutMs = 20000) {
     if (init.signal) return nativeFetch(input, init);
@@ -18,13 +20,24 @@
       .finally(() => window.clearTimeout(timer));
   }
 
+  function parsedUrl(rawUrl) {
+    try { return new URL(rawUrl, location.href); }
+    catch (_) { return null; }
+  }
+
   function isDevSongsRequest(rawUrl) {
-    try {
-      const url = new URL(rawUrl, location.href);
-      return url.hostname === DEV_HOST && /\/radio\/songs\/?$/.test(url.pathname);
-    } catch (_) {
-      return false;
-    }
+    const url = parsedUrl(rawUrl);
+    return Boolean(url && url.hostname === DEV_HOST && /\/radio\/songs\/?$/.test(url.pathname));
+  }
+
+  function isAuthApiRequest(url) {
+    return Boolean(url && url.hostname === DEV_HOST && (
+      url.pathname.includes('/radio/auth/') || url.pathname.endsWith('/radio/me')
+    ));
+  }
+
+  function isCognitoRequest(url) {
+    return Boolean(url && /^cognito-idp\.[^.]+\.amazonaws\.com$/i.test(url.hostname));
   }
 
   function preferStreamSong(song) {
@@ -129,8 +142,11 @@
     const rawUrl = typeof input === 'string' ? input : input?.url || '';
     if (isDevSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
 
-    let host = '';
-    try { host = new URL(rawUrl, location.href).hostname; } catch (_) {}
+    const url = parsedUrl(rawUrl);
+    if (isCognitoRequest(url)) return timeoutFetch(input, init, COGNITO_TIMEOUT_MS);
+    if (isAuthApiRequest(url)) return timeoutFetch(input, init, AUTH_API_TIMEOUT_MS);
+
+    const host = url?.hostname || '';
     if (!guardedHosts.has(host)) return nativeFetch(input, init);
     return timeoutFetch(input, init, host === 'stashbox.ai' ? 10000 : 20000);
   };
