@@ -57,14 +57,24 @@
       }
     }));
 
-    try { current.dispatchEvent(new Event('error')); } catch (_) {}
+    let handedOff = false;
+    try {
+      handedOff = window.StashboxDesktopVec2?.recoverCurrent?.(reason) === true;
+    } catch (_) {}
+    if (!handedOff) {
+      try { current.dispatchEvent(new Event('error')); } catch (_) {}
+    }
     reset(null);
   }
 
   function tryRecover(reason) {
     const current = video();
     const currentAudio = audio();
-    if (!current || !currentAudio || currentAudio.paused || currentAudio.ended || current.ended) return;
+    if (!current || !currentAudio || currentAudio.paused || currentAudio.ended) return;
+    if (current.ended) {
+      failCurrent('video-ended-without-handoff');
+      return;
+    }
 
     if (current !== watchedVideo) reset(current);
     const before = Number(current.currentTime || 0);
@@ -109,7 +119,10 @@
       return;
     }
 
-    if (current.ended) return;
+    if (current.ended) {
+      failCurrent('video-ended-without-handoff');
+      return;
+    }
 
     const stuckFor = now - lastProgressAt;
     if (stuckFor >= STALL_MS && !retryTimer && (!armedAt || now - armedAt >= STALL_MS)) {
