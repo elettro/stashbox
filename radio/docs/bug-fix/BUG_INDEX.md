@@ -8,7 +8,7 @@ Last updated: 2026-08-19
 | SR-BUG-0002 | Full song titles truncate with ellipses in media players | Player | High | Both | Fixed, verified | 2026-07-24 | - |
 | SR-BUG-0003 | VEC badge duplicates and pushes controls down | VEC | Medium | DEV | Fixed, verified | 2026-07-25 | - |
 | SR-BUG-0004 | Notification feed remains stale for more than a day | Notifications | High | Both | Fixed, verified | 2026-07-25 | - |
-| SR-BUG-0005 | Share events do not increment retained share counts | Dashboard | High | Both | Open | 2026-06 | - |
+| SR-BUG-0005 | Share events do not increment retained share counts | Dashboard | High | Both | Fixed, verified | 2026-06 | - |
 | SR-BUG-0006 | Plays do not persist and 10-second play events are not recorded | Dashboard / Analytics | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-06 | `0c2d7e76` |
 | SR-BUG-0007 | Ad video uploads are rejected by presign purpose validation | Ads | High | DEV | Fixed, verified | 2026-07 | - |
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
@@ -23,7 +23,7 @@ Last updated: 2026-08-19
 
 ## Open / investigating
 
-- `SR-BUG-0005` - Share events do not increment retained share counts.
+- `SR-BUG-0005` - Historical retained-share-count issue. User marked it verified and closed it on 2026-08-19. Reopen and trace one share end to end if it returns.
 - `SR-BUG-0011` - Continuity5 removes the old layer before every start and rejects an unsettled play() promise after 1.6 seconds. Multiple complete desktop songs passed, including Do You Love Me? through the prior 2:00 to 2:45 failure zone. User marked the repair verified and closed it on 2026-08-19. Mobile remains unchanged.
 - `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the repair verified and closed it on 2026-08-19.
 - `SR-BUG-0013` - The persistent desktop shell repair restored login/account and notifications after recovery rendering. User marked this duplicate symptom record verified and closed it on 2026-08-19.
