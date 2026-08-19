@@ -14,7 +14,7 @@
     style.textContent = `
       @media (min-width: 900px) {
         #v2App .v2-player-controls:has(> [data-play-stat-desktop]) {
-          grid-template-columns: 52px 64px 52px 76px 52px 52px !important;
+          grid-template-columns: 52px 52px 76px 52px 52px 64px !important;
         }
         #v2App [data-play-stat-desktop] {
           width: 64px;
@@ -58,8 +58,8 @@
     installStyles();
     const player = document.querySelector('#v2App [data-player]');
     const controls = player?.querySelector('.v2-player-controls');
-    const like = controls?.querySelector('[data-like]');
-    if (!player || !controls || !like) return false;
+    const share = controls?.querySelector('[data-share]');
+    if (!player || !controls || !share) return false;
 
     let stat = controls.querySelector('[data-play-stat-desktop]');
     if (!stat) {
@@ -67,7 +67,9 @@
       stat.setAttribute('data-play-stat-desktop', '');
       stat.setAttribute('aria-label', 'Song plays');
       stat.innerHTML = `${ICON}<span data-plays>0</span>`;
-      like.insertAdjacentElement('afterend', stat);
+    }
+    if (stat.previousElementSibling !== share) {
+      share.insertAdjacentElement('afterend', stat);
     }
 
     const api = window.StashboxV2PlayTracker;
