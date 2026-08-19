@@ -1,8 +1,8 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "d85020c0a76f4b51e2ffab1892b6af4e4063fbb6",
-  "workflow_run_id": "32279604691",
-  "tested_at_utc": "2026-08-19T17:11:00.784Z",
+  "source_commit": "a680a6e243cd244b60843991a3deb603063fd971",
+  "workflow_run_id": "32283304086",
+  "tested_at_utc": "2026-08-19T17:46:17.905Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -25,7 +25,7 @@
     {
       "name": "desktop",
       "ok": false,
-      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity2",
+      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity3-videolease1",
       "songKey": "",
       "songTitle": "",
       "beforeTotal": 11,
@@ -34,7 +34,7 @@
       "qualifyingResponseCount": 0,
       "persistAttempts": 0,
       "persistSuccesses": 0,
-      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity2\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity3-videolease1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
     }
   ]
 }
