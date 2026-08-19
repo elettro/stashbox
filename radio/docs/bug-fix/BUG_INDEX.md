@@ -17,6 +17,7 @@ Last updated: 2026-08-19
 | SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, recurrence under investigation | 2026-08-11 | `3462fdb9`, `d9d49fe5` |
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
+| SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
 
 ## Open / investigating
 
@@ -28,6 +29,7 @@ Last updated: 2026-08-19
 ## Fixed, awaiting verification
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
+- `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
 
 ## Closed
 
