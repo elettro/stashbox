@@ -67,9 +67,19 @@
     if (health.playerReady && health.status === 'BOOTING') health.status = 'READY';
   }
 
+  function ensureDesktopPlayStatUiLoader() {
+    if (window.StashboxDesktopPlayStatUi || document.querySelector('script[data-desktop-play-stat-ui-loader]')) return;
+    const script = document.createElement('script');
+    script.src = '/radio/dev/v2/desktop/desktop-play-stat-ui.js?v=20260819-playstats2';
+    script.defer = true;
+    script.dataset.desktopPlayStatUiLoader = 'true';
+    document.head.appendChild(script);
+  }
+
   document.addEventListener('play', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
     syncPlayer();
+    ensureDesktopPlayStatUiLoader();
     health.status = 'PLAYING';
     health.audioState = 'PLAY_REQUESTED';
     push('audio-play', { title: health.title, songKey: health.songKey, sourceMode: health.audioSourceMode });
@@ -78,6 +88,7 @@
   document.addEventListener('playing', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
     syncPlayer();
+    ensureDesktopPlayStatUiLoader();
     health.status = 'PLAYING';
     health.audioState = 'PLAYING';
     if (!event.target.error) health.lastError = null;
@@ -169,8 +180,11 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     syncPlayer();
+    ensureDesktopPlayStatUiLoader();
     push('dom-ready', { playerReady: health.playerReady, audioCompatMapSize: health.audioCompatMapSize });
   }, { once: true });
+
+  ensureDesktopPlayStatUiLoader();
 
   window.STASHBOX_DESKTOP_HEALTH = Object.freeze({
     snapshot,
