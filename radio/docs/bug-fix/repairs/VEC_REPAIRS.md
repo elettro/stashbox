@@ -69,3 +69,47 @@ Common files:
 - `radio/dev/v2/v2-desktop-official-artwork-16x9.js`
 - `radio/dev/v2/v2-responsive-song-artwork.css`
 - `radio/dev/v2/v2-media-transition-guard.js`
+
+## Desktop video freezes while audio continues
+
+Related bugs: `SR-BUG-0011`
+
+Symptom pattern:
+
+- The visible desktop VEC video freezes on one frame while song audio continues smoothly.
+- Player controls and the rest of the interface remain responsive.
+- Multiple songs may fail in a similar elapsed-time range, suggesting a shared handoff or pool-state path rather than one damaged song record.
+
+Fast checks:
+
+1. Verify the exact desktop build marker before deciding whether a report occurred before or after a repair.
+2. Inspect `window.StashboxDesktopVec2.state()` and `window.StashboxDesktopVec2.diagnostics()`.
+3. Compare pool size, played count, failed count, current asset, next asset, recovery cycles, and recovery scheduling.
+4. Inspect the current video `currentTime`, `duration`, `ended`, `paused`, `readyState`, `networkState`, and decoded/presented frame count.
+5. Check `stashbox:desktop-video-stall`, `pool-reset`, `pool-recovery-scheduled`, `pool-recovery-start`, and `pool-recovery-complete` events.
+6. Confirm whether the last visible frame belongs to an ended/stalled video or an image whose audio-based deadline passed.
+
+Known continuity rule:
+
+- Normal pool exhaustion must clear played state and reuse the eligible pool.
+- A missing next asset must never leave an ended, errored, or stalled video frame visible.
+- Use artwork as the safe recovery visual, then retry the existing pool with bounded backoff until flowing VEC media resumes.
+- An ended current video whose normal event handoff was missed must be advanced by the watchdog through the existing VEC engine.
+- Audio `timeupdate` should reassert overdue image transitions and recovery when a song is playing without a current asset.
+
+Primary files:
+
+- `radio/dev/v2/desktop/desktop-vec2.js`
+- `radio/dev/v2/desktop/desktop-video-stall-watchdog.js`
+- `radio/dev/v2/desktop/desktop-audio-master.js`
+- `radio/dev/v2/desktop/index.html`
+
+Regression checks:
+
+- VEC remains visually valid for 100% of each song.
+- Full-pool consumption still occurs before normal repeats.
+- Ordinary pool exhaustion resets and continues.
+- Simulated all-next-assets-failed state removes the frozen frame, shows artwork, retries, and resumes media.
+- Pause/resume and seeking do not create duplicate recovery timers.
+- Only one VEC stage owner exists.
+- Test complete songs in Chrome, Firefox, and Edge before verification.
