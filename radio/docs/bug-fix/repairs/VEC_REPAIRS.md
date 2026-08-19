@@ -86,9 +86,10 @@ Fast checks:
 2. Inspect `window.StashboxDesktopVec2.state()` and `window.StashboxDesktopVec2.diagnostics()`.
 3. Compare pool size, played count, failed count, current asset, next asset, recovery cycles, and recovery scheduling.
 4. Inspect the current video `currentTime`, `duration`, `ended`, `paused`, `readyState`, `networkState`, and decoded/presented frame count.
-5. Treat a user-visible frozen frame as a real stall even when `currentTime` or presented-frame counters still advance; those counters do not prove that desktop pixels are repainting.
-6. Check `stashbox:desktop-video-stall`, `pool-reset`, `pool-recovery-scheduled`, `pool-recovery-start`, `pool-recovery-complete`, and `video-lease-start` events.
-7. Confirm whether the last visible frame belongs to an ended/stalled video or an image whose audio-based deadline passed.
+5. Treat a user-visible frozen frame as a real stall even when `currentTime` or decoded-frame totals still advance; those counters do not prove that desktop pixels are repainting.
+6. Inspect `window.StashboxDesktopVideoStallWatchdog.state()` and confirm `presentationWatch` is true in browsers with `requestVideoFrameCallback`.
+7. Check `stashbox:desktop-video-stall`, `pool-reset`, `pool-recovery-scheduled`, `pool-recovery-start`, `pool-recovery-complete`, and `video-lease-start` events.
+8. Confirm whether the last visible frame belongs to an ended/stalled video or an image whose audio-based deadline passed.
 
 Known continuity rule:
 
@@ -97,7 +98,9 @@ Known continuity rule:
 - Use artwork as the safe recovery visual, then retry the existing pool with bounded backoff until flowing VEC media resumes.
 - An ended current video whose normal event handoff was missed must be advanced by the watchdog through the existing VEC engine.
 - Audio `timeupdate` should reassert overdue image transitions and recovery when a song is playing without a current asset.
-- Every desktop video needs an independent audio-clock lease. Use the media duration when reliable, add a short handoff grace period, and enforce a maximum ownership window so a compositor-visible freeze cannot persist indefinitely.
+- Every desktop video needs an independent audio-clock lease. Use the media duration when reliable, add a short handoff grace period, and enforce a maximum ownership window so a clip cannot own the stage indefinitely.
+- In the foreground, `requestVideoFrameCallback` is the authoritative presentation heartbeat. If no callback arrives during the stall window while audio plays, advance through the existing engine even when media time and decoded-frame totals still move.
+- Reset presentation monitoring on every clip handoff and when the document returns to the foreground.
 - Mobile and desktop playback paths must be compared before shared code changes; a healthy mobile run alongside a failing desktop run is evidence to keep the repair desktop-scoped.
 
 Primary files:
@@ -115,5 +118,7 @@ Regression checks:
 - Simulated all-next-assets-failed state removes the frozen frame, shows artwork, retries, and resumes media.
 - Pause/resume and seeking do not create duplicate recovery or lease timers.
 - No desktop video owns the stage beyond the configured maximum audio-clock lease.
+- A foreground clip with no presentation callback advances within the configured stall window.
+- Background-tab throttling does not mark healthy clips failed; presentation monitoring re-arms on foreground return.
 - Only one VEC stage owner exists.
 - Test complete songs in Chrome, Firefox, and Edge before verification.
