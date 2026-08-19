@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T16:50:00-04:00",
+  "updated_at": "2026-08-19T17:05:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -317,17 +317,18 @@
     },
     {
       "id": "SR-BUG-0011",
-      "title": "Desktop VEC media flickers, video fails to trigger, and player can freeze",
-      "status": "Fixed",
-      "verification": "Verified",
+      "title": "VEC media flickers, video fails to trigger, and player can freeze",
+      "status": "Open",
+      "verification": "Pending",
       "severity": "Critical",
       "area": "VEC Player",
-      "environment": "DEV V2 Desktop",
+      "environment": "DEV V2 Mobile + Desktop",
       "reported_at": "2026-08-11",
-      "fixed_at": "2026-08-19",
-      "verified_at": "2026-08-19",
-      "symptom": "The active desktop VEC video can freeze on a single frame while song audio continues smoothly and the interface remains responsive. Post-repair failures occurred from 0:28 through 0:48 on the user's desktop, while a direct mobile comparison remained visually flawless beyond 3:35.",
+      "fixed_at": null,
+      "verified_at": null,
+      "symptom": "The active VEC visual can freeze on a single frame while playback continues. The latest recurrence is on iPhone Safari mobile after three solid songs: artwork was initially missing, a video started, and the following video froze during its handoff on Girls on Bikes around 0:32 / 5:10.",
       "affected_examples": [
+        "Post-closure mobile recurrence: Girls on Bikes froze around 0:32 / 5:10 on iPhone Safari after missing artwork, first video startup, and the next-video handoff",
         "Post-continuity3: She's My Guru froze at ~0:48 on desktop",
         "Live frameheartbeat1 reproduction: She's My Guru remained in TRANSITIONING at ~0:33 and ~0:59 with the same ended 10-second video, two played assets, and zero failed",
         "Post-continuity2: Dirty Bird froze at ~0:30 on desktop",
@@ -348,10 +349,11 @@
         "Continuity3 live desktop check: Right Between the Eyes passed 0:28 and reached ~0:31 with three assets played and zero failed",
         "Continuity5 live desktop check: She's My Guru reached ~1:13 with six played assets, zero failed, and no stuck TRANSITIONING state",
         "User continuity5 desktop test: one newly played song completed 100% with flowing VEC video",
-        "User continuity5 desktop test: older catalog song Do You Love Me? passed the 2:00 to 2:45 failure zone and completed 100% with smooth video"
+        "User continuity5 desktop test: older catalog song Do You Love Me? passed the 2:00 to 2:45 failure zone and completed 100% with smooth video",
+        "Immediately before the mobile recurrence, three consecutive songs completed with solid visual playback"
       ],
-      "root_cause": "Live She's My Guru runs reproduced the desktop engine stuck in TRANSITIONING while audio continued. advance() held the serialized advancing lock while awaiting either the shared next-asset preload chain or a prepared video's play() promise. A slow preload could span sequential asset timeouts, while a prepared video could return a play promise that never settled. Lease and watchdog recovery calls then returned because advancing was already true, leaving the same ended video visible. Normal pool exhaustion is not the cause.",
-      "fix_summary": "Continuity5 removes the old current layer before every replacement start, caps transition preload waiting at 2.6 seconds, caps a prepared video's play promise at 1.6 seconds, and prevents abandoned preload work from reinserting stale nodes. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification included multiple complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. The user marked the repair verified and closed it on 2026-08-19. Mobile is unchanged.",
+      "root_cause": "Live She's My Guru runs reproduced the desktop engine stuck in TRANSITIONING while audio continued. advance() held the serialized advancing lock while awaiting either the shared next-asset preload chain or a prepared video's play() promise. A slow preload could span sequential asset timeouts, while a prepared video could return a play promise that never settled. Lease and watchdog recovery calls then returned because advancing was already true, leaving the same ended video visible. Normal pool exhaustion is not the cause. The 2026-08-19 mobile recurrence is not yet proven to share this desktop cause. Its missing-artwork to video to frozen-next-video sequence requires inspection of the mobile transition lifecycle and iPhone Safari media state.",
+      "fix_summary": "Continuity5 removes the old current layer before every replacement start, caps transition preload waiting at 2.6 seconds, caps a prepared video's play promise at 1.6 seconds, and prevents abandoned preload work from reinserting stale nodes. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification included multiple complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. The user marked the repair verified and closed it on 2026-08-19. Mobile is unchanged. The later Girls on Bikes mobile freeze reopened the bug on 2026-08-19. The prior desktop verification remains historical evidence, but mobile is now active scope.",
       "files_changed": [
         "radio/dev/v2/desktop/index.html",
         "radio/dev/v2/desktop/desktop-vec2.js",
@@ -385,10 +387,10 @@
         "SR-BUG-0001",
         "SR-BUG-0009"
       ],
-      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0011.md",
+      "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "If the desktop freeze returns, reopen SR-BUG-0011 and verify the live build marker before changing code. Inspect TRANSITIONING, preload-abandoned, video-play-start-timeout, lease, and presentation-heartbeat diagnostics. Preserve the single desktop VEC stage owner and leave mobile unchanged.",
-      "reopened_at": "2026-08-18"
+      "future_repair": "Reproduce Girls on Bikes on iPhone Safari through the full song and inspect the missing-artwork to first-video and next-video handoffs. Confirm whether audio and controls continue, capture the active asset URL and VEC state, and run at least four consecutive mobile songs. Check iOS play-promise settlement, loadeddata/canplay readiness, ended/stalled recovery, presentation heartbeat, and ownership cleanup. Preserve the prior continuity5 desktop safeguards and the single VEC stage owner.",
+      "reopened_at": "2026-08-19"
     },
     {
       "id": "SR-BUG-0012",
