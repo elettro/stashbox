@@ -11,9 +11,10 @@ Reported by: User
 
 ## Current recurrence
 
-On 2026-08-18 the user reported a new desktop freeze while playing **Right Between the Eyes**. The screenshot shows the player at approximately **0:53 / 6:26** with the song transport still in the playing state while the visible VEC video frame is frozen.
+- On 2026-08-19 the user reported that the **Dirty Bird** video froze at approximately **2:45** while the song audio continued and the interface remained responsive.
+- On 2026-08-18 the user reported a desktop freeze while playing **Right Between the Eyes**. The screenshot showed the player at approximately **0:53 / 6:26** with the song transport still in the playing state while the visible VEC video frame was frozen.
 
-This reopens the bug after it had previously been marked Fixed/verified for the clean desktop runtime.
+The Dirty Bird recurrence confirms that this is not isolated to one song. Because audio and controls remained healthy, the failure is isolated to the active visual video playback or recovery path rather than the audio engine or the entire application. The bug remains Open after previously being marked Fixed/verified for the clean desktop runtime.
 
 ## New architecture finding
 
@@ -41,12 +42,13 @@ This repair does **not** add another VEC stage owner or a MutationObserver-based
 
 Keep this bug Open until the updated build is confirmed live and the recurrence is tested in desktop browsers. Verification should include:
 
-1. Right Between the Eyes playback beyond the previously observed ~0:53 freeze point.
-2. VEC video continues advancing while audio remains healthy.
-3. A deliberately or naturally stalled visual clip advances to the next VEC asset instead of freezing indefinitely.
-4. No duplicate VEC stage owner is created.
-5. Chrome, Firefox, and Edge checks before closing.
-6. Longer unattended soak before marking the critical bug fully verified.
+1. Dirty Bird playback beyond the newly observed ~2:45 freeze point.
+2. Right Between the Eyes playback beyond the previously observed ~0:53 freeze point.
+3. VEC video continues advancing while audio remains healthy.
+4. A deliberately or naturally stalled visual clip advances to the next VEC asset instead of freezing indefinitely.
+5. No duplicate VEC stage owner is created.
+6. Chrome, Firefox, and Edge checks before closing.
+7. Longer unattended soak before marking the critical bug fully verified.
 
 ## Prior repair history
 
