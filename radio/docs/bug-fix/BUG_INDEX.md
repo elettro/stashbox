@@ -14,9 +14,9 @@ Last updated: 2026-08-19
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, verified | 2026-08-04 | - |
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Fixed, verified | 2026-07-30 | - |
-| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, two full user passes; affected-song retest pending | 2026-08-11 | `7319b397`, `806b5818` |
-| SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
-| SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
+| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Fixed, verified | 2026-08-11 | `7319b397`, `806b5818` |
+| SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Fixed, verified | 2026-08-18 | `8f46d70a` |
+| SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Fixed, verified | 2026-08-18 | `38affbd8`, `ce4e0e2c` |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
 | SR-BUG-0015 | Profile song clicks return home instead of opening the selected song | Profile / Player | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `545071ea` |
 | SR-BUG-0016 | Fast login fails with missing USERNAME on mobile and desktop | Auth / Login | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `2510866f`, `586ccd90` |
@@ -24,9 +24,9 @@ Last updated: 2026-08-19
 ## Open / investigating
 
 - `SR-BUG-0005` - Share events do not increment retained share counts.
-- `SR-BUG-0011` - Continuity5 removes the old layer before every start and rejects an unsettled play() promise after 1.6 seconds. User verification now includes two complete desktop songs: one new song and the older catalog song Do You Love Me?. Do You Love Me? passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. Mobile remains unchanged. Keep Open until a previously failing song and broader desktop soak tests complete.
-- `SR-BUG-0012` - Desktop clean runtime removes login and account interface. Initial repair committed, verification pending.
-- `SR-BUG-0013` - Desktop login disappears after boot and notifications do not work.
+- `SR-BUG-0011` - Continuity5 removes the old layer before every start and rejects an unsettled play() promise after 1.6 seconds. Multiple complete desktop songs passed, including Do You Love Me? through the prior 2:00 to 2:45 failure zone. User marked the repair verified and closed it on 2026-08-19. Mobile remains unchanged.
+- `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the repair verified and closed it on 2026-08-19.
+- `SR-BUG-0013` - The persistent desktop shell repair restored login/account and notifications after recovery rendering. User marked this duplicate symptom record verified and closed it on 2026-08-19.
 
 ## Fixed, awaiting verification
 
