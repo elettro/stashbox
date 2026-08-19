@@ -42,6 +42,7 @@ The desktop VEC engine now enforces full-song visual continuity:
 - Recovery is serialized so duplicate timers cannot start competing handoffs.
 - Audio timeupdate reasserts overdue image advances and restarts recovery if the song is playing without a current VEC asset.
 - A single public recoverCurrent() handoff lets the watchdog advance the existing VEC engine without creating another stage owner.
+- If a prepared asset fails during promotion and every replacement also fails, the engine now enters the same artwork-and-retry recovery path instead of retaining the prior frame.
 - desktop-video-stall-watchdog.js now recovers a current video that has ended without completing its normal handoff.
 
 Repair commits:
@@ -50,6 +51,8 @@ Repair commits:
 - 8cceb1930ba6a6c073ce314d9d9899bca5e13d94 - serialized recovery
 - a13ae746a19f45ecbc7285c861a7502e281701d9 - watchdog-to-engine handoff and missed-ended recovery
 - e4c8be5f58f7ae6b17b18a7e3f84db4b0f421e42 - desktop cache bust for the continuity build
+- db68e14aca3b7bfc75d9535a1780e46ae851dd46 - failed-promotion recovery completion
+- d85020c0a76f4b51e2ffab1892b6af4e4063fbb6 - continuity2 desktop build publication
 
 ## Important constraint
 
