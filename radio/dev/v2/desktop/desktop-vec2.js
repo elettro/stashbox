@@ -15,6 +15,7 @@
   const PRELOAD_TIMEOUT_MS = 12000;
   const PRELOAD_ATTEMPT_LIMIT = 4;
   const TRANSITION_PRELOAD_WAIT_MS = 2600;
+  const VIDEO_PLAY_START_TIMEOUT_MS = 1600;
   const VIDEO_LEASE_MAX_SECONDS = 12;
   const VIDEO_LEASE_GRACE_SECONDS = 0.5;
   const RECOVERY_RETRY_MS = 1800;
@@ -640,7 +641,21 @@
     state.videoTimer = setTimeout(() => scheduleVideoAdvance(generation), Math.max(40, remainingMs + 20));
   }
 
-  async function promote(prepared, generation, reason = 'promote') {
+  async function startVideo(node) {
+    let timeout = 0;
+    try {
+      await Promise.race([
+        Promise.resolve(node.play()),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('video-play-start-timeout')), VIDEO_PLAY_START_TIMEOUT_MS);
+        })
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function promote(prepared, generation, reason = 'promote', promotionAttempts = 0) {
     if (!prepared || generation !== state.generation) return false;
     const { asset, layerIndex, node } = prepared;
     const player = currentPlayer();
@@ -649,17 +664,17 @@
 
     if (asset.type === 'video') {
       try {
-        const result = node.play();
-        if (result?.then) await result;
+        await startVideo(node);
       } catch (error) {
         state.failed.add(assetKey(asset));
         disposeLayer(state.layers[layerIndex]);
         state.nextAsset = null;
         state.nextPrepared = null;
         state.nextPromise = null;
-        log('asset-failed', { asset: assetKey(asset), error: `play:${error?.name || error?.message || 'unknown'}` });
+        log('asset-failed', { asset: assetKey(asset), error: `play:${error?.message || error?.name || 'unknown'}` });
+        if (promotionAttempts + 1 >= PRELOAD_ATTEMPT_LIMIT) return false;
         const replacement = await preloadNext(generation);
-        return promote(replacement, generation, 'skip-play-failed');
+        return promote(replacement, generation, 'skip-play-failed', promotionAttempts + 1);
       }
     }
 
@@ -834,8 +849,8 @@
       state.videoDeadlineAudioSeconds = 0;
       setStatus('TRANSITIONING', reason);
       let prepared = state.nextPrepared;
+      releaseCurrentToArtwork(generation, prepared ? 'transition-starting-prepared' : 'transition-preloading');
       if (!prepared) {
-        releaseCurrentToArtwork(generation, 'transition-preloading');
         prepared = await awaitTransitionPrepared(generation);
       }
       if (!prepared || generation !== state.generation) {
