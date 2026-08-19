@@ -13,6 +13,8 @@
   const IMAGE_DEFAULT_MS = 8000;
   const SESSION_CACHE_MS = 60000;
   const PRELOAD_TIMEOUT_MS = 12000;
+  const VIDEO_LEASE_MAX_SECONDS = 12;
+  const VIDEO_LEASE_GRACE_SECONDS = 0.5;
   const RECOVERY_RETRY_MS = 1800;
   const RECOVERY_RETRY_MAX_MS = 8000;
 
@@ -41,6 +43,8 @@
     introHandoffRunning: false,
     imageTimer: 0,
     imageDeadlineAudioSeconds: 0,
+    videoTimer: 0,
+    videoDeadlineAudioSeconds: 0,
     recoveryTimer: 0,
     recoveryCycles: 0,
     recovering: false,
@@ -375,9 +379,11 @@
   function clearTimers() {
     clearTimeout(state.introTimer);
     clearTimeout(state.imageTimer);
+    clearTimeout(state.videoTimer);
     clearTimeout(state.recoveryTimer);
     state.introTimer = 0;
     state.imageTimer = 0;
+    state.videoTimer = 0;
     state.recoveryTimer = 0;
   }
 
@@ -409,6 +415,7 @@
     state.introComplete = false;
     state.introHandoffRunning = false;
     state.imageDeadlineAudioSeconds = 0;
+    state.videoDeadlineAudioSeconds = 0;
     state.recoveryCycles = 0;
     state.recovering = false;
     state.advancing = false;
@@ -573,6 +580,24 @@
     state.imageTimer = setTimeout(() => scheduleImageAdvance(generation), Math.max(40, remainingMs + 20));
   }
 
+  function scheduleVideoAdvance(generation) {
+    if (generation !== state.generation || state.currentAsset?.type !== 'video') return;
+    const audio = currentAudio();
+    if (!audio || audio.ended) return;
+
+    clearTimeout(state.videoTimer);
+    state.videoTimer = 0;
+
+    const remainingMs = Math.max(0, (state.videoDeadlineAudioSeconds - Number(audio.currentTime || 0)) * 1000);
+    if (remainingMs <= 25) {
+      advance(generation, 'video-audio-lease');
+      return;
+    }
+    if (audio.paused) return;
+
+    state.videoTimer = setTimeout(() => scheduleVideoAdvance(generation), Math.max(40, remainingMs + 20));
+  }
+
   async function promote(prepared, generation, reason = 'promote') {
     if (!prepared || generation !== state.generation) return false;
     const { asset, layerIndex, node } = prepared;
@@ -619,7 +644,22 @@
     }
 
     if (asset.type === 'video') {
+      clearTimeout(state.imageTimer);
+      state.imageTimer = 0;
       state.imageDeadlineAudioSeconds = 0;
+      const mediaDurationSeconds = Number(node.duration);
+      const expectedSeconds = Number.isFinite(mediaDurationSeconds) && mediaDurationSeconds > 0
+        ? mediaDurationSeconds
+        : Math.max(1.5, Number(asset.durationMs || 0) / 1000 || VIDEO_LEASE_MAX_SECONDS);
+      const leaseSeconds = Math.min(VIDEO_LEASE_MAX_SECONDS, expectedSeconds + VIDEO_LEASE_GRACE_SECONDS);
+      state.videoDeadlineAudioSeconds = Number(audio.currentTime || 0) + leaseSeconds;
+      log('video-lease-start', {
+        asset: assetKey(asset),
+        mediaDurationSeconds: Number.isFinite(mediaDurationSeconds) ? mediaDurationSeconds : null,
+        leaseSeconds,
+        deadlineAudioSeconds: state.videoDeadlineAudioSeconds
+      });
+      scheduleVideoAdvance(generation);
       node.addEventListener('ended', () => {
         if (generation === state.generation && node === state.layers[state.currentLayer]?.firstElementChild) advance(generation, 'video-ended');
       }, { once: true });
@@ -629,6 +669,9 @@
         advance(generation, 'video-error');
       }, { once: true });
     } else {
+      clearTimeout(state.videoTimer);
+      state.videoTimer = 0;
+      state.videoDeadlineAudioSeconds = 0;
       state.imageDeadlineAudioSeconds = Number(audio.currentTime || 0) + asset.durationMs / 1000;
       scheduleImageAdvance(generation);
     }
@@ -640,8 +683,11 @@
   function showArtworkRecovery(generation, reason) {
     if (generation !== state.generation) return;
     clearTimeout(state.imageTimer);
+    clearTimeout(state.videoTimer);
     state.imageTimer = 0;
+    state.videoTimer = 0;
     state.imageDeadlineAudioSeconds = 0;
+    state.videoDeadlineAudioSeconds = 0;
     state.layers.forEach(disposeLayer);
     state.currentLayer = -1;
     state.nextLayer = 0;
@@ -726,8 +772,11 @@
     state.advancing = true;
     try {
       clearTimeout(state.imageTimer);
+      clearTimeout(state.videoTimer);
       state.imageTimer = 0;
+      state.videoTimer = 0;
       state.imageDeadlineAudioSeconds = 0;
+      state.videoDeadlineAudioSeconds = 0;
       setStatus('TRANSITIONING', reason);
       let prepared = state.nextPrepared;
       if (!prepared) prepared = await preloadNext(generation);
@@ -774,7 +823,8 @@
       failed: state.failed.size,
       current: state.currentAsset?.id || null,
       next: state.nextAsset?.id || null,
-      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds || null
+      imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds || null,
+      videoDeadlineAudioSeconds: state.videoDeadlineAudioSeconds || null
     }, null, 2);
   }
 
@@ -879,8 +929,10 @@
     if (!audio?.paused) return;
     clearTimeout(state.introTimer);
     clearTimeout(state.imageTimer);
+    clearTimeout(state.videoTimer);
     state.introTimer = 0;
     state.imageTimer = 0;
+    state.videoTimer = 0;
     state.layers.forEach(layer => layer.querySelectorAll('video').forEach(video => {
       try { video.pause(); } catch (_) {}
     }));
@@ -907,7 +959,10 @@
       return;
     }
     const video = state.currentLayer >= 0 ? state.layers[state.currentLayer]?.querySelector('video') : null;
-    if (video && state.currentAsset.type === 'video') video.play().catch(() => {});
+    if (video && state.currentAsset.type === 'video') {
+      scheduleVideoAdvance(state.generation);
+      video.play().catch(() => {});
+    }
   }
 
   function clearForAudioChange(reason) {
@@ -942,6 +997,10 @@
     }
     if (state.currentAsset?.type === 'image') {
       scheduleImageAdvance(state.generation);
+      return;
+    }
+    if (state.currentAsset?.type === 'video') {
+      scheduleVideoAdvance(state.generation);
       return;
     }
     if (state.songKey && state.introComplete && !state.currentAsset && state.pool.length) {
@@ -981,6 +1040,7 @@
       currentAsset: state.currentAsset,
       nextAsset: state.nextAsset,
       imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds,
+      videoDeadlineAudioSeconds: state.videoDeadlineAudioSeconds,
       recoveryCycles: state.recoveryCycles,
       recoveryScheduled: Boolean(state.recoveryTimer),
       recovering: state.recovering,
