@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T16:45:00-04:00",
+  "updated_at": "2026-08-19T16:50:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -122,29 +122,29 @@
     {
       "id": "SR-BUG-0005",
       "title": "Share events do not increment retained share counts",
-      "status": "Open",
-      "verification": "Pending",
+      "status": "Fixed",
+      "verification": "Verified",
       "severity": "High",
       "area": "Dashboard",
       "environment": "Both",
       "reported_at": "2026-06",
-      "fixed_at": null,
-      "verified_at": null,
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
       "symptom": "Sharing a song does not reliably increase the retained share statistics.",
       "affected_examples": [
         "Song share tracking during June 2026 stats work"
       ],
       "working_comparisons": [],
       "root_cause": "Unknown. Historical backfill awaiting inspection of client event emission, API handling, persistence, and aggregation.",
-      "fix_summary": "No verified fix is recorded yet.",
+      "fix_summary": "No discrete fixing commit is documented for this historical backfill. The user marked the current behavior verified and directed closure on 2026-08-19.",
       "files_changed": [],
       "commits": [],
       "related_bugs": [
         "SR-BUG-0006"
       ],
-      "record_path": "radio/docs/bug-fix/open/SR-BUG-0005.md",
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0005.md",
       "repair_playbook": null,
-      "future_repair": "Trace one share end to end through browser event, API request, database write, aggregation, and dashboard readback."
+      "future_repair": "If retained share counts fail again, reopen SR-BUG-0005 and trace one share end to end using a unique song and session. Confirm the browser event, API request and response, database write, aggregation, and dashboard readback. Guard against duplicate counting from client retries."
     },
     {
       "id": "SR-BUG-0006",
