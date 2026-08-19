@@ -11,12 +11,15 @@ Reported by: User
 
 ## Current recurrence
 
+- After the continuity2 repair was live, the user reported that **Dirty Bird** froze again at approximately **0:30** on desktop.
+- After the continuity2 repair was live, the user reported that **Right Between the Eyes** froze again at approximately **0:28** on desktop.
+- In the direct comparison, mobile playback remained visually flawless beyond **3:35**. The user explicitly narrowed the active failure to desktop.
 - On 2026-08-19 the user reported that the **Mr. Top Mi Up** video froze at approximately **2:00**. This report arrived while the new continuity build was being rolled out, so it is evidence for the recurring bug but is not yet classified as a post-repair failure.
 - On 2026-08-19 the user reported that **Where Next?** first froze at approximately **2:40**. A supplied desktop screenshot captured the same frozen visual frame at **3:00 / 3:59** while the song continued playing smoothly and the interface remained fully functional.
 - On 2026-08-19 the user reported that the **Dirty Bird** video froze at approximately **2:45** while the song audio continued and the interface remained responsive.
 - On 2026-08-18 the user reported a desktop freeze while playing **Right Between the Eyes**. The screenshot showed the player at approximately **0:53 / 6:26** with the song transport still in the playing state while the visible VEC video frame was frozen.
 
-The recurrences confirm that this is not isolated to one song. Three reports now cluster around **2:00 to 2:45** of song playback. Because audio and controls remain healthy, the failure is isolated to the active visual video playback or recovery path rather than the audio engine or the entire application. The bug remains Open.
+The recurrences confirm that this is not isolated to one song. The new **0:28–0:30** desktop failures rule out simple pool exhaustion or a fixed late-song boundary. Because audio and controls remain healthy and mobile remains healthy, the remaining failure is isolated to the desktop visual video playback or handoff path rather than the audio engine, mobile player, or entire application. The bug remains Open.
 
 ## Investigation state
 
@@ -28,9 +31,11 @@ For each new recurrence, capture the song, approximate elapsed time, browser/dev
 
 The user proposed that the VEC may be running out of clips in its plan around the recurring freeze point. Code inspection shows that normal pool exhaustion is already designed to clear the played set and reuse the eligible pool, so simply reaching the end of the pool should not stop playback.
 
-The uncovered continuity gap occurs when the engine reaches a handoff with no prepared next asset, including when all remaining candidates have entered the failed set. The prior advance path left the current ended, errored, or stalled video layer visible and returned. That creates the exact symptom of a frozen frame while audio and the interface continue normally. A second gap allowed an ended current video to remain ignored if its normal ended handoff was missed.
+The continuity2 repair closed the no-prepared-next-asset and missed-ended-handoff gaps. It passed a complete Where Next? run, but the later Dirty Bird and Right Between the Eyes failures show that those were not the entire cause.
 
-This code path is the leading root-cause candidate for the repeated full-song failures. Live verification is still required.
+The remaining desktop-specific gap is that the stall watchdog uses media currentTime and decoded/presented-frame counters as health signals. A browser can continue advancing those counters while the composited frame visible to the user remains stuck. In that state, the watchdog considers the video healthy and does not force a handoff. Mobile uses a different playback path and is unaffected in the current comparison.
+
+This is the current root-cause model. The new repair removes the watchdog as the sole owner of video continuity by adding a bounded lease driven by the song audio clock.
 
 ## Current repair
 
@@ -44,6 +49,11 @@ The desktop VEC engine now enforces full-song visual continuity:
 - A single public recoverCurrent() handoff lets the watchdog advance the existing VEC engine without creating another stage owner.
 - If a prepared asset fails during promotion and every replacement also fails, the engine now enters the same artwork-and-retry recovery path instead of retaining the prior frame.
 - desktop-video-stall-watchdog.js now recovers a current video that has ended without completing its normal handoff.
+- Every active desktop video now receives an independent audio-clock lease.
+- The lease uses the clip's media duration when available, adds a short handoff grace period, and caps ownership at 12 seconds.
+- When the lease expires, the existing VEC engine advances even if the browser still reports video progress.
+- Pause/resume and audio timeupdate re-arm the same lease without introducing a second VEC owner.
+- The mobile runtime is unchanged.
 
 Repair commits:
 
@@ -53,6 +63,8 @@ Repair commits:
 - e4c8be5f58f7ae6b17b18a7e3f84db4b0f421e42 - desktop cache bust for the continuity build
 - db68e14aca3b7bfc75d9535a1780e46ae851dd46 - failed-promotion recovery completion
 - d85020c0a76f4b51e2ffab1892b6af4e4063fbb6 - continuity2 desktop build publication
+- 748e7f9b9713cbb9beaa38875cfb086f61bf061c - independent desktop video audio-clock lease
+- a680a6e243cd244b60843991a3deb603063fd971 - continuity3-videolease1 desktop build publication
 
 ## Partial live verification
 
@@ -60,7 +72,7 @@ On 2026-08-19 the exact live desktop build marker `desktop-clean-20260819-profil
 
 A full-duration **Where Next?** run passed the previously reported ~2:40 freeze point. The test included one pause/resume near 0:20, then continuous playback through the failure window and the end of the 3:59 song. At 3:54, the VEC remained in PLAYING_VIDEO with 16 assets played and 0 failed assets. The player then auto-advanced to **Hawaiian Peace Chant** with VEC still active.
 
-This is a strong partial pass, not final verification. Keep SR-BUG-0011 Open until the remaining affected songs and cross-browser soak checks pass.
+This was a strong partial pass, but it did not verify the fix. The user's later post-continuity2 desktop recurrences on Dirty Bird at ~0:30 and Right Between the Eyes at ~0:28 supersede that single successful run. Keep SR-BUG-0011 Open while continuity3-videolease1 is tested.
 
 ## Important constraint
 
@@ -72,8 +84,8 @@ Keep this bug Open until the updated build is confirmed live and the recurrence 
 
 1. Mr. Top Mi Up playback through the full song and beyond the observed ~2:00 freeze point.
 2. Where Next? playback through the full song and beyond the observed ~2:40 freeze point.
-3. Dirty Bird playback through the full song and beyond the observed ~2:45 freeze point.
-4. Right Between the Eyes playback beyond the previously observed ~0:53 freeze point.
+3. Dirty Bird playback beyond the new ~0:30 recurrence, then through the full song.
+4. Right Between the Eyes playback beyond the new ~0:28 recurrence, then through the full song.
 5. VEC remains visually valid for 100% of the song and automatically resumes flowing media after any temporary artwork fallback.
 6. Normal pool exhaustion resets and continues instead of freezing.
 7. A deliberately exhausted/failed next-asset set removes the last frozen frame, shows artwork, retries the pool, and resumes VEC.
@@ -84,7 +96,7 @@ Keep this bug Open until the updated build is confirmed live and the recurrence 
 
 ## Prior repair history
 
-SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid; this recurrence specifically adds missing **video-side stall recovery**.
+SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid; this recurrence adds an independent **audio-clock video lease** because media progress counters alone do not prove that desktop pixels are still changing.
 
 ## Related bugs
 
