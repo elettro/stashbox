@@ -226,10 +226,6 @@
           animation: none !important;
         }
 
-        #v2App [data-player].mobile-artwork-loading [data-mobile-vec-stage] {
-          background-image: none !important;
-        }
-
         #v2App [data-player].mobile-artwork-authority [data-mobile-vec-stage] .v2-mobile-vec-media,
         #v2App [data-player].mobile-artwork-authority [data-mobile-vec-stage] img {
           visibility: hidden !important;
@@ -247,6 +243,12 @@
     document.head.appendChild(style);
   }
 
+  function provisionalArtwork(stage) {
+    const images = [...(stage?.querySelectorAll('img') || [])].reverse();
+    const image = images.find(node => fixUrl(node.currentSrc || node.src));
+    return fixUrl(image?.currentSrc || image?.src || stage?.dataset?.mobileVecArtworkUrl || '');
+  }
+
   function markLoading(player, stage, songKey) {
     if (!player || !stage) return;
     player.classList.add('mobile-artwork-authority', 'mobile-artwork-loading');
@@ -255,10 +257,11 @@
     player.dataset.mobileVecArtworkRatio = '';
     player.dataset.mobileVecArtworkPolicy = 'checking-9x16';
     player.dataset.mobileVecArtworkSongKey = songKey;
-    stage.dataset.mobileVecArtworkState = 'loading';
+    const provisional = provisionalArtwork(stage);
+    stage.dataset.mobileVecArtworkState = provisional ? 'loading-with-provisional' : 'loading';
     stage.dataset.mobileVecArtworkRatio = '';
-    stage.dataset.mobileVecArtworkPolicy = 'checking-9x16';
-    stage.style.backgroundImage = 'none';
+    stage.dataset.mobileVecArtworkPolicy = provisional ? 'checking-9x16-with-provisional' : 'checking-9x16';
+    if (provisional) stage.style.backgroundImage = `url("${provisional.replaceAll('"', '%22')}")`;
     stage.style.backgroundColor = '#050607';
   }
 
