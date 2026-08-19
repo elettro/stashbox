@@ -11,7 +11,7 @@
   if (!app) return;
 
   let songs = [];
-  let toast = null;
+  let statusTimer = 0;
 
   const clean = value => String(value ?? '').trim();
   const norm = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
@@ -78,6 +78,21 @@
     return count;
   }
 
+  function ensureCopyStatus(button) {
+    if (!button) return null;
+    let status = button.querySelector('[data-share-copy-status]');
+    if (!status) {
+      status = document.createElement('span');
+      status.setAttribute('data-share-copy-status', '');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.setAttribute('aria-atomic', 'true');
+      status.className = 'v2-share-copy-status';
+      button.appendChild(status);
+    }
+    return status;
+  }
+
   function paintCurrentCount() {
     const button = findShareButton();
     const song = currentSong();
@@ -95,23 +110,23 @@
     return url.toString();
   }
 
-  function showToast(button, text) {
-    if (toast) toast.remove();
-    const rect = button.getBoundingClientRect();
-    toast = document.createElement('div');
-    toast.className = 'desktop-share-copy-toast';
-    toast.textContent = text;
-    toast.style.left = `${Math.max(12, Math.min(window.innerWidth - 130, rect.left + rect.width / 2 - 55))}px`;
-    toast.style.top = `${Math.max(12, rect.top - 42)}px`;
-    document.body.appendChild(toast);
-    window.setTimeout(() => {
-      toast?.remove();
-      toast = null;
-    }, 1200);
+  function showCopyStatus(button, text) {
+    const status = ensureCopyStatus(button);
+    if (!status) return;
+    window.clearTimeout(statusTimer);
+    status.textContent = text;
+    status.classList.add('is-visible');
+    statusTimer = window.setTimeout(() => {
+      if (!status.isConnected) return;
+      status.classList.remove('is-visible');
+      window.setTimeout(() => {
+        if (status.isConnected && !status.classList.contains('is-visible')) status.textContent = '';
+      }, 180);
+    }, 1400);
   }
 
   function copyText(value, button) {
-    const copied = () => showToast(button, 'Copied Link');
+    const copied = () => showCopyStatus(button, 'Link copied');
 
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(value).then(copied).catch(() => fallbackCopy(value, copied));
@@ -184,6 +199,7 @@
     clone.setAttribute('title', 'Copy song link');
     clone.setAttribute('aria-label', 'Copy song link');
     ensureCount(clone);
+    ensureCopyStatus(clone);
     clone.addEventListener('click', onShareClick, false);
     original.replaceWith(clone);
     paintCurrentCount();
@@ -217,19 +233,22 @@
         line-height:1;
         pointer-events:none;
       }
-      .desktop-share-copy-toast {
-        position:fixed;
-        z-index:22000;
-        min-width:110px;
-        padding:8px 11px;
-        border-radius:999px;
-        background:rgba(18,20,24,.96);
-        border:1px solid rgba(255,255,255,.18);
-        box-shadow:0 8px 24px rgba(0,0,0,.35);
-        color:#fff;
-        font:700 12px/1.1 Karla,Arial,sans-serif;
-        text-align:center;
+      .v2-player [data-share] .v2-share-copy-status {
+        display:inline-block;
+        max-width:0;
+        overflow:hidden;
+        color:#b9f6ce;
+        font:700 11px/1 Karla,Arial,sans-serif;
+        white-space:nowrap;
+        opacity:0;
+        transform:translateX(-3px);
+        transition:max-width .18s ease, opacity .14s ease, transform .18s ease;
         pointer-events:none;
+      }
+      .v2-player [data-share] .v2-share-copy-status.is-visible {
+        max-width:72px;
+        opacity:1;
+        transform:translateX(0);
       }
     }
   `;
