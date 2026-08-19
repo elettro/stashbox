@@ -45,7 +45,7 @@
   const loadFastLoginPath = () => {
     if (window.StashboxV2LoginFastPath || document.querySelector('script[data-v2-login-fast-path]')) return;
     const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin1';
+    script.src = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin2';
     script.defer = true;
     script.dataset.v2LoginFastPath = 'true';
     document.head.appendChild(script);
