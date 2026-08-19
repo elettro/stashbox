@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T14:45:00-04:00",
+  "updated_at": "2026-08-19T15:05:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -326,8 +326,9 @@
       "reported_at": "2026-08-11",
       "fixed_at": "2026-08-18",
       "verified_at": null,
-      "symptom": "The active desktop VEC video can freeze on a single frame while song audio continues smoothly and the interface remains responsive. Post-continuity2 failures occurred as early as 0:28 to 0:30, while a direct mobile comparison remained visually flawless beyond 3:35.",
+      "symptom": "The active desktop VEC video can freeze on a single frame while song audio continues smoothly and the interface remains responsive. Post-repair failures occurred from 0:28 through 0:48 on the user's desktop, while a direct mobile comparison remained visually flawless beyond 3:35.",
       "affected_examples": [
+        "Post-continuity3: She's My Guru froze at ~0:48 on desktop",
         "Post-continuity2: Dirty Bird froze at ~0:30 on desktop",
         "Post-continuity2: Right Between the Eyes froze at ~0:28 on desktop",
         "Right Between the Eyes video froze at ~0:53 on 2026-08-18",
@@ -345,8 +346,8 @@
         "Continuity3 live desktop check: Dirty Bird passed 0:30 and reached ~1:08 with seven assets played and zero failed",
         "Continuity3 live desktop check: Right Between the Eyes passed 0:28 and reached ~0:31 with three assets played and zero failed"
       ],
-      "root_cause": "Continuity2 closed the no-prepared-next-asset and missed-ended-handoff gaps, but post-repair desktop recurrences showed an additional path. The desktop stall watchdog treats media currentTime and decoded/presented-frame progress as healthy even when the composited frame visible to the user remains stuck. The early 0:28 to 0:30 failures rule out normal pool exhaustion, and the healthy mobile comparison keeps the remaining scope desktop-only.",
-      "fix_summary": "Continuity2 recovery remains in place. Continuity3 adds an independent audio-clock lease for every active desktop video: use the media duration when available, add a short grace period, cap ownership at 12 seconds, and advance through the existing single VEC engine when the lease expires even if media counters still report progress. Pause/resume and audio timeupdate re-arm the lease. Mobile is unchanged. The exact continuity3-videolease1 live marker was confirmed; targeted live checks passed Dirty Bird beyond 0:30 and Right Between the Eyes beyond 0:28 with zero failed assets. Keep the bug Open until the user's desktop and full-song soak tests pass.",
+      "root_cause": "Continuity2 closed missing-next and missed-ended handoffs. Continuity3 added a bounded audio-clock lease, but She's My Guru still froze at ~0:48. The remaining desktop watchdog gap was its use of media currentTime and decoded-frame totals as health signals. Those counters do not prove that the browser presented a fresh frame to the foreground desktop compositor.",
+      "fix_summary": "Existing pool recovery and the 12-second audio-clock lease remain. Frameheartbeat1 adds a foreground presentation heartbeat using requestVideoFrameCallback. If no new frame is presented for 3.2 seconds while song audio continues, the current clip is failed and advanced through the existing single VEC engine. Browsers without requestVideoFrameCallback retain the prior decoded-frame/currentTime fallback. Monitoring resets on clip handoff and foreground return. Mobile is unchanged. Keep the bug Open until the user's desktop and full-song soak tests pass.",
       "files_changed": [
         "radio/dev/v2/desktop/index.html",
         "radio/dev/v2/desktop/desktop-vec2.js",
@@ -368,7 +369,9 @@
         "db68e14aca3b7bfc75d9535a1780e46ae851dd46",
         "d85020c0a76f4b51e2ffab1892b6af4e4063fbb6",
         "748e7f9b9713cbb9beaa38875cfb086f61bf061c",
-        "a680a6e243cd244b60843991a3deb603063fd971"
+        "a680a6e243cd244b60843991a3deb603063fd971",
+        "e3b5fde73bc729f4501471f9b92fe48ef265e7ef",
+        "8b63a1ef1ec9d1715a33f42cd1d97a980efb7b5b"
       ],
       "related_bugs": [
         "SR-BUG-0001",
@@ -376,7 +379,7 @@
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "On the user's desktop, hard refresh until the continuity3-videolease1 build is loaded. Run Dirty Bird beyond 0:30 and Right Between the Eyes beyond 0:28, then complete both songs. Confirm video-lease-start diagnostics, that no desktop video owns the stage beyond 12 seconds of audio time, and that pause/resume does not duplicate timers. Continue full-song Chrome, Firefox, and Edge soak tests. Preserve the single desktop VEC stage owner and do not change mobile while its comparison remains healthy.",
+      "future_repair": "Verify the live frameheartbeat1 build before testing. On the user's desktop, run She's My Guru beyond 0:48 and through the full song, then repeat Dirty Bird and Right Between the Eyes. Confirm the watchdog reports presentationWatch true and that a foreground clip with no presentation callback advances within 3.2 seconds. Continue Chrome, Firefox, and Edge full-song soak tests. Preserve the single desktop VEC stage owner and do not change mobile while its comparison remains healthy.",
       "reopened_at": "2026-08-18"
     },
     {
