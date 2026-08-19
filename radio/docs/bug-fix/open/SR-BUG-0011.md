@@ -124,9 +124,9 @@ This is a targeted live pass.
 
 On 2026-08-19 the user reported the first complete desktop song pass on continuity5: a newly played song completed 100% with flowing VEC video. The song title was not captured in the report.
 
-The user then started the older catalog song **Do You Love Me?**. It remained visually healthy through **1:31** and was still playing when this checkpoint was recorded.
+The user then completed the older catalog song **Do You Love Me?** 100% with smooth desktop video. It passed the prior recurring **2:00 to 2:45** failure zone and remained healthy through the end.
 
-Keep SR-BUG-0011 Open until the older-song run completes and additional full-song desktop tests pass.
+Continuity5 now has two complete user-observed desktop song passes. Keep SR-BUG-0011 Open until at least one previously failing song completes and the broader desktop soak tests pass.
 
 ## Important constraint
 
