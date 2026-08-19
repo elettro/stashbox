@@ -11,7 +11,7 @@ Reported by: User
 
 ## Current recurrence
 
-- On 2026-08-19 the user reported that the **Mr Top Mi Up** video froze at approximately **2:00**. This report arrived while the new continuity build was being rolled out, so it is evidence for the recurring bug but is not yet classified as a post-repair failure.
+- On 2026-08-19 the user reported that the **Mr. Top Mi Up** video froze at approximately **2:00**. This report arrived while the new continuity build was being rolled out, so it is evidence for the recurring bug but is not yet classified as a post-repair failure.
 - On 2026-08-19 the user reported that **Where Next?** first froze at approximately **2:40**. A supplied desktop screenshot captured the same frozen visual frame at **3:00 / 3:59** while the song continued playing smoothly and the interface remained fully functional.
 - On 2026-08-19 the user reported that the **Dirty Bird** video froze at approximately **2:45** while the song audio continued and the interface remained responsive.
 - On 2026-08-18 the user reported a desktop freeze while playing **Right Between the Eyes**. The screenshot showed the player at approximately **0:53 / 6:26** with the song transport still in the playing state while the visible VEC video frame was frozen.
@@ -54,6 +54,14 @@ Repair commits:
 - db68e14aca3b7bfc75d9535a1780e46ae851dd46 - failed-promotion recovery completion
 - d85020c0a76f4b51e2ffab1892b6af4e4063fbb6 - continuity2 desktop build publication
 
+## Partial live verification
+
+On 2026-08-19 the exact live desktop build marker `desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity2` was confirmed on stashbox.com.
+
+A full-duration **Where Next?** run passed the previously reported ~2:40 freeze point. The test included one pause/resume near 0:20, then continuous playback through the failure window and the end of the 3:59 song. At 3:54, the VEC remained in PLAYING_VIDEO with 16 assets played and 0 failed assets. The player then auto-advanced to **Hawaiian Peace Chant** with VEC still active.
+
+This is a strong partial pass, not final verification. Keep SR-BUG-0011 Open until the remaining affected songs and cross-browser soak checks pass.
+
 ## Important constraint
 
 This repair does **not** add another VEC stage owner or a MutationObserver-based renderer. It is a recovery guard around the existing single `desktop-vec2` stage and uses the engine's existing error/advance path.
@@ -62,7 +70,7 @@ This repair does **not** add another VEC stage owner or a MutationObserver-based
 
 Keep this bug Open until the updated build is confirmed live and the recurrence is tested in desktop browsers. Verification should include:
 
-1. Mr Top Mi Up playback through the full song and beyond the observed ~2:00 freeze point.
+1. Mr. Top Mi Up playback through the full song and beyond the observed ~2:00 freeze point.
 2. Where Next? playback through the full song and beyond the observed ~2:40 freeze point.
 3. Dirty Bird playback through the full song and beyond the observed ~2:45 freeze point.
 4. Right Between the Eyes playback beyond the previously observed ~0:53 freeze point.
