@@ -14,7 +14,7 @@ Last updated: 2026-08-19
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, verified | 2026-08-04 | - |
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Fixed, verified | 2026-07-30 | - |
-| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, continuity5 live threshold pass; full-song user verification pending | 2026-08-11 | `7319b397`, `806b5818` |
+| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, one full user pass; older-song test in progress | 2026-08-11 | `7319b397`, `806b5818` |
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
@@ -24,7 +24,7 @@ Last updated: 2026-08-19
 ## Open / investigating
 
 - `SR-BUG-0005` - Share events do not increment retained share counts.
-- `SR-BUG-0011` - She's My Guru froze at ~0:48. Live reproduction isolated a serialized TRANSITIONING lock across preload and prepared-video startup. Continuity5 removes the old layer before every start and rejects an unsettled play() promise after 1.6 seconds. The live rerun reached ~1:13 with six handoffs, zero failed assets, and no transition lock. Mobile remains unchanged. Full-song user verification remains pending.
+- `SR-BUG-0011` - Continuity5 removes the old layer before every start and rejects an unsettled play() promise after 1.6 seconds. User verification now includes one new song completed 100% on desktop. The older catalog song Do You Love Me? remained clean through 1:31 and was still playing. Mobile remains unchanged. Keep Open until the older-song and additional full-song tests complete.
 - `SR-BUG-0012` - Desktop clean runtime removes login and account interface. Initial repair committed, verification pending.
 - `SR-BUG-0013` - Desktop login disappears after boot and notifications do not work.
 
