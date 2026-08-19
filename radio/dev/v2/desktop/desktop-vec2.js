@@ -13,6 +13,8 @@
   const IMAGE_DEFAULT_MS = 8000;
   const SESSION_CACHE_MS = 60000;
   const PRELOAD_TIMEOUT_MS = 12000;
+  const PRELOAD_ATTEMPT_LIMIT = 4;
+  const TRANSITION_PRELOAD_WAIT_MS = 2600;
   const VIDEO_LEASE_MAX_SECONDS = 12;
   const VIDEO_LEASE_GRACE_SECONDS = 0.5;
   const RECOVERY_RETRY_MS = 1800;
@@ -37,6 +39,7 @@
     nextAsset: null,
     nextPrepared: null,
     nextPromise: null,
+    preloadEpoch: 0,
     introTimer: 0,
     introTargetMs: 0,
     introComplete: false,
@@ -408,6 +411,7 @@
     state.nextAsset = null;
     state.nextPrepared = null;
     state.nextPromise = null;
+    state.preloadEpoch += 1;
     state.pool = [];
     state.played = new Set();
     state.failed = new Set();
@@ -522,20 +526,31 @@
     });
   }
 
-  async function prepare(asset, layerIndex, generation) {
+  async function prepare(asset, layerIndex, generation, preloadEpoch = state.preloadEpoch) {
     const layer = state.layers[layerIndex];
     if (!layer || !asset) throw new Error('missing-layer-or-asset');
     disposeLayer(layer);
     layer.dataset.assetKey = assetKey(asset);
     const node = asset.type === 'video' ? await preloadVideo(asset, generation) : await preloadImage(asset, generation);
-    if (generation !== state.generation) throw new Error('stale-session');
+    if (generation !== state.generation || preloadEpoch !== state.preloadEpoch) {
+      if (node instanceof HTMLVideoElement) {
+        try { node.pause(); } catch (_) {}
+        node.removeAttribute('src');
+        try { node.load(); } catch (_) {}
+      }
+      throw new Error('stale-preload');
+    }
     layer.replaceChildren(node);
     log('asset-ready', { asset: assetKey(asset), layer: layerIndex, readyState: node.readyState ?? null });
     return { asset, layerIndex, node };
   }
 
-  async function preloadNext(generation) {
-    if (generation !== state.generation) return null;
+  async function preloadNext(generation, preloadEpoch = state.preloadEpoch, attempts = 0) {
+    if (generation !== state.generation || preloadEpoch !== state.preloadEpoch) return null;
+    if (attempts >= PRELOAD_ATTEMPT_LIMIT) {
+      log('preload-attempt-limit', { attempts, failed: state.failed.size, pool: state.pool.length });
+      return null;
+    }
     if (state.nextPrepared) return state.nextPrepared;
     if (state.nextPromise) return state.nextPromise;
 
@@ -543,23 +558,50 @@
     if (!asset) return null;
     state.nextAsset = asset;
 
-    state.nextPromise = prepare(asset, state.nextLayer, generation)
+    state.nextPromise = prepare(asset, state.nextLayer, generation, preloadEpoch)
       .then(prepared => {
-        if (generation !== state.generation) throw new Error('stale-session');
+        if (generation !== state.generation || preloadEpoch !== state.preloadEpoch) throw new Error('stale-preload');
         state.nextPrepared = prepared;
         state.nextPromise = null;
         return prepared;
       })
       .catch(error => {
-        if (generation !== state.generation) return null;
+        if (generation !== state.generation || preloadEpoch !== state.preloadEpoch) return null;
         state.failed.add(assetKey(asset));
         state.nextAsset = null;
         state.nextPrepared = null;
         state.nextPromise = null;
         log('asset-failed', { asset: assetKey(asset), error: error?.message || String(error) });
-        return preloadNext(generation);
+        return preloadNext(generation, preloadEpoch, attempts + 1);
       });
     return state.nextPromise;
+  }
+
+  function abandonPendingPreload(reason) {
+    const asset = state.nextAsset;
+    const layerIndex = state.nextLayer;
+    state.preloadEpoch += 1;
+    state.nextAsset = null;
+    state.nextPrepared = null;
+    state.nextPromise = null;
+    if (layerIndex >= 0 && layerIndex !== state.currentLayer) disposeLayer(state.layers[layerIndex]);
+    if (asset) state.failed.add(assetKey(asset));
+    log('preload-abandoned', { reason, asset: assetKey(asset) || null });
+  }
+
+  async function awaitTransitionPrepared(generation) {
+    const preloadEpoch = state.preloadEpoch;
+    let timeout = 0;
+    const timedOut = new Promise(resolve => {
+      timeout = setTimeout(() => resolve(null), TRANSITION_PRELOAD_WAIT_MS);
+    });
+    const prepared = await Promise.race([preloadNext(generation, preloadEpoch), timedOut]);
+    clearTimeout(timeout);
+    if (prepared || generation !== state.generation) return prepared;
+    if (preloadEpoch === state.preloadEpoch && (state.nextPromise || state.nextAsset)) {
+      abandonPendingPreload('transition-preload-timeout');
+    }
+    return null;
   }
 
   function scheduleImageAdvance(generation) {
@@ -680,8 +722,21 @@
     return true;
   }
 
+  function releaseCurrentToArtwork(generation, reason) {
+    if (generation !== state.generation) return;
+    const currentIndex = state.currentLayer;
+    if (currentIndex >= 0) disposeLayer(state.layers[currentIndex]);
+    state.currentLayer = -1;
+    state.currentAsset = null;
+    state.imageDeadlineAudioSeconds = 0;
+    state.videoDeadlineAudioSeconds = 0;
+    if (state.stage) state.stage.hidden = false;
+    setStatus('FALLBACK', reason);
+  }
+
   function showArtworkRecovery(generation, reason) {
     if (generation !== state.generation) return;
+    state.preloadEpoch += 1;
     clearTimeout(state.imageTimer);
     clearTimeout(state.videoTimer);
     state.imageTimer = 0;
@@ -779,7 +834,10 @@
       state.videoDeadlineAudioSeconds = 0;
       setStatus('TRANSITIONING', reason);
       let prepared = state.nextPrepared;
-      if (!prepared) prepared = await preloadNext(generation);
+      if (!prepared) {
+        releaseCurrentToArtwork(generation, 'transition-preloading');
+        prepared = await awaitTransitionPrepared(generation);
+      }
       if (!prepared || generation !== state.generation) {
         if (generation !== state.generation) return false;
         showArtworkRecovery(generation, state.pool.length ? 'no-next-asset-recovering' : 'no-playable-assets');
@@ -1041,6 +1099,7 @@
       nextAsset: state.nextAsset,
       imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds,
       videoDeadlineAudioSeconds: state.videoDeadlineAudioSeconds,
+      preloadEpoch: state.preloadEpoch,
       recoveryCycles: state.recoveryCycles,
       recoveryScheduled: Boolean(state.recoveryTimer),
       recovering: state.recovering,
