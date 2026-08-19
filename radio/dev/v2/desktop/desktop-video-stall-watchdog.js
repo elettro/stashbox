@@ -13,6 +13,10 @@
   let lastProgressAt = 0;
   let retryTimer = 0;
   let armedAt = 0;
+  let presentedVideo = null;
+  let presentedCallbackId = 0;
+  let lastPresentedAt = 0;
+  let presentedFrames = 0;
 
   const player = () => document.querySelector('#v2App [data-player]:not([hidden])');
   const audio = () => player()?.querySelector('[data-audio], audio') || null;
@@ -34,6 +38,39 @@
     retryTimer = 0;
   }
 
+  function clearPresentationWatch() {
+    if (presentedVideo && presentedCallbackId && typeof presentedVideo.cancelVideoFrameCallback === 'function') {
+      try { presentedVideo.cancelVideoFrameCallback(presentedCallbackId); } catch (_) {}
+    }
+    presentedVideo = null;
+    presentedCallbackId = 0;
+    lastPresentedAt = 0;
+    presentedFrames = 0;
+  }
+
+  function armPresentationWatch(node) {
+    clearPresentationWatch();
+    if (!node || typeof node.requestVideoFrameCallback !== 'function') return false;
+
+    presentedVideo = node;
+    lastPresentedAt = performance.now();
+    const onFrame = (_now, metadata) => {
+      if (node !== presentedVideo || node !== watchedVideo) return;
+      lastPresentedAt = performance.now();
+      const count = Number(metadata?.presentedFrames);
+      if (Number.isFinite(count)) presentedFrames = count;
+      try { presentedCallbackId = node.requestVideoFrameCallback(onFrame); } catch (_) { presentedCallbackId = 0; }
+    };
+
+    try {
+      presentedCallbackId = node.requestVideoFrameCallback(onFrame);
+      return true;
+    } catch (_) {
+      clearPresentationWatch();
+      return false;
+    }
+  }
+
   function reset(nextVideo = video()) {
     clearRetry();
     watchedVideo = nextVideo || null;
@@ -41,6 +78,7 @@
     lastFrameCount = renderedFrames(watchedVideo);
     lastProgressAt = performance.now();
     armedAt = 0;
+    armPresentationWatch(watchedVideo);
   }
 
   function failCurrent(reason) {
@@ -53,7 +91,10 @@
         reason,
         audioTime: Number(currentAudio.currentTime || 0),
         videoTime: Number(current.currentTime || 0),
-        readyState: Number(current.readyState || 0)
+        readyState: Number(current.readyState || 0),
+        presentationWatch: current === presentedVideo,
+        presentedFrames,
+        msSincePresentedFrame: lastPresentedAt ? Math.round(performance.now() - lastPresentedAt) : null
       }
     }));
 
@@ -112,15 +153,25 @@
     if (timeProgressed) lastVideoTime = currentTime;
     if (frameCount !== null) lastFrameCount = frameCount;
 
-    if (framesProgressed || (frameCount === null && timeProgressed)) {
-      lastProgressAt = now;
-      armedAt = 0;
+    if (current.ended) {
+      failCurrent('video-ended-without-handoff');
+      return;
+    }
+
+    if (document.visibilityState === 'visible' && current === presentedVideo) {
+      const noPresentedFrameFor = now - lastPresentedAt;
+      if (noPresentedFrameFor >= STALL_MS) {
+        failCurrent('video-no-presented-frame');
+        return;
+      }
       clearRetry();
       return;
     }
 
-    if (current.ended) {
-      failCurrent('video-ended-without-handoff');
+    if (framesProgressed || (frameCount === null && timeProgressed)) {
+      lastProgressAt = now;
+      armedAt = 0;
+      clearRetry();
       return;
     }
 
@@ -148,13 +199,26 @@
     if (event.target instanceof HTMLVideoElement && event.target === video()) reset(event.target);
   }, true);
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reset(video());
+  });
+
   const interval = window.setInterval(inspect, 750);
 
   window.StashboxDesktopVideoStallWatchdog = Object.freeze({
     inspect,
     reset,
+    state: () => ({
+      watching: Boolean(watchedVideo),
+      presentationWatch: watchedVideo === presentedVideo,
+      presentedFrames,
+      msSincePresentedFrame: lastPresentedAt ? Math.round(performance.now() - lastPresentedAt) : null,
+      videoTime: Number(watchedVideo?.currentTime || 0),
+      frameCount: renderedFrames(watchedVideo)
+    }),
     stop: () => {
       clearRetry();
+      clearPresentationWatch();
       clearInterval(interval);
     }
   });
