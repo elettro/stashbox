@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-19T16:20:00-04:00",
+  "updated_at": "2026-08-19T16:35:00-04:00",
   "source_of_truth": "radio/docs/bug-fix/",
   "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
   "bugs": [
@@ -348,10 +348,10 @@
         "Continuity3 live desktop check: Right Between the Eyes passed 0:28 and reached ~0:31 with three assets played and zero failed",
         "Continuity5 live desktop check: She's My Guru reached ~1:13 with six played assets, zero failed, and no stuck TRANSITIONING state",
         "User continuity5 desktop test: one newly played song completed 100% with flowing VEC video",
-        "User continuity5 desktop test: older catalog song Do You Love Me? remained clean through 1:31 and continued playing"
+        "User continuity5 desktop test: older catalog song Do You Love Me? passed the 2:00 to 2:45 failure zone and completed 100% with smooth video"
       ],
       "root_cause": "Live She's My Guru runs reproduced the desktop engine stuck in TRANSITIONING while audio continued. advance() held the serialized advancing lock while awaiting either the shared next-asset preload chain or a prepared video's play() promise. A slow preload could span sequential asset timeouts, while a prepared video could return a play promise that never settled. Lease and watchdog recovery calls then returned because advancing was already true, leaving the same ended video visible. Normal pool exhaustion is not the cause.",
-      "fix_summary": "Continuity5 removes the old current layer before every replacement start, revealing artwork before either preload or prepared-video startup. Transition preload waiting is capped at 2.6 seconds. A prepared video's play promise is capped at 1.6 seconds. Preload epochs prevent abandoned work from reinserting stale nodes, and both preload and promotion attempts are bounded before pool recovery. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification now includes one new song completed 100% and Do You Love Me? clean through 1:31. Mobile is unchanged. Keep the bug Open until the older-song run and additional full-song desktop tests pass.",
+      "fix_summary": "Continuity5 removes the old current layer before every replacement start, revealing artwork before either preload or prepared-video startup. Transition preload waiting is capped at 2.6 seconds. A prepared video's play promise is capped at 1.6 seconds. Preload epochs prevent abandoned work from reinserting stale nodes, and both preload and promotion attempts are bounded before pool recovery. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification now includes two complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. Mobile is unchanged. Keep the bug Open until a previously failing song and broader desktop soak tests pass.",
       "files_changed": [
         "radio/dev/v2/desktop/index.html",
         "radio/dev/v2/desktop/desktop-vec2.js",
@@ -387,7 +387,7 @@
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0011.md",
       "repair_playbook": null,
-      "future_repair": "Complete the user's current Do You Love Me? desktop run, then repeat She's My Guru, Dirty Bird, and Right Between the Eyes through full songs. Confirm every advance removes the old layer before replacement startup, missing preloads leave TRANSITIONING within 2.6 seconds, unsettled play promises fail within 1.6 seconds, and abandoned work cannot reinsert stale video. Continue Chrome, Firefox, and Edge full-song soak tests. Preserve the single desktop VEC stage owner and leave mobile unchanged.",
+      "future_repair": "Run one previously failing song through 100% on the user's desktop, prioritizing She's My Guru, Dirty Bird, or Right Between the Eyes. Then continue Chrome, Firefox, and Edge full-song soak tests. Confirm every advance removes the old layer before replacement startup, missing preloads leave TRANSITIONING within 2.6 seconds, unsettled play promises fail within 1.6 seconds, and abandoned work cannot reinsert stale video. Preserve the single desktop VEC stage owner and leave mobile unchanged.",
       "reopened_at": "2026-08-18"
     },
     {
