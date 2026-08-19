@@ -42,6 +42,15 @@
     };
   };
 
+  const loadFastLoginPath = () => {
+    if (window.StashboxV2LoginFastPath || document.querySelector('script[data-v2-login-fast-path]')) return;
+    const script = document.createElement('script');
+    script.src = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin1';
+    script.defer = true;
+    script.dataset.v2LoginFastPath = 'true';
+    document.head.appendChild(script);
+  };
+
   const refreshVecRuntime = () => {
     window.setTimeout(() => {
       try { window.StashboxMainVecVideoWatchdog?.refresh?.(); } catch (_) {}
@@ -51,12 +60,13 @@
   };
 
   installAuthenticatedVecFetch();
+  loadFastLoginPath();
 
   const finishSuccessfulLogin = () => {
     const overlay = document.querySelector('.v2-auth-overlay');
     if (overlay) {
       overlay.classList.remove('is-open');
-      window.setTimeout(() => { overlay.hidden = true; }, 430);
+      window.setTimeout(() => { overlay.hidden = true; }, 120);
     }
     document.body.classList.remove('v2-auth-open');
 
@@ -84,7 +94,7 @@
         finishSuccessfulLogin();
         return;
       }
-      if (attempts >= 120) window.clearInterval(timer);
+      if (attempts >= 90) window.clearInterval(timer);
     }, 100);
   }, true);
 
