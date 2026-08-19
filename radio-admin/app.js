@@ -88,22 +88,42 @@
     }));
   };
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function enforcePausedUi() {
     const refresh = document.getElementById('refreshDashboardButton');
     if (refresh) {
-      refresh.disabled = true;
+      if (!refresh.disabled) refresh.disabled = true;
       refresh.textContent = 'Analytics Paused';
       refresh.title = 'Private dashboard analytics reads are paused to reduce AWS usage.';
     }
 
-    const warning = document.getElementById('statsSummaryWarning');
-    if (warning) {
-      warning.classList.remove('hidden');
-      warning.textContent = 'Analytics paused for AWS optimization. Song CMS and manual admin tools remain live.';
+    let notice = document.getElementById('adminAnalyticsPausedNotice');
+    const dashboardHeading = document.getElementById('dashboardHeading');
+    const dashboardCard = dashboardHeading?.closest('.dashboard-card');
+    if (!notice && dashboardCard) {
+      notice = document.createElement('div');
+      notice.id = 'adminAnalyticsPausedNotice';
+      notice.className = 'stats-warning';
+      notice.textContent = 'Analytics paused for AWS optimization. Song CMS and manual admin tools remain live.';
+      dashboardCard.insertBefore(notice, dashboardCard.querySelector('#kpiGrid'));
     }
+  }
+
+  document.addEventListener('click', (event) => {
+    if (event.target?.closest?.('#refreshDashboardButton')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      enforcePausedUi();
+    }
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    enforcePausedUi();
+    window.setTimeout(enforcePausedUi, 0);
+    window.setTimeout(enforcePausedUi, 250);
+    window.setTimeout(enforcePausedUi, 1000);
   });
 
   // app.js is parser-loaded at the end of radio-admin/index.html, so the preserved
   // application is loaded synchronously here and still receives DOMContentLoaded.
-  document.write('<script src="./app-live.js?v=20260819-admin-stats-freeze1"><\/script>');
+  document.write('<script src="./app-live.js?v=20260819-admin-stats-freeze2"><\/script>');
 })();
