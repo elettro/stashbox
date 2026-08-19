@@ -40,7 +40,7 @@ Continuity3 removed the watchdog as the sole timing owner by adding a bounded au
 
 A live She's My Guru run on frameheartbeat1 then reproduced the deeper engine lock. At approximately 0:33 and again at 0:59, audio continued while VEC remained in TRANSITIONING with two assets played, zero failed assets, and the same ended 10-second video. This proves the visible freeze can occur after the video has ended and the presentation watchdog has already requested recovery.
 
-The blocking path was advance() holding the serialized advancing lock while awaiting the shared next-asset preload chain. A slow or repeatedly failing preload could keep that promise unresolved across sequential 12-second asset timeouts. While advancing remained true, lease and watchdog recovery calls could not start another handoff, and the ended video stayed visible.
+The blocking path was advance() holding the serialized advancing lock while awaiting either the shared next-asset preload chain or the prepared video's play() promise. A slow preload could remain unresolved across sequential asset timeouts. A prepared video could also make play() return a promise that never settled. While advancing remained true, lease and watchdog recovery calls could not start another handoff, and the ended video stayed visible.
 
 ## Current repair
 
@@ -68,6 +68,9 @@ The desktop VEC engine now enforces full-song visual continuity:
 - Transition preload waiting is capped at 2.6 seconds. A slow attempt is invalidated with a preload epoch, disposed, and excluded from the next pick.
 - One preload chain is limited to four failed candidates before bounded pool recovery takes over.
 - Late results from abandoned preloads cannot reinsert stale video nodes into the active layer.
+- Every advance now removes the old current layer before starting a prepared replacement, not only when preloading is required.
+- A prepared video's play() promise has a 1.6-second start timeout.
+- Timed-out video starts enter the same bounded failed-asset and pool-recovery path instead of holding TRANSITIONING.
 
 Repair commits:
 
@@ -83,6 +86,8 @@ Repair commits:
 - 8b63a1ef1ec9d1715a33f42cd1d97a980efb7b5b - frameheartbeat1 desktop build publication
 - 12f6c18296794c9747624f12d0e80c92055d3218 - immediate fallback and bounded transition preload
 - 1798f3b6a98ebf9365f8d88d08bb59cfd571dfdd - continuity4-transitionlock1 desktop build publication
+- 7319b397ae724bb872de070afe6ea1dfaaf6c832 - release every old frame and bound video start
+- 806b5818aeb78ee2dedc449262f0fd8475779295 - continuity5-playtimeout1 desktop build publication
 
 ## Partial live verification
 
@@ -107,7 +112,13 @@ These checks confirmed the build and lease path were active, but the user's late
 
 The exact frameheartbeat1 desktop build was confirmed live. A live She's My Guru run reproduced the engine in TRANSITIONING at approximately 0:33 and 0:59 while audio continued. The state remained at two played assets and zero failed assets with the same ended 10-second video. This changed the leading cause from a pure compositor heartbeat gap to a serialized transition preload lock.
 
-Continuity4-transitionlock1 now removes the current frame before waiting, caps the transition wait at 2.6 seconds, invalidates late preload work, and routes back into bounded recovery. Keep SR-BUG-0011 Open until the user's desktop and full-song tests pass.
+Continuity4-transitionlock1 removed the current frame before preload waits, but its first live run exposed the prepared-video branch: the old ended layer could remain while promote() waited on an unsettled play() promise.
+
+## Continuity5 targeted live verification
+
+The exact `continuity5-playtimeout1` desktop build was confirmed live. A new She's My Guru run passed both the user's ~0:48 failure point and the reproduced ~0:59 transition-lock point. At approximately 1:13, VEC remained in PLAYING_VIDEO with six assets played, zero failed assets, and no stuck TRANSITIONING state.
+
+This is a targeted live pass. Keep SR-BUG-0011 Open until the user's desktop completes the full song and the broader desktop soak tests pass.
 
 ## Important constraint
 
@@ -127,15 +138,17 @@ Keep this bug Open until the updated build is confirmed live and the recurrence 
 8. A deliberately exhausted/failed next-asset set removes the last frozen frame, shows artwork, retries the pool, and resumes VEC.
 9. A stalled or ended-without-handoff video advances through the existing single VEC engine.
 10. A foreground video with no presentation-frame heartbeat advances within the 3.2-second stall window.
-11. A missing prepared asset removes the ended video immediately and never holds TRANSITIONING beyond the 2.6-second preload wait.
-12. An abandoned preload cannot reinsert a stale video after its epoch is invalidated.
-13. No duplicate VEC stage owner is created.
-14. Chrome, Firefox, and Edge checks before closing.
-15. Longer unattended soak before marking the critical bug fully verified.
+11. Every advance removes the ended current layer before preload or prepared-video startup.
+12. A missing prepared asset never holds TRANSITIONING beyond the 2.6-second preload wait.
+13. A prepared video whose play() promise does not settle is rejected within 1.6 seconds.
+14. An abandoned preload cannot reinsert a stale video after its epoch is invalidated.
+15. No duplicate VEC stage owner is created.
+16. Chrome, Firefox, and Edge checks before closing.
+17. Longer unattended soak before marking the critical bug fully verified.
 
 ## Prior repair history
 
-SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid. The current repair adds a **bounded transition preload** because video timing, decoded progress, and presentation monitoring cannot recover while the serialized advance path itself remains locked.
+SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid. The current repair bounds both **transition preload** and **prepared-video startup** because timing and presentation guards cannot recover while the serialized advance path itself remains locked.
 
 ## Related bugs
 
