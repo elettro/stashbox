@@ -9,7 +9,7 @@ on:
       - 'radio/dev/v2/**'
       - 'radio-api/scripts/validate-v2-entry.mjs'
       - 'radio-api/scripts/smoke-test-v2-browser.mjs'
-      - 'radio-api/scripts/smoke-test-true-dev.mjs'
+      - 'radio-api/scripts/smoke-test-true-dev-light.mjs'
       - '.github/workflows/v2-stability-monitor.yml'
   schedule:
     - cron: '*/15 * * * *'
@@ -54,11 +54,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Run read-only TRUE DEV smoke test
+      - name: Run analytics-free TRUE DEV smoke test
         run: |
           for attempt in 1 2 3; do
-            echo "TRUE DEV smoke attempt ${attempt}/3"
-            if node radio-api/scripts/smoke-test-true-dev.mjs; then
+            echo "TRUE DEV lightweight smoke attempt ${attempt}/3"
+            if node radio-api/scripts/smoke-test-true-dev-light.mjs; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
@@ -66,7 +66,7 @@ jobs:
               sleep 8
             fi
           done
-          echo "TRUE DEV smoke failed after 3 attempts."
+          echo "TRUE DEV lightweight smoke failed after 3 attempts."
           exit 1
 
   browser-smoke:
