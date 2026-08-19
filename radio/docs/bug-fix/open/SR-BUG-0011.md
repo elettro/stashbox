@@ -36,9 +36,11 @@ The continuity2 repair closed the no-prepared-next-asset and missed-ended-handof
 
 The remaining desktop-specific gap is that the stall watchdog uses media currentTime and decoded/presented-frame counters as health signals. A browser can continue advancing those counters while the composited frame visible to the user remains stuck. In that state, the watchdog considers the video healthy and does not force a handoff. Mobile uses a different playback path and is unaffected in the current comparison.
 
-Continuity3 removed the watchdog as the sole timing owner by adding a bounded audio-clock lease. The post-continuity3 She's My Guru recurrence proves that timing and handoff alone are insufficient.
+Continuity3 removed the watchdog as the sole timing owner by adding a bounded audio-clock lease. Frameheartbeat1 added requestVideoFrameCallback as the foreground presentation signal.
 
-The remaining watchdog gap is more specific: decoded-frame totals and media currentTime can advance without proving that a fresh frame reached the desktop compositor. The next repair uses requestVideoFrameCallback as the authoritative foreground presentation heartbeat. If the browser presents no new frame for 3.2 seconds while song audio continues, the watchdog removes the current clip through the existing VEC recovery path.
+A live She's My Guru run on frameheartbeat1 then reproduced the deeper engine lock. At approximately 0:33 and again at 0:59, audio continued while VEC remained in TRANSITIONING with two assets played, zero failed assets, and the same ended 10-second video. This proves the visible freeze can occur after the video has ended and the presentation watchdog has already requested recovery.
+
+The blocking path was advance() holding the serialized advancing lock while awaiting the shared next-asset preload chain. A slow or repeatedly failing preload could keep that promise unresolved across sequential 12-second asset timeouts. While advancing remained true, lease and watchdog recovery calls could not start another handoff, and the ended video stayed visible.
 
 ## Current repair
 
@@ -61,6 +63,11 @@ The desktop VEC engine now enforces full-song visual continuity:
 - If no new frame reaches the foreground desktop presentation path for 3.2 seconds while audio continues, the current clip is failed and advanced through the existing VEC engine.
 - Browsers without requestVideoFrameCallback retain the prior decoded-frame and currentTime fallback.
 - Presentation monitoring resets cleanly on video handoff and foreground return.
+- If no next asset is already prepared, the current ended or stalled layer is removed immediately before any preload wait.
+- Artwork becomes visible during the wait, so an ended video frame never remains on screen.
+- Transition preload waiting is capped at 2.6 seconds. A slow attempt is invalidated with a preload epoch, disposed, and excluded from the next pick.
+- One preload chain is limited to four failed candidates before bounded pool recovery takes over.
+- Late results from abandoned preloads cannot reinsert stale video nodes into the active layer.
 
 Repair commits:
 
@@ -74,6 +81,8 @@ Repair commits:
 - a680a6e243cd244b60843991a3deb603063fd971 - continuity3-videolease1 desktop build publication
 - e3b5fde73bc729f4501471f9b92fe48ef265e7ef - desktop presentation-frame heartbeat watchdog
 - 8b63a1ef1ec9d1715a33f42cd1d97a980efb7b5b - frameheartbeat1 desktop build publication
+- 12f6c18296794c9747624f12d0e80c92055d3218 - immediate fallback and bounded transition preload
+- 1798f3b6a98ebf9365f8d88d08bb59cfd571dfdd - continuity4-transitionlock1 desktop build publication
 
 ## Partial live verification
 
@@ -92,7 +101,13 @@ Targeted live desktop checks passed both newly reported early failure points:
 - **Dirty Bird** continued beyond 0:30 and reached approximately 1:08 with seven assets played, zero failed assets, and repeated `video-audio-lease` handoffs.
 - **Right Between the Eyes** continued beyond 0:28 and reached approximately 0:31 with three assets played and zero failed assets. A 20.67-second source clip was handed off by the 12-second maximum lease before it could retain the desktop stage indefinitely.
 
-These checks confirmed the build and lease path were active, but the user's later She's My Guru freeze at ~0:48 is a post-continuity3 failure. The targeted cloud pass did not reproduce the user-device presentation lock. Keep SR-BUG-0011 Open while frameheartbeat1 is tested.
+These checks confirmed the build and lease path were active, but the user's later She's My Guru freeze at ~0:48 is a post-continuity3 failure.
+
+## Frameheartbeat1 live reproduction
+
+The exact frameheartbeat1 desktop build was confirmed live. A live She's My Guru run reproduced the engine in TRANSITIONING at approximately 0:33 and 0:59 while audio continued. The state remained at two played assets and zero failed assets with the same ended 10-second video. This changed the leading cause from a pure compositor heartbeat gap to a serialized transition preload lock.
+
+Continuity4-transitionlock1 now removes the current frame before waiting, caps the transition wait at 2.6 seconds, invalidates late preload work, and routes back into bounded recovery. Keep SR-BUG-0011 Open until the user's desktop and full-song tests pass.
 
 ## Important constraint
 
@@ -112,13 +127,15 @@ Keep this bug Open until the updated build is confirmed live and the recurrence 
 8. A deliberately exhausted/failed next-asset set removes the last frozen frame, shows artwork, retries the pool, and resumes VEC.
 9. A stalled or ended-without-handoff video advances through the existing single VEC engine.
 10. A foreground video with no presentation-frame heartbeat advances within the 3.2-second stall window.
-11. No duplicate VEC stage owner is created.
-12. Chrome, Firefox, and Edge checks before closing.
-13. Longer unattended soak before marking the critical bug fully verified.
+11. A missing prepared asset removes the ended video immediately and never holds TRANSITIONING beyond the 2.6-second preload wait.
+12. An abandoned preload cannot reinsert a stale video after its epoch is invalidated.
+13. No duplicate VEC stage owner is created.
+14. Chrome, Firefox, and Edge checks before closing.
+15. Longer unattended soak before marking the critical bug fully verified.
 
 ## Prior repair history
 
-SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid. This recurrence adds a **presentation-frame heartbeat** because decoded progress and bounded timing still do not prove that fresh desktop pixels reached the screen.
+SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid. The current repair adds a **bounded transition preload** because video timing, decoded progress, and presentation monitoring cannot recover while the serialized advance path itself remains locked.
 
 ## Related bugs
 
