@@ -737,7 +737,15 @@
         if (state.pool.length) schedulePoolRecovery(generation, reason);
         return false;
       }
-      return await promote(prepared, generation, reason);
+      const promoted = await promote(prepared, generation, reason);
+      if (!promoted && generation === state.generation) {
+        const activeAudio = currentAudio();
+        if (activeAudio && !activeAudio.paused && !activeAudio.ended) {
+          showArtworkRecovery(generation, 'promotion-failed-recovering');
+          if (state.pool.length) schedulePoolRecovery(generation, reason);
+        }
+      }
+      return promoted;
     } finally {
       if (generation === state.generation) state.advancing = false;
     }
@@ -784,7 +792,11 @@
         return;
       }
       if (audio.paused || audio.ended) return;
-      await promote(prepared, generation, 'artwork-intro-complete');
+      const promoted = await promote(prepared, generation, 'artwork-intro-complete');
+      if (!promoted && generation === state.generation && !audio.paused && !audio.ended) {
+        showArtworkRecovery(generation, 'intro-promotion-failed-recovering');
+        if (state.pool.length) schedulePoolRecovery(generation, 'intro-promotion-failed');
+      }
     } finally {
       if (generation === state.generation) state.introHandoffRunning = false;
     }
