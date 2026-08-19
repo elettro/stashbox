@@ -1,8 +1,8 @@
 {
-  "v2_qualified_plays_live": "PASS",
-  "source_commit": "049c75aaf68f3ef6f7c987760e731e8bef56f2b5",
-  "workflow_run_id": "32187950914",
-  "tested_at_utc": "2026-08-18T21:30:35.141Z",
+  "v2_qualified_plays_live": "FAIL",
+  "source_commit": "98126660cdb24474a1bbba07f6d5db70ec1da0ac",
+  "workflow_run_id": "32268405318",
+  "tested_at_utc": "2026-08-19T15:12:48.692Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -14,8 +14,8 @@
       "build": "mobile-play10-2-20260818-twomodes1",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 3,
-      "afterTotal": 4,
+      "beforeTotal": 10,
+      "afterTotal": 11,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
@@ -24,17 +24,17 @@
     },
     {
       "name": "desktop",
-      "ok": true,
-      "build": "desktop-clean-20260818-play10-2-sharecopy1-likestate2-vecstall1",
-      "songKey": "freedom-street-002b-stashbox",
-      "songTitle": "Freedom Street (live)",
-      "beforeTotal": 4,
-      "afterTotal": 5,
-      "qualifyingRequestCount": 1,
-      "qualifyingResponseCount": 1,
-      "persistAttempts": 1,
-      "persistSuccesses": 1,
-      "error": ""
+      "ok": false,
+      "build": "desktop-clean-20260819-profilehistory1-play10-2-sharecopy1-likestate2-vecstall1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilehistory1-play10-2-sharecopy1-likestate2-vecstall1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
     }
   ]
 }
