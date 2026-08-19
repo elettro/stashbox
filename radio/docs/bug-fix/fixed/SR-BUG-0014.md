@@ -81,6 +81,10 @@ User tested after the qualified-play bridge repair and reported that Songs Playe
 
 - SR-BUG-0006
 
+## Repair playbook
+
+- `radio/docs/bug-fix/repairs/PROFILE_ANALYTICS_REPAIRS.md`
+
 ## Future repair procedure
 
 If Profile Songs Played or Hours Listened stops advancing, first confirm the public `stashbox:qualified-play` event fires after 10 seconds. Then verify `desktop-profile-history-bridge.js` receives that exact song/session, POSTs successfully to `/radio/me/history` with the logged-in token, and that `/radio/me/profile-stats` returns the new `qualified_plays` and `total_seconds_played`. Do not create a second play-threshold tracker.
