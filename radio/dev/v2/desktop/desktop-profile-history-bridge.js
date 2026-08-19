@@ -12,7 +12,6 @@
 
   let songs = [];
   let session = null;
-  let sending = false;
 
   const clean = value => String(value ?? '').trim();
   const norm = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
@@ -108,11 +107,10 @@
 
   function send(current, { completed = false, keepalive = false } = {}) {
     const tokens = readTokens();
-    if (!current || current.sent || sending || !tokens.accessToken) return;
+    if (!current || current.sent || !tokens.accessToken) return;
     if (current.listenedSeconds < 9.5) return;
 
     current.sent = true;
-    sending = true;
     fetch(HISTORY_URL, {
       method: 'POST',
       cache: 'no-store',
@@ -140,8 +138,7 @@
       .catch(error => {
         current.sent = false;
         console.warn('[Desktop Profile History] persistence failed', error);
-      })
-      .finally(() => { sending = false; });
+      });
   }
 
   function finalize({ completed = false, keepalive = false } = {}) {
