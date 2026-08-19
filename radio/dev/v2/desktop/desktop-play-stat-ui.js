@@ -79,7 +79,8 @@
           border: 0;
           background: transparent;
           color: #fff;
-          pointer-events: none;
+          pointer-events: auto;
+          cursor: default;
         }
         #v2App [data-play-stat-desktop] svg {
           width: 22px;
@@ -114,9 +115,11 @@
     if (!stat) {
       stat = document.createElement('span');
       stat.setAttribute('data-play-stat-desktop', '');
-      stat.setAttribute('aria-label', 'Song plays');
       stat.innerHTML = `${ICON}<span data-plays>0</span>`;
     }
+    stat.setAttribute('aria-label', 'Total plays');
+    stat.setAttribute('title', 'Total plays');
+    stat.querySelector('[data-plays]')?.setAttribute('title', 'Total plays');
     if (stat.previousElementSibling !== share) share.insertAdjacentElement('afterend', stat);
 
     const api = window.StashboxV2PlayTracker;
