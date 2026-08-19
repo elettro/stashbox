@@ -72,7 +72,18 @@ On 2026-08-19 the exact live desktop build marker `desktop-clean-20260819-profil
 
 A full-duration **Where Next?** run passed the previously reported ~2:40 freeze point. The test included one pause/resume near 0:20, then continuous playback through the failure window and the end of the 3:59 song. At 3:54, the VEC remained in PLAYING_VIDEO with 16 assets played and 0 failed assets. The player then auto-advanced to **Hawaiian Peace Chant** with VEC still active.
 
-This was a strong partial pass, but it did not verify the fix. The user's later post-continuity2 desktop recurrences on Dirty Bird at ~0:30 and Right Between the Eyes at ~0:28 supersede that single successful run. Keep SR-BUG-0011 Open while continuity3-videolease1 is tested.
+This was a strong partial pass, but it did not verify the fix. The user's later post-continuity2 desktop recurrences on Dirty Bird at ~0:30 and Right Between the Eyes at ~0:28 supersede that single successful run.
+
+## Continuity3 targeted live verification
+
+On 2026-08-19 the exact live desktop build marker `desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall1-veccontinuity3-videolease1` was confirmed on stashbox.com.
+
+Targeted live desktop checks passed both newly reported early failure points:
+
+- **Dirty Bird** continued beyond 0:30 and reached approximately 1:08 with seven assets played, zero failed assets, and repeated `video-audio-lease` handoffs.
+- **Right Between the Eyes** continued beyond 0:28 and reached approximately 0:31 with three assets played and zero failed assets. A 20.67-second source clip was handed off by the 12-second maximum lease before it could retain the desktop stage indefinitely.
+
+These checks confirm the new build and lease path are active. They do not replace verification on the user's desktop or the required full-song soak. Keep SR-BUG-0011 Open.
 
 ## Important constraint
 
