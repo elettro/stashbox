@@ -11,6 +11,7 @@ Reported by: User
 
 ## Current recurrence
 
+- After the continuity3 video-lease repair was live, the user reported that **She's My Guru** froze at approximately **0:48** on desktop.
 - After the continuity2 repair was live, the user reported that **Dirty Bird** froze again at approximately **0:30** on desktop.
 - After the continuity2 repair was live, the user reported that **Right Between the Eyes** froze again at approximately **0:28** on desktop.
 - In the direct comparison, mobile playback remained visually flawless beyond **3:35**. The user explicitly narrowed the active failure to desktop.
@@ -19,7 +20,7 @@ Reported by: User
 - On 2026-08-19 the user reported that the **Dirty Bird** video froze at approximately **2:45** while the song audio continued and the interface remained responsive.
 - On 2026-08-18 the user reported a desktop freeze while playing **Right Between the Eyes**. The screenshot showed the player at approximately **0:53 / 6:26** with the song transport still in the playing state while the visible VEC video frame was frozen.
 
-The recurrences confirm that this is not isolated to one song. The new **0:28–0:30** desktop failures rule out simple pool exhaustion or a fixed late-song boundary. Because audio and controls remain healthy and mobile remains healthy, the remaining failure is isolated to the desktop visual video playback or handoff path rather than the audio engine, mobile player, or entire application. The bug remains Open.
+The recurrences confirm that this is not isolated to one song. The **0:28–0:48** desktop failures rule out simple pool exhaustion or a fixed late-song boundary. The She's My Guru recurrence also proves that a bounded video ownership lease alone does not guarantee fresh pixels reach the desktop screen. Because audio and controls remain healthy and mobile remains healthy, the remaining failure is isolated to the desktop visual video playback or handoff path rather than the audio engine, mobile player, or entire application. The bug remains Open.
 
 ## Investigation state
 
@@ -35,7 +36,9 @@ The continuity2 repair closed the no-prepared-next-asset and missed-ended-handof
 
 The remaining desktop-specific gap is that the stall watchdog uses media currentTime and decoded/presented-frame counters as health signals. A browser can continue advancing those counters while the composited frame visible to the user remains stuck. In that state, the watchdog considers the video healthy and does not force a handoff. Mobile uses a different playback path and is unaffected in the current comparison.
 
-This is the current root-cause model. The new repair removes the watchdog as the sole owner of video continuity by adding a bounded lease driven by the song audio clock.
+Continuity3 removed the watchdog as the sole timing owner by adding a bounded audio-clock lease. The post-continuity3 She's My Guru recurrence proves that timing and handoff alone are insufficient.
+
+The remaining watchdog gap is more specific: decoded-frame totals and media currentTime can advance without proving that a fresh frame reached the desktop compositor. The next repair uses requestVideoFrameCallback as the authoritative foreground presentation heartbeat. If the browser presents no new frame for 3.2 seconds while song audio continues, the watchdog removes the current clip through the existing VEC recovery path.
 
 ## Current repair
 
@@ -54,6 +57,10 @@ The desktop VEC engine now enforces full-song visual continuity:
 - When the lease expires, the existing VEC engine advances even if the browser still reports video progress.
 - Pause/resume and audio timeupdate re-arm the same lease without introducing a second VEC owner.
 - The mobile runtime is unchanged.
+- The desktop watchdog now tracks actual presentation callbacks from requestVideoFrameCallback instead of treating decoded-frame totals as proof of visible motion.
+- If no new frame reaches the foreground desktop presentation path for 3.2 seconds while audio continues, the current clip is failed and advanced through the existing VEC engine.
+- Browsers without requestVideoFrameCallback retain the prior decoded-frame and currentTime fallback.
+- Presentation monitoring resets cleanly on video handoff and foreground return.
 
 Repair commits:
 
@@ -65,6 +72,8 @@ Repair commits:
 - d85020c0a76f4b51e2ffab1892b6af4e4063fbb6 - continuity2 desktop build publication
 - 748e7f9b9713cbb9beaa38875cfb086f61bf061c - independent desktop video audio-clock lease
 - a680a6e243cd244b60843991a3deb603063fd971 - continuity3-videolease1 desktop build publication
+- e3b5fde73bc729f4501471f9b92fe48ef265e7ef - desktop presentation-frame heartbeat watchdog
+- 8b63a1ef1ec9d1715a33f42cd1d97a980efb7b5b - frameheartbeat1 desktop build publication
 
 ## Partial live verification
 
@@ -83,7 +92,7 @@ Targeted live desktop checks passed both newly reported early failure points:
 - **Dirty Bird** continued beyond 0:30 and reached approximately 1:08 with seven assets played, zero failed assets, and repeated `video-audio-lease` handoffs.
 - **Right Between the Eyes** continued beyond 0:28 and reached approximately 0:31 with three assets played and zero failed assets. A 20.67-second source clip was handed off by the 12-second maximum lease before it could retain the desktop stage indefinitely.
 
-These checks confirm the new build and lease path are active. They do not replace verification on the user's desktop or the required full-song soak. Keep SR-BUG-0011 Open.
+These checks confirmed the build and lease path were active, but the user's later She's My Guru freeze at ~0:48 is a post-continuity3 failure. The targeted cloud pass did not reproduce the user-device presentation lock. Keep SR-BUG-0011 Open while frameheartbeat1 is tested.
 
 ## Important constraint
 
@@ -97,17 +106,19 @@ Keep this bug Open until the updated build is confirmed live and the recurrence 
 2. Where Next? playback through the full song and beyond the observed ~2:40 freeze point.
 3. Dirty Bird playback beyond the new ~0:30 recurrence, then through the full song.
 4. Right Between the Eyes playback beyond the new ~0:28 recurrence, then through the full song.
-5. VEC remains visually valid for 100% of the song and automatically resumes flowing media after any temporary artwork fallback.
-6. Normal pool exhaustion resets and continues instead of freezing.
-7. A deliberately exhausted/failed next-asset set removes the last frozen frame, shows artwork, retries the pool, and resumes VEC.
-8. A stalled or ended-without-handoff video advances through the existing single VEC engine.
-9. No duplicate VEC stage owner is created.
-10. Chrome, Firefox, and Edge checks before closing.
-11. Longer unattended soak before marking the critical bug fully verified.
+5. She's My Guru playback beyond the new ~0:48 recurrence, then through the full song.
+6. VEC remains visually valid for 100% of the song and automatically resumes flowing media after any temporary artwork fallback.
+7. Normal pool exhaustion resets and continues instead of freezing.
+8. A deliberately exhausted/failed next-asset set removes the last frozen frame, shows artwork, retries the pool, and resumes VEC.
+9. A stalled or ended-without-handoff video advances through the existing single VEC engine.
+10. A foreground video with no presentation-frame heartbeat advances within the 3.2-second stall window.
+11. No duplicate VEC stage owner is created.
+12. Chrome, Firefox, and Edge checks before closing.
+13. Longer unattended soak before marking the critical bug fully verified.
 
 ## Prior repair history
 
-SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid; this recurrence adds an independent **audio-clock video lease** because media progress counters alone do not prove that desktop pixels are still changing.
+SR-BUG-0011 previously drove the clean desktop VEC architecture: one stage owner, A/B media layers, full-pool consumption, generation cancellation, audio-master timing, cache-busted builds, and exact deployment/browser verification. That history remains valid. This recurrence adds a **presentation-frame heartbeat** because decoded progress and bounded timing still do not prove that fresh desktop pixels reached the screen.
 
 ## Related bugs
 
