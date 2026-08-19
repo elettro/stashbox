@@ -86,8 +86,9 @@ Fast checks:
 2. Inspect `window.StashboxDesktopVec2.state()` and `window.StashboxDesktopVec2.diagnostics()`.
 3. Compare pool size, played count, failed count, current asset, next asset, recovery cycles, and recovery scheduling.
 4. Inspect the current video `currentTime`, `duration`, `ended`, `paused`, `readyState`, `networkState`, and decoded/presented frame count.
-5. Check `stashbox:desktop-video-stall`, `pool-reset`, `pool-recovery-scheduled`, `pool-recovery-start`, and `pool-recovery-complete` events.
-6. Confirm whether the last visible frame belongs to an ended/stalled video or an image whose audio-based deadline passed.
+5. Treat a user-visible frozen frame as a real stall even when `currentTime` or presented-frame counters still advance; those counters do not prove that desktop pixels are repainting.
+6. Check `stashbox:desktop-video-stall`, `pool-reset`, `pool-recovery-scheduled`, `pool-recovery-start`, `pool-recovery-complete`, and `video-lease-start` events.
+7. Confirm whether the last visible frame belongs to an ended/stalled video or an image whose audio-based deadline passed.
 
 Known continuity rule:
 
@@ -96,6 +97,8 @@ Known continuity rule:
 - Use artwork as the safe recovery visual, then retry the existing pool with bounded backoff until flowing VEC media resumes.
 - An ended current video whose normal event handoff was missed must be advanced by the watchdog through the existing VEC engine.
 - Audio `timeupdate` should reassert overdue image transitions and recovery when a song is playing without a current asset.
+- Every desktop video needs an independent audio-clock lease. Use the media duration when reliable, add a short handoff grace period, and enforce a maximum ownership window so a compositor-visible freeze cannot persist indefinitely.
+- Mobile and desktop playback paths must be compared before shared code changes; a healthy mobile run alongside a failing desktop run is evidence to keep the repair desktop-scoped.
 
 Primary files:
 
@@ -110,6 +113,7 @@ Regression checks:
 - Full-pool consumption still occurs before normal repeats.
 - Ordinary pool exhaustion resets and continues.
 - Simulated all-next-assets-failed state removes the frozen frame, shows artwork, retries, and resumes media.
-- Pause/resume and seeking do not create duplicate recovery timers.
+- Pause/resume and seeking do not create duplicate recovery or lease timers.
+- No desktop video owns the stage beyond the configured maximum audio-clock lease.
 - Only one VEC stage owner exists.
 - Test complete songs in Chrome, Firefox, and Edge before verification.
