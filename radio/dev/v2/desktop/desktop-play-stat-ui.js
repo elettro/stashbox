@@ -14,17 +14,17 @@
     style.textContent = `
       @media (min-width: 900px) {
         #v2App .v2-player-controls:has(> [data-play-stat-desktop]) {
-          grid-template-columns: 52px 52px 52px 76px 52px 52px !important;
+          grid-template-columns: 52px 64px 52px 76px 52px 52px !important;
         }
         #v2App [data-play-stat-desktop] {
-          width: 52px;
-          min-width: 52px;
+          width: 64px;
+          min-width: 64px;
           height: 52px;
           display: inline-flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
           justify-content: center;
-          gap: 2px;
+          gap: 8px;
           padding: 0;
           border: 0;
           background: transparent;
@@ -34,6 +34,7 @@
         #v2App [data-play-stat-desktop] svg {
           width: 22px;
           height: 22px;
+          flex: 0 0 auto;
           fill: none;
           stroke: currentColor;
           stroke-width: 1.8;
@@ -41,9 +42,12 @@
           stroke-linejoin: round;
         }
         #v2App [data-play-stat-desktop] [data-plays] {
+          display: inline-block;
+          min-width: 1ch;
           font-size: 13px;
           font-weight: 700;
           line-height: 1;
+          text-align: left;
         }
       }
     `;
