@@ -6,7 +6,7 @@ Area: Profile / Player
 Environment: DEV V2 Mobile + Desktop
 Date reported: 2026-08-19
 Date fixed: 2026-08-19
-Date verified:
+Date verified: 2026-08-19
 Reported by: User
 
 ## Symptom
@@ -48,7 +48,7 @@ The Profile's existing `playSong()` path only wrote the legacy single-song hando
 
 ## Verification
 
-Pending user verification. Test a standalone Profile song and a multi-song playlist. Confirm the selected song opens and begins playback, then verify Next, Previous, and natural song-end advance follow the playlist order.
+Verified by user on 2026-08-19. User confirmed the repaired Profile song launch and playlist playback behavior is all fixed, including selected-song playback and playlist queue behavior.
 
 ## Regression risk
 
