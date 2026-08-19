@@ -8,13 +8,10 @@
   const AUTH_GUARD_URL = `${API_ROOT}/radio/auth/guard`;
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const PENDING_EMAIL_KEY = 'stashbox_radio_dev_pending_email';
-  const PREWARM_TTL_MS = 30000;
   const nativeFetch = window.fetch.bind(window);
 
   let config = null;
   let configPromise = null;
-  let guardPromise = null;
-  let guardStartedAt = 0;
   let submitting = false;
 
   function timeoutFetch(input, init = {}, timeoutMs = 6500) {
@@ -62,22 +59,18 @@
     return configPromise;
   }
 
-  function prewarmGuard(force = false) {
-    const fresh = guardPromise && (Date.now() - guardStartedAt) < PREWARM_TTL_MS;
-    if (fresh && !force) return guardPromise;
-    guardStartedAt = Date.now();
-    guardPromise = timeoutFetch(AUTH_GUARD_URL, {
+  function checkLoginGuard(email) {
+    return timeoutFetch(AUTH_GUARD_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'login' })
+      body: JSON.stringify({ action: 'login', username: email, email })
     }, 5000).then(parseResponse);
-    guardPromise.catch(() => {});
-    return guardPromise;
   }
 
   function prewarm() {
+    // Only preload static auth configuration. Do not call the login guard until
+    // the user has supplied an email/username; some guard deployments require it.
     loadConfig().catch(() => {});
-    prewarmGuard().catch(() => {});
   }
 
   async function cognitoLogin(authConfig, email, password) {
@@ -162,25 +155,28 @@
     event.stopImmediatePropagation();
     if (submitting) return;
 
-    submitting = true;
-    setBusy(form, true);
-    setMessage(form, 'Logging in…');
-
     const values = Object.fromEntries(new FormData(form).entries());
     const email = String(values.email || '').trim().toLowerCase();
     const password = String(values.password || '');
 
+    if (!email || !password) {
+      setMessage(form, 'Enter your email and password.', true);
+      return;
+    }
+
+    submitting = true;
+    setBusy(form, true);
+    setMessage(form, 'Logging in…');
+
     try {
       const authConfigPromise = loadConfig();
-      const loginGuardPromise = prewarmGuard();
+      const loginGuardPromise = checkLoginGuard(email);
       const [authConfig] = await Promise.all([authConfigPromise, loginGuardPromise]);
-      guardPromise = null;
 
       const result = await cognitoLogin(authConfig, email, password);
       writeTokens(result.AuthenticationResult);
       finishLogin(email);
     } catch (error) {
-      guardPromise = null;
       setMessage(form, friendlyError(error), true);
       setBusy(form, false);
     } finally {
