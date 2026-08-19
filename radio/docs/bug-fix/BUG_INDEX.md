@@ -14,7 +14,7 @@ Last updated: 2026-08-19
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, verified | 2026-08-04 | - |
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Fixed, verified | 2026-07-30 | - |
-| SR-BUG-0011 | VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Mobile + Desktop | Open, mobile recurrence after three full-song passes | 2026-08-11 | `7319b397`, `806b5818` |
+| SR-BUG-0011 | VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Mobile + Desktop | Fixed, mobile verification pending | 2026-08-11 | `ac16752d`, `7a2cd9a4`, `6d1cad31` |
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Fixed, verified | 2026-08-18 | `8f46d70a` |
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Fixed, verified | 2026-08-18 | `38affbd8`, `ce4e0e2c` |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
@@ -24,7 +24,7 @@ Last updated: 2026-08-19
 ## Open / investigating
 
 - `SR-BUG-0005` - Historical retained-share-count issue. User marked it verified and closed it on 2026-08-19. Reopen and trace one share end to end if it returns.
-- `SR-BUG-0011` - Reopened on 2026-08-19 for mobile. After three solid songs, Girls on Bikes started with missing artwork, then played video, then froze on the next video around 0:32. The prior desktop continuity5 passes remain recorded, but the active scope now includes iPhone Safari mobile transitions.
+- `SR-BUG-0011` - Mobilecontinuity1 preserves provisional artwork during exact 9:16 lookup, creates a fresh iPhone video element for every clip, and advances within 3.2 seconds when presented frames stop. Published on 2026-08-19. iPhone Safari verification remains pending.
 - `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the repair verified and closed it on 2026-08-19.
 - `SR-BUG-0013` - The persistent desktop shell repair restored login/account and notifications after recovery rendering. User marked this duplicate symptom record verified and closed it on 2026-08-19.
 
