@@ -118,7 +118,15 @@ Continuity4-transitionlock1 removed the current frame before preload waits, but 
 
 The exact `continuity5-playtimeout1` desktop build was confirmed live. A new She's My Guru run passed both the user's ~0:48 failure point and the reproduced ~0:59 transition-lock point. At approximately 1:13, VEC remained in PLAYING_VIDEO with six assets played, zero failed assets, and no stuck TRANSITIONING state.
 
-This is a targeted live pass. Keep SR-BUG-0011 Open until the user's desktop completes the full song and the broader desktop soak tests pass.
+This is a targeted live pass.
+
+## User continuity5 verification
+
+On 2026-08-19 the user reported the first complete desktop song pass on continuity5: a newly played song completed 100% with flowing VEC video. The song title was not captured in the report.
+
+The user then started the older catalog song **Do You Love Me?**. It remained visually healthy through **1:31** and was still playing when this checkpoint was recorded.
+
+Keep SR-BUG-0011 Open until the older-song run completes and additional full-song desktop tests pass.
 
 ## Important constraint
 
