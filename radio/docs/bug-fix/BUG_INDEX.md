@@ -19,6 +19,7 @@ Last updated: 2026-08-19
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
 | SR-BUG-0015 | Profile song clicks return home instead of opening the selected song | Profile / Player | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `545071ea` |
+| SR-BUG-0016 | Fast login fails with missing USERNAME on mobile and desktop | Auth / Login | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `2510866f`, `586ccd90` |
 
 ## Open / investigating
 
@@ -48,6 +49,7 @@ Last updated: 2026-08-19
 - `SR-BUG-0009` - Wide desktop player selects square artwork instead of wide assets.
 - `SR-BUG-0010` - Mobile admin navigation remains visible before hamburger activation.
 - `SR-BUG-0015` - Profile song clicks open the selected song in the main player, and playlist playback follows the playlist queue. User verified the behavior on 2026-08-19.
+- `SR-BUG-0016` - Fast login no longer fails with `Missing required parameter USERNAME`; user verified successful login on both desktop and mobile on 2026-08-19.
 
 ## Usage
 
