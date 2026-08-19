@@ -43,6 +43,7 @@
     imageDeadlineAudioSeconds: 0,
     recoveryTimer: 0,
     recoveryCycles: 0,
+    recovering: false,
     advancing: false,
     debugNode: null,
     diagnostics: []
@@ -409,6 +410,7 @@
     state.introHandoffRunning = false;
     state.imageDeadlineAudioSeconds = 0;
     state.recoveryCycles = 0;
+    state.recovering = false;
     state.advancing = false;
     if (state.stage && hide) state.stage.hidden = true;
   }
@@ -652,7 +654,7 @@
   }
 
   function schedulePoolRecovery(generation, reason = 'pool-recovery') {
-    if (generation !== state.generation || !state.pool.length || state.recoveryTimer) return;
+    if (generation !== state.generation || !state.pool.length || state.recoveryTimer || state.recovering) return;
     const audio = currentAudio();
     if (!audio || audio.ended) return;
 
@@ -670,30 +672,38 @@
       state.recoveryTimer = 0;
       if (generation !== state.generation) return;
       const activeAudio = currentAudio();
-      if (!activeAudio || activeAudio.ended) return;
-      if (activeAudio.paused) return;
+      if (!activeAudio || activeAudio.ended || activeAudio.paused) return;
 
-      state.failed.clear();
-      state.played.clear();
-      state.nextAsset = null;
-      state.nextPrepared = null;
-      state.nextPromise = null;
-      log('pool-recovery-start', { cycle: state.recoveryCycles, pool: state.pool.length });
+      state.recovering = true;
+      let retryReason = '';
+      try {
+        state.failed.clear();
+        state.played.clear();
+        state.nextAsset = null;
+        state.nextPrepared = null;
+        state.nextPromise = null;
+        log('pool-recovery-start', { cycle: state.recoveryCycles, pool: state.pool.length });
 
-      const prepared = await preloadNext(generation);
-      if (generation !== state.generation) return;
-      if (!prepared) {
-        showArtworkRecovery(generation, 'pool-recovery-no-playable-assets');
-        schedulePoolRecovery(generation, 'pool-recovery-repeat');
-        return;
-      }
+        const prepared = await preloadNext(generation);
+        if (generation !== state.generation) return;
+        if (!prepared) {
+          showArtworkRecovery(generation, 'pool-recovery-no-playable-assets');
+          retryReason = 'pool-recovery-repeat';
+          return;
+        }
 
-      const promoted = await promote(prepared, generation, 'pool-recovery');
-      if (promoted && generation === state.generation) {
-        state.recoveryCycles = 0;
-        log('pool-recovery-complete', { asset: assetKey(state.currentAsset) });
-      } else if (generation === state.generation) {
-        schedulePoolRecovery(generation, 'pool-recovery-promotion-deferred');
+        const promoted = await promote(prepared, generation, 'pool-recovery');
+        if (promoted && generation === state.generation) {
+          state.recoveryCycles = 0;
+          log('pool-recovery-complete', { asset: assetKey(state.currentAsset) });
+        } else if (generation === state.generation) {
+          retryReason = 'pool-recovery-promotion-deferred';
+        }
+      } finally {
+        if (generation === state.generation) {
+          state.recovering = false;
+          if (retryReason) schedulePoolRecovery(generation, retryReason);
+        }
       }
     }, delay);
   }
@@ -961,6 +971,7 @@
       imageDeadlineAudioSeconds: state.imageDeadlineAudioSeconds,
       recoveryCycles: state.recoveryCycles,
       recoveryScheduled: Boolean(state.recoveryTimer),
+      recovering: state.recovering,
       advancing: state.advancing
     }),
     diagnostics: () => [...state.diagnostics]
