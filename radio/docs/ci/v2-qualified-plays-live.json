@@ -1,8 +1,40 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "997b3c8f73dd9df4f173e12695b2dc745c2eb4f1",
-  "workflow_run_id": "32270891930",
-  "tested_at_utc": "2026-08-19T15:36:25.096Z",
-  "chosen": null,
-  "results": []
+  "source_commit": "9a4250fe0cb4bd9acedf415385179c7a1681c1d6",
+  "workflow_run_id": "32270996484",
+  "tested_at_utc": "2026-08-19T15:39:24.692Z",
+  "chosen": {
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)"
+  },
+  "results": [
+    {
+      "name": "mobile",
+      "ok": false,
+      "build": "mobile-playstats1-20260819-twomodes1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: mobile: unexpected live build mobile-playstats1-20260819-twomodes1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    },
+    {
+      "name": "desktop",
+      "ok": false,
+      "build": "desktop-clean-20260819-profilebridge2-playstats1-sharecopy2-likestate2-vecstall1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 11,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilebridge2-playstats1-sharecopy2-likestate2-vecstall1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    }
+  ]
 }
