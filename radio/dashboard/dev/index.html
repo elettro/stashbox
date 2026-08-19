@@ -86,8 +86,6 @@
         </p>
       </section>
 
-
-
       <nav class="dashboard-section-nav" aria-label="Dashboard analytics sections">
         <a href="/radio/dashboard/dev/?view=overview" data-dashboard-view-link="overview" aria-current="page">Overview</a>
         <a href="/radio/dashboard/dev/?view=operational" data-dashboard-view-link="operational">Operational Stats</a>
@@ -108,7 +106,7 @@
         role="status"
         aria-live="polite"
       >
-        Loading public dashboard data…
+        DEV analytics paused…
       </div>
 
       <section
@@ -262,7 +260,7 @@
               <h2 id="recentProductClicksHeading">Recent Product Clicks</h2>
             </div>
           </div>
-          <p id="recentProductClicksMessage" class="section-copy">Loading public-safe recent product click data…</p>
+          <p id="recentProductClicksMessage" class="section-copy">Live recent product-click queries are paused in this archived DEV dashboard.</p>
           <div id="recentProductClicks" class="rank-grid rank-grid--compact"></div>
         </section>
 
@@ -355,7 +353,9 @@
       </div>
     </footer>
 
-    <script src="./app.js"></script>
+    <!-- Legacy live DEV dashboard remains preserved in ./app.js. -->
+    <!-- Live AWS/RDS analytics are intentionally paused on this dashboard. -->
+    <script src="./app-static-paused.js"></script>
     <script src="/radio-admin/dev/shared-admin-header.js?v=20260721-shared-header1" defer></script>
 </body>
 </html>
