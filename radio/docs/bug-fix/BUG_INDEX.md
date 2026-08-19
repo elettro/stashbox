@@ -14,7 +14,7 @@ Last updated: 2026-08-19
 | SR-BUG-0008 | VEC reuses a subset and repeats assets before the pool is exhausted | VEC | High | DEV | Closed, verified | 2026-07-18 | - |
 | SR-BUG-0009 | Wide desktop player selects square artwork instead of wide assets | Player | High | DEV | Closed, verified | 2026-08-04 | - |
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Fixed, verified | 2026-07-30 | - |
-| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, one-song live pass; broader verification pending | 2026-08-11 | `db68e14a`, `d85020c0` |
+| SR-BUG-0011 | Desktop VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Desktop | Open, post-continuity2 recurrence; video lease awaiting verification | 2026-08-11 | `748e7f9b`, `a680a6e2` |
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Open, repair pending verification | 2026-08-18 | `8f46d70a` |
 | SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open | 2026-08-18 | - |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
@@ -24,7 +24,7 @@ Last updated: 2026-08-19
 ## Open / investigating
 
 - `SR-BUG-0005` - Share events do not increment retained share counts.
-- `SR-BUG-0011` - Four songs affected; three reports cluster around 2:00 to 2:45. Continuity2 passed a full-duration Where Next? live run and auto-advance. Other songs and cross-browser soak remain pending.
+- `SR-BUG-0011` - Desktop recurred after continuity2 on Dirty Bird at ~0:30 and Right Between the Eyes at ~0:28, while mobile remained flawless beyond 3:35. Continuity3 adds an independent 12-second maximum audio-clock lease for every desktop video. Full-song desktop verification remains pending.
 - `SR-BUG-0012` - Desktop clean runtime removes login and account interface. Initial repair committed, verification pending.
 - `SR-BUG-0013` - Desktop login disappears after boot and notifications do not work.
 
