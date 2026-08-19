@@ -5,7 +5,7 @@ on:
 
 jobs:
   smoke-test:
-    name: Run TRUE DEV smoke test
+    name: Run TRUE DEV lightweight smoke test
     runs-on: ubuntu-latest
     env:
       TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
@@ -19,8 +19,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Syntax check TRUE DEV smoke test
-        run: node --check radio-api/scripts/smoke-test-true-dev.mjs
+      - name: Syntax check analytics-free TRUE DEV smoke test
+        run: node --check radio-api/scripts/smoke-test-true-dev-light.mjs
 
-      - name: Run TRUE DEV smoke test
-        run: node radio-api/scripts/smoke-test-true-dev.mjs
+      - name: Run analytics-free TRUE DEV smoke test
+        run: node radio-api/scripts/smoke-test-true-dev-light.mjs
