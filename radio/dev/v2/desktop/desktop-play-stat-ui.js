@@ -16,6 +16,12 @@
         #v2App .v2-player-controls:has(> [data-play-stat-desktop]) {
           grid-template-columns: 52px 52px 76px 52px 52px 64px !important;
         }
+        #v2App .v2-player-controls > [data-like] { order: 1 !important; }
+        #v2App .v2-player-controls > [data-prev] { order: 2 !important; }
+        #v2App .v2-player-controls > [data-play] { order: 3 !important; }
+        #v2App .v2-player-controls > [data-next] { order: 4 !important; }
+        #v2App .v2-player-controls > [data-share] { order: 5 !important; }
+        #v2App .v2-player-controls > [data-play-stat-desktop] { order: 6 !important; }
         #v2App [data-play-stat-desktop] {
           width: 64px;
           min-width: 64px;
