@@ -10,6 +10,7 @@
   let loading = false;
   let scheduled = false;
   let retryTimer = 0;
+  let lastLoadedAt = 0;
 
   function readTokens() {
     try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {}; }
@@ -141,13 +142,13 @@
     requestAnimationFrame(apply);
   }
 
-  async function load() {
-    if (loading || stats || !app.querySelector('.profile-stat-grid')) return;
+  async function load(force = false) {
+    if (loading || (!force && stats) || !app.querySelector('.profile-stat-grid')) return;
     const tokens = readTokens();
     if (!tokens.accessToken) return;
     loading = true;
     try {
-      const response = await fetch(`${API_ROOT}/radio/me/profile-stats?timezone_offset_minutes=${encodeURIComponent(new Date().getTimezoneOffset())}`, {
+      const response = await fetch(`${API_ROOT}/radio/me/profile-stats?timezone_offset_minutes=${encodeURIComponent(new Date().getTimezoneOffset())}&profile_refresh=${Date.now()}`, {
         cache: 'no-store',
         credentials: 'omit',
         headers: {
@@ -158,22 +159,40 @@
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
       stats = body.stats || null;
+      lastLoadedAt = Date.now();
       queueApply();
     } catch (_) {
       clearTimeout(retryTimer);
       retryTimer = window.setTimeout(() => {
         loading = false;
-        load();
+        load(true);
       }, 1800);
       return;
     }
     loading = false;
   }
 
+  function refreshActiveProfile() {
+    if (document.visibilityState === 'hidden') return;
+    if (Date.now() - lastLoadedAt < 750) {
+      queueApply();
+      return;
+    }
+    load(true);
+  }
+
   const observer = new MutationObserver(() => {
     queueApply();
-    load();
+    load(false);
   });
   observer.observe(app, { childList: true, subtree: true });
-  load();
+
+  window.addEventListener('pageshow', refreshActiveProfile);
+  window.addEventListener('focus', refreshActiveProfile);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshActiveProfile();
+  });
+  window.addEventListener('stashbox:profile-stats-refresh', refreshActiveProfile);
+
+  load(false);
 })();
