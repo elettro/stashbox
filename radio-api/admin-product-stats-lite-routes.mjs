@@ -120,10 +120,10 @@ async function buildPayload(event, deps) {
       unique_sessions,
       last_clicked_at,
       ARRAY[]::text[] AS song_titles,
-      SUM(click_count)::bigint OVER () AS total_product_clicks,
-      COUNT(*)::int OVER () AS unique_products_clicked,
-      SUM(clicks_24h)::bigint OVER () AS product_clicks_last_24h,
-      SUM(clicks_7d)::bigint OVER () AS product_clicks_last_7d
+      SUM(click_count) OVER () AS total_product_clicks,
+      (COUNT(*) OVER ())::int AS unique_products_clicked,
+      SUM(clicks_24h) OVER () AS product_clicks_last_24h,
+      SUM(clicks_7d) OVER () AS product_clicks_last_7d
     FROM product_groups
     ORDER BY click_count DESC, last_clicked_at DESC NULLS LAST
     LIMIT $1
