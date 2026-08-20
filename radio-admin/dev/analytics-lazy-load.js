@@ -3,6 +3,7 @@
 
   const originalReferrerLoader = window.fetchReferrerStatsData;
   const originalDeviceLoader = window.fetchDeviceStatsData;
+  const originalSongStatsLoader = window.fetchSongStatsData;
   const renderDashboard = window.renderDashboard;
   const showMessage = window.showMessage;
 
@@ -72,6 +73,15 @@
     if (deviceLoaded) return originalDeviceLoader.apply(this, args);
     return loadDevicesNow();
   };
+
+  // The legacy per-song analytics panel is currently hidden and is not a valid
+  // dashboard view. Visible Top Songs/Likes/Shares cards use the Song CMS payload,
+  // not this heavy event-table aggregation, so do not pay for it on every load.
+  if (typeof originalSongStatsLoader === 'function') {
+    window.fetchSongStatsData = function dormantHiddenSongStats() {
+      return Promise.resolve(null);
+    };
+  }
 
   document.addEventListener('click', (event) => {
     const link = event.target.closest('[data-dashboard-view-link]');
