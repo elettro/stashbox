@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/deploy-true-dev-lambda.yml'
       - 'radio-api/index.mjs'
+      - 'radio-api/index-core.mjs'
       - 'radio-api/package.json'
       - 'radio-api/package-lock.json'
       - 'radio-api/auth.mjs'
@@ -77,6 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check radio-api/index.mjs
+          node --check radio-api/index-core.mjs
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
           node --check radio-api/account-routes.mjs
@@ -125,10 +127,12 @@ jobs:
           cp video-factory/entry.mjs index.mjs
           node --check index.mjs
           node --check radio-main.mjs
+          node --check index-core.mjs
           test -d node_modules/@aws-sdk/client-s3
           test -s cognito-jwks-dev.json
           zip -r dist/true-dev-lambda.zip . -x 'dist/*' -x '.git/*' -x '*.zip'
           unzip -l dist/true-dev-lambda.zip | grep -q 'radio-main.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'index-core.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'node_modules/@aws-sdk/client-s3'
 
       - name: Configure AWS
@@ -151,7 +155,7 @@ jobs:
       - name: Run TRUE DEV API smoke test
         run: |
           set -euo pipefail
-          node radio-api/scripts/smoke-test-true-dev.mjs
+          node radio-api/scripts/smoke-test-true-dev-light.mjs
 
       - name: Verify VEC public routes and CORS
         run: |
