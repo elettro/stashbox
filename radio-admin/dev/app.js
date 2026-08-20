@@ -9,6 +9,9 @@
     document.write('<script src="/radio-admin/dev/stats-summary-lite-bridge.js?v=20260820-summarylite1"><\/script>');
   }
   document.write('<script src="/radio-admin/dev/app-core.js?v=20260721-songs-access1"><\/script>');
+  if (!window.location.pathname.includes('/radio-admin/songs/dev')) {
+    document.write('<script src="/radio-admin/dev/analytics-lazy-load.js?v=20260820-analyticslazy1"><\/script>');
+  }
 
   if (window.location.pathname.includes('/radio-admin/songs/dev')) {
     document.write('<script src="/radio-admin/songs/dev/vec-disabled.js?v=20260728-songs-vec-disabled1"><\/script>');
