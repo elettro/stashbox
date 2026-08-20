@@ -129,7 +129,8 @@ jobs:
           cp video-factory/entry.mjs app-entry.mjs
           cat > index.mjs <<'EOF'
           import './db-reuse-hook.mjs';
-          export { handler } from './app-entry.mjs';
+          const app = await import('./app-entry.mjs');
+          export const handler = app.handler;
           EOF
           node --check index.mjs
           node --check app-entry.mjs
