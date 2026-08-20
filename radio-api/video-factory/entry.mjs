@@ -44,6 +44,10 @@ import {
   isArtistRequest
 } from './artist-routes.mjs';
 import {
+  handleArtistPerformanceRequest,
+  isArtistPerformanceRequest
+} from './artist-performance-routes.mjs';
+import {
   handlePersonalizedNotificationFeedRequest,
   isPersonalizedNotificationFeedRequest
 } from './personalized-notifications.mjs';
@@ -202,12 +206,13 @@ export const handler = async event => {
   const profileMediaUploadRequest = isProfileMediaUploadRequest(segments);
   const artistProfileMediaRequest = isArtistProfileMediaRequest(segments);
   const songArtworkRequest = isSongArtworkRequest(segments);
+  const artistPerformanceRequest = isArtistPerformanceRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !artistPerformanceRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -269,6 +274,12 @@ export const handler = async event => {
         await assertAccountIdentityAvailable(safeEvent, deps, { required: true });
       }
       return await handleAccountRequest(safeEvent, deps);
+    }
+
+    // This must run before the general /radio/admin/artists/:identifier router;
+    // otherwise the literal word "performance" would be treated as an artist key.
+    if (artistPerformanceRequest) {
+      return await handleArtistPerformanceRequest(safeEvent, deps);
     }
 
     if (artistRequest) {
