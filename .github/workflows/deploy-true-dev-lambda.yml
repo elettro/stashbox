@@ -16,6 +16,9 @@ on:
       - 'radio-api/account-routes.mjs'
       - 'radio-api/account-lifecycle.mjs'
       - 'radio-api/artist-routes.mjs'
+      - 'radio-api/artist-performance-routes.mjs'
+      - 'radio-api/admin-stats-summary-lite-routes.mjs'
+      - 'radio-api/admin-product-stats-lite-routes.mjs'
       - 'radio-api/artist-follow-routes.mjs'
       - 'radio-api/playlist-reorder-routes.mjs'
       - 'radio-api/profile-stats-routes.mjs'
@@ -86,6 +89,9 @@ jobs:
           node --check radio-api/account-routes.mjs
           node --check radio-api/account-lifecycle.mjs
           node --check radio-api/artist-routes.mjs
+          node --check radio-api/artist-performance-routes.mjs
+          node --check radio-api/admin-stats-summary-lite-routes.mjs
+          node --check radio-api/admin-product-stats-lite-routes.mjs
           node --check radio-api/artist-follow-routes.mjs
           node --check radio-api/playlist-reorder-routes.mjs
           node --check radio-api/profile-stats-routes.mjs
