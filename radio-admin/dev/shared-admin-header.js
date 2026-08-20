@@ -9,6 +9,7 @@
     { key: 'songs', label: 'Songs', href: '/radio-admin/songs/dev/' },
     { key: 'video-library', label: 'Video Library', href: '/radio/visual-experience/dev/' },
     { key: 'vec', label: 'VEC Lab', href: '/radio-admin/dev/vec/' },
+    { key: 'vec-audit', label: 'VEC AUDIT', href: 'https://stashbox.com/radio/dev/v2/vec-audit/' },
     { key: 'video-factory', label: 'Video Factory', href: '/radio-admin/dev/video-factory/' },
     { key: 'social-factory', label: 'Social Factory', href: '/radio-admin/dev/social-factory/' },
     { key: 'scheduled-posts', label: 'Scheduled Posts', href: '/radio-admin/dev/social-factory/scheduled/' },
@@ -32,6 +33,7 @@
     if (path.includes('/radio-admin/songs/dev/')) return { key: 'songs', title: 'Songs CMS' };
     if (path.includes('/radio-admin/artists/dev/')) return { key: 'artists', title: 'Artist CMS' };
     if (path.includes('/radio/visual-experience/dev/')) return { key: 'video-library', title: 'Video Library' };
+    if (path.includes('/radio/dev/v2/vec-audit/')) return { key: 'vec-audit', title: 'VEC AUDIT' };
     if (path.includes('/radio-admin/dev/vec/')) return { key: 'vec', title: 'VEC Lab' };
     if (path.includes('/radio-admin/dev/video-factory/')) return { key: 'video-factory', title: 'Video Factory' };
     if (path.includes('/radio-admin/dev/social-factory/scheduled/calendar/')) return { key: 'scheduled-calendar', title: 'Social Factory · Schedule Calendar' };
