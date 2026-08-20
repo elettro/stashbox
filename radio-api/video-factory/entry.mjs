@@ -48,6 +48,10 @@ import {
   isArtistPerformanceRequest
 } from './artist-performance-routes.mjs';
 import {
+  handleAdminStatsSummaryLiteRequest,
+  isAdminStatsSummaryLiteRequest
+} from './admin-stats-summary-lite-routes.mjs';
+import {
   handlePersonalizedNotificationFeedRequest,
   isPersonalizedNotificationFeedRequest
 } from './personalized-notifications.mjs';
@@ -207,12 +211,13 @@ export const handler = async event => {
   const artistProfileMediaRequest = isArtistProfileMediaRequest(segments);
   const songArtworkRequest = isSongArtworkRequest(segments);
   const artistPerformanceRequest = isArtistPerformanceRequest(segments);
+  const adminStatsSummaryLiteRequest = isAdminStatsSummaryLiteRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !artistPerformanceRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !adminStatsSummaryLiteRequest && !artistPerformanceRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -226,6 +231,10 @@ export const handler = async event => {
   try {
     await client.connect();
     const deps = accountDeps(client);
+
+    if (adminStatsSummaryLiteRequest) {
+      return await handleAdminStatsSummaryLiteRequest(safeEvent, deps);
+    }
 
     if (songArtworkRequest) {
       return await handleSongArtworkRequest(safeEvent, deps);
