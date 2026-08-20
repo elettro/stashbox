@@ -31,6 +31,7 @@ function positiveInteger(value, fallback) {
 const reuseEnabled = runtimeIsDev() && envFlag('DB_CONNECTION_REUSE_ENABLED', true);
 const validateOnCheckout = envFlag('DB_CONNECTION_REUSE_VALIDATE', true);
 const idleTimeoutMillis = positiveInteger(process.env.DB_CONNECTION_REUSE_IDLE_MS, 120000);
+const maxLifetimeSeconds = positiveInteger(process.env.DB_CONNECTION_REUSE_MAX_LIFETIME_SECONDS, 900);
 
 class RawPoolClient extends Client {
   connect(...args) {
@@ -55,12 +56,14 @@ function poolConfig() {
     database: process.env.PGDATABASE,
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
+    application_name: 'stashbox-radio-dev-lambda-reuse',
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 10000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
     max: 1,
     idleTimeoutMillis,
+    maxLifetimeSeconds,
     allowExitOnIdle: true,
     Client: RawPoolClient
   };
@@ -142,8 +145,10 @@ if (reuseEnabled) {
   };
 
   console.log('[DEV DB reuse] warm PostgreSQL connection reuse enabled', {
+    applicationName: 'stashbox-radio-dev-lambda-reuse',
     maxConnectionsPerRuntime: 1,
     idleTimeoutMillis,
+    maxLifetimeSeconds,
     validateOnCheckout
   });
 }
