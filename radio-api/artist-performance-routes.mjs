@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 // DEV-first lightweight Artist CMS performance aggregation.
 // Replaces the CMS habit of loading up to 500 per-song analytics rows and
 // aggregating them in the browser. This route returns only the three values the
@@ -5,6 +7,10 @@
 
 function cleanText(value, maxLength = 1000) {
   return String(value ?? '').trim().slice(0, maxLength);
+}
+
+function cleanEmail(value) {
+  return cleanText(value, 320).toLowerCase();
 }
 
 function errorWith(statusCode, code, message) {
@@ -30,6 +36,41 @@ export function isArtistPerformanceRequest(segments) {
     && !segments[4];
 }
 
+async function syncPerformanceAccount(event, deps) {
+  const identity = await deps.verifyIdentity(event, { required: true });
+  if (!identity?.sub) throw unauthorized();
+
+  const id = crypto.randomUUID();
+  const email = cleanEmail(identity.email);
+  const displayName = cleanText(
+    identity.displayName || (email.includes('@') ? email.split('@')[0] : 'Listener'),
+    120
+  );
+
+  const userResult = await deps.client.query(`
+    INSERT INTO ${deps.qname('users')} AS account_user (
+      id, cognito_sub, email, email_verified, display_name, status, last_login_at, last_seen_at
+    ) VALUES ($1, $2, $3, $4, $5, 'active', now(), now())
+    ON CONFLICT (cognito_sub) DO UPDATE SET
+      email = CASE WHEN EXCLUDED.email <> '' THEN EXCLUDED.email ELSE account_user.email END,
+      email_verified = account_user.email_verified OR EXCLUDED.email_verified,
+      last_seen_at = now(),
+      updated_at = now()
+    RETURNING id, status
+  `, [id, identity.sub, email, Boolean(identity.emailVerified), displayName]);
+
+  const user = userResult.rows[0];
+  if (user.status !== 'active') throw forbidden('This Stashbox Radio account is disabled or unavailable.');
+
+  await deps.client.query(`
+    INSERT INTO ${deps.qname('user_roles')} (user_id, role, status, granted_by, approved_at)
+    VALUES ($1, 'listener', 'approved', 'system', now())
+    ON CONFLICT (user_id, role) DO NOTHING
+  `, [user.id]);
+
+  return user;
+}
+
 async function resolvePerformanceScope(event, deps) {
   const suppliedAdminToken = cleanText(deps.getHeader(event, 'x-admin-token'), 1000);
   if (suppliedAdminToken) {
@@ -37,23 +78,7 @@ async function resolvePerformanceScope(event, deps) {
     return { mode: 'platform_admin', allowedArtistIds: null };
   }
 
-  const identity = await deps.verifyIdentity(event, { required: true });
-  if (!identity?.sub) throw unauthorized();
-
-  const userResult = await deps.client.query(`
-    SELECT id, status
-    FROM ${deps.qname('users')}
-    WHERE cognito_sub = $1
-    LIMIT 1
-  `, [identity.sub]);
-
-  if (!userResult.rowCount) {
-    throw unauthorized('Load the Artist CMS first so the signed-in account can be synchronized.');
-  }
-
-  const user = userResult.rows[0];
-  if (user.status !== 'active') throw forbidden('This Stashbox Radio account is disabled or unavailable.');
-
+  const user = await syncPerformanceAccount(event, deps);
   const roles = await deps.client.query(`
     SELECT role
     FROM ${deps.qname('user_roles')}
