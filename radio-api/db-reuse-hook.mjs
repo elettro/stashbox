@@ -47,23 +47,16 @@ class RawPoolClient extends Client {
 }
 
 let warmPool = null;
-let warmPoolKey = '';
 
-function poolIdentity(clientInstance) {
-  const params = clientInstance?.connectionParameters || {};
-  return [params.host || '', params.port || 5432, params.database || '', params.user || ''].join('|');
-}
-
-function poolConfig(clientInstance) {
-  const params = clientInstance?.connectionParameters || {};
+function poolConfig() {
   return {
-    host: params.host,
-    port: Number(params.port || 5432),
-    database: params.database,
-    user: params.user,
-    password: params.password,
-    ssl: params.ssl,
-    connectionTimeoutMillis: Number(params.connectionTimeoutMillis || 10000),
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT || 5432),
+    database: process.env.PGDATABASE,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
     max: 1,
@@ -73,18 +66,10 @@ function poolConfig(clientInstance) {
   };
 }
 
-function getWarmPool(clientInstance) {
-  const key = poolIdentity(clientInstance);
-  if (warmPool && warmPoolKey === key) return warmPool;
+function getWarmPool() {
+  if (warmPool) return warmPool;
 
-  if (warmPool) {
-    warmPool.end().catch((error) => {
-      console.warn('[DEV DB reuse] prior pool close failed', error?.message || error);
-    });
-  }
-
-  warmPoolKey = key;
-  warmPool = new Pool(poolConfig(clientInstance));
+  warmPool = new Pool(poolConfig());
   warmPool.on('error', (error) => {
     console.warn('[DEV DB reuse] idle PostgreSQL connection error', error?.message || error);
   });
@@ -92,7 +77,7 @@ function getWarmPool(clientInstance) {
 }
 
 async function acquireLease(clientInstance) {
-  const pool = getWarmPool(clientInstance);
+  const pool = getWarmPool();
   let lastError = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
