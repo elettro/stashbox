@@ -153,8 +153,16 @@ BEGIN
 END
 $$;
 
--- Update planner statistics after index creation. These statements do not alter application data.
-ANALYZE radio_dev.radio_events;
-ANALYZE radio_dev.visuals_folder_assets;
+-- Refresh planner statistics only for tables that actually exist.
+DO $$
+BEGIN
+  IF to_regclass('radio_dev.radio_events') IS NOT NULL THEN
+    EXECUTE 'ANALYZE radio_dev.radio_events';
+  END IF;
+  IF to_regclass('radio_dev.visuals_folder_assets') IS NOT NULL THEN
+    EXECUTE 'ANALYZE radio_dev.visuals_folder_assets';
+  END IF;
+END
+$$;
 
 COMMIT;
