@@ -30,10 +30,10 @@ function positiveInteger(value, fallback) {
 
 const reuseEnabled = runtimeIsDev() && envFlag('DB_CONNECTION_REUSE_ENABLED', true);
 const validateOnCheckout = envFlag('DB_CONNECTION_REUSE_VALIDATE', true);
-const validateIntervalMillis = positiveInteger(process.env.DB_CONNECTION_REUSE_VALIDATE_INTERVAL_MS, 30000);
+const validateAfterIdleMillis = positiveInteger(process.env.DB_CONNECTION_REUSE_VALIDATE_AFTER_IDLE_MS, 30000);
 const idleTimeoutMillis = positiveInteger(process.env.DB_CONNECTION_REUSE_IDLE_MS, 120000);
 const maxLifetimeSeconds = positiveInteger(process.env.DB_CONNECTION_REUSE_MAX_LIFETIME_SECONDS, 900);
-const lastValidationAt = new WeakMap();
+const lastReleaseAt = new WeakMap();
 
 class RawPoolClient extends Client {
   connect(...args) {
@@ -83,8 +83,10 @@ function getWarmPool() {
 
 function shouldValidateLease(lease, now = Date.now()) {
   if (!validateOnCheckout) return false;
-  const previous = Number(lastValidationAt.get(lease) || 0);
-  return !previous || now - previous >= validateIntervalMillis;
+  const releasedAt = Number(lastReleaseAt.get(lease) || 0);
+  // A raw client with no release timestamp is new to this warm runtime and gets
+  // one initial validation. Thereafter, validate only after a meaningful idle gap.
+  return !releasedAt || now - releasedAt >= validateAfterIdleMillis;
 }
 
 async function acquireLease(clientInstance) {
@@ -97,14 +99,13 @@ async function acquireLease(clientInstance) {
       lease = await pool.connect();
       if (shouldValidateLease(lease)) {
         await originalQuery.call(lease, 'SELECT 1');
-        lastValidationAt.set(lease, Date.now());
       }
       clientInstance[leaseSymbol] = lease;
       return;
     } catch (error) {
       lastError = error;
       if (lease) {
-        lastValidationAt.delete(lease);
+        lastReleaseAt.delete(lease);
         try {
           lease.release(error);
         } catch (_) {
@@ -145,8 +146,10 @@ if (reuseEnabled) {
     this[leaseSymbol] = null;
     let releaseError = null;
     try {
+      lastReleaseAt.set(lease, Date.now());
       lease.release();
     } catch (error) {
+      lastReleaseAt.delete(lease);
       releaseError = error;
     }
 
@@ -160,6 +163,6 @@ if (reuseEnabled) {
     idleTimeoutMillis,
     maxLifetimeSeconds,
     validateOnCheckout,
-    validateIntervalMillis
+    validateAfterIdleMillis
   });
 }
