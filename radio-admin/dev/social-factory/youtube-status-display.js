@@ -3,9 +3,7 @@
 
   const API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
   const TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
-  const REFRESH_MS = 15000;
   const itemsById = new Map();
-  let timer = null;
   let loading = false;
 
   function byId(id) { return document.getElementById(id); }
@@ -214,11 +212,11 @@
       const observer = new MutationObserver(() => window.setTimeout(decorate, 0));
       observer.observe(queue, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
     }
+    // AWS/bandwidth optimization: status data loads once on entry and when the
+    // admin explicitly refreshes/saves a token. No background interval/focus polling.
     byId('refreshQueue')?.addEventListener('click', () => window.setTimeout(loadStatuses, 1000));
     byId('saveToken')?.addEventListener('click', () => window.setTimeout(loadStatuses, 500));
-    window.addEventListener('focus', loadStatuses);
     loadStatuses();
-    timer = window.setInterval(loadStatuses, REFRESH_MS);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
