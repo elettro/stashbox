@@ -136,6 +136,7 @@ jobs:
           node --check radio-main.mjs
           node --check index-core.mjs
           node --check db-reuse-hook.mjs
+          APP_ENV=dev node --input-type=module -e "await import('./index.mjs')"
           test -d node_modules/@aws-sdk/client-s3
           test -s cognito-jwks-dev.json
           zip -r dist/true-dev-lambda.zip . -x 'dist/*' -x '.git/*' -x '*.zip'
