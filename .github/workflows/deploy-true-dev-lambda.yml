@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-true-dev-lambda.yml'
       - 'radio-api/index.mjs'
       - 'radio-api/index-core.mjs'
+      - 'radio-api/db-reuse-hook.mjs'
       - 'radio-api/package.json'
       - 'radio-api/package-lock.json'
       - 'radio-api/auth.mjs'
@@ -79,6 +80,7 @@ jobs:
           set -euo pipefail
           node --check radio-api/index.mjs
           node --check radio-api/index-core.mjs
+          node --check radio-api/db-reuse-hook.mjs
           node --check radio-api/auth.mjs
           node --check radio-api/rate-limit.mjs
           node --check radio-api/account-routes.mjs
@@ -124,14 +126,22 @@ jobs:
           rm -rf dist
           mkdir -p dist
           cp index.mjs radio-main.mjs
-          cp video-factory/entry.mjs index.mjs
+          cp video-factory/entry.mjs app-entry.mjs
+          cat > index.mjs <<'EOF'
+          import './db-reuse-hook.mjs';
+          export { handler } from './app-entry.mjs';
+          EOF
           node --check index.mjs
+          node --check app-entry.mjs
           node --check radio-main.mjs
           node --check index-core.mjs
+          node --check db-reuse-hook.mjs
           test -d node_modules/@aws-sdk/client-s3
           test -s cognito-jwks-dev.json
           zip -r dist/true-dev-lambda.zip . -x 'dist/*' -x '.git/*' -x '*.zip'
           unzip -l dist/true-dev-lambda.zip | grep -q 'radio-main.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'app-entry.mjs'
+          unzip -l dist/true-dev-lambda.zip | grep -q 'db-reuse-hook.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'index-core.mjs'
           unzip -l dist/true-dev-lambda.zip | grep -q 'node_modules/@aws-sdk/client-s3'
 
