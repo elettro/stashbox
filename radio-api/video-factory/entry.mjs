@@ -52,6 +52,10 @@ import {
   isAdminStatsSummaryLiteRequest
 } from './admin-stats-summary-lite-routes.mjs';
 import {
+  handleAdminProductStatsLiteRequest,
+  isAdminProductStatsLiteRequest
+} from './admin-product-stats-lite-routes.mjs';
+import {
   handlePersonalizedNotificationFeedRequest,
   isPersonalizedNotificationFeedRequest
 } from './personalized-notifications.mjs';
@@ -212,12 +216,13 @@ export const handler = async event => {
   const songArtworkRequest = isSongArtworkRequest(segments);
   const artistPerformanceRequest = isArtistPerformanceRequest(segments);
   const adminStatsSummaryLiteRequest = isAdminStatsSummaryLiteRequest(segments);
+  const adminProductStatsLiteRequest = isAdminProductStatsLiteRequest(segments);
   const artistRequest = isArtistRequest(segments);
   const personalizedNotificationFeedRequest = isPersonalizedNotificationFeedRequest(segments);
   const notificationEventRequest = isNotificationEventRequest(segments);
   const videoFactoryRequest = isVideoFactoryRequest(safeEvent);
 
-  if (!accountRequest && !adminStatsSummaryLiteRequest && !artistPerformanceRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
+  if (!accountRequest && !adminProductStatsLiteRequest && !adminStatsSummaryLiteRequest && !artistPerformanceRequest && !artistRequest && !profileStatsRequest && !profileMediaUploadRequest && !artistProfileMediaRequest && !songArtworkRequest && !personalizedNotificationFeedRequest && !notificationEventRequest && !videoFactoryRequest) {
     return radioHandler(safeEvent);
   }
 
@@ -231,6 +236,10 @@ export const handler = async event => {
   try {
     await client.connect();
     const deps = accountDeps(client);
+
+    if (adminProductStatsLiteRequest) {
+      return await handleAdminProductStatsLiteRequest(safeEvent, deps);
+    }
 
     if (adminStatsSummaryLiteRequest) {
       return await handleAdminStatsSummaryLiteRequest(safeEvent, deps);
