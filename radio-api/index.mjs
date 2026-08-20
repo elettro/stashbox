@@ -3,9 +3,10 @@ import pg from 'pg';
 
 // AWS/RDS efficiency wrapper — 2026-08-20
 // Preserve the canonical Radio API in ./index-core.mjs while removing avoidable
-// PostgreSQL metadata reads and repeated slow-changing DEV-admin reads.
-// Listener behavior, event writes, response payloads, and public/player routes
-// remain owned by index-core and are never response-cached here.
+// PostgreSQL metadata reads, repeated idempotent DEV schema checks, and repeated
+// slow-changing DEV-admin reads. Listener behavior, event writes, response
+// payloads, and public/player routes remain owned by index-core and are never
+// response-cached here.
 
 const { Client } = pg;
 const originalQuery = Client.prototype.query;
@@ -15,6 +16,13 @@ const DISCOVERY_CACHE_TTL_MS = Number.isFinite(configuredTtl) && configuredTtl >
   ? configuredTtl
   : DEFAULT_DISCOVERY_CACHE_TTL_MS;
 const discoveryCache = new Map();
+
+const DEFAULT_IDEMPOTENT_DDL_CACHE_TTL_MS = 10 * 60 * 1000;
+const configuredDdlTtl = Number(process.env.DB_IDEMPOTENT_DDL_CACHE_TTL_MS || DEFAULT_IDEMPOTENT_DDL_CACHE_TTL_MS);
+const IDEMPOTENT_DDL_CACHE_TTL_MS = Number.isFinite(configuredDdlTtl) && configuredDdlTtl >= 0
+  ? configuredDdlTtl
+  : DEFAULT_IDEMPOTENT_DDL_CACHE_TTL_MS;
+const idempotentDdlCache = new Map();
 
 // Private/admin-only GET routes. Heavy analytics reads get a deliberately short
 // 30-second TTL; slower-changing configuration/list reads can safely live longer.
@@ -60,7 +68,15 @@ function isDiscoveryRead(text) {
 
 function isSchemaMutation(text) {
   const sql = normalizedSql(text);
-  return /^(alter|create|drop) (table|schema)\b/.test(sql) || /^(create|drop) index\b/.test(sql);
+  return /^(alter|create|drop) (table|schema)\b/.test(sql)
+    || /^(create (unique )?|drop )index\b/.test(sql);
+}
+
+function isSafeIdempotentSchemaEnsure(text) {
+  const sql = normalizedSql(text);
+  return /^create table if not exists\b/.test(sql)
+    || /^create (unique )?index if not exists\b/.test(sql)
+    || /^alter table\b.*\badd column if not exists\b/.test(sql);
 }
 
 function cloneResult(result) {
@@ -82,19 +98,70 @@ function cacheKey(clientInstance, text, values) {
   ].join('|');
 }
 
+function pruneExpiredCache(cache, now, maximum = 250) {
+  if (cache.size <= maximum) return;
+  for (const [key, value] of cache.entries()) {
+    if (!value || value.expiresAt <= now) cache.delete(key);
+  }
+}
+
 Client.prototype.query = function cachedDiscoveryQuery(...args) {
   const { text, values } = queryParts(args);
+  const callbackQuery = isCallbackQuery(args);
 
-  // Any DDL can change the answer to a schema-discovery query. Clear the warm
-  // cache before executing it so the next discovery read is guaranteed fresh.
   if (isSchemaMutation(text)) {
+    const canCacheSafeEnsure = isDevRuntime()
+      && IDEMPOTENT_DDL_CACHE_TTL_MS > 0
+      && !callbackQuery
+      && isSafeIdempotentSchemaEnsure(text);
+
+    if (canCacheSafeEnsure) {
+      const key = cacheKey(this, normalizedSql(text), values);
+      const now = Date.now();
+      const cached = idempotentDdlCache.get(key);
+
+      if (cached && cached.expiresAt > now) {
+        if (cached.result) return Promise.resolve(cloneResult(cached.result));
+        if (cached.promise) return cached.promise.then(cloneResult);
+      } else if (cached) {
+        idempotentDdlCache.delete(key);
+      }
+
+      // The first real schema ensure may change metadata, so invalidate discovery
+      // answers before it runs. Repeated identical warm ensures skip both RDS DDL
+      // and this invalidation until the short TTL expires.
+      discoveryCache.clear();
+      const promise = Promise.resolve(originalQuery.apply(this, args))
+        .then((result) => {
+          idempotentDdlCache.set(key, {
+            result: cloneResult(result),
+            expiresAt: Date.now() + IDEMPOTENT_DDL_CACHE_TTL_MS
+          });
+          return result;
+        })
+        .catch((error) => {
+          idempotentDdlCache.delete(key);
+          throw error;
+        });
+
+      idempotentDdlCache.set(key, {
+        promise,
+        expiresAt: now + IDEMPOTENT_DDL_CACHE_TTL_MS
+      });
+      pruneExpiredCache(idempotentDdlCache, now);
+      return promise;
+    }
+
+    // Non-idempotent DDL must always reach PostgreSQL and invalidates both warm
+    // metadata answers and prior schema-ensure assumptions.
     discoveryCache.clear();
+    idempotentDdlCache.clear();
     return originalQuery.apply(this, args);
   }
 
   // Preserve node-postgres callback semantics exactly; the Radio API currently
   // uses promises, but callback queries are deliberately passed through.
-  if (DISCOVERY_CACHE_TTL_MS === 0 || isCallbackQuery(args) || !isDiscoveryRead(text)) {
+  if (DISCOVERY_CACHE_TTL_MS === 0 || callbackQuery || !isDiscoveryRead(text)) {
     return originalQuery.apply(this, args);
   }
 
