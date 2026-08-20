@@ -1,9 +1,11 @@
+import crypto from 'node:crypto';
 import pg from 'pg';
 
 // AWS/RDS efficiency wrapper — 2026-08-20
-// Preserve the canonical Radio API in ./index-core.mjs and cache only PostgreSQL
-// schema-discovery reads inside a warm Lambda runtime. Listener behavior, event
-// writes, response payloads, and public/player routes remain owned by index-core.
+// Preserve the canonical Radio API in ./index-core.mjs while removing avoidable
+// PostgreSQL metadata reads and repeated slow-changing DEV-admin reads.
+// Listener behavior, event writes, response payloads, and public/player routes
+// remain owned by index-core and are never response-cached here.
 
 const { Client } = pg;
 const originalQuery = Client.prototype.query;
@@ -13,6 +15,15 @@ const DISCOVERY_CACHE_TTL_MS = Number.isFinite(configuredTtl) && configuredTtl >
   ? configuredTtl
   : DEFAULT_DISCOVERY_CACHE_TTL_MS;
 const discoveryCache = new Map();
+
+// These are private/admin-only GET routes whose data changes relatively slowly.
+// The cache is deliberately enabled only in DEV and only inside a warm Lambda.
+const DEV_ADMIN_READ_TTLS = new Map([
+  ['admin/visuals/folders', 60 * 1000],
+  ['admin/ads', 60 * 1000],
+  ['admin/ad-settings', 120 * 1000]
+]);
+const devAdminReadCache = new Map();
 
 function queryParts(args) {
   const first = args[0];
@@ -116,7 +127,152 @@ Client.prototype.query = function cachedDiscoveryQuery(...args) {
 
 const core = await import('./index-core.mjs');
 
-export const handler = core.handler;
+function isDevRuntime() {
+  const runtime = String(
+    process.env.APP_ENV || process.env.STAGE || process.env.NODE_ENV || process.env.ENVIRONMENT || ''
+  ).trim().toLowerCase();
+  return runtime === 'dev' || runtime === 'development';
+}
+
+function requestMethod(event) {
+  return String(event?.requestContext?.http?.method || event?.httpMethod || 'GET').toUpperCase();
+}
+
+function normalizedRequestPath(event) {
+  const rawPath = String(event?.rawPath || event?.path || '').split('?')[0];
+  const segments = rawPath.split('/').filter(Boolean);
+  const stage = String(event?.requestContext?.stage || '').trim();
+
+  if (stage && segments[0] === stage) {
+    segments.shift();
+  } else if (
+    ['dev', 'prod', 'prod-v2', 'default'].includes(String(segments[0] || '').toLowerCase())
+    && ['admin', 'radio', 'dashboard'].includes(String(segments[1] || '').toLowerCase())
+  ) {
+    segments.shift();
+  }
+
+  return segments.join('/');
+}
+
+function requestHeader(event, name) {
+  const target = String(name).toLowerCase();
+  const headers = event?.headers || {};
+  const key = Object.keys(headers).find((headerName) => String(headerName).toLowerCase() === target);
+  return key ? String(headers[key] || '') : '';
+}
+
+function requestAuthScope(event) {
+  const material = [
+    requestHeader(event, 'x-admin-token'),
+    requestHeader(event, 'authorization'),
+    requestHeader(event, 'x-cognito-id-token')
+  ].join('|');
+  return crypto.createHash('sha256').update(material).digest('hex').slice(0, 24);
+}
+
+function requestQueryKey(event) {
+  if (typeof event?.rawQueryString === 'string') return event.rawQueryString;
+  const params = event?.queryStringParameters;
+  if (!params || typeof params !== 'object') return '';
+  return Object.entries(params)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${String(value ?? '')}`)
+    .join('&');
+}
+
+function cloneLambdaResponse(response) {
+  if (!response || typeof response !== 'object') return response;
+  return {
+    ...response,
+    headers: response.headers && typeof response.headers === 'object'
+      ? { ...response.headers }
+      : response.headers,
+    cookies: Array.isArray(response.cookies) ? [...response.cookies] : response.cookies
+  };
+}
+
+function successfulLambdaResponse(response) {
+  const statusCode = Number(response?.statusCode || 200);
+  return statusCode >= 200 && statusCode < 300;
+}
+
+function adminReadCacheKey(event, path) {
+  return [path, requestAuthScope(event), requestQueryKey(event)].join('|');
+}
+
+function invalidateDevAdminReadsForWrite(path) {
+  const relatedRoutes = [];
+  if (path.startsWith('admin/visuals/')) relatedRoutes.push('admin/visuals/folders');
+  if (path.startsWith('admin/ads') || path.startsWith('admin/ad-settings')) {
+    relatedRoutes.push('admin/ads', 'admin/ad-settings');
+  }
+  if (!relatedRoutes.length) return;
+
+  for (const key of devAdminReadCache.keys()) {
+    if (relatedRoutes.some((route) => key.startsWith(`${route}|`))) {
+      devAdminReadCache.delete(key);
+    }
+  }
+}
+
+async function handleWithDevAdminReadCache(event) {
+  const method = requestMethod(event);
+  const path = normalizedRequestPath(event);
+
+  // This optimization is intentionally DEV-only and private/admin-only.
+  if (!isDevRuntime()) return core.handler(event);
+
+  if (method !== 'GET') {
+    invalidateDevAdminReadsForWrite(path);
+    return core.handler(event);
+  }
+
+  const ttlMs = DEV_ADMIN_READ_TTLS.get(path);
+  if (!ttlMs) return core.handler(event);
+
+  const key = adminReadCacheKey(event, path);
+  const now = Date.now();
+  const cached = devAdminReadCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    if (cached.response) return cloneLambdaResponse(cached.response);
+    if (cached.promise) return cached.promise.then(cloneLambdaResponse);
+  } else if (cached) {
+    devAdminReadCache.delete(key);
+  }
+
+  const promise = Promise.resolve(core.handler(event))
+    .then((response) => {
+      if (successfulLambdaResponse(response)) {
+        devAdminReadCache.set(key, {
+          response: cloneLambdaResponse(response),
+          expiresAt: Date.now() + ttlMs
+        });
+      } else {
+        devAdminReadCache.delete(key);
+      }
+      return response;
+    })
+    .catch((error) => {
+      devAdminReadCache.delete(key);
+      throw error;
+    });
+
+  // Deduplicate simultaneous identical admin GETs in the same warm Lambda.
+  devAdminReadCache.set(key, { promise, expiresAt: now + ttlMs });
+
+  // Bound the cache even if a future admin page introduces many query variants.
+  if (devAdminReadCache.size > 100) {
+    for (const [cacheEntryKey, value] of devAdminReadCache.entries()) {
+      if (!value || value.expiresAt <= now) devAdminReadCache.delete(cacheEntryKey);
+    }
+  }
+
+  return promise;
+}
+
+export const handler = handleWithDevAdminReadCache;
 export const handleAdminAdsRoute = core.handleAdminAdsRoute;
 export const handleAdminAdSettingsRoute = core.handleAdminAdSettingsRoute;
 export const handlePublicAdsRoute = core.handlePublicAdsRoute;
