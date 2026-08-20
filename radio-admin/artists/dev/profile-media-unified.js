@@ -324,7 +324,9 @@
     if (target.closest('#artistList, #newArtist, #cancelEdit')) {
       loadedSignature = '';
       scheduleLoad(true, 120);
-      window.setTimeout(() => scheduleLoad(true, 0), 450);
+      // Fallback only: if the first load succeeds for this artist, the signature
+      // guard suppresses this delayed check instead of forcing a second RDS read.
+      window.setTimeout(() => scheduleLoad(false, 0), 450);
     }
   }, true);
 
@@ -344,7 +346,8 @@
     observerTargets.forEach(target => observer.observe(target, { attributes: true, childList: true, subtree: true }));
   }
 
-  window.addEventListener('focus', () => loadSelected(true));
+  // AWS/bandwidth optimization: do not force an RDS media reload every time the
+  // admin window regains focus. Selection, save, upload, and remove flows still refresh.
   window.StashboxArtistProfileMedia = { loadSelected, readMedia, upload, clear };
   scheduleLoad(true, 120);
 })();
