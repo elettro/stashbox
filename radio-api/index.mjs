@@ -16,9 +16,15 @@ const DISCOVERY_CACHE_TTL_MS = Number.isFinite(configuredTtl) && configuredTtl >
   : DEFAULT_DISCOVERY_CACHE_TTL_MS;
 const discoveryCache = new Map();
 
-// These are private/admin-only GET routes whose data changes relatively slowly.
-// The cache is deliberately enabled only in DEV and only inside a warm Lambda.
+// Private/admin-only GET routes. Heavy analytics reads get a deliberately short
+// 30-second TTL; slower-changing configuration/list reads can safely live longer.
+// This cache is enabled only in DEV and only inside a warm Lambda runtime.
 const DEV_ADMIN_READ_TTLS = new Map([
+  ['admin/stats/summary', 30 * 1000],
+  ['admin/stats/products', 30 * 1000],
+  ['admin/stats/songs', 30 * 1000],
+  ['admin/stats/referrers', 30 * 1000],
+  ['admin/stats/devices', 30 * 1000],
   ['admin/visuals/folders', 60 * 1000],
   ['admin/ads', 60 * 1000],
   ['admin/ad-settings', 120 * 1000]
