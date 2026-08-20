@@ -12,7 +12,8 @@ on:
       - 'radio-api/scripts/smoke-test-true-dev-light.mjs'
       - '.github/workflows/v2-stability-monitor.yml'
   schedule:
-    - cron: '*/15 * * * *'
+    # GitHub Actions cron uses UTC. 13:00 UTC = 8:00 AM EST.
+    - cron: '0 13 */3 * *'
 
 permissions:
   contents: read
