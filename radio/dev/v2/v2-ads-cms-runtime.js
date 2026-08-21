@@ -159,10 +159,18 @@
       firstSuccessful(ADS_URLS, data => rowsFrom(data).map(normalizeAd).filter(Boolean))
     ])
       .then(([settings, ads]) => {
+        const wasEnabled = Boolean(state.settings.ads_enabled);
         state.settings = settings;
         state.ads = ads.filter(ad => ad.active && ad.mediaUrl && dateEligible(ad));
         state.ready = true;
         state.lastRefreshAt = Date.now();
+        if (!settings.ads_enabled) {
+          state.completedSongs = 0;
+          state.pendingBreak = null;
+        } else if (!wasEnabled) {
+          // Turning ads back on starts a fresh break cadence from the CMS state.
+          state.completedSongs = 0;
+        }
         document.documentElement.dataset.v2AdsEnabled = settings.ads_enabled && state.ads.length ? 'true' : 'false';
         return snapshot();
       })
@@ -172,6 +180,8 @@
         state.ads = [];
         state.ready = true;
         state.lastRefreshAt = Date.now();
+        state.completedSongs = 0;
+        state.pendingBreak = null;
         document.documentElement.dataset.v2AdsEnabled = 'false';
         console.warn('[V2 Ads] CMS unavailable; ads disabled for this listener session', error?.message || error);
         return snapshot();
@@ -294,6 +304,17 @@
     state.media = null;
   }
 
+  function forceVideoFit(media) {
+    if (!(media instanceof HTMLVideoElement)) return;
+    media.style.setProperty('width', 'auto', 'important');
+    media.style.setProperty('height', 'auto', 'important');
+    media.style.setProperty('max-width', '100%', 'important');
+    media.style.setProperty('max-height', '100%', 'important');
+    media.style.setProperty('object-fit', 'contain', 'important');
+    media.style.setProperty('object-position', 'center center', 'important');
+    media.dataset.v2AdForcedFit = 'true';
+  }
+
   function showAd(ad, index, total) {
     const overlay = ensureOverlay();
     stopMedia();
@@ -319,6 +340,7 @@
     media.preload = 'auto';
     media.playsInline = true;
     media.setAttribute('playsinline', '');
+    forceVideoFit(media);
     if (media instanceof HTMLVideoElement && ad.posterUrl) media.poster = ad.posterUrl;
     media.src = ad.mediaUrl;
     mediaWrap.appendChild(media);
@@ -352,9 +374,12 @@
 
     media.addEventListener('timeupdate', update);
     media.addEventListener('loadedmetadata', () => {
+      forceVideoFit(media);
       if (Number.isFinite(media.duration) && media.duration > 0) state.durationMemory[ad.id] = media.duration;
       update();
     });
+    media.addEventListener('canplay', () => forceVideoFit(media));
+    media.addEventListener('playing', () => forceVideoFit(media));
     media.addEventListener('ended', () => finishCurrent('ad_complete'), { once: true });
     media.addEventListener('error', () => finishCurrent('ad_error'), { once: true });
 
@@ -435,8 +460,11 @@
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return;
     if (state.active) return;
+    if (!state.ready || !state.settings.ads_enabled) {
+      state.completedSongs = 0;
+      return;
+    }
     state.completedSongs += 1;
-    if (!state.ready || !state.settings.ads_enabled) return;
     if (state.completedSongs < state.settings.break_interval) return;
     state.completedSongs = 0;
     armBreakAfterCompletedSong(audio);
@@ -479,6 +507,8 @@
       breakInterval: state.settings.break_interval,
       adsPerBreak: state.settings.ads_per_break,
       targetAdSeconds: state.settings.target_ad_seconds,
+      completedSongs: state.completedSongs,
+      breakPending: Boolean(state.pendingBreak),
       adPlaying: state.active,
       currentAdId: state.currentAd?.id || ''
     };
@@ -490,6 +520,7 @@
     stop: () => {
       state.settings = { ...SAFE_SETTINGS };
       state.pendingBreak = null;
+      state.completedSongs = 0;
       if (state.active) finishBreak();
     }
   });
