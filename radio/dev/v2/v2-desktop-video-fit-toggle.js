@@ -5,17 +5,16 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopVideoFitToggle) return;
 
-  const STORAGE_KEY = 'stashbox_desktop_video_fit_v4';
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const readMode = () => {
-    try { return localStorage.getItem(STORAGE_KEY) === 'full' ? 'full' : 'fit'; }
-    catch (_) { return 'fit'; }
-  };
-
+  // FIT is deliberately the fresh-page default. The listener's choice is kept
+  // only for the current page session so every reload returns to FIT.
+  let selectedMode = 'fit';
+  const readMode = () => selectedMode;
   const saveMode = mode => {
-    try { localStorage.setItem(STORAGE_KEY, mode); } catch (_) {}
+    selectedMode = mode === 'full' ? 'full' : 'fit';
+    return selectedMode;
   };
 
   const getPlayer = () => [...app.querySelectorAll('[data-player]')].find(node => {
@@ -44,6 +43,7 @@
     const player = getPlayer();
     if (!player) return false;
     const next = mode === 'full' ? 'full' : 'fit';
+    selectedMode = next;
     player.dataset.desktopVideoFit = next;
     applyVideoMode(player, next);
     const button = player.querySelector('[data-desktop-video-fit-toggle] button[data-fit-toggle]');
@@ -75,8 +75,7 @@
         if (!button) return;
         event.preventDefault();
         event.stopPropagation();
-        const current = readMode();
-        const next = current === 'full' ? 'fit' : 'full';
+        const next = readMode() === 'full' ? 'fit' : 'full';
         saveMode(next);
         apply(next);
       });
@@ -106,7 +105,7 @@
       if (!(video instanceof HTMLVideoElement)) return;
       const player = video.closest('#v2App [data-player]');
       if (!player || !video.closest('.desktop-vec2-stage, [data-mobile-vec-stage]')) return;
-      applyVideoMode(player, player.dataset.desktopVideoFit === 'full' ? 'full' : readMode());
+      applyVideoMode(player, readMode());
     }, true);
   });
 
