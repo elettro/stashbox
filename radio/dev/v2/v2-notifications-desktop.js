@@ -6,7 +6,7 @@
   let closeTimer = 0;
 
   const getUi = () => ({
-    bell: document.querySelector('#v2App .v2-notifications-trigger'),
+    bell: document.querySelector('[data-desktop-notifications]') || document.querySelector('#v2App .v2-notifications-trigger'),
     overlay: document.querySelector('.v2-notification-overlay'),
     sheet: document.querySelector('.v2-notification-sheet')
   });
