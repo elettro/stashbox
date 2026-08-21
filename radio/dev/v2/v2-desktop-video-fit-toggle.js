@@ -5,21 +5,13 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopVideoFitToggle) return;
 
-  if (!document.querySelector('link[data-desktop-video-fit-toggle-style="true"]')) {
-    const style = document.createElement('link');
-    style.rel = 'stylesheet';
-    style.href = '/radio/dev/v2/v2-desktop-video-fit-toggle.css?v=20260815-fitfill-safe2';
-    style.dataset.desktopVideoFitToggleStyle = 'true';
-    document.head.appendChild(style);
-  }
-
-  const STORAGE_KEY = 'stashbox_desktop_video_fit';
+  const STORAGE_KEY = 'stashbox_desktop_video_fit_v3';
   const app = document.getElementById('v2App');
   if (!app) return;
 
   const readMode = () => {
-    try { return localStorage.getItem(STORAGE_KEY) === 'fit' ? 'fit' : 'fill'; }
-    catch (_) { return 'fill'; }
+    try { return localStorage.getItem(STORAGE_KEY) === 'full' ? 'full' : 'fit'; }
+    catch (_) { return 'fit'; }
   };
 
   const saveMode = mode => {
@@ -32,49 +24,47 @@
     return css.display !== 'none' && css.visibility !== 'hidden';
   }) || app.querySelector('[data-player]');
 
-  const icons = {
-    fill: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6"/><path d="M8 8h8v8H8z"/></svg>',
-    fit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>'
-  };
-
   function apply(mode) {
-    const p = getPlayer();
-    if (!p) return false;
-    const next = mode === 'fit' ? 'fit' : 'fill';
-    p.dataset.desktopVideoFit = next;
-    const button = p.querySelector('[data-desktop-video-fit-toggle]');
-    if (button) {
-      button.dataset.mode = next;
-      button.innerHTML = icons[next];
-      button.setAttribute('aria-pressed', next === 'fit' ? 'true' : 'false');
-      button.setAttribute('aria-label', next === 'fit' ? 'Switch to fill video' : 'Switch to fit full video');
-      button.title = next === 'fit' ? 'FIT — full video, no crop' : 'FILL — fill viewer';
+    const player = getPlayer();
+    if (!player) return false;
+    const next = mode === 'full' ? 'full' : 'fit';
+    player.dataset.desktopVideoFit = next;
+    const control = player.querySelector('[data-desktop-video-fit-toggle]');
+    if (control) {
+      control.querySelectorAll('button').forEach(button => {
+        const active = button.dataset.fitMode === next;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
     }
     return true;
   }
 
   function install() {
-    const p = getPlayer();
-    const row = p?.querySelector('.v2-artist-row');
-    if (!p || !row) return false;
+    const player = getPlayer();
+    const row = player?.querySelector('.v2-artist-row');
+    if (!player || !row) return false;
 
-    let button = row.querySelector('[data-desktop-video-fit-toggle]');
-    if (!button) {
-      button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'v2-desktop-video-fit-toggle';
-      button.dataset.desktopVideoFitToggle = 'true';
-      button.addEventListener('click', event => {
+    let control = row.querySelector('[data-desktop-video-fit-toggle]');
+    if (!control) {
+      control = document.createElement('span');
+      control.className = 'v2-desktop-video-fit-toggle';
+      control.dataset.desktopVideoFitToggle = 'true';
+      control.setAttribute('role', 'group');
+      control.setAttribute('aria-label', 'Video display mode');
+      control.innerHTML = '<button type="button" data-fit-mode="fit">FIT</button><i aria-hidden="true"></i><button type="button" data-fit-mode="full">FULL</button>';
+      control.addEventListener('click', event => {
+        const button = event.target.closest('button[data-fit-mode]');
+        if (!button) return;
         event.preventDefault();
         event.stopPropagation();
-        const current = getPlayer()?.dataset.desktopVideoFit === 'fit' ? 'fit' : 'fill';
-        const next = current === 'fit' ? 'fill' : 'fit';
+        const next = button.dataset.fitMode === 'full' ? 'full' : 'fit';
         saveMode(next);
         apply(next);
       });
       const more = row.querySelector('.v2-li-song-more');
-      if (more) row.insertBefore(button, more);
-      else row.appendChild(button);
+      if (more) row.insertBefore(control, more);
+      else row.appendChild(control);
     }
 
     apply(readMode());
@@ -82,22 +72,20 @@
   }
 
   let attempts = 0;
-  const tryInstall = () => {
+  const timer = window.setInterval(() => {
     attempts += 1;
-    if (install() || attempts >= 40) {
-      window.clearInterval(timer);
-    }
-  };
+    if (install() || attempts >= 60) window.clearInterval(timer);
+  }, 250);
+  install();
 
-  const timer = window.setInterval(tryInstall, 250);
-  tryInstall();
+  window.addEventListener('stashbox:desktop-song-change', () => window.setTimeout(() => apply(readMode()), 0));
 
   window.StashboxDesktopVideoFitToggle = Object.freeze({
     set: mode => {
-      const next = mode === 'fit' ? 'fit' : 'fill';
+      const next = mode === 'full' ? 'full' : 'fit';
       saveMode(next);
       apply(next);
     },
-    get: () => readMode()
+    get: readMode
   });
 })();
