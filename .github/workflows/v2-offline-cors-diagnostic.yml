@@ -1,0 +1,89 @@
+name: V2 Offline CORS Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v2-offline-cors-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Inspect media delivery configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain='d1ufj7xan6uxy0.cloudfront.net'
+          bucket='stashbox-radio-media-dev-us-east-1'
+          dist_id="$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='${domain}'].Id | [0]" --output text)"
+          if [[ -z "$dist_id" || "$dist_id" == 'None' ]]; then
+            echo "Could not resolve CloudFront distribution for ${domain}" >&2
+            exit 1
+          fi
+          aws cloudfront get-distribution-config --id "$dist_id" > /tmp/distribution.json
+          response_id="$(jq -r '.DistributionConfig.DefaultCacheBehavior.ResponseHeadersPolicyId // empty' /tmp/distribution.json)"
+          cache_id="$(jq -r '.DistributionConfig.DefaultCacheBehavior.CachePolicyId // empty' /tmp/distribution.json)"
+          origin_request_id="$(jq -r '.DistributionConfig.DefaultCacheBehavior.OriginRequestPolicyId // empty' /tmp/distribution.json)"
+          if [[ -n "$response_id" ]]; then aws cloudfront get-response-headers-policy --id "$response_id" > /tmp/response-policy.json; else echo '{}' > /tmp/response-policy.json; fi
+          if [[ -n "$cache_id" ]]; then aws cloudfront get-cache-policy --id "$cache_id" > /tmp/cache-policy.json; else echo '{}' > /tmp/cache-policy.json; fi
+          if [[ -n "$origin_request_id" ]]; then aws cloudfront get-origin-request-policy --id "$origin_request_id" > /tmp/origin-request-policy.json; else echo '{}' > /tmp/origin-request-policy.json; fi
+          aws s3api get-bucket-cors --bucket "$bucket" > /tmp/bucket-cors.json 2>/tmp/bucket-cors.err || echo '{}' > /tmp/bucket-cors.json
+
+          mkdir -p radio/docs/ci
+          jq -n \
+            --arg distribution_id "$dist_id" \
+            --arg domain "$domain" \
+            --arg bucket "$bucket" \
+            --arg response_headers_policy_id "$response_id" \
+            --arg cache_policy_id "$cache_id" \
+            --arg origin_request_policy_id "$origin_request_id" \
+            --slurpfile dist /tmp/distribution.json \
+            --slurpfile response /tmp/response-policy.json \
+            --slurpfile cache /tmp/cache-policy.json \
+            --slurpfile originRequest /tmp/origin-request-policy.json \
+            --slurpfile cors /tmp/bucket-cors.json \
+            '{
+              tested_at_utc: (now | todateiso8601),
+              distribution_id: $distribution_id,
+              domain: $domain,
+              bucket: $bucket,
+              distribution_status: ($dist[0].DistributionConfig.Enabled // null),
+              response_headers_policy_id: $response_headers_policy_id,
+              cache_policy_id: $cache_policy_id,
+              origin_request_policy_id: $origin_request_policy_id,
+              default_cache_behavior: ($dist[0].DistributionConfig.DefaultCacheBehavior // {}),
+              response_headers_policy: ($response[0] // {}),
+              cache_policy: ($cache[0] // {}),
+              origin_request_policy: ($originRequest[0] // {}),
+              bucket_cors: ($cors[0] // {})
+            }' > radio/docs/ci/v2-offline-cors-diagnostic.json
+
+      - name: Publish diagnostic receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/docs/ci/v2-offline-cors-diagnostic.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record V2 offline CORS diagnostic [skip ci]'
+          git push
