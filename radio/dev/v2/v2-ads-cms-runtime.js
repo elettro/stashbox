@@ -11,6 +11,7 @@
   const SESSION_KEY = 'stashbox-radio-rds-dev-session-id';
   const WEIGHTS = Object.freeze({ low: 1, medium: 3, high: 6 });
   const FALLBACK_DURATION = 15;
+  const REFRESH_MIN_MS = 60000;
   const SAFE_SETTINGS = Object.freeze({
     ads_enabled: false,
     break_method: 'count',
@@ -24,6 +25,7 @@
     ads: [],
     ready: false,
     loading: null,
+    lastRefreshAt: 0,
     completedSongs: 0,
     playCounts: Object.create(null),
     durationMemory: Object.create(null),
@@ -149,8 +151,9 @@
     throw lastError || new Error('No endpoint succeeded.');
   }
 
-  async function refresh() {
+  async function refresh(force = false) {
     if (state.loading) return state.loading;
+    if (!force && state.ready && Date.now() - state.lastRefreshAt < REFRESH_MIN_MS) return snapshot();
     state.loading = Promise.all([
       firstSuccessful(SETTINGS_URLS, normalizeSettings),
       firstSuccessful(ADS_URLS, data => rowsFrom(data).map(normalizeAd).filter(Boolean))
@@ -159,6 +162,7 @@
         state.settings = settings;
         state.ads = ads.filter(ad => ad.active && ad.mediaUrl && dateEligible(ad));
         state.ready = true;
+        state.lastRefreshAt = Date.now();
         document.documentElement.dataset.v2AdsEnabled = settings.ads_enabled && state.ads.length ? 'true' : 'false';
         return snapshot();
       })
@@ -167,6 +171,7 @@
         state.settings = { ...SAFE_SETTINGS };
         state.ads = [];
         state.ready = true;
+        state.lastRefreshAt = Date.now();
         document.documentElement.dataset.v2AdsEnabled = 'false';
         console.warn('[V2 Ads] CMS unavailable; ads disabled for this listener session', error?.message || error);
         return snapshot();
@@ -451,11 +456,11 @@
   }, true);
 
   window.addEventListener('focus', () => {
-    if (!state.active) refresh();
+    if (!state.active) refresh(false);
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !state.active) refresh();
+    if (!document.hidden && !state.active) refresh(false);
   });
 
   function snapshot() {
@@ -473,7 +478,7 @@
   }
 
   window.StashboxV2Ads = Object.freeze({
-    refresh,
+    refresh: () => refresh(true),
     state: snapshot,
     stop: () => {
       state.settings = { ...SAFE_SETTINGS };
@@ -482,5 +487,5 @@
     }
   });
 
-  refresh();
+  refresh(true);
 })();
