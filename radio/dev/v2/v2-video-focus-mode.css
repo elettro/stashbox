@@ -103,11 +103,11 @@
 
 /*
   Mobile Title Mode: keep only the identifying song information and core
-  transport controls. The retained UI is dimmed by 30% to 70% opacity.
+  transport controls. The retained UI is dimmed to 50% opacity.
 */
 @media (max-width: 699px) {
   .v2-player.is-video-title-mode .v2-player-header > * {
-    opacity: .70 !important;
+    opacity: .50 !important;
     transition: opacity .28s ease !important;
   }
 
@@ -134,7 +134,7 @@
   .v2-player.is-video-title-mode .v2-player-content .v2-li-meta-chips,
   .v2-player.is-video-title-mode .v2-player-content .v2-timeline,
   .v2-player.is-video-title-mode .v2-player-content .v2-player-controls {
-    opacity: .70 !important;
+    opacity: .50 !important;
     pointer-events: auto !important;
   }
 }
