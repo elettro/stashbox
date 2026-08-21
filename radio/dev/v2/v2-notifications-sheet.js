@@ -255,13 +255,19 @@
     button.setAttribute('aria-label', count ? `${count} unread notifications` : 'Notifications');
   }
 
-  async function requestNotifications() {
+  async function requestNotifications(useAuthentication = true) {
+    const headers = useAuthentication
+      ? authHeaders({ Accept: 'application/json' })
+      : { Accept: 'application/json' };
     const response = await fetch(`${API_URL}?limit=100`, {
-      headers: { Accept: 'application/json' },
+      headers,
       cache: 'no-store',
       credentials: 'omit'
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && useAuthentication && headers.Authorization) {
+      return requestNotifications(false);
+    }
     if (!response.ok) throw new Error(payload.error || 'Notifications are unavailable.');
     return payload;
   }
@@ -271,12 +277,12 @@
     state.loading = true;
     if (state.overlay && !state.overlay.hidden && !state.notifications.length) renderList('Loading notifications…');
     try {
-      const payload = await requestNotifications();
+      const payload = await requestNotifications(true);
       state.notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
       state.personalized = Boolean(payload.personalized);
       renderList();
-    } catch (_) {
-      if (state.overlay && !state.overlay.hidden) renderList('Notifications could not load. Close and reopen to retry.');
+    } catch (error) {
+      if (state.overlay && !state.overlay.hidden) renderList(error.message || 'Notifications could not load. Close and reopen to retry.');
     } finally {
       state.loading = false;
     }
@@ -285,7 +291,7 @@
   function postEvent(id, eventType, metadata = {}) {
     fetch(`${API_URL}/${encodeURIComponent(id)}/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ event_type: eventType, anonymous_visitor_id: visitorId, metadata }),
       keepalive: true
     }).catch(() => {});
@@ -469,6 +475,7 @@
   });
 
   window.addEventListener('stashbox-notification-account-state', () => loadNotifications(true));
+  window.addEventListener('stashbox:artist-follow-changed', () => loadNotifications(true));
 
   createUi();
   loadNotifications();
