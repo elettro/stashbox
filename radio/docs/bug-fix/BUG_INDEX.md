@@ -16,7 +16,7 @@ Last updated: 2026-08-21
 | SR-BUG-0010 | Mobile admin navigation remains visible before hamburger activation | Dashboard | Medium | DEV | Fixed, verified | 2026-07-30 | - |
 | SR-BUG-0011 | VEC media flickers, video fails to trigger, and player can freeze | VEC Player | Critical | DEV V2 Mobile + Desktop | Fixed, mobile verification pending | 2026-08-11 | `ac16752d`, `7a2cd9a4`, `6d1cad31` |
 | SR-BUG-0012 | Desktop clean runtime removes login and account interface | Auth | High | DEV V2 Desktop | Fixed, verified | 2026-08-18 | `8f46d70a` |
-| SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Open, verification pending | 2026-08-18 | - |
+| SR-BUG-0013 | Desktop login disappears after boot and notifications do not work | Desktop Shell / Auth / Notifications | High | DEV V2 Desktop | Fixed, verification pending | 2026-08-18 | `208b50fa`, `af0ef6e4`, `2d57ce46` |
 | SR-BUG-0014 | Profile listening stats do not advance with desktop listening | Profile / Analytics | High | DEV V2 Desktop + Profile | Fixed, monitoring | 2026-08-19 | `9a4250fe` |
 | SR-BUG-0015 | Profile song clicks return home instead of opening the selected song | Profile / Player | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `545071ea` |
 | SR-BUG-0016 | Fast login fails with missing USERNAME on mobile and desktop | Auth / Login | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `2510866f`, `586ccd90` |
@@ -26,11 +26,11 @@ Last updated: 2026-08-21
 - `SR-BUG-0005` - Historical retained-share-count issue. User marked it verified and closed it on 2026-08-19. Reopen and trace one share end to end if it returns.
 - `SR-BUG-0011` - Mobilecontinuity1 preserves provisional artwork during exact 9:16 lookup, creates a fresh iPhone video element for every clip, and advances within 3.2 seconds when presented frames stop. Published on 2026-08-19. iPhone Safari verification remains pending.
 - `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the login/account repair verified and closed it on 2026-08-19.
-- `SR-BUG-0013` - Reopened 2026-08-21. Desktop Radio loads and logged-in Account state is present, but notifications are not showing. A notification repair caused a desktop load regression and was rolled back. Diagnose notification retrieval, state, trigger/sheet wiring, and rendering without destabilizing Radio boot.
 
 ## Fixed, awaiting verification
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
+- `SR-BUG-0013` - Repaired again 2026-08-21. V2 notification GET requests now send the existing Cognito auth headers with anonymous 401 fallback, notification event writes are authenticated, and the desktop controller no longer blocks the notification-sheet open/refetch path. Build `notificationsrepair4` is pushed to `main`; live logged-in desktop verification remains pending.
 - `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
 
 ## Closed
