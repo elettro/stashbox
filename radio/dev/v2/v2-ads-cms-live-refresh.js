@@ -11,6 +11,7 @@
   let lastForcedAt = 0;
   let lastProbeAt = 0;
   let probeInFlight = null;
+  let guaranteedRefreshTimer = 0;
 
   function forceAdFit(target = document) {
     const videos = target instanceof HTMLVideoElement
@@ -18,10 +19,10 @@
       : [...(target?.querySelectorAll?.('.v2-ad-break-player') || [])];
     videos.forEach(video => {
       if (!(video instanceof HTMLVideoElement) || !video.classList.contains('v2-ad-break-player')) return;
-      // Inline !important is intentional: ad creative must always use FIT even if
-      // another V2 video rule later tries to apply cover/full-screen cropping.
-      video.style.setProperty('width', '100%', 'important');
-      video.style.setProperty('height', '100%', 'important');
+      // Size the actual video box by its intrinsic ratio. This makes FIT physical,
+      // rather than relying on object-fit inside a viewport-sized video element.
+      video.style.setProperty('width', 'auto', 'important');
+      video.style.setProperty('height', 'auto', 'important');
       video.style.setProperty('max-width', '100%', 'important');
       video.style.setProperty('max-height', '100%', 'important');
       video.style.setProperty('object-fit', 'contain', 'important');
@@ -30,13 +31,28 @@
     });
   }
 
-  function forceRefresh() {
+  function forceRefresh({ guaranteed = false } = {}) {
     const now = Date.now();
-    if (now - lastForcedAt < MIN_FORCE_GAP_MS) return;
+    const remaining = MIN_FORCE_GAP_MS - (now - lastForcedAt);
+    if (remaining > 0) {
+      if (guaranteed) {
+        if (guaranteedRefreshTimer) window.clearTimeout(guaranteedRefreshTimer);
+        guaranteedRefreshTimer = window.setTimeout(() => {
+          guaranteedRefreshTimer = 0;
+          forceRefresh();
+        }, remaining + 30);
+      }
+      return;
+    }
     const ads = window.StashboxV2Ads;
     if (!ads?.refresh) return;
     lastForcedAt = now;
     Promise.resolve(ads.refresh()).then(() => forceAdFit()).catch(() => {});
+  }
+
+  function normalizeEnabled(value) {
+    if (value === true || value === 1) return true;
+    return ['true', '1', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
   }
 
   function normalizeSettings(data) {
@@ -45,7 +61,7 @@
     })() : data;
     const source = raw?.settings || raw || {};
     return {
-      enabled: source.ads_enabled === true,
+      enabled: normalizeEnabled(source.ads_enabled),
       breakMethod: source.break_method === 'seconds' ? 'seconds' : 'count',
       breakInterval: Number(source.break_interval || 1),
       adsPerBreak: Number(source.ads_per_break || 1),
@@ -72,7 +88,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const next = normalizeSettings(await response.json());
         const current = window.StashboxV2Ads?.state?.();
-        if (settingsDiffer(next, current)) forceRefresh();
+        if (settingsDiffer(next, current)) forceRefresh({ guaranteed: true });
       })
       .catch(() => {})
       .finally(() => { probeInFlight = null; });
@@ -80,23 +96,24 @@
   }
 
   // The Ads CMS lives on the same origin. Any saved settings change in another
-  // tab is an immediate signal to re-read the authoritative API state.
+  // tab is an immediate signal to re-read the authoritative API state. A rapid
+  // OFF -> ON sequence cannot be lost to the refresh throttle.
   window.addEventListener('storage', event => {
     if (event.key === SETTINGS_STORAGE_KEY) {
       probeCmsSettings(true);
-      window.setTimeout(forceRefresh, 120);
+      forceRefresh({ guaranteed: true });
     }
   });
 
   window.addEventListener('focus', () => {
     probeCmsSettings(true);
-    forceRefresh();
+    forceRefresh({ guaranteed: true });
     forceAdFit();
   });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       probeCmsSettings(true);
-      forceRefresh();
+      forceRefresh({ guaranteed: true });
       forceAdFit();
     }
   });
@@ -123,11 +140,11 @@
   });
 
   forceAdFit();
-  window.setTimeout(() => { probeCmsSettings(true); forceRefresh(); forceAdFit(); }, 400);
-  window.setTimeout(() => { probeCmsSettings(true); forceRefresh(); forceAdFit(); }, 1400);
+  window.setTimeout(() => { probeCmsSettings(true); forceRefresh({ guaranteed: true }); forceAdFit(); }, 400);
+  window.setTimeout(() => { probeCmsSettings(true); forceRefresh({ guaranteed: true }); forceAdFit(); }, 1400);
 
   window.StashboxV2AdsLiveRefresh = Object.freeze({
-    refresh: forceRefresh,
+    refresh: () => forceRefresh({ guaranteed: true }),
     probe: () => probeCmsSettings(true),
     forceFit: forceAdFit
   });
