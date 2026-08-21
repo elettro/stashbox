@@ -417,11 +417,13 @@
     const queue = buildQueue();
     if (!queue.length) return false;
     state.pendingBreak = { queue };
-    if (state.pendingTimer) window.clearTimeout(state.pendingTimer);
-    state.pendingTimer = window.setTimeout(() => {
-      state.pendingBreak = null;
+    // A CMS-scheduled break is an obligation, not a short-lived timing hint.
+    // Keep it pending until the next song actually starts, even if media/VEC
+    // initialization takes longer than a couple of seconds.
+    if (state.pendingTimer) {
+      window.clearTimeout(state.pendingTimer);
       state.pendingTimer = 0;
-    }, 2500);
+    }
     return true;
   }
 
