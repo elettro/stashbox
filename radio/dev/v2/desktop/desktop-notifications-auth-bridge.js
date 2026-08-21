@@ -6,6 +6,7 @@
   const API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/notifications';
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const nativeFetch = window.fetch.bind(window);
+  const app = document.getElementById('v2App');
 
   function readTokens() {
     try {
@@ -58,18 +59,22 @@
     if (!target) return;
 
     const sourceBadge = source?.querySelector('.v2-notification-count');
-    let badge = target.querySelector('.desktop-notification-count');
     const count = sourceBadge && !sourceBadge.hidden ? String(sourceBadge.textContent || '').trim() : '';
+    let badge = target.querySelector('.desktop-notification-count');
 
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'desktop-notification-count';
+      badge.hidden = true;
       target.appendChild(badge);
     }
 
-    badge.textContent = count;
-    badge.hidden = !count;
-    target.setAttribute('aria-label', count ? `${count} unread notifications` : 'Notifications');
+    if (badge.textContent !== count) badge.textContent = count;
+    const shouldHide = !count;
+    if (badge.hidden !== shouldHide) badge.hidden = shouldHide;
+
+    const label = count ? `${count} unread notifications` : 'Notifications';
+    if (target.getAttribute('aria-label') !== label) target.setAttribute('aria-label', label);
   }
 
   function installBadgeStyles() {
@@ -103,8 +108,19 @@
   installBadgeStyles();
   syncVisibleBadge();
 
-  const observer = new MutationObserver(syncVisibleBadge);
-  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  // Observe only the app. The visible desktop bell sits outside #v2App,
+  // so badge mirroring cannot recursively trigger this observer.
+  if (app) {
+    const observer = new MutationObserver(syncVisibleBadge);
+    observer.observe(app, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden']
+    });
+  }
+
   window.addEventListener('stashbox:v2-auth-changed', syncVisibleBadge);
   window.addEventListener('stashbox:v2-session-changed', syncVisibleBadge);
+  window.addEventListener('pageshow', syncVisibleBadge);
 })();
