@@ -57,10 +57,12 @@
   background: #000;
 }
 
-/* Ads always use FIT: show the complete ad creative with no crop. */
+/* True FIT: the video element itself keeps its intrinsic aspect ratio and is
+   only constrained by the viewer. This cannot become a viewport-sized COVER
+   box even if another generic video rule is loaded later. */
 .v2-ad-break-player {
-  width: 100% !important;
-  height: 100% !important;
+  width: auto !important;
+  height: auto !important;
   max-width: 100% !important;
   max-height: 100% !important;
   display: block;
