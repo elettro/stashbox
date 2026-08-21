@@ -29,18 +29,6 @@
     return Boolean(overlay && !overlay.hidden && overlay.classList.contains('is-open'));
   };
 
-  const open = () => {
-    const { overlay } = getUi();
-    if (!overlay) return false;
-
-    window.clearTimeout(closeTimer);
-    positionSheet();
-    overlay.hidden = false;
-    document.body.classList.add('v2-notifications-open');
-    window.requestAnimationFrame(() => overlay.classList.add('is-open'));
-    return true;
-  };
-
   const close = () => {
     const { overlay } = getUi();
     if (!overlay) return false;
@@ -59,13 +47,7 @@
 
     const bell = event.target.closest('#v2App .v2-notifications-trigger');
     if (bell) {
-      const { overlay } = getUi();
-      if (!overlay) return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (isOpen()) close();
-      else open();
+      positionSheet();
       return;
     }
 
