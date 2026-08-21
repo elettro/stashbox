@@ -1,8 +1,8 @@
 {
-  "v2_qualified_plays_live": "PASS",
-  "source_commit": "e84c2badb4a9e8c6b73cbd7c1c3246ba6df5d953",
-  "workflow_run_id": "32508050038",
-  "tested_at_utc": "2026-08-21T17:27:03.164Z",
+  "v2_qualified_plays_live": "FAIL",
+  "source_commit": "376a152ae2dad24e541cc77d93c2fc8cfa75a89f",
+  "workflow_run_id": "32508971419",
+  "tested_at_utc": "2026-08-21T17:38:56.131Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -10,26 +10,26 @@
   "results": [
     {
       "name": "mobile",
-      "ok": true,
-      "build": "mobile-playstats1-20260821-titlemode2-adscms1",
-      "songKey": "freedom-street-002b-stashbox",
+      "ok": false,
+      "build": "mobile-playstats1-20260821-titlemode2-adscms2",
+      "songKey": "",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 35,
-      "afterTotal": 36,
-      "qualifyingRequestCount": 1,
-      "qualifyingResponseCount": 1,
-      "persistAttempts": 1,
-      "persistSuccesses": 1,
-      "error": ""
+      "beforeTotal": 37,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "page.waitForFunction: Timeout 20000ms exceeded.\n    at runMode (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:119:16)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
     },
     {
       "name": "desktop",
       "ok": true,
-      "build": "desktop-clean-20260821-adscms1-fitfull2-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
+      "build": "desktop-clean-20260821-adscms2-fitfull2-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 36,
-      "afterTotal": 37,
+      "beforeTotal": 37,
+      "afterTotal": 38,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
