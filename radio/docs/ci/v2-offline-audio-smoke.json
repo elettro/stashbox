@@ -1,14 +1,16 @@
 {
-  "v2_offline_audio_smoke": "PASS",
-  "source_commit": "eb875cb6252afc5d7fd611c47a23ba8d4ab81acd",
-  "workflow_run_id": "32509991739",
-  "tested_at_utc": "2026-08-21T17:49:08.721Z",
+  "v2_offline_audio_smoke": "FAIL",
+  "source_commit": "07948b642d0f928064258a54759d92f1b8f6bcf3",
+  "workflow_run_id": "32510778054",
+  "tested_at_utc": "2026-08-21T17:58:07.963Z",
   "offline_build": "offlineaudio1-20260821",
+  "mobile_build": "mobile-playstats1-20260821-titlemode2-adscms2-offlineaudio3",
+  "main_hook_version": "20260821-offlineaudio3",
   "audio_delivery": {
-    "http_status": "206",
-    "access_control_allow_origin": "https://stashbox.com",
-    "content_type": "audio/mpeg",
+    "http_status": "",
+    "access_control_allow_origin": "",
+    "content_type": "",
     "accept_ranges": "",
-    "sample_bytes": 4096
+    "sample_bytes": 0
   }
 }
