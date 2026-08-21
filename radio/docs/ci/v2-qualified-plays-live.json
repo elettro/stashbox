@@ -1,8 +1,40 @@
 {
-  "v2_qualified_plays_live": "FAIL",
-  "source_commit": "05871507d5621058adbcb8413d0b044b7f3e66bf",
-  "workflow_run_id": "32504703223",
-  "tested_at_utc": "2026-08-21T16:47:29.235Z",
-  "chosen": null,
-  "results": []
+  "v2_qualified_plays_live": "PASS",
+  "source_commit": "898e9bba0803ee6009b52acfa9d137ace278f0ea",
+  "workflow_run_id": "32504750172",
+  "tested_at_utc": "2026-08-21T16:50:12.511Z",
+  "chosen": {
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)"
+  },
+  "results": [
+    {
+      "name": "mobile",
+      "ok": true,
+      "build": "mobile-playstats1-20260821-titlemode1",
+      "songKey": "freedom-street-002b-stashbox",
+      "songTitle": "Freedom Street (live)",
+      "beforeTotal": 30,
+      "afterTotal": 31,
+      "qualifyingRequestCount": 1,
+      "qualifyingResponseCount": 1,
+      "persistAttempts": 1,
+      "persistSuccesses": 1,
+      "error": ""
+    },
+    {
+      "name": "desktop",
+      "ok": true,
+      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
+      "songKey": "freedom-street-002b-stashbox",
+      "songTitle": "Freedom Street (live)",
+      "beforeTotal": 31,
+      "afterTotal": 32,
+      "qualifyingRequestCount": 1,
+      "qualifyingResponseCount": 1,
+      "persistAttempts": 1,
+      "persistSuccesses": 1,
+      "error": ""
+    }
+  ]
 }
