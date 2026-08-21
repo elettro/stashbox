@@ -6,6 +6,8 @@ on:
     paths:
       - 'radio/dev/v2/offline/**'
       - 'radio/dev/v2/offline-sw.js'
+      - 'radio/dev/v2/v2-offline-audio-hook.js'
+      - 'radio/dev/v2/index.html'
       - '.github/workflows/v2-offline-audio-smoke.yml'
   workflow_dispatch:
 
@@ -26,23 +28,29 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Wait for offline shell deployment
+      - name: Wait for offline audio deployment
         shell: bash
         run: |
           set -euo pipefail
-          expected='offlineaudio1-20260821'
+          expected_offline='offlineaudio1-20260821'
+          expected_mobile='mobile-playstats1-20260821-titlemode2-adscms2-offlineaudio3'
           for attempt in $(seq 1 24); do
             probe="offline-${GITHUB_RUN_ID}-${attempt}-$(date +%s)"
-            html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/offline/?deploy_probe=${probe}" || true)"
-            live="$(printf '%s' "$html" | grep -oP 'meta name="stashbox-offline-build" content="\K[^"]+' | head -1 || true)"
-            echo "attempt ${attempt}: offline_build=${live:-missing}"
-            if [[ "$live" == "$expected" ]]; then
-              echo 'Offline shell deployment confirmed.'
+            offline_html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/offline/?deploy_probe=${probe}" || true)"
+            mobile_html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/?deploy_probe=${probe}" || true)"
+            hook_js="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/v2-offline-audio-hook.js?v=20260821-offlineaudio3&deploy_probe=${probe}" || true)"
+            live_offline="$(printf '%s' "$offline_html" | grep -oP 'meta name="stashbox-offline-build" content="\K[^"]+' | head -1 || true)"
+            live_mobile="$(printf '%s' "$mobile_html" | grep -oP 'meta name="stashbox-v2-build" content="\K[^"]+' | head -1 || true)"
+            hook_ok='no'
+            if printf '%s' "$hook_js" | grep -q '20260821-offlineaudio3' && printf '%s' "$hook_js" | grep -q 'pathKey'; then hook_ok='yes'; fi
+            echo "attempt ${attempt}: offline=${live_offline:-missing} mobile=${live_mobile:-missing} hook=${hook_ok}"
+            if [[ "$live_offline" == "$expected_offline" && "$live_mobile" == "$expected_mobile" && "$hook_ok" == 'yes' ]]; then
+              echo 'Exact offline shell, mobile build, and download hook deployment confirmed.'
               exit 0
             fi
             sleep 15
           done
-          echo 'Timed out waiting for offline shell deployment.' >&2
+          echo 'Timed out waiting for exact offline audio deployment.' >&2
           exit 1
 
       - name: Verify downloadable audio CORS and range delivery
@@ -92,6 +100,8 @@ jobs:
             workflow_run_id: process.env.RUN_ID,
             tested_at_utc: new Date().toISOString(),
             offline_build: 'offlineaudio1-20260821',
+            mobile_build: 'mobile-playstats1-20260821-titlemode2-adscms2-offlineaudio3',
+            main_hook_version: '20260821-offlineaudio3',
             audio_delivery: {
               http_status: process.env.AUDIO_STATUS || '',
               access_control_allow_origin: process.env.AUDIO_ACAO || '',
