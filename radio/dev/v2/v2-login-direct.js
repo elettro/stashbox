@@ -3,6 +3,8 @@
 
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const VEC_API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
+  const FAST_LOGIN_SRC = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin2';
+  let fastLoginPromise = null;
 
   const readAccessToken = () => {
     try {
@@ -43,12 +45,48 @@
   };
 
   const loadFastLoginPath = () => {
-    if (window.StashboxV2LoginFastPath || document.querySelector('script[data-v2-login-fast-path]')) return;
-    const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin2';
-    script.defer = true;
-    script.dataset.v2LoginFastPath = 'true';
-    document.head.appendChild(script);
+    if (window.StashboxV2LoginFastPath) {
+      return Promise.resolve(window.StashboxV2LoginFastPath);
+    }
+    if (fastLoginPromise) return fastLoginPromise;
+
+    let script = document.querySelector('script[data-v2-login-fast-path]');
+    fastLoginPromise = new Promise((resolve, reject) => {
+      const finish = () => {
+        if (window.StashboxV2LoginFastPath) {
+          resolve(window.StashboxV2LoginFastPath);
+          return;
+        }
+        reject(new Error('Fast login module loaded without initializing.'));
+      };
+      const fail = () => reject(new Error('Fast login module failed to load.'));
+
+      if (!script) {
+        script = document.createElement('script');
+        script.src = FAST_LOGIN_SRC;
+        script.async = false;
+        script.dataset.v2LoginFastPath = 'true';
+        script.addEventListener('load', finish, { once: true });
+        script.addEventListener('error', fail, { once: true });
+        document.head.appendChild(script);
+        return;
+      }
+
+      script.addEventListener('load', finish, { once: true });
+      script.addEventListener('error', fail, { once: true });
+    }).catch(error => {
+      fastLoginPromise = null;
+      throw error;
+    });
+
+    return fastLoginPromise;
+  };
+
+  const showFastLoginLoadError = form => {
+    const message = form.querySelector('[data-v2-auth-message]');
+    if (!message) return;
+    message.textContent = 'Login is still starting. Please try again.';
+    message.classList.add('is-error');
   };
 
   const refreshVecRuntime = () => {
@@ -60,7 +98,7 @@
   };
 
   installAuthenticatedVecFetch();
-  loadFastLoginPath();
+  loadFastLoginPath().catch(() => {});
 
   const finishSuccessfulLogin = () => {
     const overlay = document.querySelector('.v2-auth-overlay');
@@ -83,6 +121,32 @@
   document.addEventListener('submit', event => {
     const form = event.target.closest('[data-v2-auth-form="login"]');
     if (!form) return;
+
+    // On a cold mobile page the login form can be submitted before the fast-login
+    // module finishes downloading. Hold that first submit for the module, then
+    // replay it through the fast handler instead of the legacy /radio/me path.
+    if (!window.StashboxV2LoginFastPath) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (form.dataset.v2FastLoginQueued === 'true') return;
+
+      form.dataset.v2FastLoginQueued = 'true';
+      loadFastLoginPath()
+        .then(() => {
+          delete form.dataset.v2FastLoginQueued;
+          if (!form.isConnected) return;
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+          } else {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          }
+        })
+        .catch(() => {
+          delete form.dataset.v2FastLoginQueued;
+          showFastLoginLoadError(form);
+        });
+      return;
+    }
 
     const previousToken = readAccessToken();
     let attempts = 0;
