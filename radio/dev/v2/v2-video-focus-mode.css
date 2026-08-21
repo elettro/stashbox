@@ -62,6 +62,7 @@
   display: block;
 }
 
+/* Legacy focus-mode styling remains for compatibility with older cached clients. */
 .v2-player.is-video-focus-mode .v2-player-header > *,
 .v2-player.is-video-focus-mode .v2-player-content,
 .v2-player.is-video-focus-mode .v2-li-player-rail,
@@ -75,6 +76,7 @@
 }
 
 .v2-player.is-video-focus-mode .v2-player-swipe-hint.is-visible,
+.v2-player.is-video-title-mode .v2-player-swipe-hint.is-visible,
 .v2-player.is-video-cinema-mode .v2-player-swipe-hint.is-visible {
   opacity: 1 !important;
   pointer-events: none !important;
@@ -86,15 +88,55 @@
 }
 
 .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after,
+.v2-player.is-video-title-mode .v2-mobile-vec-stage::after,
 .v2-player.is-video-cinema-mode .v2-mobile-vec-stage::after {
   opacity: 0 !important;
   transition: opacity .28s ease !important;
 }
 
 .v2-player.is-video-focus-mode .v2-player-backdrop,
+.v2-player.is-video-title-mode .v2-player-backdrop,
 .v2-player.is-video-cinema-mode .v2-player-backdrop {
   filter: none !important;
   -webkit-filter: none !important;
+}
+
+/*
+  Mobile Title Mode: keep only the identifying song information and core
+  transport controls. The retained UI is dimmed by 30% to 70% opacity.
+*/
+@media (max-width: 699px) {
+  .v2-player.is-video-title-mode .v2-player-header > * {
+    opacity: .70 !important;
+    transition: opacity .28s ease !important;
+  }
+
+  .v2-player.is-video-title-mode .v2-player-header .v2-li-player-head-actions,
+  .v2-player.is-video-title-mode .v2-li-player-rail,
+  .v2-player.is-video-title-mode .v2-li-merch-tray,
+  .v2-player.is-video-title-mode .v2-vec-clip-commerce,
+  .v2-player.is-video-title-mode .v2-mobile-vec-status,
+  .v2-player.is-video-title-mode .v2-swipe-hint,
+  .v2-player.is-video-title-mode .v2-video-focus-toggle {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity .28s ease !important;
+  }
+
+  .v2-player.is-video-title-mode .v2-player-content > * {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity .28s ease !important;
+  }
+
+  .v2-player.is-video-title-mode .v2-player-content > h2,
+  .v2-player.is-video-title-mode .v2-player-content .v2-artist-row,
+  .v2-player.is-video-title-mode .v2-player-content .v2-li-meta-chips,
+  .v2-player.is-video-title-mode .v2-player-content .v2-timeline,
+  .v2-player.is-video-title-mode .v2-player-content .v2-player-controls {
+    opacity: .70 !important;
+    pointer-events: auto !important;
+  }
 }
 
 /* Cinema Mode: preserve the full visual while leaving only a faint interface trace. */
@@ -151,6 +193,14 @@
   .v2-player.is-video-focus-mode .v2-swipe-hint,
   .v2-player.is-video-focus-mode .v2-player-shade,
   .v2-player.is-video-focus-mode .v2-mobile-vec-stage::after,
+  .v2-player.is-video-title-mode .v2-player-header > *,
+  .v2-player.is-video-title-mode .v2-player-content > *,
+  .v2-player.is-video-title-mode .v2-li-player-rail,
+  .v2-player.is-video-title-mode .v2-li-merch-tray,
+  .v2-player.is-video-title-mode .v2-vec-clip-commerce,
+  .v2-player.is-video-title-mode .v2-mobile-vec-status,
+  .v2-player.is-video-title-mode .v2-swipe-hint,
+  .v2-player.is-video-title-mode .v2-mobile-vec-stage::after,
   .v2-player.is-video-cinema-mode .v2-player-header > *,
   .v2-player.is-video-cinema-mode .v2-player-content > *,
   .v2-player.is-video-cinema-mode .v2-li-player-rail,
