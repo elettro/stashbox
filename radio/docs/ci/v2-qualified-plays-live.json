@@ -1,8 +1,8 @@
 {
   "v2_qualified_plays_live": "PASS",
-  "source_commit": "cb1b385230f4a61884678e9b61aabe20168b16fc",
-  "workflow_run_id": "32514224785",
-  "tested_at_utc": "2026-08-21T18:38:47.059Z",
+  "source_commit": "1fff982df90c92b26122927a908f7c68ae7fc903",
+  "workflow_run_id": "32515130440",
+  "tested_at_utc": "2026-08-21T18:49:19.338Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -11,11 +11,11 @@
     {
       "name": "mobile",
       "ok": true,
-      "build": "mobile-playstats1-20260821-titlemode2-adscms5-offlineaudio3",
+      "build": "mobile-playstats1-20260821-titlemode2-adscms6-offlineaudio3",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 44,
-      "afterTotal": 45,
+      "beforeTotal": 46,
+      "afterTotal": 47,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
@@ -25,11 +25,11 @@
     {
       "name": "desktop",
       "ok": true,
-      "build": "desktop-clean-20260821-adscms5-fitfull5-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
+      "build": "desktop-clean-20260821-adscms6-fitfull5-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 45,
-      "afterTotal": 46,
+      "beforeTotal": 47,
+      "afterTotal": 48,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
