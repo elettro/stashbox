@@ -1,58 +1,50 @@
 @media (min-width: 900px) {
   .v2-artist-row .v2-desktop-video-fit-toggle {
     flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    display: inline-grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-left: auto;
-    padding: 0;
+    padding: 5px 8px;
     border: 1px solid rgba(255,255,255,.18);
-    border-radius: 50%;
+    border-radius: 999px;
     background: rgba(5,6,7,.42);
-    color: rgba(255,255,255,.88);
-    cursor: pointer;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    transition: background .18s ease, border-color .18s ease, color .18s ease;
   }
-
-  .v2-artist-row .v2-desktop-video-fit-toggle:hover,
-  .v2-artist-row .v2-desktop-video-fit-toggle:focus-visible {
-    border-color: rgba(255,255,255,.38);
-    background: rgba(255,255,255,.11);
-    color: #fff;
-    outline: 0;
+  .v2-desktop-video-fit-toggle button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(255,255,255,.52);
+    font: 900 10px/1 Karla, sans-serif;
+    letter-spacing: .08em;
+    cursor: pointer;
   }
+  .v2-desktop-video-fit-toggle button:hover,
+  .v2-desktop-video-fit-toggle button:focus-visible,
+  .v2-desktop-video-fit-toggle button.is-active { color: #fff; outline: 0; }
+  .v2-desktop-video-fit-toggle button.is-active { text-shadow: 0 0 10px rgba(255,255,255,.28); }
+  .v2-desktop-video-fit-toggle i { width: 1px; height: 12px; background: rgba(255,255,255,.2); }
 
-  .v2-artist-row .v2-desktop-video-fit-toggle svg {
-    width: 18px;
-    height: 18px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    pointer-events: none;
-  }
-
-  .v2-player[data-desktop-video-fit="fill"] [data-mobile-vec-stage] video,
-  .v2-player[data-desktop-video-fit="fill"] [data-mobile-vec-stage] .v2-mobile-vec-media,
-  .v2-player[data-desktop-video-fit="fill"] video[data-desktop-minimal-rescue="true"] {
-    object-fit: cover !important;
-    object-position: center center !important;
-  }
-
+  /* FIT is the existing/current desktop presentation: complete media, no crop. */
   .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] video,
+  .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] img,
   .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] .v2-mobile-vec-media,
   .v2-player[data-desktop-video-fit="fit"] video[data-desktop-minimal-rescue="true"] {
     object-fit: contain !important;
     object-position: center center !important;
   }
-}
 
-@media (max-width: 899px) {
-  .v2-desktop-video-fit-toggle {
-    display: none !important;
+  /* FULL is opt-in only: fill the viewer, accepting edge crop when ratios differ. */
+  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] video,
+  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] img,
+  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] .v2-mobile-vec-media,
+  .v2-player[data-desktop-video-fit="full"] video[data-desktop-minimal-rescue="true"] {
+    object-fit: cover !important;
+    object-position: center center !important;
   }
+}
+@media (max-width: 899px) {
+  .v2-desktop-video-fit-toggle { display: none !important; }
 }
