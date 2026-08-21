@@ -76,9 +76,9 @@ jobs:
           PLAY_HEALTH_SONG_TITLE: Freedom Street
           PLAY_HEALTH_OUTPUT_DIR: artifacts/v2-qualified-plays
           PLAY_HEALTH_TIMEOUT_MS: '60000'
-          PLAY_TRACKER_TOKEN: '20260818-play10-2'
-          PLAY_MOBILE_BUILD: 'mobile-play10-2-'
-          PLAY_DESKTOP_BUILD: 'desktop-clean-20260818-play10-2-'
+          PLAY_TRACKER_TOKEN: '20260819-playstats1'
+          PLAY_MOBILE_BUILD: 'mobile-playstats1-'
+          PLAY_DESKTOP_BUILD: 'desktop-clean-'
         shell: bash
         run: |
           set +e
