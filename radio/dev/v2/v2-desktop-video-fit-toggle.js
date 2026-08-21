@@ -5,7 +5,7 @@
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopVideoFitToggle) return;
 
-  const STORAGE_KEY = 'stashbox_desktop_video_fit_v3';
+  const STORAGE_KEY = 'stashbox_desktop_video_fit_v4';
   const app = document.getElementById('v2App');
   if (!app) return;
 
@@ -46,13 +46,15 @@
     const next = mode === 'full' ? 'full' : 'fit';
     player.dataset.desktopVideoFit = next;
     applyVideoMode(player, next);
-    const control = player.querySelector('[data-desktop-video-fit-toggle]');
-    if (control) {
-      control.querySelectorAll('button').forEach(button => {
-        const active = button.dataset.fitMode === next;
-        button.classList.toggle('is-active', active);
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
+    const button = player.querySelector('[data-desktop-video-fit-toggle] button[data-fit-toggle]');
+    if (button) {
+      button.textContent = next === 'full' ? 'FULL' : 'FIT';
+      button.dataset.fitMode = next;
+      button.setAttribute('aria-pressed', next === 'full' ? 'true' : 'false');
+      button.setAttribute('aria-label', next === 'full'
+        ? 'Video view is FULL. Click to switch to FIT.'
+        : 'Video view is FIT. Click to switch to FULL.');
+      button.title = next === 'full' ? 'Switch video view to FIT' : 'Switch video view to FULL';
     }
     return true;
   }
@@ -67,15 +69,14 @@
       control = document.createElement('span');
       control.className = 'v2-desktop-video-fit-toggle';
       control.dataset.desktopVideoFitToggle = 'true';
-      control.setAttribute('role', 'group');
-      control.setAttribute('aria-label', 'Video display mode');
-      control.innerHTML = '<button type="button" data-fit-mode="fit">FIT</button><i aria-hidden="true"></i><button type="button" data-fit-mode="full">FULL</button>';
+      control.innerHTML = '<button type="button" data-fit-toggle data-fit-mode="fit" aria-pressed="false">FIT</button>';
       control.addEventListener('click', event => {
-        const button = event.target.closest('button[data-fit-mode]');
+        const button = event.target.closest('button[data-fit-toggle]');
         if (!button) return;
         event.preventDefault();
         event.stopPropagation();
-        const next = button.dataset.fitMode === 'full' ? 'full' : 'fit';
+        const current = readMode();
+        const next = current === 'full' ? 'fit' : 'full';
         saveMode(next);
         apply(next);
       });

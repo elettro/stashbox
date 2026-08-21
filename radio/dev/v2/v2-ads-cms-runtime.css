@@ -1,6 +1,6 @@
 .v2-ad-break-overlay[hidden] { display: none !important; }
 
-/* V2 ads use the same edge-to-edge viewer language as the current player. */
+/* V2 ads stay in the current edge-to-edge viewer, while the ad creative itself uses FIT. */
 .v2-ad-break-overlay {
   position: fixed;
   inset: 0;
@@ -49,21 +49,22 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  display: block;
+  display: grid;
+  place-items: center;
   overflow: hidden;
   border: 0;
   border-radius: 0;
   background: #000;
 }
 
-/* Ads always default FULL. Listener FIT/FULL video preference does not affect ad media. */
+/* Ads always use FIT: show the complete ad creative with no crop. */
 .v2-ad-break-player {
   width: 100% !important;
   height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   display: block;
-  object-fit: cover !important;
+  object-fit: contain !important;
   object-position: center center !important;
   background: #000;
 }
@@ -85,7 +86,9 @@
   padding: 24px;
   text-align: center;
   background-position: center;
-  background-size: cover;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-color: #000;
 }
 
 .v2-ad-audio-poster::before {
