@@ -1,40 +1,8 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "7f52d2b3f643e657c098bd917e5bcb2c30601f04",
-  "workflow_run_id": "32495421226",
-  "tested_at_utc": "2026-08-21T15:04:37.373Z",
-  "chosen": {
-    "songKey": "freedom-street-002b-stashbox",
-    "songTitle": "Freedom Street (live)"
-  },
-  "results": [
-    {
-      "name": "mobile",
-      "ok": false,
-      "build": "mobile-playstats1-20260819-twomodes1",
-      "songKey": "",
-      "songTitle": "",
-      "beforeTotal": 25,
-      "afterTotal": null,
-      "qualifyingRequestCount": 0,
-      "qualifyingResponseCount": 0,
-      "persistAttempts": 0,
-      "persistSuccesses": 0,
-      "error": "Error: mobile: unexpected live build mobile-playstats1-20260819-twomodes1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
-    },
-    {
-      "name": "desktop",
-      "ok": false,
-      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1",
-      "songKey": "",
-      "songTitle": "",
-      "beforeTotal": 25,
-      "afterTotal": null,
-      "qualifyingRequestCount": 0,
-      "qualifyingResponseCount": 0,
-      "persistAttempts": 0,
-      "persistSuccesses": 0,
-      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
-    }
-  ]
+  "source_commit": "ae433ffad469c44c6d356ac0deae62fbb0a8027e",
+  "workflow_run_id": "32496688087",
+  "tested_at_utc": "2026-08-21T15:17:43.536Z",
+  "chosen": null,
+  "results": []
 }
