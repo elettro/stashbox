@@ -1,8 +1,40 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "75efade7c4df63e4db0e41f58d4a79823e8668d7",
-  "workflow_run_id": "32497871476",
-  "tested_at_utc": "2026-08-21T15:31:26.150Z",
-  "chosen": null,
-  "results": []
+  "source_commit": "2d57ce460dd9dee6410b10e9b6d3bea9cf362743",
+  "workflow_run_id": "32500252521",
+  "tested_at_utc": "2026-08-21T15:57:34.690Z",
+  "chosen": {
+    "songKey": "freedom-street-002b-stashbox",
+    "songTitle": "Freedom Street (live)"
+  },
+  "results": [
+    {
+      "name": "mobile",
+      "ok": false,
+      "build": "mobile-playstats1-20260819-twomodes1",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 25,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: mobile: unexpected live build mobile-playstats1-20260819-twomodes1\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    },
+    {
+      "name": "desktop",
+      "ok": false,
+      "build": "desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4",
+      "songKey": "",
+      "songTitle": "",
+      "beforeTotal": 25,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "Error: desktop: unexpected live build desktop-clean-20260819-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall1-notificationsrepair4\n    at runMode (file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:87:52)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+    }
+  ]
 }
