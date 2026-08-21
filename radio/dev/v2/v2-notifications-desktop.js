@@ -6,7 +6,7 @@
   let closeTimer = 0;
 
   const getUi = () => ({
-    bell: document.querySelector('[data-desktop-notifications]') || document.querySelector('#v2App .v2-notifications-trigger'),
+    bell: document.querySelector('#v2App .v2-notifications-trigger'),
     overlay: document.querySelector('.v2-notification-overlay'),
     sheet: document.querySelector('.v2-notification-sheet')
   });
@@ -29,6 +29,18 @@
     return Boolean(overlay && !overlay.hidden && overlay.classList.contains('is-open'));
   };
 
+  const open = () => {
+    const { overlay } = getUi();
+    if (!overlay) return false;
+
+    window.clearTimeout(closeTimer);
+    positionSheet();
+    overlay.hidden = false;
+    document.body.classList.add('v2-notifications-open');
+    window.requestAnimationFrame(() => overlay.classList.add('is-open'));
+    return true;
+  };
+
   const close = () => {
     const { overlay } = getUi();
     if (!overlay) return false;
@@ -47,7 +59,13 @@
 
     const bell = event.target.closest('#v2App .v2-notifications-trigger');
     if (bell) {
-      positionSheet();
+      const { overlay } = getUi();
+      if (!overlay) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (isOpen()) close();
+      else open();
       return;
     }
 
