@@ -1,0 +1,14 @@
+{
+  "v2_offline_audio_smoke": "PASS",
+  "source_commit": "eb875cb6252afc5d7fd611c47a23ba8d4ab81acd",
+  "workflow_run_id": "32509991739",
+  "tested_at_utc": "2026-08-21T17:49:08.721Z",
+  "offline_build": "offlineaudio1-20260821",
+  "audio_delivery": {
+    "http_status": "206",
+    "access_control_allow_origin": "https://stashbox.com",
+    "content_type": "audio/mpeg",
+    "accept_ranges": "",
+    "sample_bytes": 4096
+  }
+}
