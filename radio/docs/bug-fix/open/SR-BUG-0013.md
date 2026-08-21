@@ -1,46 +1,61 @@
 # SR-BUG-0013 - Desktop login disappears after boot and notifications do not work
 
-Status: Open
+Status: Fixed
 Severity: High
 Area: Desktop Shell / Auth / Notifications
 Environment: DEV V2 Desktop
 Date reported: 2026-08-18
 Date originally fixed: 2026-08-19
 Date reopened: 2026-08-21
+Date repaired again: 2026-08-21
 Verification: Pending
 Reported by: User
 
 ## Current symptom
 
-Desktop Radio is loading again and the logged-in Account state is present, but the user does not see any notifications. The desktop notification bell remains part of the shell, yet current notifications are not visibly surfacing for the logged-in user.
+Desktop Radio loads and the logged-in Account state is present, but notifications stopped surfacing from the visible desktop bell.
 
-## Reopen reason
+## Verified root causes
 
-This record was previously closed after the persistent desktop shell repair restored the login/account and notification controls. The notification portion has regressed independently of the login/account portion, so SR-BUG-0013 is reopened rather than creating a duplicate bug.
+Two independent client regressions combined on the clean desktop runtime:
 
-On 2026-08-21 an attempted notification repair introduced a desktop load regression. That repair was rolled back to restore Radio availability. The player is live again, but notification delivery/display remains unresolved.
+1. `v2-notifications-sheet.js` still had the Cognito token helpers, but `requestNotifications()` no longer used them. Signed-in requests to `/radio/notifications` therefore behaved like anonymous requests and could only receive the public feed rather than the signed-in personalized feed.
+2. `v2-notifications-desktop.js` intercepted the hidden V2 notification trigger in the capture phase and called `stopImmediatePropagation()`. That prevented `v2-notifications-sheet.js` from owning the normal open path, including the forced refresh performed when the notification sheet opens.
 
-## Current finding
+The visible desktop bell remains outside the recoverable `#v2App` shell. `desktop-persistent-controls.js` forwards that bell click to the hidden V2 notification trigger after recovery renders the app.
 
-The shell control itself is no longer the primary failure. The remaining fault is somewhere between logged-in notification retrieval, notification state, trigger/sheet wiring, and rendering. The exact root cause is not yet verified.
+## Repair
 
-Do not reintroduce a document-wide or VEC-subtree MutationObserver. Do not globally monkey-patch fetch as part of another notification repair unless an isolated test proves it is required and does not affect Radio boot.
+The notification repair is isolated to the existing notification runtimes. No global `fetch` patch and no new MutationObserver were introduced.
 
-## Required regression checks
+- Restored authenticated notification GET requests directly inside `v2-notifications-sheet.js` using the existing Cognito access-token and ID-token helpers.
+- Preserved the historical anonymous fallback when an authenticated request returns 401.
+- Restored authenticated notification event writes for open/click/dismiss tracking.
+- Added refresh on artist-follow changes.
+- Changed the desktop notification controller so it only anchors the sheet to the visible persistent bell and handles close/toggle behavior. When the sheet is closed, it no longer blocks the notification-sheet listener, allowing `openSheet()` to own opening and feed refresh.
+- Cache-busted the two notification runtimes with desktop build `notificationsrepair4`.
 
-- Radio DEV V2 desktop loads normally before and after any notification change.
+## Repair commits
+
+- `208b50fa66d57cbc23791658ac8fd5511d79dcef` - Let V2 notification sheet own desktop open and refresh safely
+- `af0ef6e4ca193fa5f3a80df1c8fa907e0534783a` - Restore authenticated V2 notification feed without global fetch patch
+- `2d57ce460dd9dee6410b10e9b6d3bea9cf362743` - Publish isolated desktop notification repair
+
+## Required verification
+
+- Radio DEV V2 desktop loads normally before and after the notification change.
 - Logged-in Account state remains visible after full boot.
 - Notifications bell remains visible after full boot.
-- Clicking the visible desktop bell opens the notification sheet in the correct position.
-- The logged-in user receives the current notification feed expected for the account.
+- Clicking the visible desktop bell opens the notification sheet beneath the visible bell.
+- The logged-in user receives public plus account-eligible personalized notifications.
 - Anonymous fallback behavior remains functional where intended.
-- Unread notification count appears on the visible desktop bell when unread items exist.
 - Opening or refreshing notifications does not freeze, spin, or block the player runtime.
 - Closing and reopening the sheet refreshes cleanly without duplicate handlers or duplicate DOM.
+- Unread count behavior on the persistent visible desktop bell must be rechecked after feed visibility is verified.
 
 ## Recent rollback context
 
-The 2026-08-21 notification repair was removed after causing the DEV V2 desktop runtime to spin during load. The emergency rollback restored the prior stable desktop runtime and notification controller, then removed the added desktop notification auth bridge.
+An earlier 2026-08-21 attempt added a global notification fetch bridge and badge observer. That attempt caused the DEV V2 desktop runtime to spin during load and was fully rolled back before this isolated repair.
 
 Relevant rollback commits:
 
@@ -55,4 +70,4 @@ Relevant rollback commits:
 
 ## Status note
 
-Reopened by user direction on 2026-08-21. Login/account is currently working. Desktop notifications are not showing and remain an active High-priority bug pending isolated diagnosis and verification.
+Repair is pushed to `main` as `notificationsrepair4`. Keep this record open until live desktop verification confirms the player still boots normally and the logged-in notification feed opens and populates correctly.
