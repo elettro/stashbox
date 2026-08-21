@@ -46,13 +46,13 @@
     const next = mode === 'full' ? 'full' : 'fit';
     player.dataset.desktopVideoFit = next;
     applyVideoMode(player, next);
-    const control = player.querySelector('[data-desktop-video-fit-toggle]');
-    if (control) {
-      control.querySelectorAll('button').forEach(button => {
-        const active = button.dataset.fitMode === next;
-        button.classList.toggle('is-active', active);
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
+
+    const button = player.querySelector('[data-desktop-video-fit-toggle]');
+    if (button) {
+      button.dataset.mode = next;
+      button.textContent = next.toUpperCase();
+      button.setAttribute('aria-label', next === 'fit' ? 'Video mode FIT. Switch to FULL.' : 'Video mode FULL. Switch to FIT.');
+      button.title = next === 'fit' ? 'FIT — click for FULL' : 'FULL — click for FIT';
     }
     return true;
   }
@@ -62,26 +62,23 @@
     const row = player?.querySelector('.v2-artist-row');
     if (!player || !row) return false;
 
-    let control = row.querySelector('[data-desktop-video-fit-toggle]');
-    if (!control) {
-      control = document.createElement('span');
-      control.className = 'v2-desktop-video-fit-toggle';
-      control.dataset.desktopVideoFitToggle = 'true';
-      control.setAttribute('role', 'group');
-      control.setAttribute('aria-label', 'Video display mode');
-      control.innerHTML = '<button type="button" data-fit-mode="fit">FIT</button><i aria-hidden="true"></i><button type="button" data-fit-mode="full">FULL</button>';
-      control.addEventListener('click', event => {
-        const button = event.target.closest('button[data-fit-mode]');
-        if (!button) return;
+    let button = row.querySelector('[data-desktop-video-fit-toggle]');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'v2-desktop-video-fit-toggle';
+      button.dataset.desktopVideoFitToggle = 'true';
+      button.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
-        const next = button.dataset.fitMode === 'full' ? 'full' : 'fit';
+        const current = getPlayer()?.dataset.desktopVideoFit === 'full' ? 'full' : 'fit';
+        const next = current === 'fit' ? 'full' : 'fit';
         saveMode(next);
         apply(next);
       });
       const more = row.querySelector('.v2-li-song-more');
-      if (more) row.insertBefore(control, more);
-      else row.appendChild(control);
+      if (more) row.insertBefore(button, more);
+      else row.appendChild(button);
     }
 
     apply(readMode());
