@@ -10,7 +10,7 @@
   const MIN_VELOCITY = 0.28;
   const AXIS_LOCK_DISTANCE = 12;
   const COOLDOWN_MS = 650;
-  const VIEW_MODES = ['full', 'cinema'];
+  const VIEW_MODES = ['full', 'title', 'cinema'];
 
   let gesture = null;
   let lastSwitchAt = 0;
@@ -89,6 +89,7 @@
 
   function currentMode(player) {
     if (player?.classList.contains('is-video-cinema-mode')) return 'cinema';
+    if (player?.classList.contains('is-video-title-mode') || player?.classList.contains('is-video-focus-mode')) return 'title';
     return 'full';
   }
 
@@ -102,7 +103,7 @@
     if (!hint) return;
     const mode = currentMode(player);
     const visible = mode === 'cinema';
-    hint.querySelector('strong').textContent = visible ? 'Flick down for Full Intense' : '';
+    hint.querySelector('strong').textContent = visible ? 'Flick down for Full Interface' : '';
     hint.classList.toggle('is-visible', visible);
     hint.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
@@ -110,8 +111,9 @@
   function actionDetails(action) {
     if (action === 'shuffle') return { icon: '↑', label: 'Shuffle All', className: 'is-shuffle' };
     if (action === 'previous') return { icon: '←', label: 'Previous Song', className: 'is-previous' };
+    if (action === 'mode-title') return { icon: '↓', label: 'Title Mode', className: 'is-title' };
     if (action === 'mode-cinema') return { icon: '↓', label: 'Cinema Mode', className: 'is-cinema' };
-    if (action === 'mode-full') return { icon: '↓', label: 'Full Intense', className: 'is-focus-off' };
+    if (action === 'mode-full') return { icon: '↓', label: 'Full Interface', className: 'is-focus-off' };
     return { icon: '→', label: 'Next Song', className: 'is-next' };
   }
 
@@ -119,7 +121,7 @@
     if (!MOBILE.matches) return;
     const hint = ensureHint(player);
     const details = actionDetails(action);
-    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-cinema', 'is-focus-off', 'is-visible');
+    hint.classList.remove('is-next', 'is-previous', 'is-shuffle', 'is-focus-on', 'is-title', 'is-cinema', 'is-focus-off', 'is-visible');
     hint.classList.add(details.className);
     hint.querySelector('i').textContent = details.icon;
     hint.querySelector('strong').textContent = details.label;
@@ -169,17 +171,20 @@
   function applyPlayerMode(player, mode, { announce = true, source = 'flick-down' } = {}) {
     if (!player) return;
     clearCinemaPeek(player);
-    player.classList.remove('is-video-focus-mode', 'is-video-cinema-mode');
+    player.classList.remove('is-video-focus-mode', 'is-video-title-mode', 'is-video-cinema-mode');
+    if (mode === 'title') player.classList.add('is-video-title-mode');
     if (mode === 'cinema') player.classList.add('is-video-cinema-mode');
     player.dataset.playerViewMode = mode;
     lastModeChangeAt = Date.now();
     syncModeHint(player);
     if (announce) showHint(player, `mode-${mode}`);
     try {
-      navigator.vibrate?.(mode === 'cinema' ? [9, 18, 9, 18, 9] : 14);
+      if (mode === 'cinema') navigator.vibrate?.([9, 18, 9, 18, 9]);
+      else if (mode === 'title') navigator.vibrate?.([9, 16, 9]);
+      else navigator.vibrate?.(14);
     } catch (_) {}
     window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
-      detail: { active: mode === 'cinema', mode, source }
+      detail: { active: mode !== 'full', mode, source }
     }));
     window.dispatchEvent(new CustomEvent('stashbox:player-view-mode-change', {
       detail: { mode, source }
