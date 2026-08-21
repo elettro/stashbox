@@ -27,19 +27,15 @@
   .v2-desktop-video-fit-toggle button.is-active { text-shadow: 0 0 10px rgba(255,255,255,.28); }
   .v2-desktop-video-fit-toggle i { width: 1px; height: 12px; background: rgba(255,255,255,.2); }
 
-  /* FIT is the existing/current desktop presentation: complete media, no crop. */
+  /* FIT is the existing/current desktop video presentation: complete video, no crop. */
   .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] video,
-  .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] img,
-  .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] .v2-mobile-vec-media,
   .v2-player[data-desktop-video-fit="fit"] video[data-desktop-minimal-rescue="true"] {
     object-fit: contain !important;
     object-position: center center !important;
   }
 
-  /* FULL is opt-in only: fill the viewer, accepting edge crop when ratios differ. */
+  /* FULL is opt-in only for video: fill the viewer, accepting edge crop when ratios differ. */
   .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] video,
-  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] img,
-  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] .v2-mobile-vec-media,
   .v2-player[data-desktop-video-fit="full"] video[data-desktop-minimal-rescue="true"] {
     object-fit: cover !important;
     object-position: center center !important;
