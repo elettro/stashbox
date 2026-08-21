@@ -24,11 +24,28 @@
     return css.display !== 'none' && css.visibility !== 'hidden';
   }) || app.querySelector('[data-player]');
 
+  function applyVideoMode(player, mode) {
+    if (!player) return;
+    const fit = mode === 'full' ? 'cover' : 'contain';
+    player.querySelectorAll([
+      '.desktop-vec2-stage video',
+      '.desktop-vec2-layer video',
+      '[data-mobile-vec-stage] video',
+      'video[data-desktop-minimal-rescue="true"]'
+    ].join(',')).forEach(video => {
+      if (!(video instanceof HTMLVideoElement)) return;
+      video.style.setProperty('object-fit', fit, 'important');
+      video.style.setProperty('object-position', 'center center', 'important');
+      video.dataset.desktopVideoFitApplied = mode;
+    });
+  }
+
   function apply(mode) {
     const player = getPlayer();
     if (!player) return false;
     const next = mode === 'full' ? 'full' : 'fit';
     player.dataset.desktopVideoFit = next;
+    applyVideoMode(player, next);
     const control = player.querySelector('[data-desktop-video-fit-toggle]');
     if (control) {
       control.querySelectorAll('button').forEach(button => {
@@ -79,6 +96,18 @@
   install();
 
   window.addEventListener('stashbox:desktop-song-change', () => window.setTimeout(() => apply(readMode()), 0));
+
+  // VEC 2 creates/replaces video nodes as assets advance. Apply the selected
+  // mode to each real desktop video when the browser begins loading/playing it.
+  ['loadedmetadata', 'canplay', 'playing'].forEach(type => {
+    document.addEventListener(type, event => {
+      const video = event.target;
+      if (!(video instanceof HTMLVideoElement)) return;
+      const player = video.closest('#v2App [data-player]');
+      if (!player || !video.closest('.desktop-vec2-stage, [data-mobile-vec-stage]')) return;
+      applyVideoMode(player, player.dataset.desktopVideoFit === 'full' ? 'full' : readMode());
+    }, true);
+  });
 
   window.StashboxDesktopVideoFitToggle = Object.freeze({
     set: mode => {
