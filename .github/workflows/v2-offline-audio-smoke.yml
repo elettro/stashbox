@@ -1,0 +1,108 @@
+name: V2 Offline Audio Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'radio/dev/v2/offline/**'
+      - 'radio/dev/v2/offline-sw.js'
+      - '.github/workflows/v2-offline-audio-smoke.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: v2-offline-audio-smoke
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Wait for offline shell deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='offlineaudio1-20260821'
+          for attempt in $(seq 1 24); do
+            probe="offline-${GITHUB_RUN_ID}-${attempt}-$(date +%s)"
+            html="$(curl -fsSL --retry 2 -H 'Cache-Control: no-cache' "https://stashbox.com/radio/dev/v2/offline/?deploy_probe=${probe}" || true)"
+            live="$(printf '%s' "$html" | grep -oP 'meta name="stashbox-offline-build" content="\K[^"]+' | head -1 || true)"
+            echo "attempt ${attempt}: offline_build=${live:-missing}"
+            if [[ "$live" == "$expected" ]]; then
+              echo 'Offline shell deployment confirmed.'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'Timed out waiting for offline shell deployment.' >&2
+          exit 1
+
+      - name: Verify downloadable audio CORS and range delivery
+        id: audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          audio_url='https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/freedom-street-002b-stashbox/audio/20260725T042550873Z-a3637875-365f-43b2-9fae-4f09d5c29de9-Freedom-street--002b---Best-Intro---Mastered-Fire-Bass.stream320.mp3'
+          status="$(curl -sS -L -D /tmp/offline-audio-headers.txt -o /tmp/offline-audio-chunk.bin -w '%{http_code}' -H 'Origin: https://stashbox.com' -H 'Range: bytes=0-4095' "$audio_url")"
+          acao="$(tr -d '\r' < /tmp/offline-audio-headers.txt | awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/{sub(/^[^:]+:[[:space:]]*/,""); print; exit}')"
+          type="$(tr -d '\r' < /tmp/offline-audio-headers.txt | awk 'BEGIN{IGNORECASE=1} /^content-type:/{sub(/^[^:]+:[[:space:]]*/,""); print; exit}')"
+          ranges="$(tr -d '\r' < /tmp/offline-audio-headers.txt | awk 'BEGIN{IGNORECASE=1} /^accept-ranges:/{sub(/^[^:]+:[[:space:]]*/,""); print; exit}')"
+          bytes="$(wc -c < /tmp/offline-audio-chunk.bin | tr -d ' ')"
+          echo "HTTP=${status} ACAO=${acao:-missing} type=${type:-missing} ranges=${ranges:-missing} bytes=${bytes}"
+          [[ "$status" == '206' || "$status" == '200' ]]
+          [[ "$acao" == '*' || "$acao" == 'https://stashbox.com' ]]
+          [[ "$type" == audio/* || "$type" == 'application/octet-stream' ]]
+          [[ "$bytes" -gt 0 ]]
+          echo "http_status=$status" >> "$GITHUB_OUTPUT"
+          echo "acao=$acao" >> "$GITHUB_OUTPUT"
+          echo "content_type=$type" >> "$GITHUB_OUTPUT"
+          echo "accept_ranges=$ranges" >> "$GITHUB_OUTPUT"
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+
+      - name: Record offline audio smoke receipt
+        if: always()
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          AUDIO_STATUS: ${{ steps.audio.outputs.http_status }}
+          AUDIO_ACAO: ${{ steps.audio.outputs.acao }}
+          AUDIO_TYPE: ${{ steps.audio.outputs.content_type }}
+          AUDIO_RANGES: ${{ steps.audio.outputs.accept_ranges }}
+          AUDIO_BYTES: ${{ steps.audio.outputs.bytes }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          mkdir -p radio/docs/ci
+          node <<'NODE'
+          const fs = require('fs');
+          const receipt = {
+            v2_offline_audio_smoke: process.env.JOB_STATUS === 'success' ? 'PASS' : 'FAIL',
+            source_commit: process.env.SOURCE_SHA,
+            workflow_run_id: process.env.RUN_ID,
+            tested_at_utc: new Date().toISOString(),
+            offline_build: 'offlineaudio1-20260821',
+            audio_delivery: {
+              http_status: process.env.AUDIO_STATUS || '',
+              access_control_allow_origin: process.env.AUDIO_ACAO || '',
+              content_type: process.env.AUDIO_TYPE || '',
+              accept_ranges: process.env.AUDIO_RANGES || '',
+              sample_bytes: Number(process.env.AUDIO_BYTES || 0),
+            },
+          };
+          fs.writeFileSync('radio/docs/ci/v2-offline-audio-smoke.json', JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+          git add radio/docs/ci/v2-offline-audio-smoke.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Record V2 offline audio smoke [skip ci]"
+          git push
