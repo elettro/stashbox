@@ -6,7 +6,7 @@
   const DB_NAME = 'stashbox-radio-offline';
   const DB_VERSION = 1;
   const STORE = 'songs';
-  const SW_URL = '/radio/dev/v2/offline-sw.js?v=20260821-offlineaudio2';
+  const SW_URL = '/radio/dev/v2/offline-sw.js?v=20260821-offlineaudio3';
   const OFFLINE_URL = '/radio/dev/v2/offline/';
   const app = document.getElementById('v2App');
   if (!app) return;
@@ -76,7 +76,12 @@
     const hintedKey = clean(player?.dataset?.songKey || player?.dataset?.currentSongKey || player?.getAttribute?.('data-song-key'));
     const audioUrl = clean(audio?.currentSrc || audio?.src);
     if (!player || !audio || !title || !audioUrl) return null;
-    const id = trackerKey || hintedKey || `${slug(artist)}--${slug(title)}`;
+    let pathKey = '';
+    try {
+      const match = new URL(audioUrl, location.href).pathname.match(/\/tracks\/([^/]+)\//i);
+      if (match) pathKey = decodeURIComponent(match[1]);
+    } catch (_) {}
+    const id = trackerKey || hintedKey || pathKey || `${slug(artist)}--${slug(title)}`;
     const backdrop = player.querySelector('[data-backdrop]');
     let artworkUrl = '';
     const background = clean(backdrop?.style?.backgroundImage || getComputedStyle(backdrop || player).backgroundImage);
