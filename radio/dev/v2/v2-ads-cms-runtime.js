@@ -31,6 +31,7 @@
     durationMemory: Object.create(null),
     pendingBreak: null,
     pendingTimer: 0,
+    pendingObserver: null,
     active: false,
     queue: [],
     resumeAudio: null,
@@ -167,6 +168,7 @@
         if (!settings.ads_enabled) {
           state.completedSongs = 0;
           state.pendingBreak = null;
+          stopPendingTransitionWatch();
         } else if (!wasEnabled) {
           // Turning ads back on starts a fresh break cadence from the CMS state.
           state.completedSongs = 0;
@@ -182,6 +184,7 @@
         state.lastRefreshAt = Date.now();
         state.completedSongs = 0;
         state.pendingBreak = null;
+        stopPendingTransitionWatch();
         document.documentElement.dataset.v2AdsEnabled = 'false';
         console.warn('[V2 Ads] CMS unavailable; ads disabled for this listener session', error?.message || error);
         return snapshot();
@@ -437,11 +440,80 @@
     return true;
   }
 
+  function stopPendingTransitionWatch() {
+    if (state.pendingObserver) {
+      try { state.pendingObserver.disconnect(); } catch (_) {}
+      state.pendingObserver = null;
+    }
+  }
+
+  function pendingAudioCandidates() {
+    const audios = [...document.querySelectorAll('#v2App [data-player] audio')];
+    const visible = audios.filter(audio => !audio.closest('[data-player]')?.hidden);
+    return visible.length ? visible : audios;
+  }
+
+  function isNextSongCandidate(audio, pending) {
+    if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return false;
+    if (!pending) return false;
+    if (audio !== pending.sourceAudio) return true;
+    const currentSource = clean(audio.currentSrc || audio.src);
+    if (pending.sourceUrl && currentSource && currentSource !== pending.sourceUrl) return true;
+    // V2 may reuse one <audio> element for consecutive tracks. Once the element
+    // has left its ended state, it is the next playback generation even if the
+    // next song happens to resolve to the same URL.
+    return !audio.ended;
+  }
+
+  function tryClaimPendingTransition() {
+    if (!state.pendingBreak || state.active) return false;
+    const pending = state.pendingBreak;
+    for (const audio of pendingAudioCandidates()) {
+      if (!isNextSongCandidate(audio, pending)) continue;
+      if (claimPendingBreak(audio)) return true;
+    }
+    return false;
+  }
+
+  function watchForPendingTransition() {
+    stopPendingTransitionWatch();
+    if (!state.pendingBreak || state.active) return;
+    const root = document.getElementById('v2App');
+    if (root && typeof MutationObserver === 'function') {
+      state.pendingObserver = new MutationObserver(() => {
+        tryClaimPendingTransition();
+      });
+      try {
+        state.pendingObserver.observe(root, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['src', 'class', 'hidden']
+        });
+      } catch (_) {
+        stopPendingTransitionWatch();
+      }
+    }
+
+    // The document capture listener sees `ended` before V2's own target handler
+    // advances the queue. These checks run after that handler has had a chance to
+    // create/reuse the next audio element. The MutationObserver covers later DOM
+    // or src changes, so an owed CMS break cannot wait until the following song.
+    Promise.resolve().then(tryClaimPendingTransition);
+    window.setTimeout(tryClaimPendingTransition, 0);
+    window.setTimeout(tryClaimPendingTransition, 50);
+    window.setTimeout(tryClaimPendingTransition, 250);
+  }
+
   function armBreakAfterCompletedSong(audio) {
     if (!state.ready || !state.settings.ads_enabled || state.active) return false;
     const queue = buildQueue();
     if (!queue.length) return false;
-    state.pendingBreak = { queue };
+    state.pendingBreak = {
+      queue,
+      sourceAudio: audio,
+      sourceUrl: clean(audio?.currentSrc || audio?.src)
+    };
     // A CMS-scheduled break is an obligation, not a short-lived timing hint.
     // Keep it pending until the next song actually starts, even if media/VEC
     // initialization takes longer than a couple of seconds.
@@ -449,13 +521,14 @@
       window.clearTimeout(state.pendingTimer);
       state.pendingTimer = 0;
     }
+    watchForPendingTransition();
     return true;
   }
 
   // Mark a break as due when a song naturally completes. We deliberately do not
   // stop the normal V2 ended handlers: they retain full-play/history semantics and
-  // select the next song. The next player-audio lifecycle signal claims the owed
-  // break and pauses that selected next song before it meaningfully plays.
+  // select the next song. The next player-audio generation claims the owed break
+  // and pauses that selected next song before it meaningfully plays.
   document.addEventListener('ended', event => {
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return;
@@ -464,6 +537,15 @@
       state.completedSongs = 0;
       return;
     }
+
+    // CMS interval 1 is a hard rule: every natural completion owes one break.
+    // Do not route it through a counter that can drift across player generations.
+    if (state.settings.break_interval === 1) {
+      state.completedSongs = 0;
+      armBreakAfterCompletedSong(audio);
+      return;
+    }
+
     state.completedSongs += 1;
     if (state.completedSongs < state.settings.break_interval) return;
     state.completedSongs = 0;
@@ -474,7 +556,9 @@
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return false;
     if (!state.pendingBreak || state.active) return false;
     const pending = state.pendingBreak;
+    if (!isNextSongCandidate(audio, pending)) return false;
     state.pendingBreak = null;
+    stopPendingTransitionWatch();
     if (state.pendingTimer) {
       window.clearTimeout(state.pendingTimer);
       state.pendingTimer = 0;
@@ -492,10 +576,12 @@
 
   window.addEventListener('focus', () => {
     if (!state.active) refresh(false);
+    tryClaimPendingTransition();
   });
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !state.active) refresh(false);
+    if (!document.hidden) tryClaimPendingTransition();
   });
 
   function snapshot() {
@@ -521,6 +607,7 @@
       state.settings = { ...SAFE_SETTINGS };
       state.pendingBreak = null;
       state.completedSongs = 0;
+      stopPendingTransitionWatch();
       if (state.active) finishBreak();
     }
   });
