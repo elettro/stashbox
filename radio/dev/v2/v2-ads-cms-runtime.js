@@ -429,8 +429,8 @@
 
   // Mark a break as due when a song naturally completes. We deliberately do not
   // stop the normal V2 ended handlers: they retain full-play/history semantics and
-  // select the next song. The first play of that next song is synchronously paused
-  // and replaced by the ad break, then resumed from the beginning afterward.
+  // select the next song. The next player-audio lifecycle signal claims the owed
+  // break and pauses that selected next song before it meaningfully plays.
   document.addEventListener('ended', event => {
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return;
@@ -442,10 +442,9 @@
     armBreakAfterCompletedSong(audio);
   }, true);
 
-  document.addEventListener('play', event => {
-    const audio = event.target;
-    if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return;
-    if (!state.pendingBreak || state.active) return;
+  function claimPendingBreak(audio) {
+    if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App [data-player]')) return false;
+    if (!state.pendingBreak || state.active) return false;
     const pending = state.pendingBreak;
     state.pendingBreak = null;
     if (state.pendingTimer) {
@@ -454,8 +453,14 @@
     }
     try { audio.pause(); } catch (_) {}
     try { if (audio.currentTime < 1) audio.currentTime = 0; } catch (_) {}
-    startBreak(audio, pending.queue);
-  }, true);
+    return startBreak(audio, pending.queue);
+  }
+
+  ['loadstart', 'play', 'playing'].forEach(type => {
+    document.addEventListener(type, event => {
+      claimPendingBreak(event.target);
+    }, true);
+  });
 
   window.addEventListener('focus', () => {
     if (!state.active) refresh(false);
