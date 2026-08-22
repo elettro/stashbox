@@ -7,14 +7,17 @@
   const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API_ROOT}/radio/songs`;
   const TRACK_URL = `${API_ROOT}/radio/track`;
+  const SHARE_ROOT = '/radio/attempt2/';
+  const SHARE_SOURCE = 'radio_attempt2_desktop_copy_link';
+  const desktopQuery = window.matchMedia('(min-width: 900px)');
   const app = document.getElementById('v2App');
   if (!app) return;
 
   let songs = [];
-  let statusTimer = 0;
+  let toastTimer = 0;
 
   const clean = value => String(value ?? '').trim();
-  const norm = value => clean(value).toLowerCase().replace(/\s+/g, ' ');
+  const countValue = value => Math.max(0, Number.parseInt(String(value ?? '0').replace(/[^0-9-]/g, ''), 10) || 0);
 
   function rows(data) {
     if (typeof data?.body === 'string') {
@@ -37,26 +40,42 @@
   }
 
   function player() {
-    return app.querySelector('.v2-player:not([hidden])') || app.querySelector('[data-player]:not([hidden])');
+    const p = app.querySelector('[data-player]');
+    return p && !p.hidden ? p : null;
   }
 
-  function currentSong() {
+  function songElements() {
+    return [...app.querySelectorAll('[data-song]')];
+  }
+
+  function resolveCurrentKey() {
     const p = player();
-    if (!p) return null;
+    if (!p) return '';
+    const like = p.querySelector('[data-like]');
+    const share = p.querySelector('[data-share]');
+    const explicit = clean(
+      p.dataset.currentSongKey ||
+      p.dataset.songKey ||
+      like?.dataset.currentSongKey ||
+      like?.dataset.likeSongKey ||
+      share?.dataset.currentSongKey ||
+      share?.dataset.songKey
+    );
+    if (explicit && !explicit.startsWith('ui:')) return explicit;
 
-    const explicitKey = clean(p.dataset.songKey || p.getAttribute('data-song-key'));
-    if (explicitKey) {
-      const byKey = songs.find(song => song.key === explicitKey);
-      if (byKey) return byKey;
-    }
+    const queryKey = clean(new URLSearchParams(location.search).get('song'));
+    if (queryKey && songElements().some(node => clean(node.dataset.song) === queryKey)) return queryKey;
 
-    const title = norm(p.querySelector('[data-ptitle]')?.textContent);
-    const artist = norm(p.querySelector('[data-partist]')?.textContent);
-    if (!title) return null;
-
-    return songs.find(song => norm(song.title) === title && (!artist || norm(song.artist) === artist))
-      || songs.find(song => norm(song.title) === title)
-      || null;
+    const title = clean(p.querySelector('[data-ptitle]')?.textContent);
+    const artist = clean(p.querySelector('[data-partist]')?.textContent);
+    if (!title) return '';
+    const exact = songElements().find(node => {
+      const cardTitle = clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent);
+      const cardArtist = clean(node.querySelector('p')?.textContent || node.querySelector('small')?.textContent);
+      return cardTitle === title && (!artist || cardArtist === artist || cardArtist.includes(artist));
+    });
+    const titleOnly = exact || songElements().find(node => clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent) === title);
+    return clean(titleOnly?.dataset.song);
   }
 
   function findShareButton() {
@@ -78,64 +97,60 @@
     return count;
   }
 
-  function ensureCopyStatus(button) {
-    if (!button) return null;
-    let status = button.querySelector('[data-share-copy-status]');
-    if (!status) {
-      status = document.createElement('span');
-      status.setAttribute('data-share-copy-status', '');
-      status.setAttribute('role', 'status');
-      status.setAttribute('aria-live', 'polite');
-      status.setAttribute('aria-atomic', 'true');
-      status.className = 'v2-share-copy-status';
-      button.appendChild(status);
-    }
-    return status;
+  function currentSong() {
+    const p = player();
+    if (!p) return null;
+    const key = resolveCurrentKey();
+    if (!key) return null;
+    const known = songs.find(song => song.key === key);
+    if (known) return known;
+    const button = findShareButton();
+    return {
+      key,
+      title: clean(p.querySelector('[data-ptitle]')?.textContent),
+      artist: clean(p.querySelector('[data-partist]')?.textContent || 'Stashbox'),
+      shares: countValue(ensureCount(button)?.textContent)
+    };
   }
 
   function paintCurrentCount() {
     const button = findShareButton();
     const song = currentSong();
-    if (!button || !song) return;
-    const count = ensureCount(button);
-    if (!count) return;
-    count.textContent = String(song.shares);
+    if (!button) return;
+    button.dataset.desktopShareIsolation = 'true';
     button.setAttribute('title', 'Copy song link (C)');
-    button.setAttribute('aria-label', `Copy link for ${song.title}. ${song.shares} shares`);
+    button.setAttribute('aria-label', song ? `Copy link for ${song.title || 'this song'}. ${song.shares} shares` : 'Copy song link');
+    const count = ensureCount(button);
+    if (count && song) count.textContent = String(song.shares);
   }
 
   function songUrl(song) {
-    const url = new URL('/radio/attempt2/', location.origin);
+    const url = new URL(SHARE_ROOT, location.origin);
     if (song?.key) url.searchParams.set('song', song.key);
     return url.toString();
   }
 
-  function showCopyStatus(button, text) {
-    const status = ensureCopyStatus(button);
-    if (!status) return;
-    window.clearTimeout(statusTimer);
-    status.textContent = text;
-    status.classList.add('is-visible');
-    statusTimer = window.setTimeout(() => {
-      if (!status.isConnected) return;
-      status.classList.remove('is-visible');
-      window.setTimeout(() => {
-        if (status.isConnected && !status.classList.contains('is-visible')) status.textContent = '';
-      }, 180);
-    }, 1400);
+  function ensureToast() {
+    let toast = document.querySelector('[data-desktop-share-toast]');
+    if (toast) return toast;
+    toast = document.createElement('div');
+    toast.setAttribute('data-desktop-share-toast', '');
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.className = 'desktop-share-toast';
+    document.body.appendChild(toast);
+    return toast;
   }
 
-  function copyText(value, button) {
-    const copied = () => showCopyStatus(button, 'URL copied');
-
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(value).then(copied).catch(() => fallbackCopy(value, copied));
-      return;
-    }
-    fallbackCopy(value, copied);
+  function showToast(text) {
+    const toast = ensureToast();
+    window.clearTimeout(toastTimer);
+    toast.textContent = text;
+    toast.classList.add('is-visible');
+    toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 1400);
   }
 
-  function fallbackCopy(value, onSuccess) {
+  function fallbackCopy(value) {
     const input = document.createElement('textarea');
     input.value = value;
     input.setAttribute('readonly', '');
@@ -143,80 +158,58 @@
     input.style.left = '-9999px';
     input.style.top = '0';
     document.body.appendChild(input);
+    input.focus();
     input.select();
-    try {
-      if (document.execCommand('copy')) onSuccess();
-    } catch (_) {}
+    input.setSelectionRange(0, input.value.length);
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (_) {}
     input.remove();
+    return copied;
+  }
+
+  async function copyText(value) {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (_) {}
+    }
+    return fallbackCopy(value);
   }
 
   function persistShare(song) {
     if (!song?.key) return;
     const sessionId = `share-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    window.setTimeout(() => {
-      fetch(TRACK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          song_key: song.key,
-          event_type: 'share',
-          session_id: sessionId,
-          display_title: song.title,
-          artist: song.artist,
-          source: 'radio_dev_v2_desktop_copy_link'
-        }),
-        keepalive: true
-      }).catch(() => {});
-    }, 0);
+    fetch(TRACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        song_key: song.key,
+        event_type: 'share',
+        session_id: sessionId,
+        display_title: song.title,
+        artist: song.artist,
+        source: SHARE_SOURCE
+      }),
+      keepalive: true
+    }).catch(() => {});
   }
 
-  function onShareClick(event) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const button = event.currentTarget;
+  async function handleShare(button) {
     const song = currentSong();
-    if (!song) return;
-
-    song.shares += 1;
-    paintCurrentCount();
-    copyText(songUrl(song), button);
-    persistShare(song);
-  }
-
-  function replaceShareButton() {
-    if (!matchMedia('(min-width: 900px)').matches) return;
-    const original = findShareButton();
-    if (!original) return;
-
-    if (original.dataset.desktopShareIsolation === 'true') {
-      paintCurrentCount();
-      return;
+    if (!button || !song?.key) {
+      showToast('Share unavailable');
+      return false;
     }
-
-    const clone = original.cloneNode(true);
-    clone.dataset.desktopShareIsolation = 'true';
-    clone.setAttribute('title', 'Copy song link (C)');
-    clone.setAttribute('aria-label', 'Copy song link');
-    ensureCount(clone);
-    ensureCopyStatus(clone);
-    clone.addEventListener('click', onShareClick, false);
-    original.replaceWith(clone);
-    paintCurrentCount();
-  }
-
-  function loadSongs() {
-    return fetch(`${SONGS_URL}?limit=500&desktop_share_copy=${Date.now()}`, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' }
-    })
-      .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-      .then(payload => {
-        songs = rows(payload).map(normalizeSong).filter(song => song.key && song.title);
-        replaceShareButton();
-        paintCurrentCount();
-      })
-      .catch(() => {});
+    song.shares = Math.max(0, Number(song.shares || 0)) + 1;
+    const known = songs.find(item => item.key === song.key);
+    if (known && known !== song) known.shares = song.shares;
+    ensureCount(button).textContent = String(song.shares);
+    button.setAttribute('aria-label', `Copy link for ${song.title || 'this song'}. ${song.shares} shares`);
+    persistShare(song);
+    const copied = await copyText(songUrl(song));
+    showToast(copied ? 'URL copied' : 'Copy failed');
+    return copied;
   }
 
   function isTypingTarget(target) {
@@ -224,69 +217,65 @@
     return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
   }
 
-  function onShareHotkey(event) {
-    if (!matchMedia('(min-width: 900px)').matches || event.repeat) return;
+  document.addEventListener('click', event => {
+    if (!desktopQuery.matches) return;
+    const button = event.target.closest('#v2App [data-player] [data-share]');
+    if (!button || !player()?.contains(button)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void handleShare(button);
+  }, true);
+
+  document.addEventListener('keydown', event => {
+    if (!desktopQuery.matches || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (isTypingTarget(event.target)) return;
     if (String(event.key || '').toLowerCase() !== 'c') return;
-
-    replaceShareButton();
     const button = findShareButton();
-    if (!button || button.dataset.desktopShareIsolation !== 'true') return;
-
+    if (!button) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    button.click();
-  }
-
-  document.addEventListener('keydown', onShareHotkey, true);
+    void handleShare(button);
+  }, true);
 
   const style = document.createElement('style');
   style.textContent = `
     @media (min-width: 900px) {
-      .v2-player [data-share] {
-        display:inline-flex !important;
-        align-items:center !important;
-        gap:7px !important;
-      }
-      .v2-player [data-share] .v2-share-count {
-        display:inline-block;
-        font-size:13px;
-        line-height:1;
-        pointer-events:none;
-      }
-      .v2-player [data-share] .v2-share-copy-status {
-        display:inline-block;
-        max-width:0;
-        overflow:hidden;
-        color:#b9f6ce;
-        font:700 11px/1 Karla,Arial,sans-serif;
-        white-space:nowrap;
+      .v2-player [data-share] { display:inline-flex !important; align-items:center !important; gap:7px !important; }
+      .v2-player [data-share] .v2-share-count { display:inline-block; font-size:13px; line-height:1; pointer-events:none; }
+      .desktop-share-toast {
+        position:fixed;
+        left:50%;
+        bottom:28px;
+        z-index:40000;
+        transform:translate(-50%, 8px);
+        padding:9px 14px;
+        border:1px solid rgba(255,255,255,.16);
+        border-radius:999px;
+        background:rgba(10,12,15,.96);
+        color:#fff;
+        font:700 12px/1 Karla,Arial,sans-serif;
         opacity:0;
-        transform:translateX(-3px);
-        transition:max-width .18s ease, opacity .14s ease, transform .18s ease;
         pointer-events:none;
+        transition:opacity .14s ease, transform .14s ease;
       }
-      .v2-player [data-share] .v2-share-copy-status.is-visible {
-        max-width:72px;
-        opacity:1;
-        transform:translateX(0);
-      }
+      .desktop-share-toast.is-visible { opacity:1; transform:translate(-50%, 0); }
     }
   `;
   document.head.appendChild(style);
 
+  function loadSongs() {
+    return fetch(`${SONGS_URL}?limit=500&desktop_share=${Date.now()}`, { cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+      .then(payload => {
+        songs = rows(payload).map(normalizeSong).filter(song => song.key);
+        paintCurrentCount();
+      })
+      .catch(() => paintCurrentCount());
+  }
+
   loadSongs();
-
-  [0, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000].forEach(delay => {
-    window.setTimeout(() => {
-      replaceShareButton();
-      paintCurrentCount();
-    }, delay);
-  });
-
-  window.setInterval(() => {
-    replaceShareButton();
-    paintCurrentCount();
-  }, 500);
+  [0, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000].forEach(delay => window.setTimeout(paintCurrentCount, delay));
+  window.setInterval(paintCurrentCount, 750);
+  window.addEventListener('stashbox:v2-current-song', () => window.setTimeout(paintCurrentCount, 0));
 })();
