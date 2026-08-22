@@ -1,0 +1,81 @@
+name: Diagnose Radio 503 headers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.diagnose-radio-503-headers'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Capture gateway response and Lambda account state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_503_HEADERS_LATEST.txt
+          : > "$OUT"
+          echo "Radio 503 headers/account diagnostic" >> "$OUT"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
+          echo >> "$OUT"
+
+          probe() {
+            label="$1"; url="$2"
+            echo "[$label]" >> "$OUT"
+            curl -sS --max-time 25 -D "/tmp/${label}.headers" -o "/tmp/${label}.body" "$url" || true
+            echo "headers:" >> "$OUT"
+            sed -E 's/(x-amzn-requestid:).*/\1 <redacted>/I; s/(x-amz-apigw-id:).*/\1 <redacted>/I' "/tmp/${label}.headers" >> "$OUT" || true
+            echo "body:" >> "$OUT"
+            head -c 600 "/tmp/${label}.body" >> "$OUT" || true
+            echo >> "$OUT"
+            echo >> "$OUT"
+          }
+
+          probe dev_songs https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs
+          probe prod_songs https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs
+          probe prod_auth https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/auth/config
+
+          echo "[lambda account settings]" >> "$OUT"
+          aws lambda get-account-settings --region us-east-1 --output json >> "$OUT" 2>&1 || true
+          echo >> "$OUT"
+
+          echo "[function policies]" >> "$OUT"
+          for FN in stashbox-radio-api-dev-v2 stashbox-radio-api-prod-v2; do
+            echo "$FN" >> "$OUT"
+            aws lambda get-policy --function-name "$FN" --region us-east-1 --output json >> "$OUT" 2>&1 || true
+            echo >> "$OUT"
+          done
+          cat "$OUT"
+      - name: Record diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/RADIO_503_HEADERS_LATEST.txt /tmp/radio-503-headers.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp /tmp/radio-503-headers.txt radio/docs/diagnostics/RADIO_503_HEADERS_LATEST.txt
+            git add radio/docs/diagnostics/RADIO_503_HEADERS_LATEST.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio 503 header diagnostic [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
