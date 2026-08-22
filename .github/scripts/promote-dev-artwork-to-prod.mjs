@@ -97,13 +97,24 @@ function patchFromMedia(media) {
   };
 }
 
+async function devArtworkForSong(encodedKey, devToken) {
+  try {
+    return await request(`${DEV}/radio/songs/${encodedKey}/artwork-images`);
+  } catch (publicError) {
+    return request(`${DEV}/radio/admin/songs/${encodedKey}/artwork-images`, { token: devToken });
+  }
+}
+
 async function main() {
   const devToken = lambdaAdminToken(DEV_FUNCTION);
   const prodToken = lambdaAdminToken(PROD_FUNCTION);
 
+  // The DEV admin song-list route is currently unhealthy (503). Use the same
+  // public song catalog the approved DEV player uses, while keeping every PROD
+  // write protected by the production admin token.
   const [devSongsBody, prodSongsBody] = await Promise.all([
-    request(`${DEV}/admin/songs`, { token: devToken }),
-    request(`${PROD}/admin/songs`, { token: prodToken })
+    request(`${DEV}/radio/songs`),
+    request(`${PROD}/radio/songs`)
   ]);
   const devSongs = listSongs(devSongsBody);
   const prodSongs = listSongs(prodSongsBody);
@@ -130,7 +141,7 @@ async function main() {
     report.artwork_songs_examined += 1;
     const encoded = encodeURIComponent(key);
     try {
-      const devArtwork = await request(`${DEV}/radio/admin/songs/${encoded}/artwork-images`, { token: devToken });
+      const devArtwork = await devArtworkForSong(encoded, devToken);
       const patch = patchFromMedia(devArtwork?.media || {});
       const present = artworkFields.filter(field => String(patch[field] || '').trim());
       if (!present.length) continue;
