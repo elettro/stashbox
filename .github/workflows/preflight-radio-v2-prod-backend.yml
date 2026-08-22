@@ -29,7 +29,13 @@ jobs:
 
       - name: Install API dependencies
         working-directory: radio-api
-        run: npm ci
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: Validate canonical API source
         working-directory: radio-api
