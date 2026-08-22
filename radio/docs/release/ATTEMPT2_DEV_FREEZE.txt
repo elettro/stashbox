@@ -1,0 +1,6 @@
+Stashbox Radio Attempt #2 TRUE DEV freeze
+Frozen UTC: 2026-08-22T20:15:32Z
+Source commit: 6d9b9e3947c06ab64e71f378050da57356a32177
+Source frontend: radio/dev/v2/
+Desktop build marker: desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys4-notificationsrepair4
+Policy: immutable source for Attempt #2. Production cutover must derive from this source commit only.
