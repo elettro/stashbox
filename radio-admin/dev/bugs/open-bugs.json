@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-21T22:55:00-04:00",
+  "bugs": [
+    {
+      "id": "SR-BUG-0018",
+      "title": "Vertical ad creative is cropped instead of displayed with FIT",
+      "status": "Open",
+      "verification": "Failed",
+      "severity": "High",
+      "area": "Ads / Player",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-21",
+      "fixed_at": null,
+      "verified_at": null,
+      "symptom": "Vertical video ads remain cropped in the full-screen sponsored viewer and behave like COVER/fill instead of FIT/contain.",
+      "affected_examples": [
+        "Clementine - Album sponsored video",
+        "DEV V2 desktop sponsored overlay"
+      ],
+      "working_comparisons": [
+        "Expected full vertical frame centered with black side space"
+      ],
+      "root_cause": "Not established. Earlier FIT enforcement and cache-bust changes did not resolve the live failure.",
+      "fix_summary": "No verified fix. Prior FIT guards are recorded as attempted repairs only.",
+      "files_changed": [
+        "radio/dev/v2/v2-ads-cms-runtime.css",
+        "radio/dev/v2/v2-ads-cms-runtime.js",
+        "radio/dev/v2/v2-ads-cms-live-refresh.js",
+        "radio/dev/v2/v2-ads-fit-guard.js",
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/index.html"
+      ],
+      "commits": [
+        "44c961503d7c6013e68b02f089b94af5598a2a3a",
+        "474ffafef9558e8c671fd5f93d88252670b812cb",
+        "e48dcf2e320c2c4b0e736d94dd1fa2c8343d796d",
+        "8f219096ea0ca9ee42c132763cef2918237cc562"
+      ],
+      "related_bugs": [
+        "SR-BUG-0019"
+      ],
+      "record_path": "radio/docs/bug-fix/open/SR-BUG-0018.md",
+      "repair_playbook": null,
+      "future_repair": "Inspect live computed styles and the actual rendered video dimensions while the failing 9:16 ad is playing. Repair the final owner forcing viewport-fill geometry, then verify on desktop and mobile."
+    },
+    {
+      "id": "SR-BUG-0019",
+      "title": "Ads CMS break cadence is ignored and ads play every other song",
+      "status": "Open",
+      "verification": "Failed",
+      "severity": "High",
+      "area": "Ads / Player",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-21",
+      "fixed_at": null,
+      "verified_at": null,
+      "symptom": "The Ads CMS is set to run an ad after every song/video, but DEV V2 still inserts commercials every other song/video.",
+      "affected_examples": [
+        "DEV V2 desktop live sequence on 2026-08-21",
+        "Shared V2 Ads cadence/controller path"
+      ],
+      "working_comparisons": [
+        "CMS controller displays After every song/video",
+        "Expected Song -> Ad -> Song -> Ad sequence"
+      ],
+      "root_cause": "Not established. Existing transition-proof cadence guards did not produce end-to-end adherence to the live CMS setting.",
+      "fix_summary": "No verified fix. Prior cadence changes remain attempted repairs only until a live multi-song sequence passes.",
+      "files_changed": [
+        "radio/dev/v2/v2-ads-cms-runtime.js",
+        "radio/dev/v2/v2-ads-cms-live-refresh.js",
+        "radio/dev/v2/v2-ads-cms-cadence-guard.js",
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/index.html",
+        "radio-admin/dev/ads/index.html"
+      ],
+      "commits": [
+        "a876052c1b72b69dcf8ca5be8c25f1487caaa633",
+        "7f93027a70e88bcf9d32e190f42777453ddf45ba",
+        "b9d2ddfbd2ec47bb8fd5c0a29fcb810df772edf7",
+        "0d266ab34322dd8dd2c8a5802e10ba6ce8194f02"
+      ],
+      "related_bugs": [
+        "SR-BUG-0018"
+      ],
+      "record_path": "radio/docs/bug-fix/open/SR-BUG-0019.md",
+      "repair_playbook": null,
+      "future_repair": "Trace a three-song session from CMS settings fetch through natural completion, break-due state, and ad start. Compare live break_interval with runtime state before each completion and fix the first divergence."
+    }
+  ]
+}
