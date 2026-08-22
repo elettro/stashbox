@@ -22,7 +22,7 @@ function adminToken(functionName) {
 async function req(url, token = '') {
   const headers = { Accept: 'application/json' };
   if (token) headers['x-admin-token'] = token;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers });
   const text = await res.text();
   let body;
   try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text.slice(0,1000) }; }
