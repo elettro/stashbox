@@ -1,0 +1,138 @@
+name: Radio Attempt 2 apply frozen DEV data mirror
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-attempt2-data-apply'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-attempt2-data-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOURCE_SHA: 6d9b9e3947c06ab64e71f378050da57356a32177
+      TOOL_BRANCH: release/radio-dev-mirror-attempt2-20260822
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify successful Attempt 2 preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json
+          test -f radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json
+          jq -e '.ok == true and .source_sha == env.SOURCE_SHA and .missing == [] and .extra == [] and .mismatches == [] and .forbidden == []' radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json >/dev/null
+          jq -e '.ok == true and .mode == "preflight" and .preflight.missing_song_keys == [] and .preflight.prod_only_visible == []' radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json >/dev/null
+
+      - name: Load frozen data mirror tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TOOL_BRANCH"
+          git show "origin/$TOOL_BRANCH:.github/scripts/radio-attempt2-data-mirror.mjs" > /tmp/radio-attempt2-data-mirror.mjs
+          test -s /tmp/radio-attempt2-data-mirror.mjs
+          sha256sum /tmp/radio-attempt2-data-mirror.mjs | tee /tmp/ATTEMPT2_DATA_TOOL_SHA256.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Apply frozen DEV content mirror to PROD
+        id: mirror
+        continue-on-error: true
+        env:
+          APPLY: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          node /tmp/radio-attempt2-data-mirror.mjs 2>&1 | tee /tmp/ATTEMPT2_DATA_APPLY_LOG.txt
+
+      - name: Preserve PROD pre-apply backup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-attempt2-prod-data-backup-${{ github.run_id }}
+          path: |
+            radio/docs/diagnostics/ATTEMPT2_PROD_DATA_BACKUP.json
+            /tmp/ATTEMPT2_DATA_TOOL_SHA256.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce data parity
+        id: parity
+        if: steps.mirror.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .ok == true and
+            .mode == "apply" and
+            .fatal_error == null and
+            (.song_actions.failures | length) == 0 and
+            (.artwork.failures | length) == 0 and
+            (.media.failures | length) == 0 and
+            (.vec.failures | length) == 0 and
+            (.parity.missing_visible | length) == 0 and
+            (.parity.extra_visible | length) == 0 and
+            (.parity.artwork_mismatches | length) == 0 and
+            (.parity.recipe_mismatches | length) == 0
+          ' radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json >/dev/null
+
+      - name: Record apply result
+        if: always()
+        shell: bash
+        env:
+          MIRROR_OUTCOME: ${{ steps.mirror.outcome }}
+          PARITY_OUTCOME: ${{ steps.parity.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/attempt2-result
+          cp radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json /tmp/attempt2-result/ATTEMPT2_DATA_MIRROR.json 2>/dev/null || true
+          cp /tmp/ATTEMPT2_DATA_APPLY_LOG.txt /tmp/attempt2-result/ATTEMPT2_DATA_APPLY_LOG.txt 2>/dev/null || true
+          cp /tmp/ATTEMPT2_DATA_TOOL_SHA256.txt /tmp/attempt2-result/ATTEMPT2_DATA_TOOL_SHA256.txt 2>/dev/null || true
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "head_sha=$GITHUB_SHA"
+            echo "source_sha=$SOURCE_SHA"
+            echo "mirror=$MIRROR_OUTCOME"
+            echo "parity=$PARITY_OUTCOME"
+            echo "recorded_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > /tmp/attempt2-result/ATTEMPT2_DATA_APPLY_RUN.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/attempt2-result/* radio/docs/diagnostics/
+            git add radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_LOG.txt radio/docs/diagnostics/ATTEMPT2_DATA_TOOL_SHA256.txt radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt 2>/dev/null || true
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio Attempt 2 data mirror result [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
+
+      - name: Fail if mirror or parity failed
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.mirror.outcome }}' = 'success'
+          test '${{ steps.parity.outcome }}' = 'success'
