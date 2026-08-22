@@ -1,0 +1,26 @@
+{
+  "started_at": "2026-08-22T19:18:52.414Z",
+  "source": "radio_dev via TRUE DEV API",
+  "target": "radio via PROD v2 API",
+  "policy": "content-only; create missing songs; copy canonical artwork; never delete production songs or touch analytics/users",
+  "dev_song_count": 0,
+  "prod_song_count_before": 0,
+  "created_missing_songs": [],
+  "song_create_failures": [],
+  "artwork_songs_examined": 0,
+  "artwork_songs_with_any": 0,
+  "artwork_complete_six_in_dev": 0,
+  "artwork_patched": [],
+  "artwork_failures": [],
+  "ratio_source_counts": {
+    "song_artwork_url": 0,
+    "song_artwork_16x9_url": 0,
+    "song_artwork_9x16_url": 0,
+    "song_artwork_3x4_url": 0,
+    "song_artwork_4x5_url": 0,
+    "song_artwork_21x9_url": 0
+  },
+  "fatal_error": "Error: GET https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/songs -> HTTP 503: Service Unavailable\n    at request (file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:72:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Promise.all (index 0)\n    at async main (file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:104:41)\n    at async file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:161:3",
+  "finished_at": "2026-08-22T19:18:57.775Z",
+  "ok": false
+}
