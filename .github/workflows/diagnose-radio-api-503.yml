@@ -24,7 +24,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Diagnose Lambda and direct invocation
+      - name: Diagnose public and admin API health
         shell: bash
         run: |
           set -euo pipefail
@@ -35,35 +35,72 @@ jobs:
           echo "Run UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
           echo >> "$OUT"
 
-          diagnose() {
-            label="$1"; fn="$2"; stage="$3"
+          probe_env() {
+            label="$1"; fn="$2"; base="$3"
             echo "[$label]" >> "$OUT"
             aws lambda get-function-configuration --function-name "$fn" --region us-east-1 \
-              --query '{FunctionName:FunctionName,State:State,LastUpdateStatus:LastUpdateStatus,Timeout:Timeout,MemorySize:MemorySize,Runtime:Runtime,ReservedConcurrentExecutions:ReservedConcurrentExecutions,LastModified:LastModified}' \
+              --query '{FunctionName:FunctionName,State:State,LastUpdateStatus:LastUpdateStatus,Timeout:Timeout,MemorySize:MemorySize,Runtime:Runtime,LastModified:LastModified}' \
               --output json >> "$OUT" 2>&1 || true
-            echo "concurrency:" >> "$OUT"
-            aws lambda get-function-concurrency --function-name "$fn" --region us-east-1 >> "$OUT" 2>&1 || true
-            payload="$(printf '{"rawPath":"/%s/radio/songs","path":"/%s/radio/songs","requestContext":{"stage":"%s","http":{"method":"GET","path":"/%s/radio/songs"}},"headers":{},"queryStringParameters":null}' "$stage" "$stage" "$stage" "$stage")"
-            status="$(aws lambda invoke --function-name "$fn" --region us-east-1 --cli-binary-format raw-in-base64-out --payload "$payload" "/tmp/${label}.json" --query 'StatusCode' --output text 2>"/tmp/${label}.err" || true)"
-            echo "direct_invoke_status=$status" >> "$OUT"
-            if [ -s "/tmp/${label}.err" ]; then sed 's/[[:cntrl:]]//g' "/tmp/${label}.err" >> "$OUT"; fi
-            if [ -s "/tmp/${label}.json" ]; then
-              node -e "const fs=require('fs'); const b=JSON.parse(fs.readFileSync('/tmp/${label}.json','utf8')); let body=b.body; try{body=JSON.parse(body)}catch{}; console.log(JSON.stringify({statusCode:b.statusCode,headers:b.headers,body},null,2));" >> "$OUT" 2>&1 || cat "/tmp/${label}.json" >> "$OUT"
+
+            token="$(aws lambda get-function-configuration --function-name "$fn" --region us-east-1 --query 'Environment.Variables.ADMIN_TOKEN' --output text 2>/dev/null || true)"
+            if [ -z "$token" ] || [ "$token" = "None" ]; then
+              token="$(aws lambda get-function-configuration --function-name "$fn" --region us-east-1 --query 'Environment.Variables.RADIO_ADMIN_TOKEN' --output text 2>/dev/null || true)"
             fi
+
+            public_code="$(curl -sS --max-time 25 -o "/tmp/${label}-songs.json" -w '%{http_code}' "$base/radio/songs" || true)"
+            admin_code="$(curl -sS --max-time 25 -H "x-admin-token: $token" -o "/tmp/${label}-folders.json" -w '%{http_code}' "$base/radio/admin/visuals/folders" || true)"
+            recipe_code="$(curl -sS --max-time 25 -o "/tmp/${label}-recipe.json" -w '%{http_code}' "$base/radio/vec/recipe?song_key=jail-dead-or-both-21n-stashbox" || true)"
+
+            echo "public_songs_http=$public_code" >> "$OUT"
+            echo "admin_folders_http=$admin_code" >> "$OUT"
+            echo "public_recipe_http=$recipe_code" >> "$OUT"
+            node - "$label" >> "$OUT" <<'NODE'
+            const fs=require('fs');
+            const label=process.argv[2];
+            const read=(p)=>{try{return JSON.parse(fs.readFileSync(p,'utf8'))}catch{return {}}};
+            const songs=read(`/tmp/${label}-songs.json`);
+            const folders=read(`/tmp/${label}-folders.json`);
+            const recipe=read(`/tmp/${label}-recipe.json`);
+            const songRows=Array.isArray(songs)?songs:(songs.songs||songs.items||songs.data||[]);
+            const folderRows=Array.isArray(folders)?folders:(folders.folders||folders.items||folders.data||[]);
+            console.log(`songs_count=${Array.isArray(songRows)?songRows.length:0}`);
+            console.log(`folders_count=${Array.isArray(folderRows)?folderRows.length:0}`);
+            console.log(`songs_error=${songs.error||songs.message||''}`);
+            console.log(`folders_error=${folders.error||folders.message||''}`);
+            console.log(`recipe_error=${recipe.error||recipe.message||''}`);
+            console.log(`recipe_found=${Boolean(recipe.found || recipe.recipe)}`);
+            NODE
+
+            echo "recent_cloudwatch_errors:" >> "$OUT"
+            aws logs filter-log-events \
+              --log-group-name "/aws/lambda/$fn" \
+              --start-time "$(( $(date +%s) * 1000 - 20 * 60 * 1000 ))" \
+              --filter-pattern '?ERROR ?Error ?error ?timeout ?Timeout ?ECONN ?connection ?remaining ?slots ?pool' \
+              --limit 40 \
+              --query 'events[].message' \
+              --output text >> "$OUT" 2>&1 || true
             echo >> "$OUT"
           }
 
-          diagnose dev stashbox-radio-api-dev-v2 dev
-          diagnose prod stashbox-radio-api-prod-v2 prod-v2
+          probe_env dev stashbox-radio-api-dev-v2 https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          probe_env prod stashbox-radio-api-prod-v2 https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
           cat "$OUT"
+
       - name: Record diagnostic
         shell: bash
         run: |
           set -euo pipefail
+          cp radio/docs/diagnostics/RADIO_API_503_LATEST.txt /tmp/radio-api-503-report.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add radio/docs/diagnostics/RADIO_API_503_LATEST.txt
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Record Radio API 503 diagnostic [skip ci]'
-          git pull --rebase origin main
-          git push origin HEAD:main
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp /tmp/radio-api-503-report.txt radio/docs/diagnostics/RADIO_API_503_LATEST.txt
+            git add radio/docs/diagnostics/RADIO_API_503_LATEST.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio API 503 diagnostic [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
