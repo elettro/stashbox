@@ -1,0 +1,9 @@
+Radio production runtime diagnostic
+Run UTC: 2026-08-22T18:52:40Z
+
+root HTTP=200 BYTES=11594
+desktop HTTP=200 BYTES=8123
+songs HTTP=200 BYTES=153385
+songs COUNT=71
+auth_config HTTP=200 BYTES=221
+auth_config ENABLED=true HAS_POOL=true HAS_CLIENT=true
