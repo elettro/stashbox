@@ -1,0 +1,15 @@
+From https://github.com/elettro/stashbox
+ * branch              6d9b9e3947c06ab64e71f378050da57356a32177 -> FETCH_HEAD
+{
+  "source_sha": "6d9b9e3947c06ab64e71f378050da57356a32177",
+  "source_root": "radio/dev/v2",
+  "target_root": "radio/attempt2",
+  "source_file_count": 211,
+  "target_file_count": 211,
+  "missing": [],
+  "extra": [],
+  "mismatches": [],
+  "forbidden": [],
+  "ok": true,
+  "generated_at": "2026-08-22T20:24:10.472Z"
+}
