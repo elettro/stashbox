@@ -1,12 +1,6 @@
 name: One-time promote DEV artwork to PROD
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/one-time-promote-dev-artwork-to-prod.yml'
-      - '.github/scripts/promote-dev-artwork-to-prod.mjs'
-      - '.promote-dev-artwork-to-prod'
   workflow_dispatch:
 
 permissions:
