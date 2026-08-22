@@ -184,12 +184,23 @@
     playAt(cursor + 1);
   }
 
-  function transportClick(direction) {
-    const selector = direction === 'previous' ? '[data-prev]' : '[data-next]';
-    const button = app.querySelector(selector);
-    if (!button) return false;
-    button.click();
-    return true;
+  function adjacentHotkey(step) {
+    if (enabled) {
+      playAt(cursor + step);
+      return;
+    }
+
+    captureCatalog();
+    if (!catalogKeys.length) return;
+
+    const current = currentKey();
+    const currentIndex = catalogKeys.indexOf(current);
+    let nextIndex;
+
+    if (currentIndex < 0) nextIndex = step > 0 ? 0 : catalogKeys.length - 1;
+    else nextIndex = (currentIndex + step + catalogKeys.length) % catalogKeys.length;
+
+    triggerSong(catalogKeys[nextIndex]);
   }
 
   function injectButton() {
@@ -239,11 +250,11 @@
     }
 
     if (key === 'w') {
-      transportClick('previous');
+      adjacentHotkey(-1);
       return;
     }
 
-    transportClick('next');
+    adjacentHotkey(1);
   }, true);
 
   document.addEventListener('click', event => {
