@@ -19,6 +19,7 @@ jobs:
       AWS_REGION: us-east-1
       FUNCTION_NAME: stashbox-radio-api-prod-v2
       STACK_NAME: stashbox-radio-listener-auth-prod
+      CFN_ROLE_NAME: stashbox-radio-cloudformation-prod-auth-role
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,14 +58,25 @@ jobs:
       - name: Validate production Cognito template
         run: aws cloudformation validate-template --template-body file://infra/user-accounts/prod-cognito.yml --region "$AWS_REGION" >/dev/null
 
-      - name: Deploy production Cognito stack
+      - name: Deploy production Cognito stack through scoped service role
         shell: bash
         run: |
           set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          role_arn="arn:aws:iam::${account_id}:role/${CFN_ROLE_NAME}"
+          test "$(aws iam get-role --role-name "$CFN_ROLE_NAME" --query 'Role.Arn' --output text)" = "$role_arn"
+
+          current_status="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)"
+          if [ "$current_status" = 'ROLLBACK_COMPLETE' ]; then
+            aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$AWS_REGION" --role-arn "$role_arn"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$AWS_REGION"
+          fi
+
           aws cloudformation deploy \
             --template-file infra/user-accounts/prod-cognito.yml \
             --stack-name "$STACK_NAME" \
             --region "$AWS_REGION" \
+            --role-arn "$role_arn" \
             --no-fail-on-empty-changeset
 
       - name: Read production Cognito outputs through CloudFormation
@@ -73,6 +85,9 @@ jobs:
         run: |
           set -euo pipefail
           status="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" --query 'Stacks[0].StackStatus' --output text)"
+          role_arn="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" --query 'Stacks[0].RoleARN' --output text)"
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          test "$role_arn" = "arn:aws:iam::${account_id}:role/${CFN_ROLE_NAME}"
           case "$status" in
             CREATE_COMPLETE|UPDATE_COMPLETE) ;;
             *) echo "Unexpected auth stack status: $status" >&2; exit 1 ;;
