@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: radio-attempt2-preflight
+  group: radio-attempt2-preflight-v2
   cancel-in-progress: false
 
 jobs:
