@@ -1,0 +1,7 @@
+status=SOURCE_FROZEN
+source_commit=6d9b9e3947c06ab64e71f378050da57356a32177
+candidate_branch=release/radio-dev-mirror-attempt2-20260822
+live_cutover=NOT_STARTED
+prod_data_mirror=NOT_STARTED
+frontend_candidate=NOT_BUILT
+parity_gate=NOT_RUN
