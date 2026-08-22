@@ -1,0 +1,15 @@
+{
+  "entry": "radio/attempt2/index.html",
+  "buildMetaName": "stashbox-v2-build",
+  "requiredCoreScripts": [
+    "/radio/attempt2/v2-boot-guard.js",
+    "/radio/attempt2/v2-health.js",
+    "/radio/attempt2/v2-session-manager.js",
+    "/radio/attempt2/v2-recovery.js"
+  ],
+  "readySelector": "[data-song]",
+  "playerSelector": "[data-player]",
+  "audioSelector": "[data-audio]",
+  "minimumSongCards": 1,
+  "maximumStartupMs": 30000
+}

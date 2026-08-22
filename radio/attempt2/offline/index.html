@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050607">
+  <meta name="stashbox-offline-build" content="offlineplaylist2-20260822">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Stashbox Offline">
+  <link rel="manifest" href="/radio/attempt2/offline/manifest.webmanifest?v=20260821-offlineaudio1">
+  <title>Stashbox Offline</title>
+  <style>
+    :root{color-scheme:dark;--bg:#050607;--panel:#0e1115;--panel2:#15191f;--line:rgba(255,255,255,.12);--muted:rgba(255,255,255,.62);--orange:#ff9f0a;--green:#55df83;--red:#ff5f57}
+    *{box-sizing:border-box}
+    html{background:var(--bg);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    body{margin:0;min-height:100%;background:radial-gradient(circle at top right,rgba(255,159,10,.08),transparent 34%),var(--bg);color:#fff}
+    button,input,a{font:inherit}
+    button{color:inherit}
+    a{color:inherit;text-decoration:none}
+    [hidden]{display:none!important}
+    .offline-shell{width:min(920px,100%);margin:0 auto;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(40px + env(safe-area-inset-bottom,0px))}
+    .offline-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+    .offline-brand{display:flex;align-items:baseline;gap:9px;font-weight:950;letter-spacing:-.04em;font-size:29px;line-height:1}
+    .offline-brand span{color:var(--orange)}
+    .offline-brand small{font-size:10px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+    .connection-pill{flex:none;padding:7px 10px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.12em;background:rgba(255,255,255,.04)}
+    .connection-pill.is-online{border-color:rgba(85,223,131,.35);color:#8df0ae;background:rgba(85,223,131,.08)}
+    .connection-pill.is-offline{border-color:rgba(255,159,10,.38);color:#ffbd56;background:rgba(255,159,10,.09)}
+    .offline-player{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.025));padding:18px;margin-bottom:22px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .player-empty{display:grid;place-items:center;min-height:190px;text-align:center;color:var(--muted)}
+    .player-empty strong{display:block;color:#fff;font-size:20px;margin-bottom:7px}
+    .player-ready{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center}
+    .now-art{aspect-ratio:1;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#1e2228,#090b0d);display:grid;place-items:center;border:1px solid var(--line)}
+    .now-art img,.offline-track-art img{width:100%;height:100%;object-fit:cover;display:block}
+    .offline-art-fallback{display:grid;place-items:center;width:100%;height:100%;font-weight:950;letter-spacing:.02em;color:rgba(255,255,255,.82);background:linear-gradient(135deg,#272d35,#111317)}
+    .now-copy{min-width:0}
+    .now-genre{display:inline-flex;margin-bottom:6px;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+    .now-copy h1{font-size:clamp(25px,6vw,42px);line-height:.98;margin:0 0 6px;letter-spacing:-.04em;overflow-wrap:anywhere}
+    .now-copy p{margin:0;color:var(--muted);font-weight:700}
+    .timeline{margin-top:18px}
+    .timeline input{width:100%;accent-color:var(--orange)}
+    .timeline-row{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+    .transport{display:grid;grid-template-columns:repeat(5,minmax(44px,1fr));align-items:center;gap:8px;margin-top:12px}
+    .transport button{min-height:48px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.05);font-weight:900;cursor:pointer}
+    .transport button.is-active{border-color:rgba(255,159,10,.5);color:var(--orange);background:rgba(255,159,10,.1)}
+    .transport #playPause{font-size:20px;background:#fff;color:#050607;border-color:#fff}
+    .section{margin-top:24px}
+    .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .section-head h2{font-size:22px;line-height:1;margin:0;letter-spacing:-.03em}
+    .section-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+    .metric{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .metric span{padding:6px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10px;font-weight:800}
+    .offline-message,.catalog-error{padding:14px 15px;border:1px solid rgba(255,159,10,.25);border-radius:14px;background:rgba(255,159,10,.06);color:#ffd18b;font-size:13px;line-height:1.4;margin-bottom:12px}
+    .catalog-error{border-color:rgba(255,95,87,.25);background:rgba(255,95,87,.06);color:#ffaaa4}
+    .offline-empty{padding:26px 16px;border:1px dashed var(--line);border-radius:18px;text-align:center;color:var(--muted)}
+    .offline-list{display:grid;gap:9px}
+    .offline-track{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:8px;min-width:0}
+    .offline-track.is-current{border-color:rgba(255,159,10,.5);box-shadow:inset 0 0 0 1px rgba(255,159,10,.08)}
+    .offline-track-main{display:grid;grid-template-columns:58px minmax(0,1fr) 34px;align-items:center;gap:11px;border:0;background:transparent;text-align:left;padding:0;min-width:0;cursor:pointer}
+    .offline-track-art{display:grid;place-items:center;width:58px;height:58px;overflow:hidden;border-radius:13px;background:var(--panel2)}
+    .offline-track-copy{min-width:0;display:block}
+    .offline-track-copy strong,.offline-track-copy small,.offline-track-copy em{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .offline-track-copy strong{font-size:14px}
+    .offline-track-copy small{margin-top:3px;color:var(--muted);font-size:11px}
+    .offline-track-copy em{margin-top:4px;color:rgba(255,255,255,.4);font-size:10px;font-style:normal}
+    .offline-track-play{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#fff;color:#050607;font-size:12px}
+    .offline-remove{width:42px;height:42px;border:0;border-radius:12px;background:rgba(255,255,255,.05);color:var(--muted);font-size:20px;cursor:pointer}
+    .search{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 13px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+    .search input{width:100%;min-height:46px;border:0;outline:0;background:transparent;color:#fff;font-size:16px}
+    .offline-available{grid-template-columns:58px minmax(0,1fr) auto;padding:9px}
+    .offline-download-button{min-width:94px;min-height:42px;padding:0 12px;border:1px solid rgba(255,159,10,.42);border-radius:12px;background:rgba(255,159,10,.1);color:#ffbd56;font-size:11px;font-weight:900;cursor:pointer}
+    .offline-download-button.is-downloaded{border-color:rgba(85,223,131,.3);background:rgba(85,223,131,.08);color:#8df0ae}
+    .offline-download-button:disabled{cursor:default;opacity:.72}
+    .offline-footer{display:flex;justify-content:center;gap:10px;margin-top:30px;color:var(--muted);font-size:11px;text-align:center}
+    .offline-footer a{padding:9px 12px;border:1px solid var(--line);border-radius:999px}
+    .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:99;max-width:calc(100vw - 28px);padding:11px 14px;border:1px solid rgba(85,223,131,.35);border-radius:999px;background:rgba(8,12,10,.95);color:#baf6cd;font-size:12px;font-weight:800;opacity:0;pointer-events:none;transform:translate(-50%,12px);transition:.2s ease}
+    .toast.is-visible{opacity:1;transform:translate(-50%,0)}
+    .toast.is-error{border-color:rgba(255,95,87,.4);background:rgba(25,8,8,.96);color:#ffc0bc}
+    @media(max-width:600px){.offline-shell{padding-left:12px;padding-right:12px}.offline-header{align-items:flex-start}.offline-brand{font-size:25px}.player-ready{grid-template-columns:84px 1fr;gap:13px}.offline-player{border-radius:20px;padding:14px}.now-copy h1{font-size:28px}.transport{gap:6px}.transport button{border-radius:12px}.offline-available{grid-template-columns:50px minmax(0,1fr) auto}.offline-available .offline-track-art{width:50px;height:50px}.offline-download-button{min-width:82px;padding:0 8px}.section-head{align-items:flex-start;flex-direction:column}.metric{justify-content:flex-start}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.toast{transition:none}}
+  </style>
+</head>
+<body>
+  <main class="offline-shell">
+    <header class="offline-header">
+      <a class="offline-brand" href="/radio/attempt2/" aria-label="Stashbox Radio"><b>STASH<span>BOX</span></b><small>Offline Audio</small></a>
+      <span class="connection-pill" id="connectionState">CHECKING</span>
+    </header>
+
+    <section class="offline-player" aria-label="Offline audio player">
+      <div class="player-empty" id="playerEmpty"><div><strong>Your device is the player.</strong><span>Choose one of your downloaded songs below.</span></div></div>
+      <div class="player-ready" id="playerReady" hidden>
+        <div class="now-art" id="nowArt"><span class="offline-art-fallback">SB</span></div>
+        <div class="now-copy">
+          <span class="now-genre" id="nowGenre">Offline Audio</span>
+          <h1 id="nowTitle">Downloaded Song</h1>
+          <p id="nowArtist">Stashbox</p>
+          <div class="timeline">
+            <input id="scrub" type="range" min="0" max="0" value="0" step="0.1" aria-label="Song position">
+            <div class="timeline-row"><span id="nowTime">0:00</span><span id="totalTime">0:00</span></div>
+          </div>
+          <div class="transport">
+            <button type="button" id="shuffleToggle" aria-label="Shuffle">⤨</button>
+            <button type="button" id="previousTrack" aria-label="Previous song">◀◀</button>
+            <button type="button" id="playPause" aria-label="Play">▶</button>
+            <button type="button" id="nextTrack" aria-label="Next song">▶▶</button>
+            <button type="button" id="repeatToggle" aria-label="Repeat">↻</button>
+          </div>
+        </div>
+      </div>
+      <audio id="offlineAudio" preload="metadata" playsinline></audio>
+    </section>
+
+    <section class="section" aria-labelledby="downloadsTitle">
+      <div class="section-head">
+        <div><h2 id="downloadsTitle">Downloaded Songs</h2><p>These audio files live on this device.</p></div>
+        <div class="metric"><span><b id="downloadCount">0</b> songs</span><span id="downloadStorage">0 B</span></div>
+      </div>
+      <div class="offline-message" id="offlineMessage" hidden>You are offline. Everything in this section plays directly from this device with no Stashbox server connection.</div>
+      <div class="offline-empty" id="downloadedEmpty">No songs downloaded yet. Come back here while online and save a few.</div>
+      <div class="offline-list" id="downloadedList"></div>
+    </section>
+
+    <section class="section" id="onlineLibrary">
+      <div class="section-head">
+        <div><h2>Save More Songs</h2><p>Download once, then play locally whenever you want.</p></div>
+        <div class="metric"><span><b id="availableCount">0</b> available</span></div>
+      </div>
+      <div class="search"><span aria-hidden="true">⌕</span><input id="catalogSearch" type="search" placeholder="Search song, artist, or genre" autocomplete="off"></div>
+      <div class="catalog-error" id="catalogError" hidden></div>
+      <div class="offline-list" id="availableList"></div>
+    </section>
+
+    <footer class="offline-footer"><a href="/radio/attempt2/">Back to Radio</a><span>Audio only · stored locally</span></footer>
+  </main>
+  <div class="toast" id="offlineToast" role="status" aria-live="polite"></div>
+  <script src="/radio/attempt2/desktop/browser-audio-map.js?v=20260818-stream320-80"></script>
+  <script src="/radio/attempt2/offline/offline.js?v=20260822-offlineplaylist2"></script>
+</body>
+</html>

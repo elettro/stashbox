@@ -1,0 +1,45 @@
+@media (min-width: 700px) {
+  body.radio-dev-v2:not(.v2-alt-player) .v2-player-backdrop {
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    background-position: center center !important;
+    background-size: cover !important;
+    background-repeat: no-repeat !important;
+    transform: scale(1.01) !important;
+  }
+
+  body.radio-dev-v2:not(.v2-alt-player) .v2-player-shade::before {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+  }
+
+  body.radio-dev-v2:not(.v2-alt-player) .v2-mobile-vec-stage {
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  body.radio-dev-v2:not(.v2-alt-player) .v2-mobile-vec-stage img,
+  body.radio-dev-v2:not(.v2-alt-player) .v2-mobile-vec-stage video {
+    width: 100vw !important;
+    max-width: none !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+
+  body.radio-dev-v2:not(.v2-alt-player) .v2-player-content > h2 {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+}

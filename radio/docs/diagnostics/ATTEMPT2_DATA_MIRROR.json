@@ -1,0 +1,46 @@
+{
+  "started_at": "2026-08-22T20:21:43.564Z",
+  "mode": "preflight",
+  "source": "TRUE DEV radio_dev",
+  "target": "PROD radio",
+  "song_actions": {
+    "create": [],
+    "update": [],
+    "archive": [],
+    "failures": []
+  },
+  "artwork": {
+    "songs": 0,
+    "ratios": 0,
+    "failures": []
+  },
+  "media": {
+    "copied": 0,
+    "reused": 0,
+    "external": 0,
+    "failures": []
+  },
+  "vec": {
+    "folders_created": 0,
+    "folders_updated": 0,
+    "folder_assets_created": 0,
+    "folder_assets_reused": 0,
+    "direct_assets_created": 0,
+    "direct_assets_reused": 0,
+    "recipes_saved": 0,
+    "settings_saved": 0,
+    "failures": []
+  },
+  "parity": {},
+  "fatal_error": null,
+  "preflight": {
+    "dev_song_count": 89,
+    "prod_song_count": 89,
+    "dev_folder_count": 22,
+    "prod_folder_count": 23,
+    "missing_song_keys": [],
+    "prod_only_visible": []
+  },
+  "finished_at": "2026-08-22T20:23:49.981Z",
+  "ok": true
+}

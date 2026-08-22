@@ -1,0 +1,81 @@
+html[data-vec-engine="2"] [data-mobile-vec-stage] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.vec2-stage {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background: #050607;
+  isolation: isolate;
+  pointer-events: none !important;
+  user-select: none;
+}
+
+.vec2-stage,
+.vec2-stage * {
+  pointer-events: none !important;
+}
+
+.vec2-stage[hidden] {
+  display: none !important;
+}
+
+.vec2-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+.vec2-layer.is-current,
+.vec2-layer.is-ready.is-promoted {
+  opacity: 1;
+  visibility: visible;
+}
+
+.vec2-layer img,
+.vec2-layer video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  background: #050607;
+  pointer-events: none;
+}
+
+.vec2-stage[data-state="ARTWORK_INTRO"] .vec2-artwork {
+  opacity: 1;
+  visibility: visible;
+}
+
+.vec2-artwork {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: contain;
+  background-color: #050607;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.vec2-layer[data-slot="a"] { z-index: 2; }
+.vec2-layer[data-slot="b"] { z-index: 3; }
+
+.vec2-stage[data-state="PLAYING_VIDEO"] .vec2-artwork,
+.vec2-stage[data-state="PLAYING_IMAGE"] .vec2-artwork,
+.vec2-stage[data-state="TRANSITIONING"] .vec2-artwork,
+.vec2-stage[data-state="PRELOADING"] .vec2-artwork {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
