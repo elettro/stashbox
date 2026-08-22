@@ -1,0 +1,43 @@
+name: Radio mobile boot cache bump
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-mobile-boot-cache-bump'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-mobile-boot-cache-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Bump mobile boot guard cache URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in radio/index.html radio/dev/v2/index.html radio/attempt2/index.html; do
+            sed -i 's/v2-boot-guard.js?v=20260818-mobile-sharecopy1/v2-boot-guard.js?v=20260822-mobileboot2-catalogfallback1/g' "$file"
+          done
+          grep -q 'v2-boot-guard.js?v=20260822-mobileboot2-catalogfallback1' radio/index.html
+          grep -q 'v2-boot-guard.js?v=20260822-mobileboot2-catalogfallback1' radio/dev/v2/index.html
+          grep -q 'v2-boot-guard.js?v=20260822-mobileboot2-catalogfallback1' radio/attempt2/index.html
+      - name: Commit mobile boot cache bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/index.html radio/dev/v2/index.html radio/attempt2/index.html
+          git commit -m 'Bump mobile boot guard after catalog fallback repair [skip ci]'
+          git push origin HEAD:main
