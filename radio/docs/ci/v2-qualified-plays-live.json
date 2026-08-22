@@ -1,8 +1,8 @@
 {
-  "v2_qualified_plays_live": "FAIL",
-  "source_commit": "b416f5c5c433001d4914ca1f52005bf801a40b7f",
-  "workflow_run_id": "32582006838",
-  "tested_at_utc": "2026-08-22T15:37:42.518Z",
+  "v2_qualified_plays_live": "PASS",
+  "source_commit": "c07b090774935e5e119dee598392bcedadc55f38",
+  "workflow_run_id": "32597935409",
+  "tested_at_utc": "2026-08-22T20:58:29.527Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -14,8 +14,8 @@
       "build": "mobile-playstats1-20260822-titlemode2-adscms9-cadenceguard1-fitguard1-offlineaudio3-profileoverlay1",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 73,
-      "afterTotal": 74,
+      "beforeTotal": 75,
+      "afterTotal": 76,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
@@ -24,17 +24,17 @@
     },
     {
       "name": "desktop",
-      "ok": false,
-      "build": "desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys4-notificationsrepair4",
-      "songKey": "",
+      "ok": true,
+      "build": "desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy3-hotkeyc1-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys4-notificationsrepair4",
+      "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 74,
-      "afterTotal": null,
-      "qualifyingRequestCount": 0,
-      "qualifyingResponseCount": 0,
-      "persistAttempts": 0,
-      "persistSuccesses": 0,
-      "error": "page.waitForFunction: Timeout 20000ms exceeded.\n    at runMode (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:119:16)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+      "beforeTotal": 76,
+      "afterTotal": 77,
+      "qualifyingRequestCount": 1,
+      "qualifyingResponseCount": 1,
+      "persistAttempts": 1,
+      "persistSuccesses": 1,
+      "error": ""
     }
   ]
 }
