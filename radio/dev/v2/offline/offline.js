@@ -6,6 +6,8 @@
   const DB_VERSION = 1;
   const STORE = 'songs';
   const AUDIO_MAP = window.STASHBOX_BROWSER_AUDIO_MAP || {};
+  const DESKTOP_VIEW = Boolean(window.matchMedia?.('(min-width: 900px)')?.matches);
+  const PROFILE_CONTEXT = new URLSearchParams(location.search).get('profile') === '1';
 
   const state = {
     db: null,
@@ -148,8 +150,16 @@
     pill.textContent = online ? 'ONLINE' : 'OFFLINE';
     pill.classList.toggle('is-online', online);
     pill.classList.toggle('is-offline', !online);
-    $('#onlineLibrary')?.toggleAttribute('hidden', !online);
-    $('#offlineMessage')?.toggleAttribute('hidden', online);
+    $('#onlineLibrary')?.toggleAttribute('hidden', DESKTOP_VIEW || !online);
+    const message = $('#offlineMessage');
+    if (message) {
+      if (DESKTOP_VIEW) {
+        message.textContent = 'Desktop view: play or remove downloaded tracks here. Add songs to your Offline Playlist from mobile.';
+        message.hidden = false;
+      } else {
+        message.toggleAttribute('hidden', online);
+      }
+    }
   }
 
   async function registerServiceWorker() {
@@ -168,7 +178,7 @@
   }
 
   async function loadCatalog() {
-    if (!navigator.onLine) return [];
+    if (!navigator.onLine || DESKTOP_VIEW) return [];
     const response = await fetch(`${API}/radio/songs?offline_audio=${Date.now()}`, {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
@@ -210,6 +220,11 @@
 
   function renderCatalog() {
     const list = $('#availableList');
+    if (!list) return;
+    if (DESKTOP_VIEW) {
+      list.innerHTML = '';
+      return;
+    }
     const ids = downloadedIds();
     $('#availableCount').textContent = String(state.filtered.length);
     list.innerHTML = state.filtered.map(song => {
@@ -261,6 +276,7 @@
   }
 
   async function downloadSong(id) {
+    if (DESKTOP_VIEW) return;
     const song = state.catalog.find(item => item.id === id);
     if (!song || state.busy.has(id)) return;
     state.busy.add(id);
@@ -317,6 +333,9 @@
     renderDownloads();
     updateMediaSession(record);
     if (autoplay) {
+      if (window.parent !== window) {
+        try { window.parent.postMessage({ type: 'stashbox:offline-play-start', songId: id }, location.origin); } catch (_) {}
+      }
       try { await audio.play(); }
       catch (_) { updatePlayButton(); }
     }
@@ -388,6 +407,7 @@
   }
 
   function filterCatalog(query) {
+    if (DESKTOP_VIEW) return;
     const needle = clean(query).toLowerCase();
     state.filtered = !needle ? state.catalog : state.catalog.filter(song => `${song.title} ${song.artist} ${song.genre}`.toLowerCase().includes(needle));
     renderCatalog();
@@ -400,7 +420,7 @@
       const remove = event.target.closest('[data-remove-download]');
       if (remove) return removeDownload(remove.dataset.removeDownload);
       const download = event.target.closest('[data-download-song]');
-      if (download) return downloadSong(download.dataset.downloadSong);
+      if (download && !DESKTOP_VIEW) return downloadSong(download.dataset.downloadSong);
       if (event.target.closest('#playPause')) {
         const audio = $('#offlineAudio');
         if (!audio.src) return;
@@ -451,6 +471,7 @@
 
     window.addEventListener('online', async () => {
       status();
+      if (DESKTOP_VIEW) return;
       try { await loadCatalog(); renderCatalog(); }
       catch (error) { toast(`Catalog refresh failed: ${clean(error?.message)}`, true); }
     });
@@ -460,6 +481,13 @@
 
   async function init() {
     status();
+    if (PROFILE_CONTEXT) {
+      const back = document.querySelector('.offline-footer a');
+      if (back) {
+        back.href = '/radio/dev/v2/profile/';
+        back.textContent = 'Back to Profile';
+      }
+    }
     bind();
     await registerServiceWorker();
     try {
@@ -471,7 +499,7 @@
       return;
     }
 
-    if (navigator.onLine) {
+    if (navigator.onLine && !DESKTOP_VIEW) {
       try {
         await loadCatalog();
         renderCatalog();
