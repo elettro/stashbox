@@ -1,0 +1,160 @@
+name: Preflight Radio V2 production backend
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.release-radio-v2-backend-preflight'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      AWS_REGION: us-east-1
+    steps:
+      - name: Check out canonical API source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install API dependencies
+        working-directory: radio-api
+        run: npm ci
+
+      - name: Validate canonical API source
+        working-directory: radio-api
+        env:
+          APP_ENV: test
+        run: |
+          set -euo pipefail
+          npm run check
+          npm run test:accounts
+          npm run test:artists
+          npm run test:v2-fluidity
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate production Lambda identity and environment contract
+        id: envcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "${FUNCTION_NAME}" \
+            --region "${AWS_REGION}" > /tmp/prod-config.json
+
+          test "$(jq -r '.FunctionName' /tmp/prod-config.json)" = "stashbox-radio-api-prod-v2"
+          test "$(jq -r '.Runtime' /tmp/prod-config.json)" = "nodejs22.x"
+          test "$(jq -r '.Handler' /tmp/prod-config.json)" = "index.handler"
+
+          app_env="$(jq -r '.Environment.Variables.APP_ENV // .Environment.Variables.STAGE // .Environment.Variables.NODE_ENV // .Environment.Variables.ENVIRONMENT // "prod"' /tmp/prod-config.json | tr '[:upper:]' '[:lower:]')"
+          pg_schema="$(jq -r '.Environment.Variables.PGSCHEMA // "radio"' /tmp/prod-config.json)"
+          ad_id="$(jq -r '.Environment.Variables.AD_SETTINGS_ID // "prod"' /tmp/prod-config.json | tr '[:upper:]' '[:lower:]')"
+          public_path="$(jq -r '.Environment.Variables.PUBLIC_PLAYER_PATH // "/radio/"' /tmp/prod-config.json)"
+
+          if [ "$app_env" != "prod" ] && [ "$app_env" != "production" ]; then
+            echo "ERROR: production Lambda runtime identity is not prod/production." >&2
+            exit 1
+          fi
+          if [ "$pg_schema" != "radio" ]; then
+            echo "ERROR: production Lambda PGSCHEMA is not radio." >&2
+            exit 1
+          fi
+          if [ "$ad_id" != "prod" ] && [ "$ad_id" != "production" ]; then
+            echo "ERROR: production Lambda ad-settings identity is not prod/production." >&2
+            exit 1
+          fi
+          if [ "$public_path" != "/radio/" ]; then
+            echo "ERROR: production PUBLIC_PLAYER_PATH is not /radio/." >&2
+            exit 1
+          fi
+
+          pool_id="$(jq -r '.Environment.Variables.COGNITO_USER_POOL_ID // empty' /tmp/prod-config.json)"
+          client_id="$(jq -r '.Environment.Variables.COGNITO_APP_CLIENT_ID // .Environment.Variables.COGNITO_CLIENT_ID // empty' /tmp/prod-config.json)"
+          upload_bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.RADIO_UPLOAD_BUCKET // empty' /tmp/prod-config.json)"
+
+          if [ -z "$pool_id" ] || [ -z "$client_id" ]; then
+            echo "ERROR: production Cognito user-pool/client configuration is missing." >&2
+            exit 1
+          fi
+          if [ -z "$upload_bucket" ]; then
+            echo "ERROR: production upload bucket configuration is missing." >&2
+            exit 1
+          fi
+
+          aws cognito-idp describe-user-pool --user-pool-id "$pool_id" --region "$AWS_REGION" >/dev/null
+          aws cognito-idp describe-user-pool-client --user-pool-id "$pool_id" --client-id "$client_id" --region "$AWS_REGION" >/dev/null
+
+          echo "Production runtime identity: PASS"
+          echo "Production PostgreSQL schema: PASS"
+          echo "Production Ads settings identity: PASS"
+          echo "Production public player path: PASS"
+          echo "Production Cognito pool/client: PASS"
+          echo "Production upload bucket configured: PASS"
+
+          code_sha="$(jq -r '.CodeSha256' /tmp/prod-config.json)"
+          echo "code_sha=${code_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure immutable pre-release Lambda version exists
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_sha="${{ steps.envcheck.outputs.code_sha }}"
+          existing="$(aws lambda list-versions-by-function \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            --query "Versions[?Version!='\u0024LATEST' && CodeSha256=='${current_sha}'].Version" \
+            --output text | tr '\t' '\n' | sort -n | tail -1)"
+
+          if [ -n "$existing" ] && [ "$existing" != "None" ]; then
+            snapshot_version="$existing"
+            echo "Current production code already has immutable Lambda version ${snapshot_version}."
+          else
+            snapshot_version="$(aws lambda publish-version \
+              --function-name "$FUNCTION_NAME" \
+              --description 'Pre Radio V2 live backend snapshot 2026-08-22' \
+              --region "$AWS_REGION" \
+              --query 'Version' \
+              --output text)"
+            echo "Published immutable pre-release Lambda version ${snapshot_version}."
+          fi
+
+          test -n "$snapshot_version"
+          test "$snapshot_version" != "None"
+          echo "version=${snapshot_version}" >> "$GITHUB_OUTPUT"
+
+          jq -n \
+            --arg function "$FUNCTION_NAME" \
+            --arg version "$snapshot_version" \
+            --arg code_sha "$current_sha" \
+            --arg captured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{function:$function,version:$version,code_sha256:$code_sha,captured_at:$captured_at}' \
+            > /tmp/radio-v2-prod-backend-snapshot.json
+
+      - name: Upload sanitized backend snapshot record
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-v2-prod-backend-pre-release-snapshot
+          path: /tmp/radio-v2-prod-backend-snapshot.json
+          retention-days: 90
+
+      - name: Preflight passed
+        run: |
+          echo "Radio V2 production backend preflight passed."
+          echo "Immutable rollback Lambda version: ${{ steps.snapshot.outputs.version }}"
