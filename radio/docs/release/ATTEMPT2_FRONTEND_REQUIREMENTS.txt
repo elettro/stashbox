@@ -1,0 +1,8 @@
+Attempt #2 frontend parity requirements
+
+Desktop must expose the same DEV V2 listener controls and behavior, including:
+Like/heart, Shuffle All, Previous, Play/Pause, Next, Share + retained count, play-count/rank UI, FIT/FULL, artist links/avatar, Follow behavior, account/profile, notifications, VEC artwork/video behavior, Spacebar, W, E, S, F, L.
+
+Mobile must retain the same DEV V2 navigation, gestures, player, VEC, artwork/video transitions, auth/account, likes/shares/play tracking.
+
+No live cutover if any required control is absent or relocated by missing runtime enhancements.
