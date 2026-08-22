@@ -1,0 +1,22 @@
+Attempt #2 PROD data mirror policy
+
+Authoritative from DEV by song_key:
+- active song catalog and listener-facing song metadata
+- six canonical artwork/profile-image ratios
+- VEC folders and folder metadata
+- VEC folder assets
+- direct-only song assets
+- VEC recipes and visual settings
+
+Preserve PROD-only state:
+- users/auth
+- likes
+- shares
+- play counts
+- playlists
+- listening history
+- notifications
+- analytics
+
+PROD-only songs are archived/hidden, never hard-deleted by the mirror.
+No production cutover occurs before parity gates pass.
