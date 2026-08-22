@@ -184,6 +184,14 @@
     playAt(cursor + 1);
   }
 
+  function transportClick(direction) {
+    const selector = direction === 'previous' ? '[data-prev]' : '[data-next]';
+    const button = app.querySelector(selector);
+    if (!button) return false;
+    button.click();
+    return true;
+  }
+
   function injectButton() {
     if (!desktopQuery.matches) return;
     captureCatalog();
@@ -217,12 +225,25 @@
   document.addEventListener('keydown', event => {
     if (!desktopQuery.matches || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (String(event.key || '').toLowerCase() !== 's') return;
     if (isTypingTarget(event.target)) return;
+
+    const key = String(event.key || '').toLowerCase();
+    if (!['s', 'w', 'e'].includes(key)) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    shuffleSkip();
+
+    if (key === 's') {
+      shuffleSkip();
+      return;
+    }
+
+    if (key === 'w') {
+      transportClick('previous');
+      return;
+    }
+
+    transportClick('next');
   }, true);
 
   document.addEventListener('click', event => {
