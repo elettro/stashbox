@@ -1,8 +1,8 @@
 {
   "v2_qualified_plays_live": "FAIL",
-  "source_commit": "ccf8c7ce1ce025cd3778a3a91f4b0edf2cd6cae8",
-  "workflow_run_id": "32570423094",
-  "tested_at_utc": "2026-08-22T11:34:46.950Z",
+  "source_commit": "b416f5c5c433001d4914ca1f52005bf801a40b7f",
+  "workflow_run_id": "32582006838",
+  "tested_at_utc": "2026-08-22T15:37:42.518Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -10,31 +10,31 @@
   "results": [
     {
       "name": "mobile",
-      "ok": false,
-      "build": "mobile-playstats1-20260822-titlemode2-adscms9-cadenceguard1-fitguard1-offlineaudio3-profileoverlay1",
-      "songKey": "",
-      "songTitle": "Freedom Street (live)",
-      "beforeTotal": 70,
-      "afterTotal": null,
-      "qualifyingRequestCount": 0,
-      "qualifyingResponseCount": 0,
-      "persistAttempts": 0,
-      "persistSuccesses": 0,
-      "error": "page.waitForFunction: Timeout 12000ms exceeded.\n    at waitForAudioMotion (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:41:14)\n    at startSong (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:57:74)\n    at async runMode (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:92:34)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
-    },
-    {
-      "name": "desktop",
       "ok": true,
-      "build": "desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys3-notificationsrepair4",
+      "build": "mobile-playstats1-20260822-titlemode2-adscms9-cadenceguard1-fitguard1-offlineaudio3-profileoverlay1",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 70,
-      "afterTotal": 71,
+      "beforeTotal": 73,
+      "afterTotal": 74,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
       "persistSuccesses": 1,
       "error": ""
+    },
+    {
+      "name": "desktop",
+      "ok": false,
+      "build": "desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy2-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys4-notificationsrepair4",
+      "songKey": "",
+      "songTitle": "Freedom Street (live)",
+      "beforeTotal": 74,
+      "afterTotal": null,
+      "qualifyingRequestCount": 0,
+      "qualifyingResponseCount": 0,
+      "persistAttempts": 0,
+      "persistSuccesses": 0,
+      "error": "page.waitForFunction: Timeout 20000ms exceeded.\n    at runMode (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:119:16)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
     }
   ]
 }
