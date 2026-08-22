@@ -1,0 +1,77 @@
+name: Diagnose Radio API pressure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.diagnose-radio-api-metrics'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Read Lambda/API pressure metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_API_METRICS_LATEST.txt
+          : > "$OUT"
+          START=$(date -u -d '20 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Radio API pressure diagnostic" >> "$OUT"
+          echo "window=$START to $END" >> "$OUT"
+          echo >> "$OUT"
+          metric() {
+            fn="$1"; name="$2"; stat="$3"
+            echo "$fn $name:" >> "$OUT"
+            aws cloudwatch get-metric-statistics \
+              --namespace AWS/Lambda \
+              --metric-name "$name" \
+              --dimensions Name=FunctionName,Value="$fn" \
+              --start-time "$START" --end-time "$END" \
+              --period 60 --statistics "$stat" \
+              --region us-east-1 --output json >> "$OUT" 2>&1 || true
+          }
+          for FN in stashbox-radio-api-dev-v2 stashbox-radio-api-prod-v2; do
+            echo "[$FN]" >> "$OUT"
+            metric "$FN" Invocations Sum
+            metric "$FN" Errors Sum
+            metric "$FN" Throttles Sum
+            metric "$FN" ConcurrentExecutions Maximum
+            metric "$FN" Duration Maximum
+            echo >> "$OUT"
+          done
+          echo "[recent lambda log errors]" >> "$OUT"
+          for FN in stashbox-radio-api-dev-v2 stashbox-radio-api-prod-v2; do
+            GROUP="/aws/lambda/$FN"
+            echo "$GROUP" >> "$OUT"
+            aws logs filter-log-events --log-group-name "$GROUP" --start-time "$(( $(date +%s) * 1000 - 20 * 60 * 1000 ))" --filter-pattern '?ERROR ?Error ?error ?timed ?timeout ?ECONN ?connection ?remaining' --limit 50 --region us-east-1 --query 'events[].message' --output text >> "$OUT" 2>&1 || true
+            echo >> "$OUT"
+          done
+          cat "$OUT"
+      - name: Record diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/RADIO_API_METRICS_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Radio API pressure diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
