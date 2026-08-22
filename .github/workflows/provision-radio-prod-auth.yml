@@ -1,0 +1,189 @@
+name: Provision Radio production auth
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.release-radio-v2-prod-auth'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      STACK_NAME: stashbox-radio-listener-auth-prod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Snapshot current production Lambda before auth wiring
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" > /tmp/prod-config-before-auth.json
+
+          test "$(jq -r '.FunctionName' /tmp/prod-config-before-auth.json)" = "$FUNCTION_NAME"
+          current_sha="$(jq -r '.CodeSha256' /tmp/prod-config-before-auth.json)"
+          existing="$(aws lambda list-versions-by-function \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            --query "Versions[?Version!='\u0024LATEST' && CodeSha256=='${current_sha}'].Version" \
+            --output text | tr '\t' '\n' | sort -n | tail -1)"
+
+          if [ -n "$existing" ] && [ "$existing" != "None" ]; then
+            version="$existing"
+          else
+            version="$(aws lambda publish-version \
+              --function-name "$FUNCTION_NAME" \
+              --description 'Pre Radio V2 live backend snapshot 2026-08-22' \
+              --region "$AWS_REGION" \
+              --query 'Version' \
+              --output text)"
+          fi
+
+          test -n "$version"
+          test "$version" != "None"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code_sha=$current_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy production Cognito stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy \
+            --template-file infra/user-accounts/prod-cognito.yml \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --no-fail-on-empty-changeset
+
+      - name: Read Cognito outputs
+        id: cognito
+        shell: bash
+        run: |
+          set -euo pipefail
+          pool_id="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue | [0]" \
+            --output text)"
+          client_id="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='AppClientId'].OutputValue | [0]" \
+            --output text)"
+          region="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue | [0]" \
+            --output text)"
+
+          test -n "$pool_id"
+          test "$pool_id" != "None"
+          test -n "$client_id"
+          test "$client_id" != "None"
+          test "$region" = "$AWS_REGION"
+
+          aws cognito-idp describe-user-pool --user-pool-id "$pool_id" --region "$AWS_REGION" >/dev/null
+          aws cognito-idp describe-user-pool-client --user-pool-id "$pool_id" --client-id "$client_id" --region "$AWS_REGION" >/dev/null
+
+          echo "pool_id=$pool_id" >> "$GITHUB_OUTPUT"
+          echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
+          echo "region=$region" >> "$GITHUB_OUTPUT"
+
+      - name: Wire production Lambda to production Cognito
+        shell: bash
+        env:
+          POOL_ID: ${{ steps.cognito.outputs.pool_id }}
+          CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
+          COGNITO_REGION: ${{ steps.cognito.outputs.region }}
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" > /tmp/prod-config-current.json
+
+          jq \
+            --arg pool "$POOL_ID" \
+            --arg client "$CLIENT_ID" \
+            --arg region "$COGNITO_REGION" \
+            '.Environment.Variables + {
+              COGNITO_USER_POOL_ID:$pool,
+              COGNITO_APP_CLIENT_ID:$client,
+              COGNITO_REGION:$region,
+              COGNITO_ACCESS_TOKEN_MINUTES:"15",
+              COGNITO_REFRESH_TOKEN_DAYS:"365"
+            }' \
+            /tmp/prod-config-current.json > /tmp/prod-env-vars.json
+
+          jq -n --slurpfile vars /tmp/prod-env-vars.json '{Variables:$vars[0]}' > /tmp/prod-environment.json
+
+          aws lambda update-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            --environment file:///tmp/prod-environment.json >/tmp/lambda-auth-update.json
+
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION"
+
+      - name: Verify production auth wiring
+        shell: bash
+        env:
+          POOL_ID: ${{ steps.cognito.outputs.pool_id }}
+          CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" > /tmp/prod-config-after-auth.json
+
+          test "$(jq -r '.Environment.Variables.COGNITO_USER_POOL_ID' /tmp/prod-config-after-auth.json)" = "$POOL_ID"
+          test "$(jq -r '.Environment.Variables.COGNITO_APP_CLIENT_ID' /tmp/prod-config-after-auth.json)" = "$CLIENT_ID"
+          test "$(jq -r '.Environment.Variables.COGNITO_REGION' /tmp/prod-config-after-auth.json)" = "$AWS_REGION"
+          test "$(jq -r '.Environment.Variables.PGSCHEMA // "radio"' /tmp/prod-config-after-auth.json)" = "radio"
+
+          state="$(jq -r '.State' /tmp/prod-config-after-auth.json)"
+          update_status="$(jq -r '.LastUpdateStatus' /tmp/prod-config-after-auth.json)"
+          test "$state" = "Active"
+          test "$update_status" = "Successful"
+
+      - name: Record rollback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg function "$FUNCTION_NAME" \
+            --arg version "${{ steps.snapshot.outputs.version }}" \
+            --arg code_sha "${{ steps.snapshot.outputs.code_sha }}" \
+            --arg captured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{function:$function,version:$version,code_sha256:$code_sha,captured_at:$captured_at}' \
+            > /tmp/radio-v2-prod-backend-snapshot.json
+
+      - name: Upload rollback snapshot record
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-v2-prod-backend-pre-release-snapshot
+          path: /tmp/radio-v2-prod-backend-snapshot.json
+          retention-days: 90
+
+      - name: Production auth provisioned
+        run: |
+          echo "Production Cognito is provisioned and wired to $FUNCTION_NAME."
+          echo "Rollback Lambda version: ${{ steps.snapshot.outputs.version }}"
