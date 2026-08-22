@@ -1,26 +1,896 @@
 {
-  "started_at": "2026-08-22T19:18:52.414Z",
+  "started_at": "2026-08-22T19:20:18.572Z",
   "source": "radio_dev via TRUE DEV API",
   "target": "radio via PROD v2 API",
   "policy": "content-only; create missing songs; copy canonical artwork; never delete production songs or touch analytics/users",
-  "dev_song_count": 0,
-  "prod_song_count_before": 0,
+  "dev_song_count": 83,
+  "prod_song_count_before": 83,
   "created_missing_songs": [],
   "song_create_failures": [],
-  "artwork_songs_examined": 0,
-  "artwork_songs_with_any": 0,
-  "artwork_complete_six_in_dev": 0,
-  "artwork_patched": [],
-  "artwork_failures": [],
+  "artwork_songs_examined": 83,
+  "artwork_songs_with_any": 83,
+  "artwork_complete_six_in_dev": 80,
+  "artwork_patched": [
+    {
+      "song_key": "let-me-down-10b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "marching-with-kings-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "marie-claude-stashbox",
+      "ratios_copied": 1,
+      "complete_six_source": false,
+      "prod_completion": {
+        "ready": 1,
+        "total": 6,
+        "complete": false,
+        "label": "1 of 6 Images Ready"
+      },
+      "prod_ratios_present": 1
+    },
+    {
+      "song_key": "dirty-bird-20a-stashbox",
+      "ratios_copied": 1,
+      "complete_six_source": false,
+      "prod_completion": {
+        "ready": 1,
+        "total": 6,
+        "complete": false,
+        "label": "1 of 6 Images Ready"
+      },
+      "prod_ratios_present": 1
+    },
+    {
+      "song_key": "on-the-ropes-014b-jv1-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "gazing-shoe-jam-03b-dean-jam-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "right-between-the-eyes-2b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "freedom-street-002b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "vacation-life-03b-jv1-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "space-jam-05d-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "girls-on-bikes-02b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "dub-reggae-01a-ras-claat-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "shes-my-guru-06a-2b-psychedelique-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "peace-chant-03a-instru-reggae-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "where-next-03b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "hawaiian-peace-chant-02a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "love-her-love-her--04a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "hold-jamaica-tonight-05b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "shes-my-guru-05b-reggae-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "crowd-of-two-0005a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "where-are-you-going-02b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "im-waiting-001b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "travelling-0001a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "streets-of-new-york-03b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "party-spots-in-cali-001-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "f-around-and-find-out-01a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "culture-by-culture-06aa-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "bee-and-the-flower-06a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "more-cash-papi-01a-fire-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "marianne-10b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "fyahball-07a-stashbox",
+      "ratios_copied": 1,
+      "complete_six_source": false,
+      "prod_completion": {
+        "ready": 1,
+        "total": 6,
+        "complete": false,
+        "label": "1 of 6 Images Ready"
+      },
+      "prod_ratios_present": 1
+    },
+    {
+      "song_key": "do-you-love-me-2b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "im-in-love-001b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "made-two-songs-owe-12-000-01a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "me-on-a-bed-03b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "handy-dandy-sandy-07d-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "cold-winter-chillv2-08a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "can-you-hear-that-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "jamaica-01c-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "gospel-of-love-01-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "im-in-love-album-live-at-suzys-050702-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "mr-top-mi-up-original-24b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "im-waiting-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "funky-trenchtown-002b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "i-should-be-back-in-a-week-or-so-04b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "palm-trees-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "from-south-florida-to-tahiti-10b-tahiti-cora",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "island-to-sunset-state-01a-tahiti-cora",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "mr-top-mi-up-italian-33b-female-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "nonchanlance-06b-uk-garage-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "pass-it-around-05a-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "hippy-speedball-i-m-on-my-way-original-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "just-relaxin-smoking-herb-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "sea-of-green-05a-the-ras-box",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "cali-cherry-pie-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "apples-and-bananas-the-ras-box",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "blue-dream-01b-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "ghost-train-haze-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "welcome-to-jamaica-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "angel-in-your-bed-live-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "coca-fanta-marihuana-live-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "hippy-speedball-live-jam-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "bailer-en-calella-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "drinking-fire-live-instrumental-jam-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "help-jamaica-now-stashbox",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "i-live-where-you-vacation-tahiti-cora",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    },
+    {
+      "song_key": "yoga-pants-for-days-the-ras-box",
+      "ratios_copied": 6,
+      "complete_six_source": true,
+      "prod_completion": {
+        "ready": 6,
+        "total": 6,
+        "complete": true,
+        "label": "Complete Image Set"
+      },
+      "prod_ratios_present": 6
+    }
+  ],
+  "artwork_failures": [
+    {
+      "song_key": "jail-dead-or-both-21n-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/jail-dead-or-both-21n-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "long-road-home-2b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/long-road-home-2b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "riding-waves-014b-jv1-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/riding-waves-014b-jv1-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "crowd-of-two-001b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/crowd-of-two-001b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "travelling-001b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/travelling-001b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "give-me-a-break-02b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/give-me-a-break-02b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "doppleganger-004b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/doppleganger-004b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "wow-what-a-chalice-02a-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/wow-what-a-chalice-02a-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "ode-to-george-benson-01a-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/ode-to-george-benson-01a-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "let-it-shine-001b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/let-it-shine-001b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "culture-by-culture-02bb-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/culture-by-culture-02bb-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "for-the-reason-album-live-at-suzys-050628-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/for-the-reason-album-live-at-suzys-050628-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "travelling-album-live-at-suzys-050628-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/travelling-album-live-at-suzys-050628-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "sun-ra-1996-original-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/sun-ra-1996-original-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "sun-ra-06-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/sun-ra-06-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    },
+    {
+      "song_key": "im-moving-on-08b-stashbox",
+      "error": "PATCH https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/songs/im-moving-on-08b-stashbox/artwork-images -> HTTP 503: Service Unavailable"
+    }
+  ],
   "ratio_source_counts": {
-    "song_artwork_url": 0,
-    "song_artwork_16x9_url": 0,
-    "song_artwork_9x16_url": 0,
-    "song_artwork_3x4_url": 0,
-    "song_artwork_4x5_url": 0,
-    "song_artwork_21x9_url": 0
+    "song_artwork_url": 83,
+    "song_artwork_16x9_url": 80,
+    "song_artwork_9x16_url": 80,
+    "song_artwork_3x4_url": 80,
+    "song_artwork_4x5_url": 80,
+    "song_artwork_21x9_url": 80
   },
-  "fatal_error": "Error: GET https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/songs -> HTTP 503: Service Unavailable\n    at request (file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:72:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Promise.all (index 0)\n    at async main (file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:104:41)\n    at async file:///home/runner/work/stashbox/stashbox/.github/scripts/promote-dev-artwork-to-prod.mjs:161:3",
-  "finished_at": "2026-08-22T19:18:57.775Z",
+  "fatal_error": null,
+  "finished_at": "2026-08-22T19:20:42.216Z",
   "ok": false
 }
