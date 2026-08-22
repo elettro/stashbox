@@ -33,11 +33,13 @@ The Ads CMS is configured for an ad break after every song/video, but the DEV V2
 
 ## Root cause
 
-Not established yet. The runtime has received several transition/cadence guards, but the user reproduced the every-other-song behavior after those changes. The existing fix attempts did not prove end-to-end adherence to the authoritative CMS value.
+The prior repair still depended on the next real V2 audio generation arriving at exactly the right point to claim a pending ad break. V2 can reuse or remount audio during the transition, so the owed break could survive into the following song and present as an every-other-song cadence.
 
 ## Fix
 
-No verified fix is recorded. Prior transition-proof cadence work and the additional cadence guard remain attempted repairs only until a live sequence proves that every CMS-selected break is honored.
+Repair candidate published on 2026-08-21. The cadence guard now claims an already-owed CMS break immediately at the natural song boundary using a dedicated hidden audio proxy inside the active player. The shared Ads runtime therefore begins the break without waiting on next-song DOM timing. While the ad is playing, any next song V2 tries to start is captured and paused. When the ad ends, the runtime's normal resume call is proxied to that real next song.
+
+The controller still owns whether a break is due. The guard does not create an independent song counter. The desktop runtime now cache-busts this as `cadenceguard2`. Keep the bug Open until a live three-song sequence verifies Song -> Ad -> Song -> Ad -> Song -> Ad.
 
 ## Files changed
 
@@ -54,14 +56,16 @@ No verified fix is recorded. Prior transition-proof cadence work and the additio
 - `7f93027a70e88bcf9d32e190f42777453ddf45ba`
 - `b9d2ddfbd2ec47bb8fd5c0a29fcb810df772edf7`
 - `0d266ab34322dd8dd2c8a5802e10ba6ce8194f02`
+- `c4815d211d43d35916654945b291d4881f125aed`
+- `fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36`
 
 ## Verification
 
-Failed. User reported at approximately 22:55 ET on 2026-08-21 that commercials were still not following the Ads CMS controller and continued to appear every other video/song.
+Previous repair failed user verification at approximately 22:55 ET on 2026-08-21. The deterministic boundary-claim repair is now deployed to desktop and awaits a new user test.
 
 ## Regression risk
 
-Song-end handlers, reused audio elements, transition ownership, refresh timing, and multiple cadence listeners can double-count or miss completions. Avoid adding another independent counter unless the existing owner is removed or explicitly delegated.
+Song-end handlers, reused audio elements, transition ownership, refresh timing, and multiple cadence listeners can double-count or miss completions. The cadence guard must remain a claimant of the runtime's pending break, not a second break counter.
 
 ## Related bugs
 
@@ -69,7 +73,7 @@ Song-end handlers, reused audio elements, transition ownership, refresh timing, 
 
 ## Future repair procedure
 
-Trace one full three-song session with logging at four points: CMS settings fetch, natural song completion, break-due state, and ad-break start. Record the song generation/token so reused audio nodes cannot be counted ambiguously. Compare the live API `break_interval` with `window.StashboxV2Ads.state()` before every completion. Fix the first point where the authoritative value or owed-break state diverges. Verify at least three consecutive Song -> Ad transitions before marking fixed.
+Inspect `window.StashboxV2Ads.state()` at each natural completion. With CMS `breakInterval: 1`, the runtime must set `breakPending: true`, the cadence guard must claim it immediately, and `adPlaying` must become true before the next song audibly advances. Verify at least three consecutive transitions before closure.
 
 ## Notes
 
