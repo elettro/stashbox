@@ -23,14 +23,12 @@
     const stage = video.closest('[data-v2-ad-media], .v2-ad-break-media') || video.parentElement;
     if (!stage) return null;
 
-    // Location repair only: make the ad media stage the real browser viewport.
-    // Do not inherit dimensions or positioning from the ad shell/player layout.
     setImportant(stage.style, 'position', 'fixed');
+    setImportant(stage.style, 'inset', '0');
     setImportant(stage.style, 'left', '0');
     setImportant(stage.style, 'top', '0');
     setImportant(stage.style, 'right', '0');
     setImportant(stage.style, 'bottom', '0');
-    setImportant(stage.style, 'inset', '0');
     setImportant(stage.style, 'width', '100vw');
     setImportant(stage.style, 'height', '100vh');
     setImportant(stage.style, 'margin', '0');
@@ -53,14 +51,14 @@
     const sourceWidth = Number(video.videoWidth || 0);
     const sourceHeight = Number(video.videoHeight || 0);
 
-    // Center against the browser viewport itself. This avoids the previous
-    // upper-left/top-offset drift caused by using a nested media wrapper box.
+    // Set inset first. The previous order set left/top and then inset:auto,
+    // which erased the centering coordinates and sent the ad toward the upper-left.
     setImportant(video.style, 'position', 'fixed');
+    setImportant(video.style, 'inset', 'auto');
     setImportant(video.style, 'left', '50vw');
     setImportant(video.style, 'top', '50vh');
     setImportant(video.style, 'right', 'auto');
     setImportant(video.style, 'bottom', 'auto');
-    setImportant(video.style, 'inset', 'auto');
     setImportant(video.style, 'margin', '0');
     setImportant(video.style, 'padding', '0');
     setImportant(video.style, 'min-width', '0');
