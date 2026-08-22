@@ -113,7 +113,7 @@
     button.classList.toggle('is-active', enabled);
     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     button.setAttribute('aria-label', enabled ? 'Shuffle all on' : 'Shuffle all');
-    button.title = enabled ? 'Shuffle All: On' : 'Shuffle All';
+    button.title = enabled ? 'Shuffle All: On (S skips)' : 'Shuffle All (S)';
   }
 
   function disableShuffle() {
@@ -171,6 +171,19 @@
     playAt(0);
   }
 
+  function isTypingTarget(target) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
+  }
+
+  function shuffleSkip() {
+    if (!enabled) {
+      activateShuffle();
+      return;
+    }
+    playAt(cursor + 1);
+  }
+
   function injectButton() {
     if (!desktopQuery.matches) return;
     captureCatalog();
@@ -184,7 +197,7 @@
     button.dataset.desktopShuffleAll = 'true';
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', 'Shuffle all');
-    button.title = 'Shuffle All';
+    button.title = 'Shuffle All (S)';
     button.innerHTML = SHUFFLE_ICON;
 
     const previous = controls.querySelector('[data-prev]');
@@ -200,6 +213,17 @@
     injectButton();
   });
   observer.observe(app, { childList: true, subtree: true });
+
+  document.addEventListener('keydown', event => {
+    if (!desktopQuery.matches || event.repeat) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (String(event.key || '').toLowerCase() !== 's') return;
+    if (isTypingTarget(event.target)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    shuffleSkip();
+  }, true);
 
   document.addEventListener('click', event => {
     if (!desktopQuery.matches) return;
