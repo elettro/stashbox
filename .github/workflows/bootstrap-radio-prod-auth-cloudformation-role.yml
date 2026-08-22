@@ -1,0 +1,92 @@
+name: Bootstrap Radio production auth CloudFormation role
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.release-radio-v2-prod-auth-role'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      ROLE_NAME: stashbox-radio-cloudformation-prod-auth-role
+      POLICY_NAME: StashboxRadioProdAuthCloudFormation
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create tightly scoped CloudFormation service role
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          role_arn="arn:aws:iam::${account_id}:role/${ROLE_NAME}"
+
+          cat >/tmp/trust.json <<'JSON'
+          {
+            "Version":"2012-10-17",
+            "Statement":[{
+              "Effect":"Allow",
+              "Principal":{"Service":"cloudformation.amazonaws.com"},
+              "Action":"sts:AssumeRole"
+            }]
+          }
+          JSON
+
+          if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+            aws iam update-assume-role-policy --role-name "$ROLE_NAME" --policy-document file:///tmp/trust.json
+          else
+            aws iam create-role \
+              --role-name "$ROLE_NAME" \
+              --description 'CloudFormation service role only for Stashbox Radio production listener Cognito.' \
+              --assume-role-policy-document file:///tmp/trust.json \
+              --tags Key=Application,Value=stashbox-radio Key=Environment,Value=prod Key=Purpose,Value=listener-auth >/dev/null
+          fi
+
+          cat >/tmp/policy.json <<'JSON'
+          {
+            "Version":"2012-10-17",
+            "Statement":[{
+              "Sid":"ManageRadioProductionListenerCognito",
+              "Effect":"Allow",
+              "Action":[
+                "cognito-idp:CreateUserPool",
+                "cognito-idp:DeleteUserPool",
+                "cognito-idp:DescribeUserPool",
+                "cognito-idp:UpdateUserPool",
+                "cognito-idp:ListUserPools",
+                "cognito-idp:TagResource",
+                "cognito-idp:UntagResource",
+                "cognito-idp:ListTagsForResource",
+                "cognito-idp:CreateUserPoolClient",
+                "cognito-idp:DeleteUserPoolClient",
+                "cognito-idp:DescribeUserPoolClient",
+                "cognito-idp:UpdateUserPoolClient",
+                "cognito-idp:ListUserPoolClients"
+              ],
+              "Resource":"*"
+            }]
+          }
+          JSON
+
+          aws iam put-role-policy \
+            --role-name "$ROLE_NAME" \
+            --policy-name "$POLICY_NAME" \
+            --policy-document file:///tmp/policy.json
+          aws iam wait role-exists --role-name "$ROLE_NAME"
+          sleep 8
+
+          test "$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)" = "$role_arn"
+          echo "CloudFormation production auth role ready: $ROLE_NAME"
