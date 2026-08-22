@@ -1,0 +1,146 @@
+name: Release Radio V2 production backend
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.release-radio-v2-prod-backend'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - name: Checkout canonical release source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install and validate canonical Radio API
+        working-directory: radio-api
+        env:
+          APP_ENV: test
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+          npm run check
+          npm run test:accounts
+          npm run test:artists
+          npm run test:v2-fluidity
+
+      - name: Build production Lambda ZIP
+        working-directory: radio-api
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          zip -r dist/prod-v2-lambda.zip . \
+            -x 'dist/*' '.git/*' '*.zip' 'tests/*' 'test/*' '__tests__/*' 'docs/*' 'db/*' 'scripts/*' '*.md' 'env/*'
+          unzip -t dist/prod-v2-lambda.zip >/dev/null
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify production isolation and account wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /tmp/prod-config.json
+          test "$(jq -r '.FunctionName' /tmp/prod-config.json)" = "$FUNCTION_NAME"
+          test "$(jq -r '.Runtime' /tmp/prod-config.json)" = 'nodejs22.x'
+          test "$(jq -r '.Handler' /tmp/prod-config.json)" = 'index.handler'
+          app_env="$(jq -r '.Environment.Variables.APP_ENV // .Environment.Variables.STAGE // "prod"' /tmp/prod-config.json | tr '[:upper:]' '[:lower:]')"
+          test "$app_env" = 'prod' -o "$app_env" = 'production'
+          test "$(jq -r '.Environment.Variables.PGSCHEMA // "radio"' /tmp/prod-config.json)" = 'radio'
+          ad_id="$(jq -r '.Environment.Variables.AD_SETTINGS_ID // "prod"' /tmp/prod-config.json | tr '[:upper:]' '[:lower:]')"
+          test "$ad_id" = 'prod' -o "$ad_id" = 'production'
+          pool="$(jq -r '.Environment.Variables.COGNITO_USER_POOL_ID // empty' /tmp/prod-config.json)"
+          client="$(jq -r '.Environment.Variables.COGNITO_APP_CLIENT_ID // .Environment.Variables.COGNITO_CLIENT_ID // empty' /tmp/prod-config.json)"
+          test -n "$pool"
+          test -n "$client"
+          bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.RADIO_UPLOAD_BUCKET // empty' /tmp/prod-config.json)"
+          test -n "$bucket"
+          if echo "$bucket" | grep -qi 'dev'; then echo 'Production upload bucket points at DEV.' >&2; exit 1; fi
+          public_media="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // empty' /tmp/prod-config.json)"
+          if [ -n "$public_media" ] && echo "$public_media" | grep -qi '/dev\|dev-\|-dev'; then echo 'Production public media base URL points at DEV.' >&2; exit 1; fi
+          echo 'Production isolation gate: PASS'
+
+      - name: Capture immediate pre-deploy rollback ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /tmp/get-function.json
+          location="$(jq -r '.Code.Location // empty' /tmp/get-function.json)"
+          test -n "$location"
+          curl --fail --location --silent --show-error "$location" -o /tmp/stashbox-radio-api-prod-v2-pre-release.zip
+          unzip -t /tmp/stashbox-radio-api-prod-v2-pre-release.zip >/dev/null
+          jq '{FunctionName:.Configuration.FunctionName,Runtime:.Configuration.Runtime,Handler:.Configuration.Handler,CodeSha256:.Configuration.CodeSha256,LastModified:.Configuration.LastModified,CodeSize:.Configuration.CodeSize,MemorySize:.Configuration.MemorySize,Timeout:.Configuration.Timeout,State:.Configuration.State,LastUpdateStatus:.Configuration.LastUpdateStatus}' /tmp/get-function.json > /tmp/stashbox-radio-api-prod-v2-pre-release.json
+
+      - name: Upload backend rollback artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-v2-prod-backend-immediate-rollback
+          path: |
+            /tmp/stashbox-radio-api-prod-v2-pre-release.zip
+            /tmp/stashbox-radio-api-prod-v2-pre-release.json
+          retention-days: 90
+
+      - name: Deploy canonical Radio API to production V2 Lambda
+        run: |
+          set -euo pipefail
+          aws lambda update-function-code \
+            --function-name "$FUNCTION_NAME" \
+            --zip-file fileb://radio-api/dist/prod-v2-lambda.zip \
+            --region "$AWS_REGION" >/tmp/prod-v2-deploy.json
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$AWS_REGION"
+
+      - name: Verify Lambda deployment state
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --region "$AWS_REGION" \
+            --query '{FunctionName:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified,CodeSize:CodeSize,State:State,LastUpdateStatus:LastUpdateStatus}' \
+            --output json > /tmp/prod-after.json
+          cat /tmp/prod-after.json
+          test "$(jq -r '.State' /tmp/prod-after.json)" = 'Active'
+          test "$(jq -r '.LastUpdateStatus' /tmp/prod-after.json)" = 'Successful'
+
+      - name: Smoke production API contract for V2
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            auth_code="$(curl -sS -o /tmp/auth-config.json -w '%{http_code}' "$API/radio/auth/config" || true)"
+            if [ "$auth_code" = '200' ]; then break; fi
+            sleep 5
+          done
+          test "$auth_code" = '200'
+          jq -e '.enabled == true and (.user_pool_id | length > 0) and (.app_client_id | length > 0)' /tmp/auth-config.json >/dev/null
+
+          for path in /radio/songs /radio/ad-settings /radio/ads; do
+            code="$(curl -sS -o /tmp/response.json -w '%{http_code}' "$API$path")"
+            echo "$path -> $code"
+            test "$code" = '200'
+          done
+
+          for path in /radio/me /radio/me/preferences; do
+            code="$(curl -sS -o /tmp/response.json -w '%{http_code}' "$API$path")"
+            echo "$path -> $code"
+            test "$code" = '401' -o "$code" = '403'
+          done
+          echo 'Production V2 backend smoke: PASS'
