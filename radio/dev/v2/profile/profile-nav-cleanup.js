@@ -11,6 +11,17 @@
     button.appendChild(tier);
   }
 
+  function makeOfflineShortcut(button) {
+    const label = button.querySelector(':scope > span');
+    if (label) label.textContent = 'Offline Playlist';
+    button.disabled = false;
+    button.removeAttribute('disabled');
+    button.dataset.openOfflinePlaylist = 'true';
+    button.title = 'Open your offline playlist';
+    button.querySelector('.profile-shortcut-tier')?.remove();
+    button.querySelector('.profile-shortcut-coming-soon')?.remove();
+  }
+
   function cleanShortcuts() {
     queued = false;
     const shortcuts = document.querySelector('#profileApp .profile-shortcuts');
@@ -26,16 +37,8 @@
 
       if (primaryLabel === 'listening history') ensureTier(button);
 
-      if (primaryLabel === 'downloads') {
-        ensureTier(button);
-        button.disabled = true;
-        button.title = 'Premium offline downloads are coming soon.';
-        if (!button.querySelector('.profile-shortcut-coming-soon')) {
-          const badge = document.createElement('small');
-          badge.className = 'profile-shortcut-coming-soon';
-          badge.textContent = 'Coming Soon';
-          button.appendChild(badge);
-        }
+      if (primaryLabel === 'downloads' || primaryLabel === 'offline playlist') {
+        makeOfflineShortcut(button);
       }
     });
   }
@@ -45,6 +48,15 @@
     queued = true;
     requestAnimationFrame(cleanShortcuts);
   }
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-open-offline-playlist]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const embedded = window.parent !== window;
+    location.href = `/radio/dev/v2/offline/?profile=1${embedded ? '&embedded=1' : ''}`;
+  }, true);
 
   new MutationObserver(queueClean).observe(document.getElementById('profileApp') || document.body, {
     childList: true,
