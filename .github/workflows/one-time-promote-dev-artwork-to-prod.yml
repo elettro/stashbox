@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/one-time-promote-dev-artwork-to-prod.yml'
+      - '.promote-dev-artwork-to-prod'
   workflow_dispatch:
 
 permissions:
@@ -153,7 +154,7 @@ jobs:
             if (!key) continue;
             if (!prodKeys.has(key.toLowerCase())) {
               try {
-                const created = await request(`${PROD}/admin/songs`, { method: 'POST', token: PROD_TOKEN, body: song });
+                await request(`${PROD}/admin/songs`, { method: 'POST', token: PROD_TOKEN, body: song });
                 report.created_missing_songs.push(key);
                 prodKeys.add(key.toLowerCase());
               } catch (error) {
@@ -176,8 +177,6 @@ jobs:
               if (present.length === 6) report.artwork_complete_six_in_dev += 1;
               for (const field of present) report.ratio_source_counts[field] += 1;
 
-              // Only send ratios that actually exist in DEV. This never clears a PROD ratio
-              // just because an older DEV song has a partial set.
               const body = Object.fromEntries(present.map(field => [field, patch[field]]));
               const saved = await request(`${PROD}/radio/admin/songs/${encoded}/artwork-images`, {
                 method: 'PATCH', token: PROD_TOKEN, body
