@@ -1,0 +1,58 @@
+Radio 503 headers/account diagnostic
+run_utc=2026-08-22T20:14:58Z
+
+[dev_songs]
+headers:
+HTTP/2 200 
+date: Sat, 22 Aug 2026 20:14:59 GMT
+content-type: application/json
+content-length: 188024
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization
+access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS
+apigw-requestid: ChVyejImoAMEaNg=
+
+body:
+{"success":true,"count":83,"songs":[{"id":"b6ae7816-ec18-4949-a392-a34c0e6593d3","song_key":"jail-dead-or-both-21n-stashbox","song_name":"Jail, Dead, or Both","display_title":"Jail, Dead or Both (Live)","artist":"Stashbox","genre":"Folk Rock","secondary_genre":"Reggae","mood":null,"mood_tags":["Uplifting"],"release_format":"single","album_name":null,"audio_url":"https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/jail-dead-or-both-21n-stashbox/audio/20260820T134255147Z-29b15b2d-ffa4-4b02-80a9-7dec6557b35b-Jail--Dead-or-Both-21n-JV1---Quinticential-pop-weird-JOSH-Mastered-Fire.wav","son
+
+[prod_songs]
+headers:
+HTTP/2 200 
+date: Sat, 22 Aug 2026 20:15:00 GMT
+content-type: application/json
+content-length: 184860
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization
+access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS
+apigw-requestid: ChVyriwloAMEbYg=
+
+body:
+{"success":true,"count":83,"songs":[{"id":"4d596d80-cea9-47d9-9e44-a7d17a1ddc66","song_key":"vacation-life-03b-jv1-stashbox","song_name":"Vacation Life","display_title":"Vacation Life","artist":"Stashbox","genre":"Reggae","secondary_genre":"Live Recording","mood":null,"mood_tags":["mello","beach"],"release_format":"single","album_name":null,"audio_url":"https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/vacation-life-03b-jv1-stashbox/audio/20260725T034742187Z-a81615bf-df4c-4d2d-a2e5-008afaa1b8ba-Vacation-Life-Live---03b---Josh1--from-Dean-humming-Reggae-Original-RADIO-Distrokid--maste
+
+[prod_auth]
+headers:
+HTTP/2 200 
+date: Sat, 22 Aug 2026 20:15:00 GMT
+content-type: application/json
+content-length: 221
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: ChVy0jNBoAMEVdg=
+
+body:
+{"success":true,"auth":{"enabled":true,"region":"us-east-1","user_pool_id":"us-east-1_WVKcj6G77","app_client_id":"5md8r5578qagt6cu83c6i3tgtg","access_token_minutes":15,"refresh_token_days":365,"mfa_available_later":true}}
+
+[lambda account settings]
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetAccountSettings operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: lambda:GetAccountSettings on resource: * because no identity-based policy allows the lambda:GetAccountSettings action
+
+[function policies]
+stashbox-radio-api-dev-v2
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetPolicy operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: lambda:GetPolicy on resource: arn:aws:lambda:us-east-1:656260749296:function:stashbox-radio-api-dev-v2 because no identity-based policy allows the lambda:GetPolicy action
+
+stashbox-radio-api-prod-v2
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetPolicy operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: lambda:GetPolicy on resource: arn:aws:lambda:us-east-1:656260749296:function:stashbox-radio-api-prod-v2 because no identity-based policy allows the lambda:GetPolicy action
+
