@@ -54,22 +54,7 @@ jobs:
             echo "public_songs_http=$public_code" >> "$OUT"
             echo "admin_folders_http=$admin_code" >> "$OUT"
             echo "public_recipe_http=$recipe_code" >> "$OUT"
-            node - "$label" >> "$OUT" <<'NODE'
-            const fs=require('fs');
-            const label=process.argv[2];
-            const read=(p)=>{try{return JSON.parse(fs.readFileSync(p,'utf8'))}catch{return {}}};
-            const songs=read(`/tmp/${label}-songs.json`);
-            const folders=read(`/tmp/${label}-folders.json`);
-            const recipe=read(`/tmp/${label}-recipe.json`);
-            const songRows=Array.isArray(songs)?songs:(songs.songs||songs.items||songs.data||[]);
-            const folderRows=Array.isArray(folders)?folders:(folders.folders||folders.items||folders.data||[]);
-            console.log(`songs_count=${Array.isArray(songRows)?songRows.length:0}`);
-            console.log(`folders_count=${Array.isArray(folderRows)?folderRows.length:0}`);
-            console.log(`songs_error=${songs.error||songs.message||''}`);
-            console.log(`folders_error=${folders.error||folders.message||''}`);
-            console.log(`recipe_error=${recipe.error||recipe.message||''}`);
-            console.log(`recipe_found=${Boolean(recipe.found || recipe.recipe)}`);
-            NODE
+            LABEL="$label" node -e 'const fs=require("fs"); const label=process.env.LABEL; const read=p=>{try{return JSON.parse(fs.readFileSync(p,"utf8"))}catch{return {}}}; const songs=read(`/tmp/${label}-songs.json`); const folders=read(`/tmp/${label}-folders.json`); const recipe=read(`/tmp/${label}-recipe.json`); const songRows=Array.isArray(songs)?songs:(songs.songs||songs.items||songs.data||[]); const folderRows=Array.isArray(folders)?folders:(folders.folders||folders.items||folders.data||[]); console.log(`songs_count=${Array.isArray(songRows)?songRows.length:0}`); console.log(`folders_count=${Array.isArray(folderRows)?folderRows.length:0}`); console.log(`songs_error=${songs.error||songs.message||""}`); console.log(`folders_error=${folders.error||folders.message||""}`); console.log(`recipe_error=${recipe.error||recipe.message||""}`); console.log(`recipe_found=${Boolean(recipe.found||recipe.recipe)}`);' >> "$OUT"
 
             echo "recent_cloudwatch_errors:" >> "$OUT"
             aws logs filter-log-events \
