@@ -46,9 +46,51 @@ jobs:
           set -euo pipefail
           rm -rf dist
           mkdir -p dist
+
+          # Production must use the same V2 routing wrapper proven in TRUE DEV.
+          # Preserve the canonical Radio API as radio-main.mjs, then promote the
+          # account/profile/video wrapper to the Lambda's index.handler entrypoint.
+          cp index.mjs radio-main.mjs
+          cp video-factory/entry.mjs app-entry.mjs
+          cat > index.mjs <<'EOF'
+          import './db-reuse-hook.mjs';
+          const app = await import('./app-entry.mjs');
+          export const handler = app.handler;
+          EOF
+
+          node --check index.mjs
+          node --check app-entry.mjs
+          node --check radio-main.mjs
+          node --check index-core.mjs
+          APP_ENV=prod node --input-type=module -e "await import('./index.mjs')"
+
+          # Package-level contract: auth config must route through app-entry without
+          # touching PostgreSQL. This catches the exact raw-index packaging regression.
+          COGNITO_USER_POOL_ID='us-east-1_example' \
+          COGNITO_APP_CLIENT_ID='production-package-smoke' \
+          APP_ENV=prod \
+          node --input-type=module <<'NODE'
+          const { handler } = await import('./index.mjs');
+          const result = await handler({
+            rawPath: '/prod-v2/radio/auth/config',
+            requestContext: { stage: 'prod-v2', http: { method: 'GET' } }
+          });
+          if (Number(result?.statusCode) !== 200) {
+            throw new Error(`Packaged auth route returned ${result?.statusCode}`);
+          }
+          const body = JSON.parse(result.body || '{}');
+          if (!body?.success || !body?.auth?.enabled || !body?.auth?.user_pool_id || !body?.auth?.app_client_id) {
+            throw new Error('Packaged auth route did not return the V2 auth contract.');
+          }
+          NODE
+
           zip -r dist/prod-v2-lambda.zip . \
             -x 'dist/*' '.git/*' '*.zip' 'tests/*' 'test/*' '__tests__/*' 'docs/*' 'db/*' 'scripts/*' '*.md' 'env/*'
           unzip -t dist/prod-v2-lambda.zip >/dev/null
+          unzip -l dist/prod-v2-lambda.zip | grep -q 'radio-main.mjs'
+          unzip -l dist/prod-v2-lambda.zip | grep -q 'app-entry.mjs'
+          unzip -l dist/prod-v2-lambda.zip | grep -q 'db-reuse-hook.mjs'
+          unzip -l dist/prod-v2-lambda.zip | grep -q 'index-core.mjs'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -130,7 +172,7 @@ jobs:
             sleep 5
           done
           test "$auth_code" = '200'
-          jq -e '.enabled == true and (.user_pool_id | length > 0) and (.app_client_id | length > 0)' /tmp/auth-config.json >/dev/null
+          jq -e '.success == true and .auth.enabled == true and (.auth.user_pool_id | length > 0) and (.auth.app_client_id | length > 0)' /tmp/auth-config.json >/dev/null
 
           for path in /radio/songs /radio/ad-settings /radio/ads; do
             code="$(curl -sS -o /tmp/response.json -w '%{http_code}' "$API$path")"
