@@ -1,0 +1,95 @@
+name: Radio Attempt 2 TRUE DEV mirror preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-attempt2-preflight'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-attempt2-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: 6d9b9e3947c06ab64e71f378050da57356a32177
+      TOOL_BRANCH: release/radio-dev-mirror-attempt2-20260822
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Load frozen Attempt 2 tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TOOL_BRANCH" "$SOURCE_SHA"
+          git show "origin/$TOOL_BRANCH:.github/scripts/build-radio-attempt2-mirror-v2.mjs" > /tmp/build-radio-attempt2-mirror-v2.mjs
+          git show "origin/$TOOL_BRANCH:.github/scripts/radio-attempt2-data-mirror.mjs" > /tmp/radio-attempt2-data-mirror.mjs
+          test -s /tmp/build-radio-attempt2-mirror-v2.mjs
+          test -s /tmp/radio-attempt2-data-mirror.mjs
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build exact frontend mirror candidate
+        run: node /tmp/build-radio-attempt2-mirror-v2.mjs
+
+      - name: Run read-only DEV to PROD data preflight
+        env:
+          APPLY: '0'
+        run: node /tmp/radio-attempt2-data-mirror.mjs
+
+      - name: Enforce preflight gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.ok == true' radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json >/dev/null
+          jq -e '.mode == "preflight" and .ok == true' radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json >/dev/null
+          test -f radio/attempt2/index.html
+          test -f radio/attempt2/desktop/index.html
+          grep -q 'hotkeys4' radio/attempt2/desktop/index.html
+          grep -q '/radio/attempt2/desktop/desktop-shuffle-all.js' radio/attempt2/desktop/index.html
+          grep -q '/radio/attempt2/v2-desktop-video-fit-toggle.js' radio/attempt2/desktop/index.html
+          grep -q '/radio/attempt2/desktop/desktop-play-stat-ui.js' radio/attempt2/desktop/index.html
+          if grep -RIn 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' radio/attempt2; then exit 1; fi
+          if grep -RIn '/radio/dev/v2/' radio/attempt2; then exit 1; fi
+
+      - name: Publish isolated candidate and reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json /tmp/frontend.json
+          cp radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json /tmp/data.json
+          rm -rf /tmp/attempt2-candidate
+          cp -a radio/attempt2 /tmp/attempt2-candidate
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            rm -rf radio/attempt2
+            cp -a /tmp/attempt2-candidate radio/attempt2
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/frontend.json radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json
+            cp /tmp/data.json radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json
+            git add radio/attempt2 radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Publish isolated Radio Attempt 2 mirror candidate [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
