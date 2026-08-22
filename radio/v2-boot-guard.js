@@ -6,11 +6,15 @@
 
   const nativeFetch = window.fetch.bind(window);
   const DEV_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
-  const PROD_SONGS = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs';
+  const PROD_HOST = 'je3zud66nb.execute-api.us-east-1.amazonaws.com';
+  const DEV_SONGS = `https://${DEV_HOST}/dev/radio/songs`;
+  const PROD_SONGS = `https://${PROD_HOST}/prod-v2/radio/songs`;
+  const LOCAL_SONGS = '/radio/catalog-fallback.json';
   const CATALOG_CACHE_KEY = 'stashbox_radio_v2_catalog_cache';
-  const guardedHosts = new Set([DEV_HOST, 'stashbox.ai']);
+  const guardedHosts = new Set([DEV_HOST, PROD_HOST, 'stashbox.ai']);
   const AUTH_API_TIMEOUT_MS = 6500;
   const COGNITO_TIMEOUT_MS = 9000;
+  const CATALOG_TIMEOUT_MS = 9000;
 
   function timeoutFetch(input, init = {}, timeoutMs = 20000) {
     if (init.signal) return nativeFetch(input, init);
@@ -25,9 +29,13 @@
     catch (_) { return null; }
   }
 
-  function isDevSongsRequest(rawUrl) {
+  function isSongsRequest(rawUrl) {
     const url = parsedUrl(rawUrl);
-    return Boolean(url && url.hostname === DEV_HOST && /\/radio\/songs\/?$/.test(url.pathname));
+    return Boolean(
+      url &&
+      (url.hostname === DEV_HOST || url.hostname === PROD_HOST) &&
+      /\/radio\/songs\/?$/.test(url.pathname)
+    );
   }
 
   function isAuthApiRequest(url) {
@@ -117,30 +125,56 @@
     }
   }
 
-  async function fetchSongsWithFallback(input, init = {}) {
+  async function tryCatalog(url, init = {}, source = '') {
     try {
-      const response = await timeoutFetch(input, init, 9000);
-      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
-    } catch (_) {}
-
-    try {
-      const response = await timeoutFetch(PROD_SONGS, {
+      const response = await timeoutFetch(url, {
         ...init,
         method: 'GET',
         body: undefined,
         headers: { Accept: 'application/json' }
-      }, 9000);
-      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
-    } catch (_) {}
+      }, CATALOG_TIMEOUT_MS);
+      if (!response.ok) return null;
+      const prepared = await preferStreamResponse(response);
+      const headers = new Headers(prepared.headers);
+      headers.set('x-stashbox-catalog-source', source || url);
+      const body = await prepared.clone().text();
+      return rememberCatalog(new Response(body, {
+        status: prepared.status,
+        statusText: prepared.statusText,
+        headers
+      }));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function fetchSongsWithFallback(input, init = {}) {
+    const rawUrl = typeof input === 'string' ? input : input?.url || '';
+    const requested = parsedUrl(rawUrl);
+    const isProdRequest = requested?.hostname === PROD_HOST;
+    const primary = await tryCatalog(rawUrl, init, isProdRequest ? 'prod-api' : 'dev-api');
+    if (primary) return primary;
+
+    if (isProdRequest) {
+      const local = await tryCatalog(LOCAL_SONGS, init, 'prod-snapshot');
+      if (local) return local;
+      const dev = await tryCatalog(DEV_SONGS + (requested?.search || ''), init, 'dev-api-fallback');
+      if (dev) return dev;
+    } else {
+      const prod = await tryCatalog(PROD_SONGS + (requested?.search || ''), init, 'prod-api-fallback');
+      if (prod) return prod;
+      const local = await tryCatalog(LOCAL_SONGS, init, 'prod-snapshot');
+      if (local) return local;
+    }
 
     const cached = cachedCatalogResponse();
     if (cached) return preferStreamResponse(cached);
-    throw new Error('Both the DEV and production song catalogs are unavailable.');
+    throw new Error('No Stashbox Radio catalog source is currently available.');
   }
 
   window.fetch = (input, init = {}) => {
     const rawUrl = typeof input === 'string' ? input : input?.url || '';
-    if (isDevSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
+    if (isSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
 
     const url = parsedUrl(rawUrl);
     if (isCognitoRequest(url)) return timeoutFetch(input, init, COGNITO_TIMEOUT_MS);
