@@ -6,11 +6,14 @@
 
   const nativeFetch = window.fetch.bind(window);
   const DEV_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
-  const PROD_SONGS = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs';
+  const PROD_HOST = 'je3zud66nb.execute-api.us-east-1.amazonaws.com';
+  const DEV_SONGS = `https://${DEV_HOST}/dev/radio/songs`;
+  const PROD_SONGS = `https://${PROD_HOST}/prod-v2/radio/songs`;
   const CATALOG_CACHE_KEY = 'stashbox_radio_v2_catalog_cache';
-  const guardedHosts = new Set([DEV_HOST, 'stashbox.ai']);
+  const guardedHosts = new Set([DEV_HOST, PROD_HOST, 'stashbox.ai']);
   const AUTH_API_TIMEOUT_MS = 6500;
   const COGNITO_TIMEOUT_MS = 9000;
+  const CATALOG_TIMEOUT_MS = 9000;
 
   function timeoutFetch(input, init = {}, timeoutMs = 20000) {
     if (init.signal) return nativeFetch(input, init);
@@ -25,9 +28,20 @@
     catch (_) { return null; }
   }
 
-  function isDevSongsRequest(rawUrl) {
+  function isSongsRequest(rawUrl) {
     const url = parsedUrl(rawUrl);
-    return Boolean(url && url.hostname === DEV_HOST && /\/radio\/songs\/?$/.test(url.pathname));
+    return Boolean(
+      url &&
+      (url.hostname === DEV_HOST || url.hostname === PROD_HOST) &&
+      /\/radio\/songs\/?$/.test(url.pathname)
+    );
+  }
+
+  function alternateSongsUrl(rawUrl) {
+    const requested = parsedUrl(rawUrl);
+    const fallback = new URL(requested?.hostname === PROD_HOST ? DEV_SONGS : PROD_SONGS);
+    if (requested?.search) fallback.search = requested.search;
+    return fallback.toString();
   }
 
   function isAuthApiRequest(url) {
@@ -118,29 +132,44 @@
   }
 
   async function fetchSongsWithFallback(input, init = {}) {
-    try {
-      const response = await timeoutFetch(input, init, 9000);
-      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
-    } catch (_) {}
+    const rawUrl = typeof input === 'string' ? input : input?.url || '';
+    const fallbackUrl = alternateSongsUrl(rawUrl);
 
     try {
-      const response = await timeoutFetch(PROD_SONGS, {
+      const response = await timeoutFetch(input, init, CATALOG_TIMEOUT_MS);
+      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
+      console.warn('[V2 Boot] Primary catalog returned', response.status, rawUrl);
+    } catch (error) {
+      console.warn('[V2 Boot] Primary catalog failed', rawUrl, error?.message || error);
+    }
+
+    try {
+      const response = await timeoutFetch(fallbackUrl, {
         ...init,
         method: 'GET',
         body: undefined,
         headers: { Accept: 'application/json' }
-      }, 9000);
-      if (response.ok) return rememberCatalog(await preferStreamResponse(response));
-    } catch (_) {}
+      }, CATALOG_TIMEOUT_MS);
+      if (response.ok) {
+        console.warn('[V2 Boot] Using alternate catalog', fallbackUrl);
+        return rememberCatalog(await preferStreamResponse(response));
+      }
+      console.warn('[V2 Boot] Alternate catalog returned', response.status, fallbackUrl);
+    } catch (error) {
+      console.warn('[V2 Boot] Alternate catalog failed', fallbackUrl, error?.message || error);
+    }
 
     const cached = cachedCatalogResponse();
-    if (cached) return preferStreamResponse(cached);
-    throw new Error('Both the DEV and production song catalogs are unavailable.');
+    if (cached) {
+      console.warn('[V2 Boot] Using cached catalog');
+      return preferStreamResponse(cached);
+    }
+    throw new Error('Both the production and DEV song catalogs are unavailable.');
   }
 
   window.fetch = (input, init = {}) => {
     const rawUrl = typeof input === 'string' ? input : input?.url || '';
-    if (isDevSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
+    if (isSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
 
     const url = parsedUrl(rawUrl);
     if (isCognitoRequest(url)) return timeoutFetch(input, init, COGNITO_TIMEOUT_MS);
@@ -150,6 +179,12 @@
     if (!guardedHosts.has(host)) return nativeFetch(input, init);
     return timeoutFetch(input, init, host === 'stashbox.ai' ? 10000 : 20000);
   };
+
+  const homeHref = location.pathname.startsWith('/radio/dev/v2/')
+    ? '/radio/dev/v2/'
+    : location.pathname.startsWith('/radio/attempt2/')
+      ? '/radio/attempt2/'
+      : '/radio/';
 
   const showFailure = message => {
     if (app.querySelector('[data-song], .v2-load-error')) return;
@@ -161,7 +196,7 @@
       <p>${String(message || 'The request timed out.').replace(/[<>]/g, '')}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button type="button" data-v2-retry style="border:0;border-radius:999px;padding:10px 16px;background:#ff9f0a;color:#111;font-weight:900">Retry</button>
-        <a href="/radio/dev/" style="border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:10px 16px;color:#fff;text-decoration:none;font-weight:800">Open Existing DEV</a>
+        <a href="${homeHref}" style="border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:10px 16px;color:#fff;text-decoration:none;font-weight:800">Reload Radio</a>
       </div>`;
     meter.querySelector('[data-v2-retry]')?.addEventListener('click', () => location.reload());
   };
