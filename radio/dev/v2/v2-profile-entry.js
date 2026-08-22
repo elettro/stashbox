@@ -3,10 +3,12 @@
 
   const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const PROFILE_OVERLAY_SRC = '/radio/dev/v2/v2-profile-overlay.js?v=20260822-profileoverlay1';
   let lastAccessToken = '';
   let loadedAccessToken = '';
   let accountName = '';
   let accountRequest = null;
+  let overlayLoader = null;
 
   function tokens() {
     try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {}; }
@@ -73,12 +75,37 @@
     return true;
   }
 
+  function ensureProfileOverlay() {
+    if (window.StashboxV2ProfileOverlay) return Promise.resolve(window.StashboxV2ProfileOverlay);
+    if (overlayLoader) return overlayLoader;
+
+    overlayLoader = new Promise((resolve, reject) => {
+      let script = document.querySelector('script[data-v2-profile-overlay-loader]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = PROFILE_OVERLAY_SRC;
+        script.async = true;
+        script.dataset.v2ProfileOverlayLoader = 'true';
+        document.head.appendChild(script);
+      }
+      const finish = () => window.StashboxV2ProfileOverlay ? resolve(window.StashboxV2ProfileOverlay) : reject(new Error('Profile overlay did not initialize.'));
+      if (window.StashboxV2ProfileOverlay) return finish();
+      script.addEventListener('load', finish, { once: true });
+      script.addEventListener('error', () => reject(new Error('Profile overlay failed to load.')), { once: true });
+    }).finally(() => { overlayLoader = null; });
+
+    return overlayLoader;
+  }
+
   document.addEventListener('click', event => {
-    const button = event.target.closest('#v2App .v2-header-login');
+    const button = event.target.closest('#v2App .v2-header-login, [data-desktop-login]');
     if (!button || !loggedIn()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    location.href = '/radio/dev/v2/profile/';
+
+    ensureProfileOverlay()
+      .then(overlay => overlay.open(button))
+      .catch(() => { location.href = '/radio/dev/v2/profile/'; });
   }, true);
 
   window.addEventListener('storage', event => {
