@@ -1,0 +1,69 @@
+name: Diagnose Radio API 503
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.diagnose-radio-api-503'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Diagnose Lambda and direct invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_API_503_LATEST.txt
+          : > "$OUT"
+          echo "Radio API 503 diagnostic" >> "$OUT"
+          echo "Run UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
+          echo >> "$OUT"
+
+          diagnose() {
+            label="$1"; fn="$2"; stage="$3"
+            echo "[$label]" >> "$OUT"
+            aws lambda get-function-configuration --function-name "$fn" --region us-east-1 \
+              --query '{FunctionName:FunctionName,State:State,LastUpdateStatus:LastUpdateStatus,Timeout:Timeout,MemorySize:MemorySize,Runtime:Runtime,ReservedConcurrentExecutions:ReservedConcurrentExecutions,LastModified:LastModified}' \
+              --output json >> "$OUT" 2>&1 || true
+            echo "concurrency:" >> "$OUT"
+            aws lambda get-function-concurrency --function-name "$fn" --region us-east-1 >> "$OUT" 2>&1 || true
+            payload="$(printf '{"rawPath":"/%s/radio/songs","path":"/%s/radio/songs","requestContext":{"stage":"%s","http":{"method":"GET","path":"/%s/radio/songs"}},"headers":{},"queryStringParameters":null}' "$stage" "$stage" "$stage" "$stage")"
+            status="$(aws lambda invoke --function-name "$fn" --region us-east-1 --cli-binary-format raw-in-base64-out --payload "$payload" "/tmp/${label}.json" --query 'StatusCode' --output text 2>"/tmp/${label}.err" || true)"
+            echo "direct_invoke_status=$status" >> "$OUT"
+            if [ -s "/tmp/${label}.err" ]; then sed 's/[[:cntrl:]]//g' "/tmp/${label}.err" >> "$OUT"; fi
+            if [ -s "/tmp/${label}.json" ]; then
+              node -e "const fs=require('fs'); const b=JSON.parse(fs.readFileSync('/tmp/${label}.json','utf8')); let body=b.body; try{body=JSON.parse(body)}catch{}; console.log(JSON.stringify({statusCode:b.statusCode,headers:b.headers,body},null,2));" >> "$OUT" 2>&1 || cat "/tmp/${label}.json" >> "$OUT"
+            fi
+            echo >> "$OUT"
+          }
+
+          diagnose dev stashbox-radio-api-dev-v2 dev
+          diagnose prod stashbox-radio-api-prod-v2 prod-v2
+          cat "$OUT"
+      - name: Record diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/RADIO_API_503_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record Radio API 503 diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
