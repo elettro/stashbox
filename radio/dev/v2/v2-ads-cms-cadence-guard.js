@@ -5,9 +5,14 @@
   if (window.StashboxV2AdsCadenceGuard) return;
 
   const refreshedGeneration = new WeakMap();
-  const rescueAttempts = new WeakMap();
+  let heldNextAudio = null;
+  let claimProxy = null;
 
-  const isPlayerAudio = audio => audio instanceof HTMLAudioElement && Boolean(audio.closest('#v2App [data-player]'));
+  const isPlayerAudio = audio => (
+    audio instanceof HTMLAudioElement &&
+    !audio.dataset.v2AdsCadenceProxy &&
+    Boolean(audio.closest('#v2App [data-player]'))
+  );
   const adsRuntime = () => window.StashboxV2Ads;
   const generationKey = audio => `${audio.currentSrc || audio.src || ''}|${Number(audio.duration || 0).toFixed(2)}`;
 
@@ -15,52 +20,124 @@
     if (!isPlayerAudio(audio)) return;
     const duration = Number(audio.duration || 0);
     const current = Number(audio.currentTime || 0);
-    if (!Number.isFinite(duration) || duration <= 0 || duration - current > 6) return;
+    if (!Number.isFinite(duration) || duration <= 0 || duration - current > 8) return;
 
     const key = generationKey(audio);
     if (refreshedGeneration.get(audio) === key) return;
     refreshedGeneration.set(audio, key);
 
-    // Re-read the authoritative Ads CMS before the natural completion boundary.
-    // This keeps "after every song/video" tied to the CMS instead of stale page state.
+    // Pull the authoritative Ads CMS state before the completion boundary.
+    // The actual break remains owned by the shared Ads runtime.
     try { adsRuntime()?.refresh?.(); } catch (_) {}
   }
 
-  function rescueOwedBreak(audio) {
-    if (!isPlayerAudio(audio)) return;
+  function playerAudios() {
+    return [...document.querySelectorAll('#v2App [data-player] audio')]
+      .filter(audio => isPlayerAudio(audio));
+  }
+
+  function currentNextAudio() {
+    if (heldNextAudio?.isConnected && !heldNextAudio.ended) return heldNextAudio;
+    const audios = playerAudios();
+    const visible = audios.filter(audio => !audio.closest('[data-player]')?.hidden && !audio.ended);
+    return visible[0] || audios.find(audio => !audio.ended) || null;
+  }
+
+  function removeClaimProxy() {
+    if (!claimProxy) return;
+    try { claimProxy.remove(); } catch (_) {}
+    claimProxy = null;
+  }
+
+  function makeClaimProxy() {
+    removeClaimProxy();
+    const host = [...document.querySelectorAll('#v2App [data-player]')]
+      .find(node => node && !node.hidden && node.isConnected) || document.querySelector('#v2App [data-player]');
+    if (!host) return null;
+
+    const proxy = document.createElement('audio');
+    proxy.dataset.v2AdsCadenceProxy = 'true';
+    proxy.hidden = true;
+    proxy.setAttribute('aria-hidden', 'true');
+    proxy.style.setProperty('display', 'none', 'important');
+
+    // The Ads runtime stores the element that claims the pending break and calls
+    // play() on it when the break ends. Proxy that resume call to the real next
+    // song selected by V2 while the ad was playing.
+    Object.defineProperty(proxy, 'play', {
+      configurable: true,
+      value: () => {
+        const target = currentNextAudio();
+        removeClaimProxy();
+        heldNextAudio = null;
+        if (!target?.isConnected) return Promise.resolve();
+        try {
+          return Promise.resolve(target.play());
+        } catch (_) {
+          return Promise.resolve();
+        }
+      }
+    });
+
+    host.appendChild(proxy);
+    claimProxy = proxy;
+    return proxy;
+  }
+
+  function claimPendingBreakNow() {
     const ads = adsRuntime();
     const snapshot = ads?.state?.();
-    if (!snapshot?.enabled || !snapshot.breakPending || snapshot.adPlaying) return;
+    if (!snapshot?.enabled || !snapshot.breakPending || snapshot.adPlaying) return false;
 
-    const key = `${audio.currentSrc || audio.src || ''}|${Math.floor(Number(audio.currentTime || 0))}`;
-    const previous = rescueAttempts.get(audio);
-    if (previous?.key === key && previous.count >= 2) return;
-    const count = previous?.key === key ? previous.count + 1 : 1;
-    rescueAttempts.set(audio, { key, count });
+    const proxy = makeClaimProxy();
+    if (!proxy) return false;
 
-    // If a reused <audio> element emitted its first play signal while still in
-    // the old ended generation, pause and restart it once. The existing Ads
-    // runtime then sees a clean new-generation play event and claims the owed break.
+    // v2-ads-cms-runtime.js listens for player-audio play events and claims a
+    // pending CMS break when the event comes from a new audio generation. This
+    // dedicated proxy is always a new generation, so the break begins at the
+    // song boundary instead of depending on the timing of V2's next-song mount.
+    proxy.dispatchEvent(new Event('play', { bubbles: true }));
+    return Boolean(adsRuntime()?.state?.()?.adPlaying);
+  }
+
+  function holdBackgroundSongDuringAd(audio) {
+    if (!isPlayerAudio(audio)) return;
+    const snapshot = adsRuntime()?.state?.();
+    if (!snapshot?.adPlaying) return;
+
+    heldNextAudio = audio;
     try { audio.pause(); } catch (_) {}
-    window.setTimeout(() => {
-      const current = adsRuntime()?.state?.();
-      if (!current?.enabled || !current.breakPending || current.adPlaying || !audio.isConnected) return;
-      try { audio.play().catch(() => {}); } catch (_) {}
-    }, count === 1 ? 25 : 90);
+    try {
+      if (Number(audio.currentTime || 0) < 1.5) audio.currentTime = 0;
+    } catch (_) {}
   }
 
   document.addEventListener('timeupdate', event => refreshBeforeBoundary(event.target), true);
 
-  ['play', 'playing'].forEach(type => {
+  // Runtime's ended listener was registered earlier, so by the time this capture
+  // listener runs the CMS break is already marked pending. Claim it immediately.
+  document.addEventListener('ended', event => {
+    const audio = event.target;
+    if (!isPlayerAudio(audio)) return;
+    claimPendingBreakNow();
+  }, true);
+
+  ['loadstart', 'play', 'playing'].forEach(type => {
     document.addEventListener(type, event => {
       const audio = event.target;
       if (!isPlayerAudio(audio)) return;
-      window.setTimeout(() => rescueOwedBreak(audio), 0);
+      holdBackgroundSongDuringAd(audio);
+      if (!adsRuntime()?.state?.()?.adPlaying) claimPendingBreakNow();
     }, true);
+  });
+
+  window.addEventListener('focus', () => {
+    if (!adsRuntime()?.state?.()?.adPlaying) claimPendingBreakNow();
   });
 
   window.StashboxV2AdsCadenceGuard = Object.freeze({
     refresh: () => adsRuntime()?.refresh?.(),
-    state: () => adsRuntime()?.state?.()
+    state: () => adsRuntime()?.state?.(),
+    claim: claimPendingBreakNow
   });
 })();
