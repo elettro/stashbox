@@ -1,0 +1,193 @@
+name: Radio Attempt 2 atomic production cutover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-attempt2-cutover'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-attempt2-production-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SITE: https://stashbox.com/radio
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      SOURCE_SHA: 6d9b9e3947c06ab64e71f378050da57356a32177
+    steps:
+      - name: Checkout live main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Enforce all Attempt 2 release gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.ok == true and .source_sha == env.SOURCE_SHA and .missing == [] and .extra == [] and .mismatches == [] and .forbidden == []' radio/docs/diagnostics/ATTEMPT2_FRONTEND_MIRROR.json >/dev/null
+          jq -e '.ok == true and .mode == "apply"' radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json >/dev/null
+          grep -q '^mirror=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          grep -q '^parity=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          jq -e '.ok == true and .mismatch_count == 0' radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY.json >/dev/null
+          grep -q '^audit=success$' radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY_RUN.txt
+          grep -q '^render=success$' radio/docs/diagnostics/ATTEMPT2_CANDIDATE_SMOKE.txt
+          test -f radio/attempt2/index.html
+          test -f radio/attempt2/desktop/index.html
+
+      - name: Create fresh immutable rollback branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rollback="rollback/radio-pre-attempt2-cutover-${GITHUB_RUN_ID}"
+          git branch "$rollback" "$GITHUB_SHA"
+          git push origin "$rollback"
+          echo "ROLLBACK_BRANCH=$rollback" >> "$GITHUB_ENV"
+
+      - name: Build root-path live runtime from verified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/attempt2-live
+          cp -a radio/attempt2 /tmp/attempt2-live
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('/tmp/attempt2-live')
+          text_suffixes={'.html','.htm','.js','.mjs','.cjs','.css','.json','.md','.txt','.webmanifest','.xml','.sh','.yml','.yaml'}
+          for p in root.rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in text_suffixes:
+                  continue
+              try: text=p.read_text(encoding='utf-8')
+              except UnicodeDecodeError: continue
+              text=text.replace('/radio/attempt2/','/radio/').replace('radio/attempt2/','radio/')
+              text=text.replace('<title>Stashbox Radio | Attempt 2 Candidate</title>','<title>Stashbox Radio | Streaming Player</title>')
+              p.write_text(text,encoding='utf-8')
+          PY
+          if grep -RIn '/radio/attempt2/' /tmp/attempt2-live; then exit 1; fi
+          if grep -RIn 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' /tmp/attempt2-live; then exit 1; fi
+          grep -q 'hotkeys4' /tmp/attempt2-live/desktop/index.html
+          grep -q '/radio/desktop/desktop-shuffle-all.js' /tmp/attempt2-live/desktop/index.html
+          grep -q '/radio/v2-desktop-video-fit-toggle.js' /tmp/attempt2-live/desktop/index.html
+          grep -q '/radio/desktop/desktop-play-stat-ui.js' /tmp/attempt2-live/desktop/index.html
+
+      - name: Atomically replace production runtime paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          protected='^(dev|attempt2|docs|blog|report|flyer|onesheet|preview)$'
+          shopt -s dotglob
+          for src in /tmp/attempt2-live/*; do
+            name="$(basename "$src")"
+            if [[ "$name" =~ $protected ]]; then
+              echo "Candidate unexpectedly contains protected root path: $name" >&2
+              exit 1
+            fi
+            rm -rf "radio/$name"
+            cp -a "$src" "radio/$name"
+          done
+          cat > radio/ATTEMPT2_LIVE_RELEASE.txt <<EOF
+          Stashbox Radio Attempt 2 TRUE DEV mirror live release
+          source_sha=$SOURCE_SHA
+          candidate=radio/attempt2
+          rollback_branch=$ROLLBACK_BRANCH
+          cutover_run=$GITHUB_RUN_ID
+          EOF
+
+      - name: Static live-tree verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/index.html
+          test -f radio/desktop/index.html
+          grep -q 'hotkeys4' radio/desktop/index.html
+          grep -q '/radio/desktop/desktop-shuffle-all.js' radio/desktop/index.html
+          grep -q '/radio/v2-desktop-video-fit-toggle.js' radio/desktop/index.html
+          grep -q '/radio/desktop/desktop-play-stat-ui.js' radio/desktop/index.html
+          grep -q '/radio/desktop/desktop-share-isolation.js' radio/desktop/index.html
+          grep -q '/radio/desktop/desktop-vec2.js' radio/desktop/index.html
+          ! grep -q '/radio/attempt2/' radio/desktop/index.html
+          ! grep -q 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' radio/desktop/index.html
+
+      - name: Commit and publish live runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add radio
+          git commit -m 'Release Radio Attempt 2 TRUE DEV mirror at production root'
+          commit="$(git rev-parse HEAD)"
+          echo "CUTOVER_COMMIT=$commit" >> "$GITHUB_ENV"
+          git push origin HEAD:main
+
+      - name: Wait for live publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 50); do
+            code="$(curl -L -sS --max-time 20 -o /tmp/live.html -w '%{http_code}' "${SITE}/?attempt2_live=${GITHUB_RUN_ID}" || true)"
+            if [ "$code" = '200' ] && grep -q 'hotkeys4' /tmp/live.html; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Live production smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L -fsS "${SITE}/desktop/?attempt2_live=${GITHUB_RUN_ID}" -o /tmp/live-desktop.html
+          grep -q 'hotkeys4' /tmp/live-desktop.html
+          grep -q '/radio/desktop/desktop-shuffle-all.js' /tmp/live-desktop.html
+          grep -q '/radio/v2-desktop-video-fit-toggle.js' /tmp/live-desktop.html
+          grep -q '/radio/desktop/desktop-play-stat-ui.js' /tmp/live-desktop.html
+          curl -fsS "${PROD_API}/radio/songs?attempt2_live=${GITHUB_RUN_ID}" -o /tmp/live-songs.json
+          node <<'NODE'
+          const fs=require('fs');const b=JSON.parse(fs.readFileSync('/tmp/live-songs.json','utf8'));const rows=Array.isArray(b)?b:(b.songs||b.items||b.data||[]);if(rows.length!==89)throw new Error(`Expected 89 songs, got ${rows.length}`);fs.writeFileSync('/tmp/live-key',String(rows[0].song_key||rows[0].songKey||''));
+          NODE
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          KEY="$(cat /tmp/live-key)"
+          URL="${SITE}/desktop/?song=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$KEY")&attempt2_live_render=${GITHUB_RUN_ID}"
+          timeout 45 "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --autoplay-policy=no-user-gesture-required --virtual-time-budget=18000 --dump-dom "$URL" > /tmp/live-rendered.html
+          for token in data-player data-like data-prev data-play data-next data-share data-desktop-shuffle-all data-desktop-video-fit-toggle data-play-stat-desktop; do grep -q "$token" /tmp/live-rendered.html; done
+
+      - name: Record successful live release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/ATTEMPT2_LIVE_VERIFICATION.txt <<EOF
+          status=PASS
+          source_sha=$SOURCE_SHA
+          cutover_commit=$CUTOVER_COMMIT
+          rollback_branch=$ROLLBACK_BRANCH
+          run_id=$GITHUB_RUN_ID
+          verified_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/ATTEMPT2_LIVE_VERIFICATION.txt radio/docs/diagnostics/ATTEMPT2_LIVE_VERIFICATION.txt
+          git add radio/docs/diagnostics/ATTEMPT2_LIVE_VERIFICATION.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Record Radio Attempt 2 live verification [skip ci]'
+          git push origin HEAD:main
+
+      - name: Automatic frontend rollback on failure
+        if: ${{ failure() && env.CUTOVER_COMMIT != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B attempt2-rollback origin/main
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git revert --no-edit "$CUTOVER_COMMIT"
+          git push origin HEAD:main
+          echo "Attempt 2 frontend cutover rolled back. Preserved rollback branch: $ROLLBACK_BRANCH"
