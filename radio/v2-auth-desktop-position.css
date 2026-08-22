@@ -1,0 +1,25 @@
+@media (min-width: 700px) {
+  .v2-auth-overlay {
+    --v2-auth-desktop-top: clamp(64px, 7.5vh, 92px);
+  }
+
+  .v2-auth-sheet {
+    top: var(--v2-auth-desktop-top);
+    bottom: auto;
+    max-height: calc(100dvh - var(--v2-auth-desktop-top) - 28px);
+    opacity: 0;
+    transform: translate(-50%, 54px) scale(.985);
+    transition:
+      transform .38s cubic-bezier(.2, .82, .24, 1),
+      opacity .24s ease;
+  }
+
+  .v2-auth-overlay.is-open .v2-auth-sheet {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  .v2-auth-scroll {
+    max-height: calc(100dvh - var(--v2-auth-desktop-top) - 28px);
+  }
+}

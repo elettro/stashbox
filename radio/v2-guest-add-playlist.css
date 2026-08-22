@@ -1,0 +1,74 @@
+/* Logged-out mobile player Add to Playlist action. Reuses the established rail graphic language. */
+.v2-guest-add-playlist {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .v2-guest-add-playlist {
+    position: absolute;
+    right: 8px;
+    bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+    z-index: 18;
+    width: 62px;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .v2-guest-add-playlist.is-artist {
+    bottom: calc(142px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .v2-guest-add-playlist .v2-li-rail-circle {
+    position: relative;
+    width: 45px;
+    height: 45px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(255,159,10,.78);
+    border-radius: 50%;
+    background: rgba(5,6,7,.48);
+    color: #fff;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .v2-guest-add-playlist .v2-li-rail-circle svg {
+    width: 23px;
+    height: 23px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .v2-guest-add-playlist small {
+    color: #d4d7dc;
+    font: 800 8px/1.05 Karla, Arial, sans-serif;
+  }
+
+  .v2-guest-add-playlist:active .v2-li-rail-circle {
+    border-color: #ffb42f;
+    color: #ffb42f;
+    transform: scale(.96);
+  }
+}
+
+@media (max-width: 390px) {
+  .v2-guest-add-playlist {
+    right: 4px;
+  }
+
+  .v2-guest-add-playlist .v2-li-rail-circle {
+    width: 42px;
+    height: 42px;
+  }
+}

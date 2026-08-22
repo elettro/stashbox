@@ -1,0 +1,11 @@
+{
+  "name": "Stashbox Offline",
+  "short_name": "Stashbox",
+  "description": "Offline audio downloads and playback for Stashbox Radio.",
+  "start_url": "/radio/offline/",
+  "scope": "/radio/",
+  "display": "standalone",
+  "background_color": "#050607",
+  "theme_color": "#050607",
+  "orientation": "portrait-primary"
+}

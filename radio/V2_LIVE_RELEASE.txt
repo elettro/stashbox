@@ -1,0 +1,5 @@
+Stashbox Radio V2 live release
+Approved source: release/radio-v2-approved-20260822
+Public path: /radio/
+API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+Root-path rewrites: 78

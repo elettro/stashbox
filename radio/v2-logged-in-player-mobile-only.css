@@ -1,0 +1,17 @@
+.v2-li-player-head-actions,
+.v2-li-player-rail,
+.v2-li-song-more,
+.v2-li-meta-chips,
+.v2-li-up-next-button,
+.v2-li-mode-button {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .v2-li-player-head-actions { display: flex; }
+  .v2-li-player-rail { display: grid; }
+  .v2-li-song-more { display: grid; }
+  .v2-li-meta-chips { display: flex; }
+  .v2-li-up-next-button { display: inline-flex; }
+  .v2-li-mode-button { display: grid; }
+}

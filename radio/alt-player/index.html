@@ -4,25 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050607">
-    <meta name="stashbox-v2-build" content="mobile-playstats1-20260822-titlemode2-adscms9-cadenceguard1-fitguard1-offlineaudio3-profileoverlay1">
-  <script>
-    (() => {
-      try {
-        const params = new URLSearchParams(location.search);
-        const desktop = matchMedia('(min-width: 900px)').matches;
-        const allowLegacy = params.get('desktopruntime') === 'legacy';
-        if (desktop && !allowLegacy && !location.pathname.includes('/radio/desktop/')) {
-          const target = new URL('/radio/desktop/', location.origin);
-          target.search = location.search;
-          target.hash = location.hash;
-          location.replace(target.href);
-        }
-      } catch (_) {}
-    })();
-  </script>
-  <title>Stashbox Radio | Streaming Player</title>
-  <meta name="description" content="Stashbox Radio music discovery, full-screen playback, visual experiences, artist profiles, and playlists.">
-  <link rel="canonical" href="https://stashbox.com/radio/">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="stashbox-v2-build" content="alt-desktop-featured-latest-20260725-85">
+  <title>Stashbox Radio DEV V2 · Alternate Player</title>
+  <meta name="description" content="An isolated alternate interface for the Stashbox Radio V2 player.">
+  <link rel="canonical" href="https://stashbox.com/radio/alt-player/">
   <base href="/radio/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,11 +26,11 @@
   <link rel="stylesheet" href="/radio/v2-logged-in-player.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-logged-in-player-mobile-only.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-mobile-vec-commerce.css?v=20260724-player66">
-  <link rel="stylesheet" href="/radio/v2-desktop-vec.css?v=20260807-visiblecontain2">
+  <link rel="stylesheet" href="/radio/v2-desktop-vec.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-vec-performance.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-shopify-clip-thumbnail-fix.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-single-product-commerce.css?v=20260724-player66">
-  <link rel="stylesheet" href="/radio/v2-guest-vec-gate.css?v=20260725-session80">
+  <link rel="stylesheet" href="/radio/v2-guest-vec-gate.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-mobile-player-header-repair.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-mobile-player-bottom-stack.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-merch-tray-compact.css?v=20260724-player66">
@@ -54,24 +40,21 @@
   <link rel="stylesheet" href="/radio/v2-guest-add-playlist.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-guest-auth-layer-fix.css?v=20260724-player66">
   <link rel="stylesheet" href="/radio/v2-full-frame-video.css?v=20260724-lowerfade73">
-  <link rel="stylesheet" href="/radio/v2-ads-cms-runtime.css?v=20260821-adscms9">
-  <link rel="stylesheet" href="/radio/v2-video-focus-mode.css?v=20260821-titlemode2">
-  <link rel="stylesheet" href="/radio/v2-media-transition-guard.css?v=20260804-mainstable1">
-  <link rel="stylesheet" href="/radio/v2-viewer-overlay.css?v=20260807-vecinfo2">
-  <link rel="stylesheet" href="/radio/v2-page-overlay.css?v=20260725-routing84">
-  <link rel="stylesheet" href="/radio/v2-main-desktop-full-width.css?v=20260725-main87">
-  <link rel="stylesheet" href="/radio/v2-responsive-song-artwork.css?v=20260804-mainstable1">
+  <link rel="stylesheet" href="/radio/v2-video-focus-mode.css?v=20260725-flick80">
+  <link rel="stylesheet" href="/radio/v2-media-transition-guard.css?v=20260725-transition80">
+  <link rel="stylesheet" href="/radio/v2-viewer-overlay.css?v=20260725-vecbadge81">
+  <link rel="stylesheet" href="/radio/alt-player/alt-player.css?v=20260725-alt83">
 </head>
-<body class="radio-dev-v2">
+<body class="radio-dev-v2 v2-alt-player">
   <div id="v2App" class="v2-app" aria-live="polite">
     <header class="v2-header">
-      <a class="v2-wordmark" href="/radio/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
+      <a class="v2-wordmark" href="/radio/alt-player/" aria-label="Stashbox Radio alternate V2 home">STASH<span>BOX</span></a>
     </header>
 
     <main class="v2-home">
       <section class="v2-guest-meter" data-v2-boot-status>
-        <span>Interface loaded</span>
-        <strong>Connecting to the live song catalog…</strong>
+        <span>Alternate interface loaded</span>
+        <strong>Connecting to the same live Stashbox Radio catalog…</strong>
       </section>
 
       <section class="v2-section v2-featured-section">
@@ -96,27 +79,19 @@
   </div>
 
   <noscript><section class="v2-load-error"><h1>JavaScript is disabled</h1><p>Enable JavaScript to load Stashbox Radio V2.</p></section></noscript>
-  <script src="/radio/v2-boot-guard.js?v=20260818-mobile-sharecopy1" defer></script>
+  <script src="/radio/v2-boot-guard.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-health.js?v=20260724-stability68" defer></script>
-  <script src="/radio/desktop/browser-audio-map.js?v=20260818-stream320-80" defer></script>
-  <script src="/radio/v2-mobile-audio-stream-preference.js?v=20260818-mobilemp3-1" defer></script>
-  <script src="/radio/v2-audio-fast-start.js?v=20260818-mobilemp3-1" defer></script>
-  <script src="/radio/v2-session-manager.js?v=20260802-profile-login-repair1" defer></script>
-  <script src="/radio/v2-ads-cms-runtime.js?v=20260821-adscms9" defer></script>
-  <script src="/radio/v2-ads-cms-live-refresh.js?v=20260821-adscms9" defer></script>
+  <script src="/radio/v2-session-manager.js?v=20260725-session80" defer></script>
   <script src="/radio/v2-recovery.js?v=20260724-player67" defer></script>
-  <script src="/radio/v2-play-tracker.js?v=20260819-playstats1" defer></script>
-  <script src="/radio/v2-share-count.js?v=20260818-mobile-sharecopy1" defer></script>
   <script src="/radio/v2-shop-randomizer.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-player-fluid-home.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-featured-randomizer.js?v=20260806-catalogonly1" defer></script>
+  <script src="/radio/v2-featured-randomizer.js?v=20260724-discovery74" defer></script>
   <script src="/radio/v2-featured-latest-split.js?v=20260725-discovery88" defer></script>
   <script src="/radio/v2-genre-carousel-randomizer.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-auth-sheet.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-auth-input-case-fix.js?v=20260726-authcase90" defer></script>
-  <script src="/radio/v2-auth-mobile-scroll-top.js?v=20260726-authcase90" defer></script>
-  <script src="/radio/v2-login-direct.js?v=20260811-vecauth1" defer></script>
-  <script src="/radio/v2-profile-entry.js?v=20260822-profileoverlay1" defer></script>
+  <script src="/radio/v2-auth-mobile-scroll-top.js?v=20260724-player66" defer></script>
+  <script src="/radio/v2-login-direct.js?v=20260724-player66" defer></script>
+  <script src="/radio/v2-profile-entry.js?v=20260725-session80" defer></script>
   <script src="/radio/v2-account-preferences.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-listening-history.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-notifications-desktop.js?v=20260724-player66" defer></script>
@@ -124,35 +99,26 @@
   <script src="/radio/v2-notifications-sheet.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-notifications-seen-on-open.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-like-state.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-artist-profile-links.js?v=20260818-avatarlink2" defer></script>
+  <script src="/radio/v2-artist-profile-links.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-artist-radio-handoff.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-logged-in-player-stable.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-offline-audio-hook.js?v=20260821-offlineaudio3" defer></script>
   <script src="/radio/v2-auth-player-sync.js?v=20260725-session80" defer></script>
   <script src="/radio/v2-player-artist-avatar.js?v=20260725-avatar80" defer></script>
   <script src="/radio/v2-favorite-song-resolution.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-profile-queue.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-viewer-overlay.js?v=20260807-vecinfo1" defer></script>
-  <script src="/radio/v2-vec-shuffle-memory.js?v=20260805-shufflememory2" defer></script>
-  <script src="/radio/v2-desktop-vec-core-loader.js?v=20260817-desktop-safe1" defer></script>
-  <script src="/radio/v2-mobile-vec-motion-override.js?v=20260819-mobilecontinuity1" defer></script>
-  <script src="/radio/v2-mobile-vec-flicker-guard.js?v=20260819-mobilecontinuity1" defer></script>
-  <script src="/radio/v2-desktop-vec-repeat-guard.js?v=20260805-monitor2" defer></script>
-  <script src="/radio/v2-desktop-official-artwork-16x9.js?v=20260804-mainstable1" defer></script>
-  <script src="/radio/v2-desktop-artwork-runtime-loader.js?v=20260807-desktoponly1" defer></script>
+  <script src="/radio/v2-viewer-overlay.js?v=20260725-vecbadge81" defer></script>
+  <script src="/radio/v2-vec-player-controller.js?v=20260725-vecbadge81" defer></script>
+  <script src="/radio/v2-media-transition-guard.js?v=20260725-transition80" defer></script>
   <script src="/radio/v2-shopify-clip-thumbnail-fix.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-guest-vec-gate.js?v=20260725-session80" defer></script>
-  <script src="/radio/v2-spacebar-transport.js?v=20260725-flick80" defer></script>
+  <script src="/radio/v2-spacebar-transport.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-mobile-player-header-repair.js?v=20260725-vecbadge81" defer></script>
-  <script src="/radio/v2-mobile-player-swipe.js?v=20260821-titlemode1" defer></script>
+  <script src="/radio/v2-mobile-player-swipe.js?v=20260725-flick80" defer></script>
   <script src="/radio/v2-media-session.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-guest-player-safe.js?v=20260725-flick89" defer></script>
   <script src="/radio/v2-like-count-switch-fix.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-guest-add-playlist.js?v=20260724-player66" defer></script>
   <script src="/radio/v2-guest-auth-bridge.js?v=20260724-player66" defer></script>
-  <script src="/radio/v2-page-overlay.js?v=20260807-removefit1" defer></script>
-  <script src="/radio/v2-smart-player-title.js?v=20260807-mobilecss2" defer></script>
-  <script src="/radio/v2-ads-cms-cadence-guard.js?v=20260821-cadenceguard1" defer></script>
-  <script src="/radio/v2-ads-fit-guard.js?v=20260821-fitguard1" defer></script>
+  <script src="/radio/alt-player/alt-player.js?v=20260725-alt83" defer></script>
 </body>
 </html>
