@@ -1,0 +1,122 @@
+{
+  "started_at": "2026-08-22T21:09:52.860Z",
+  "version": 4,
+  "scope": "targeted recovery for V3 folder-asset failures",
+  "preflight": {
+    "dev_folders": 22,
+    "prod_folders": 23,
+    "dev_songs": 83
+  },
+  "targets": 7,
+  "created": 0,
+  "reused": 0,
+  "failed": [
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "1d55159b-e923-48c2-b70b-00f794782f3e",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675637295-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den--1-.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675637295-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den--1-.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "c765bd11-de4a-4d1b-be8c-7f8c15626307",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675638796-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675638796-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "73667458-9382-4f9d-9c0a-ea3abe50eb4e",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675640073-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--4-.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675640073-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--4-.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "7b4cff2a-31fe-45f1-ba15-1620844f6509",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675641296-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--3-.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675641296-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--3-.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "c17355de-5686-4a15-a3e8-d8dd57e58165",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675642596-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--2-.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675642596-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--2-.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "db99a28d-80cf-41cc-8e27-95bc0a277980",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675643856-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--1-.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675643856-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--1-.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    },
+    {
+      "folder_id": "442d07c8-854a-42b6-87ae-100cb5db12f9",
+      "asset_id": "159f39f7-07bf-411e-892d-762887d88c1f",
+      "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675645096-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi.mp4",
+      "s3_key": "radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675645096-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi.mp4",
+      "error": "POST https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/admin/visuals/folders/a516fcb5-cd58-4581-92f1-5b308ca7ac3c/assets -> HTTP 500: Internal Server Error"
+    }
+  ],
+  "asset_map": {},
+  "recipes": {
+    "found_dev": 82,
+    "saved_prod": 82,
+    "failed": []
+  },
+  "verification": {
+    "remaining_failed_urls": 7,
+    "checks": [
+      {
+        "asset_id": "1d55159b-e923-48c2-b70b-00f794782f3e",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675637295-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den--1-.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "c765bd11-de4a-4d1b-be8c-7f8c15626307",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675638796-Seedance-2_0---A-confident-skateboarder-in-vintage-1980s-beachwear-_-faded-neon-tank-top_-rolled-den.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "73667458-9382-4f9d-9c0a-ea3abe50eb4e",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675640073-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--4-.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "7b4cff2a-31fe-45f1-ba15-1620844f6509",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675641296-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--3-.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "c17355de-5686-4a15-a3e8-d8dd57e58165",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675642596-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--2-.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "db99a28d-80cf-41cc-8e27-95bc0a277980",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675643856-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi--1-.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      },
+      {
+        "asset_id": "159f39f7-07bf-411e-892d-762887d88c1f",
+        "url": "https://stashbox-media-656260749296-us-east-2-an.s3.us-east-2.amazonaws.com/radio-assets/visual-experience/dev/folders/dean-skateboarding/clips/1781675645096-Seedance-2_0---Skateboarding-down-1980s-newport-beach-boardwalk-dodging-people-in-a-very-chill-confi.mp4",
+        "present_in_prod": false,
+        "prod_asset_id": ""
+      }
+    ],
+    "prod_folder_count": 23,
+    "folder_map_count": 22
+  },
+  "fatal_error": null,
+  "finished_at": "2026-08-22T21:12:54.634Z",
+  "ok": false
+}
