@@ -1,0 +1,46 @@
+Radio API pressure diagnostic
+window=2026-08-22T19:51:43Z to 2026-08-22T20:11:43Z
+
+[stashbox-radio-api-dev-v2]
+stashbox-radio-api-dev-v2 Invocations:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-dev-v2 Errors:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-dev-v2 Throttles:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-dev-v2 ConcurrentExecutions:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-dev-v2 Duration:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+
+[stashbox-radio-api-prod-v2]
+stashbox-radio-api-prod-v2 Invocations:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-prod-v2 Errors:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-prod-v2 Throttles:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-prod-v2 ConcurrentExecutions:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+stashbox-radio-api-prod-v2 Duration:
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the GetMetricStatistics operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cloudwatch:GetMetricStatistics because no identity-based policy allows the cloudwatch:GetMetricStatistics action
+
+[recent lambda log errors]
+/aws/lambda/stashbox-radio-api-dev-v2
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the FilterLogEvents operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: logs:FilterLogEvents on resource: arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-radio-api-dev-v2 because no identity-based policy allows the logs:FilterLogEvents action
+
+/aws/lambda/stashbox-radio-api-prod-v2
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the FilterLogEvents operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: logs:FilterLogEvents on resource: arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-radio-api-prod-v2 because no identity-based policy allows the logs:FilterLogEvents action
+
