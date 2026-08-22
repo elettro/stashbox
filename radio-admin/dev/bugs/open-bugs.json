@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-21T23:18:00-04:00",
+  "updated_at": "2026-08-21T23:31:00-04:00",
   "bugs": [
     {
       "id": "SR-BUG-0018",
@@ -13,16 +13,17 @@
       "reported_at": "2026-08-21",
       "fixed_at": null,
       "verified_at": null,
-      "symptom": "The 9:16 ad now fits without the prior crop, but the fitted video box is anchored to the far left instead of horizontally centered in the full-screen sponsored viewer.",
+      "symptom": "Ad video sizing is no longer the primary failure, but the media is positioned in the upper-left/top region instead of being centered in the full browser viewport.",
       "affected_examples": [
         "Clementine - Album sponsored video",
+        "Jon Phillips Silverback Management sponsored video",
         "DEV V2 desktop sponsored overlay"
       ],
       "working_comparisons": [
-        "Expected full vertical frame centered with equal black side space"
+        "Expected ad media centered in the browser viewport with balanced black space around fitted creative"
       ],
-      "root_cause": "The physical FIT sizing repair corrected the source ratio, but centering still depended on inherited flex/grid positioning and remained vulnerable to a left anchor.",
-      "fix_summary": "New repair candidate deployed: fitguard3 explicitly positions the fitted ad video at left:50% and top:50% with translate(-50%,-50%), while preserving the physical source-ratio dimensions. This removes inherited layout as the owner of ad centering.",
+      "root_cause": "The previous centering pass used a nested ad media wrapper as the positioning reference. That wrapper was not reliably the full browser viewport, so 50%/50% still resolved to the wrong visual location.",
+      "fix_summary": "New repair candidate deployed: fitguard4 makes the ad media stage position:fixed across the real viewport and centers the ad video itself at 50vw/50vh. Sizing is calculated from the browser viewport rather than the nested wrapper. This pass intentionally changes only ad media location/viewport ownership.",
       "files_changed": [
         "radio/dev/v2/v2-ads-fit-guard.js",
         "radio/dev/v2/desktop/index.html"
@@ -35,14 +36,16 @@
         "f53b5962a61cae7bf67968e819404d894c61ef48",
         "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36",
         "0c4787e3b6c59a64c1f3dd35141ed968ea275243",
-        "ca9aaddbc8b63d0e0172b0e92d525d34de9b4c09"
+        "ca9aaddbc8b63d0e0172b0e92d525d34de9b4c09",
+        "3d874b104cfe08bc4d32559fcb445fc470a036ee",
+        "849f96e5fce67ba5d6cbf11a37bc2df4b20d1ffa"
       ],
       "related_bugs": [
         "SR-BUG-0019"
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0018.md",
       "repair_playbook": null,
-      "future_repair": "Verify the live 9:16 creative is physically fitted and centered. Black pillarbox space should be balanced on both sides with no crop."
+      "future_repair": "Verify both a 9:16 and 16:9 ad are centered against the browser viewport. Do not change cadence logic during this verification pass."
     },
     {
       "id": "SR-BUG-0019",
