@@ -1,0 +1,6 @@
+run_id=32596759707
+head_sha=36557f69444f656deed41216f661cfd96416ed20
+source_sha=6d9b9e3947c06ab64e71f378050da57356a32177
+mirror=failure
+parity=skipped
+recorded_utc=2026-08-22T21:04:30Z
