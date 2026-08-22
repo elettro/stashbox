@@ -25,6 +25,12 @@ function getBearerToken(event) {
   return match ? match[1].trim() : '';
 }
 
+function getRuntimeEnv() {
+  return String(process.env.APP_ENV || process.env.STAGE || process.env.NODE_ENV || process.env.ENVIRONMENT || 'prod')
+    .trim()
+    .toLowerCase();
+}
+
 function getCognitoConfig() {
   const userPoolId = String(process.env.COGNITO_USER_POOL_ID || '').trim();
   const clientId = String(process.env.COGNITO_APP_CLIENT_ID || process.env.COGNITO_CLIENT_ID || '').trim();
@@ -67,6 +73,15 @@ function loadBundledJwks() {
     }
   }
 
+  // The repository bundle contains TRUE DEV Cognito signing keys. Never allow
+  // production to fall back to that DEV bundle. Production should either use
+  // an explicitly supplied COGNITO_JWKS_JSON value or let aws-jwt-verify fetch
+  // the signing keys from the configured Cognito user pool over the network.
+  const runtimeEnv = getRuntimeEnv();
+  const explicitBundleOptIn = String(process.env.COGNITO_USE_BUNDLED_JWKS || '').trim().toLowerCase() === 'true';
+  const allowDevBundle = explicitBundleOptIn || runtimeEnv === 'dev' || runtimeEnv === 'development' || runtimeEnv === 'test';
+  if (!allowDevBundle) return null;
+
   try {
     const fileUrl = new URL('./cognito-jwks-dev.json', import.meta.url);
     return {
@@ -87,7 +102,7 @@ function loadBundledJwks() {
 function getVerifiers() {
   const config = getCognitoConfig();
   if (!config.enabled) {
-    throw authError(503, 'Stashbox Radio accounts are not configured in this DEV environment.', 'AUTH_NOT_CONFIGURED');
+    throw authError(503, 'Stashbox Radio accounts are not configured in this environment.', 'AUTH_NOT_CONFIGURED');
   }
 
   const cacheKey = `${config.userPoolId}:${config.clientId}`;
