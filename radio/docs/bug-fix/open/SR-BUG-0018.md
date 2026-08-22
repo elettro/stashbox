@@ -31,11 +31,13 @@ Vertical video ads are visibly cropped in the full-screen sponsored viewer. The 
 
 ## Root cause
 
-Not established yet. Multiple FIT enforcement changes were published earlier on 2026-08-21, but the user reproduced the crop after those changes. Treat the current presentation as unresolved rather than fixed.
+The previous repair still depended on `object-fit: contain` while competing runtime code repeatedly rewrote the physical video element dimensions. The rendered box itself therefore remained vulnerable to viewport-fill geometry even when `object-fit` reported contain.
 
 ## Fix
 
-No verified fix is recorded. Prior FIT guards and cache-bust changes are considered attempted repairs only until the user confirms the live viewer renders the full vertical frame.
+Repair candidate published on 2026-08-21. The final Ads FIT guard now reads the real `videoWidth` and `videoHeight`, calculates the largest source-ratio rectangle that fits inside the live ad stage, and writes explicit pixel width and height to the video element. It also removes absolute viewport-fill positioning and transforms. This makes the physical video box match the source aspect ratio instead of relying on `object-fit` to correct a mismatched box.
+
+The desktop runtime now cache-busts this as `fitguard2`. Keep the bug Open until the user verifies the Clementine vertical creative live.
 
 ## Files changed
 
@@ -52,10 +54,12 @@ No verified fix is recorded. Prior FIT guards and cache-bust changes are conside
 - `474ffafef9558e8c671fd5f93d88252670b812cb`
 - `e48dcf2e320c2c4b0e736d94dd1fa2c8343d796d`
 - `8f219096ea0ca9ee42c132763cef2918237cc562`
+- `f53b5962a61cae7bf67968e819404d894c61ef48`
+- `fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36`
 
 ## Verification
 
-Failed. User reported at approximately 22:55 ET on 2026-08-21 that the vertical ads still were not displaying correctly after the latest repair pass.
+Previous repair failed user verification at approximately 22:55 ET on 2026-08-21. A stronger physical-dimension repair is now deployed to desktop and awaits a new user test.
 
 ## Regression risk
 
@@ -67,8 +71,8 @@ Changes to generic V2 video sizing, full-screen player rules, ad overlay media s
 
 ## Future repair procedure
 
-Inspect the live computed styles and actual rendered dimensions of `.v2-ad-break-player` while the failing ad is playing. Identify the final rule or script mutation setting the video box to a viewport-filling geometry. Verify source `videoWidth/videoHeight`, rendered `getBoundingClientRect()`, and `object-fit` together. Repair the true owner, then test one 9:16 ad on both desktop and mobile before marking fixed.
+Inspect the live `videoWidth/videoHeight`, the ad-stage dimensions, and the final explicit rendered width/height on `.v2-ad-break-player`. A correct 9:16 creative on a wide desktop viewport must have a narrow centered physical video rectangle with black space on both sides. Do not close from CSS inspection alone.
 
 ## Notes
 
-The screenshot supplied by the user shows the source creative cut within a wide desktop viewer. Do not close this bug based on CSS source inspection alone. Live user verification is required.
+The screenshot supplied by the user shows the source creative cut within a wide desktop viewer. Live user verification is required before closure.
