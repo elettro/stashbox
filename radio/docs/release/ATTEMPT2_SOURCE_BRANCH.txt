@@ -1,0 +1,2 @@
+Immutable source branch target: freeze/radio-dev-v2-attempt2-20260822
+Source commit: 6d9b9e3947c06ab64e71f378050da57356a32177
