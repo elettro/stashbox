@@ -1,0 +1,36 @@
+name: Diagnose Radio V2 production account route
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.release-radio-v2-prod-account-diagnostic'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - name: Inspect public response contracts without exposing private fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /radio/auth/config /radio/me /radio/me/preferences; do
+            code="$(curl -sS -D /tmp/headers -o /tmp/body -w '%{http_code}' "$API$path")"
+            echo "=== $path ==="
+            echo "HTTP $code"
+            grep -iE '^(content-type|x-amzn-requestid|x-amz-apigw-id):' /tmp/headers || true
+            if jq -e . /tmp/body >/dev/null 2>&1; then
+              jq '{keys:(keys|sort),success:(.success // null),authenticated:(.authenticated // null),error:(.error // null),code:(.code // null),path:(.path // null),route:(.route // null),has_user:has("user"),has_preferences:has("preferences"),has_auth:has("auth")}' /tmp/body
+            else
+              echo 'Non-JSON response'
+              wc -c /tmp/body
+            fi
+          done
