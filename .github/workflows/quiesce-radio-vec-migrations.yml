@@ -1,0 +1,82 @@
+name: Quiesce Radio VEC migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.quiesce-radio-vec-migrations'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  quiesce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Cancel active VEC migration runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_VEC_QUIESCE_LATEST.txt
+          : > "$OUT"
+          echo "quiesce_utc=$(date -u +%FT%TZ)" >> "$OUT"
+          workflows=(
+            "one-time-promote-dev-vec-to-prod-v2.yml"
+            "one-time-promote-dev-vec-to-prod-v3.yml"
+            "one-time-promote-dev-vec-to-prod-v4.yml"
+            "promote-dev-vec-to-prod-v3.yml"
+          )
+          for wf in "${workflows[@]}"; do
+            echo "workflow=$wf" >> "$OUT"
+            code=$(curl -sS -o /tmp/runs.json -w '%{http_code}' \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}/runs?per_page=20")
+            echo "list_http=$code" >> "$OUT"
+            if [ "$code" != "200" ]; then continue; fi
+            node - <<'NODE' >/tmp/active.txt
+          const fs=require('fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/runs.json','utf8'));
+          for(const r of b.workflow_runs||[]){
+            if(['queued','in_progress','waiting','requested','pending'].includes(r.status)) console.log(`${r.id} ${r.status}`);
+          }
+NODE
+            while read -r id status; do
+              [ -n "${id:-}" ] || continue
+              echo "cancel run_id=$id status=$status" >> "$OUT"
+              cancel_code=$(curl -sS -o /tmp/cancel.json -w '%{http_code}' -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${id}/cancel")
+              echo "cancel_http=$cancel_code" >> "$OUT"
+            done </tmp/active.txt
+          done
+          cat "$OUT"
+      - name: Record quiesce result
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/RADIO_VEC_QUIESCE_LATEST.txt /tmp/quiesce.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/quiesce.txt radio/docs/diagnostics/RADIO_VEC_QUIESCE_LATEST.txt
+            git add radio/docs/diagnostics/RADIO_VEC_QUIESCE_LATEST.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio VEC migration quiesce [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
