@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-21T22:55:00-04:00",
+  "updated_at": "2026-08-21T23:15:00-04:00",
   "bugs": [
     {
       "id": "SR-BUG-0018",
       "title": "Vertical ad creative is cropped instead of displayed with FIT",
       "status": "Open",
-      "verification": "Failed",
+      "verification": "Pending retest",
       "severity": "High",
       "area": "Ads / Player",
       "environment": "DEV V2 Desktop",
@@ -21,8 +21,8 @@
       "working_comparisons": [
         "Expected full vertical frame centered with black side space"
       ],
-      "root_cause": "Not established. Earlier FIT enforcement and cache-bust changes did not resolve the live failure.",
-      "fix_summary": "No verified fix. Prior FIT guards are recorded as attempted repairs only.",
+      "root_cause": "The previous repair still depended on object-fit while competing code rewrote the physical video element dimensions. The rendered box remained vulnerable to viewport-fill geometry.",
+      "fix_summary": "Repair candidate deployed: fitguard2 now reads native videoWidth/videoHeight and physically sizes the video element to the largest source-ratio rectangle that fits the live ad stage. Desktop cache-bust is live. User verification is still required.",
       "files_changed": [
         "radio/dev/v2/v2-ads-cms-runtime.css",
         "radio/dev/v2/v2-ads-cms-runtime.js",
@@ -35,20 +35,22 @@
         "44c961503d7c6013e68b02f089b94af5598a2a3a",
         "474ffafef9558e8c671fd5f93d88252670b812cb",
         "e48dcf2e320c2c4b0e736d94dd1fa2c8343d796d",
-        "8f219096ea0ca9ee42c132763cef2918237cc562"
+        "8f219096ea0ca9ee42c132763cef2918237cc562",
+        "f53b5962a61cae7bf67968e819404d894c61ef48",
+        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36"
       ],
       "related_bugs": [
         "SR-BUG-0019"
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0018.md",
       "repair_playbook": null,
-      "future_repair": "Inspect live computed styles and the actual rendered video dimensions while the failing 9:16 ad is playing. Repair the final owner forcing viewport-fill geometry, then verify on desktop and mobile."
+      "future_repair": "Verify the live native video dimensions and final physical box. A 9:16 ad must render as a narrow centered rectangle with black side space."
     },
     {
       "id": "SR-BUG-0019",
       "title": "Ads CMS break cadence is ignored and ads play every other song",
       "status": "Open",
-      "verification": "Failed",
+      "verification": "Pending retest",
       "severity": "High",
       "area": "Ads / Player",
       "environment": "DEV V2 Desktop",
@@ -64,8 +66,8 @@
         "CMS controller displays After every song/video",
         "Expected Song -> Ad -> Song -> Ad sequence"
       ],
-      "root_cause": "Not established. Existing transition-proof cadence guards did not produce end-to-end adherence to the live CMS setting.",
-      "fix_summary": "No verified fix. Prior cadence changes remain attempted repairs only until a live multi-song sequence passes.",
+      "root_cause": "The previous repair still depended on the timing of the next real V2 audio generation to claim an owed break. Reused or remounted audio could leave the break pending into the following song.",
+      "fix_summary": "Repair candidate deployed: cadenceguard2 claims the runtime's pending break immediately at the natural song boundary with a dedicated proxy, pauses the next real song while the ad plays, then resumes that song when the break finishes. It does not create a second cadence counter. User verification is still required.",
       "files_changed": [
         "radio/dev/v2/v2-ads-cms-runtime.js",
         "radio/dev/v2/v2-ads-cms-live-refresh.js",
@@ -78,14 +80,16 @@
         "a876052c1b72b69dcf8ca5be8c25f1487caaa633",
         "7f93027a70e88bcf9d32e190f42777453ddf45ba",
         "b9d2ddfbd2ec47bb8fd5c0a29fcb810df772edf7",
-        "0d266ab34322dd8dd2c8a5802e10ba6ce8194f02"
+        "0d266ab34322dd8dd2c8a5802e10ba6ce8194f02",
+        "c4815d211d43d35916654945b291d4881f125aed",
+        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36"
       ],
       "related_bugs": [
         "SR-BUG-0018"
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0019.md",
       "repair_playbook": null,
-      "future_repair": "Trace a three-song session from CMS settings fetch through natural completion, break-due state, and ad start. Compare live break_interval with runtime state before each completion and fix the first divergence."
+      "future_repair": "Verify three consecutive natural completions with CMS breakInterval 1. Each completion must move breakPending to adPlaying before the next song audibly advances."
     }
   ]
 }
