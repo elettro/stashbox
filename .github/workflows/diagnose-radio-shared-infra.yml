@@ -1,0 +1,85 @@
+name: Diagnose Radio shared infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.diagnose-radio-shared-infra'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Inspect Lambda VPC and shared RDS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_SHARED_INFRA_LATEST.txt
+          : > "$OUT"
+          echo "Radio shared infrastructure diagnostic" >> "$OUT"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
+          echo >> "$OUT"
+          for FN in stashbox-radio-api-dev-v2 stashbox-radio-api-prod-v2; do
+            echo "[$FN]" >> "$OUT"
+            aws lambda get-function-configuration --function-name "$FN" --region us-east-1 \
+              --query '{State:State,LastUpdateStatus:LastUpdateStatus,Timeout:Timeout,MemorySize:MemorySize,VpcConfig:VpcConfig,PGHOST:Environment.Variables.PGHOST,PGPORT:Environment.Variables.PGPORT,PGDATABASE:Environment.Variables.PGDATABASE,PGSCHEMA:Environment.Variables.PGSCHEMA}' \
+              --output json >> "$OUT" 2>&1 || true
+            echo >> "$OUT"
+          done
+
+          echo "[RDS instances]" >> "$OUT"
+          aws rds describe-db-instances --region us-east-1 \
+            --query 'DBInstances[].{Identifier:DBInstanceIdentifier,Status:DBInstanceStatus,Engine:Engine,Class:DBInstanceClass,Endpoint:Endpoint.Address,Port:Endpoint.Port,AZ:AvailabilityZone,MultiAZ:MultiAZ,StorageType:StorageType,AllocatedStorage:AllocatedStorage,MaxStorageThreshold:MaxAllocatedStorage}' \
+            --output json > /tmp/rds.json 2>/tmp/rds.err || true
+          if [ -s /tmp/rds.json ]; then cat /tmp/rds.json >> "$OUT"; else cat /tmp/rds.err >> "$OUT"; fi
+          echo >> "$OUT"
+
+          START=$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if [ -s /tmp/rds.json ]; then
+            node -e 'const fs=require("fs"); for(const x of JSON.parse(fs.readFileSync("/tmp/rds.json","utf8"))) if(x.Identifier) console.log(x.Identifier)' > /tmp/rds-ids || true
+            while IFS= read -r DB; do
+              [ -n "$DB" ] || continue
+              echo "[RDS metrics $DB]" >> "$OUT"
+              for M in DatabaseConnections CPUUtilization FreeableMemory; do
+                echo "$M:" >> "$OUT"
+                aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name "$M" \
+                  --dimensions Name=DBInstanceIdentifier,Value="$DB" --start-time "$START" --end-time "$END" \
+                  --period 60 --statistics Maximum Average --region us-east-1 --output json >> "$OUT" 2>&1 || true
+              done
+              echo >> "$OUT"
+            done < /tmp/rds-ids
+          fi
+          cat "$OUT"
+      - name: Record diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/RADIO_SHARED_INFRA_LATEST.txt /tmp/radio-shared-infra.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp /tmp/radio-shared-infra.txt radio/docs/diagnostics/RADIO_SHARED_INFRA_LATEST.txt
+            git add radio/docs/diagnostics/RADIO_SHARED_INFRA_LATEST.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio shared infrastructure diagnostic [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
