@@ -100,7 +100,7 @@
     const count = ensureCount(button);
     if (!count) return;
     count.textContent = String(song.shares);
-    button.setAttribute('title', 'Copy song link');
+    button.setAttribute('title', 'Copy song link (C)');
     button.setAttribute('aria-label', `Copy link for ${song.title}. ${song.shares} shares`);
   }
 
@@ -126,7 +126,7 @@
   }
 
   function copyText(value, button) {
-    const copied = () => showCopyStatus(button, 'Link copied');
+    const copied = () => showCopyStatus(button, 'URL copied');
 
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(value).then(copied).catch(() => fallbackCopy(value, copied));
@@ -196,7 +196,7 @@
 
     const clone = original.cloneNode(true);
     clone.dataset.desktopShareIsolation = 'true';
-    clone.setAttribute('title', 'Copy song link');
+    clone.setAttribute('title', 'Copy song link (C)');
     clone.setAttribute('aria-label', 'Copy song link');
     ensureCount(clone);
     ensureCopyStatus(clone);
@@ -218,6 +218,28 @@
       })
       .catch(() => {});
   }
+
+  function isTypingTarget(target) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
+  }
+
+  function onShareHotkey(event) {
+    if (!matchMedia('(min-width: 900px)').matches || event.repeat) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isTypingTarget(event.target)) return;
+    if (String(event.key || '').toLowerCase() !== 'c') return;
+
+    replaceShareButton();
+    const button = findShareButton();
+    if (!button || button.dataset.desktopShareIsolation !== 'true') return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    button.click();
+  }
+
+  document.addEventListener('keydown', onShareHotkey, true);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -263,8 +285,6 @@
     }, delay);
   });
 
-  // The player reuses the same markup as songs change. This lightweight sync keeps
-  // the displayed number tied to the song currently shown without observing the DOM.
   window.setInterval(() => {
     replaceShareButton();
     paintCurrentCount();
