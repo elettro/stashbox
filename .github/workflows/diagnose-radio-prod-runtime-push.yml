@@ -27,21 +27,75 @@ jobs:
           echo "Run UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
           echo >> "$OUT"
           probe() {
-            name="$1"; url="$2"
-            code="$(curl -L -sS --max-time 15 -o /tmp/body -w '%{http_code}' "$url" || true)"
-            bytes="$(wc -c < /tmp/body 2>/dev/null || echo 0)"
+            name="$1"; url="$2"; file="${3:-/tmp/body}"
+            code="$(curl -L -sS --max-time 20 -o "$file" -w '%{http_code}' "$url" || true)"
+            bytes="$(wc -c < "$file" 2>/dev/null || echo 0)"
             echo "$name HTTP=$code BYTES=$bytes" >> "$OUT"
-            if [ "$name" = 'songs' ] && [ "$code" = '200' ]; then
-              node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/body','utf8'); let b={}; try{b=JSON.parse(t)}catch{}; const a=Array.isArray(b)?b:(b.songs||b.items||b.data||[]); console.log('songs COUNT='+ (Array.isArray(a)?a.length:0));" >> "$OUT"
-            fi
-            if [ "$name" = 'auth_config' ] && [ "$code" = '200' ]; then
-              node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/body','utf8'); let b={}; try{b=JSON.parse(t)}catch{}; console.log('auth_config ENABLED='+Boolean(b.auth&&b.auth.enabled)+' HAS_POOL='+Boolean(b.auth&&b.auth.user_pool_id)+' HAS_CLIENT='+Boolean(b.auth&&b.auth.app_client_id));" >> "$OUT"
-            fi
           }
+
+          DEV=https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+          PROD=https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+
           probe root https://stashbox.com/radio/
           probe desktop https://stashbox.com/radio/desktop/
-          probe songs https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs
-          probe auth_config https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/auth/config
+          probe prod_songs "$PROD/radio/songs" /tmp/prod-songs.json
+          probe dev_songs "$DEV/radio/songs" /tmp/dev-songs.json
+          probe auth_config "$PROD/radio/auth/config" /tmp/auth.json
+
+          node <<'NODE' >> "$OUT"
+          const fs = require('fs');
+          const read = p => { try { return JSON.parse(fs.readFileSync(p,'utf8')); } catch { return {}; } };
+          const rows = b => Array.isArray(b) ? b : (b.songs || b.items || b.data || []);
+          const dev = rows(read('/tmp/dev-songs.json'));
+          const prod = rows(read('/tmp/prod-songs.json'));
+          const key = x => String(x.song_key || x.id || '').trim();
+          const prodKeys = new Set(prod.map(key).filter(Boolean));
+          const common = dev.find(x => prodKeys.has(key(x)));
+          console.log(`dev_songs COUNT=${dev.length}`);
+          console.log(`prod_songs COUNT=${prod.length}`);
+          console.log(`common_song_key=${common ? key(common) : ''}`);
+          fs.writeFileSync('/tmp/common-song-key', common ? key(common) : '');
+          NODE
+
+          KEY="$(cat /tmp/common-song-key)"
+          if [ -n "$KEY" ]; then
+            enc="$(node -p "encodeURIComponent(process.argv[1])" "$KEY")"
+            probe dev_recipe "$DEV/radio/vec/recipe?song_key=$enc" /tmp/dev-recipe.json
+            probe prod_recipe "$PROD/radio/vec/recipe?song_key=$enc" /tmp/prod-recipe.json
+            probe dev_assets "$DEV/radio/vec/song-assets?song_key=$enc" /tmp/dev-assets.json
+            probe prod_assets "$PROD/radio/vec/song-assets?song_key=$enc" /tmp/prod-assets.json
+            probe dev_artwork "$DEV/radio/songs/$enc/artwork-images" /tmp/dev-artwork.json
+            probe prod_artwork "$PROD/radio/songs/$enc/artwork-images" /tmp/prod-artwork.json
+
+            node <<'NODE' >> "$OUT"
+            const fs = require('fs');
+            const read = p => { try { return JSON.parse(fs.readFileSync(p,'utf8')); } catch { return {}; } };
+            const unwrap = b => b && typeof b === 'object' && b.body && typeof b.body === 'string' ? (()=>{try{return JSON.parse(b.body)}catch{return b}})() : b;
+            const rows = b => { b=unwrap(b)||{}; return Array.isArray(b)?b:(b.assets||b.items||b.results||b.data||[]); };
+            const type = a => String(a.asset_type||a.type||a.media_type||a.content_type||a.mime_type||a.kind||a.file_type||'').toLowerCase().includes('video') || /\.(mp4|webm|m4v|mov)(?:$|[?#])/i.test(String(a.url||a.asset_url||a.media_url||a.file_url||a.src||'')) ? 'video' : 'image';
+            for (const env of ['dev','prod']) {
+              const assets = rows(read(`/tmp/${env}-assets.json`));
+              const videos = assets.filter(a=>type(a)==='video').length;
+              const images = assets.length-videos;
+              const recipe = unwrap(read(`/tmp/${env}-recipe.json`))||{};
+              const artBody = unwrap(read(`/tmp/${env}-artwork.json`))||{};
+              const media = artBody.media || artBody.data?.media || artBody.data || artBody;
+              const arts = media.artwork_images || {};
+              const a16 = arts['16x9'] || media.song_artwork_16x9_url || '';
+              const a21 = arts['21x9'] || media.song_artwork_21x9_url || '';
+              const a11 = arts['1x1'] || media.song_artwork_1x1_url || media.song_artwork_url || '';
+              const r = recipe.recipe || recipe.data?.recipe || recipe.data || recipe;
+              const mode = r.visual_mode || r.visualMode || '';
+              const folders = r.folders || r.approved_folders || r.selected_folders || r.visual_folders || [];
+              console.log(`${env}_vec ASSETS=${assets.length} VIDEOS=${videos} IMAGES=${images} MODE=${mode||'unset'} FOLDERS=${Array.isArray(folders)?folders.length:0}`);
+              console.log(`${env}_artwork HAS_1x1=${Boolean(a11)} HAS_16x9=${Boolean(a16)} HAS_21x9=${Boolean(a21)}`);
+            }
+            NODE
+          fi
+
+          if [ -s /tmp/auth.json ]; then
+            node -e "const fs=require('fs'); let b={}; try{b=JSON.parse(fs.readFileSync('/tmp/auth.json','utf8'))}catch{}; console.log('auth_config ENABLED='+Boolean(b.auth&&b.auth.enabled)+' HAS_POOL='+Boolean(b.auth&&b.auth.user_pool_id)+' HAS_CLIENT='+Boolean(b.auth&&b.auth.app_client_id));" >> "$OUT"
+          fi
           cat "$OUT"
       - name: Record diagnostic result
         shell: bash
