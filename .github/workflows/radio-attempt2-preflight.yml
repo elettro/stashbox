@@ -29,16 +29,21 @@ jobs:
           fetch-depth: 0
 
       - name: Load frozen Attempt 2 tooling
+        id: tooling
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin "$TOOL_BRANCH" "$SOURCE_SHA"
+          git fetch origin "$TOOL_BRANCH"
           git show "origin/$TOOL_BRANCH:.github/scripts/build-radio-attempt2-mirror-v2.mjs" > /tmp/build-radio-attempt2-mirror-v2.mjs
           git show "origin/$TOOL_BRANCH:.github/scripts/radio-attempt2-data-mirror.mjs" > /tmp/radio-attempt2-data-mirror.mjs
           test -s /tmp/build-radio-attempt2-mirror-v2.mjs
           test -s /tmp/radio-attempt2-data-mirror.mjs
 
       - name: Configure AWS credentials
+        id: aws
+        if: steps.tooling.outcome == 'success'
+        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -46,14 +51,29 @@ jobs:
           aws-region: us-east-1
 
       - name: Build exact frontend mirror candidate
-        run: node /tmp/build-radio-attempt2-mirror-v2.mjs
+        id: build
+        if: steps.tooling.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node /tmp/build-radio-attempt2-mirror-v2.mjs 2>&1 | tee /tmp/attempt2-build.log
 
       - name: Run read-only DEV to PROD data preflight
+        id: data
+        if: steps.tooling.outcome == 'success' && steps.aws.outcome == 'success'
+        continue-on-error: true
         env:
           APPLY: '0'
-        run: node /tmp/radio-attempt2-data-mirror.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node /tmp/radio-attempt2-data-mirror.mjs 2>&1 | tee /tmp/attempt2-data.log
 
-      - name: Enforce preflight gates
+      - name: Enforce candidate gates
+        id: gate
+        if: steps.build.outcome == 'success' && steps.data.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -65,10 +85,13 @@ jobs:
           grep -q '/radio/attempt2/desktop/desktop-shuffle-all.js' radio/attempt2/desktop/index.html
           grep -q '/radio/attempt2/v2-desktop-video-fit-toggle.js' radio/attempt2/desktop/index.html
           grep -q '/radio/attempt2/desktop/desktop-play-stat-ui.js' radio/attempt2/desktop/index.html
-          if grep -RIn 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' radio/attempt2; then exit 1; fi
-          if grep -RIn '/radio/dev/v2/' radio/attempt2; then exit 1; fi
+          ! grep -RIn 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' radio/attempt2
+          ! grep -RIn '/radio/dev/v2/' radio/attempt2
 
-      - name: Publish isolated candidate and reports
+      - name: Publish candidate when gates pass
+        id: publish
+        if: steps.gate.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -93,3 +116,56 @@ jobs:
             sleep $((attempt * 2))
           done
           exit 1
+
+      - name: Record preflight outcome
+        if: always()
+        shell: bash
+        env:
+          TOOLING_OUTCOME: ${{ steps.tooling.outcome }}
+          AWS_OUTCOME: ${{ steps.aws.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          DATA_OUTCOME: ${{ steps.data.outcome }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/attempt2-diag
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "head_sha=$GITHUB_SHA"
+            echo "source_sha=$SOURCE_SHA"
+            echo "tooling=$TOOLING_OUTCOME"
+            echo "aws=$AWS_OUTCOME"
+            echo "build=$BUILD_OUTCOME"
+            echo "data=$DATA_OUTCOME"
+            echo "gate=$GATE_OUTCOME"
+            echo "publish=$PUBLISH_OUTCOME"
+            echo "recorded_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > /tmp/attempt2-diag/ATTEMPT2_PREFLIGHT_RUN.txt
+          cp /tmp/attempt2-build.log /tmp/attempt2-diag/ATTEMPT2_BUILD_LOG.txt 2>/dev/null || true
+          cp /tmp/attempt2-data.log /tmp/attempt2-diag/ATTEMPT2_DATA_LOG.txt 2>/dev/null || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/attempt2-diag/* radio/docs/diagnostics/
+            git add radio/docs/diagnostics/ATTEMPT2_PREFLIGHT_RUN.txt radio/docs/diagnostics/ATTEMPT2_BUILD_LOG.txt radio/docs/diagnostics/ATTEMPT2_DATA_LOG.txt 2>/dev/null || true
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio Attempt 2 preflight outcome [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
+
+      - name: Fail workflow if preflight failed
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.tooling.outcome }}' = 'success'
+          test '${{ steps.aws.outcome }}' = 'success'
+          test '${{ steps.build.outcome }}' = 'success'
+          test '${{ steps.data.outcome }}' = 'success'
+          test '${{ steps.gate.outcome }}' = 'success'
+          test '${{ steps.publish.outcome }}' = 'success'
