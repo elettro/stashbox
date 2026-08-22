@@ -1,0 +1,147 @@
+name: Radio Attempt 2 live candidate smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-attempt2-candidate-smoke'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-attempt2-candidate-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SITE: https://stashbox.com/radio/attempt2
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      SOURCE_SHA: 6d9b9e3947c06ab64e71f378050da57356a32177
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Require successful data mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          test -f radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json
+          jq -e '.ok == true and .mode == "apply"' radio/docs/diagnostics/ATTEMPT2_DATA_MIRROR.json >/dev/null
+          grep -q '^mirror=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          grep -q '^parity=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+
+      - name: Wait for isolated candidate publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            code="$(curl -L -sS --max-time 20 -o /tmp/candidate.html -w '%{http_code}' "${SITE}/?attempt2_smoke=${GITHUB_RUN_ID}" || true)"
+            if [ "$code" = '200' ] && grep -q 'stashbox-v2-build' /tmp/candidate.html; then exit 0; fi
+            echo "waiting attempt=$i http=$code"
+            sleep 5
+          done
+          exit 1
+
+      - name: Verify exact desktop build and required assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L -fsS "${SITE}/desktop/?attempt2_smoke=${GITHUB_RUN_ID}" -o /tmp/desktop.html
+          grep -q 'hotkeys4' /tmp/desktop.html
+          grep -q '/radio/attempt2/desktop/desktop-shuffle-all.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/v2-desktop-video-fit-toggle.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/desktop/desktop-play-stat-ui.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/desktop/desktop-share-isolation.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/desktop/desktop-vec2.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/v2-like-state.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/v2-artist-profile-links.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/v2-spacebar-transport.js' /tmp/desktop.html
+          grep -q '/radio/attempt2/v2-notifications-desktop.js' /tmp/desktop.html
+          ! grep -q 'd21fbe6u80.execute-api.us-east-1.amazonaws.com/dev' /tmp/desktop.html
+          curl -L -fsS "${SITE}/desktop/desktop-shuffle-all.js?attempt2_smoke=${GITHUB_RUN_ID}" -o /tmp/hotkeys.js
+          for token in "key === 'w'" "key === 'e'" "key === 's'" "key === 'f'" "key === 'l'"; do grep -Fq "$token" /tmp/hotkeys.js; done
+          curl -L -fsS "${SITE}/v2-desktop-video-fit-toggle.js?attempt2_smoke=${GITHUB_RUN_ID}" -o /tmp/fit.js
+          grep -q 'data-desktop-video-fit-toggle' /tmp/fit.js
+          curl -L -fsS "${SITE}/desktop/desktop-play-stat-ui.js?attempt2_smoke=${GITHUB_RUN_ID}" -o /tmp/plays.js
+          grep -q 'data-play-stat-desktop' /tmp/plays.js
+
+      - name: Verify production-backed catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS "${PROD_API}/radio/songs?attempt2_smoke=${GITHUB_RUN_ID}" -o /tmp/songs.json
+          node <<'NODE'
+          const fs=require('fs');
+          let b=JSON.parse(fs.readFileSync('/tmp/songs.json','utf8'));
+          const rows=Array.isArray(b)?b:(b.songs||b.items||b.data||[]);
+          if(rows.length!==89) throw new Error(`Expected 89 visible PROD songs, got ${rows.length}`);
+          const key=x=>String(x.song_key||x.songKey||'').trim();
+          if(rows.some(x=>!key(x))) throw new Error('Song without song_key');
+          fs.writeFileSync('/tmp/song-key',key(rows[0]));
+          NODE
+
+      - name: Render a real desktop player in headless Chrome
+        id: render
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          KEY="$(cat /tmp/song-key)"
+          URL="${SITE}/desktop/?song=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$KEY")&attempt2_render=${GITHUB_RUN_ID}"
+          timeout 45 "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --autoplay-policy=no-user-gesture-required --virtual-time-budget=18000 --dump-dom "$URL" > /tmp/rendered.html
+          test -s /tmp/rendered.html
+          grep -q 'data-player' /tmp/rendered.html
+          grep -q 'data-like' /tmp/rendered.html
+          grep -q 'data-prev' /tmp/rendered.html
+          grep -q 'data-play' /tmp/rendered.html
+          grep -q 'data-next' /tmp/rendered.html
+          grep -q 'data-share' /tmp/rendered.html
+          grep -q 'data-desktop-shuffle-all' /tmp/rendered.html
+          grep -q 'data-desktop-video-fit-toggle' /tmp/rendered.html
+          grep -q 'data-play-stat-desktop' /tmp/rendered.html
+
+      - name: Record smoke result
+        if: always()
+        shell: bash
+        env:
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/attempt2-smoke
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "source_sha=$SOURCE_SHA"
+            echo "candidate=$SITE"
+            echo "render=$RENDER_OUTCOME"
+            echo "recorded_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > /tmp/attempt2-smoke/ATTEMPT2_CANDIDATE_SMOKE.txt
+          cp /tmp/rendered.html /tmp/attempt2-smoke/ATTEMPT2_RENDERED_DESKTOP.html 2>/dev/null || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/attempt2-smoke/* radio/docs/diagnostics/
+            git add radio/docs/diagnostics/ATTEMPT2_CANDIDATE_SMOKE.txt radio/docs/diagnostics/ATTEMPT2_RENDERED_DESKTOP.html 2>/dev/null || true
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio Attempt 2 candidate smoke [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
+
+      - name: Enforce rendered smoke
+        if: always()
+        shell: bash
+        run: test '${{ steps.render.outcome }}' = 'success'
