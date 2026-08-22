@@ -1,5 +1,5 @@
 Radio API 503 diagnostic
-Run UTC: 2026-08-22T20:15:49Z
+Run UTC: 2026-08-22T21:16:53Z
 
 [dev]
 {
@@ -38,7 +38,7 @@ public_songs_http=200
 admin_folders_http=200
 public_recipe_http=200
 songs_count=83
-folders_count=2
+folders_count=23
 songs_error=
 folders_error=
 recipe_error=
