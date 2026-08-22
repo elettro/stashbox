@@ -1,0 +1,99 @@
+name: Add Radio C share hotkey
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-share-hotkey-c'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-share-hotkey-c
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Add C share-copy hotkey to DEV, candidate, and PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path('radio/dev/v2/desktop/desktop-share-isolation.js'),
+              Path('radio/attempt2/desktop/desktop-share-isolation.js'),
+              Path('radio/desktop/desktop-share-isolation.js'),
+          ]
+
+          hotkey = r'''
+
+  function isTypingTarget(target) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
+  }
+
+  function onShareHotkey(event) {
+    if (!matchMedia('(min-width: 900px)').matches || event.repeat) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isTypingTarget(event.target)) return;
+    if (String(event.key || '').toLowerCase() !== 'c') return;
+
+    replaceShareButton();
+    const button = findShareButton();
+    if (!button || button.dataset.desktopShareIsolation !== 'true') return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    button.click();
+  }
+
+  document.addEventListener('keydown', onShareHotkey, true);
+'''
+
+          marker = "\n  const style = document.createElement('style');"
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              if "function onShareHotkey(event)" not in text:
+                  if marker not in text:
+                      raise SystemExit(f'Missing insertion marker in {path}')
+                  text = text.replace(marker, hotkey + marker, 1)
+              text = text.replace("showCopyStatus(button, 'Link copied')", "showCopyStatus(button, 'URL copied')")
+              text = text.replace("button.setAttribute('title', 'Copy song link');", "button.setAttribute('title', 'Copy song link (C)');")
+              text = text.replace("clone.setAttribute('title', 'Copy song link');", "clone.setAttribute('title', 'Copy song link (C)');")
+              path.write_text(text, encoding='utf-8')
+
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              required = [
+                  "function onShareHotkey(event)",
+                  "toLowerCase() !== 'c'",
+                  "button.click();",
+                  "showCopyStatus(button, 'URL copied')",
+                  "Copy song link (C)",
+              ]
+              missing = [token for token in required if token not in text]
+              if missing:
+                  raise SystemExit(f'{path} missing {missing}')
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/dev/v2/desktop/desktop-share-isolation.js radio/attempt2/desktop/desktop-share-isolation.js radio/desktop/desktop-share-isolation.js
+          git diff --cached --check
+          git commit -m 'Add C hotkey for share URL copy in DEV and PROD'
+          git push origin HEAD:main
