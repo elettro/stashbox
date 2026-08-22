@@ -203,6 +203,19 @@
     triggerSong(catalogKeys[nextIndex]);
   }
 
+  function playerIsOpen() {
+    const player = app.querySelector('[data-player]');
+    return Boolean(player && !player.hidden);
+  }
+
+  function likeHotkey() {
+    if (!playerIsOpen()) return false;
+    const likeButton = app.querySelector('[data-player] [data-like]');
+    if (!likeButton) return false;
+    likeButton.click();
+    return true;
+  }
+
   function injectButton() {
     if (!desktopQuery.matches) return;
     captureCatalog();
@@ -239,7 +252,8 @@
     if (isTypingTarget(event.target)) return;
 
     const key = String(event.key || '').toLowerCase();
-    if (!['s', 'w', 'e'].includes(key)) return;
+    if (!['s', 'w', 'e', 'f', 'l'].includes(key)) return;
+    if ((key === 'f' || key === 'l') && !playerIsOpen()) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -254,7 +268,12 @@
       return;
     }
 
-    adjacentHotkey(1);
+    if (key === 'e') {
+      adjacentHotkey(1);
+      return;
+    }
+
+    likeHotkey();
   }, true);
 
   document.addEventListener('click', event => {
@@ -304,5 +323,5 @@
   };
 
   if (typeof desktopQuery.addEventListener === 'function') desktopQuery.addEventListener('change', onDesktopChange);
-  else if (typeof desktopQuery.addListener === 'function') desktopQuery.addListener(onDesktopChange);
+  else if (typeof desktopQuery.addListener === 'function') desktopQuery.addListener('change', onDesktopChange);
 })();
