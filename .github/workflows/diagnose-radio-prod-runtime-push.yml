@@ -1,0 +1,55 @@
+name: Diagnose Radio production runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.diagnose-radio-prod-runtime'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Probe live site and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/PROD_RUNTIME_LATEST.txt
+          : > "$OUT"
+          echo "Radio production runtime diagnostic" >> "$OUT"
+          echo "Run UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT"
+          echo >> "$OUT"
+          probe() {
+            name="$1"; url="$2"
+            code="$(curl -L -sS --max-time 15 -o /tmp/body -w '%{http_code}' "$url" || true)"
+            bytes="$(wc -c < /tmp/body 2>/dev/null || echo 0)"
+            echo "$name HTTP=$code BYTES=$bytes" >> "$OUT"
+            if [ "$name" = 'songs' ] && [ "$code" = '200' ]; then
+              node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/body','utf8'); let b={}; try{b=JSON.parse(t)}catch{}; const a=Array.isArray(b)?b:(b.songs||b.items||b.data||[]); console.log('songs COUNT='+ (Array.isArray(a)?a.length:0));" >> "$OUT"
+            fi
+            if [ "$name" = 'auth_config' ] && [ "$code" = '200' ]; then
+              node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/body','utf8'); let b={}; try{b=JSON.parse(t)}catch{}; console.log('auth_config ENABLED='+Boolean(b.auth&&b.auth.enabled)+' HAS_POOL='+Boolean(b.auth&&b.auth.user_pool_id)+' HAS_CLIENT='+Boolean(b.auth&&b.auth.app_client_id));" >> "$OUT"
+            fi
+          }
+          probe root https://stashbox.com/radio/
+          probe desktop https://stashbox.com/radio/desktop/
+          probe songs https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs
+          probe auth_config https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/auth/config
+          cat "$OUT"
+      - name: Record diagnostic result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_RUNTIME_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record production Radio runtime diagnostic [skip ci]'
+          git push origin HEAD:main
