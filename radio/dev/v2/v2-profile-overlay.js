@@ -70,6 +70,16 @@
     });
   }
 
+  function runProfileQueue() {
+    const script = document.createElement('script');
+    script.src = `/radio/dev/v2/v2-profile-queue.js?v=20260822-profilequeue-live-${Date.now()}`;
+    script.async = true;
+    script.dataset.v2ProfileQueueReload = 'true';
+    document.head.appendChild(script);
+    script.addEventListener('load', () => script.remove(), { once: true });
+    script.addEventListener('error', () => script.remove(), { once: true });
+  }
+
   function closeProfile() {
     if (!overlay) return;
     const previous = lastTrigger;
@@ -126,7 +136,7 @@
     }
     if (event.data.type === 'stashbox:profile-play') {
       closeProfile();
-      return;
+      runProfileQueue();
     }
   });
 
