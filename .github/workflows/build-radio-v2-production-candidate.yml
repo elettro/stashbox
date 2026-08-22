@@ -1,3 +1,4 @@
+# Triggered through a controlled merge so GitHub Actions receives a normal main-branch push.
 name: Build Radio V2 production candidate
 
 on:
