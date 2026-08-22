@@ -34,8 +34,6 @@
       overlay.querySelector('[data-delete-playlist]')?.dataset?.deletePlaylist
     );
 
-    // Playlist sheets should preserve their saved item order. Other profile
-    // library sheets also benefit from following their visible order.
     const keys = [];
     overlay.querySelectorAll('[data-play-song]').forEach(node => {
       const key = clean(node.dataset.playSong);
@@ -46,12 +44,25 @@
     return { keys, playlistId };
   }
 
+  function publish(payload) {
+    try {
+      sessionStorage.setItem(QUEUE_KEY, JSON.stringify(payload));
+      sessionStorage.removeItem(HANDOFF_KEY);
+    } catch (_) {}
+
+    if (window.parent !== window) {
+      try { window.parent.postMessage({ type: 'stashbox:profile-play', payload }, location.origin); } catch (_) {}
+      return;
+    }
+    location.href = '/radio/dev/v2/?profile_play=1';
+  }
+
   function handoff(target, selectedKey) {
     const ordered = orderedKeysFor(target, selectedKey);
     const songKeys = Array.isArray(ordered) ? ordered : ordered.keys;
     const playlistId = Array.isArray(ordered) ? '' : ordered.playlistId;
     const index = Math.max(0, songKeys.indexOf(selectedKey));
-    const payload = {
+    publish({
       songKeys,
       index,
       selectedSongKey: selectedKey,
@@ -60,16 +71,7 @@
       autoplay: true,
       createdAt: Date.now(),
       expiresAt: Date.now() + MAX_AGE_MS
-    };
-
-    try {
-      sessionStorage.setItem(QUEUE_KEY, JSON.stringify(payload));
-      // Clear the older single-song handoff so two controllers cannot both
-      // try to open the song after navigation.
-      sessionStorage.removeItem(HANDOFF_KEY);
-    } catch (_) {}
-
-    location.href = '/radio/dev/v2/?profile_play=1';
+    });
   }
 
   document.addEventListener('click', event => {
@@ -92,7 +94,7 @@
       const key = clean(songKey);
       const keys = Array.isArray(songKeys) ? songKeys.map(clean).filter(Boolean) : [key];
       if (!key) return;
-      const payload = {
+      publish({
         songKeys: keys.includes(key) ? keys : [key, ...keys],
         index: Math.max(0, keys.indexOf(key)),
         selectedSongKey: key,
@@ -100,12 +102,7 @@
         autoplay: true,
         createdAt: Date.now(),
         expiresAt: Date.now() + MAX_AGE_MS
-      };
-      try {
-        sessionStorage.setItem(QUEUE_KEY, JSON.stringify(payload));
-        sessionStorage.removeItem(HANDOFF_KEY);
-      } catch (_) {}
-      location.href = '/radio/dev/v2/?profile_play=1';
+      });
     }
   });
 })();
