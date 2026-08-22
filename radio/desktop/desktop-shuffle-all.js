@@ -323,5 +323,5 @@
   };
 
   if (typeof desktopQuery.addEventListener === 'function') desktopQuery.addEventListener('change', onDesktopChange);
-  else if (typeof desktopQuery.addListener === 'function') desktopQuery.addListener('change', onDesktopChange);
+  else if (typeof desktopQuery.addListener === 'function') desktopQuery.addListener(onDesktopChange);
 })();
