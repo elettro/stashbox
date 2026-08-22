@@ -13,45 +13,49 @@
 
   function forceMediaStage(video) {
     const stage = video.closest('[data-v2-ad-media], .v2-ad-break-media') || video.parentElement;
-    if (!stage) return;
-    setImportant(stage.style, 'display', 'flex');
-    setImportant(stage.style, 'align-items', 'center');
-    setImportant(stage.style, 'justify-content', 'center');
+    if (!stage) return null;
+
+    // The ad media stage always owns the full viewport. Center the fitted media
+    // with explicit coordinates instead of depending on flex/grid inheritance.
+    setImportant(stage.style, 'position', 'absolute');
+    setImportant(stage.style, 'inset', '0');
+    setImportant(stage.style, 'width', '100%');
+    setImportant(stage.style, 'height', '100%');
     setImportant(stage.style, 'overflow', 'hidden');
     setImportant(stage.style, 'background', '#000');
+    return stage;
   }
 
   function forceFit(video) {
     if (!(video instanceof HTMLVideoElement) || !video.classList.contains('v2-ad-break-player')) return false;
-    forceMediaStage(video);
 
-    const stage = video.closest('[data-v2-ad-media], .v2-ad-break-media') || video.parentElement;
-    const rect = stage?.getBoundingClientRect?.();
+    const stage = forceMediaStage(video);
+    if (!stage) return false;
+
+    const rect = stage.getBoundingClientRect?.();
     const boxWidth = Math.max(1, Number(rect?.width || window.innerWidth || 1));
     const boxHeight = Math.max(1, Number(rect?.height || window.innerHeight || 1));
     const sourceWidth = Number(video.videoWidth || 0);
     const sourceHeight = Number(video.videoHeight || 0);
 
-    setImportant(video.style, 'position', 'relative');
-    setImportant(video.style, 'inset', 'auto');
-    setImportant(video.style, 'left', 'auto');
+    // Explicit absolute centering avoids the left-anchor failure seen with the
+    // 9:16 Clementine creative. These properties are isolated to ad media only.
+    setImportant(video.style, 'position', 'absolute');
+    setImportant(video.style, 'left', '50%');
+    setImportant(video.style, 'top', '50%');
     setImportant(video.style, 'right', 'auto');
-    setImportant(video.style, 'top', 'auto');
     setImportant(video.style, 'bottom', 'auto');
+    setImportant(video.style, 'inset', 'auto');
+    setImportant(video.style, 'margin', '0');
     setImportant(video.style, 'min-width', '0');
     setImportant(video.style, 'min-height', '0');
     setImportant(video.style, 'max-width', 'none');
     setImportant(video.style, 'max-height', 'none');
-    setImportant(video.style, 'margin', 'auto');
-    setImportant(video.style, 'flex', '0 0 auto');
-    setImportant(video.style, 'transform', 'none');
+    setImportant(video.style, 'transform', 'translate(-50%, -50%)');
     setImportant(video.style, 'transform-origin', 'center center');
     setImportant(video.style, 'background', '#000');
 
     if (sourceWidth > 0 && sourceHeight > 0) {
-      // Size the physical <video> box to the largest rectangle that fits inside
-      // the viewer while preserving the source ratio. No COVER rule can crop a
-      // frame whose element box already matches the media's native aspect ratio.
       const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
       const width = Math.max(1, Math.floor(sourceWidth * scale));
       const height = Math.max(1, Math.floor(sourceHeight * scale));
@@ -59,14 +63,15 @@
       setImportant(video.style, 'height', `${height}px`);
       setImportant(video.style, 'aspect-ratio', `${sourceWidth} / ${sourceHeight}`);
       setImportant(video.style, 'object-fit', 'fill');
-      video.dataset.v2AdForcedFit = `physical-${sourceWidth}x${sourceHeight}-${width}x${height}`;
+      video.dataset.v2AdForcedFit = `centered-physical-${sourceWidth}x${sourceHeight}-${width}x${height}`;
     } else {
-      // Metadata has not arrived yet. Stay safely contained until it does.
+      // Before metadata arrives, use a contained viewport-sized box. Once the
+      // intrinsic dimensions become available this is replaced by physical FIT.
       setImportant(video.style, 'width', '100%');
       setImportant(video.style, 'height', '100%');
       setImportant(video.style, 'aspect-ratio', 'auto');
       setImportant(video.style, 'object-fit', 'contain');
-      video.dataset.v2AdForcedFit = 'metadata-pending-contain';
+      video.dataset.v2AdForcedFit = 'centered-metadata-pending-contain';
     }
 
     setImportant(video.style, 'object-position', 'center center');
