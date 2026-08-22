@@ -1,0 +1,58 @@
+/* Transparent transport controls preserve the VEC/video as the primary visual. */
+.v2-player .v2-transport,
+.artist-realm-player .artist-realm-control:not(.primary) {
+  background: transparent !important;
+  color: rgba(255,255,255,.96) !important;
+  border-color: rgba(255,255,255,.82) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v2-player .v2-main-play,
+.artist-realm-player .artist-realm-control.primary {
+  background: transparent !important;
+  color: var(--v2-accent, var(--artist-accent, #ff9f0a)) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v2-player .v2-transport svg path,
+.artist-realm-player .artist-realm-control:not(.primary) svg path {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.1 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.v2-player .v2-main-play[aria-label="Play"] svg path,
+.artist-realm-player .artist-realm-control.primary[aria-label="Play"] svg path {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+.v2-player .v2-main-play[aria-label="Pause"] svg path,
+.artist-realm-player .artist-realm-control.primary[aria-label="Pause"] svg path {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.v2-player .v2-main-play:hover,
+.artist-realm-player .artist-realm-control.primary:hover {
+  background: rgba(255,159,10,.08) !important;
+  color: #ffb52e !important;
+  box-shadow: none !important;
+}
+
+.v2-player .v2-transport:hover,
+.artist-realm-player .artist-realm-control:not(.primary):hover {
+  background: rgba(255,255,255,.06) !important;
+  color: #fff !important;
+  border-color: #fff !important;
+}

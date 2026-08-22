@@ -1,0 +1,392 @@
+/* Guest-only player controls and discovery surfaces. */
+.v2-guest-auth-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.v2-guest-auth-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 999px;
+  background: rgba(5,6,7,.4);
+  color: #fff;
+  font: 900 10px/1 Karla, Arial, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+}
+
+.v2-guest-auth-actions button:first-child {
+  border-color: rgba(255,159,10,.88);
+  color: #ffad26;
+}
+
+.v2-guest-auth-actions button:hover,
+.v2-guest-auth-actions button:focus-visible {
+  border-color: #ffad26;
+  color: #ffbd4b;
+  outline: none;
+}
+
+.v2-player-artist-profile-link,
+.v2-player-genre-link {
+  cursor: pointer;
+}
+
+.v2-player-artist-profile-link:focus-visible,
+.v2-player-genre-link:focus-visible {
+  outline: 2px solid #ff9f0a;
+  outline-offset: 3px;
+}
+
+.v2-player-genre-link {
+  transition: border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.v2-player-genre-link:hover {
+  border-color: #ffb52e !important;
+  color: #ffbd4b !important;
+  transform: translateY(-1px);
+}
+
+.v2-guest-gesture-hint {
+  position: absolute;
+  z-index: 90;
+  left: 50%;
+  top: 43%;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 16px;
+  background: rgba(4,5,6,.66);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.92);
+  transition: opacity .18s ease, transform .18s ease;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+
+.v2-guest-gesture-hint.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.v2-guest-gesture-hint i {
+  color: #ffad26;
+  font-size: 31px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.v2-guest-gesture-hint strong {
+  font: 900 10px/1 Karla, Arial, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.v2-guest-genre-sheet {
+  position: fixed;
+  z-index: 600;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  pointer-events: none;
+}
+
+.v2-guest-genre-sheet[hidden] {
+  display: none !important;
+}
+
+.v2-guest-genre-sheet.is-open {
+  pointer-events: auto;
+}
+
+.v2-guest-genre-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0,0,0,.64);
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+
+.v2-guest-genre-sheet.is-open .v2-guest-genre-backdrop {
+  opacity: 1;
+}
+
+.v2-guest-genre-panel {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: min(82dvh, 760px);
+  display: flex;
+  flex-direction: column;
+  justify-self: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.14);
+  border-bottom: 0;
+  border-radius: 26px 26px 0 0;
+  background: linear-gradient(180deg, #17191c, #0b0d0f 42%);
+  box-shadow: 0 -28px 90px rgba(0,0,0,.72);
+  transform: translateY(105%);
+  transition: transform .28s cubic-bezier(.22,.8,.24,1);
+}
+
+.v2-guest-genre-sheet.is-open .v2-guest-genre-panel {
+  transform: translateY(0);
+}
+
+.v2-guest-genre-handle {
+  width: 48px;
+  height: 5px;
+  flex: 0 0 auto;
+  margin: 10px auto 2px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.28);
+}
+
+.v2-guest-genre-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 18px 12px;
+}
+
+.v2-guest-genre-panel > header div {
+  min-width: 0;
+}
+
+.v2-guest-genre-panel > header small {
+  display: block;
+  margin-bottom: 3px;
+  color: #ff9f0a;
+  font: 900 9px/1 Karla, Arial, sans-serif;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.v2-guest-genre-panel > header h2 {
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-guest-genre-panel > header p {
+  margin: 5px 0 0;
+  color: #999fa8;
+  font: 600 10px/1.25 Karla, Arial, sans-serif;
+}
+
+.v2-guest-genre-panel > header > button {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 27px;
+  line-height: 1;
+}
+
+.v2-guest-genre-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  padding: 0 16px 12px;
+}
+
+.v2-guest-genre-actions button {
+  min-height: 43px;
+  border: 1px solid rgba(255,159,10,.55);
+  border-radius: 999px;
+  background: rgba(255,159,10,.08);
+  color: #ffad26;
+  font: 900 11px/1 Karla, Arial, sans-serif;
+}
+
+.v2-guest-genre-actions button:last-child {
+  background: linear-gradient(135deg, #ffb42f, #ff7c22);
+  color: #160d05;
+}
+
+.v2-guest-genre-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px calc(18px + env(safe-area-inset-bottom,0px));
+  -webkit-overflow-scrolling: touch;
+}
+
+.v2-guest-genre-song {
+  width: 100%;
+  min-height: 67px;
+  display: grid;
+  grid-template-columns: 50px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 6px;
+  border: 0;
+  border-top: 1px solid rgba(255,255,255,.08);
+  background: transparent;
+  color: #fff;
+  text-align: left;
+}
+
+.v2-guest-genre-song:first-child {
+  border-top: 0;
+}
+
+.v2-guest-genre-song.is-current {
+  background: rgba(255,159,10,.07);
+}
+
+.v2-guest-genre-song img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.v2-guest-genre-song span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.v2-guest-genre-song strong,
+.v2-guest-genre-song small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-guest-genre-song strong {
+  font: 800 13px/1.15 Karla, Arial, sans-serif;
+}
+
+.v2-guest-genre-song small {
+  color: #a5aab2;
+  font: 600 10px/1.15 Karla, Arial, sans-serif;
+}
+
+.v2-guest-genre-song i {
+  color: #ff9f0a;
+  font: 900 9px/1 Karla, Arial, sans-serif;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.v2-guest-genre-empty {
+  padding: 24px 8px;
+  color: #a5aab2;
+  text-align: center;
+}
+
+.artist-realm-player.is-guest-player .artist-realm-profile {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .v2-player.is-guest-player .v2-player-header {
+    grid-template-columns: 43px minmax(0,1fr) auto;
+    gap: 7px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .v2-player.is-guest-player .v2-player-mark {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 23px;
+  }
+
+  .v2-player.is-guest-player .v2-guest-auth-actions {
+    gap: 5px;
+  }
+
+  .v2-player.is-guest-player .v2-guest-auth-actions button {
+    min-height: 31px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .artist-realm-player.is-guest-player .artist-realm-header {
+    grid-template-columns: 43px minmax(0,1fr) auto;
+  }
+
+  .artist-realm-player.is-guest-player .artist-realm-brand {
+    justify-content: flex-start;
+  }
+
+  .artist-realm-player.is-guest-player .v2-guest-auth-actions {
+    gap: 5px;
+  }
+
+  .artist-realm-player.is-guest-player .v2-guest-auth-actions button {
+    min-height: 31px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .v2-guest-genre-panel {
+    max-height: 78dvh;
+  }
+
+  .v2-guest-genre-panel > header h2 {
+    font-size: 31px;
+  }
+}
+
+@media (max-width: 370px) {
+  .v2-player.is-guest-player .v2-player-mark {
+    font-size: 20px;
+  }
+
+  .v2-player.is-guest-player .v2-guest-auth-actions button,
+  .artist-realm-player.is-guest-player .v2-guest-auth-actions button {
+    padding: 0 6px;
+    font-size: 7.5px;
+  }
+}
+
+@media (min-width: 700px) {
+  .v2-guest-genre-sheet {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .v2-guest-genre-panel {
+    border-bottom: 1px solid rgba(255,255,255,.14);
+    border-radius: 25px;
+    opacity: 0;
+    transform: translateY(24px) scale(.98);
+  }
+
+  .v2-guest-genre-sheet.is-open .v2-guest-genre-panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-guest-gesture-hint,
+  .v2-guest-genre-backdrop,
+  .v2-guest-genre-panel {
+    transition: none !important;
+  }
+}

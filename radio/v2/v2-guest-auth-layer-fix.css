@@ -1,0 +1,8 @@
+/* The Artist Realm player uses z-index 10000. Authentication must sit above it. */
+.v2-auth-overlay {
+  z-index: 30000 !important;
+}
+
+.v2-auth-overlay.is-open {
+  pointer-events: auto !important;
+}

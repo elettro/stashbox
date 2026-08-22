@@ -1,0 +1,12 @@
+.profile-overlay{position:fixed}
+.profile-overlay-backdrop{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:default}
+.profile-sheet{z-index:1}
+.profile-list-row>.profile-playlist-art{width:58px;height:58px;aspect-ratio:1;display:grid;border-radius:8px}
+.profile-list-row>.profile-playlist-art img{width:100%;height:100%;object-fit:cover}
+.settings-profile{width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.settings-profile:hover{background:rgba(255,159,10,.04)}
+.settings-row[href]{text-decoration:none}
+.settings-profile-copy small{display:flex;align-items:center;gap:6px}
+.settings-profile-copy small svg{width:16px;height:16px}
+.settings-logout svg{width:20px;height:20px;vertical-align:middle}
+@media(max-width:699px){.profile-sheet{max-height:calc(100dvh - 58px - var(--p-safe-top))}.profile-sheet-body{padding-left:14px;padding-right:14px}.profile-list-row>.profile-playlist-art{width:50px;height:50px}}
