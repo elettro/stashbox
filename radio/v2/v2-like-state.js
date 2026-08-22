@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'stashbox_v2_liked_song_counts';
-  const TRACK_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/track';
+  const TRACK_URL = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/track';
   let likedCounts = readLikedCounts();
   let currentKey = '';
   let playerObserver = null;

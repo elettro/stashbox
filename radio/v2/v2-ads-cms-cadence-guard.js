@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (window.StashboxV2AdsCadenceGuard) return;
 
   const refreshedGeneration = new WeakMap();

@@ -8,7 +8,7 @@
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    const target = new URL('/radio/dev/v2/', window.location.origin);
+    const target = new URL('/radio/v2/', window.location.origin);
     target.searchParams.set('auth', trigger.dataset.v2AuthOpen || 'login');
     window.location.assign(target.toString());
   }, true);

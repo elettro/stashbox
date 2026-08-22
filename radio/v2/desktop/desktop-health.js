@@ -70,7 +70,7 @@
   function ensureDesktopPlayStatUiLoader() {
     if (window.StashboxDesktopPlayStatUi || document.querySelector('script[data-desktop-play-stat-ui-loader]')) return;
     const script = document.createElement('script');
-    script.src = '/radio/dev/v2/desktop/desktop-play-stat-ui.js?v=20260819-playstats3';
+    script.src = '/radio/v2/desktop/desktop-play-stat-ui.js?v=20260819-playstats3';
     script.defer = true;
     script.dataset.desktopPlayStatUiLoader = 'true';
     document.head.appendChild(script);

@@ -4,8 +4,8 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const ALT_HOME = '/radio/dev/v2/alt-player/';
-  const MAIN_HOME = '/radio/dev/v2/';
+  const ALT_HOME = '/radio/v2/alt-player/';
+  const MAIN_HOME = '/radio/v2/';
   const DESKTOP = window.matchMedia('(min-width: 700px)');
 
   document.body.classList.add('v2-alt-player');

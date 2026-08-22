@@ -42,7 +42,7 @@
 
   const detectCatalogSource = () => {
     const names = performance.getEntriesByType('resource').map(entry => entry.name);
-    if (names.some(name => name.includes('d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs'))) return 'dev';
+    if (names.some(name => name.includes('je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs'))) return 'production';
     if (names.some(name => name.includes('je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs'))) return 'production-fallback';
     return health.catalogSource || 'unknown';
   };

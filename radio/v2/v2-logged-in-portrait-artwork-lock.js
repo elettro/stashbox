@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  if (!window.location.pathname.includes('/radio/dev/v2/') || window.location.pathname.includes('/radio/dev/v2/artist/')) return;
+  if (!window.location.pathname.includes('/radio/v2/') || window.location.pathname.includes('/radio/v2/artist/')) return;
   if (window.StashboxLoggedInPortraitArtworkLock) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const CACHE_KEY = 'stashbox_v2_logged_in_portrait_artwork_v1';
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const PORTRAIT_ORDER = Object.freeze(['9x16', '3x4', '4x5', '1x1']);

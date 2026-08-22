@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const MIN_SECONDS = 10;
   const PAUSE_FINALIZE_MS = 15000;
   const app = document.getElementById('v2App');

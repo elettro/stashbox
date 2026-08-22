@@ -4,7 +4,7 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
 
   function loggedIn() {
     try {

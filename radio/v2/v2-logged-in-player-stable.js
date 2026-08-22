@@ -4,8 +4,8 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const SHOP = 'https://stashbox.ai/products.json?limit=250';
 
@@ -128,7 +128,7 @@
     state.player.classList.add('is-logged-in-player');
     const header = state.player.querySelector('.v2-player-header');
     if (header && !header.querySelector('.v2-li-player-head-actions')) {
-      header.insertAdjacentHTML('beforeend', `<div class="v2-li-player-head-actions"><button type="button" data-li-search>${icon.search}</button><button type="button" data-li-notifications>${icon.bell}</button><a class="v2-li-player-profile" data-li-profile href="/radio/dev/v2/profile/">P</a></div>`);
+      header.insertAdjacentHTML('beforeend', `<div class="v2-li-player-head-actions"><button type="button" data-li-search>${icon.search}</button><button type="button" data-li-notifications>${icon.bell}</button><a class="v2-li-player-profile" data-li-profile href="/radio/v2/profile/">P</a></div>`);
     }
     const artistRow = state.player.querySelector('.v2-artist-row');
     if (artistRow && !artistRow.querySelector('[data-li-follow]')) artistRow.insertAdjacentHTML('beforeend', '<button type="button" class="v2-follow-button" data-li-follow>Follow</button><button type="button" class="v2-li-song-more" data-li-more aria-label="More song actions">•••</button>');
@@ -308,7 +308,7 @@
     card?.click();
   }
   function share() { state.player.querySelector('[data-share]')?.click(); }
-  function viewArtist() { location.href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(state.player.querySelector('[data-li-artist]')?.dataset.artistKey || slug(state.current?.artist))}`; }
+  function viewArtist() { location.href = `/radio/v2/artist/?artist=${encodeURIComponent(state.player.querySelector('[data-li-artist]')?.dataset.artistKey || slug(state.current?.artist))}`; }
   function songPage() {
     const url = clean(state.current?.raw?.official_song_page_url || state.current?.raw?.song_page_url);
     if (url) window.open(url,'_blank','noopener'); else toast('No official song page is assigned yet');

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/radio/dev/v2/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/radio/v2/artist/')) return;
   if (window.StashboxDesktopVecRepeatGuard) return;
 
   // Read-only diagnostic. Repeats are prevented before playback by the shuffle

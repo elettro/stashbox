@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS = `${API}/radio/songs`;
   const RECIPE = `${API}/radio/vec/recipe`;
   const SONG_ASSETS = `${API}/radio/vec/song-assets`;

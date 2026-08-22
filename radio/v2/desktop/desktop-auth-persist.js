@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const app = document.getElementById('v2App');
   if (!app) return;
 
@@ -30,7 +30,7 @@
     if (!login) {
       login = document.createElement('a');
       login.className = 'v2-header-login';
-      login.href = '/radio/dev/v2/?auth=login';
+      login.href = '/radio/v2/?auth=login';
       login.dataset.v2AuthOpen = 'login';
       actions.appendChild(login);
     }

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${V2_DESKTOP_DEPLOY_URL:-https://stashbox.com/radio/dev/v2/desktop/}"
-SOURCE_HTML="${V2_DESKTOP_SOURCE_HTML:-radio/dev/v2/desktop/index.html}"
-ENGINE_FILE="${V2_DESKTOP_ENGINE_FILE:-radio/dev/v2/desktop/desktop-vec2.js}"
+BASE_URL="${V2_DESKTOP_DEPLOY_URL:-https://stashbox.com/radio/v2/desktop/}"
+SOURCE_HTML="${V2_DESKTOP_SOURCE_HTML:-radio/v2/desktop/index.html}"
+ENGINE_FILE="${V2_DESKTOP_ENGINE_FILE:-radio/v2/desktop/desktop-vec2.js}"
 ATTEMPTS="${V2_DESKTOP_DEPLOY_ATTEMPTS:-20}"
 SLEEP_SECONDS="${V2_DESKTOP_DEPLOY_SLEEP_SECONDS:-30}"
 PROBE_KEY="${GITHUB_SHA:-manual}-$$"

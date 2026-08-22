@@ -4,7 +4,7 @@
   const app = document.getElementById('artistApp');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const RECIPE_URL = `${API}/radio/vec/recipe`;
   const params = new URLSearchParams(location.search);

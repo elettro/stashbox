@@ -2,7 +2,7 @@
   'use strict';
 
   const path = window.location.pathname;
-  if (!path.includes('/radio/dev/v2/') || path.includes('/radio/dev/v2/artist/')) return;
+  if (!path.includes('/radio/v2/') || path.includes('/radio/v2/artist/')) return;
   if (window.StashboxResponsiveArtwork) return;
 
   const DESKTOP_MIN_WIDTH = 900;

@@ -1,14 +1,14 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(max-width: 899px)').matches) return;
   if (window.StashboxMobileArtworkAuthority) return;
 
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const CACHE_KEY = 'stashbox_mobile_artwork_policy_v3';
   const EXACT_TTL_MS = 24 * 60 * 60 * 1000;
   const FALLBACK_TTL_MS = 5 * 60 * 1000;

@@ -4,13 +4,13 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const RECIPE_URL = `${API}/radio/vec/recipe`;
   const SONG_ASSETS_URL = `${API}/radio/vec/song-assets`;
   const FOLDERS_URL = `${API}/radio/visuals/folders`;
   const SHOP_URL = 'https://stashbox.ai/products.json?limit=250';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const MOBILE = window.matchMedia('(max-width: 699px)');
   const CLIP_PRODUCT_LIFETIME_MS = 22000;
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';

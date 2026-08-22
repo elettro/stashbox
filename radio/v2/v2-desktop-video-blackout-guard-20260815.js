@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopVideoBlackoutGuard20260815) return;
 

@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API_ROOT}/radio/songs`;
   const SHOP_URL = 'https://stashbox.ai/products.json?limit=250';
   const TRACK_URL = `${API_ROOT}/radio/track`;
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const app = document.getElementById('v2App');
   if (!app) return;
@@ -253,7 +253,7 @@
       actions.innerHTML = `
         <button type="button" data-li-search aria-label="Search">${icons.search}</button>
         <button type="button" data-li-notifications aria-label="Notifications">${icons.bell}</button>
-        <a class="v2-li-player-profile" data-li-profile href="/radio/dev/v2/profile/" aria-label="Open your profile">P</a>`;
+        <a class="v2-li-player-profile" data-li-profile href="/radio/v2/profile/" aria-label="Open your profile">P</a>`;
       header.appendChild(actions);
     }
 
@@ -705,7 +705,7 @@
 
   function viewArtist() {
     const key = state.player.querySelector('[data-li-artist]')?.dataset.artistKey || slugify(state.currentSong?.artist);
-    location.href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(key)}`;
+    location.href = `/radio/v2/artist/?artist=${encodeURIComponent(key)}`;
   }
 
   function openSongPage() {

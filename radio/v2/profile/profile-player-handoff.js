@@ -54,7 +54,7 @@
       try { window.parent.postMessage({ type: 'stashbox:profile-play', payload }, location.origin); } catch (_) {}
       return;
     }
-    location.href = '/radio/dev/v2/?profile_play=1';
+    location.href = '/radio/v2/?profile_play=1';
   }
 
   function handoff(target, selectedKey) {

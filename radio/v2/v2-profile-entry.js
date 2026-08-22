@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const PROFILE_OVERLAY_SRC = '/radio/dev/v2/v2-profile-overlay.js?v=20260822-profileoverlay1';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const PROFILE_OVERLAY_SRC = '/radio/v2/v2-profile-overlay.js?v=20260822-profileoverlay1';
   let lastAccessToken = '';
   let loadedAccessToken = '';
   let accountName = '';
@@ -105,7 +105,7 @@
 
     ensureProfileOverlay()
       .then(overlay => overlay.open(button))
-      .catch(() => { location.href = '/radio/dev/v2/profile/'; });
+      .catch(() => { location.href = '/radio/v2/profile/'; });
   }, true);
 
   window.addEventListener('storage', event => {

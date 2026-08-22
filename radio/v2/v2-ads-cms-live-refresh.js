@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (window.StashboxV2AdsLiveRefresh) return;
 
-  const PUBLIC_SETTINGS_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/ad-settings';
+  const PUBLIC_SETTINGS_URL = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/ad-settings';
   const SETTINGS_STORAGE_KEY = 'stashbox_radio_dev_ads_settings_v1';
   const MIN_FORCE_GAP_MS = 1200;
   const MIN_PROBE_GAP_MS = 3500;

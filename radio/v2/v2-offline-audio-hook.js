@@ -3,11 +3,11 @@
 
   if (matchMedia('(min-width: 700px)').matches || window.StashboxOfflineAudioHook) return;
 
-  const DB_NAME = 'stashbox-radio-offline';
+  const DB_NAME = 'stashbox-radio-offline-prod';
   const DB_VERSION = 1;
   const STORE = 'songs';
-  const SW_URL = '/radio/dev/v2/offline-sw.js?v=20260821-offlineaudio3';
-  const OFFLINE_URL = '/radio/dev/v2/offline/';
+  const SW_URL = '/radio/v2/offline-sw.js?v=20260821-offlineaudio3';
+  const OFFLINE_URL = '/radio/v2/offline/';
   const app = document.getElementById('v2App');
   if (!app) return;
 
@@ -114,7 +114,7 @@
   async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      await navigator.serviceWorker.register(SW_URL, { scope: '/radio/dev/v2/' });
+      await navigator.serviceWorker.register(SW_URL, { scope: '/radio/v2/' });
     } catch (error) {
       console.warn('[V2 Offline Audio] service worker registration failed', error);
     }

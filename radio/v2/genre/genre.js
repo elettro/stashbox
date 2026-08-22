@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const HANDOFF_KEY = 'stashbox_v2_artist_song_handoff';
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
@@ -168,7 +168,7 @@
       return;
     }
     if (history.length > 1) history.back();
-    else location.href = '/radio/dev/v2/';
+    else location.href = '/radio/v2/';
   }
 
   function playSong(songKey) {
@@ -183,14 +183,14 @@
     try {
       sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ songKey: key, mode: 'genre', createdAt: Date.now() }));
     } catch (_) {}
-    location.href = '/radio/dev/v2/?artist_radio=1';
+    location.href = '/radio/v2/?artist_radio=1';
   }
 
   function bind() {
     app.querySelector('[data-genre-back]')?.addEventListener('click', closePage);
     app.querySelector('[data-genre-home]')?.addEventListener('click', () => {
-      if (embedded) window.top.location.href = '/radio/dev/v2/';
-      else location.href = '/radio/dev/v2/';
+      if (embedded) window.top.location.href = '/radio/v2/';
+      else location.href = '/radio/v2/';
     });
     app.querySelectorAll('[data-song-key]').forEach(button => button.addEventListener('click', () => playSong(button.dataset.songKey)));
   }

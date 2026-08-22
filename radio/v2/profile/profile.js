@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const HANDOFF_KEY = 'stashbox_v2_artist_song_handoff';
   const VEC_MODE_KEY = 'stashbox_v2_vec_mode';
   const SLEEP_END_KEY = 'stashbox_v2_sleep_timer_ends_at';
@@ -263,7 +263,7 @@
     if (!songKey) return;
     try { sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ songKey, mode: 'profile', createdAt: Date.now() })); }
     catch (_) {}
-    location.href = '/radio/dev/v2/?profile_play=1';
+    location.href = '/radio/v2/?profile_play=1';
   }
 
   function profileStatsMarkup() {
@@ -350,17 +350,17 @@
 
   function bottomNavMarkup() {
     return `<nav class="profile-bottom-nav" aria-label="Primary navigation">
-      <a href="/radio/dev/v2/">${icons.home}<span>Home</span></a>
-      <a href="/radio/dev/v2/#popular-artists">${icons.compass}<span>Explore</span></a>
-      <a href="/radio/dev/v2/">${icons.play}<span>Player</span></a>
+      <a href="/radio/v2/">${icons.home}<span>Home</span></a>
+      <a href="/radio/v2/#popular-artists">${icons.compass}<span>Explore</span></a>
+      <a href="/radio/v2/">${icons.play}<span>Player</span></a>
       <a href="https://stashbox.ai" target="_blank" rel="noopener">${icons.shop}<span>Shop</span></a>
-      <a class="active" href="/radio/dev/v2/profile/">${icons.user}<span>Profile</span></a>
+      <a class="active" href="/radio/v2/profile/">${icons.user}<span>Profile</span></a>
     </nav>`;
   }
 
   function renderProfile() {
     state.view = 'profile';
-    history.replaceState(null, '', '/radio/dev/v2/profile/');
+    history.replaceState(null, '', '/radio/v2/profile/');
     const profile = settings();
     const banner = clean(profile.banner_url) || songArt(latestSong()) || FALLBACK_ART;
     const displayName = state.account?.display_name || 'Listener';
@@ -395,7 +395,7 @@
 
   function renderSettings() {
     state.view = 'settings';
-    history.replaceState(null, '', '/radio/dev/v2/profile/?view=settings');
+    history.replaceState(null, '', '/radio/v2/profile/?view=settings');
     const profile = settings();
     const sleepEnd = number(localStorage.getItem(SLEEP_END_KEY));
     const remaining = sleepEnd > Date.now() ? Math.ceil((sleepEnd - Date.now()) / 60000) : 0;
@@ -614,7 +614,7 @@
 
   async function loadAll() {
     if (!state.tokens?.accessToken) {
-      location.replace('/radio/dev/v2/?auth=login&return=profile');
+      location.replace('/radio/v2/?auth=login&return=profile');
       return;
     }
     try {
@@ -642,10 +642,10 @@
     } catch (error) {
       if (error.status === 401) {
         try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
-        location.replace('/radio/dev/v2/?auth=login&return=profile');
+        location.replace('/radio/v2/?auth=login&return=profile');
         return;
       }
-      app.innerHTML = `<section class="profile-error"><strong>STASH<span>BOX</span></strong><h1>Profile could not load</h1><p>${escapeHtml(error.message || 'Unknown error')}</p><a href="/radio/dev/v2/">Return to Radio</a></section>`;
+      app.innerHTML = `<section class="profile-error"><strong>STASH<span>BOX</span></strong><h1>Profile could not load</h1><p>${escapeHtml(error.message || 'Unknown error')}</p><a href="/radio/v2/">Return to Radio</a></section>`;
     }
   }
 
@@ -657,7 +657,7 @@
     if (target.closest('[data-close-overlay]')) return closeOverlay();
     if (target.closest('[data-open-notifications]')) {
       try { sessionStorage.setItem('stashbox_v2_open_notifications', '1'); } catch (_) {}
-      location.href = '/radio/dev/v2/?open_notifications=1';
+      location.href = '/radio/v2/?open_notifications=1';
       return;
     }
     const settingsAction = target.closest('[data-settings-action]')?.dataset.settingsAction;
@@ -697,7 +697,7 @@
       return;
     }
     const artistKey = target.closest('[data-open-artist]')?.dataset.openArtist;
-    if (artistKey) return location.href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(artistKey)}`;
+    if (artistKey) return location.href = `/radio/v2/artist/?artist=${encodeURIComponent(artistKey)}`;
     const removeItem = target.closest('[data-remove-playlist-item]');
     if (removeItem) {
       const id = removeItem.dataset.playlistId;
@@ -726,7 +726,7 @@
     if (target.closest('[data-logout]')) {
       try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
       state.tokens = null;
-      location.replace('/radio/dev/v2/');
+      location.replace('/radio/v2/');
     }
   });
 

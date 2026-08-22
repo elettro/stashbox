@@ -5,7 +5,7 @@
   if (!app) return;
 
   const MOBILE = window.matchMedia('(max-width: 699px)');
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const MIN_DISTANCE = 64;
   const MIN_VELOCITY = 0.28;
   const AXIS_LOCK_DISTANCE = 12;

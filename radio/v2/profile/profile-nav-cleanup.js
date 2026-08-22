@@ -83,7 +83,7 @@
    *   event.preventDefault();
    *   event.stopImmediatePropagation();
    *   const embedded = window.parent !== window;
-   *   location.href = `/radio/dev/v2/offline/?profile=1${embedded ? '&embedded=1' : ''}`;
+   *   location.href = `/radio/v2/offline/?profile=1${embedded ? '&embedded=1' : ''}`;
    * }, true);
    */
 

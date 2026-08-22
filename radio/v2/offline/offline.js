@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const DB_NAME = 'stashbox-radio-offline';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const DB_NAME = 'stashbox-radio-offline-prod';
   const DB_VERSION = 1;
   const STORE = 'songs';
   const AUDIO_MAP = window.STASHBOX_BROWSER_AUDIO_MAP || {};
@@ -165,7 +165,7 @@
   async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      await navigator.serviceWorker.register('/radio/dev/v2/offline-sw.js?v=20260821-offlineaudio1', { scope: '/radio/dev/v2/' });
+      await navigator.serviceWorker.register('/radio/v2/offline-sw.js?v=20260821-offlineaudio1', { scope: '/radio/v2/' });
     } catch (error) {
       console.warn('[Stashbox Offline] service worker registration failed', error);
     }
@@ -484,7 +484,7 @@
     if (PROFILE_CONTEXT) {
       const back = document.querySelector('.offline-footer a');
       if (back) {
-        back.href = '/radio/dev/v2/profile/';
+        back.href = '/radio/v2/profile/';
         back.textContent = 'Back to Profile';
       }
     }

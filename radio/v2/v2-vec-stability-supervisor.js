@@ -39,7 +39,7 @@
   }
 
   function detectMode() {
-    return location.pathname.includes('/radio/dev/v2/artist/') ? 'artist' : 'main';
+    return location.pathname.includes('/radio/v2/artist/') ? 'artist' : 'main';
   }
 
   function findRoot(mode = detectMode()) {

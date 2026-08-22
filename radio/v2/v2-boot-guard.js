@@ -161,7 +161,7 @@
       <p>${String(message || 'The request timed out.').replace(/[<>]/g, '')}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button type="button" data-v2-retry style="border:0;border-radius:999px;padding:10px 16px;background:#ff9f0a;color:#111;font-weight:900">Retry</button>
-        <a href="/radio/dev/" style="border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:10px 16px;color:#fff;text-decoration:none;font-weight:800">Open Existing DEV</a>
+        <a href="/radio/" style="border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:10px 16px;color:#fff;text-decoration:none;font-weight:800">Open Existing DEV</a>
       </div>`;
     meter.querySelector('[data-v2-retry]')?.addEventListener('click', () => location.reload());
   };

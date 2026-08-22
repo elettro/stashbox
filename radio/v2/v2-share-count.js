@@ -4,7 +4,7 @@
   if (window.__stashboxV2ShareCountLoaded) return;
   window.__stashboxV2ShareCountLoaded = true;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API_ROOT}/radio/songs`;
   const TRACK_URL = `${API_ROOT}/radio/track`;
   const app = document.getElementById('v2App');
@@ -174,7 +174,7 @@
   }
 
   function songUrl(song) {
-    const url = new URL('/radio/dev/v2/', location.origin);
+    const url = new URL('/radio/v2/', location.origin);
     if (song?.key) url.searchParams.set('song', song.key);
     return url.toString();
   }

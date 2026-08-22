@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const LOCAL_LIKES_KEY = 'stashbox_v2_liked_song_counts';
   const app = document.getElementById('v2App');
   if (!app) return;

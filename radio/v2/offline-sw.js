@@ -1,12 +1,12 @@
 'use strict';
 
 const CACHE = 'stashbox-v2-offline-shell-20260821-1';
-const OFFLINE_URL = '/radio/dev/v2/offline/';
+const OFFLINE_URL = '/radio/v2/offline/';
 const SHELL = [
   OFFLINE_URL,
-  '/radio/dev/v2/offline/offline.js?v=20260821-offlineaudio1',
-  '/radio/dev/v2/offline/manifest.webmanifest?v=20260821-offlineaudio1',
-  '/radio/dev/v2/desktop/browser-audio-map.js?v=20260818-stream320-80',
+  '/radio/v2/offline/offline.js?v=20260821-offlineaudio1',
+  '/radio/v2/offline/manifest.webmanifest?v=20260821-offlineaudio1',
+  '/radio/v2/desktop/browser-audio-map.js?v=20260818-stream320-80',
 ];
 
 self.addEventListener('install', event => {
@@ -38,7 +38,7 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith('/radio/dev/v2/')) {
+  if (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith('/radio/v2/')) {
     event.respondWith((async () => {
       try {
         return await fetch(request);
@@ -50,8 +50,8 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.origin === self.location.origin && (
-    url.pathname.startsWith('/radio/dev/v2/offline/') ||
-    url.pathname === '/radio/dev/v2/desktop/browser-audio-map.js'
+    url.pathname.startsWith('/radio/v2/offline/') ||
+    url.pathname === '/radio/v2/desktop/browser-audio-map.js'
   )) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);

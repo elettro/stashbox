@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const app = document.getElementById('artistApp');
   if (!app) return;
 
@@ -92,7 +92,7 @@
       <div class="artist-vec-media" data-artist-vec-media></div>
       <div class="artist-vec-shade"></div>
       <div class="artist-vec-top">
-        <a class="artist-vec-home" href="/radio/dev/v2/" aria-label="Back to Stashbox Radio home">${backIcon}</a>
+        <a class="artist-vec-home" href="/radio/v2/" aria-label="Back to Stashbox Radio home">${backIcon}</a>
         <span class="artist-vec-badge"><i></i><b>VEC</b></span>
       </div>
       <div class="artist-vec-bottom">

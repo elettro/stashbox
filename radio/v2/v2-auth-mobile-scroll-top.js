@@ -2,7 +2,7 @@
   'use strict';
 
   const MOBILE_QUERY = window.matchMedia('(max-width: 699px)');
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   let loginWatch = 0;
   let topLockFrame = 0;
   let topLockCleanup = 0;

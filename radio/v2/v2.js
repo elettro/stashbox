@@ -1,14 +1,14 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API_ROOT}/radio/songs`;
   const TRACK_URL = `${API_ROOT}/radio/track`;
   const PRODUCTS_URL = 'https://stashbox.ai/products.json?limit=250';
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const GUEST_KEY = 'stashbox_radio_v2_guest_plays';
   const LIKE_KEY = 'stashbox_radio_v2_local_likes';
-  const SESSION_KEY = 'stashbox-radio-rds-dev-session-id';
+  const SESSION_KEY = 'stashbox-radio-rds-prod-session-id';
   const QUALIFIED_SECONDS = 10;
   const GUEST_DAILY_LIMIT = 4;
 
@@ -349,7 +349,7 @@
 
     app.innerHTML = `
       <header class="v2-header">
-        <a class="v2-wordmark" href="/radio/dev/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
+        <a class="v2-wordmark" href="/radio/v2/" aria-label="Stashbox Radio V2 home">STASH<span>BOX</span></a>
         <div class="v2-header-actions">
           <button type="button" class="v2-icon-button" data-open-search aria-label="Search">${icons.search}</button>
           <button type="button" class="v2-icon-button v2-notifications-trigger" aria-label="Notifications">${icons.bell}<span class="v2-notification-dot"></span><span class="v2-notification-count" hidden>0</span></button>
@@ -433,7 +433,7 @@
         <div class="v2-player-shade"></div>
         <header class="v2-player-header">
           <button type="button" class="v2-icon-button" data-close-player aria-label="Back to library">${icons.back}</button>
-          <a class="v2-player-mark" href="/radio/dev/v2/">STASH<span>BOX</span></a>
+          <a class="v2-player-mark" href="/radio/v2/">STASH<span>BOX</span></a>
           <div class="v2-player-head-actions">
             <button type="button" class="v2-icon-button" data-player-search aria-label="Search">${icons.search}</button>
             <button type="button" class="v2-icon-button v2-player-bell" aria-label="Notifications">${icons.bell}</button>
@@ -801,7 +801,7 @@
   async function shareSelected() {
     const song = state.selected;
     if (!song) return;
-    const url = new URL('/radio/dev/v2/', location.origin);
+    const url = new URL('/radio/v2/', location.origin);
     url.searchParams.set('song', song.songKey);
     try {
       if (navigator.share) await navigator.share({ title: `${song.title} by ${song.artist}`, text: `Listen to ${song.title} on Stashbox Radio`, url: url.toString() });

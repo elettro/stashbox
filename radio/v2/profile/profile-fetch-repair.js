@@ -3,7 +3,7 @@
 
   if (window.StashboxProfileFetchRepair) return;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const nativeFetch = window.StashboxProfileNativeFetch;
   const sessionFetch = window.fetch.bind(window);
 

@@ -2,11 +2,11 @@
   'use strict';
 
   const path = window.location.pathname;
-  const isMain = path.includes('/radio/dev/v2/') && !path.includes('/radio/dev/v2/artist/');
-  const isArtist = path.includes('/radio/dev/v2/artist/');
+  const isMain = path.includes('/radio/v2/') && !path.includes('/radio/v2/artist/');
+  const isArtist = path.includes('/radio/v2/artist/');
   if (!isMain && !isArtist) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const ARTWORK_CACHE_KEY = 'stashbox_v2_responsive_artwork_cache_v3';
   const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

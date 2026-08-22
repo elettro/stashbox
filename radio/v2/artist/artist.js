@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const HANDOFF_KEY = 'stashbox_v2_artist_song_handoff';
   const PENDING_FOLLOW_KEY = 'stashbox_radio_dev_pending_artist_follow';
   const SHOP_URL = 'https://stashbox.ai/products.json?limit=250';
@@ -216,7 +216,7 @@
         createdAt: Date.now()
       }));
     } catch (_) {}
-    location.href = '/radio/dev/v2/?artist_radio=1';
+    location.href = '/radio/v2/?artist_radio=1';
   }
 
   function songRow(song, index = 0) {
@@ -409,7 +409,7 @@
   }
 
   function bind() {
-    app.querySelector('[data-back]')?.addEventListener('click', () => location.href = '/radio/dev/v2/');
+    app.querySelector('[data-back]')?.addEventListener('click', () => location.href = '/radio/v2/');
     app.querySelector('[data-share-profile]')?.addEventListener('click', shareProfile);
     app.querySelector('[data-toggle-more]')?.addEventListener('click', () => {
       const menu = app.querySelector('[data-more-menu]');
@@ -450,7 +450,7 @@
   }
 
   async function shareProfile() {
-    const url = new URL('/radio/dev/v2/artist/', location.origin);
+    const url = new URL('/radio/v2/artist/', location.origin);
     url.searchParams.set('artist', state.artist.slug || state.artist.artist_key || identifier);
     try {
       if (navigator.share) await navigator.share({ title: `${state.artist.name} on Stashbox Radio`, url: url.toString() });
@@ -562,7 +562,7 @@
       await hydrateFollowing();
       render();
     } catch (error) {
-      app.innerHTML = `<section class="artist-load-error"><strong>STASH<span>BOX</span></strong><h1>Artist profile could not load</h1><p>${esc(error.message || 'Unknown error')}</p><a href="/radio/dev/v2/">Return to Radio</a></section>`;
+      app.innerHTML = `<section class="artist-load-error"><strong>STASH<span>BOX</span></strong><h1>Artist profile could not load</h1><p>${esc(error.message || 'Unknown error')}</p><a href="/radio/v2/">Return to Radio</a></section>`;
     }
   }
 

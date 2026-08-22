@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const MAX_BYTES = 10 * 1024 * 1024;
   const mobile = window.matchMedia('(max-width: 699px)');
   const app = document.getElementById('profileApp');

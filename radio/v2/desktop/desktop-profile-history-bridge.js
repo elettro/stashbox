@@ -3,10 +3,10 @@
 
   if (window.StashboxDesktopProfileHistoryBridge) return;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const HISTORY_URL = `${API_ROOT}/radio/me/history`;
   const SONGS_URL = `${API_ROOT}/radio/songs`;
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const app = document.getElementById('v2App');
   if (!app) return;
 

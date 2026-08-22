@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/profile/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/profile/') || location.pathname.includes('/artist/')) return;
   if (window.StashboxV2ProfileOverlay) return;
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
-  const PROFILE_URL = '/radio/dev/v2/profile/?embedded=1';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
+  const PROFILE_URL = '/radio/v2/profile/?embedded=1';
   let overlay = null;
   let lastTrigger = null;
 
@@ -72,7 +72,7 @@
 
   function runProfileQueue() {
     const script = document.createElement('script');
-    script.src = `/radio/dev/v2/v2-profile-queue.js?v=20260822-profilequeue-live-${Date.now()}`;
+    script.src = `/radio/v2/v2-profile-queue.js?v=20260822-profilequeue-live-${Date.now()}`;
     script.async = true;
     script.dataset.v2ProfileQueueReload = 'true';
     document.head.appendChild(script);

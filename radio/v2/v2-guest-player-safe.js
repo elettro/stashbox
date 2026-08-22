@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const MOBILE = window.matchMedia('(max-width: 699px)');
   const MIN_DISTANCE = 68;
@@ -152,7 +152,7 @@
     if (!player || loggedIn()) return;
     const artistName = clean(player.querySelector('[data-partist]')?.textContent);
     if (artistName) {
-      const href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(slugify(artistName))}`;
+      const href = `/radio/v2/artist/?artist=${encodeURIComponent(slugify(artistName))}`;
       [player.querySelector('[data-avatar]'), player.querySelector('[data-partist]')].forEach(node => {
         if (!node) return;
         node.classList.add('v2-guest-safe-artist-link');

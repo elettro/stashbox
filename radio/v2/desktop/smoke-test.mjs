@@ -5,7 +5,7 @@ const read = path => fs.readFileSync(path, 'utf8');
 const fail = message => { throw new Error(message); };
 const assert = (condition, message) => { if (!condition) fail(message); };
 
-const root = 'radio/dev/v2';
+const root = 'radio/v2';
 const main = read(`${root}/index.html`);
 const desktop = read(`${root}/desktop/index.html`);
 const vec = read(`${root}/desktop/desktop-vec2.js`);
@@ -27,21 +27,21 @@ new vm.Script(audioMaster, { filename: 'desktop-audio-master.js' });
 new vm.Script(health, { filename: 'desktop-health.js' });
 
 assert(main.includes("matchMedia('(min-width: 900px)').matches"), 'Main V2 page must detect desktop before legacy scripts boot.');
-assert(main.includes("new URL('/radio/dev/v2/desktop/'"), 'Main V2 page must route desktop to the clean runtime.');
+assert(main.includes("new URL('/radio/v2/desktop/'"), 'Main V2 page must route desktop to the clean runtime.');
 assert(main.includes("desktopruntime') === 'legacy'"), 'Desktop legacy escape hatch must remain explicit.');
 
 const requiredDesktopScripts = [
-  '/radio/dev/v2/v2-boot-guard.js',
-  '/radio/dev/v2/v2-session-manager.js',
-  '/radio/dev/v2/desktop/browser-audio-map.js',
-  '/radio/dev/v2/desktop/desktop-audio-compat.js',
-  '/radio/dev/v2/v2-recovery.js',
-  '/radio/dev/v2/desktop/desktop-auth-persist.js',
-  '/radio/dev/v2/desktop/desktop-vec2.js',
-  '/radio/dev/v2/desktop/desktop-vec-safety.js',
-  '/radio/dev/v2/desktop/desktop-audio-master.js',
-  '/radio/dev/v2/desktop/desktop-health.js',
-  '/radio/dev/v2/v2-spacebar-transport.js'
+  '/radio/v2/v2-boot-guard.js',
+  '/radio/v2/v2-session-manager.js',
+  '/radio/v2/desktop/browser-audio-map.js',
+  '/radio/v2/desktop/desktop-audio-compat.js',
+  '/radio/v2/v2-recovery.js',
+  '/radio/v2/desktop/desktop-auth-persist.js',
+  '/radio/v2/desktop/desktop-vec2.js',
+  '/radio/v2/desktop/desktop-vec-safety.js',
+  '/radio/v2/desktop/desktop-audio-master.js',
+  '/radio/v2/desktop/desktop-health.js',
+  '/radio/v2/v2-spacebar-transport.js'
 ];
 for (const script of requiredDesktopScripts) {
   assert(desktop.includes(script), `Clean desktop runtime is missing ${script}`);

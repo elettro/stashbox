@@ -1,12 +1,12 @@
 (() => {
   'use strict';
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   const MQ = matchMedia('(max-width:899px)');
   if (!MQ.matches) return;
 
   try { window.StashboxMobileVecVideoRuntime?.stop?.(); } catch (_) {}
 
-  const API='https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API='https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const URLS={songs:`${API}/radio/songs`,recipe:`${API}/radio/vec/recipe`,songAssets:`${API}/radio/vec/song-assets`,folders:`${API}/radio/visuals/folders`};
   const C={poll:200,defaultIntro:2,startup:6500,stall:3200,reveal:.06};
   const S={songs:null,sig:'',gen:0,key:'',art:'',intro:2,artOnly:false,pool:[],i:0,failed:new Set(),player:null,stage:null,audio:null,video:null,clip:null,last:0,lastAt:0,frameAt:0,frameMedia:0,frameToken:0,startT:0,timer:0,hint:''};

@@ -4,7 +4,7 @@
   const app = document.getElementById('artistApp');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const RECIPE_URL = `${API}/radio/vec/recipe`;
   const SONG_ASSETS_URL = `${API}/radio/vec/song-assets`;
@@ -144,7 +144,7 @@
 
     overlay.querySelector('[data-realm-home]')?.addEventListener('click', () => {
       stopAll();
-      location.href = '/radio/dev/v2/';
+      location.href = '/radio/v2/';
     });
     overlay.querySelector('[data-realm-profile]')?.addEventListener('click', closeRealm);
     overlay.querySelector('[data-realm-toggle]')?.addEventListener('click', toggleAudio);

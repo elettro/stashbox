@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const VEC_API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
-  const FAST_LOGIN_SRC = '/radio/dev/v2/v2-login-fast-path.js?v=20260819-fastlogin2';
+  const FAST_LOGIN_SRC = '/radio/v2/v2-login-fast-path.js?v=20260819-fastlogin2';
   let fastLoginPromise = null;
 
   const readAccessToken = () => {

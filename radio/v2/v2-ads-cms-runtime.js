@@ -1,14 +1,14 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (window.StashboxV2Ads) return;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const ADS_URLS = [`${API_ROOT}/radio/ads`, `${API_ROOT}/ads`];
   const SETTINGS_URLS = [`${API_ROOT}/radio/ad-settings`, `${API_ROOT}/ad-settings`];
   const TRACK_URL = `${API_ROOT}/radio/track`;
-  const SESSION_KEY = 'stashbox-radio-rds-dev-session-id';
+  const SESSION_KEY = 'stashbox-radio-rds-prod-session-id';
   const WEIGHTS = Object.freeze({ low: 1, medium: 3, high: 6 });
   const FALLBACK_DURATION = 15;
   const REFRESH_MIN_MS = 60000;

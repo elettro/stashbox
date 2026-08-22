@@ -4,7 +4,7 @@
   if (!matchMedia('(min-width: 900px)').matches || window.StashboxDesktopPlayStatUi) return;
 
   const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v2"/><path d="M4 13h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z"/></svg>';
-  const SONGS_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs';
+  const SONGS_URL = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs';
   let timer = 0;
   let attempts = 0;
   let catalog = [];

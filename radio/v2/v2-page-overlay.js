@@ -22,7 +22,7 @@
       document.querySelector('script[data-stashbox-portrait-artwork-rule], script[src*="v2-portrait-artwork-reliability.js"]')
     ) return;
     const script = document.createElement('script');
-    script.src = '/radio/dev/v2/v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1';
+    script.src = '/radio/v2/v2-portrait-artwork-reliability.js?v=20260802-portrait-rule1';
     script.defer = true;
     script.dataset.stashboxPortraitArtworkRule = 'true';
     document.head.appendChild(script);
@@ -104,7 +104,7 @@
   function openArtist(node) {
     const artistName = clean(node.textContent);
     if (!artistName) return;
-    const url = new URL('/radio/dev/v2/artist/', ORIGIN);
+    const url = new URL('/radio/v2/artist/', ORIGIN);
     url.searchParams.set('artist', slugify(artistName));
     openRoute(url, `${artistName} artist page`);
   }
@@ -113,7 +113,7 @@
     const genre = clean(node.textContent);
     if (!genre) return;
 
-    const url = new URL('/radio/dev/v2/genre/', ORIGIN);
+    const url = new URL('/radio/v2/genre/', ORIGIN);
     url.searchParams.set('genre', genre);
 
     if (node.closest('.artist-realm-player')) {
@@ -178,7 +178,7 @@
           createdAt: Date.now()
         }));
       } catch (_) {}
-      location.href = '/radio/dev/v2/?artist_radio=1';
+      location.href = '/radio/v2/?artist_radio=1';
     }
   });
 

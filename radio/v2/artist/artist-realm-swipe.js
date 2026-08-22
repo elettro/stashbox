@@ -5,7 +5,7 @@
   if (!app) return;
 
   const MOBILE = window.matchMedia('(max-width: 699px)');
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const params = new URLSearchParams(location.search);
   const identifier = params.get('artist') || params.get('slug') || 'stashbox';
   const MIN_DISTANCE = 64;

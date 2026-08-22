@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
+  if (!location.pathname.includes('/radio/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(min-width: 900px)').matches) return;
   if (window.StashboxDesktopDirectVideoRescue20260815) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const RECIPE = `${API}/radio/vec/recipe`;
   const SONG_ASSETS = `${API}/radio/vec/song-assets`;
   const FOLDERS = `${API}/radio/visuals/folders`;

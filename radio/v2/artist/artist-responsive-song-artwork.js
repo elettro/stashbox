@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  if (!window.location.pathname.includes('/radio/dev/v2/artist/')) return;
+  if (!window.location.pathname.includes('/radio/v2/artist/')) return;
   if (window.StashboxArtistResponsiveArtwork) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS_URL = `${API}/radio/songs`;
   const DESKTOP_MIN_WIDTH = 900;
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';

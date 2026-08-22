@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const ADMIN_TOKEN_KEY = 'stashbox_admin_token_dev';
   const CONCURRENCY = 4;
   const state = { results: [], running: false, mode: 'public', adminToken: '' };

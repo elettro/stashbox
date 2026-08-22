@@ -4,7 +4,7 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const FALLBACK = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const cache = new Map();
   let requestId = 0;

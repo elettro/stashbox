@@ -37,7 +37,7 @@
         createdAt: Date.now()
       }));
     } catch (_) {}
-    location.href = '/radio/dev/v2/?profile_queue=1';
+    location.href = '/radio/v2/?profile_queue=1';
   }
 
   function enhance() {

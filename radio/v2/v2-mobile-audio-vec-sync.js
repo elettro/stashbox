@@ -5,7 +5,7 @@
   if (!app) return;
 
   const MOBILE = window.matchMedia('(max-width: 699px)');
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   let resumeTimer = 0;
 
   function loggedIn() {

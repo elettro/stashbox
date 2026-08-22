@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const root = document.querySelector('[data-desktop-persistent-controls]');
   const app = document.getElementById('v2App');
   if (!root || !app) return;
@@ -86,7 +86,7 @@
     if (!hasSession()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    location.href = '/radio/dev/v2/profile/';
+    location.href = '/radio/v2/profile/';
   }, true);
 
   bell?.addEventListener('click', event => {

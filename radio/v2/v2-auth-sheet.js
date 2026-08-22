@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const AUTH_CONFIG_URL = `${API_ROOT}/radio/auth/config`;
   const AUTH_GUARD_URL = `${API_ROOT}/radio/auth/guard`;
   const ME_URL = `${API_ROOT}/radio/me`;
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const PENDING_EMAIL_KEY = 'stashbox_radio_dev_pending_email';
   const nativeFetch = window.fetch.bind(window);
 
@@ -420,7 +420,7 @@
 
   const requestedView = new URLSearchParams(location.search).get('auth');
   if (requestedView) {
-    history.replaceState(null, '', '/radio/dev/v2/');
+    history.replaceState(null, '', '/radio/v2/');
     window.setTimeout(() => open(requestedView), 120);
   }
 })();

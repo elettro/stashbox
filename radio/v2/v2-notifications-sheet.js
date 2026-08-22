@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/notifications';
-  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
+  const API_URL = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/notifications';
+  const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const READ_KEY = 'stashbox_v2_notification_read_ids';
   const DELETED_KEY = 'stashbox_v2_notification_deleted_ids';
   const VISITOR_KEY = 'stashbox_v2_notification_visitor_id';
@@ -411,7 +411,7 @@
         window.setTimeout(() => card.click(), 260);
         return;
       }
-      const target = new URL('/radio/dev/v2/', window.location.origin);
+      const target = new URL('/radio/v2/', window.location.origin);
       target.searchParams.set('song', songKey);
       window.setTimeout(() => { window.location.href = target.toString(); }, 260);
       return;
@@ -419,8 +419,8 @@
     if (item.action_url) {
       try {
         const url = new URL(item.action_url, window.location.href);
-        if (url.origin === window.location.origin && url.pathname.startsWith('/radio/dev/') && !url.pathname.startsWith('/radio/dev/v2/')) {
-          url.pathname = '/radio/dev/v2/';
+        if (url.origin === window.location.origin && url.pathname.startsWith('/radio/') && !url.pathname.startsWith('/radio/v2/')) {
+          url.pathname = '/radio/v2/';
         }
         closeSheet();
         window.setTimeout(() => {

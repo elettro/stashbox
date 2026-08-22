@@ -3,7 +3,7 @@
 
   if (!('mediaSession' in navigator) || !('MediaMetadata' in window)) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const ALBUM_NAME = 'Stashbox Radio';
   const FALLBACK_ART = '/images/branding/stashbox-logo-transparent-rastacolors.png';
   const clean = value => String(value ?? '').trim();

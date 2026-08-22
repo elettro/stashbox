@@ -29,7 +29,7 @@
       player?.querySelector('[data-li-artist]')?.dataset?.artistKey ||
       slugify(name)
     ).trim();
-    return `/radio/dev/v2/artist/?artist=${encodeURIComponent(key)}`;
+    return `/radio/v2/artist/?artist=${encodeURIComponent(key)}`;
   }
 
   function openPlayerArtist(target) {

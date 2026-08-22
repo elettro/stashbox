@@ -4,7 +4,7 @@
   const app = document.getElementById('v2App');
   if (!app) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const SONGS = `${API}/radio/songs`;
   const TRACK = `${API}/radio/track`;
   const SHOP = 'https://stashbox.ai/products.json?limit=50';
@@ -125,7 +125,7 @@
 
     app.innerHTML = `
       <header class="v2-header">
-        <a class="v2-wordmark" href="/radio/dev/v2/">STASH<span>BOX</span></a>
+        <a class="v2-wordmark" href="/radio/v2/">STASH<span>BOX</span></a>
         <div class="v2-header-actions">
           <button class="v2-icon-button" data-search>${icon.search}</button>
           <button class="v2-icon-button v2-notifications-trigger">${icon.bell}<span class="v2-notification-dot"></span></button>
@@ -163,11 +163,11 @@
       </section>
       <section class="v2-player" data-player hidden>
         <div class="v2-player-backdrop" data-backdrop></div><div class="v2-player-shade"></div>
-        <header class="v2-player-header"><button class="v2-icon-button" data-close>${icon.back}</button><a class="v2-player-mark" href="/radio/dev/v2/">STASH<span>BOX</span></a></header>
+        <header class="v2-player-header"><button class="v2-icon-button" data-close>${icon.back}</button><a class="v2-player-mark" href="/radio/v2/">STASH<span>BOX</span></a></header>
         <div class="v2-player-content player-info">
           <div class="v2-player-labels"><span data-pgenre></span><b><i></i>Now Playing</b></div>
           <h2 data-ptitle></h2>
-          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><a class="v2-artist-profile-anchor" data-artist-profile-link href="/radio/dev/v2/artist/" style="color:#fff!important;text-decoration:none!important"><strong data-partist style="color:#fff!important;text-decoration:none!important;border-bottom:0!important"></strong></a></div>
+          <div class="meta v2-artist-row"><span class="v2-mini-avatar" data-avatar></span><a class="v2-artist-profile-anchor" data-artist-profile-link href="/radio/v2/artist/" style="color:#fff!important;text-decoration:none!important"><strong data-partist style="color:#fff!important;text-decoration:none!important;border-bottom:0!important"></strong></a></div>
           <div class="v2-timeline"><input type="range" min="0" max="0" value="0" step=".1" data-scrub><div><span data-now>0:00</span><span data-total>0:00</span></div></div>
           <div class="v2-player-controls"><button class="v2-side-action" data-like>${icon.heart}<span data-likes>0</span></button><button class="v2-transport" data-prev>${icon.previousTrack}</button><button class="v2-main-play" data-play>${icon.play}</button><button class="v2-transport" data-next>${icon.nextTrack}</button><button class="v2-side-action" data-share>${icon.share}</button></div>
         </div>
@@ -360,7 +360,7 @@
     app.querySelector('[data-partist]').textContent = selected.artist;
     const artistLink = app.querySelector('[data-artist-profile-link]');
     if (artistLink) {
-      artistLink.href = `/radio/dev/v2/artist/?artist=${encodeURIComponent(slug(selected.artist))}`;
+      artistLink.href = `/radio/v2/artist/?artist=${encodeURIComponent(slug(selected.artist))}`;
       artistLink.title = `View ${selected.artist} artist profile`;
       artistLink.setAttribute('aria-label', `View ${selected.artist} artist profile and follow artist`);
     }
@@ -411,7 +411,7 @@
 
   async function share() {
     if (!state.selected) return;
-    const url = new URL('/radio/dev/v2/', location.origin);
+    const url = new URL('/radio/v2/', location.origin);
     url.searchParams.set('song', state.selected.key);
     try {
       if (navigator.share) await navigator.share({ title: state.selected.title, url: url.toString() });

@@ -3,7 +3,7 @@
 
   if (!matchMedia('(min-width: 900px)').matches || window.StashboxDesktopVec2) return;
 
-  const API = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const URLS = Object.freeze({
     songs: `${API}/radio/songs`,
     recipe: `${API}/radio/vec/recipe`,
