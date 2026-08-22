@@ -11,18 +11,33 @@
     style.setProperty(property, value, 'important');
   }
 
+  function viewportSize() {
+    const vv = window.visualViewport;
+    return {
+      width: Math.max(1, Math.round(Number(vv?.width || window.innerWidth || document.documentElement.clientWidth || 1))),
+      height: Math.max(1, Math.round(Number(vv?.height || window.innerHeight || document.documentElement.clientHeight || 1)))
+    };
+  }
+
   function forceMediaStage(video) {
     const stage = video.closest('[data-v2-ad-media], .v2-ad-break-media') || video.parentElement;
     if (!stage) return null;
 
-    // The ad media stage always owns the full viewport. Center the fitted media
-    // with explicit coordinates instead of depending on flex/grid inheritance.
-    setImportant(stage.style, 'position', 'absolute');
+    // Location repair only: make the ad media stage the real browser viewport.
+    // Do not inherit dimensions or positioning from the ad shell/player layout.
+    setImportant(stage.style, 'position', 'fixed');
+    setImportant(stage.style, 'left', '0');
+    setImportant(stage.style, 'top', '0');
+    setImportant(stage.style, 'right', '0');
+    setImportant(stage.style, 'bottom', '0');
     setImportant(stage.style, 'inset', '0');
-    setImportant(stage.style, 'width', '100%');
-    setImportant(stage.style, 'height', '100%');
+    setImportant(stage.style, 'width', '100vw');
+    setImportant(stage.style, 'height', '100vh');
+    setImportant(stage.style, 'margin', '0');
+    setImportant(stage.style, 'padding', '0');
     setImportant(stage.style, 'overflow', 'hidden');
     setImportant(stage.style, 'background', '#000');
+    setImportant(stage.style, 'transform', 'none');
     return stage;
   }
 
@@ -32,21 +47,22 @@
     const stage = forceMediaStage(video);
     if (!stage) return false;
 
-    const rect = stage.getBoundingClientRect?.();
-    const boxWidth = Math.max(1, Number(rect?.width || window.innerWidth || 1));
-    const boxHeight = Math.max(1, Number(rect?.height || window.innerHeight || 1));
+    const viewport = viewportSize();
+    const boxWidth = viewport.width;
+    const boxHeight = viewport.height;
     const sourceWidth = Number(video.videoWidth || 0);
     const sourceHeight = Number(video.videoHeight || 0);
 
-    // Explicit absolute centering avoids the left-anchor failure seen with the
-    // 9:16 Clementine creative. These properties are isolated to ad media only.
-    setImportant(video.style, 'position', 'absolute');
-    setImportant(video.style, 'left', '50%');
-    setImportant(video.style, 'top', '50%');
+    // Center against the browser viewport itself. This avoids the previous
+    // upper-left/top-offset drift caused by using a nested media wrapper box.
+    setImportant(video.style, 'position', 'fixed');
+    setImportant(video.style, 'left', '50vw');
+    setImportant(video.style, 'top', '50vh');
     setImportant(video.style, 'right', 'auto');
     setImportant(video.style, 'bottom', 'auto');
     setImportant(video.style, 'inset', 'auto');
     setImportant(video.style, 'margin', '0');
+    setImportant(video.style, 'padding', '0');
     setImportant(video.style, 'min-width', '0');
     setImportant(video.style, 'min-height', '0');
     setImportant(video.style, 'max-width', 'none');
@@ -63,15 +79,13 @@
       setImportant(video.style, 'height', `${height}px`);
       setImportant(video.style, 'aspect-ratio', `${sourceWidth} / ${sourceHeight}`);
       setImportant(video.style, 'object-fit', 'fill');
-      video.dataset.v2AdForcedFit = `centered-physical-${sourceWidth}x${sourceHeight}-${width}x${height}`;
+      video.dataset.v2AdForcedFit = `viewport-centered-${sourceWidth}x${sourceHeight}-${width}x${height}`;
     } else {
-      // Before metadata arrives, use a contained viewport-sized box. Once the
-      // intrinsic dimensions become available this is replaced by physical FIT.
-      setImportant(video.style, 'width', '100%');
-      setImportant(video.style, 'height', '100%');
+      setImportant(video.style, 'width', '100vw');
+      setImportant(video.style, 'height', '100vh');
       setImportant(video.style, 'aspect-ratio', 'auto');
       setImportant(video.style, 'object-fit', 'contain');
-      video.dataset.v2AdForcedFit = 'centered-metadata-pending-contain';
+      video.dataset.v2AdForcedFit = 'viewport-centered-metadata-pending';
     }
 
     setImportant(video.style, 'object-position', 'center center');
@@ -100,6 +114,7 @@
   });
 
   window.addEventListener('resize', () => scan());
+  window.visualViewport?.addEventListener?.('resize', () => scan());
   window.addEventListener('orientationchange', () => window.setTimeout(() => scan(), 50));
 
   const observer = new MutationObserver(records => {
