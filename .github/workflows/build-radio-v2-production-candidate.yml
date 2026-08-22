@@ -1,12 +1,12 @@
-# Triggered through a controlled merge so GitHub Actions receives a normal main-branch push.
 name: Build Radio V2 production candidate
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened]
     paths:
-      - '.github/workflows/build-radio-v2-production-candidate.yml'
+      - '.release-radio-v2-trigger'
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   convert:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Check out release branch
