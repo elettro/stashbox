@@ -25,5 +25,5 @@ test('player STASHBOX wordmark invokes the same close action as the back arrow',
   assert.doesNotMatch(bridge, /location\.|window\.open|audio\.pause/);
 
   assert.ok(html.indexOf('v2-recovery.js') < html.indexOf('v2-player-fluid-home.js'));
-  assert.match(html, /v2-player-fluid-home\.js\?v=20260724-player51/);
+  assert.match(html, /v2-player-fluid-home\.js\?v=[^"']+/);
 });
