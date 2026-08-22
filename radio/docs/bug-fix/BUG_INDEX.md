@@ -23,6 +23,8 @@ Last updated: 2026-08-22
 | SR-BUG-0017 | First mobile login can stall on “Logging In…” while retry succeeds immediately | Auth / Login | High | DEV V2 Mobile | Fixed, verified | 2026-08-21 | `528fed47` |
 | SR-BUG-0018 | Vertical ad creative is cropped instead of displayed with FIT | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | `9c0d557d` |
 | SR-BUG-0019 | Ads CMS break cadence is ignored and ads play every other song | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | - |
+| SR-BUG-0020 | Desktop C share hotkey and PROD Share click do not copy or retain share | Player / Share / Hotkeys | High | DEV V2 Desktop + PROD Desktop | Closed, verified | 2026-08-22 | `efe4383a`, `2adb1cd3`, `3d275050` |
+| SR-BUG-0021 | Desktop F and L like hotkeys do not trigger Like in PROD | Player / Like / Hotkeys | High | PROD Desktop | Closed, verified | 2026-08-22 | `d6e8b664`, `76355d8a`, `4e245899` |
 
 ## Open / investigating
 
@@ -39,6 +41,8 @@ Last updated: 2026-08-22
 
 - `SR-BUG-0008` - Closed and explicitly verified by the user on 2026-08-18; no technical fix details were invented.
 - `SR-BUG-0009` - Closed and explicitly verified by the user on 2026-08-18.
+- `SR-BUG-0020` - C share hotkey and the PROD Share click path were repaired and explicitly verified working in PROD by the user on 2026-08-22.
+- `SR-BUG-0021` - F and L Like hotkeys were repaired and explicitly verified working in PROD by the user on 2026-08-22.
 
 ## Verified
 
@@ -56,6 +60,8 @@ Last updated: 2026-08-22
 - `SR-BUG-0017` - User verified on 2026-08-21 that the repaired first mobile login completes very fast instead of hanging on `Logging In…` while waiting on legacy account hydration.
 - `SR-BUG-0018` - User verified on 2026-08-22 that the sponsored ad video now renders in the correct centered viewport position with FIT behavior.
 - `SR-BUG-0019` - User verified on 2026-08-22 that the apparent cadence mismatch came from the Ads CMS being set to every other song. The player was following the controller.
+- `SR-BUG-0020` - User explicitly verified the repaired `C` hotkey and Share path working in production on 2026-08-22.
+- `SR-BUG-0021` - User explicitly verified the repaired `F` and `L` Like hotkeys working in production on 2026-08-22.
 
 ## Usage
 
