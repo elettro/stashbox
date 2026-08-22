@@ -1,5 +1,5 @@
 Radio API 503 diagnostic
-Run UTC: 2026-08-22T20:09:50Z
+Run UTC: 2026-08-22T20:15:49Z
 
 [dev]
 {
@@ -11,15 +11,15 @@ Run UTC: 2026-08-22T20:09:50Z
     "Runtime": "nodejs22.x",
     "LastModified": "2026-08-22T13:50:13.000+0000"
 }
-public_songs_http=503
-admin_folders_http=503
-public_recipe_http=503
-songs_count=0
-folders_count=0
-songs_error=Service Unavailable
-folders_error=Service Unavailable
-recipe_error=Service Unavailable
-recipe_found=false
+public_songs_http=200
+admin_folders_http=200
+public_recipe_http=200
+songs_count=83
+folders_count=22
+songs_error=
+folders_error=
+recipe_error=
+recipe_found=true
 recent_cloudwatch_errors:
 
 aws: [ERROR]: An error occurred (AccessDeniedException) when calling the FilterLogEvents operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: logs:FilterLogEvents on resource: arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-radio-api-dev-v2 because no identity-based policy allows the logs:FilterLogEvents action
@@ -34,15 +34,15 @@ aws: [ERROR]: An error occurred (AccessDeniedException) when calling the FilterL
     "Runtime": "nodejs22.x",
     "LastModified": "2026-08-22T15:35:38.000+0000"
 }
-public_songs_http=503
-admin_folders_http=503
-public_recipe_http=503
-songs_count=0
-folders_count=0
-songs_error=Service Unavailable
-folders_error=Service Unavailable
-recipe_error=Service Unavailable
-recipe_found=false
+public_songs_http=200
+admin_folders_http=200
+public_recipe_http=200
+songs_count=83
+folders_count=2
+songs_error=
+folders_error=
+recipe_error=
+recipe_found=true
 recent_cloudwatch_errors:
 
 aws: [ERROR]: An error occurred (AccessDeniedException) when calling the FilterLogEvents operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: logs:FilterLogEvents on resource: arn:aws:logs:us-east-1:656260749296:log-group:/aws/lambda/stashbox-radio-api-prod-v2 because no identity-based policy allows the logs:FilterLogEvents action
