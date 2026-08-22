@@ -64,6 +64,12 @@
     document.head.appendChild(style);
   }
 
+  function pauseRadioForOfflinePlayback() {
+    document.querySelectorAll('#v2App [data-player] audio').forEach(audio => {
+      try { audio.pause(); } catch (_) {}
+    });
+  }
+
   function closeProfile() {
     if (!overlay) return;
     const previous = lastTrigger;
@@ -114,10 +120,13 @@
       closeProfile();
       return;
     }
+    if (event.data.type === 'stashbox:offline-play-start') {
+      pauseRadioForOfflinePlayback();
+      return;
+    }
     if (event.data.type === 'stashbox:profile-play') {
-      // A deliberate song selection exits profile and uses the existing
-      // profile queue handoff on the top-level player.
-      location.href = '/radio/dev/v2/?profile_play=1';
+      closeProfile();
+      return;
     }
   });
 
