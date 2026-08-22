@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-21T23:15:00-04:00",
+  "updated_at": "2026-08-21T23:18:00-04:00",
   "bugs": [
     {
       "id": "SR-BUG-0018",
@@ -13,23 +13,19 @@
       "reported_at": "2026-08-21",
       "fixed_at": null,
       "verified_at": null,
-      "symptom": "Vertical video ads remain cropped in the full-screen sponsored viewer and behave like COVER/fill instead of FIT/contain.",
+      "symptom": "The 9:16 ad now fits without the prior crop, but the fitted video box is anchored to the far left instead of horizontally centered in the full-screen sponsored viewer.",
       "affected_examples": [
         "Clementine - Album sponsored video",
         "DEV V2 desktop sponsored overlay"
       ],
       "working_comparisons": [
-        "Expected full vertical frame centered with black side space"
+        "Expected full vertical frame centered with equal black side space"
       ],
-      "root_cause": "The previous repair still depended on object-fit while competing code rewrote the physical video element dimensions. The rendered box remained vulnerable to viewport-fill geometry.",
-      "fix_summary": "Repair candidate deployed: fitguard2 now reads native videoWidth/videoHeight and physically sizes the video element to the largest source-ratio rectangle that fits the live ad stage. Desktop cache-bust is live. User verification is still required.",
+      "root_cause": "The physical FIT sizing repair corrected the source ratio, but centering still depended on inherited flex/grid positioning and remained vulnerable to a left anchor.",
+      "fix_summary": "New repair candidate deployed: fitguard3 explicitly positions the fitted ad video at left:50% and top:50% with translate(-50%,-50%), while preserving the physical source-ratio dimensions. This removes inherited layout as the owner of ad centering.",
       "files_changed": [
-        "radio/dev/v2/v2-ads-cms-runtime.css",
-        "radio/dev/v2/v2-ads-cms-runtime.js",
-        "radio/dev/v2/v2-ads-cms-live-refresh.js",
         "radio/dev/v2/v2-ads-fit-guard.js",
-        "radio/dev/v2/desktop/index.html",
-        "radio/dev/v2/index.html"
+        "radio/dev/v2/desktop/index.html"
       ],
       "commits": [
         "44c961503d7c6013e68b02f089b94af5598a2a3a",
@@ -37,14 +33,16 @@
         "e48dcf2e320c2c4b0e736d94dd1fa2c8343d796d",
         "8f219096ea0ca9ee42c132763cef2918237cc562",
         "f53b5962a61cae7bf67968e819404d894c61ef48",
-        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36"
+        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36",
+        "0c4787e3b6c59a64c1f3dd35141ed968ea275243",
+        "ca9aaddbc8b63d0e0172b0e92d525d34de9b4c09"
       ],
       "related_bugs": [
         "SR-BUG-0019"
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0018.md",
       "repair_playbook": null,
-      "future_repair": "Verify the live native video dimensions and final physical box. A 9:16 ad must render as a narrow centered rectangle with black side space."
+      "future_repair": "Verify the live 9:16 creative is physically fitted and centered. Black pillarbox space should be balanced on both sides with no crop."
     },
     {
       "id": "SR-BUG-0019",
@@ -66,14 +64,12 @@
         "CMS controller displays After every song/video",
         "Expected Song -> Ad -> Song -> Ad sequence"
       ],
-      "root_cause": "The previous repair still depended on the timing of the next real V2 audio generation to claim an owed break. Reused or remounted audio could leave the break pending into the following song.",
-      "fix_summary": "Repair candidate deployed: cadenceguard2 claims the runtime's pending break immediately at the natural song boundary with a dedicated proxy, pauses the next real song while the ad plays, then resumes that song when the break finishes. It does not create a second cadence counter. User verification is still required.",
+      "root_cause": "The every-song break claimant was loaded at the end of the clean desktop script stack. Earlier transition handlers could own or terminate the natural-ended path before the cadence claimant ran, leaving a CMS-owed break pending until a later track transition.",
+      "fix_summary": "New repair candidate deployed: cadenceguard3 now loads immediately after the shared Ads runtime and before desktop transition/queue handlers. The runtime still reads break_interval from the authoritative Ads CMS API, and interval 1 is claimed at the same natural song boundary before later player handlers advance the queue.",
       "files_changed": [
-        "radio/dev/v2/v2-ads-cms-runtime.js",
-        "radio/dev/v2/v2-ads-cms-live-refresh.js",
         "radio/dev/v2/v2-ads-cms-cadence-guard.js",
         "radio/dev/v2/desktop/index.html",
-        "radio/dev/v2/index.html",
+        "radio/dev/v2/v2-ads-cms-live-refresh.js",
         "radio-admin/dev/ads/index.html"
       ],
       "commits": [
@@ -82,14 +78,15 @@
         "b9d2ddfbd2ec47bb8fd5c0a29fcb810df772edf7",
         "0d266ab34322dd8dd2c8a5802e10ba6ce8194f02",
         "c4815d211d43d35916654945b291d4881f125aed",
-        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36"
+        "fc5c7fb35ebaf38741e2e6d9f952102c7adb8c36",
+        "ca9aaddbc8b63d0e0172b0e92d525d34de9b4c09"
       ],
       "related_bugs": [
         "SR-BUG-0018"
       ],
       "record_path": "radio/docs/bug-fix/open/SR-BUG-0019.md",
       "repair_playbook": null,
-      "future_repair": "Verify three consecutive natural completions with CMS breakInterval 1. Each completion must move breakPending to adPlaying before the next song audibly advances."
+      "future_repair": "Verify three consecutive natural completions while the CMS API reports break_interval 1. Each completion must produce an ad before the next song becomes audible."
     }
   ]
 }
