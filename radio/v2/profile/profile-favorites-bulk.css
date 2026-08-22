@@ -1,0 +1,58 @@
+.profile-favorites-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 0 2px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+
+.profile-favorites-bulk button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--p-accent, #ff9f0a);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-favorites-bulk button:disabled {
+  color: #70757d;
+  cursor: not-allowed;
+}
+
+.profile-favorites-bulk svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.profile-favorites-bulk [data-favorites-play-all] svg path:first-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+@media (max-width: 520px) {
+  .profile-favorites-bulk {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .profile-favorites-bulk button {
+    min-height: 38px;
+    flex: 1;
+    justify-content: center;
+    border: 1px solid rgba(255,159,10,.36);
+    border-radius: 999px;
+    background: rgba(255,159,10,.06);
+  }
+}

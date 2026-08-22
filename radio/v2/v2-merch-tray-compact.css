@@ -1,0 +1,39 @@
+@media (min-width: 700px) {
+  .v2-player.is-logged-in-player .v2-li-merch-tray {
+    left: 50%;
+    right: auto;
+    bottom: 84px;
+    width: fit-content;
+    min-width: min(280px, calc(100vw - 48px));
+    max-width: min(560px, calc(100vw - 48px));
+    border-radius: 16px;
+    transform: translate(-50%, 14px);
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-tray.is-open {
+    transform: translate(-50%, 0);
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-head {
+    min-height: 36px;
+    padding: 7px 10px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-head strong {
+    font-size: 10px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-row {
+    max-width: min(540px, calc(100vw - 68px));
+    gap: 7px;
+    padding: 7px 8px 9px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-card {
+    flex-basis: 104px;
+  }
+
+  .v2-player.is-logged-in-player .v2-li-merch-card > span {
+    aspect-ratio: 1.28;
+  }
+}

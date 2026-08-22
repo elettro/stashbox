@@ -1,0 +1,52 @@
+@media (min-width: 900px) {
+  .v2-artist-row .v2-desktop-video-fit-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 4px 7px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    background: rgba(5,6,7,.42);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .v2-desktop-video-fit-toggle button {
+    min-width: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font: 900 10px/1 Karla, sans-serif;
+    letter-spacing: .08em;
+    cursor: pointer;
+    text-shadow: 0 0 10px rgba(255,255,255,.2);
+  }
+  .v2-desktop-video-fit-toggle button:hover,
+  .v2-desktop-video-fit-toggle button:focus-visible {
+    color: #fff;
+    outline: 0;
+    text-shadow: 0 0 12px rgba(255,255,255,.38);
+  }
+
+  /* Clean desktop VEC 2 renders visual videos in .desktop-vec2-layer. */
+  .desktop-clean-runtime .v2-player[data-desktop-video-fit="fit"] .desktop-vec2-stage video,
+  .desktop-clean-runtime .v2-player[data-desktop-video-fit="fit"] .desktop-vec2-layer video,
+  .v2-player[data-desktop-video-fit="fit"] [data-mobile-vec-stage] video,
+  .v2-player[data-desktop-video-fit="fit"] video[data-desktop-minimal-rescue="true"] {
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
+
+  /* FULL fills only video media; artwork/images keep their existing presentation. */
+  .desktop-clean-runtime .v2-player[data-desktop-video-fit="full"] .desktop-vec2-stage video,
+  .desktop-clean-runtime .v2-player[data-desktop-video-fit="full"] .desktop-vec2-layer video,
+  .v2-player[data-desktop-video-fit="full"] [data-mobile-vec-stage] video,
+  .v2-player[data-desktop-video-fit="full"] video[data-desktop-minimal-rescue="true"] {
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+}
+@media (max-width: 899px) {
+  .v2-desktop-video-fit-toggle { display: none !important; }
+}

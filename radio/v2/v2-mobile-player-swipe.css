@@ -1,0 +1,174 @@
+@media (max-width: 699px) {
+  .v2-player {
+    overscroll-behavior: none;
+  }
+
+  .v2-player .v2-player-swipe-hint {
+    position: absolute;
+    z-index: 90;
+    left: 50%;
+    top: 43%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 132px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 999px;
+    background: rgba(4,6,8,.76);
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(.92);
+    transition: opacity .16s ease, transform .16s ease;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 14px 40px rgba(0,0,0,.36);
+  }
+
+  .v2-player .v2-player-swipe-hint.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .v2-player .v2-player-swipe-hint i {
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.14);
+    font-style: normal;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .v2-player .v2-player-swipe-hint.is-shuffle i,
+  .v2-player .v2-player-swipe-hint.is-focus-off i {
+    background: rgba(85,223,131,.18);
+    color: #69ea95;
+  }
+
+  .v2-player .v2-player-swipe-hint.is-focus-on i {
+    background: rgba(255,159,10,.2);
+    color: #ffb12b;
+  }
+
+  .v2-player .v2-player-swipe-hint.is-cinema i {
+    background: rgba(89,196,255,.2);
+    color: #7fd5ff;
+  }
+
+  .v2-player .v2-player-swipe-hint strong {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .v2-interface-restore-hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(11px + env(safe-area-inset-bottom, 0px));
+    z-index: 91;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: calc(100vw - 28px);
+    padding: 7px 11px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    background: rgba(4,6,8,.58);
+    color: rgba(255,255,255,.86);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 10px);
+    transition: opacity .22s ease, transform .22s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 28px rgba(0,0,0,.28);
+  }
+
+  .v2-interface-restore-hint.is-visible {
+    opacity: .88;
+    transform: translate(-50%, 0);
+  }
+
+  .v2-interface-restore-hint i {
+    color: #ffb12b;
+    font-style: normal;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .v2-player.is-video-cinema-mode .v2-interface-restore-hint {
+    border-color: rgba(127,213,255,.28);
+    background: rgba(2,5,8,.52);
+  }
+
+  .v2-player.is-video-cinema-mode .v2-interface-restore-hint i {
+    color: #7fd5ff;
+  }
+
+  .v2-interface-restore-hint strong {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .v2-player.is-logged-in-player.is-swipe-shuffle .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-shuffle [data-mobile-vec-stage] {
+    animation: v2SwipeShuffleUp .26s ease both;
+  }
+
+  .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-previous [data-mobile-vec-stage] {
+    animation: v2SwipeSongLeft .26s ease both;
+  }
+
+  .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
+  .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage] {
+    animation: v2SwipeSongRight .26s ease both;
+  }
+
+  @keyframes v2SwipeShuffleUp {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    45% { transform: translateY(-20px) scale(.985); opacity: .68; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  @keyframes v2SwipeSongLeft {
+    0% { transform: translateX(0); opacity: 1; }
+    45% { transform: translateX(-20px); opacity: .72; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes v2SwipeSongRight {
+    0% { transform: translateX(0); opacity: 1; }
+    45% { transform: translateX(20px); opacity: .72; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .v2-player .v2-player-swipe-hint,
+    .v2-interface-restore-hint {
+      transition: none;
+    }
+
+    .v2-player.is-logged-in-player.is-swipe-shuffle .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-shuffle [data-mobile-vec-stage],
+    .v2-player.is-logged-in-player.is-swipe-next .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-next [data-mobile-vec-stage],
+    .v2-player.is-logged-in-player.is-swipe-previous .v2-player-backdrop,
+    .v2-player.is-logged-in-player.is-swipe-previous [data-mobile-vec-stage] {
+      animation: none;
+    }
+  }
+}

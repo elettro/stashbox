@@ -1,0 +1,195 @@
+body.v2-alt-player {
+  --v2-accent: #ffd15a;
+  --v2-green: #6ff0ad;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(255, 190, 58, .18), transparent 34rem),
+    radial-gradient(circle at 100% 18%, rgba(66, 132, 255, .14), transparent 32rem),
+    #050607;
+}
+
+.v2-alt-player .v2-header {
+  border-bottom-color: rgba(255, 209, 90, .18);
+  background: rgba(5, 6, 7, .82);
+}
+
+.v2-alt-player .v2-header::after {
+  content: "ALT PLAYER LAB";
+  margin-left: 10px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 209, 90, .4);
+  border-radius: 999px;
+  color: #ffd15a;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  white-space: nowrap;
+}
+
+.v2-alt-player .v2-feature-card {
+  flex-basis: clamp(220px, 66vw, 390px);
+}
+
+.v2-alt-player .v2-feature-art {
+  aspect-ratio: 16 / 10;
+  border-radius: 22px;
+}
+
+.v2-alt-player .v2-song-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+}
+
+.v2-alt-player .v2-song-card {
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .035);
+  padding: 9px;
+}
+
+.v2-alt-player .v2-song-art {
+  border-radius: 14px;
+}
+
+.v2-alt-player .v2-player-content {
+  width: min(760px, calc(100% - 28px));
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  padding-inline: clamp(16px, 4vw, 34px);
+  border: 1px solid rgba(255, 255, 255, .11);
+  border-bottom: 0;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, rgba(5, 6, 7, .08), rgba(5, 6, 7, .5));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.v2-alt-player .v2-player-content h2 {
+  max-width: 100%;
+  font-size: clamp(40px, 10vw, 76px);
+}
+
+.v2-alt-player .v2-player-controls {
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.v2-alt-player .v2-alt-return {
+  position: fixed;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 240;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 209, 90, .42);
+  border-radius: 999px;
+  background: rgba(5, 6, 7, .76);
+  color: #ffd15a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-decoration: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.v2-alt-player.v2-player-open .v2-alt-return {
+  opacity: .45;
+}
+
+@media (min-width: 700px) {
+  .v2-alt-player .v2-player-header {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .v2-alt-player .v2-player-header > [data-close-player],
+  .v2-alt-player .v2-player-header > [data-close] {
+    order: 1;
+    flex: 0 0 46px;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-alt-desktop-vec-badge,
+  .v2-alt-player .v2-player-header > #viewer-vec-status,
+  .v2-alt-player .v2-player-header > [data-mobile-vec-status] {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    order: 2;
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: max-content !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-player-mark {
+    order: 3;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-player-head-actions {
+    order: 4;
+    margin-left: auto;
+  }
+
+  .v2-alt-player .v2-player-header > .v2-li-player-head-actions {
+    order: 5;
+    margin-left: 0;
+  }
+
+  .v2-alt-player .v2-player-backdrop {
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    background-position: center center !important;
+    background-size: cover !important;
+    background-repeat: no-repeat !important;
+    transform: scale(1.01) !important;
+  }
+
+  .v2-alt-player .v2-player-shade::before {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+  }
+
+  .v2-alt-player .v2-mobile-vec-stage {
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .v2-alt-player .v2-mobile-vec-stage img,
+  .v2-alt-player .v2-mobile-vec-stage video {
+    width: 100vw !important;
+    max-width: none !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+}
+
+@media (max-width: 699px) {
+  .v2-alt-player .v2-header::after {
+    content: "ALT LAB";
+  }
+
+  .v2-alt-player .v2-player-content {
+    width: calc(100% - 16px);
+    padding-inline: 14px;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .v2-alt-player .v2-player-content h2 {
+    font-size: clamp(38px, 13vw, 62px);
+  }
+}
