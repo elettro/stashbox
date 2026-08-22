@@ -115,7 +115,7 @@
     return true;
   }
 
-  document.addEventListener('keydown', event => {
+  window.addEventListener('keydown', event => {
     if (!desktopQuery.matches || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (isTypingTarget(event.target)) return;
