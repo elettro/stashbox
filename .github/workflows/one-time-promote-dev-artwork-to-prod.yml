@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/one-time-promote-dev-artwork-to-prod.yml'
+      - '.github/scripts/promote-dev-artwork-to-prod.mjs'
       - '.promote-dev-artwork-to-prod'
   workflow_dispatch:
 
@@ -19,12 +20,6 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      AWS_REGION: us-east-1
-      DEV_FUNCTION: stashbox-radio-api-dev-v2
-      PROD_FUNCTION: stashbox-radio-api-prod-v2
-      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
-      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
 
     steps:
       - uses: actions/checkout@v4
@@ -36,182 +31,50 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Mark promotion run started
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          printf 'started_utc=%s\nrun_id=%s\ncommit=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_RUN_ID" "$GITHUB_SHA" > radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_STARTED.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_STARTED.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Mark DEV to PROD artwork promotion started [skip ci]'
+            git push origin HEAD:main
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: us-east-1
 
-      - name: Read protected Radio admin tokens from Lambda environments
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev-lambda.json
-          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod-lambda.json
-
-          DEV_ADMIN_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/dev-lambda.json)"
-          PROD_ADMIN_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod-lambda.json)"
-
-          test -n "$DEV_ADMIN_TOKEN"
-          test -n "$PROD_ADMIN_TOKEN"
-          echo "::add-mask::$DEV_ADMIN_TOKEN"
-          echo "::add-mask::$PROD_ADMIN_TOKEN"
-          printf 'DEV_ADMIN_TOKEN=%s\n' "$DEV_ADMIN_TOKEN" >> "$GITHUB_ENV"
-          printf 'PROD_ADMIN_TOKEN=%s\n' "$PROD_ADMIN_TOKEN" >> "$GITHUB_ENV"
-
-      - name: Promote missing DEV songs and all canonical artwork ratios
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p radio/docs/diagnostics
-          node <<'NODE'
-          const fs = require('fs');
-
-          const DEV = process.env.DEV_API;
-          const PROD = process.env.PROD_API;
-          const DEV_TOKEN = process.env.DEV_ADMIN_TOKEN;
-          const PROD_TOKEN = process.env.PROD_ADMIN_TOKEN;
-          const artworkFields = [
-            'song_artwork_url',
-            'song_artwork_16x9_url',
-            'song_artwork_9x16_url',
-            'song_artwork_3x4_url',
-            'song_artwork_4x5_url',
-            'song_artwork_21x9_url'
-          ];
-
-          async function request(url, { method='GET', token='', body } = {}) {
-            const headers = { 'Accept': 'application/json' };
-            if (token) headers['x-admin-token'] = token;
-            if (body !== undefined) headers['Content-Type'] = 'application/json';
-            const res = await fetch(url, {
-              method,
-              headers,
-              body: body === undefined ? undefined : JSON.stringify(body)
-            });
-            const text = await res.text();
-            let data = {};
-            try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
-            if (!res.ok) {
-              const err = new Error(`${method} ${url} -> HTTP ${res.status}: ${data.error || data.message || text.slice(0,300)}`);
-              err.status = res.status;
-              err.data = data;
-              throw err;
-            }
-            return data;
-          }
-
-          function songKey(song) {
-            return String(song?.song_key || song?.songKey || '').trim();
-          }
-
-          function listSongs(body) {
-            if (Array.isArray(body)) return body;
-            return body?.songs || body?.items || body?.data || [];
-          }
-
-          function patchFromMedia(media) {
-            const images = media?.artwork_images || {};
-            return {
-              song_artwork_url: media?.song_artwork_url || media?.song_artwork_1x1_url || images['1x1'] || '',
-              song_artwork_16x9_url: media?.song_artwork_16x9_url || images['16x9'] || '',
-              song_artwork_9x16_url: media?.song_artwork_9x16_url || images['9x16'] || '',
-              song_artwork_3x4_url: media?.song_artwork_3x4_url || images['3x4'] || '',
-              song_artwork_4x5_url: media?.song_artwork_4x5_url || images['4x5'] || '',
-              song_artwork_21x9_url: media?.song_artwork_21x9_url || images['21x9'] || ''
-            };
-          }
-
-          const report = {
-            started_at: new Date().toISOString(),
-            source: 'radio_dev via TRUE DEV API',
-            target: 'radio via PROD v2 API',
-            policy: 'content-only; create missing songs; copy canonical artwork; never delete production songs or touch analytics/users',
-            dev_song_count: 0,
-            prod_song_count_before: 0,
-            created_missing_songs: [],
-            song_create_failures: [],
-            artwork_songs_examined: 0,
-            artwork_songs_with_any: 0,
-            artwork_complete_six_in_dev: 0,
-            artwork_patched: [],
-            artwork_failures: [],
-            ratio_source_counts: Object.fromEntries(artworkFields.map(f => [f, 0]))
-          };
-
-          const devSongsBody = await request(`${DEV}/admin/songs`, { token: DEV_TOKEN });
-          const prodSongsBody = await request(`${PROD}/admin/songs`, { token: PROD_TOKEN });
-          const devSongs = listSongs(devSongsBody);
-          const prodSongs = listSongs(prodSongsBody);
-          report.dev_song_count = devSongs.length;
-          report.prod_song_count_before = prodSongs.length;
-
-          const prodKeys = new Set(prodSongs.map(songKey).filter(Boolean).map(k => k.toLowerCase()));
-
-          for (const song of devSongs) {
-            const key = songKey(song);
-            if (!key) continue;
-            if (!prodKeys.has(key.toLowerCase())) {
-              try {
-                await request(`${PROD}/admin/songs`, { method: 'POST', token: PROD_TOKEN, body: song });
-                report.created_missing_songs.push(key);
-                prodKeys.add(key.toLowerCase());
-              } catch (error) {
-                report.song_create_failures.push({ song_key: key, error: error.message });
-              }
-            }
-          }
-
-          for (const song of devSongs) {
-            const key = songKey(song);
-            if (!key || !prodKeys.has(key.toLowerCase())) continue;
-            report.artwork_songs_examined += 1;
-            const encoded = encodeURIComponent(key);
-            try {
-              const devArtwork = await request(`${DEV}/radio/admin/songs/${encoded}/artwork-images`, { token: DEV_TOKEN });
-              const patch = patchFromMedia(devArtwork?.media || {});
-              const present = artworkFields.filter(field => String(patch[field] || '').trim());
-              if (!present.length) continue;
-              report.artwork_songs_with_any += 1;
-              if (present.length === 6) report.artwork_complete_six_in_dev += 1;
-              for (const field of present) report.ratio_source_counts[field] += 1;
-
-              const body = Object.fromEntries(present.map(field => [field, patch[field]]));
-              const saved = await request(`${PROD}/radio/admin/songs/${encoded}/artwork-images`, {
-                method: 'PATCH', token: PROD_TOKEN, body
-              });
-              const prodImages = saved?.media?.artwork_images || {};
-              report.artwork_patched.push({
-                song_key: key,
-                ratios_copied: present.length,
-                complete_six_source: present.length === 6,
-                prod_completion: saved?.media?.completion || null,
-                prod_ratios_present: Object.values(prodImages).filter(Boolean).length
-              });
-            } catch (error) {
-              report.artwork_failures.push({ song_key: key, error: error.message });
-            }
-          }
-
-          report.finished_at = new Date().toISOString();
-          report.ok = report.song_create_failures.length === 0 && report.artwork_failures.length === 0;
-          fs.writeFileSync('radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json', JSON.stringify(report, null, 2) + '\n');
-          console.log(JSON.stringify(report, null, 2));
-          if (!report.ok) process.exitCode = 2;
-          NODE
+      - name: Promote missing songs and canonical artwork
+        id: promote
+        continue-on-error: true
+        run: node .github/scripts/promote-dev-artwork-to-prod.mjs
 
       - name: Commit promotion report
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json ]; then
-            exit 0
-          fi
+          test -f radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json || exit 0
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Record DEV to PROD artwork promotion [skip ci]'
-          git push origin HEAD:main
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record DEV to PROD artwork promotion [skip ci]'
+            git push origin HEAD:main
+          fi
+
+      - name: Enforce promotion result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json
+          jq -e '.ok == true' radio/docs/diagnostics/DEV_TO_PROD_ARTWORK_PROMOTION_LATEST.json >/dev/null
