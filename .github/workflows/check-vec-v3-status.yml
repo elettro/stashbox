@@ -1,0 +1,51 @@
+name: Check VEC v3 migration status
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.check-vec-v3-status'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Read VEC v3 workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/DEV_TO_PROD_VEC_V3_RUN_STATUS.txt
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/one-time-promote-dev-vec-to-prod-v3.yml/runs?per_page=5" > /tmp/runs.json
+          node -e 'const fs=require("fs");const b=JSON.parse(fs.readFileSync("/tmp/runs.json","utf8"));console.log(`checked_utc=${new Date().toISOString()}`);for(const r of b.workflow_runs||[])console.log(`run_id=${r.id} status=${r.status} conclusion=${r.conclusion||""} head_sha=${r.head_sha} created_at=${r.created_at} updated_at=${r.updated_at}`)' > "$OUT"
+          cat "$OUT"
+      - name: Record status
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/DEV_TO_PROD_VEC_V3_RUN_STATUS.txt /tmp/status.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/status.txt radio/docs/diagnostics/DEV_TO_PROD_VEC_V3_RUN_STATUS.txt
+            git add radio/docs/diagnostics/DEV_TO_PROD_VEC_V3_RUN_STATUS.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record VEC v3 migration status [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
