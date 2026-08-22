@@ -1,0 +1,78 @@
+name: One-time promote DEV VEC to PROD v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.promote-dev-vec-v3'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-vec-prod-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Run VEC media recovery promotion
+        id: promote
+        continue-on-error: true
+        run: node .github/scripts/promote-dev-vec-to-prod-v3.mjs
+      - name: Preserve result report
+        if: always()
+        run: |
+          test -f radio/docs/diagnostics/DEV_TO_PROD_VEC_PROMOTION_V3_LATEST.json
+          cp radio/docs/diagnostics/DEV_TO_PROD_VEC_PROMOTION_V3_LATEST.json /tmp/vec-v3-report.json
+      - name: Record promotion report
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/vec-v3-report.json radio/docs/diagnostics/DEV_TO_PROD_VEC_PROMOTION_V3_LATEST.json
+            git add radio/docs/diagnostics/DEV_TO_PROD_VEC_PROMOTION_V3_LATEST.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record DEV to PROD VEC promotion v3 [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
+      - name: Enforce migration result
+        if: always()
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync('/tmp/vec-v3-report.json','utf8'));
+          console.log(JSON.stringify({
+            ok:r.ok,
+            preflight:r.preflight,
+            folders:r.folders,
+            folder_assets:{examined:r.folder_assets.examined,created:r.folder_assets.created,reused:r.folder_assets.reused,skipped:r.folder_assets.skipped,failed:r.folder_assets.failed.length},
+            direct_assets:{examined:r.direct_assets.examined,created:r.direct_assets.created,reused:r.direct_assets.reused,skipped:r.direct_assets.skipped,failed:r.direct_assets.failed.length},
+            recipes:{found_dev:r.recipes.found_dev,saved_prod:r.recipes.saved_prod,failed:r.recipes.failed.length},
+            verification:r.verification,
+            fatal_error:r.fatal_error
+          },null,2));
+          if(!r.ok) process.exit(2);
+          NODE
