@@ -42,6 +42,8 @@ jobs:
           replacements = [
               ('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev',
                'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2'),
+              ('d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev',
+               'je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2'),
               ('/radio/dev/v2/', '/radio/v2/'),
               ('radio/dev/v2/', 'radio/v2/'),
               ('/radio/dev/', '/radio/'),
@@ -65,6 +67,16 @@ jobs:
               if text != original:
                   path.write_text(text, encoding='utf-8')
                   changed.append(str(path))
+
+          # Health diagnostics should report the production catalog as production,
+          # not carry forward the DEV source label after endpoint substitution.
+          health = root / 'v2-health.js'
+          text = health.read_text(encoding='utf-8')
+          text = text.replace(
+              "if (names.some(name => name.includes('je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs'))) return 'dev';",
+              "if (names.some(name => name.includes('je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs'))) return 'production';"
+          )
+          health.write_text(text, encoding='utf-8')
 
           public = root / 'index.html'
           text = public.read_text(encoding='utf-8')
