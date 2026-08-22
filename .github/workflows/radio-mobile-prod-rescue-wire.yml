@@ -1,0 +1,60 @@
+name: Wire Radio mobile PROD catalog rescue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-mobile-prod-rescue-wire'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-mobile-prod-rescue-wire
+  cancel-in-progress: false
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Wire rescue before recovery
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('radio/index.html')
+          s = p.read_text()
+          old = '<script src="/radio/v2-boot-guard.js?v=20260822-mobileboot2-catalogfallback1" defer></script>'
+          rescue = '<script src="/radio/v2-mobile-catalog-rescue.js?v=20260822-mobileload1" defer></script>'
+          if rescue not in s:
+              if old not in s:
+                  raise SystemExit('boot guard marker not found')
+              s = s.replace(old, old + '\n  ' + rescue, 1)
+          s = s.replace('mobile-playstats1-20260822-mobileboot2-catalogfallback1-titlemode2', 'mobile-playstats1-20260822-mobileboot2-catalogfallback1-mobileload1-titlemode2', 1)
+          p.write_text(s)
+      - name: Verify ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'v2-mobile-catalog-rescue.js?v=20260822-mobileload1' radio/index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('radio/index.html').read_text()
+          assert s.index('v2-boot-guard.js') < s.index('v2-mobile-catalog-rescue.js') < s.index('v2-recovery.js')
+          print('mobile rescue order verified')
+          PY
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Wire PROD mobile catalog rescue before recovery [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
