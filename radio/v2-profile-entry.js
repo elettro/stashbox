@@ -3,8 +3,8 @@
 
   const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const API_ROOT = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
-  const PROFILE_OVERLAY_SRC = '/radio/v2-profile-overlay.js?v=20260822-profileoverlay3';
-  const PROFILE_FALLBACK_URL = '/radio/profile/?profile_fix=20260822-2';
+  const PROFILE_OVERLAY_SRC = '/radio/v2-profile-overlay.js?v=20260822-profileoverlay2';
+  const PROFILE_FALLBACK_URL = '/radio/profile/?profile_fix=20260822-1';
   let lastAccessToken = '';
   let loadedAccessToken = '';
   let accountName = '';
@@ -98,21 +98,15 @@
     return overlayLoader;
   }
 
-  async function openProfile(button) {
+  function openProfile(button) {
     let completed = false;
     const fallback = () => {
       if (completed) return;
       completed = true;
       location.href = PROFILE_FALLBACK_URL;
     };
+    const timeout = window.setTimeout(fallback, 1400);
 
-    const current = await freshTokens();
-    if (!current?.accessToken) {
-      fallback();
-      return;
-    }
-
-    const timeout = window.setTimeout(fallback, 1800);
     ensureProfileOverlay()
       .then(overlay => {
         if (completed) return;
@@ -129,11 +123,11 @@
 
   window.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    const button = target?.closest('#v2App .v2-header-login, [data-desktop-login], [data-li-profile], [data-v2-profile-entry]');
+    const button = target?.closest('#v2App .v2-header-login, [data-desktop-login]');
     if (!button || !loggedIn()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    openProfile(button).catch(() => { location.href = PROFILE_FALLBACK_URL; });
+    openProfile(button);
   }, true);
 
   window.addEventListener('storage', event => {
