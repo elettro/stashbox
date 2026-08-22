@@ -1,0 +1,61 @@
+Radio shared infrastructure diagnostic
+run_utc=2026-08-22T20:12:10Z
+
+[stashbox-radio-api-dev-v2]
+{
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "Timeout": 15,
+    "MemorySize": 128,
+    "VpcConfig": {
+        "SubnetIds": [
+            "subnet-0d72163f2329cb9de",
+            "subnet-065ac13129062f85d",
+            "subnet-0e2b4207279f79c3f",
+            "subnet-08e50d69ee12acab4",
+            "subnet-02af641e04dd09091",
+            "subnet-077df0efdee7fa00c"
+        ],
+        "SecurityGroupIds": [
+            "sg-069f30e65e65b6b07"
+        ],
+        "VpcId": "vpc-0f336fe5f1d929d36",
+        "Ipv6AllowedForDualStack": false
+    },
+    "PGHOST": "stashbox-radio-db2.csfou64ya825.us-east-1.rds.amazonaws.com",
+    "PGPORT": "5432",
+    "PGDATABASE": "postgres",
+    "PGSCHEMA": "radio_dev"
+}
+
+[stashbox-radio-api-prod-v2]
+{
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "Timeout": 15,
+    "MemorySize": 128,
+    "VpcConfig": {
+        "SubnetIds": [
+            "subnet-0d72163f2329cb9de",
+            "subnet-065ac13129062f85d",
+            "subnet-0e2b4207279f79c3f",
+            "subnet-08e50d69ee12acab4",
+            "subnet-02af641e04dd09091",
+            "subnet-077df0efdee7fa00c"
+        ],
+        "SecurityGroupIds": [
+            "sg-069f30e65e65b6b07"
+        ],
+        "VpcId": "vpc-0f336fe5f1d929d36",
+        "Ipv6AllowedForDualStack": false
+    },
+    "PGHOST": "stashbox-radio-db2.csfou64ya825.us-east-1.rds.amazonaws.com",
+    "PGPORT": "5432",
+    "PGDATABASE": "postgres",
+    "PGSCHEMA": "radio"
+}
+
+[RDS instances]
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the DescribeDBInstances operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: rds:DescribeDBInstances on resource: arn:aws:rds:us-east-1:656260749296:db:* because no identity-based policy allows the rds:DescribeDBInstances action
+
