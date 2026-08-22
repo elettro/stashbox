@@ -1,10 +1,11 @@
 /* Stashbox shared JavaScript loader.
    Loads the preserved shared site script, keeps the global Radio menu current,
-   and prevents incomplete VideoObject JSON-LD from generating Google rich-result errors. */
+   prevents incomplete VideoObject JSON-LD from generating Google rich-result errors,
+   and keeps historical show records out of Google's current Event rich-result feed. */
 (function () {
   'use strict';
 
-  function repairIncompleteVideoSchema() {
+  function repairStructuredData() {
     document.querySelectorAll('script[type="application/ld+json"]').forEach(function (script) {
       var raw = (script.textContent || '').trim();
       if (!raw) return;
@@ -17,6 +18,46 @@
       }
 
       var changed = false;
+      var today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      function isExpiredEvent(node, type) {
+        var eventTypes = Array.isArray(type) ? type : [type];
+        var isEvent = eventTypes.some(function (entry) {
+          return entry === 'Event' || entry === 'MusicEvent';
+        });
+
+        if (!isEvent || !node.startDate) return false;
+
+        var start = new Date(node.startDate);
+        if (Number.isNaN(start.getTime())) return false;
+
+        return start.getTime() < today.getTime();
+      }
+
+      function convertExpiredEventToArchiveRecord(node) {
+        var originalDate = node.startDate;
+        var originalLocation = node.location;
+        var originalPerformer = node.performer;
+
+        node['@type'] = 'CreativeWork';
+        node.dateCreated = originalDate;
+        node.description = node.description || (node.name ? node.name + ' from the Stashbox live performance archive.' : 'Historical Stashbox live performance record.');
+
+        if (originalLocation) node.contentLocation = originalLocation;
+        if (originalPerformer) node.creator = originalPerformer;
+
+        delete node.startDate;
+        delete node.endDate;
+        delete node.eventStatus;
+        delete node.previousStartDate;
+        delete node.location;
+        delete node.performer;
+        delete node.organizer;
+        delete node.offers;
+
+        changed = true;
+      }
 
       function visit(node) {
         if (Array.isArray(node)) {
@@ -31,14 +72,18 @@
 
         if (isVideoObject && !node.uploadDate) {
           if (Array.isArray(type)) {
-            var replacementTypes = type.map(function (entry) {
+            node['@type'] = type.map(function (entry) {
               return entry === 'VideoObject' ? 'CreativeWork' : entry;
             });
-            node['@type'] = replacementTypes;
           } else {
             node['@type'] = 'CreativeWork';
           }
           changed = true;
+          type = node['@type'];
+        }
+
+        if (isExpiredEvent(node, type)) {
+          convertExpiredEventToArchiveRecord(node);
         }
 
         Object.keys(node).forEach(function (key) {
@@ -75,7 +120,7 @@
     });
   }
 
-  repairIncompleteVideoSchema();
+  repairStructuredData();
 
   var core = document.createElement('script');
   core.src = '/main-core.js?v=20260805';
@@ -86,11 +131,11 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
-      repairIncompleteVideoSchema();
+      repairStructuredData();
       ensureRadioBlogLink();
     }, { once: true });
   } else {
-    repairIncompleteVideoSchema();
+    repairStructuredData();
     ensureRadioBlogLink();
   }
 })();
