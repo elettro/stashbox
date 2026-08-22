@@ -1,0 +1,13 @@
+Attempt #2 backend parity requirements
+
+Required zero-mismatch categories before cutover:
+- DEV song_key set represented in PROD
+- listener-facing song metadata
+- 1x1, 9x16, 16x9, 3x4, 4x5, 21x9 artwork assignments present in DEV
+- VEC folder definitions
+- VEC folder assets
+- direct-only VEC song assets
+- per-song VEC recipes and visual settings
+- resolvable production media URLs
+
+Production user and engagement records remain production-owned and are excluded from equality comparisons.
