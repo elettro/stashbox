@@ -1,6 +1,6 @@
 # Stashbox Radio Bug Index
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 | ID | Title | Area | Severity | Environment | Status | Reported | Fix commit |
 |---|---|---|---|---|---|---|---|
@@ -21,13 +21,11 @@ Last updated: 2026-08-21
 | SR-BUG-0015 | Profile song clicks return home instead of opening the selected song | Profile / Player | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `545071ea` |
 | SR-BUG-0016 | Fast login fails with missing USERNAME on mobile and desktop | Auth / Login | High | DEV V2 Mobile + Desktop | Fixed, verified | 2026-08-19 | `2510866f`, `586ccd90` |
 | SR-BUG-0017 | First mobile login can stall on “Logging In…” while retry succeeds immediately | Auth / Login | High | DEV V2 Mobile | Fixed, verified | 2026-08-21 | `528fed47` |
-| SR-BUG-0018 | Vertical ad creative is cropped instead of displayed with FIT | Ads / Player | High | DEV V2 Desktop | Open, verification failed | 2026-08-21 | - |
-| SR-BUG-0019 | Ads CMS break cadence is ignored and ads play every other song | Ads / Player | High | DEV V2 Desktop | Open, verification failed | 2026-08-21 | - |
+| SR-BUG-0018 | Vertical ad creative is cropped instead of displayed with FIT | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | `9c0d557d` |
+| SR-BUG-0019 | Ads CMS break cadence is ignored and ads play every other song | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | - |
 
 ## Open / investigating
 
-- `SR-BUG-0018` - Vertical sponsored video remains cropped after the latest FIT repair attempts. Live user verification failed on 2026-08-21. Keep open until a 9:16 ad shows its complete frame in the live viewer.
-- `SR-BUG-0019` - Ads CMS is set to `After every song/video`, but live DEV V2 still behaves like an every-other-song cadence. Live user verification failed on 2026-08-21. Keep open until a multi-song Song -> Ad -> Song -> Ad sequence passes.
 - `SR-BUG-0005` - Historical retained-share-count issue. User marked it verified and closed it on 2026-08-19. Reopen and trace one share end to end if it returns.
 - `SR-BUG-0011` - Mobilecontinuity1 preserves provisional artwork during exact 9:16 lookup, creates a fresh iPhone video element for every clip, and advances within 3.2 seconds when presented frames stop. Published on 2026-08-19. iPhone Safari verification remains pending.
 - `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the login/account repair verified and closed it on 2026-08-19.
@@ -56,6 +54,8 @@ Last updated: 2026-08-21
 - `SR-BUG-0015` - Profile song clicks open the selected song in the main player, and playlist playback follows the playlist queue. User verified the behavior on 2026-08-19.
 - `SR-BUG-0016` - Fast login no longer fails with `Missing required parameter USERNAME`; user verified successful login on both desktop and mobile on 2026-08-19.
 - `SR-BUG-0017` - User verified on 2026-08-21 that the repaired first mobile login completes very fast instead of hanging on `Logging In…` while waiting on legacy account hydration.
+- `SR-BUG-0018` - User verified on 2026-08-22 that the sponsored ad video now renders in the correct centered viewport position with FIT behavior.
+- `SR-BUG-0019` - User verified on 2026-08-22 that the apparent cadence mismatch came from the Ads CMS being set to every other song. The player was following the controller.
 
 ## Usage
 
