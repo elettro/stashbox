@@ -1,0 +1,53 @@
+name: Refresh Radio PROD catalog fallback
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-refresh-prod-catalog-fallback'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-refresh-prod-catalog-fallback
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Fetch current PROD catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+            'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/songs?limit=500&fallback_refresh=1' \
+            -H 'Accept: application/json' \
+            -o radio/catalog-fallback.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('radio/catalog-fallback.json')
+          data=json.loads(p.read_text())
+          rows=data if isinstance(data,list) else data.get('songs') or data.get('items') or data.get('data') or []
+          print('catalog_count=',len(rows))
+          if len(rows) < 89:
+              raise SystemExit(f'Expected at least 89 PROD songs, received {len(rows)}')
+          PY
+      - name: Commit refreshed snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/catalog-fallback.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Refresh PROD mobile catalog fallback snapshot [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
