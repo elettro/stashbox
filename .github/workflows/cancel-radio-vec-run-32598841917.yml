@@ -1,0 +1,55 @@
+name: Cancel runaway VEC promotion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.cancel-radio-vec-run-32598841917'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Cancel run 32598841917
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/RADIO_VEC_TARGETED_CANCEL_LATEST.txt
+          echo "cancel_utc=$(date -u +%FT%TZ)" > "$OUT"
+          code=$(curl -sS -o /tmp/cancel.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/32598841917/cancel")
+          echo "run_id=32598841917 cancel_http=$code" >> "$OUT"
+          cat /tmp/cancel.json >> "$OUT" || true
+          cat "$OUT"
+      - name: Record cancel result
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/RADIO_VEC_TARGETED_CANCEL_LATEST.txt /tmp/cancel.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/cancel.txt radio/docs/diagnostics/RADIO_VEC_TARGETED_CANCEL_LATEST.txt
+            git add radio/docs/diagnostics/RADIO_VEC_TARGETED_CANCEL_LATEST.txt
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record targeted VEC cancel [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
