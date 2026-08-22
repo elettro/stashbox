@@ -1,0 +1,86 @@
+name: Radio Attempt 2 deep DEV PROD parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-attempt2-deep-parity'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-attempt2-deep-parity
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TOOL_BRANCH: release/radio-dev-mirror-attempt2-20260822
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require completed Attempt 2 data apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          grep -q '^mirror=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+          grep -q '^parity=success$' radio/docs/diagnostics/ATTEMPT2_DATA_APPLY_RUN.txt
+      - name: Load deep parity tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TOOL_BRANCH"
+          git show "origin/$TOOL_BRANCH:.github/scripts/radio-attempt2-deep-parity.mjs" > /tmp/radio-attempt2-deep-parity.mjs
+          test -s /tmp/radio-attempt2-deep-parity.mjs
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Run deep semantic parity audit
+        id: audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node /tmp/radio-attempt2-deep-parity.mjs 2>&1 | tee /tmp/ATTEMPT2_DEEP_PARITY_LOG.txt
+      - name: Record audit report
+        if: always()
+        shell: bash
+        env:
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          set -euo pipefail
+          cp radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY.json /tmp/ATTEMPT2_DEEP_PARITY.json 2>/dev/null || true
+          cp /tmp/ATTEMPT2_DEEP_PARITY_LOG.txt /tmp/ATTEMPT2_DEEP_PARITY_LOG.txt.copy 2>/dev/null || true
+          printf 'run_id=%s\naudit=%s\nrecorded_utc=%s\n' "$GITHUB_RUN_ID" "$AUDIT_OUTCOME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/ATTEMPT2_DEEP_PARITY_RUN.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p radio/docs/diagnostics
+            cp /tmp/ATTEMPT2_DEEP_PARITY.json radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY.json 2>/dev/null || true
+            cp /tmp/ATTEMPT2_DEEP_PARITY_LOG.txt.copy radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY_LOG.txt 2>/dev/null || true
+            cp /tmp/ATTEMPT2_DEEP_PARITY_RUN.txt radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY_RUN.txt
+            git add radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY.json radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY_LOG.txt radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY_RUN.txt 2>/dev/null || true
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'Record Radio Attempt 2 deep parity audit [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 2))
+          done
+          exit 1
+      - name: Enforce zero mismatches
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.audit.outcome }}' = 'success'
+          jq -e '.ok == true and .mismatch_count == 0' radio/docs/diagnostics/ATTEMPT2_DEEP_PARITY.json >/dev/null
