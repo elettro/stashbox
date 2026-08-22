@@ -1,0 +1,51 @@
+name: Check VEC promotion status
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.check-vec-promotion-status'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Read promotion workflow status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics
+          OUT=radio/docs/diagnostics/DEV_TO_PROD_VEC_RUN_STATUS.txt
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/one-time-promote-dev-vec-to-prod.yml/runs?per_page=5"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$API" > /tmp/runs.json
+          node <<'NODE' > "$OUT"
+          const fs = require('fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/runs.json','utf8'));
+          const rows = body.workflow_runs || [];
+          console.log(`checked_utc=${new Date().toISOString()}`);
+          for (const r of rows) {
+            console.log(`run_id=${r.id} status=${r.status} conclusion=${r.conclusion || ''} event=${r.event} head_sha=${r.head_sha} created_at=${r.created_at} updated_at=${r.updated_at}`);
+          }
+          NODE
+          cat "$OUT"
+      - name: Record status
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/DEV_TO_PROD_VEC_RUN_STATUS.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record DEV to PROD VEC run status [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
