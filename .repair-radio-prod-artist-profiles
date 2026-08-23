@@ -1,0 +1,4 @@
+trigger=2026-08-23T08:07:00-04:00
+scope=mirror-public-dev-artists-to-prod
+source=dev-v2
+attempt=1
