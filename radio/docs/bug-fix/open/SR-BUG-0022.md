@@ -1,7 +1,7 @@
 # SR-BUG-0022 — Logged-in production profile fails to load on desktop and mobile
 
-- **Status:** Fix v2 deployed, verification pending
-- **Verification:** Pending desktop Chrome and mobile retest
+- **Status:** Backend auth repair deployed, user verification pending
+- **Verification:** Pending fresh login plus PROFILE retest on desktop and mobile
 - **Severity:** High
 - **Area:** Profile / Auth
 - **Environment:** PROD Desktop + Mobile
@@ -9,16 +9,19 @@
 
 ## Symptom
 
-A listener is visibly logged in on production Stashbox Radio, but opening the profile page at `/radio/profile/` fails with:
+A listener is visibly logged in on production Stashbox Radio, but opening the profile page fails. The observed production behaviors included:
 
 - `PROFILE COULD NOT LOAD`
 - `Failed to fetch` or `Load failed`
+- after a later hard-refresh retest, PROFILE waits and then returns the listener to the login popup
 
-The failure was first reproduced on iPhone Safari. A later retest on 2026-08-23 reproduced the same production failure on desktop Chrome and mobile.
+The failure reproduced on both desktop Chrome and mobile.
 
 ## Findings
 
-The production profile boot restores the V2 listener session before loading the profile application. The profile then loads `/radio/me` plus preferences, favorites, playlists, history, follows, and the public song catalog.
+The production profile loads `/radio/me` as its required authenticated account request. If that request ultimately returns `401`, `profile.js` removes the stored production Cognito token set and redirects the listener back to login. That explains the later symptom where PROFILE waits and then reopens the login UI.
+
+### CORS was not the root cause
 
 A live production CORS diagnostic passed:
 
@@ -28,21 +31,35 @@ A live production CORS diagnostic passed:
 - `OPTIONS /radio/me` with `authorization` returned `204`.
 - `OPTIONS /radio/me` with `authorization,x-cognito-id-token` returned `204`.
 
-This ruled out API Gateway browser preflight as the primary cause.
+### Frontend session routing and cache were repaired first
 
-The first repair changed `profile-fetch-repair.js` so authenticated profile calls stayed inside the renewable `v2-session-manager.js` fetch path. That repair was correct, but the profile page still referenced `v2-session-manager.js` using the old `v=20260802-profile-login-repair1` URL even though the session manager itself had been updated later. Browsers that already cached that August 2 URL kept executing the stale session manager. The new profile fetch shim therefore routed requests through old cached session logic instead of the current refresh and network-recovery logic.
+The original production profile still used an August 4 fetch shim that bypassed the renewable V2 session manager. Fix v1 routed authenticated profile calls back through `v2-session-manager.js` so refresh, 401 retry, and authenticated network recovery stayed active.
+
+A later retest still failed because the profile page referenced the session manager with an old August 2 cache URL. Fix v2 cache-busted the session manager, profile fetch shim, session loader, and profile application together.
+
+Those changes repaired real frontend defects, but the next desktop and mobile retest still waited and then returned to login.
+
+### Production JWT verifier gap found
+
+A live production runtime diagnostic then inspected the deployed Lambda itself.
+
+Before the backend repair:
+
+- Lambda: `stashbox-radio-api-prod-v2`
+- Runtime: Node.js 22
+- Lambda attached to 6 VPC subnets and 1 security group
+- Production Cognito pool and app client were configured
+- `COGNITO_JWKS_JSON` was not configured
+- bundled JWKS opt-in was not enabled
+- the current production Cognito public JWKS endpoint returned `200` with 2 RSA signing keys
+
+`radio-api/auth.mjs` intentionally refuses to use the bundled DEV signing keys in production. Without `COGNITO_JWKS_JSON`, production JWT verification therefore depended on retrieving Cognito signing keys during the authenticated request path from the VPC-attached Lambda.
+
+That production-only verifier dependency matched the remaining failure path. The public auth configuration itself was healthy, while the problem only surfaced when the profile crossed the authenticated `/radio/me` route.
 
 ## Fix v1
 
-On 2026-08-23 the production profile fetch shim was changed so authenticated profile requests stay inside `v2-session-manager.js`.
-
-The repaired path:
-
-1. Uses the renewable production session fetch for authenticated profile calls.
-2. Preserves automatic access-token refresh.
-3. Preserves 401 refresh/retry behavior.
-4. Preserves authenticated GET recovery that retries without `X-Cognito-Id-Token` after a network-level fetch failure.
-5. Adds one short outer retry for GET requests that still return a network fetch exception.
+Authenticated profile requests were moved back into the renewable production session manager.
 
 Fix commits:
 
@@ -51,20 +68,53 @@ Fix commits:
 
 ## Fix v2
 
-After the desktop and mobile retest still showed `Failed to fetch`, the production profile bootstrap was cache-busted as one stack instead of only cache-busting the fetch shim.
+The complete profile session stack was cache-busted so browsers no longer retained the old August session manager.
 
-Changes:
-
-1. `radio/profile/index.html` now loads `v2-session-manager.js` with a new 2026-08-23 version URL.
-2. `profile-fetch-repair.js` receives a new version URL.
-3. `profile-session-loader.js` receives a new version URL.
-4. `profile-session-loader.js` now loads `profile.js` with a new version URL.
-5. The production profile build marker was incremented.
-
-Fix v2 commits:
+Fix commits:
 
 - `208040b0` — Force fresh production profile session stack
 - `008797e9` — Bust cached production profile app loader
+
+## Fix v3 — production Cognito verifier repair
+
+On 2026-08-23 the current production Cognito JWKS was installed directly into the production Lambda environment as `COGNITO_JWKS_JSON`.
+
+Safety and deployment verification passed:
+
+- JWKS fetched from the exact currently configured production user pool
+- 2 RSA signing keys validated
+- resulting Lambda environment payload: 1611 bytes
+- Lambda state after update: `Active`
+- Lambda last update status: `Successful`
+- `COGNITO_JWKS_JSON` present after update
+- stored JWKS key count: 2
+- repair workflow result: `PASS`
+
+This removes the authenticated JWT verifier's dependency on an outbound JWKS fetch during PROFILE requests.
+
+Repair commits:
+
+- `19fb129e` — Add safe PROD Cognito JWKS repair workflow
+- `b9b3bd12` — Trigger PROD Cognito JWKS repair
+- `654f73a1` — Record successful PROD Cognito JWKS repair
+
+Diagnostic records:
+
+- `radio/docs/diagnostics/PROD_PROFILE_RUNTIME_LATEST.txt`
+- `radio/docs/diagnostics/PROD_AUTH_JWKS_REPAIR_LATEST.txt`
+
+## Important retest note
+
+A previous failed `/radio/me` attempt removed the browser's stored production token set before redirecting to login. A listener whose session was cleared by that failure must log in one time after Fix v3 before testing PROFILE again.
+
+The verification sequence is therefore:
+
+1. Refresh production.
+2. Log in once.
+3. Confirm the player shows the logged-in account state.
+4. Open PROFILE.
+5. Confirm the profile loads and remains logged in.
+6. Repeat on desktop and mobile.
 
 ## Related files
 
@@ -78,12 +128,9 @@ Fix v2 commits:
 - `radio-api/auth.mjs`
 - `.github/workflows/radio-diagnose-prod-profile-cors.yml`
 - `.github/workflows/radio-diagnose-prod-profile-auth.yml`
+- `.github/workflows/radio-diagnose-prod-profile-runtime.yml`
+- `.github/workflows/repair-radio-prod-auth-jwks.yml`
 
 ## Verification
 
-Retest production after the new static profile assets reach `stashbox.com`:
-
-- Desktop Chrome while already logged in
-- Mobile while already logged in
-- Open PROFILE from the production player
-- Confirm the profile loads instead of rendering `PROFILE COULD NOT LOAD`
+Backend repair is deployed and verified at the Lambda configuration level. Final end-to-end verification requires a real listener session on desktop and mobile.
