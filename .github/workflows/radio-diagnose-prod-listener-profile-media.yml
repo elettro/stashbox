@@ -73,7 +73,7 @@ jobs:
             fi
 
             aws s3api head-bucket --bucket "$bucket" --region "$region" >/dev/null
-            aws s3api list-objects-v2 --bucket "$bucket" --prefix 'user-profiles/' --region "$region" --output json > "/tmp/profile-media/${label}-objects.json"
+            aws s3api list-objects-v2 --bucket "$bucket" --prefix 'user-profiles-' --region "$region" --output json > "/tmp/profile-media/${label}-objects.json"
             object_count="$(jq -r '.KeyCount // 0' "/tmp/profile-media/${label}-objects.json")"
             total_size="$(jq -r '[.Contents[]?.Size // 0] | add // 0' "/tmp/profile-media/${label}-objects.json")"
             first_key="$(jq -r '.Contents[0].Key // empty' "/tmp/profile-media/${label}-objects.json")"
