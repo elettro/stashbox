@@ -1,6 +1,6 @@
 Stashbox Radio listener profile media diagnostic
-run_utc=2026-08-23T12:28:23Z
-source_commit=a3867c0c18c8439e2043a428066e3cccd8bd6472
+run_utc=2026-08-23T12:31:45Z
+source_commit=acefca2c213f5e662de59931a05658cf004bc8fb
 
 [dev]
 function=stashbox-radio-api-dev-v2
@@ -10,9 +10,9 @@ upload_region=us-east-1
 public_base_configured=true
 public_base_host=d1ufj7xan6uxy0.cloudfront.net
 user_profile_object_count=0
-user_profile_total_bytes=0
-first_object_content_type=
-first_object_public_status=no_object
+user_profile_total_bytes=4345750
+first_object_content_type=image/png
+first_object_public_status=200
 bucket_public_access_block={"BlockPublicAcls":true,"IgnorePublicAcls":true,"BlockPublicPolicy":true,"RestrictPublicBuckets":true}
 bucket_policy_is_public=unknown
 
@@ -35,5 +35,5 @@ dev_user_profile_objects=0
 prod_user_profile_objects=0
 missing_prod_profile_media_objects=false
 prod_profile_media_public_read_failure=false
-dev_first_public_status=no_object
+dev_first_public_status=200
 prod_first_public_status=no_object
