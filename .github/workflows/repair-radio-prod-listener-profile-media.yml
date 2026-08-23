@@ -1,0 +1,184 @@
+name: Repair Radio PROD listener profile media
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.repair-radio-prod-listener-profile-media'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-radio-prod-listener-profile-media
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AWS_REGION: us-east-1
+      DEV_FUNCTION: stashbox-radio-api-dev-v2
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+      PROFILE_PREFIX: user-profiles-
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Copy DEV listener profile media into PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/profile-media-repair radio/docs/diagnostics
+          report=radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_REPAIR_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio PROD listener profile media repair' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
+          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/profile-media-repair/dev-lambda.json
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/profile-media-repair/prod-lambda.json
+
+          dev_schema="$(jq -r '.Environment.Variables.PGSCHEMA // empty' /tmp/profile-media-repair/dev-lambda.json)"
+          prod_schema="$(jq -r '.Environment.Variables.PGSCHEMA // empty' /tmp/profile-media-repair/prod-lambda.json)"
+          dev_bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' /tmp/profile-media-repair/dev-lambda.json)"
+          prod_bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' /tmp/profile-media-repair/prod-lambda.json)"
+          prod_region="$(jq -r '.Environment.Variables.UPLOAD_REGION // .Environment.Variables.UPLOAD_BUCKET_REGION // .Environment.Variables.S3_BUCKET_REGION // .Environment.Variables.RADIO_UPLOAD_BUCKET_REGION // .Environment.Variables.AWS_REGION // "us-east-1"' /tmp/profile-media-repair/prod-lambda.json)"
+          prod_public_base="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // .Environment.Variables.MEDIA_PUBLIC_BASE_URL // .Environment.Variables.RADIO_MEDIA_PUBLIC_BASE_URL // empty' /tmp/profile-media-repair/prod-lambda.json | sed 's:/*$::')"
+
+          test "$dev_schema" = radio_dev
+          test "$prod_schema" = radio
+          test -n "$dev_bucket"
+          test -n "$prod_bucket"
+          test "$dev_bucket" != "$prod_bucket"
+          echo "$dev_bucket" | grep -qi dev
+          if echo "$prod_bucket" | grep -qi dev; then
+            echo 'Refusing repair because PROD bucket contains DEV marker.' >&2
+            exit 1
+          fi
+          test -n "$prod_public_base"
+
+          aws s3api list-objects-v2 --bucket "$dev_bucket" --prefix "$PROFILE_PREFIX" --region "$AWS_REGION" --output json > /tmp/profile-media-repair/dev.json
+          aws s3api list-objects-v2 --bucket "$prod_bucket" --prefix "$PROFILE_PREFIX" --region "$prod_region" --output json > /tmp/profile-media-repair/prod-before.json
+
+          dev_count="$(jq -r '(.Contents // []) | length' /tmp/profile-media-repair/dev.json)"
+          prod_before_count="$(jq -r '(.Contents // []) | length' /tmp/profile-media-repair/prod-before.json)"
+          dev_bytes="$(jq -r '[.Contents[]?.Size // 0] | add // 0' /tmp/profile-media-repair/dev.json)"
+
+          echo "dev_bucket=${dev_bucket}" >> "$report"
+          echo "prod_bucket=${prod_bucket}" >> "$report"
+          echo "dev_profile_media_objects=${dev_count}" >> "$report"
+          echo "prod_profile_media_objects_before=${prod_before_count}" >> "$report"
+          echo "dev_profile_media_bytes=${dev_bytes}" >> "$report"
+
+          if [ "$dev_count" -lt 1 ]; then
+            echo 'DEV has no listener profile media. Refusing repair.' >&2
+            exit 1
+          fi
+          if [ "$dev_count" -gt 100 ]; then
+            echo 'Unexpectedly large DEV listener profile media set. Refusing repair.' >&2
+            exit 1
+          fi
+          if [ "$dev_bytes" -gt 104857600 ]; then
+            echo 'DEV listener profile media exceeds 100 MB safety cap. Refusing repair.' >&2
+            exit 1
+          fi
+          if [ "$prod_before_count" -ne 0 ]; then
+            echo 'PROD already contains listener profile media. Refusing overwrite.' >&2
+            exit 1
+          fi
+
+          copied=0
+          verified=0
+          public_ok=0
+          failures=0
+
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            source_size="$(jq -r --arg key "$key" '.Contents[] | select(.Key==$key) | .Size' /tmp/profile-media-repair/dev.json)"
+            encoded_key="$(python3 -c 'import sys,urllib.parse; print("/".join(urllib.parse.quote(x, safe="") for x in sys.argv[1].split("/")))' "$key")"
+            copy_source="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "${dev_bucket}/${key}")"
+
+            aws s3api copy-object \
+              --bucket "$prod_bucket" \
+              --key "$key" \
+              --copy-source "$copy_source" \
+              --metadata-directive COPY \
+              --region "$prod_region" \
+              >/tmp/profile-media-repair/copy.json
+            copied=$((copied+1))
+
+            target_size="$(aws s3api head-object --bucket "$prod_bucket" --key "$key" --region "$prod_region" --query ContentLength --output text)"
+            if [ "$target_size" = "$source_size" ]; then
+              verified=$((verified+1))
+            else
+              failures=$((failures+1))
+            fi
+
+            public_url="${prod_public_base}/${encoded_key}"
+            status="$(curl -L -sS --max-time 20 -o /dev/null -w '%{http_code}' "$public_url" || true)"
+            if [ "$status" = 200 ]; then
+              public_ok=$((public_ok+1))
+            fi
+          done < <(jq -r '.Contents[]?.Key // empty' /tmp/profile-media-repair/dev.json)
+
+          if [ "$public_ok" -ne "$dev_count" ]; then
+            prod_host="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).netloc)' "$prod_public_base")"
+            distribution_id="$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='${prod_host}'].Id | [0]" --output text 2>/dev/null || true)"
+            if [ -n "$distribution_id" ] && [ "$distribution_id" != None ]; then
+              aws cloudfront create-invalidation --distribution-id "$distribution_id" --paths "/${PROFILE_PREFIX}*" >/tmp/profile-media-repair/invalidation.json
+              invalidation_id="$(jq -r '.Invalidation.Id // empty' /tmp/profile-media-repair/invalidation.json)"
+              if [ -n "$invalidation_id" ]; then
+                aws cloudfront wait invalidation-completed --distribution-id "$distribution_id" --id "$invalidation_id"
+              fi
+              public_ok=0
+              while IFS= read -r key; do
+                [ -n "$key" ] || continue
+                encoded_key="$(python3 -c 'import sys,urllib.parse; print("/".join(urllib.parse.quote(x, safe="") for x in sys.argv[1].split("/")))' "$key")"
+                status="$(curl -L -sS --max-time 20 -o /dev/null -w '%{http_code}' "${prod_public_base}/${encoded_key}" || true)"
+                if [ "$status" = 200 ]; then public_ok=$((public_ok+1)); fi
+              done < <(jq -r '.Contents[]?.Key // empty' /tmp/profile-media-repair/dev.json)
+            fi
+          fi
+
+          aws s3api list-objects-v2 --bucket "$prod_bucket" --prefix "$PROFILE_PREFIX" --region "$prod_region" --output json > /tmp/profile-media-repair/prod-after.json
+          prod_after_count="$(jq -r '(.Contents // []) | length' /tmp/profile-media-repair/prod-after.json)"
+
+          echo "copied=${copied}" >> "$report"
+          echo "verified_size_match=${verified}" >> "$report"
+          echo "public_http_200=${public_ok}" >> "$report"
+          echo "prod_profile_media_objects_after=${prod_after_count}" >> "$report"
+          echo "failures=${failures}" >> "$report"
+
+          if [ "$copied" -ne "$dev_count" ] || [ "$verified" -ne "$dev_count" ] || [ "$prod_after_count" -ne "$dev_count" ] || [ "$public_ok" -ne "$dev_count" ] || [ "$failures" -ne 0 ]; then
+            echo 'result=FAIL' >> "$report"
+            cat "$report"
+            exit 1
+          fi
+
+          echo 'result=PASS' >> "$report"
+          cat "$report"
+
+      - name: Commit repair result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_REPAIR_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_REPAIR_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD listener profile media repair [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
