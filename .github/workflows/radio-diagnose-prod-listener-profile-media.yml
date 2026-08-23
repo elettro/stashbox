@@ -1,0 +1,167 @@
+name: Diagnose Radio PROD listener profile media
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-diagnose-prod-listener-profile-media'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-diagnose-prod-listener-profile-media
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      DEV_FUNCTION: stashbox-radio-api-dev-v2
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect DEV and PROD profile-media storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/profile-media radio/docs/diagnostics
+          report=radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio listener profile media diagnostic' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+          echo >> "$report"
+
+          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/profile-media/dev-lambda.json
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/profile-media/prod-lambda.json
+
+          inspect_env() {
+            label="$1"
+            config="$2"
+            expected_schema="$3"
+            expected_dev_marker="$4"
+
+            function_name="$(jq -r '.FunctionName' "$config")"
+            schema="$(jq -r '.Environment.Variables.PGSCHEMA // empty' "$config")"
+            bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' "$config")"
+            region="$(jq -r '.Environment.Variables.UPLOAD_REGION // .Environment.Variables.UPLOAD_BUCKET_REGION // .Environment.Variables.S3_BUCKET_REGION // .Environment.Variables.RADIO_UPLOAD_BUCKET_REGION // .Environment.Variables.AWS_REGION // "us-east-1"' "$config")"
+            public_base="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // .Environment.Variables.MEDIA_PUBLIC_BASE_URL // .Environment.Variables.RADIO_MEDIA_PUBLIC_BASE_URL // empty' "$config" | sed 's:/*$::')"
+
+            test -n "$bucket"
+            test "$schema" = "$expected_schema"
+            if [ "$expected_dev_marker" = 'dev' ]; then
+              echo "$bucket" | grep -qi 'dev'
+            else
+              if echo "$bucket" | grep -qi 'dev'; then
+                echo "PROD upload bucket unexpectedly contains DEV marker: $bucket" >&2
+                exit 1
+              fi
+            fi
+
+            aws s3api head-bucket --bucket "$bucket" --region "$region" >/dev/null
+            aws s3api list-objects-v2 --bucket "$bucket" --prefix 'user-profiles/' --region "$region" --output json > "/tmp/profile-media/${label}-objects.json"
+            object_count="$(jq -r '.KeyCount // 0' "/tmp/profile-media/${label}-objects.json")"
+            total_size="$(jq -r '[.Contents[]?.Size // 0] | add // 0' "/tmp/profile-media/${label}-objects.json")"
+            first_key="$(jq -r '.Contents[0].Key // empty' "/tmp/profile-media/${label}-objects.json")"
+
+            pab='unknown'
+            if aws s3api get-public-access-block --bucket "$bucket" --region "$region" >/tmp/profile-media/${label}-pab.json 2>/dev/null; then
+              pab="$(jq -c '.PublicAccessBlockConfiguration' /tmp/profile-media/${label}-pab.json)"
+            fi
+
+            policy_status='unknown'
+            if aws s3api get-bucket-policy-status --bucket "$bucket" --region "$region" >/tmp/profile-media/${label}-policy-status.json 2>/dev/null; then
+              policy_status="$(jq -r '.PolicyStatus.IsPublic // false' /tmp/profile-media/${label}-policy-status.json)"
+            fi
+
+            first_public_status='no_object'
+            first_object_content_type=''
+            if [ -n "$first_key" ]; then
+              aws s3api head-object --bucket "$bucket" --key "$first_key" --region "$region" >/tmp/profile-media/${label}-head.json
+              first_object_content_type="$(jq -r '.ContentType // empty' /tmp/profile-media/${label}-head.json)"
+              encoded_key="$(python3 - "$first_key" <<'PY'
+import sys, urllib.parse
+print('/'.join(urllib.parse.quote(part, safe='') for part in sys.argv[1].split('/')))
+PY
+)"
+              if [ -n "$public_base" ]; then
+                public_url="${public_base}/${encoded_key}"
+              else
+                public_url="https://${bucket}.s3.${region}.amazonaws.com/${encoded_key}"
+              fi
+              first_public_status="$(curl -L -sS --max-time 20 -o /dev/null -w '%{http_code}' "$public_url" || true)"
+            fi
+
+            echo "[$label]" >> "$report"
+            echo "function=${function_name}" >> "$report"
+            echo "schema=${schema}" >> "$report"
+            echo "upload_bucket=${bucket}" >> "$report"
+            echo "upload_region=${region}" >> "$report"
+            echo "public_base_configured=$([ -n "$public_base" ] && echo true || echo false)" >> "$report"
+            echo "public_base_host=$(if [ -n "$public_base" ]; then python3 - "$public_base" <<'PY'
+import sys, urllib.parse
+print(urllib.parse.urlparse(sys.argv[1]).netloc)
+PY
+else echo ''; fi)" >> "$report"
+            echo "user_profile_object_count=${object_count}" >> "$report"
+            echo "user_profile_total_bytes=${total_size}" >> "$report"
+            echo "first_object_content_type=${first_object_content_type}" >> "$report"
+            echo "first_object_public_status=${first_public_status}" >> "$report"
+            echo "bucket_public_access_block=${pab}" >> "$report"
+            echo "bucket_policy_is_public=${policy_status}" >> "$report"
+            echo >> "$report"
+          }
+
+          inspect_env dev /tmp/profile-media/dev-lambda.json radio_dev dev
+          inspect_env prod /tmp/profile-media/prod-lambda.json radio prod
+
+          dev_count="$(jq -r '.KeyCount // 0' /tmp/profile-media/dev-objects.json)"
+          prod_count="$(jq -r '.KeyCount // 0' /tmp/profile-media/prod-objects.json)"
+          dev_public="$(grep '^first_object_public_status=' "$report" | sed -n '1p' | cut -d= -f2-)"
+          prod_public="$(grep '^first_object_public_status=' "$report" | sed -n '2p' | cut -d= -f2-)"
+
+          echo '[comparison]' >> "$report"
+          echo "dev_user_profile_objects=${dev_count}" >> "$report"
+          echo "prod_user_profile_objects=${prod_count}" >> "$report"
+          if [ "$dev_count" -gt 0 ] && [ "$prod_count" -eq 0 ]; then
+            echo 'missing_prod_profile_media_objects=true' >> "$report"
+          else
+            echo 'missing_prod_profile_media_objects=false' >> "$report"
+          fi
+          if [ "$prod_count" -gt 0 ] && [ "$prod_public" != '200' ]; then
+            echo 'prod_profile_media_public_read_failure=true' >> "$report"
+          else
+            echo 'prod_profile_media_public_read_failure=false' >> "$report"
+          fi
+          echo "dev_first_public_status=${dev_public}" >> "$report"
+          echo "prod_first_public_status=${prod_public}" >> "$report"
+
+          cat "$report"
+
+      - name: Commit diagnostic result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_LISTENER_PROFILE_MEDIA_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD listener profile media diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
