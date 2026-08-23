@@ -1,0 +1,134 @@
+name: Repair Radio PROD Cognito JWKS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.repair-radio-prod-auth-jwks'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-radio-prod-auth-jwks
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install PROD Cognito JWKS into Lambda environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/radio-prod-auth radio/docs/diagnostics
+          report=radio/docs/diagnostics/PROD_AUTH_JWKS_REPAIR_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio PROD Cognito JWKS repair' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
+          if [ "$FUNCTION_NAME" != 'stashbox-radio-api-prod-v2' ] || [ "$AWS_REGION" != 'us-east-1' ]; then
+            echo 'Safety lock failed.' >&2
+            exit 1
+          fi
+
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" > /tmp/radio-prod-auth/before.json
+
+          test "$(jq -r '.FunctionName' /tmp/radio-prod-auth/before.json)" = 'stashbox-radio-api-prod-v2'
+          test "$(jq -r '.Runtime' /tmp/radio-prod-auth/before.json)" = 'nodejs22.x'
+          test "$(jq -r '.Handler' /tmp/radio-prod-auth/before.json)" = 'index.handler'
+          test "$(jq -r '.Environment.Variables.PGSCHEMA // "radio"' /tmp/radio-prod-auth/before.json)" = 'radio'
+
+          pool="$(jq -r '.Environment.Variables.COGNITO_USER_POOL_ID // empty' /tmp/radio-prod-auth/before.json)"
+          client="$(jq -r '.Environment.Variables.COGNITO_APP_CLIENT_ID // .Environment.Variables.COGNITO_CLIENT_ID // empty' /tmp/radio-prod-auth/before.json)"
+          region="$(jq -r '.Environment.Variables.COGNITO_REGION // "us-east-1"' /tmp/radio-prod-auth/before.json)"
+          test -n "$pool"
+          test -n "$client"
+          test "$region" = 'us-east-1'
+          case "$pool" in
+            us-east-1_*) ;;
+            *) echo 'Unexpected Cognito pool region.' >&2; exit 1 ;;
+          esac
+
+          jwks_url="https://cognito-idp.${region}.amazonaws.com/${pool}/.well-known/jwks.json"
+          curl --fail --silent --show-error --max-time 20 "$jwks_url" -o /tmp/radio-prod-auth/jwks.json
+          jq -e '.keys | type == "array" and length > 0' /tmp/radio-prod-auth/jwks.json >/dev/null
+          jq -e 'all(.keys[]; .kty == "RSA" and (.kid|length>0) and (.n|length>0) and (.e|length>0))' /tmp/radio-prod-auth/jwks.json >/dev/null
+          jwks="$(jq -c . /tmp/radio-prod-auth/jwks.json)"
+          key_count="$(jq '.keys|length' /tmp/radio-prod-auth/jwks.json)"
+
+          jq --arg jwks "$jwks" '{Variables: (.Environment.Variables + {COGNITO_JWKS_JSON: $jwks})}' \
+            /tmp/radio-prod-auth/before.json > /tmp/radio-prod-auth/environment.json
+
+          env_bytes="$(jq -c '.Variables' /tmp/radio-prod-auth/environment.json | wc -c | tr -d ' ')"
+          echo "pool=${pool}" >> "$report"
+          echo "client_id_present=true" >> "$report"
+          echo "jwks_key_count=${key_count}" >> "$report"
+          echo "environment_json_bytes=${env_bytes}" >> "$report"
+
+          if [ "$env_bytes" -ge 4000 ]; then
+            echo "Environment payload is too close to Lambda's 4 KB limit. Refusing update." >> "$report"
+            echo "Environment payload too large: ${env_bytes} bytes" >&2
+            exit 1
+          fi
+
+          aws lambda update-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            --environment file:///tmp/radio-prod-auth/environment.json \
+            > /tmp/radio-prod-auth/update.json
+
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION"
+
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" > /tmp/radio-prod-auth/after.json
+
+          test "$(jq -r '.State' /tmp/radio-prod-auth/after.json)" = 'Active'
+          test "$(jq -r '.LastUpdateStatus' /tmp/radio-prod-auth/after.json)" = 'Successful'
+          stored="$(jq -r '.Environment.Variables.COGNITO_JWKS_JSON // empty' /tmp/radio-prod-auth/after.json)"
+          test -n "$stored"
+          stored_keys="$(printf '%s' "$stored" | jq '.keys|length')"
+          test "$stored_keys" = "$key_count"
+
+          echo 'lambda_state=Active' >> "$report"
+          echo 'last_update_status=Successful' >> "$report"
+          echo 'cognito_jwks_json_present=true' >> "$report"
+          echo "stored_jwks_key_count=${stored_keys}" >> "$report"
+          echo 'result=PASS' >> "$report"
+          cat "$report"
+
+      - name: Commit repair result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_AUTH_JWKS_REPAIR_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_AUTH_JWKS_REPAIR_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD Cognito JWKS repair [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
