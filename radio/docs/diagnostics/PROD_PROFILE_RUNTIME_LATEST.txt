@@ -1,0 +1,106 @@
+Stashbox Radio PROD profile / artist runtime diagnostic
+run_utc=2026-08-23T12:00:42Z
+source_commit=f11b49c30e65b88c2b880294862fa83d2860350b
+
+[lambda]
+function=stashbox-radio-api-prod-v2
+runtime=nodejs22.x
+state=Active
+last_update_status=Successful
+vpc_subnet_count=6
+vpc_security_group_count=1
+cognito_pool_present=true
+cognito_client_present=true
+cognito_region=us-east-1
+cognito_jwks_json_present=false
+bundled_jwks_opt_in=
+
+[jwks_public]
+status=200
+key_count=2
+
+[auth_config]
+status=200
+time_total=0.062349
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+body_summary:
+{"success":true,"auth":{"enabled":true,"region":"us-east-1","user_pool_id":"us-east-1_WVKcj6G77","app_client_id":"5md8r5578qagt6cu83c6i3tgtg","access_token_minutes":15,"refresh_token_days":365,"mfa_available_later":true}}
+
+[public_artist]
+status=404
+time_total=0.394195
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+body_summary:
+{"success":false,"error":"Artist not found.","code":"NOT_FOUND"}
+
+[public_songs]
+status=200
+time_total=0.447517
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization
+access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS
+body_summary:
+{"success":true,"count":83,"songs":[{"id":"4d596d80-cea9-47d9-9e44-a7d17a1ddc66","song_key":"vacation-life-03b-jv1-stashbox","song_name":"Vacation Life","display_title":"Vacation Life","artist":"Stashbox","genre":"Reggae","secondary_genre":"Live Recording","mood":null,"mood_tags":["mello","beach"],"release_format":"single","album_name":null,"audio_url":"https://d34ez960394y8w.cloudfront.net/songs/stashbox/tracks/vacation-life-03b-jv1-stashbox/audio/20260725T034742187Z-a81615bf-df4c-4d2d-a2e5-008afaa1b8ba-Vacation-Life-Live---03b---Josh1--from-Dean-humming-Reggae-Original-RADIO-Distrokid--mastered-universal.wav","song_artwork_url":"https://d34ez960394y8w.cloudfront.net/songs/stashbox/tracks/vacation-life-03b-jv1-stashbox/artwork/20260801T162550492Z-db0942cf-0a23-4929-9d52-0d150605c600-1x1-STASHBOX_Vacation_Life_1x1_1254x1254.png","video_link":"","graphics_folder_link":null,"public_track_note":"","show_public_note":false,"public_video_note":"","video_setlist":"","public_visibility":"visible","exclusive":true,"explicit":false,"live_recording":true,"featured":false,"song_origin":"original","internal_version_name":"Vacation Life Live - 03b - Josh1 -from Dean humming Reggae Original RADI
+
+[invalid_me]
+status=401
+time_total=0.174207
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+body_summary:
+{"success":false,"error":"Your login session is invalid or expired. Log in again.","code":"TOKEN_INVALID"}
+
+[artist_page]
+status=200
+time_total=0.172195
+access-control-allow-origin: *
+body_summary:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050607">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="stashbox-v2-artist-build" content="artist-vec-visible-arrowgone-20260807-20">
+  <title>Artist · Stashbox Radio V2</title>
+  <meta name="description" content="Dynamic artist profile on Stashbox Radio V2.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/radio/artist/artist.css?v=20260724-artist19">
+  <link rel="stylesheet" href="/radio/artist/artist-mobile-menu.css?v=20260724-artist19">
+  <link rel="stylesheet" href="/radio/artist/artist-realm-player.css?v=20260807-visiblecontain2">
+  <link rel="stylesheet" href="/radio/artist/artist-realm-swipe.css?v=20260724-artist19">
+  <link rel="stylesheet" href="/radio/v2-auth-sheet.css?v=20260724-artist19">
+  <link rel="stylesheet" 
+
+[profile_page]
+status=200
+time_total=0.065273
+access-control-allow-origin: *
+body_summary:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050607">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="stashbox-v2-profile-build" content="profile-session-fetch-20260823-6">
+  <title>My Profile · Stashbox Radio V2</title>
+  <meta name="description" content="Listener profile, playlists, favorites, history, following, and settings for Stashbox Radio V2.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/radio/profile/profile.css?v=20260723-profile14">
+  <link rel="stylesheet" href="/radio/profile/profile-fixes.css?v=20260723-profile14">
+  <link rel="stylesheet" href="/radio/profile/profile-nav-cleanup.css?v=20260723-profile14">
+  <link rel="stylesheet" href="/radio/profile/profile-playlist-reorder.css?v=20260723-profile14">
+  <link rel="stylesheet" href="/radio/profile/profil
+
