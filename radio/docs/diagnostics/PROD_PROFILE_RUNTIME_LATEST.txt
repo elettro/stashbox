@@ -1,6 +1,6 @@
 Stashbox Radio PROD profile / artist runtime diagnostic
-run_utc=2026-08-23T12:07:48Z
-source_commit=584b9a1a0e3faa2831c7d787c2f3047e5fa12d33
+run_utc=2026-08-23T12:29:38Z
+source_commit=63e942dde20aa58781869682e4ec5afa163d702d
 
 [lambda]
 function=stashbox-radio-api-prod-v2
@@ -15,22 +15,42 @@ cognito_region=us-east-1
 cognito_jwks_json_present=true
 bundled_jwks_opt_in=
 
+[dev_profile_media]
+schema=radio_dev
+upload_bucket=stashbox-radio-media-dev-us-east-1
+upload_region=us-east-1
+public_base_configured=true
+public_base_host=d1ufj7xan6uxy0.cloudfront.net
+user_profile_object_count=0
+user_profile_total_bytes=0
+first_object_public_status=no_object
+
+[prod_profile_media]
+schema=radio
+upload_bucket=stashbox-radio-media-prod-us-east-1
+upload_region=us-east-1
+public_base_configured=true
+public_base_host=d34ez960394y8w.cloudfront.net
+user_profile_object_count=0
+user_profile_total_bytes=0
+first_object_public_status=no_object
+
 [jwks_public]
 status=200
 key_count=2
 
 [auth_config]
 status=200
-time_total=0.106658
+time_total=0.252497
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
-access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 body_summary:
 {"success":true,"auth":{"enabled":true,"region":"us-east-1","user_pool_id":"us-east-1_WVKcj6G77","app_client_id":"5md8r5578qagt6cu83c6i3tgtg","access_token_minutes":15,"refresh_token_days":365,"mfa_available_later":true}}
 
 [public_artist]
 status=200
-time_total=0.612987
+time_total=0.993934
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
 access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
@@ -39,7 +59,7 @@ body_summary:
 
 [public_songs]
 status=200
-time_total=0.443753
+time_total=0.813303
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization
 access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS
@@ -48,16 +68,16 @@ body_summary:
 
 [invalid_me]
 status=401
-time_total=0.211532
+time_total=0.372585
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
 access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 access-control-allow-origin: *
-access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
 body_summary:
 {"success":false,"error":"Your login session is invalid or expired. Log in again.","code":"TOKEN_INVALID"}
 
 [artist_page]
 status=200
-time_total=0.129786
+time_total=0.144350
 access-control-allow-origin: *
 body_summary:
 <!DOCTYPE html>
@@ -82,7 +102,7 @@ body_summary:
 
 [profile_page]
 status=200
-time_total=0.046966
+time_total=0.059456
 access-control-allow-origin: *
 body_summary:
 <!DOCTYPE html>
