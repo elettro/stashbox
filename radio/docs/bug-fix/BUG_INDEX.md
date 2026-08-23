@@ -25,7 +25,7 @@ Last updated: 2026-08-23
 | SR-BUG-0019 | Ads CMS break cadence is ignored and ads play every other song | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | - |
 | SR-BUG-0020 | Desktop C share hotkey and PROD Share click do not copy or retain share | Player / Share / Hotkeys | High | DEV V2 Desktop + PROD Desktop | Closed, verified | 2026-08-22 | `efe4383a`, `2adb1cd3`, `3d275050` |
 | SR-BUG-0021 | Desktop F and L like hotkeys do not trigger Like in PROD | Player / Like / Hotkeys | High | PROD Desktop | Closed, verified | 2026-08-22 | `d6e8b664`, `76355d8a`, `4e245899` |
-| SR-BUG-0022 | Logged-in production profile fails to load on iPhone Safari | Profile / Auth | High | PROD Mobile Safari | Fixed, verification pending | 2026-08-23 | `157b62f4`, `526271f7` |
+| SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Fix v2 deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9` |
 
 ## Open / investigating
 
@@ -37,7 +37,7 @@ Last updated: 2026-08-23
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
 - `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
-- `SR-BUG-0022` - Production profile authenticated fetches now stay inside the renewable V2 session manager instead of bypassing it through the August 4 native-fetch shim. CORS preflight passed live. iPhone Safari verification remains pending.
+- `SR-BUG-0022` - Production profile now cache-busts the current V2 session manager, profile fetch repair, session loader, and profile application together. The first repair routed authenticated requests correctly but left the session manager on an August 2 cache URL. Desktop Chrome and mobile verification remain pending.
 
 ## Closed
 
