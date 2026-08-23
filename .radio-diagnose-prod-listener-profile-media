@@ -1,4 +1,5 @@
-trigger=2026-08-23T08:29:00-04:00
+trigger=2026-08-23T08:36:00-04:00
 bug=SR-BUG-0024
 scope=listener-profile-media
-attempt=2
+attempt=3
+reason=correct-profile-object-prefix
