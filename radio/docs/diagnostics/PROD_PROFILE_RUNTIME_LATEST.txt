@@ -1,6 +1,6 @@
 Stashbox Radio PROD profile / artist runtime diagnostic
-run_utc=2026-08-23T12:00:42Z
-source_commit=f11b49c30e65b88c2b880294862fa83d2860350b
+run_utc=2026-08-23T12:07:48Z
+source_commit=584b9a1a0e3faa2831c7d787c2f3047e5fa12d33
 
 [lambda]
 function=stashbox-radio-api-prod-v2
@@ -12,7 +12,7 @@ vpc_security_group_count=1
 cognito_pool_present=true
 cognito_client_present=true
 cognito_region=us-east-1
-cognito_jwks_json_present=false
+cognito_jwks_json_present=true
 bundled_jwks_opt_in=
 
 [jwks_public]
@@ -21,7 +21,7 @@ key_count=2
 
 [auth_config]
 status=200
-time_total=0.062349
+time_total=0.106658
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
 access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
@@ -29,17 +29,17 @@ body_summary:
 {"success":true,"auth":{"enabled":true,"region":"us-east-1","user_pool_id":"us-east-1_WVKcj6G77","app_client_id":"5md8r5578qagt6cu83c6i3tgtg","access_token_minutes":15,"refresh_token_days":365,"mfa_available_later":true}}
 
 [public_artist]
-status=404
-time_total=0.394195
+status=200
+time_total=0.612987
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
 access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 body_summary:
-{"success":false,"error":"Artist not found.","code":"NOT_FOUND"}
+{"success":true,"artist":{"id":"beb04753-a623-4231-82af-47ca575fcd4b","artist_key":"stashbox","slug":"stashbox","name":"Stashbox","sort_name":"Stashbox","profile_image_url":"https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/artist-stashbox-profile/artwork/20260721T115850756Z-38f28323-5e83-45a9-bfbb-2b46a3296ded-deanpalermo_Logo_design_for_reggae_band_Stashbox_bold_vintage_9c14527a-05ad-4344-a34f-4dbc7e50c4c9_1.png","banner_image_url":"https://d1ufj7xan6uxy0.cloudfront.net/songs/stashbox/tracks/artist-stashbox-banner/artwork/20260721T115949627Z-69f47531-b56f-4c9f-92a5-1d6e50662074-envato-labs-image-edit---2026-02-01T073710.905.png","bio":"","location":"South Florida","website_url":"https://stashbox.com","spotify_url":"https://open.spotify.com/artist/0QMZNPEj7A2MFnT9zJGERa","apple_music_url":"https://music.apple.com/us/artist/stashbox/1464431398","youtube_url":"https://www.youtube.com/@stashboxband","instagram_url":"https://www.instagram.com/stashboxmusic/","x_url":"https://x.com/stashbox","facebook_url":"https://www.facebook.com/Stashboxband","merch_url":"https://stashbox.ai","verified":true,"featured":true,"follower_count":0,"song_count":67,"is_following":false,"created_a
 
 [public_songs]
 status=200
-time_total=0.447517
+time_total=0.443753
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization
 access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS
@@ -48,16 +48,16 @@ body_summary:
 
 [invalid_me]
 status=401
-time_total=0.174207
+time_total=0.211532
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 access-control-allow-origin: *
 access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
-access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
 body_summary:
 {"success":false,"error":"Your login session is invalid or expired. Log in again.","code":"TOKEN_INVALID"}
 
 [artist_page]
 status=200
-time_total=0.172195
+time_total=0.129786
 access-control-allow-origin: *
 body_summary:
 <!DOCTYPE html>
@@ -82,7 +82,7 @@ body_summary:
 
 [profile_page]
 status=200
-time_total=0.065273
+time_total=0.046966
 access-control-allow-origin: *
 body_summary:
 <!DOCTYPE html>
