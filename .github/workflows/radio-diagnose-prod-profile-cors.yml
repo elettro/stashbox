@@ -1,0 +1,81 @@
+name: Diagnose Radio PROD profile CORS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-diagnose-prod-profile-cors'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-diagnose-prod-profile-cors
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Probe profile API and browser preflight
+        shell: bash
+        run: |
+          set -u
+          mkdir -p /tmp/profile-cors
+
+          probe() {
+            name="$1"
+            shift
+            curl -sS --max-time 30 -D "/tmp/profile-cors/${name}.headers" -o "/tmp/profile-cors/${name}.body" -w '%{http_code}' "$@" > "/tmp/profile-cors/${name}.code" || echo 'curl-error' > "/tmp/profile-cors/${name}.code"
+          }
+
+          probe auth_config "$API/radio/auth/config"
+          probe me_unauth "$API/radio/me"
+          probe me_invalid_access "$API/radio/me" -H 'Authorization: Bearer definitely.invalid.token'
+          probe preflight_authorization -X OPTIONS "$API/radio/me" \
+            -H 'Origin: https://stashbox.com' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: authorization'
+          probe preflight_authorization_idtoken -X OPTIONS "$API/radio/me" \
+            -H 'Origin: https://stashbox.com' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: authorization,x-cognito-id-token'
+
+          {
+            echo 'Stashbox Radio PROD profile CORS diagnostic'
+            echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "source_commit=${GITHUB_SHA}"
+            echo
+            for name in auth_config me_unauth me_invalid_access preflight_authorization preflight_authorization_idtoken; do
+              echo "[$name]"
+              echo "status=$(cat /tmp/profile-cors/${name}.code 2>/dev/null || true)"
+              echo 'headers:'
+              cat "/tmp/profile-cors/${name}.headers" 2>/dev/null || true
+              echo 'body:'
+              head -c 2000 "/tmp/profile-cors/${name}.body" 2>/dev/null || true
+              echo
+              echo
+            done
+          } > radio/docs/diagnostics/PROD_PROFILE_CORS_LATEST.txt
+
+          cat radio/docs/diagnostics/PROD_PROFILE_CORS_LATEST.txt
+
+      - name: Commit diagnostic result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_PROFILE_CORS_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD profile CORS diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
