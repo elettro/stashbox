@@ -1,0 +1,17 @@
+Stashbox Radio DEV vs PROD artist profile diagnostic
+run_utc=2026-08-23T12:05:15Z
+source_commit=e95338e27921539f23588e2b222f1342fda1cfcb
+
+dev_song_count=83
+prod_song_count=83
+dev_unique_song_artist_names=3
+
+ARTIST_NAME                        IDENTIFIER                         DEV      PROD     MEDIA   
+-----------                        ----------                         ---      ----     -----   
+Stashbox                           stashbox                           200      404      yes     
+Tahiti Cora                        tahiti-cora                        200      404      yes     
+The Ras Box                        the-ras-box                        200      404      yes     
+
+dev_artist_profiles_200=3
+prod_artist_profiles_200=0
+prod_artist_profiles_missing_or_failed=3
