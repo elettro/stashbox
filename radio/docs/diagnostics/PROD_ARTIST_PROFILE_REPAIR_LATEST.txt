@@ -1,0 +1,21 @@
+Stashbox Radio PROD artist profile repair
+run_utc=2026-08-23T12:06:43Z
+source_commit=f6749015977dae81ee7243159f4725de0374c016
+dev_public_artist_count=3
+artist=stashbox
+  profile_action=create status=201
+  songs_role=primary count=67 status=200
+  public_verify_status=200
+artist=tahiti-cora
+  profile_action=create status=201
+  songs_role=primary count=3 status=200
+  public_verify_status=200
+artist=the-ras-box
+  profile_action=create status=201
+  songs_role=primary count=7 status=200
+  public_verify_status=200
+created=3
+updated=0
+verified_public_200=3
+failures=0
+result=PASS
