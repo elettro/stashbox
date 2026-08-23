@@ -1,10 +1,10 @@
-# SR-BUG-0022 — Logged-in production profile fails to load on iPhone Safari
+# SR-BUG-0022 — Logged-in production profile fails to load on desktop and mobile
 
-- **Status:** Fixed, verification pending
-- **Verification:** Pending iPhone Safari retest
+- **Status:** Fix v2 deployed, verification pending
+- **Verification:** Pending desktop Chrome and mobile retest
 - **Severity:** High
 - **Area:** Profile / Auth
-- **Environment:** PROD Mobile Safari
+- **Environment:** PROD Desktop + Mobile
 - **Reported:** 2026-08-23
 
 ## Symptom
@@ -12,9 +12,9 @@
 A listener is visibly logged in on production Stashbox Radio, but opening the profile page at `/radio/profile/` fails with:
 
 - `PROFILE COULD NOT LOAD`
-- `Load failed`
+- `Failed to fetch` or `Load failed`
 
-The failure was reproduced by the user on iPhone Safari on 2026-08-23.
+The failure was first reproduced on iPhone Safari. A later retest on 2026-08-23 reproduced the same production failure on desktop Chrome and mobile.
 
 ## Findings
 
@@ -30,27 +30,41 @@ A live production CORS diagnostic passed:
 
 This ruled out API Gateway browser preflight as the primary cause.
 
-The profile still loaded the August 4 `profile-fetch-repair.js` shim. For authenticated profile requests that shim deliberately bypassed `v2-session-manager.js` and sent the request through a captured native `fetch`. That bypass removed the newer production session manager's access-token refresh, 401 recovery, and Safari authenticated-request recovery from the profile data path.
+The first repair changed `profile-fetch-repair.js` so authenticated profile calls stayed inside the renewable `v2-session-manager.js` fetch path. That repair was correct, but the profile page still referenced `v2-session-manager.js` using the old `v=20260802-profile-login-repair1` URL even though the session manager itself had been updated later. Browsers that already cached that August 2 URL kept executing the stale session manager. The new profile fetch shim therefore routed requests through old cached session logic instead of the current refresh and network-recovery logic.
 
-The attempted disposable authenticated backend smoke could not create a temporary Cognito listener because the existing GitHub Actions IAM user does not have `cognito-idp:AdminCreateUser` permission. No production IAM permissions were broadened for this diagnosis.
-
-## Fix
+## Fix v1
 
 On 2026-08-23 the production profile fetch shim was changed so authenticated profile requests stay inside `v2-session-manager.js`.
 
-The repaired path now:
+The repaired path:
 
 1. Uses the renewable production session fetch for authenticated profile calls.
 2. Preserves automatic access-token refresh.
 3. Preserves 401 refresh/retry behavior.
-4. Preserves Safari recovery that retries without `X-Cognito-Id-Token` when Safari reports a network-level fetch failure.
-5. Adds one short outer retry for GET requests that still return a Safari-style network fetch exception.
-6. Bumps the profile fetch script URL to `v=20260823-profilefetch2` so iPhone Safari does not keep the August 4 shim from cache.
+4. Preserves authenticated GET recovery that retries without `X-Cognito-Id-Token` after a network-level fetch failure.
+5. Adds one short outer retry for GET requests that still return a network fetch exception.
 
 Fix commits:
 
 - `157b62f4` — Route production profile fetches through renewable session
 - `526271f7` — Bust production profile session fetch cache
+
+## Fix v2
+
+After the desktop and mobile retest still showed `Failed to fetch`, the production profile bootstrap was cache-busted as one stack instead of only cache-busting the fetch shim.
+
+Changes:
+
+1. `radio/profile/index.html` now loads `v2-session-manager.js` with a new 2026-08-23 version URL.
+2. `profile-fetch-repair.js` receives a new version URL.
+3. `profile-session-loader.js` receives a new version URL.
+4. `profile-session-loader.js` now loads `profile.js` with a new version URL.
+5. The production profile build marker was incremented.
+
+Fix v2 commits:
+
+- `208040b0` — Force fresh production profile session stack
+- `008797e9` — Bust cached production profile app loader
 
 ## Related files
 
@@ -67,4 +81,9 @@ Fix commits:
 
 ## Verification
 
-Pending the user's iPhone Safari production retest after the new static profile assets reach `stashbox.com`.
+Retest production after the new static profile assets reach `stashbox.com`:
+
+- Desktop Chrome while already logged in
+- Mobile while already logged in
+- Open PROFILE from the production player
+- Confirm the profile loads instead of rendering `PROFILE COULD NOT LOAD`
