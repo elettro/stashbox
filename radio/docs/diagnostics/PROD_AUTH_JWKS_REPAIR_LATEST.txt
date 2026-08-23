@@ -1,0 +1,12 @@
+Stashbox Radio PROD Cognito JWKS repair
+run_utc=2026-08-23T12:04:38Z
+source_commit=b9b3bd12f9b99f2ef721583ffb1373f71954dcb1
+pool=us-east-1_WVKcj6G77
+client_id_present=true
+jwks_key_count=2
+environment_json_bytes=1611
+lambda_state=Active
+last_update_status=Successful
+cognito_jwks_json_present=true
+stored_jwks_key_count=2
+result=PASS
