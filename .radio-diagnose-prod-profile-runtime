@@ -1,4 +1,5 @@
-trigger=2026-08-23T07:55:00-04:00
+trigger=2026-08-23T08:10:00-04:00
 bug=SR-BUG-0022
 scope=profile-and-artist
-attempt=1
+attempt=2
+reason=verify-jwks-and-artist-repair
