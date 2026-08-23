@@ -1,0 +1,75 @@
+Stashbox Radio PROD profile CORS diagnostic
+run_utc=2026-08-23T11:17:42Z
+source_commit=af8129480727ad58364386a96da4b9da2c856afe
+
+[auth_config]
+status=200
+headers:
+HTTP/2 200 
+date: Sun, 23 Aug 2026 11:17:41 GMT
+content-type: application/json
+content-length: 221
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: CjaBch_RoAMEbGw=
+
+body:
+{"success":true,"auth":{"enabled":true,"region":"us-east-1","user_pool_id":"us-east-1_WVKcj6G77","app_client_id":"5md8r5578qagt6cu83c6i3tgtg","access_token_minutes":15,"refresh_token_days":365,"mfa_available_later":true}}
+
+[me_unauth]
+status=401
+headers:
+HTTP/2 401 
+date: Sun, 23 Aug 2026 11:17:41 GMT
+content-type: application/json
+content-length: 78
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: CjaBdhD1IAMEV_g=
+
+body:
+{"success":false,"error":"Authentication is required.","code":"AUTH_REQUIRED"}
+
+[me_invalid_access]
+status=401
+headers:
+HTTP/2 401 
+date: Sun, 23 Aug 2026 11:17:42 GMT
+content-type: application/json
+content-length: 106
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: CjaBfjO0IAMEbZA=
+
+body:
+{"success":false,"error":"Your login session is invalid or expired. Log in again.","code":"TOKEN_INVALID"}
+
+[preflight_authorization]
+status=204
+headers:
+HTTP/2 204 
+date: Sun, 23 Aug 2026 11:17:42 GMT
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: CjaBhgRXIAMEVVQ=
+
+body:
+
+
+[preflight_authorization_idtoken]
+status=204
+headers:
+HTTP/2 204 
+date: Sun, 23 Aug 2026 11:17:42 GMT
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+access-control-allow-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+apigw-requestid: CjaBiiAXIAMEbGw=
+
+body:
+
+
