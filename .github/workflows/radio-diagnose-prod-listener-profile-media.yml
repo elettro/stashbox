@@ -53,7 +53,7 @@ jobs:
             label="$1"
             config="$2"
             expected_schema="$3"
-            expected_dev_marker="$4"
+            mode="$4"
 
             function_name="$(jq -r '.FunctionName' "$config")"
             schema="$(jq -r '.Environment.Variables.PGSCHEMA // empty' "$config")"
@@ -63,11 +63,11 @@ jobs:
 
             test -n "$bucket"
             test "$schema" = "$expected_schema"
-            if [ "$expected_dev_marker" = 'dev' ]; then
-              echo "$bucket" | grep -qi 'dev'
+            if [ "$mode" = dev ]; then
+              echo "$bucket" | grep -qi dev
             else
-              if echo "$bucket" | grep -qi 'dev'; then
-                echo "PROD upload bucket unexpectedly contains DEV marker: $bucket" >&2
+              if echo "$bucket" | grep -qi dev; then
+                echo "Production upload bucket contains DEV marker: $bucket" >&2
                 exit 1
               fi
             fi
@@ -79,25 +79,21 @@ jobs:
             first_key="$(jq -r '.Contents[0].Key // empty' "/tmp/profile-media/${label}-objects.json")"
 
             pab='unknown'
-            if aws s3api get-public-access-block --bucket "$bucket" --region "$region" >/tmp/profile-media/${label}-pab.json 2>/dev/null; then
-              pab="$(jq -c '.PublicAccessBlockConfiguration' /tmp/profile-media/${label}-pab.json)"
+            if aws s3api get-public-access-block --bucket "$bucket" --region "$region" > "/tmp/profile-media/${label}-pab.json" 2>/dev/null; then
+              pab="$(jq -c '.PublicAccessBlockConfiguration' "/tmp/profile-media/${label}-pab.json")"
             fi
 
             policy_status='unknown'
-            if aws s3api get-bucket-policy-status --bucket "$bucket" --region "$region" >/tmp/profile-media/${label}-policy-status.json 2>/dev/null; then
-              policy_status="$(jq -r '.PolicyStatus.IsPublic // false' /tmp/profile-media/${label}-policy-status.json)"
+            if aws s3api get-bucket-policy-status --bucket "$bucket" --region "$region" > "/tmp/profile-media/${label}-policy.json" 2>/dev/null; then
+              policy_status="$(jq -r '.PolicyStatus.IsPublic // false' "/tmp/profile-media/${label}-policy.json")"
             fi
 
             first_public_status='no_object'
             first_object_content_type=''
             if [ -n "$first_key" ]; then
-              aws s3api head-object --bucket "$bucket" --key "$first_key" --region "$region" >/tmp/profile-media/${label}-head.json
-              first_object_content_type="$(jq -r '.ContentType // empty' /tmp/profile-media/${label}-head.json)"
-              encoded_key="$(python3 - "$first_key" <<'PY'
-import sys, urllib.parse
-print('/'.join(urllib.parse.quote(part, safe='') for part in sys.argv[1].split('/')))
-PY
-)"
+              aws s3api head-object --bucket "$bucket" --key "$first_key" --region "$region" > "/tmp/profile-media/${label}-head.json"
+              first_object_content_type="$(jq -r '.ContentType // empty' "/tmp/profile-media/${label}-head.json")"
+              encoded_key="$(python3 -c 'import sys,urllib.parse; print("/".join(urllib.parse.quote(x, safe="") for x in sys.argv[1].split("/")))' "$first_key")"
               if [ -n "$public_base" ]; then
                 public_url="${public_base}/${encoded_key}"
               else
@@ -106,17 +102,20 @@ PY
               first_public_status="$(curl -L -sS --max-time 20 -o /dev/null -w '%{http_code}' "$public_url" || true)"
             fi
 
+            public_base_host=''
+            if [ -n "$public_base" ]; then
+              public_base_host="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).netloc)' "$public_base")"
+            fi
+            public_base_configured=false
+            if [ -n "$public_base" ]; then public_base_configured=true; fi
+
             echo "[$label]" >> "$report"
             echo "function=${function_name}" >> "$report"
             echo "schema=${schema}" >> "$report"
             echo "upload_bucket=${bucket}" >> "$report"
             echo "upload_region=${region}" >> "$report"
-            echo "public_base_configured=$([ -n "$public_base" ] && echo true || echo false)" >> "$report"
-            echo "public_base_host=$(if [ -n "$public_base" ]; then python3 - "$public_base" <<'PY'
-import sys, urllib.parse
-print(urllib.parse.urlparse(sys.argv[1]).netloc)
-PY
-else echo ''; fi)" >> "$report"
+            echo "public_base_configured=${public_base_configured}" >> "$report"
+            echo "public_base_host=${public_base_host}" >> "$report"
             echo "user_profile_object_count=${object_count}" >> "$report"
             echo "user_profile_total_bytes=${total_size}" >> "$report"
             echo "first_object_content_type=${first_object_content_type}" >> "$report"
@@ -142,14 +141,13 @@ else echo ''; fi)" >> "$report"
           else
             echo 'missing_prod_profile_media_objects=false' >> "$report"
           fi
-          if [ "$prod_count" -gt 0 ] && [ "$prod_public" != '200' ]; then
+          if [ "$prod_count" -gt 0 ] && [ "$prod_public" != 200 ]; then
             echo 'prod_profile_media_public_read_failure=true' >> "$report"
           else
             echo 'prod_profile_media_public_read_failure=false' >> "$report"
           fi
           echo "dev_first_public_status=${dev_public}" >> "$report"
           echo "prod_first_public_status=${prod_public}" >> "$report"
-
           cat "$report"
 
       - name: Commit diagnostic result
