@@ -27,12 +27,14 @@ Last updated: 2026-08-23
 | SR-BUG-0021 | Desktop F and L like hotkeys do not trigger Like in PROD | Player / Like / Hotkeys | High | PROD Desktop | Closed, verified | 2026-08-22 | `d6e8b664`, `76355d8a`, `4e245899` |
 | SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Backend auth repair deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9`, `654f73a1` |
 | SR-BUG-0023 | Production artist profiles return not found after DEV to PROD promotion | Artist Profiles / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `d600cc08`, `c7448b38` |
+| SR-BUG-0024 | Listener profile images load in DEV but fail in production | Listener Profile / Profile Media / PROD Data | High | PROD Desktop + Mobile | Open, investigating | 2026-08-23 | - |
 
 ## Open / investigating
 
 - `SR-BUG-0005` - Historical retained-share-count issue. User marked it verified and closed it on 2026-08-19. Reopen and trace one share end to end if it returns.
 - `SR-BUG-0011` - Mobilecontinuity1 preserves provisional artwork during exact 9:16 lookup, creates a fresh iPhone video element for every clip, and advances within 3.2 seconds when presented frames stop. Published on 2026-08-19. iPhone Safari verification remains pending.
 - `SR-BUG-0012` - Desktop login/account and notifications were restored in the clean runtime. User marked the login/account repair verified and closed it on 2026-08-19.
+- `SR-BUG-0024` - Listener avatar/banner media render in DEV but fail in PROD. Investigating the DEV/PROD media-bucket inventory, production public-media base URL, and whether promoted profile preferences still reference DEV-only media objects.
 
 ## Fixed, awaiting verification
 
