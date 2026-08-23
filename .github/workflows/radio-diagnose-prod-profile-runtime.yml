@@ -1,0 +1,120 @@
+name: Diagnose Radio PROD profile runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-diagnose-prod-profile-runtime'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-diagnose-prod-profile-runtime
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      USER_POOL_ID: us-east-1_WVKcj6G77
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Inspect profile auth runtime and public artist path
+        shell: bash
+        run: |
+          set -u
+          mkdir -p radio/docs/diagnostics /tmp/prod-profile-runtime
+          report=radio/docs/diagnostics/PROD_PROFILE_RUNTIME_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio PROD profile / artist runtime diagnostic' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+          echo >> "$report"
+
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            > /tmp/prod-profile-runtime/lambda.json
+
+          echo '[lambda]' >> "$report"
+          jq -r '
+            "function=" + (.FunctionName // ""),
+            "runtime=" + (.Runtime // ""),
+            "state=" + (.State // ""),
+            "last_update_status=" + (.LastUpdateStatus // ""),
+            "vpc_subnet_count=" + ((.VpcConfig.SubnetIds // [])|length|tostring),
+            "vpc_security_group_count=" + ((.VpcConfig.SecurityGroupIds // [])|length|tostring),
+            "cognito_pool_present=" + ((.Environment.Variables.COGNITO_USER_POOL_ID // "")|length>0|tostring),
+            "cognito_client_present=" + ((.Environment.Variables.COGNITO_APP_CLIENT_ID // "")|length>0|tostring),
+            "cognito_region=" + (.Environment.Variables.COGNITO_REGION // ""),
+            "cognito_jwks_json_present=" + ((.Environment.Variables.COGNITO_JWKS_JSON // "")|length>0|tostring),
+            "bundled_jwks_opt_in=" + (.Environment.Variables.COGNITO_USE_BUNDLED_JWKS // "")
+          ' /tmp/prod-profile-runtime/lambda.json >> "$report"
+          echo >> "$report"
+
+          jwks_url="https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/jwks.json"
+          jwks_code="$(curl -sS --max-time 15 -o /tmp/prod-profile-runtime/jwks.json -w '%{http_code}' "$jwks_url" 2>/tmp/prod-profile-runtime/jwks.err || true)"
+          echo '[jwks_public]' >> "$report"
+          echo "status=${jwks_code:-curl_error}" >> "$report"
+          echo "key_count=$(jq -r '(.keys // [])|length' /tmp/prod-profile-runtime/jwks.json 2>/dev/null || echo 0)" >> "$report"
+          echo >> "$report"
+
+          probe() {
+            name="$1"
+            url="$2"
+            shift 2
+            code="$(curl -sS --max-time 20 -D "/tmp/prod-profile-runtime/${name}.headers" -o "/tmp/prod-profile-runtime/${name}.body" -w '%{http_code}' "$url" "$@" 2>"/tmp/prod-profile-runtime/${name}.err" || true)"
+            total="$(curl -sS --max-time 20 -o /dev/null -w '%{time_total}' "$url" "$@" 2>/dev/null || true)"
+            echo "[$name]" >> "$report"
+            echo "status=${code:-curl_error}" >> "$report"
+            echo "time_total=${total:-unknown}" >> "$report"
+            grep -i '^access-control-' "/tmp/prod-profile-runtime/${name}.headers" >> "$report" 2>/dev/null || true
+            if [ -s "/tmp/prod-profile-runtime/${name}.err" ]; then
+              echo 'curl_error:' >> "$report"
+              head -c 800 "/tmp/prod-profile-runtime/${name}.err" >> "$report"
+              echo >> "$report"
+            fi
+            echo 'body_summary:' >> "$report"
+            head -c 1200 "/tmp/prod-profile-runtime/${name}.body" >> "$report" 2>/dev/null || true
+            echo >> "$report"
+            echo >> "$report"
+          }
+
+          probe auth_config "$API/radio/auth/config" -H 'Origin: https://stashbox.com'
+          probe public_artist "$API/radio/artists/stashbox" -H 'Origin: https://stashbox.com'
+          probe public_songs "$API/radio/songs" -H 'Origin: https://stashbox.com'
+          probe invalid_me "$API/radio/me" -H 'Authorization: Bearer invalid-token' -H 'Origin: https://stashbox.com'
+          probe artist_page 'https://stashbox.com/radio/artist/?artist=stashbox'
+          probe profile_page 'https://stashbox.com/radio/profile/?profile_fix=20260823-3'
+
+          cat "$report"
+
+      - name: Commit diagnostic result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_PROFILE_RUNTIME_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_PROFILE_RUNTIME_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD profile runtime diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
