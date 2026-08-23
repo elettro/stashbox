@@ -16,10 +16,11 @@ concurrency:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     env:
       AWS_REGION: us-east-1
       FUNCTION_NAME: stashbox-radio-api-prod-v2
+      DEV_FUNCTION_NAME: stashbox-radio-api-dev-v2
       API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
       USER_POOL_ID: us-east-1_WVKcj6G77
     steps:
@@ -35,7 +36,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Inspect profile auth runtime and public artist path
+      - name: Inspect profile auth runtime, artist path, and profile media
         shell: bash
         run: |
           set -u
@@ -52,6 +53,11 @@ jobs:
             --region "$AWS_REGION" \
             > /tmp/prod-profile-runtime/lambda.json
 
+          aws lambda get-function-configuration \
+            --function-name "$DEV_FUNCTION_NAME" \
+            --region "$AWS_REGION" \
+            > /tmp/prod-profile-runtime/dev-lambda.json
+
           echo '[lambda]' >> "$report"
           jq -r '
             "function=" + (.FunctionName // ""),
@@ -67,6 +73,50 @@ jobs:
             "bundled_jwks_opt_in=" + (.Environment.Variables.COGNITO_USE_BUNDLED_JWKS // "")
           ' /tmp/prod-profile-runtime/lambda.json >> "$report"
           echo >> "$report"
+
+          inspect_storage() {
+            label="$1"
+            config="$2"
+            bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' "$config")"
+            region="$(jq -r '.Environment.Variables.UPLOAD_REGION // .Environment.Variables.UPLOAD_BUCKET_REGION // .Environment.Variables.S3_BUCKET_REGION // .Environment.Variables.RADIO_UPLOAD_BUCKET_REGION // .Environment.Variables.AWS_REGION // "us-east-1"' "$config")"
+            schema="$(jq -r '.Environment.Variables.PGSCHEMA // empty' "$config")"
+            public_base="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // .Environment.Variables.MEDIA_PUBLIC_BASE_URL // .Environment.Variables.RADIO_MEDIA_PUBLIC_BASE_URL // empty' "$config" | sed 's:/*$::')"
+            count=0
+            total_bytes=0
+            public_status=no_object
+            public_host=''
+            if [ -n "$bucket" ]; then
+              aws s3api list-objects-v2 --bucket "$bucket" --prefix 'user-profiles/' --region "$region" --output json > "/tmp/prod-profile-runtime/${label}-profile-media.json" 2> "/tmp/prod-profile-runtime/${label}-profile-media.err" || true
+              count="$(jq -r '.KeyCount // 0' "/tmp/prod-profile-runtime/${label}-profile-media.json" 2>/dev/null || echo 0)"
+              total_bytes="$(jq -r '[.Contents[]?.Size // 0] | add // 0' "/tmp/prod-profile-runtime/${label}-profile-media.json" 2>/dev/null || echo 0)"
+              first_key="$(jq -r '.Contents[0].Key // empty' "/tmp/prod-profile-runtime/${label}-profile-media.json" 2>/dev/null || true)"
+              if [ -n "$public_base" ]; then
+                public_host="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).netloc)' "$public_base" 2>/dev/null || true)"
+              fi
+              if [ -n "$first_key" ]; then
+                encoded_key="$(python3 -c 'import sys, urllib.parse; print("/".join(urllib.parse.quote(x, safe="") for x in sys.argv[1].split("/")))' "$first_key")"
+                if [ -n "$public_base" ]; then
+                  public_url="${public_base}/${encoded_key}"
+                else
+                  public_url="https://${bucket}.s3.${region}.amazonaws.com/${encoded_key}"
+                fi
+                public_status="$(curl -L -sS --max-time 15 -o /dev/null -w '%{http_code}' "$public_url" || true)"
+              fi
+            fi
+            echo "[${label}_profile_media]" >> "$report"
+            echo "schema=${schema}" >> "$report"
+            echo "upload_bucket=${bucket}" >> "$report"
+            echo "upload_region=${region}" >> "$report"
+            echo "public_base_configured=$([ -n "$public_base" ] && echo true || echo false)" >> "$report"
+            echo "public_base_host=${public_host}" >> "$report"
+            echo "user_profile_object_count=${count}" >> "$report"
+            echo "user_profile_total_bytes=${total_bytes}" >> "$report"
+            echo "first_object_public_status=${public_status}" >> "$report"
+            echo >> "$report"
+          }
+
+          inspect_storage dev /tmp/prod-profile-runtime/dev-lambda.json
+          inspect_storage prod /tmp/prod-profile-runtime/lambda.json
 
           jwks_url="https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/jwks.json"
           jwks_code="$(curl -sS --max-time 15 -o /tmp/prod-profile-runtime/jwks.json -w '%{http_code}' "$jwks_url" 2>/tmp/prod-profile-runtime/jwks.err || true)"
@@ -101,7 +151,7 @@ jobs:
           probe public_songs "$API/radio/songs" -H 'Origin: https://stashbox.com'
           probe invalid_me "$API/radio/me" -H 'Authorization: Bearer invalid-token' -H 'Origin: https://stashbox.com'
           probe artist_page 'https://stashbox.com/radio/artist/?artist=stashbox'
-          probe profile_page 'https://stashbox.com/radio/profile/?profile_fix=20260823-3'
+          probe profile_page 'https://stashbox.com/radio/profile/?profile_fix=20260823-4'
 
           cat "$report"
 
