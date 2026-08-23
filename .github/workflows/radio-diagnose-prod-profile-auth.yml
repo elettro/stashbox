@@ -1,0 +1,149 @@
+name: Diagnose Radio PROD authenticated profile
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-diagnose-prod-profile-auth'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-diagnose-prod-profile-auth
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AWS_REGION: us-east-1
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      USER_POOL_ID: us-east-1_WVKcj6G77
+      CLIENT_ID: 5v9mmnccmqbqhi2larnalmqr7p
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create temporary listener and probe authenticated profile API
+        shell: bash
+        run: |
+          set -euo pipefail
+          username="profile-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.com"
+          password="Aa1!ProfileSmoke${GITHUB_RUN_ID}xZ9!"
+          cleanup() {
+            aws cognito-idp admin-delete-user --user-pool-id "$USER_POOL_ID" --username "$username" --region "$AWS_REGION" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          aws cognito-idp admin-create-user \
+            --user-pool-id "$USER_POOL_ID" \
+            --username "$username" \
+            --temporary-password "$password" \
+            --message-action SUPPRESS \
+            --user-attributes Name=email,Value="$username" Name=email_verified,Value=true \
+            --region "$AWS_REGION" >/tmp/profile-smoke-create.json
+
+          auth="$(aws cognito-idp initiate-auth \
+            --auth-flow USER_PASSWORD_AUTH \
+            --client-id "$CLIENT_ID" \
+            --auth-parameters USERNAME="$username",PASSWORD="$password" \
+            --region "$AWS_REGION")"
+
+          challenge="$(jq -r '.ChallengeName // empty' <<<"$auth")"
+          if [ "$challenge" = 'NEW_PASSWORD_REQUIRED' ]; then
+            session="$(jq -r '.Session' <<<"$auth")"
+            auth="$(aws cognito-idp respond-to-auth-challenge \
+              --client-id "$CLIENT_ID" \
+              --challenge-name NEW_PASSWORD_REQUIRED \
+              --session "$session" \
+              --challenge-responses USERNAME="$username",NEW_PASSWORD="$password" \
+              --region "$AWS_REGION")"
+          fi
+
+          access="$(jq -r '.AuthenticationResult.AccessToken // empty' <<<"$auth")"
+          idtoken="$(jq -r '.AuthenticationResult.IdToken // empty' <<<"$auth")"
+          test -n "$access"
+          test -n "$idtoken"
+
+          mkdir -p /tmp/profile-auth
+          probe() {
+            name="$1"
+            shift
+            curl -sS --max-time 30 -D "/tmp/profile-auth/${name}.headers" -o "/tmp/profile-auth/${name}.body" -w '%{http_code}' "$@" > "/tmp/profile-auth/${name}.code"
+          }
+
+          probe me_both "$API/radio/me" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+          probe me_access_only "$API/radio/me" \
+            -H "Authorization: Bearer $access" \
+            -H 'Origin: https://stashbox.com'
+          probe preferences "$API/radio/me/preferences" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+          probe favorites "$API/radio/me/favorites" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+          probe playlists "$API/radio/me/playlists" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+          probe history "$API/radio/me/history?limit=200" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+          probe follows "$API/radio/me/follows" \
+            -H "Authorization: Bearer $access" \
+            -H "X-Cognito-Id-Token: $idtoken" \
+            -H 'Origin: https://stashbox.com'
+
+          {
+            echo 'Stashbox Radio PROD authenticated profile diagnostic'
+            echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "source_commit=${GITHUB_SHA}"
+            echo
+            for name in me_both me_access_only preferences favorites playlists history follows; do
+              code="$(cat /tmp/profile-auth/${name}.code)"
+              echo "[$name]"
+              echo "status=$code"
+              echo 'cors:'
+              grep -i '^access-control-' "/tmp/profile-auth/${name}.headers" || true
+              echo 'body_summary:'
+              jq -c 'if type=="object" then del(.token,.access_token,.id_token,.refresh_token) else . end' "/tmp/profile-auth/${name}.body" 2>/dev/null | head -c 2500 || head -c 1000 "/tmp/profile-auth/${name}.body" || true
+              echo
+              echo
+            done
+          } > radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
+
+          cat radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
+
+          test "$(cat /tmp/profile-auth/me_both.code)" = '200'
+          test "$(cat /tmp/profile-auth/me_access_only.code)" = '200'
+
+      - name: Commit diagnostic result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD authenticated profile diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
