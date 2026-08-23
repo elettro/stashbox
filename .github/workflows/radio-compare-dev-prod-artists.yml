@@ -1,0 +1,95 @@
+name: Compare Radio DEV and PROD artists
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.radio-compare-dev-prod-artists'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radio-compare-dev-prod-artists
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compare public artist profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics /tmp/artist-compare
+          report=radio/docs/diagnostics/DEV_PROD_ARTIST_COMPARE_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio DEV vs PROD artist profile diagnostic' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+          echo >> "$report"
+
+          curl --fail --silent --show-error --max-time 20 "$DEV_API/radio/songs" -o /tmp/artist-compare/dev-songs.json
+          curl --fail --silent --show-error --max-time 20 "$PROD_API/radio/songs" -o /tmp/artist-compare/prod-songs.json
+
+          jq -r '.songs[]?.artist // empty' /tmp/artist-compare/dev-songs.json \
+            | sed '/^[[:space:]]*$/d' | sort -fu > /tmp/artist-compare/artists.txt
+
+          echo "dev_song_count=$(jq '.songs|length' /tmp/artist-compare/dev-songs.json)" >> "$report"
+          echo "prod_song_count=$(jq '.songs|length' /tmp/artist-compare/prod-songs.json)" >> "$report"
+          echo "dev_unique_song_artist_names=$(wc -l < /tmp/artist-compare/artists.txt | tr -d ' ')" >> "$report"
+          echo >> "$report"
+          printf '%-34s %-34s %-8s %-8s %-8s\n' 'ARTIST_NAME' 'IDENTIFIER' 'DEV' 'PROD' 'MEDIA' >> "$report"
+          printf '%-34s %-34s %-8s %-8s %-8s\n' '-----------' '----------' '---' '----' '-----' >> "$report"
+
+          dev_ok=0
+          prod_ok=0
+          prod_missing=0
+          while IFS= read -r artist; do
+            slug="$(printf '%s' "$artist" | tr '[:upper:]' '[:lower:]' | sed 's/&/ and /g; s/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//')"
+            [ -n "$slug" ] || continue
+            dev_code="$(curl -sS --max-time 15 -o /tmp/artist-compare/dev-artist.json -w '%{http_code}' "$DEV_API/radio/artists/$slug" || true)"
+            identifier="$slug"
+            media='n/a'
+            if [ "$dev_code" = '200' ]; then
+              dev_ok=$((dev_ok+1))
+              key="$(jq -r '.artist.artist_key // .artist.slug // empty' /tmp/artist-compare/dev-artist.json)"
+              [ -n "$key" ] && identifier="$key"
+              has_profile="$(jq -r 'if ((.artist.profile_image_url // "")|length)>0 or ((.artist.banner_image_url // "")|length)>0 then "yes" else "no" end' /tmp/artist-compare/dev-artist.json)"
+              media="$has_profile"
+            fi
+            prod_code="$(curl -sS --max-time 15 -o /tmp/artist-compare/prod-artist.json -w '%{http_code}' "$PROD_API/radio/artists/$identifier" || true)"
+            if [ "$prod_code" = '200' ]; then
+              prod_ok=$((prod_ok+1))
+            else
+              prod_missing=$((prod_missing+1))
+            fi
+            printf '%-34.34s %-34.34s %-8s %-8s %-8s\n' "$artist" "$identifier" "$dev_code" "$prod_code" "$media" >> "$report"
+          done < /tmp/artist-compare/artists.txt
+
+          echo >> "$report"
+          echo "dev_artist_profiles_200=${dev_ok}" >> "$report"
+          echo "prod_artist_profiles_200=${prod_ok}" >> "$report"
+          echo "prod_artist_profiles_missing_or_failed=${prod_missing}" >> "$report"
+          cat "$report"
+
+      - name: Commit diagnostic result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/DEV_PROD_ARTIST_COMPARE_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record DEV vs PROD artist profile diagnostic [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
