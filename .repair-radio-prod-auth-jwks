@@ -1,0 +1,4 @@
+trigger=2026-08-23T08:02:00-04:00
+bug=SR-BUG-0022
+reason=profile-valid-jwt-verification
+attempt=1
