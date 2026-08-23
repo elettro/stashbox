@@ -2,6 +2,7 @@
   'use strict';
 
   let queued = false;
+  const mobile = window.matchMedia('(max-width: 699px)');
 
   function ensureTier(button) {
     if (button.querySelector('.profile-shortcut-tier')) return;
@@ -11,41 +12,28 @@
     button.appendChild(tier);
   }
 
-  /*
-   * PAUSED 2026-08-22
-   * Offline Playlist navigation is intentionally retained here for future use,
-   * but is not active from Profile right now. Browser IndexedDB downloads are
-   * device-local, so desktop cannot reliably show tracks saved on a different
-   * phone/browser profile.
-   *
-   * To restore later, re-enable this helper and the click handler below.
-   *
-   * function makeOfflineShortcut(button) {
-   *   const label = button.querySelector(':scope > span');
-   *   if (label) label.textContent = 'Offline Playlist';
-   *   button.disabled = false;
-   *   button.removeAttribute('disabled');
-   *   button.dataset.openOfflinePlaylist = 'true';
-   *   button.title = 'Open your offline playlist';
-   *   button.querySelector('.profile-shortcut-tier')?.remove();
-   *   button.querySelector('.profile-shortcut-coming-soon')?.remove();
-   * }
-   */
+  function makeMobileDownloads(button) {
+    const label = button.querySelector(':scope > span');
+    if (label) label.textContent = 'Downloads';
+    button.hidden = false;
+    button.disabled = false;
+    button.removeAttribute('disabled');
+    button.removeAttribute('aria-disabled');
+    button.dataset.openOfflinePlaylist = 'true';
+    button.title = 'Open your offline downloads';
+    button.querySelector('.profile-shortcut-tier')?.remove();
+    button.querySelector('.profile-shortcut-coming-soon')?.remove();
+  }
 
-  function restoreDownloadsComingSoon(button) {
+  function hideDesktopDownloads(button) {
     const label = button.querySelector(':scope > span');
     if (label) label.textContent = 'Downloads';
     delete button.dataset.openOfflinePlaylist;
+    button.hidden = true;
     button.disabled = true;
     button.setAttribute('disabled', '');
-    button.title = 'Premium offline downloads are coming soon.';
-    ensureTier(button);
-    if (!button.querySelector('.profile-shortcut-coming-soon')) {
-      const badge = document.createElement('small');
-      badge.className = 'profile-shortcut-coming-soon';
-      badge.textContent = 'Coming Soon';
-      button.appendChild(badge);
-    }
+    button.setAttribute('aria-disabled', 'true');
+    button.title = '';
   }
 
   function cleanShortcuts() {
@@ -64,7 +52,8 @@
       if (primaryLabel === 'listening history') ensureTier(button);
 
       if (primaryLabel === 'downloads' || primaryLabel === 'offline playlist') {
-        restoreDownloadsComingSoon(button);
+        if (mobile.matches) makeMobileDownloads(button);
+        else hideDesktopDownloads(button);
       }
     });
   }
@@ -75,21 +64,22 @@
     requestAnimationFrame(cleanShortcuts);
   }
 
-  /*
-   * PAUSED 2026-08-22. Keep for future cross-device/offline-library work.
-   * document.addEventListener('click', event => {
-   *   const button = event.target.closest?.('[data-open-offline-playlist]');
-   *   if (!button) return;
-   *   event.preventDefault();
-   *   event.stopImmediatePropagation();
-   *   const embedded = window.parent !== window;
-   *   location.href = `/radio/offline/?profile=1${embedded ? '&embedded=1' : ''}`;
-   * }, true);
-   */
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-open-offline-playlist]');
+    if (!button || !mobile.matches) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const embedded = window.parent !== window;
+    location.href = `/radio/offline/?profile=1${embedded ? '&embedded=1' : ''}`;
+  }, true);
 
   new MutationObserver(queueClean).observe(document.getElementById('profileApp') || document.body, {
     childList: true,
     subtree: true
   });
+
+  if (typeof mobile.addEventListener === 'function') mobile.addEventListener('change', queueClean);
+  else if (typeof mobile.addListener === 'function') mobile.addListener(queueClean);
+
   queueClean();
 })();
