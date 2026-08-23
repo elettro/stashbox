@@ -38,99 +38,106 @@ jobs:
       - name: Create temporary listener and probe authenticated profile API
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
+          mkdir -p radio/docs/diagnostics /tmp/profile-auth
+          report=radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio PROD authenticated profile diagnostic' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
           username="profile-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.com"
-          password="Aa1!ProfileSmoke${GITHUB_RUN_ID}xZ9!"
+          temp_password="Aa1!TempSmoke${GITHUB_RUN_ID}xZ9!"
+          password="Bb2!LiveSmoke${GITHUB_RUN_ID}yQ8!"
           cleanup() {
             aws cognito-idp admin-delete-user --user-pool-id "$USER_POOL_ID" --username "$username" --region "$AWS_REGION" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
-          aws cognito-idp admin-create-user \
+          stage=create_user
+          if ! aws cognito-idp admin-create-user \
             --user-pool-id "$USER_POOL_ID" \
             --username "$username" \
-            --temporary-password "$password" \
+            --temporary-password "$temp_password" \
             --message-action SUPPRESS \
             --user-attributes Name=email,Value="$username" Name=email_verified,Value=true \
-            --region "$AWS_REGION" >/tmp/profile-smoke-create.json
+            --region "$AWS_REGION" >/tmp/profile-smoke-create.json 2>/tmp/profile-smoke-error.txt; then
+            echo "stage=$stage" >> "$report"
+            echo 'result=FAIL' >> "$report"
+            sed -E 's/[A-Za-z0-9_=-]{32,}/[redacted]/g' /tmp/profile-smoke-error.txt | head -c 1200 >> "$report"
+            exit 1
+          fi
+          echo 'create_user=PASS' >> "$report"
 
-          auth="$(aws cognito-idp initiate-auth \
+          stage=set_password
+          if ! aws cognito-idp admin-set-user-password \
+            --user-pool-id "$USER_POOL_ID" \
+            --username "$username" \
+            --password "$password" \
+            --permanent \
+            --region "$AWS_REGION" >/dev/null 2>/tmp/profile-smoke-error.txt; then
+            echo "stage=$stage" >> "$report"
+            echo 'result=FAIL' >> "$report"
+            sed -E 's/[A-Za-z0-9_=-]{32,}/[redacted]/g' /tmp/profile-smoke-error.txt | head -c 1200 >> "$report"
+            exit 1
+          fi
+          echo 'set_password=PASS' >> "$report"
+
+          stage=authenticate
+          if ! aws cognito-idp initiate-auth \
             --auth-flow USER_PASSWORD_AUTH \
             --client-id "$CLIENT_ID" \
             --auth-parameters USERNAME="$username",PASSWORD="$password" \
-            --region "$AWS_REGION")"
-
-          challenge="$(jq -r '.ChallengeName // empty' <<<"$auth")"
-          if [ "$challenge" = 'NEW_PASSWORD_REQUIRED' ]; then
-            session="$(jq -r '.Session' <<<"$auth")"
-            auth="$(aws cognito-idp respond-to-auth-challenge \
-              --client-id "$CLIENT_ID" \
-              --challenge-name NEW_PASSWORD_REQUIRED \
-              --session "$session" \
-              --challenge-responses USERNAME="$username",NEW_PASSWORD="$password" \
-              --region "$AWS_REGION")"
+            --region "$AWS_REGION" >/tmp/profile-smoke-auth.json 2>/tmp/profile-smoke-error.txt; then
+            echo "stage=$stage" >> "$report"
+            echo 'result=FAIL' >> "$report"
+            sed -E 's/[A-Za-z0-9_=-]{32,}/[redacted]/g' /tmp/profile-smoke-error.txt | head -c 1200 >> "$report"
+            exit 1
           fi
 
-          access="$(jq -r '.AuthenticationResult.AccessToken // empty' <<<"$auth")"
-          idtoken="$(jq -r '.AuthenticationResult.IdToken // empty' <<<"$auth")"
-          test -n "$access"
-          test -n "$idtoken"
+          access="$(jq -r '.AuthenticationResult.AccessToken // empty' /tmp/profile-smoke-auth.json)"
+          idtoken="$(jq -r '.AuthenticationResult.IdToken // empty' /tmp/profile-smoke-auth.json)"
+          if [ -z "$access" ] || [ -z "$idtoken" ]; then
+            echo 'stage=authenticate' >> "$report"
+            echo 'result=FAIL_NO_TOKENS' >> "$report"
+            exit 1
+          fi
+          echo 'authenticate=PASS' >> "$report"
 
-          mkdir -p /tmp/profile-auth
           probe() {
             name="$1"
             shift
-            curl -sS --max-time 30 -D "/tmp/profile-auth/${name}.headers" -o "/tmp/profile-auth/${name}.body" -w '%{http_code}' "$@" > "/tmp/profile-auth/${name}.code"
+            code="$(curl -sS --max-time 30 -D "/tmp/profile-auth/${name}.headers" -o "/tmp/profile-auth/${name}.body" -w '%{http_code}' "$@" 2>"/tmp/profile-auth/${name}.curl_error")"
+            rc=$?
+            if [ $rc -ne 0 ]; then code="curl_error_${rc}"; fi
+            printf '%s' "$code" > "/tmp/profile-auth/${name}.code"
           }
 
-          probe me_both "$API/radio/me" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
-          probe me_access_only "$API/radio/me" \
-            -H "Authorization: Bearer $access" \
-            -H 'Origin: https://stashbox.com'
-          probe preferences "$API/radio/me/preferences" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
-          probe favorites "$API/radio/me/favorites" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
-          probe playlists "$API/radio/me/playlists" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
-          probe history "$API/radio/me/history?limit=200" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
-          probe follows "$API/radio/me/follows" \
-            -H "Authorization: Bearer $access" \
-            -H "X-Cognito-Id-Token: $idtoken" \
-            -H 'Origin: https://stashbox.com'
+          probe me_both "$API/radio/me" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
+          probe me_access_only "$API/radio/me" -H "Authorization: Bearer $access" -H 'Origin: https://stashbox.com'
+          probe preferences "$API/radio/me/preferences" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
+          probe favorites "$API/radio/me/favorites" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
+          probe playlists "$API/radio/me/playlists" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
+          probe history "$API/radio/me/history?limit=200" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
+          probe follows "$API/radio/me/follows" -H "Authorization: Bearer $access" -H "X-Cognito-Id-Token: $idtoken" -H 'Origin: https://stashbox.com'
 
-          {
-            echo 'Stashbox Radio PROD authenticated profile diagnostic'
-            echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "source_commit=${GITHUB_SHA}"
-            echo
-            for name in me_both me_access_only preferences favorites playlists history follows; do
-              code="$(cat /tmp/profile-auth/${name}.code)"
-              echo "[$name]"
-              echo "status=$code"
-              echo 'cors:'
-              grep -i '^access-control-' "/tmp/profile-auth/${name}.headers" || true
-              echo 'body_summary:'
-              jq -c 'if type=="object" then del(.token,.access_token,.id_token,.refresh_token) else . end' "/tmp/profile-auth/${name}.body" 2>/dev/null | head -c 2500 || head -c 1000 "/tmp/profile-auth/${name}.body" || true
-              echo
-              echo
-            done
-          } > radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
+          echo >> "$report"
+          for name in me_both me_access_only preferences favorites playlists history follows; do
+            echo "[$name]" >> "$report"
+            echo "status=$(cat /tmp/profile-auth/${name}.code)" >> "$report"
+            grep -i '^access-control-' "/tmp/profile-auth/${name}.headers" >> "$report" 2>/dev/null || true
+            if [ -s "/tmp/profile-auth/${name}.curl_error" ]; then
+              echo 'curl_error:' >> "$report"
+              head -c 1000 "/tmp/profile-auth/${name}.curl_error" >> "$report"
+              echo >> "$report"
+            fi
+            echo 'body_summary:' >> "$report"
+            jq -c 'if type=="object" then with_entries(select(.key|test("token|password";"i")|not)) else . end' "/tmp/profile-auth/${name}.body" 2>/dev/null | head -c 2500 >> "$report" || head -c 1000 "/tmp/profile-auth/${name}.body" >> "$report" 2>/dev/null || true
+            echo >> "$report"
+            echo >> "$report"
+          done
 
-          cat radio/docs/diagnostics/PROD_PROFILE_AUTH_LATEST.txt
-
+          cat "$report"
           test "$(cat /tmp/profile-auth/me_both.code)" = '200'
           test "$(cat /tmp/profile-auth/me_access_only.code)" = '200'
 
