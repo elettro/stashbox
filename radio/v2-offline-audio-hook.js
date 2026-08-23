@@ -3,6 +3,7 @@
 
   if (matchMedia('(min-width: 700px)').matches || window.StashboxOfflineAudioHook) return;
 
+  const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const DB_NAME = 'stashbox-radio-offline-prod';
   const DB_VERSION = 1;
   const STORE = 'songs';
@@ -23,6 +24,7 @@
   const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"/></svg>';
   const LIBRARY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg>';
   let dbPromise = null;
+  let catalogPromise = null;
   let busy = false;
 
   function openDb() {
@@ -81,13 +83,105 @@
       const match = new URL(audioUrl, location.href).pathname.match(/\/tracks\/([^/]+)\//i);
       if (match) pathKey = decodeURIComponent(match[1]);
     } catch (_) {}
-    const id = trackerKey || hintedKey || pathKey || `${slug(artist)}--${slug(title)}`;
+    const songKey = trackerKey || hintedKey || pathKey;
+    const id = songKey || `${slug(artist)}--${slug(title)}`;
     const backdrop = player.querySelector('[data-backdrop]');
     let artworkUrl = '';
     const background = clean(backdrop?.style?.backgroundImage || getComputedStyle(backdrop || player).backgroundImage);
     const match = background.match(/url\(["']?(.*?)["']?\)/i);
     if (match) artworkUrl = clean(match[1]);
-    return { id, songKey: trackerKey || hintedKey, title, artist, genre, artworkUrl, audioUrl };
+    return { id, songKey, title, artist, genre, artworkUrl, audioUrl };
+  }
+
+  function catalogRows(value) {
+    if (typeof value?.body === 'string') {
+      try { return catalogRows(JSON.parse(value.body)); } catch (_) { return []; }
+    }
+    if (Array.isArray(value)) return value;
+    for (const key of ['songs', 'items', 'rows', 'data']) {
+      if (Array.isArray(value?.[key])) return value[key];
+    }
+    return [];
+  }
+
+  function preferredAudio(row) {
+    const explicit = clean(
+      row?.audio_stream_url ||
+      row?.preferred_audio_url ||
+      row?.browser_audio_url ||
+      row?.browserAudioUrl ||
+      row?.mp3_url ||
+      row?.stream_url
+    );
+    if (explicit) return explicit;
+
+    try {
+      const fast = clean(window.StashboxAudioFastStart?.preferredAudioUrl?.(row));
+      if (fast) return fast;
+    } catch (_) {}
+
+    const master = clean(
+      row?.audio_master_url ||
+      row?.browser_original_audio_url ||
+      row?.audio_url ||
+      row?.resolved_audio_url ||
+      row?.audioUrl
+    );
+    try {
+      const mapped = clean(window.StashboxBrowserAudioMap?.resolveAudioUrl?.(master));
+      if (mapped) return mapped;
+    } catch (_) {}
+    return master;
+  }
+
+  async function loadCatalog() {
+    if (catalogPromise) return catalogPromise;
+    catalogPromise = fetch(`${API}/radio/songs?offline_source=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    })
+      .then(response => {
+        if (!response.ok) throw new Error(`Song catalog HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(catalogRows)
+      .catch(error => {
+        catalogPromise = null;
+        throw error;
+      });
+    return catalogPromise;
+  }
+
+  async function resolveDownloadSong(song) {
+    if (!song) return null;
+    try {
+      const rows = await loadCatalog();
+      const wantedKey = clean(song.songKey || song.id).toLowerCase();
+      const wantedTitle = slug(song.title);
+      const wantedArtist = slug(song.artist);
+      const row = rows.find(item => {
+        const key = clean(item?.song_key || item?.songKey || item?.song_id || item?.id).toLowerCase();
+        if (wantedKey && key && key === wantedKey) return true;
+        return slug(item?.display_title || item?.song_name || item?.title) === wantedTitle &&
+          slug(item?.artist || item?.artist_name) === wantedArtist;
+      });
+      if (!row) return song;
+      const key = clean(row.song_key || row.songKey || row.song_id || row.id || song.songKey || song.id);
+      const audioUrl = preferredAudio(row);
+      return {
+        ...song,
+        id: key || song.id,
+        songKey: key || song.songKey,
+        title: clean(row.display_title || row.song_name || row.title || song.title),
+        artist: clean(row.artist || row.artist_name || song.artist),
+        genre: clean(row.genre || row.primary_genre || song.genre),
+        artworkUrl: clean(row.resolved_artwork_url || row.song_artwork_url || row.artwork_url || row.cover_art_url || row.image_url || song.artworkUrl),
+        audioUrl: audioUrl || song.audioUrl
+      };
+    } catch (error) {
+      console.warn('[V2 Offline Audio] catalog source resolution failed, using current player source', error);
+      return song;
+    }
   }
 
   function toast(message, error = false) {
@@ -190,12 +284,23 @@
 
   async function downloadCurrent(row) {
     if (busy) return;
-    const song = currentSong();
-    if (!song) return toast('Open a song before downloading it.', true);
+    const current = currentSong();
+    if (!current) return toast('Open a song before downloading it.', true);
     busy = true;
     row.disabled = true;
     await requestPersistentStorage();
     try {
+      const song = await resolveDownloadSong(current);
+      if (!song?.audioUrl) throw new Error('No downloadable audio source was found for this song.');
+      const existing = await getDownload(song.id).catch(() => null);
+      if (existing) {
+        const strong = row.querySelector('strong');
+        const small = row.querySelector('small');
+        if (strong) strong.textContent = 'Downloaded ✓';
+        if (small) small.textContent = 'This song is already saved on this device';
+        row.dataset.offlineAction = 'downloaded';
+        return;
+      }
       const { blob, type, bytes } = await fetchAudio(song, row);
       await putDownload({
         ...song,
@@ -204,12 +309,15 @@
         bytes,
         downloadedAt: Date.now(),
       });
+      const verified = await getDownload(song.id);
+      if (!verified?.audioBlob?.size) throw new Error('The device did not retain the downloaded audio.');
       const strong = row.querySelector('strong');
       const small = row.querySelector('small');
       if (strong) strong.textContent = 'Downloaded ✓';
       if (small) small.textContent = `${(bytes / 1024 / 1024).toFixed(1)} MB saved on this device`;
       row.dataset.offlineAction = 'downloaded';
       toast(`${song.title} is ready offline.`);
+      window.dispatchEvent(new CustomEvent('stashbox:offline-library-changed', { detail: { songKey: song.songKey || song.id, downloaded: true } }));
     } catch (error) {
       console.error('[V2 Offline Audio] download failed', error);
       const strong = row.querySelector('strong');
@@ -247,6 +355,7 @@
   window.StashboxOfflineAudioHook = Object.freeze({
     openLibrary: () => { location.href = OFFLINE_URL; },
     currentSong,
+    resolveDownloadSong,
     refreshActions: injectActions,
   });
 })();
