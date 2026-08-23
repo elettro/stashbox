@@ -28,6 +28,7 @@ Last updated: 2026-08-23
 | SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Backend auth repair deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9`, `654f73a1` |
 | SR-BUG-0023 | Production artist profiles return not found after DEV to PROD promotion | Artist Profiles / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `d600cc08`, `c7448b38` |
 | SR-BUG-0024 | Listener profile images load in DEV but fail in production | Listener Profile / Profile Media / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `54a39ea0`, `e53dfc33` |
+| SR-BUG-0025 | Mobile Download for Offline does not persist song to device | Mobile Player / Offline Audio | High | PROD Mobile | Fixed, user verification pending | 2026-08-23 | `76d77456`, `eeef0def`, `bad12698` |
 
 ## Open / investigating
 
@@ -42,6 +43,7 @@ Last updated: 2026-08-23
 - `SR-BUG-0022` - Production profile frontend session routing and cache defects were repaired first. A later live runtime diagnostic exposed that the VPC-attached PROD Lambda had no local production Cognito JWKS source. The current 2-key production JWKS is now installed in `COGNITO_JWKS_JSON`; Lambda state and update status passed. A listener whose failed profile request cleared local tokens must log in once before the final desktop/mobile PROFILE retest.
 - `SR-BUG-0023` - DEV and PROD both have 83 songs, but PROD initially had 0 of the 3 public artist profiles. Stashbox, Tahiti Cora, and The Ras Box were mirrored from DEV with their public media and song associations. Post-repair comparison returns HTTP 200 for all 3 in both DEV and PROD.
 - `SR-BUG-0024` - DEV contained 3 listener profile-media objects while PROD contained 0. The guarded repair copied all 3 into the production media bucket, verified all 3 object sizes, and confirmed all 3 return HTTP 200 through the production CloudFront media host. Desktop and mobile profile-image UI verification remain pending.
+- `SR-BUG-0025` - PROD mobile audio-stream preference still targeted the DEV song API, so the offline action could attempt to fetch the large current master asset. PROD now targets `/prod-v2/radio/songs`; the downloader resolves the active song against the PROD catalog, prefers mobile/MP3 stream fields, writes the Blob to IndexedDB, then performs a read-back before reporting success. Physical mobile verification remains pending.
 
 ## Closed
 
