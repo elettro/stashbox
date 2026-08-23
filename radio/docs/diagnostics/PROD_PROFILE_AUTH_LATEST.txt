@@ -1,0 +1,7 @@
+Stashbox Radio PROD authenticated profile diagnostic
+run_utc=2026-08-23T11:23:04Z
+source_commit=8b4c944202e0c49a7acf2b8c78bfab0d3de115e3
+stage=create_user
+result=FAIL
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the AdminCreateUser operation: User: arn:aws:iam::656260749296:user/stashbox-github-actions-dev is not authorized to perform: cognito-idp:AdminCreateUser on resource: arn:aws:cognito-idp:us-east-1:656260749296:userpool/us-east-1_WVKcj6G77 because no identity-based policy allows the cognito-idp:AdminCreateUser action
