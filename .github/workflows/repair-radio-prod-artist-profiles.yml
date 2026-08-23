@@ -1,0 +1,172 @@
+name: Repair Radio PROD artist profiles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.repair-radio-prod-artist-profiles'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-radio-prod-artist-profiles
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Mirror public DEV artist profiles into PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/artist-repair radio/docs/diagnostics
+          report=radio/docs/diagnostics/PROD_ARTIST_PROFILE_REPAIR_LATEST.txt
+          : > "$report"
+          echo 'Stashbox Radio PROD artist profile repair' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
+          test "$FUNCTION_NAME" = 'stashbox-radio-api-prod-v2'
+          test "$AWS_REGION" = 'us-east-1'
+          aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /tmp/artist-repair/lambda.json
+          test "$(jq -r '.FunctionName' /tmp/artist-repair/lambda.json)" = 'stashbox-radio-api-prod-v2'
+          test "$(jq -r '.Environment.Variables.PGSCHEMA // "radio"' /tmp/artist-repair/lambda.json)" = 'radio'
+          admin_token="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/artist-repair/lambda.json)"
+          test -n "$admin_token"
+
+          curl --fail --silent --show-error --max-time 20 "$DEV_API/radio/artists?limit=500" -o /tmp/artist-repair/dev-artists.json
+          jq -e '.success == true and (.artists|type)=="array"' /tmp/artist-repair/dev-artists.json >/dev/null
+          dev_count="$(jq '.artists|length' /tmp/artist-repair/dev-artists.json)"
+          echo "dev_public_artist_count=${dev_count}" >> "$report"
+          if [ "$dev_count" -lt 1 ]; then
+            echo 'DEV returned no public artists. Refusing production write.' >&2
+            exit 1
+          fi
+          if [ "$dev_count" -gt 50 ]; then
+            echo 'Unexpectedly large DEV artist set. Refusing production write.' >&2
+            exit 1
+          fi
+
+          created=0
+          updated=0
+          verified=0
+          failures=0
+
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            safe_key="$(printf '%s' "$key" | sed 's/[^a-zA-Z0-9._-]/_/g')"
+            echo "artist=${key}" >> "$report"
+
+            dev_code="$(curl -sS --max-time 20 -o "/tmp/artist-repair/dev-${safe_key}.json" -w '%{http_code}' "$DEV_API/radio/artists/$key" || true)"
+            if [ "$dev_code" != '200' ]; then
+              echo "  dev_status=${dev_code}" >> "$report"
+              failures=$((failures+1))
+              continue
+            fi
+
+            jq -e '.success == true and .artist.artist_key and .artist.name' "/tmp/artist-repair/dev-${safe_key}.json" >/dev/null
+            jq '.artist | {
+              artist_key, slug, name, sort_name, profile_image_url, banner_image_url, bio, location,
+              website_url, spotify_url, apple_music_url, youtube_url, instagram_url, x_url,
+              facebook_url, merch_url, verified, featured, status:"published"
+            }' "/tmp/artist-repair/dev-${safe_key}.json" > "/tmp/artist-repair/payload-${safe_key}.json"
+
+            prod_code="$(curl -sS --max-time 20 -o "/tmp/artist-repair/prod-before-${safe_key}.json" -w '%{http_code}' "$PROD_API/radio/artists/$key" || true)"
+            if [ "$prod_code" = '200' ]; then
+              write_code="$(curl -sS --max-time 25 -o "/tmp/artist-repair/write-${safe_key}.json" -w '%{http_code}' \
+                -X PATCH "$PROD_API/radio/admin/artists/$key" \
+                -H "x-admin-token: $admin_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "@/tmp/artist-repair/payload-${safe_key}.json" || true)"
+              if [ "$write_code" = '200' ]; then updated=$((updated+1)); else failures=$((failures+1)); fi
+              echo "  profile_action=update status=${write_code}" >> "$report"
+            elif [ "$prod_code" = '404' ]; then
+              write_code="$(curl -sS --max-time 25 -o "/tmp/artist-repair/write-${safe_key}.json" -w '%{http_code}' \
+                -X POST "$PROD_API/radio/admin/artists" \
+                -H "x-admin-token: $admin_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "@/tmp/artist-repair/payload-${safe_key}.json" || true)"
+              if [ "$write_code" = '201' ]; then created=$((created+1)); else failures=$((failures+1)); fi
+              echo "  profile_action=create status=${write_code}" >> "$report"
+            else
+              echo "  prod_precheck_status=${prod_code}" >> "$report"
+              failures=$((failures+1))
+              continue
+            fi
+
+            if [ "$write_code" != '200' ] && [ "$write_code" != '201' ]; then
+              echo '  profile_write_failed=true' >> "$report"
+              continue
+            fi
+
+            jq -r '[.songs[]?.artist_role // "primary"] | unique[]' "/tmp/artist-repair/dev-${safe_key}.json" | while IFS= read -r role; do
+              [ -n "$role" ] || role=primary
+              jq --arg role "$role" '{song_keys: [.songs[]? | select((.artist_role // "primary") == $role) | .song_key], artist_role:$role, replace:true}' \
+                "/tmp/artist-repair/dev-${safe_key}.json" > "/tmp/artist-repair/songs-${safe_key}-${role}.json"
+              assoc_count="$(jq '.song_keys|length' "/tmp/artist-repair/songs-${safe_key}-${role}.json")"
+              assoc_code="$(curl -sS --max-time 25 -o "/tmp/artist-repair/song-write-${safe_key}-${role}.json" -w '%{http_code}' \
+                -X PUT "$PROD_API/radio/admin/artists/$key/songs" \
+                -H "x-admin-token: $admin_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "@/tmp/artist-repair/songs-${safe_key}-${role}.json" || true)"
+              echo "  songs_role=${role} count=${assoc_count} status=${assoc_code}" >> "$report"
+              if [ "$assoc_code" != '200' ]; then exit 22; fi
+            done
+
+            verify_code="$(curl -sS --max-time 20 -o "/tmp/artist-repair/prod-after-${safe_key}.json" -w '%{http_code}' "$PROD_API/radio/artists/$key" || true)"
+            echo "  public_verify_status=${verify_code}" >> "$report"
+            if [ "$verify_code" = '200' ]; then
+              verified=$((verified+1))
+              dev_name="$(jq -r '.artist.name' "/tmp/artist-repair/dev-${safe_key}.json")"
+              prod_name="$(jq -r '.artist.name' "/tmp/artist-repair/prod-after-${safe_key}.json")"
+              test "$dev_name" = "$prod_name"
+            else
+              failures=$((failures+1))
+            fi
+          done < <(jq -r '.artists[]?.artist_key // empty' /tmp/artist-repair/dev-artists.json)
+
+          echo "created=${created}" >> "$report"
+          echo "updated=${updated}" >> "$report"
+          echo "verified_public_200=${verified}" >> "$report"
+          echo "failures=${failures}" >> "$report"
+          if [ "$failures" -ne 0 ] || [ "$verified" -ne "$dev_count" ]; then
+            echo 'result=FAIL' >> "$report"
+            cat "$report"
+            exit 1
+          fi
+          echo 'result=PASS' >> "$report"
+          cat "$report"
+
+      - name: Commit repair result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_ARTIST_PROFILE_REPAIR_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/docs/diagnostics/PROD_ARTIST_PROFILE_REPAIR_LATEST.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Record PROD artist profile repair [skip ci]'
+          git pull --rebase origin main
+          git push origin HEAD:main
