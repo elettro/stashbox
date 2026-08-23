@@ -25,7 +25,8 @@ Last updated: 2026-08-23
 | SR-BUG-0019 | Ads CMS break cadence is ignored and ads play every other song | Ads / Player | High | DEV V2 Desktop | Fixed, verified | 2026-08-21 | - |
 | SR-BUG-0020 | Desktop C share hotkey and PROD Share click do not copy or retain share | Player / Share / Hotkeys | High | DEV V2 Desktop + PROD Desktop | Closed, verified | 2026-08-22 | `efe4383a`, `2adb1cd3`, `3d275050` |
 | SR-BUG-0021 | Desktop F and L like hotkeys do not trigger Like in PROD | Player / Like / Hotkeys | High | PROD Desktop | Closed, verified | 2026-08-22 | `d6e8b664`, `76355d8a`, `4e245899` |
-| SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Fix v2 deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9` |
+| SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Backend auth repair deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9`, `654f73a1` |
+| SR-BUG-0023 | Production artist profiles return not found after DEV to PROD promotion | Artist Profiles / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `d600cc08`, `c7448b38` |
 
 ## Open / investigating
 
@@ -37,7 +38,8 @@ Last updated: 2026-08-23
 
 - `SR-BUG-0001` - Desktop VEC video flickers to song artwork during unstable clips.
 - `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
-- `SR-BUG-0022` - Production profile now cache-busts the current V2 session manager, profile fetch repair, session loader, and profile application together. The first repair routed authenticated requests correctly but left the session manager on an August 2 cache URL. Desktop Chrome and mobile verification remain pending.
+- `SR-BUG-0022` - Production profile frontend session routing and cache defects were repaired first. A later live runtime diagnostic exposed that the VPC-attached PROD Lambda had no local production Cognito JWKS source. The current 2-key production JWKS is now installed in `COGNITO_JWKS_JSON`; Lambda state and update status passed. A listener whose failed profile request cleared local tokens must log in once before the final desktop/mobile PROFILE retest.
+- `SR-BUG-0023` - DEV and PROD both have 83 songs, but PROD initially had 0 of the 3 public artist profiles. Stashbox, Tahiti Cora, and The Ras Box were mirrored from DEV with their public media and song associations. Post-repair comparison returns HTTP 200 for all 3 in both DEV and PROD.
 
 ## Closed
 
