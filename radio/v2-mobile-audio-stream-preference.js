@@ -3,7 +3,7 @@
 
   if (matchMedia('(min-width: 900px)').matches || window.StashboxMobileAudioStreamPreference) return;
 
-  const API_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
+  const API_HOST = 'je3zud66nb.execute-api.us-east-1.amazonaws.com';
   const MAP = window.STASHBOX_BROWSER_AUDIO_MAP || {};
   const reverse = new Map();
   Object.entries(MAP).forEach(([master, stream]) => {
@@ -76,7 +76,7 @@
     const raw = typeof input === 'string' ? input : input?.url || '';
     try {
       const url = new URL(raw, location.href);
-      return url.hostname === API_HOST && /\/dev\/radio\/songs\/?$/.test(url.pathname);
+      return url.hostname === API_HOST && /\/prod-v2\/radio\/songs\/?$/.test(url.pathname);
     } catch (_) {
       return false;
     }
