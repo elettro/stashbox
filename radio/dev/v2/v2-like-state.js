@@ -3,10 +3,13 @@
 
   const STORAGE_KEY = 'stashbox_v2_liked_song_counts';
   const TRACK_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/track';
+  const FAVORITES_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/me/favorites';
+  const TOKEN_KEY = 'stashbox_radio_dev_cognito_tokens';
   let likedCounts = readLikedCounts();
   let currentKey = '';
   let playerObserver = null;
   let syncTimer = 0;
+  const favoriteSaves = new Map();
 
   function readLikedCounts() {
     try {
@@ -22,6 +25,24 @@
     catch (_) {}
   }
 
+  function readAuthTokens() {
+    try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {}; }
+    catch (_) { return {}; }
+  }
+
+  function accountFavoriteHeaders() {
+    const tokens = readAuthTokens();
+    return {
+      'Content-Type': 'application/json',
+      ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+      ...(tokens.idToken ? { 'X-Cognito-Id-Token': tokens.idToken } : {})
+    };
+  }
+
+  function loggedIn() {
+    return Boolean(readAuthTokens().accessToken);
+  }
+
   function songElements() {
     return [...document.querySelectorAll('#v2App [data-song]')];
   }
@@ -33,6 +54,42 @@
       title: element?.querySelector('h3')?.textContent?.trim() || document.querySelector('#v2App [data-ptitle]')?.textContent?.trim() || '',
       artist: element?.querySelector('p')?.textContent?.trim() || document.querySelector('#v2App [data-partist]')?.textContent?.trim() || ''
     };
+  }
+
+  async function saveAccountFavorite(key, source = 'like') {
+    const cleanKey = String(key || '').trim();
+    if (!loggedIn() || !cleanKey || cleanKey.startsWith('ui:')) return false;
+    if (favoriteSaves.has(cleanKey)) return favoriteSaves.get(cleanKey);
+
+    const details = songDetails(cleanKey);
+    const request = fetch(FAVORITES_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: accountFavoriteHeaders(),
+      body: JSON.stringify({
+        song_key: cleanKey,
+        display_title: details.title,
+        artist: details.artist,
+        metadata: { source: `like:${source}` }
+      })
+    }).then(async response => {
+      const text = await response.text();
+      let body = {};
+      try { body = text ? JSON.parse(text) : {}; }
+      catch (_) { body = {}; }
+      if (!response.ok || body?.success === false) throw new Error(body?.error || body?.message || `HTTP ${response.status}`);
+      return true;
+    }).finally(() => favoriteSaves.delete(cleanKey));
+
+    favoriteSaves.set(cleanKey, request);
+    return request;
+  }
+
+  function persistAccountFavorite(key, source) {
+    saveAccountFavorite(key, source).catch(error => {
+      console.warn('[V2 Like] Profile favorite sync failed', error);
+    });
   }
 
   function fallbackUiKey() {
@@ -214,6 +271,7 @@
 
     if (numberValue(likedCounts[key]) > 0) {
       applyLikeUi({ key, count: numberValue(likedCounts[key]), liked: true, source: 'already-liked' });
+      persistAccountFavorite(key, 'already-liked');
       return;
     }
 
@@ -223,6 +281,7 @@
     saveLikedCounts();
     button.dataset.likeSaving = 'true';
     applyLikeUi({ key, count: likedCount, liked: true, animate: true, source: 'optimistic' });
+    persistAccountFavorite(key, 'player-like');
 
     try {
       const body = await sendLike(key);
@@ -277,6 +336,10 @@
     if (detail.source === 'sync') return;
     const railCount = document.querySelector('#v2App [data-li-like-count]');
     if (railCount && Number.isFinite(Number(detail.count))) setText(railCount, Math.max(0, Number(detail.count)));
+
+    const source = String(detail.source || '');
+    const key = String(detail.songKey || '').trim();
+    if (detail.liked === true && source.includes('hotkey')) persistAccountFavorite(key, source);
   });
 
   function installPlayerObserver() {
