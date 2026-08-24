@@ -1,0 +1,100 @@
+name: One-time hardcode Radio industry nav
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-hardcode-radio-industry-nav.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-production-nav:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Hardcode Blog and Industry Examples in production main nav
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          changed = []
+          skipped_parts = {'dev', 'alt2', '.git', 'node_modules'}
+
+          menu_re = re.compile(
+              r'(<ul class="nav__dropdown-menu" aria-label="Radio submenu">)(.*?)(</ul>)',
+              re.S,
+          )
+
+          blog_li_re = re.compile(
+              r'<li>\s*<a\s+href=["\'](?:https://stashbox\.com)?/radio/blog/?["\'][^>]*>\s*Blog\s*</a>\s*</li>',
+              re.I,
+          )
+          industry_li_re = re.compile(
+              r'<li>\s*<a\s+href=["\'](?:https://stashbox\.com)?/radio/blog/?#industry-usage-examples["\'][^>]*>\s*Industry Examples\s*</a>\s*</li>',
+              re.I,
+          )
+
+          for path in root.rglob('*.html'):
+              rel = path.relative_to(root)
+              if any(part in skipped_parts for part in rel.parts):
+                  continue
+
+              text = path.read_text(encoding='utf-8')
+              if 'id="main-nav"' not in text or 'aria-label="Radio submenu"' not in text:
+                  continue
+
+              def repl(match):
+                  inner = match.group(2)
+                  inner = blog_li_re.sub('', inner)
+                  inner = industry_li_re.sub('', inner)
+                  return (
+                      match.group(1)
+                      + inner
+                      + '<li><a href="/radio/blog/">Blog</a></li>'
+                      + '<li><a href="/radio/blog/#industry-usage-examples">Industry Examples</a></li>'
+                      + match.group(3)
+                  )
+
+              new_text, count = menu_re.subn(repl, text, count=1)
+              if not count:
+                  continue
+
+              new_text = new_text.replace(
+                  '<script src="/main.js"></script>',
+                  '<script src="/main.js?v=20260824-industry"></script>',
+              )
+
+              if new_text != text:
+                  path.write_text(new_text, encoding='utf-8')
+                  changed.append(str(rel))
+
+          print('Updated production nav in:')
+          for item in changed:
+              print(' -', item)
+
+          if not changed:
+              raise SystemExit('No production HTML nav files changed')
+          PY
+
+      - name: Commit production nav changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add '*.html' '**/*.html' || true
+          if git diff --cached --quiet; then
+            echo "No HTML changes to commit"
+            exit 0
+          fi
+          git commit -m "Hardcode Industry Examples in production Radio nav"
+          git push origin HEAD:main
