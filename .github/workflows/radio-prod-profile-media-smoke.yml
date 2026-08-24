@@ -1,0 +1,184 @@
+name: PROD Profile Media Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/radio-prod-profile-media-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AWS_REGION: us-east-1
+      FUNCTION_NAME: stashbox-radio-api-prod-v2
+      API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      ORIGIN: https://stashbox.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run authenticated PROD profile-media smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p radio/docs/diagnostics /tmp/profile-smoke
+          report='radio/docs/diagnostics/PROD_PROFILE_MEDIA_SMOKE_LATEST.txt'
+          : > "$report"
+          echo 'Stashbox Radio PROD profile media end-to-end smoke' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
+          aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /tmp/profile-smoke/lambda.json
+          pool="$(jq -r '.Environment.Variables.COGNITO_USER_POOL_ID // empty' /tmp/profile-smoke/lambda.json)"
+          client="$(jq -r '.Environment.Variables.COGNITO_APP_CLIENT_ID // .Environment.Variables.COGNITO_CLIENT_ID // empty' /tmp/profile-smoke/lambda.json)"
+          bucket="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' /tmp/profile-smoke/lambda.json)"
+          test -n "$pool" && test -n "$client" && test -n "$bucket"
+
+          token="${GITHUB_RUN_ID}-$(date +%s)"
+          email="profile-media-smoke+${token}@stashbox.com"
+          password="Aa1!ProfileSmoke${token}Zz"
+          key=''
+          access=''
+          idtoken=''
+
+          cleanup() {
+            set +e
+            if [ -n "$access" ] && [ -n "$idtoken" ]; then
+              curl -sS --max-time 30 -X DELETE \
+                -H "Authorization: Bearer ${access}" \
+                -H "X-Cognito-Id-Token: ${idtoken}" \
+                -H 'Content-Type: application/json' \
+                -H "Origin: ${ORIGIN}" \
+                --data '{"delete_account":true,"delete_all_data":true}' \
+                "$API/radio/me/account" >/tmp/profile-smoke/delete-account.json || true
+            fi
+            if [ -n "$key" ]; then
+              aws s3api delete-object --bucket "$bucket" --key "$key" --region "$AWS_REGION" >/dev/null 2>&1 || true
+            fi
+            aws cognito-idp admin-delete-user --region "$AWS_REGION" --user-pool-id "$pool" --username "$email" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          aws cognito-idp admin-create-user \
+            --region "$AWS_REGION" \
+            --user-pool-id "$pool" \
+            --username "$email" \
+            --message-action SUPPRESS \
+            --user-attributes Name=email,Value="$email" Name=email_verified,Value=true >/dev/null
+          aws cognito-idp admin-set-user-password \
+            --region "$AWS_REGION" \
+            --user-pool-id "$pool" \
+            --username "$email" \
+            --password "$password" \
+            --permanent >/dev/null
+          aws cognito-idp initiate-auth \
+            --region "$AWS_REGION" \
+            --auth-flow USER_PASSWORD_AUTH \
+            --client-id "$client" \
+            --auth-parameters "USERNAME=${email},PASSWORD=${password}" > /tmp/profile-smoke/auth.json
+          access="$(jq -r '.AuthenticationResult.AccessToken // empty' /tmp/profile-smoke/auth.json)"
+          idtoken="$(jq -r '.AuthenticationResult.IdToken // empty' /tmp/profile-smoke/auth.json)"
+          test -n "$access" && test -n "$idtoken"
+
+          get_code="$(curl -sS --max-time 30 -D /tmp/profile-smoke/get.headers -o /tmp/profile-smoke/get.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${access}" \
+            -H "X-Cognito-Id-Token: ${idtoken}" \
+            -H "Origin: ${ORIGIN}" \
+            "$API/radio/me/media")"
+          echo "authenticated_get_status=${get_code}" >> "$report"
+          echo "authenticated_get_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/get.headers)" >> "$report"
+          test "$get_code" = '200'
+          jq -e '.success == true and (.media | type == "object")' /tmp/profile-smoke/get.json >/dev/null
+
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlJqA0AAAAASUVORK5CYII=' | base64 --decode > /tmp/profile-smoke/pixel.png
+          size="$(stat -c%s /tmp/profile-smoke/pixel.png)"
+          jq -n --arg filename "prod-profile-smoke-${token}.png" --argjson size "$size" '{purpose:"profile_image",filename:$filename,content_type:"image/png",size_bytes:$size}' > /tmp/profile-smoke/presign-request.json
+
+          presign_code="$(curl -sS --max-time 30 -D /tmp/profile-smoke/presign.headers -o /tmp/profile-smoke/presign.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${access}" \
+            -H "X-Cognito-Id-Token: ${idtoken}" \
+            -H 'Content-Type: application/json' \
+            -H "Origin: ${ORIGIN}" \
+            --data @/tmp/profile-smoke/presign-request.json \
+            "$API/radio/me/media/presign")"
+          echo "presign_status=${presign_code}" >> "$report"
+          echo "presign_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/presign.headers)" >> "$report"
+          test "$presign_code" = '200'
+          jq -e '.success == true and (.upload_url | length > 20) and (.public_url | length > 20) and (.key | length > 5)' /tmp/profile-smoke/presign.json >/dev/null
+          upload_url="$(jq -r '.upload_url' /tmp/profile-smoke/presign.json)"
+          public_url="$(jq -r '.public_url' /tmp/profile-smoke/presign.json)"
+          key="$(jq -r '.key' /tmp/profile-smoke/presign.json)"
+
+          options_code="$(curl -sS --max-time 30 -D /tmp/profile-smoke/options.headers -o /tmp/profile-smoke/options.body -w '%{http_code}' \
+            -X OPTIONS \
+            -H "Origin: ${ORIGIN}" \
+            -H 'Access-Control-Request-Method: PUT' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$upload_url")"
+          echo "s3_preflight_status=${options_code}" >> "$report"
+          echo "s3_preflight_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/options.headers)" >> "$report"
+          echo "s3_preflight_methods=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-methods:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/options.headers)" >> "$report"
+          test "$options_code" = '200'
+
+          put_code="$(curl -sS --max-time 60 -D /tmp/profile-smoke/put.headers -o /tmp/profile-smoke/put.body -w '%{http_code}' \
+            -X PUT \
+            -H 'Content-Type: image/png' \
+            -H "Origin: ${ORIGIN}" \
+            --data-binary @/tmp/profile-smoke/pixel.png \
+            "$upload_url")"
+          echo "s3_put_status=${put_code}" >> "$report"
+          echo "s3_put_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/put.headers)" >> "$report"
+          test "$put_code" = '200'
+
+          jq -n --arg url "$public_url" '{profile_image_url:$url}' > /tmp/profile-smoke/patch-request.json
+          patch_code="$(curl -sS --max-time 30 -D /tmp/profile-smoke/patch.headers -o /tmp/profile-smoke/patch.json -w '%{http_code}' \
+            -X PATCH \
+            -H "Authorization: Bearer ${access}" \
+            -H "X-Cognito-Id-Token: ${idtoken}" \
+            -H 'Content-Type: application/json' \
+            -H "Origin: ${ORIGIN}" \
+            --data @/tmp/profile-smoke/patch-request.json \
+            "$API/radio/me/media")"
+          echo "patch_status=${patch_code}" >> "$report"
+          echo "patch_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-smoke/patch.headers)" >> "$report"
+          test "$patch_code" = '200'
+          jq -e --arg url "$public_url" '.success == true and .persisted == true and .media.profile_image_url == $url' /tmp/profile-smoke/patch.json >/dev/null
+
+          verify_code="$(curl -sS --max-time 30 -o /tmp/profile-smoke/verify.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${access}" \
+            -H "X-Cognito-Id-Token: ${idtoken}" \
+            -H "Origin: ${ORIGIN}" \
+            "$API/radio/me/media?verify=${token}")"
+          echo "verify_get_status=${verify_code}" >> "$report"
+          test "$verify_code" = '200'
+          jq -e --arg url "$public_url" '.success == true and .media.profile_image_url == $url' /tmp/profile-smoke/verify.json >/dev/null
+          echo 'result=PASS' >> "$report"
+          cat "$report"
+
+      - name: Publish smoke receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio/docs/diagnostics/PROD_PROFILE_MEDIA_SMOKE_LATEST.txt || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/docs/diagnostics/PROD_PROFILE_MEDIA_SMOKE_LATEST.txt
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record PROD profile media smoke [skip ci]'
+          git push
