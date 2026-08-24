@@ -99,24 +99,52 @@
     });
   }
 
-  function ensureRadioBlogLink() {
+  function ensureRadioMenuLinks() {
     document.querySelectorAll('.nav__dropdown-menu[aria-label="Radio submenu"]').forEach(function (menu) {
-      var exists = Array.from(menu.querySelectorAll('a')).some(function (link) {
+      var links = Array.from(menu.querySelectorAll('a'));
+      var blogLink = links.find(function (link) {
         try {
-          return new URL(link.href, window.location.origin).pathname.replace(/index\.html$/, '').replace(/\/+$/, '') === '/radio/blog';
+          var url = new URL(link.href, window.location.origin);
+          return url.pathname.replace(/index\.html$/, '').replace(/\/+$/, '') === '/radio/blog' && !url.hash;
         } catch (error) {
           return false;
         }
       });
 
-      if (exists) return;
+      if (!blogLink) {
+        var blogItem = document.createElement('li');
+        blogLink = document.createElement('a');
+        blogLink.href = '/radio/blog/';
+        blogLink.textContent = 'Blog';
+        blogItem.appendChild(blogLink);
+        menu.appendChild(blogItem);
+      }
 
-      var item = document.createElement('li');
-      var link = document.createElement('a');
-      link.href = '/radio/blog/';
-      link.textContent = 'Blog';
-      item.appendChild(link);
-      menu.appendChild(item);
+      var industryLink = Array.from(menu.querySelectorAll('a')).find(function (link) {
+        try {
+          var url = new URL(link.href, window.location.origin);
+          return url.pathname.replace(/index\.html$/, '').replace(/\/+$/, '') === '/radio/blog' && url.hash === '#industry-usage-examples';
+        } catch (error) {
+          return false;
+        }
+      });
+
+      var industryItem;
+      if (!industryLink) {
+        industryItem = document.createElement('li');
+        industryLink = document.createElement('a');
+        industryLink.href = '/radio/blog/#industry-usage-examples';
+        industryLink.textContent = 'Industry Examples';
+        industryItem.appendChild(industryLink);
+      } else {
+        industryItem = industryLink.closest('li');
+        industryLink.textContent = 'Industry Examples';
+      }
+
+      var blogItem = blogLink.closest('li');
+      if (blogItem && industryItem && blogItem.nextElementSibling !== industryItem) {
+        menu.insertBefore(industryItem, blogItem.nextSibling);
+      }
     });
   }
 
@@ -125,17 +153,17 @@
   var core = document.createElement('script');
   core.src = '/main-core.js?v=20260805';
   core.async = false;
-  core.addEventListener('load', ensureRadioBlogLink, { once: true });
-  core.addEventListener('error', ensureRadioBlogLink, { once: true });
+  core.addEventListener('load', ensureRadioMenuLinks, { once: true });
+  core.addEventListener('error', ensureRadioMenuLinks, { once: true });
   document.head.appendChild(core);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
       repairStructuredData();
-      ensureRadioBlogLink();
+      ensureRadioMenuLinks();
     }, { once: true });
   } else {
     repairStructuredData();
-    ensureRadioBlogLink();
+    ensureRadioMenuLinks();
   }
 })();
