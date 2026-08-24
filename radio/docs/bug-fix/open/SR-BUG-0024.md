@@ -12,7 +12,7 @@
 
 The listener profile works in production, but the Account Information profile-image editor does not show the saved profile photo, horizontal banner, or vertical banner. A new profile-photo upload reports `Failed to fetch`.
 
-The surrounding profile page still loads. In the 2026-08-24 reproduction, the production profile hero itself retained the saved horizontal banner while the editor incorrectly displayed `No horizontal banner uploaded`, proving that the profile had saved legacy media state even though the unified media editor was not presenting it.
+The surrounding profile page still loads. In the 2026-08-24 reproduction, the production profile hero itself retained the saved horizontal banner while the editor incorrectly displayed `No horizontal banner uploaded`, proving that the profile had saved media state even though the editor was not presenting it.
 
 ## Root causes
 
@@ -58,18 +58,21 @@ Result:
 - `prod_put_rule_before=false`
 - `prod_put_rule_after=true`
 
-### 3. The unified editor discarded legacy saved form URLs when its media payload was empty
+### 3. Profile-media editor initialized before authenticated media hydration finished
 
-`radio/profile/profile-media-stable.js` rendered each card only from the unified `/radio/me/media` payload. During enhancement it then overwrote the existing `avatar_url` and `banner_url` form values with the unified value, even when that unified value was empty.
+The production frontend called `queue()` immediately while `/radio/me/media` was still loading. That first enhancement created the editor, marked the account form as `mediaUploadsReady`, and rendered the cards before authenticated media had arrived.
 
-This produced the contradictory production state visible in the screenshot:
+When the media request later completed, another enhancement was queued, but the old runtime returned immediately because `mediaUploadsReady` was already true. The saved media never rehydrated into the existing cards.
+
+The same initialization path also preferred the empty unified media value over existing legacy account-form values such as `avatar_url` and `banner_url`. This produced the contradictory state visible in the screenshot:
 
 - the profile hero still showed the saved banner
 - the image editor said `No horizontal banner uploaded`
+- the editor status could still claim `Loaded from your saved profile`
 
-The production editor now preserves the existing account-form media URL as a fallback instead of replacing it with an empty value.
+The repaired runtime now synchronizes the existing editor after media hydration instead of treating the first render as final. It also preserves existing account-form media URLs as fallbacks.
 
-The repair also normalizes legacy DEV CloudFront profile-media URLs to the production CloudFront host when the object path is a listener profile-media path. Those same legacy objects were previously copied into the production bucket and independently verified public through the production CloudFront distribution.
+The repair normalizes legacy DEV CloudFront profile-media URLs to the production CloudFront host when the object path is a listener profile-media path. Those same legacy objects were previously copied into the production bucket and independently verified public through the production CloudFront distribution.
 
 ## Production object verification
 
@@ -99,7 +102,7 @@ Diagnostic receipt:
 
 - `radio/docs/diagnostics/PROD_PROFILE_MEDIA_ROUTE_LATEST.txt`
 
-This isolates the reported `Failed to fetch` upload error to the production S3 browser-upload CORS gap rather than the API Gateway route.
+This isolates the reported upload `Failed to fetch` to the production S3 browser-upload CORS gap rather than the API Gateway route.
 
 ## Fixes
 
@@ -122,17 +125,19 @@ Repair result:
 
 Production S3 CORS was repaired on 2026-08-24. The production bucket now accepts the browser `PUT` required by the presigned upload flow from the Stashbox production origin.
 
-### Frontend preview repair
+### Frontend preview and hydration repair
 
 `radio/profile/profile-media-stable.js` now:
 
-1. keeps a saved account-form avatar or banner when the unified media response is empty
-2. rewrites copied legacy DEV profile-media URLs to the PROD CloudFront host
-3. stops claiming `Loaded from your saved profile` when the resolved URL is actually empty
-4. preserves existing profile media while the editor initializes
-5. gives a clearer storage connection error if a future browser upload network failure occurs
+1. keeps a saved account-form avatar or banner when the unified media response is empty or still loading
+2. re-synchronizes already-mounted media cards after `/radio/me/media` finishes
+3. rewrites copied legacy DEV profile-media URLs to the PROD CloudFront host
+4. stops claiming `Loaded from your saved profile` when the resolved URL is empty
+5. prevents the MutationObserver hydration pass from needlessly rebuilding the same preview repeatedly
+6. preserves existing profile media while the editor initializes
+7. gives a clearer storage connection error if a future browser upload network failure occurs
 
-`radio/profile/index.html` now cache-busts the repaired profile-media runtime with build `20260824-profilemedia2`.
+`radio/profile/index.html` now cache-busts the final repaired profile-media runtime with build `20260824-profilemedia3`.
 
 ## Fix / diagnostic commits
 
@@ -154,6 +159,8 @@ Initial production media promotion:
 - `24faf86b` — Diagnose PROD profile media API route
 - `d0d93ebb` — Repair PROD profile media previews and legacy URL fallback
 - `15e6463e` — Publish PROD profile media repair
+- `242cc306` — Finish PROD profile media hydration race repair
+- `d02c3a43` — Cache-bust final PROD profile media hydration repair
 
 ## Verification target
 
