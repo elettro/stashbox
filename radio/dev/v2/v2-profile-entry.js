@@ -122,5 +122,14 @@
     updateButton();
     if (attempts >= 60) window.clearInterval(timer);
   }, 2000);
+
+  if (!document.querySelector('script[data-v2-profile-favorite-repair]')) {
+    const repair = document.createElement('script');
+    repair.src = '/radio/v2-profile-favorite-sync-repair.js?v=20260824-profilefavorites2';
+    repair.async = true;
+    repair.dataset.v2ProfileFavoriteRepair = 'true';
+    document.head.appendChild(repair);
+  }
+
   updateButton();
 })();
