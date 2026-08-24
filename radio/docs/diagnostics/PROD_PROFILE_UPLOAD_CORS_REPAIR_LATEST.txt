@@ -1,0 +1,36 @@
+Stashbox Radio PROD listener profile upload CORS repair
+run_utc=2026-08-24T13:03:33Z
+source_commit=e6fcf8ef48d8049791d2c2765e1f1b58637c4a28
+bucket=stashbox-radio-media-prod-us-east-1
+origin=https://stashbox.com
+repair_applied=true
+prod_put_rule_before=false
+prod_put_rule_after=true
+
+[cors_before]
+{"CORSRules":[]}
+
+[cors_after]
+{
+    "CORSRules": [
+        {
+            "AllowedHeaders": [
+                "*"
+            ],
+            "AllowedMethods": [
+                "GET",
+                "HEAD",
+                "PUT",
+                "POST"
+            ],
+            "AllowedOrigins": [
+                "https://stashbox.com",
+                "https://www.stashbox.com"
+            ],
+            "ExposeHeaders": [
+                "ETag"
+            ],
+            "MaxAgeSeconds": 3600
+        }
+    ]
+}
