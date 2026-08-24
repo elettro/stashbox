@@ -51,11 +51,9 @@ jobs:
           for filename, pairs in busts.items():
             path = Path(filename)
             text = path.read_text()
-            changed = False
             for before, after in pairs:
               if before in text:
                 text = text.replace(before, after)
-                changed = True
             if 'playlistcore1' not in text:
               raise SystemExit(f'Could not cache-bust recovery runtime in {filename}')
             path.write_text(text)
@@ -69,3 +67,4 @@ jobs:
             git commit -m 'Keep profile playlists in recovery player core'
             git push origin main
           fi
+# retry-2
