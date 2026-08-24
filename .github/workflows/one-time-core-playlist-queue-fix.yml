@@ -1,0 +1,89 @@
+name: One-time core playlist queue repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-core-playlist-queue-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Preserve profile playlist queue in core player
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          files = [Path('radio/v2.js'), Path('radio/dev/v2/v2.js')]
+
+          helper = r'''
+  const PROFILE_QUEUE_KEY = 'stashbox_v2_profile_queue_handoff';
+
+  function activeProfilePlaylistQueue() {
+    try {
+      const payload = JSON.parse(sessionStorage.getItem(PROFILE_QUEUE_KEY) || 'null');
+      if (!payload || !Array.isArray(payload.songKeys) || !payload.songKeys.length) return null;
+      const createdAt = Number(payload.createdAt || 0);
+      const expiresAt = Number(payload.expiresAt || 0);
+      if ((expiresAt && Date.now() > expiresAt) || (createdAt && Date.now() - createdAt > 10 * 60 * 1000)) return null;
+      if (!String(payload.mode || '').startsWith('profile-playlist')) return null;
+
+      const keys = [];
+      payload.songKeys.forEach(value => {
+        const key = clean(value);
+        if (key && !keys.includes(key)) keys.push(key);
+      });
+      const songs = keys.map(key => state.songs.find(song => song.songKey === key)).filter(Boolean);
+      if (!songs.length) return null;
+      return { payload, keys, songs };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function syncProfilePlaylistQueue(profileQueue, index) {
+    if (!profileQueue) return;
+    try {
+      profileQueue.payload.index = index;
+      profileQueue.payload.selectedSongKey = profileQueue.songs[index]?.songKey || profileQueue.payload.selectedSongKey || '';
+      profileQueue.payload.updatedAt = Date.now();
+      sessionStorage.setItem(PROFILE_QUEUE_KEY, JSON.stringify(profileQueue.payload));
+    } catch (_) {}
+  }
+'''
+
+          anchor = "  function selectSongByKey(songKey) {"
+          old = """    state.selected = song;\n    state.queue = state.visibleSongs.length ? [...state.visibleSongs] : [...state.songs];\n    state.queueIndex = Math.max(0, state.queue.findIndex(item => item.songKey === song.songKey));\n    state.playerOpen = true;"""
+          new = """    state.selected = song;\n    const profileQueue = activeProfilePlaylistQueue();\n    const profileQueueIndex = profileQueue ? profileQueue.songs.findIndex(item => item.songKey === song.songKey) : -1;\n    if (profileQueue && profileQueueIndex >= 0) {\n      state.queue = [...profileQueue.songs];\n      state.queueIndex = profileQueueIndex;\n      syncProfilePlaylistQueue(profileQueue, profileQueueIndex);\n    } else {\n      state.queue = state.visibleSongs.length ? [...state.visibleSongs] : [...state.songs];\n      state.queueIndex = Math.max(0, state.queue.findIndex(item => item.songKey === song.songKey));\n      if (profileQueue) {\n        try { sessionStorage.removeItem(PROFILE_QUEUE_KEY); } catch (_) {}\n      }\n    }\n    state.playerOpen = true;"""
+
+          for path in files:
+            text = path.read_text()
+            if 'function activeProfilePlaylistQueue()' not in text:
+              if anchor not in text:
+                raise SystemExit(f'Missing helper anchor in {path}')
+              text = text.replace(anchor, helper + '\n' + anchor, 1)
+            if old in text:
+              text = text.replace(old, new, 1)
+            elif new not in text:
+              raise SystemExit(f'Missing queue-reset block in {path}')
+            path.write_text(text)
+          PY
+      - name: Commit core player fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/v2.js radio/dev/v2/v2.js
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+          else
+            git commit -m 'Preserve playlist queue in core Radio player'
+            git push origin main
+          fi
