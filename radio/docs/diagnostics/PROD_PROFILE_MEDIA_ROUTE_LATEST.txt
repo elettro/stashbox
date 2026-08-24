@@ -1,0 +1,12 @@
+Stashbox Radio PROD profile media API route diagnostic
+run_utc=2026-08-24T13:11:21Z
+source_commit=24faf86bed622d870e774d7a3a657723e20d43a4
+unauth_get_status=401
+unauth_get_acao=*
+unauth_get_content_type=application/json
+unauth_get_body={"success":false,"error":"Authentication is required.","code":"AUTH_REQUIRED"}
+presign_options_status=204
+presign_options_acao=*
+presign_options_methods=GET,POST,PUT,PATCH,DELETE,OPTIONS
+presign_options_headers=Content-Type,x-admin-token,Authorization,X-Cognito-Id-Token,X-Anonymous-Visitor-Id
+presign_options_body=
