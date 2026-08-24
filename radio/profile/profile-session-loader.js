@@ -11,7 +11,8 @@
     '/radio/profile/profile-nav-cleanup.js?v=20260823-mobileoffline1',
     '/radio/profile/profile-playlist-reorder.js?v=20260723-profile14',
     '/radio/profile/profile-favorites-bulk.js?v=20260723-profile14',
-    '/radio/profile/profile-save-confirmation.js?v=20260723-profile14'
+    '/radio/profile/profile-save-confirmation.js?v=20260723-profile14',
+    '/radio/profile/profile-playlist-playback-controls.js?v=20260824-playlistplay1'
   ];
 
   function loadScript(src) {
