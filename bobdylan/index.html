@@ -163,7 +163,7 @@
     </button>
     <ul class="nav__links" id="navLinks" role="list">
       <li><a href="/">Home</a></li>
-      <li class="nav__item nav__item--dropdown"><a href="/radio/">Radio</a><ul class="nav__dropdown-menu" aria-label="Radio submenu"><li><a href="https://stashbox.com/blog/01/">What Is Stashbox Radio?</a></li></ul></li>
+      <li class="nav__item nav__item--dropdown"><a href="/radio/">Radio</a><ul class="nav__dropdown-menu" aria-label="Radio submenu"><li><a href="https://stashbox.com/blog/01/">What Is Stashbox Radio?</a></li><li><a href="/radio/blog/">Blog</a></li><li><a href="/radio/blog/#industry-usage-examples">Industry Examples</a></li></ul></li>
       <li><a href="/videos/">Videos</a></li>
       <li><a href="/sessions/">Sessions</a></li>
       <li><a href="/shop/">Shop</a></li>
@@ -628,5 +628,5 @@
   function glitchToggleMute(){glitchMuted=!glitchMuted;var iframe=document.getElementById('glitch-yt');var icon=document.getElementById('glitch-mute-icon');var label=document.getElementById('glitch-mute-label');iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:glitchMuted?'mute':'unMute',args:[]}), '*');icon.textContent=glitchMuted?'🔇':'🔊';label.textContent=glitchMuted?'Unmute':'Mute';}
 
 </script>
-<script src="/main.js"></script>
+<script src="/main.js?v=20260824-industry"></script>
 </body></html>
