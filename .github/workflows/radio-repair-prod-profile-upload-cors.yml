@@ -1,0 +1,107 @@
+name: Repair PROD Profile Upload CORS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/radio-repair-prod-profile-upload-cors.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect-and-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Inspect and repair PROD media bucket CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          bucket='stashbox-radio-media-prod-us-east-1'
+          origin='https://stashbox.com'
+          www_origin='https://www.stashbox.com'
+          mkdir -p radio/docs/diagnostics
+
+          if aws s3api get-bucket-cors --bucket "$bucket" > /tmp/cors-before.json 2>/tmp/cors-before.err; then
+            :
+          else
+            echo '{"CORSRules":[]}' > /tmp/cors-before.json
+          fi
+
+          has_prod_put_rule="$(jq -r --arg origin "$origin" '
+            any(.CORSRules[]?;
+              ((.AllowedOrigins // []) | index($origin) != null or index("*") != null) and
+              ((.AllowedMethods // []) | index("PUT") != null)
+            )
+          ' /tmp/cors-before.json)"
+
+          repair_applied=false
+          if [[ "$has_prod_put_rule" != 'true' ]]; then
+            jq --arg origin "$origin" --arg www "$www_origin" '
+              .CORSRules = ((.CORSRules // []) + [{
+                "AllowedHeaders": ["*"],
+                "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
+                "AllowedOrigins": [$origin, $www],
+                "ExposeHeaders": ["ETag"],
+                "MaxAgeSeconds": 3600
+              }])
+            ' /tmp/cors-before.json > /tmp/cors-after-request.json
+            aws s3api put-bucket-cors --bucket "$bucket" --cors-configuration file:///tmp/cors-after-request.json
+            repair_applied=true
+          fi
+
+          aws s3api get-bucket-cors --bucket "$bucket" > /tmp/cors-after.json
+          has_prod_put_rule_after="$(jq -r --arg origin "$origin" '
+            any(.CORSRules[]?;
+              ((.AllowedOrigins // []) | index($origin) != null or index("*") != null) and
+              ((.AllowedMethods // []) | index("PUT") != null)
+            )
+          ' /tmp/cors-after.json)"
+
+          if [[ "$has_prod_put_rule_after" != 'true' ]]; then
+            echo 'PROD profile upload PUT CORS rule is still missing after repair attempt.' >&2
+            exit 1
+          fi
+
+          {
+            echo 'Stashbox Radio PROD listener profile upload CORS repair'
+            echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "bucket=${bucket}"
+            echo "origin=${origin}"
+            echo "repair_applied=${repair_applied}"
+            echo "prod_put_rule_before=${has_prod_put_rule}"
+            echo "prod_put_rule_after=${has_prod_put_rule_after}"
+            echo
+            echo '[cors_before]'
+            cat /tmp/cors-before.json
+            echo
+            echo '[cors_after]'
+            cat /tmp/cors-after.json
+          } > radio/docs/diagnostics/PROD_PROFILE_UPLOAD_CORS_REPAIR_LATEST.txt
+
+      - name: Publish repair receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/docs/diagnostics/PROD_PROFILE_UPLOAD_CORS_REPAIR_LATEST.txt
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record PROD profile upload CORS repair [skip ci]'
+          git push
