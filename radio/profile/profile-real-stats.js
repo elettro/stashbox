@@ -87,7 +87,11 @@
     const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates.filter(Boolean) : []);
     const derived = currentStreak(activeDates);
     const apiStreak = Math.max(0, Number(stats?.listening_streak_days || 0));
-    const streak = activeDates.size ? derived.days : apiStreak;
+    const hasApiStreak = Boolean(stats && Object.prototype.hasOwnProperty.call(stats, 'listening_streak_days'));
+    const streak = hasApiStreak ? apiStreak : derived.days;
+
+    card.dataset.streakSource = hasApiStreak ? 'profile-stats-api' : 'active-dates-fallback';
+    card.dataset.listeningStreakDays = String(streak);
 
     const numberNode = card.querySelector('.streak-number strong');
     const label = card.querySelector('.streak-number + b');
@@ -100,6 +104,7 @@
     sunday.setHours(12, 0, 0, 0);
     sunday.setDate(now.getDate() - now.getDay());
     let activeThisWeek = 0;
+
     [...card.querySelectorAll('.streak-days span')].forEach((node, index) => {
       const date = new Date(sunday);
       date.setDate(sunday.getDate() + index);
@@ -107,6 +112,7 @@
       const listened = activeDates.has(key);
       const inCurrentStreak = derived.keys.has(key);
       if (listened) activeThisWeek += 1;
+
       node.classList.toggle('on', inCurrentStreak);
       node.classList.toggle('listened', listened && !inCurrentStreak);
       node.title = inCurrentStreak
@@ -161,6 +167,7 @@
       stats = body.stats || null;
       lastLoadedAt = Date.now();
       queueApply();
+      window.dispatchEvent(new CustomEvent('stashbox:profile-stats-loaded', { detail: stats || {} }));
     } catch (_) {
       clearTimeout(retryTimer);
       retryTimer = window.setTimeout(() => {
