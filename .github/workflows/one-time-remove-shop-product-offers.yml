@@ -1,0 +1,54 @@
+name: One-time remove shop Product offers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-remove-shop-product-offers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Remove static Product offers from shop schema
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          path = Path('shop/index.html')
+          text = path.read_text(encoding='utf-8-sig')
+          pattern = re.compile(r'(<script type="application/ld\+json">\s*)(.*?)(\s*</script>)', re.S)
+          match = pattern.search(text)
+          if not match:
+              raise SystemExit('No JSON-LD block found')
+
+          data = json.loads(match.group(2))
+          changed = False
+          nodes = data if isinstance(data, list) else [data]
+          for node in nodes:
+              if isinstance(node, dict) and node.get('@type') == 'Store' and 'hasOfferCatalog' in node:
+                  del node['hasOfferCatalog']
+                  changed = True
+
+          if not changed:
+              raise SystemExit('Store hasOfferCatalog was not present')
+
+          replacement = match.group(1) + json.dumps(data, indent=2, ensure_ascii=False) + match.group(3)
+          text = text[:match.start()] + replacement + text[match.end():]
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit cleanup
+        run: |
+          git config user.name "elettro"
+          git config user.email "dpalermo@elettro.com"
+          git add shop/index.html
+          git commit -m "Remove invalid static shop Product offers"
+          git push origin main
