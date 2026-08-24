@@ -40,6 +40,19 @@
     return { days: keys.size, keys };
   }
 
+  function authoritativeStreakKeys(streak, activeDates) {
+    const keys = new Set();
+    if (!streak) return keys;
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    if (!activeDates.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+    for (let index = 0; index < streak; index += 1) {
+      keys.add(localDateKey(cursor));
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return keys;
+  }
+
   function setStat(label, value) {
     const buttons = [...app.querySelectorAll('.profile-stat')];
     const button = buttons.find(item => String(item.querySelector('span')?.textContent || '').trim() === label);
@@ -80,24 +93,21 @@
     });
   }
 
-  function applyStreak() {
-    const card = app.querySelector('.streak-card');
-    if (!card) return;
+  function ensureMonthLabel(card, daysNode) {
+    let monthLabel = card.querySelector('.streak-month-label');
+    if (!monthLabel) {
+      monthLabel = document.createElement('div');
+      monthLabel.className = 'streak-month-label';
+      card.insertBefore(monthLabel, daysNode);
+    }
+    return monthLabel;
+  }
 
-    const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates.filter(Boolean) : []);
-    const derived = currentStreak(activeDates);
-    const apiStreak = Math.max(0, Number(stats?.listening_streak_days || 0));
-    const hasApiStreak = Boolean(stats && Object.prototype.hasOwnProperty.call(stats, 'listening_streak_days'));
-    const streak = hasApiStreak ? apiStreak : derived.days;
-
-    card.dataset.streakSource = hasApiStreak ? 'profile-stats-api' : 'active-dates-fallback';
-    card.dataset.listeningStreakDays = String(streak);
-
-    const numberNode = card.querySelector('.streak-number strong');
-    const label = card.querySelector('.streak-number + b');
-    const message = card.querySelector('.streak-days + p');
-    if (numberNode) numberNode.textContent = String(streak);
-    if (label) label.textContent = `day${streak === 1 ? '' : 's'} in a row`;
+  function renderWeek(card, daysNode, activeDates, streakKeys, streak) {
+    card.classList.remove('streak-month');
+    card.querySelector('.streak-month-label')?.remove();
+    daysNode.className = 'streak-days';
+    daysNode.innerHTML = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(label => `<span>${label}</span>`).join('');
 
     const now = new Date();
     const sunday = new Date(now);
@@ -105,14 +115,13 @@
     sunday.setDate(now.getDate() - now.getDay());
     let activeThisWeek = 0;
 
-    [...card.querySelectorAll('.streak-days span')].forEach((node, index) => {
+    [...daysNode.querySelectorAll('span')].forEach((node, index) => {
       const date = new Date(sunday);
       date.setDate(sunday.getDate() + index);
       const key = localDateKey(date);
-      const listened = activeDates.has(key);
-      const inCurrentStreak = derived.keys.has(key);
+      const listened = activeDates.has(key) || streakKeys.has(key);
+      const inCurrentStreak = streakKeys.has(key);
       if (listened) activeThisWeek += 1;
-
       node.classList.toggle('on', inCurrentStreak);
       node.classList.toggle('listened', listened && !inCurrentStreak);
       node.title = inCurrentStreak
@@ -123,11 +132,83 @@
       node.setAttribute('aria-label', node.title);
     });
 
-    if (message) {
+    const message = daysNode.nextElementSibling;
+    if (message?.tagName === 'P') {
       if (!streak) message.textContent = 'Play a song today to begin a streak.';
       else if (activeThisWeek > streak) message.textContent = `${streak}-day current streak · ${activeThisWeek} listening days this week.`;
       else message.textContent = `${streak}-day current streak · keep it going!`;
     }
+  }
+
+  function renderMonth(card, daysNode, activeDates, streakKeys, streak) {
+    card.classList.add('streak-month');
+    const now = new Date();
+    now.setHours(12, 0, 0, 0);
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const firstDay = new Date(year, month, 1, 12);
+    const daysInMonth = new Date(year, month + 1, 0, 12).getDate();
+    const monthName = now.toLocaleDateString(undefined, { month: 'long' });
+    const monthLabel = ensureMonthLabel(card, daysNode);
+    monthLabel.textContent = `${monthName} ${year}`;
+
+    daysNode.className = 'streak-days streak-month-grid';
+    const pieces = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(label => `<small class="streak-weekday">${label}</small>`);
+    for (let index = 0; index < firstDay.getDay(); index += 1) {
+      pieces.push('<span class="calendar-empty" aria-hidden="true"></span>');
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(year, month, day, 12);
+      const key = localDateKey(date);
+      const inCurrentStreak = streakKeys.has(key);
+      const listened = activeDates.has(key) || inCurrentStreak;
+      const isToday = key === localDateKey(now);
+      const isFuture = date > now;
+      const classes = [
+        inCurrentStreak ? 'on' : '',
+        listened && !inCurrentStreak ? 'listened' : '',
+        isToday ? 'today' : '',
+        isFuture ? 'future' : ''
+      ].filter(Boolean).join(' ');
+      const title = inCurrentStreak
+        ? `${key}: current streak day`
+        : listened
+          ? `${key}: listened, but outside the current streak`
+          : isFuture
+            ? `${key}: future day`
+            : `${key}: no listening activity`;
+      pieces.push(`<span class="${classes}" title="${title}" aria-label="${title}">${day}</span>`);
+    }
+    daysNode.innerHTML = pieces.join('');
+
+    const message = daysNode.nextElementSibling;
+    if (message?.tagName === 'P') message.textContent = `${streak}-day current streak · ${monthName} calendar.`;
+  }
+
+  function applyStreak() {
+    const card = app.querySelector('.streak-card');
+    if (!card) return;
+
+    const activeDates = new Set(Array.isArray(stats?.active_dates) ? stats.active_dates.filter(Boolean) : []);
+    const derived = currentStreak(activeDates);
+    const apiStreak = Math.max(0, Number(stats?.listening_streak_days || 0));
+    const hasApiStreak = Boolean(stats && Object.prototype.hasOwnProperty.call(stats, 'listening_streak_days'));
+    const streak = hasApiStreak ? apiStreak : derived.days;
+    const streakKeys = hasApiStreak ? authoritativeStreakKeys(streak, activeDates) : derived.keys;
+
+    card.dataset.streakSource = hasApiStreak ? 'profile-stats-api' : 'active-dates-fallback';
+    card.dataset.listeningStreakDays = String(streak);
+    card.dataset.streakView = streak > 7 ? 'month' : 'week';
+
+    const numberNode = card.querySelector('.streak-number strong');
+    const label = card.querySelector('.streak-number + b');
+    const daysNode = card.querySelector('.streak-days');
+    if (numberNode) numberNode.textContent = String(streak);
+    if (label) label.textContent = `day${streak === 1 ? '' : 's'} in a row`;
+    if (!daysNode) return;
+
+    if (streak > 7) renderMonth(card, daysNode, activeDates, streakKeys, streak);
+    else renderWeek(card, daysNode, activeDates, streakKeys, streak);
   }
 
   function apply() {
