@@ -17,13 +17,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Preserve profile playlist queue in core player
+
+      - name: Preserve profile playlist queue in all player cores
         run: |
           python - <<'PY'
           from pathlib import Path
 
+          # Modern/mobile player core.
           files = [Path('radio/v2.js'), Path('radio/dev/v2/v2.js')]
-
           helper = r'''
   const PROFILE_QUEUE_KEY = 'stashbox_v2_profile_queue_handoff';
 
@@ -35,7 +36,6 @@ jobs:
       const expiresAt = Number(payload.expiresAt || 0);
       if ((expiresAt && Date.now() > expiresAt) || (createdAt && Date.now() - createdAt > 10 * 60 * 1000)) return null;
       if (!String(payload.mode || '').startsWith('profile-playlist')) return null;
-
       const keys = [];
       payload.songKeys.forEach(value => {
         const key = clean(value);
@@ -59,7 +59,6 @@ jobs:
     } catch (_) {}
   }
 '''
-
           anchor = "  function selectSongByKey(songKey) {"
           old = """    state.selected = song;\n    state.queue = state.visibleSongs.length ? [...state.visibleSongs] : [...state.songs];\n    state.queueIndex = Math.max(0, state.queue.findIndex(item => item.songKey === song.songKey));\n    state.playerOpen = true;"""
           new = """    state.selected = song;\n    const profileQueue = activeProfilePlaylistQueue();\n    const profileQueueIndex = profileQueue ? profileQueue.songs.findIndex(item => item.songKey === song.songKey) : -1;\n    if (profileQueue && profileQueueIndex >= 0) {\n      state.queue = [...profileQueue.songs];\n      state.queueIndex = profileQueueIndex;\n      syncProfilePlaylistQueue(profileQueue, profileQueueIndex);\n    } else {\n      state.queue = state.visibleSongs.length ? [...state.visibleSongs] : [...state.songs];\n      state.queueIndex = Math.max(0, state.queue.findIndex(item => item.songKey === song.songKey));\n      if (profileQueue) {\n        try { sessionStorage.removeItem(PROFILE_QUEUE_KEY); } catch (_) {}\n      }\n    }\n    state.playerOpen = true;"""
@@ -68,22 +67,99 @@ jobs:
             text = path.read_text()
             if 'function activeProfilePlaylistQueue()' not in text:
               if anchor not in text:
-                raise SystemExit(f'Missing helper anchor in {path}')
+                raise SystemExit(f'Missing modern helper anchor in {path}')
               text = text.replace(anchor, helper + '\n' + anchor, 1)
             if old in text:
               text = text.replace(old, new, 1)
             elif new not in text:
-              raise SystemExit(f'Missing queue-reset block in {path}')
+              raise SystemExit(f'Missing modern queue-reset block in {path}')
+            path.write_text(text)
+
+          # Desktop clean runtime uses v2-recovery.js and its own state.queue/state.index.
+          recovery_files = [Path('radio/v2-recovery.js'), Path('radio/dev/v2/v2-recovery.js')]
+          recovery_helper = r'''
+  const PROFILE_QUEUE_KEY = 'stashbox_v2_profile_queue_handoff';
+
+  function activeProfilePlaylistQueue() {
+    try {
+      const payload = JSON.parse(sessionStorage.getItem(PROFILE_QUEUE_KEY) || 'null');
+      if (!payload || !Array.isArray(payload.songKeys) || !payload.songKeys.length) return null;
+      const createdAt = Number(payload.createdAt || 0);
+      const expiresAt = Number(payload.expiresAt || 0);
+      if ((expiresAt && Date.now() > expiresAt) || (createdAt && Date.now() - createdAt > 10 * 60 * 1000)) return null;
+      if (!String(payload.mode || '').startsWith('profile-playlist')) return null;
+      const keys = [];
+      payload.songKeys.forEach(value => {
+        const key = clean(value);
+        if (key && !keys.includes(key)) keys.push(key);
+      });
+      const songs = keys.map(key => state.songs.find(song => song.key === key)).filter(Boolean);
+      if (!songs.length) return null;
+      return { payload, songs };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function syncProfilePlaylistQueue(profileQueue, index) {
+    if (!profileQueue) return;
+    try {
+      profileQueue.payload.index = index;
+      profileQueue.payload.selectedSongKey = profileQueue.songs[index]?.key || profileQueue.payload.selectedSongKey || '';
+      profileQueue.payload.updatedAt = Date.now();
+      sessionStorage.setItem(PROFILE_QUEUE_KEY, JSON.stringify(profileQueue.payload));
+    } catch (_) {}
+  }
+'''
+          recovery_anchor = "  function openSong(key, autoplay) {"
+          recovery_old = """    state.selected = selected;\n    state.queue = state.visible.length ? [...state.visible] : [...state.songs];\n    state.index = Math.max(0, state.queue.findIndex(item => item.key === key));"""
+          recovery_new = """    state.selected = selected;\n    const profileQueue = activeProfilePlaylistQueue();\n    const profileQueueIndex = profileQueue ? profileQueue.songs.findIndex(item => item.key === key) : -1;\n    if (profileQueue && profileQueueIndex >= 0) {\n      state.queue = [...profileQueue.songs];\n      state.index = profileQueueIndex;\n      syncProfilePlaylistQueue(profileQueue, profileQueueIndex);\n    } else {\n      state.queue = state.visible.length ? [...state.visible] : [...state.songs];\n      state.index = Math.max(0, state.queue.findIndex(item => item.key === key));\n      if (profileQueue) {\n        try { sessionStorage.removeItem(PROFILE_QUEUE_KEY); } catch (_) {}\n      }\n    }"""
+
+          for path in recovery_files:
+            text = path.read_text()
+            if 'function activeProfilePlaylistQueue()' not in text:
+              if recovery_anchor not in text:
+                raise SystemExit(f'Missing recovery helper anchor in {path}')
+              text = text.replace(recovery_anchor, recovery_helper + '\n' + recovery_anchor, 1)
+            if recovery_old in text:
+              text = text.replace(recovery_old, recovery_new, 1)
+            elif recovery_new not in text:
+              raise SystemExit(f'Missing recovery queue-reset block in {path}')
+            path.write_text(text)
+
+          # Force all public entry points to request the repaired desktop/mobile runtime.
+          busts = {
+            Path('radio/index.html'): [
+              ('/radio/v2-recovery.js?v=20260724-player67', '/radio/v2-recovery.js?v=20260824-profilequeue3'),
+            ],
+            Path('radio/desktop/index.html'): [
+              ('/radio/v2-recovery.js?v=20260818-artistinline4', '/radio/v2-recovery.js?v=20260824-profilequeue3'),
+            ],
+            Path('radio/dev/v2/index.html'): [
+              ('/radio/dev/v2/v2-recovery.js?v=20260724-player67', '/radio/dev/v2/v2-recovery.js?v=20260824-profilequeue3'),
+            ],
+            Path('radio/dev/v2/desktop/index.html'): [
+              ('/radio/dev/v2/v2-recovery.js?v=20260818-artistinline4', '/radio/dev/v2/v2-recovery.js?v=20260824-profilequeue3'),
+            ],
+          }
+          for path, replacements in busts.items():
+            text = path.read_text()
+            for before, after in replacements:
+              if before in text:
+                text = text.replace(before, after)
+              elif after not in text:
+                raise SystemExit(f'Missing cache-bust anchor in {path}: {before}')
             path.write_text(text)
           PY
+
       - name: Commit core player fix
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add radio/v2.js radio/dev/v2/v2.js
+          git add radio/v2.js radio/dev/v2/v2.js radio/v2-recovery.js radio/dev/v2/v2-recovery.js radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html
           if git diff --cached --quiet; then
             echo 'No changes required.'
           else
-            git commit -m 'Preserve playlist queue in core Radio player'
+            git commit -m 'Preserve playlists in desktop and mobile player cores'
             git push origin main
           fi
