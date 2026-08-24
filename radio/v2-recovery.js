@@ -350,8 +350,28 @@
     const selected = state.songs.find(item => item.key === key);
     if (!selected) return;
     state.selected = selected;
-    state.queue = state.visible.length ? [...state.visible] : [...state.songs];
-    state.index = Math.max(0, state.queue.findIndex(item => item.key === key));
+    let profilePlaylist = null;
+    try {
+      const payload = JSON.parse(sessionStorage.getItem('stashbox_v2_profile_queue_handoff') || 'null');
+      if (payload && Array.isArray(payload.songKeys) && String(payload.mode || '').startsWith('profile-playlist')) {
+        const keys = [...new Set(payload.songKeys.map(clean).filter(Boolean))];
+        const songs = keys.map(songKey => state.songs.find(item => item.key === songKey)).filter(Boolean);
+        if (songs.length && songs.some(item => item.key === key)) profilePlaylist = { payload, songs };
+      }
+    } catch (_) {}
+    if (profilePlaylist) {
+      state.queue = profilePlaylist.songs;
+      state.index = Math.max(0, state.queue.findIndex(item => item.key === key));
+      try {
+        profilePlaylist.payload.index = state.index;
+        profilePlaylist.payload.selectedSongKey = key;
+        profilePlaylist.payload.updatedAt = Date.now();
+        sessionStorage.setItem('stashbox_v2_profile_queue_handoff', JSON.stringify(profilePlaylist.payload));
+      } catch (_) {}
+    } else {
+      state.queue = state.visible.length ? [...state.visible] : [...state.songs];
+      state.index = Math.max(0, state.queue.findIndex(item => item.key === key));
+    }
 
     const player = app.querySelector('[data-player]');
     if (player) player.hidden = false;
