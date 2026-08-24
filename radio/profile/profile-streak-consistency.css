@@ -4,3 +4,74 @@
   color:#c98a34;
   box-shadow:inset 0 0 0 1px rgba(255,159,10,.08);
 }
+
+.streak-card.streak-month{
+  min-height:320px;
+  place-content:stretch;
+  align-content:start;
+}
+
+.streak-card.streak-month h3{
+  justify-self:center;
+}
+
+.streak-month-label{
+  margin-top:12px;
+  color:#f7f3eb;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.streak-days.streak-month-grid{
+  display:grid;
+  grid-template-columns:repeat(7,29px);
+  justify-content:center;
+  gap:7px;
+  margin-top:10px;
+}
+
+.streak-days.streak-month-grid .streak-weekday{
+  width:29px;
+  height:18px;
+  display:grid;
+  place-items:center;
+  color:#777;
+  font-size:9px;
+  font-weight:800;
+}
+
+.streak-days.streak-month-grid span{
+  margin:0;
+}
+
+.streak-days.streak-month-grid span.calendar-empty{
+  visibility:hidden;
+  border-color:transparent;
+  background:transparent;
+}
+
+.streak-days.streak-month-grid span.today:not(.on){
+  border-color:rgba(255,255,255,.8);
+  color:#f7f3eb;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+}
+
+.streak-days.streak-month-grid span.future{
+  opacity:.34;
+}
+
+@media (max-width:420px){
+  .streak-days.streak-month-grid{
+    grid-template-columns:repeat(7,27px);
+    gap:5px;
+  }
+  .streak-days.streak-month-grid .streak-weekday,
+  .streak-days.streak-month-grid span{
+    width:27px;
+  }
+  .streak-days.streak-month-grid span{
+    height:27px;
+  }
+}
