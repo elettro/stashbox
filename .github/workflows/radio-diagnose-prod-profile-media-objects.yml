@@ -1,0 +1,65 @@
+name: Diagnose PROD Profile Media Objects
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/radio-diagnose-prod-profile-media-objects.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Inspect profile media objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          bucket='stashbox-radio-media-prod-us-east-1'
+          mkdir -p radio/docs/diagnostics
+          report='radio/docs/diagnostics/PROD_PROFILE_MEDIA_OBJECTS_LATEST.txt'
+          : > "$report"
+          echo 'Stashbox Radio PROD profile media objects' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+          echo "bucket=${bucket}" >> "$report"
+          echo >> "$report"
+          aws s3api list-objects-v2 --bucket "$bucket" --region us-east-1 --output json > /tmp/all.json
+          jq -r '.Contents[]?.Key | select(startswith("user-profiles"))' /tmp/all.json > /tmp/keys.txt
+          count=$(wc -l < /tmp/keys.txt | tr -d ' ')
+          echo "count=${count}" >> "$report"
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            aws s3api head-object --bucket "$bucket" --key "$key" --region us-east-1 --output json > /tmp/head.json
+            echo "key=${key}" >> "$report"
+            echo "content_type=$(jq -r '.ContentType // empty' /tmp/head.json)" >> "$report"
+            echo "bytes=$(jq -r '.ContentLength // 0' /tmp/head.json)" >> "$report"
+            echo "metadata=$(jq -c '.Metadata // {}' /tmp/head.json)" >> "$report"
+            echo >> "$report"
+          done < /tmp/keys.txt
+
+      - name: Publish diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/docs/diagnostics/PROD_PROFILE_MEDIA_OBJECTS_LATEST.txt
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record PROD profile media object diagnostic [skip ci]'
+          git push
