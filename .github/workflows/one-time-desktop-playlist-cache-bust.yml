@@ -1,0 +1,40 @@
+name: One-time desktop playlist cache bust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-desktop-playlist-cache-bust.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Cache bust desktop playlist runtime
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('radio/desktop/index.html')
+          text = path.read_text()
+          text = text.replace('desktop-persistent-controls.js?v=20260818-boundary2', 'desktop-persistent-controls.js?v=20260824-playlist1')
+          text = text.replace('profilefavorites2">', 'profilefavorites2-playlist1">', 1)
+          path.write_text(text)
+          PY
+      - name: Commit production desktop playlist publish
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/desktop/index.html
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+          else
+            git commit -m 'Publish desktop Add to Playlist control'
+            git push origin main
+          fi
