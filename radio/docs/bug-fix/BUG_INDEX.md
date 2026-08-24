@@ -1,6 +1,6 @@
 # Stashbox Radio Bug Index
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 | ID | Title | Area | Severity | Environment | Status | Reported | Fix commit |
 |---|---|---|---|---|---|---|---|
@@ -27,7 +27,7 @@ Last updated: 2026-08-23
 | SR-BUG-0021 | Desktop F and L like hotkeys do not trigger Like in PROD | Player / Like / Hotkeys | High | PROD Desktop | Closed, verified | 2026-08-22 | `d6e8b664`, `76355d8a`, `4e245899` |
 | SR-BUG-0022 | Logged-in production profile fails to load on desktop and mobile | Profile / Auth | High | PROD Desktop + Mobile | Backend auth repair deployed, verification pending | 2026-08-23 | `157b62f4`, `526271f7`, `208040b0`, `008797e9`, `654f73a1` |
 | SR-BUG-0023 | Production artist profiles return not found after DEV to PROD promotion | Artist Profiles / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `d600cc08`, `c7448b38` |
-| SR-BUG-0024 | Listener profile images load in DEV but fail in production | Listener Profile / Profile Media / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `54a39ea0`, `e53dfc33` |
+| SR-BUG-0024 | Listener profile images load in DEV but fail in production | Listener Profile / Profile Media / PROD Data | High | PROD Desktop + Mobile | Fixed, user verification pending | 2026-08-23 | `54a39ea0`, `e53dfc33`, `e6fcf8ef`, `d0d93ebb`, `15e6463e` |
 | SR-BUG-0025 | Mobile Download for Offline does not persist song to device | Mobile Player / Offline Audio | High | PROD Mobile | Fixed, user verification pending | 2026-08-23 | `76d77456`, `eeef0def`, `bad12698` |
 
 ## Open / investigating
@@ -42,7 +42,7 @@ Last updated: 2026-08-23
 - `SR-BUG-0014` - Profile Songs Played now advances after desktop listening; user observed 191 → 195. Hours Listened remains under observation, so the repair is resolved/fixed for now rather than fully verified.
 - `SR-BUG-0022` - Production profile frontend session routing and cache defects were repaired first. A later live runtime diagnostic exposed that the VPC-attached PROD Lambda had no local production Cognito JWKS source. The current 2-key production JWKS is now installed in `COGNITO_JWKS_JSON`; Lambda state and update status passed. A listener whose failed profile request cleared local tokens must log in once before the final desktop/mobile PROFILE retest.
 - `SR-BUG-0023` - DEV and PROD both have 83 songs, but PROD initially had 0 of the 3 public artist profiles. Stashbox, Tahiti Cora, and The Ras Box were mirrored from DEV with their public media and song associations. Post-repair comparison returns HTTP 200 for all 3 in both DEV and PROD.
-- `SR-BUG-0024` - DEV contained 3 listener profile-media objects while PROD contained 0. The guarded repair copied all 3 into the production media bucket, verified all 3 object sizes, and confirmed all 3 return HTTP 200 through the production CloudFront media host. Desktop and mobile profile-image UI verification remain pending.
+- `SR-BUG-0024` - The first repair copied all 3 listener profile-media objects into PROD and verified public reads. A 2026-08-24 retest exposed two remaining production defects: the PROD media bucket had no browser PUT CORS rule, causing `Failed to fetch` during uploads, and the unified profile-media editor overwrote saved legacy account-form image URLs with empty unified-media values. PROD S3 CORS now allows Stashbox browser uploads, and the production profile-media runtime preserves saved avatar/banner fallbacks, repoints legacy DEV media URLs to the PROD CloudFront host, and is cache-busted. Desktop and mobile verification remain pending.
 - `SR-BUG-0025` - PROD mobile audio-stream preference still targeted the DEV song API, so the offline action could attempt to fetch the large current master asset. PROD now targets `/prod-v2/radio/songs`; the downloader resolves the active song against the PROD catalog, prefers mobile/MP3 stream fields, writes the Blob to IndexedDB, then performs a read-back before reporting success. Physical mobile verification remains pending.
 
 ## Closed
