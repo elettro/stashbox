@@ -1,0 +1,71 @@
+name: One-time desktop playlist core repair
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-recovery-playlist-core.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Keep playlist queue inside recovery player
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          old = """    state.selected = selected;\n    state.queue = state.visible.length ? [...state.visible] : [...state.songs];\n    state.index = Math.max(0, state.queue.findIndex(item => item.key === key));"""
+          new = """    state.selected = selected;\n    let profilePlaylist = null;\n    try {\n      const payload = JSON.parse(sessionStorage.getItem('stashbox_v2_profile_queue_handoff') || 'null');\n      if (payload && Array.isArray(payload.songKeys) && String(payload.mode || '').startsWith('profile-playlist')) {\n        const keys = [...new Set(payload.songKeys.map(clean).filter(Boolean))];\n        const songs = keys.map(songKey => state.songs.find(item => item.key === songKey)).filter(Boolean);\n        if (songs.length && songs.some(item => item.key === key)) profilePlaylist = { payload, songs };\n      }\n    } catch (_) {}\n    if (profilePlaylist) {\n      state.queue = profilePlaylist.songs;\n      state.index = Math.max(0, state.queue.findIndex(item => item.key === key));\n      try {\n        profilePlaylist.payload.index = state.index;\n        profilePlaylist.payload.selectedSongKey = key;\n        profilePlaylist.payload.updatedAt = Date.now();\n        sessionStorage.setItem('stashbox_v2_profile_queue_handoff', JSON.stringify(profilePlaylist.payload));\n      } catch (_) {}\n    } else {\n      state.queue = state.visible.length ? [...state.visible] : [...state.songs];\n      state.index = Math.max(0, state.queue.findIndex(item => item.key === key));\n    }"""
+
+          for filename in ['radio/v2-recovery.js', 'radio/dev/v2/v2-recovery.js']:
+            path = Path(filename)
+            text = path.read_text()
+            if old in text:
+              text = text.replace(old, new, 1)
+            elif new not in text:
+              raise SystemExit(f'Queue reset block not found in {filename}')
+            path.write_text(text)
+
+          busts = {
+            'radio/index.html': [
+              ('/radio/v2-recovery.js?v=20260724-player67', '/radio/v2-recovery.js?v=20260824-playlistcore1'),
+              ('/radio/v2-recovery.js?v=20260824-profilequeue3', '/radio/v2-recovery.js?v=20260824-playlistcore1'),
+            ],
+            'radio/desktop/index.html': [
+              ('/radio/v2-recovery.js?v=20260818-artistinline4', '/radio/v2-recovery.js?v=20260824-playlistcore1'),
+              ('/radio/v2-recovery.js?v=20260824-profilequeue3', '/radio/v2-recovery.js?v=20260824-playlistcore1'),
+            ],
+            'radio/dev/v2/index.html': [
+              ('/radio/dev/v2/v2-recovery.js?v=20260724-player67', '/radio/dev/v2/v2-recovery.js?v=20260824-playlistcore1'),
+              ('/radio/dev/v2/v2-recovery.js?v=20260824-profilequeue3', '/radio/dev/v2/v2-recovery.js?v=20260824-playlistcore1'),
+            ],
+            'radio/dev/v2/desktop/index.html': [
+              ('/radio/dev/v2/v2-recovery.js?v=20260818-artistinline4', '/radio/dev/v2/v2-recovery.js?v=20260824-playlistcore1'),
+              ('/radio/dev/v2/v2-recovery.js?v=20260824-profilequeue3', '/radio/dev/v2/v2-recovery.js?v=20260824-playlistcore1'),
+            ],
+          }
+          for filename, pairs in busts.items():
+            path = Path(filename)
+            text = path.read_text()
+            changed = False
+            for before, after in pairs:
+              if before in text:
+                text = text.replace(before, after)
+                changed = True
+            if 'playlistcore1' not in text:
+              raise SystemExit(f'Could not cache-bust recovery runtime in {filename}')
+            path.write_text(text)
+          PY
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/v2-recovery.js radio/dev/v2/v2-recovery.js radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Keep profile playlists in recovery player core'
+            git push origin main
+          fi
