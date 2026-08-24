@@ -56,13 +56,7 @@
       const rootRect = root.getBoundingClientRect();
       const gap = 10;
       const viewportPad = 18;
-
-      // The right edge of the DEAN/account pill defines the same visual boundary
-      // as the right edge of the main content column.
-      const boundaryRight = Math.min(
-        window.innerWidth - viewportPad,
-        Math.max(viewportPad + rootRect.width, Math.round(contentRect.right))
-      );
+      const boundaryRight = Math.min(window.innerWidth - viewportPad, Math.max(viewportPad + rootRect.width, Math.round(contentRect.right)));
       const rootLeft = Math.max(viewportPad, Math.round(boundaryRight - rootRect.width));
       const top = Math.max(8, Math.round(searchRect.top + (searchRect.height - rootRect.height) / 2));
 
@@ -71,7 +65,6 @@
       root.style.right = 'auto';
       root.setAttribute('data-anchored', 'true');
 
-      // Keep the header sequence literal: Search -> Bell -> Account -> boundary.
       const searchLeft = Math.max(viewportPad, Math.round(rootLeft - gap - searchRect.width));
       const searchTop = Math.max(8, Math.round(top + (rootRect.height - searchRect.height) / 2));
       search.style.setProperty('position', 'fixed', 'important');
@@ -92,7 +85,6 @@
   bell?.addEventListener('click', event => {
     event.preventDefault();
     event.stopImmediatePropagation();
-
     let proxy = app.querySelector('.v2-notifications-trigger');
     if (!proxy) {
       const actions = app.querySelector('.v2-header-actions') || app.querySelector('.v2-header');
@@ -107,20 +99,26 @@
     proxy.click();
   }, true);
 
-  const appObserver = new MutationObserver(positionAtContentBoundary);
-  appObserver.observe(app, { childList: true });
-
+  new MutationObserver(positionAtContentBoundary).observe(app, { childList: true });
   window.addEventListener('resize', positionAtContentBoundary, { passive: true });
   window.addEventListener('pageshow', positionAtContentBoundary);
   window.addEventListener('focus', positionAtContentBoundary);
   window.addEventListener('stashbox:v2-auth-changed', syncLogin);
   window.addEventListener('stashbox:v2-session-changed', syncLogin);
-  window.addEventListener('storage', event => {
-    if (!event.key || event.key === TOKEN_KEY) syncLogin();
-  });
-
+  window.addEventListener('storage', event => { if (!event.key || event.key === TOKEN_KEY) syncLogin(); });
   [0, 50, 150, 350, 750, 1500, 3000].forEach(delay => window.setTimeout(positionAtContentBoundary, delay));
   syncLogin();
+
+  const loadRuntime = (src, marker) => {
+    if (document.querySelector(`script[${marker}]`)) return;
+    const script = document.createElement('script');
+    script.src = src;
+    script.setAttribute(marker, 'true');
+    document.body.appendChild(script);
+  };
+
+  loadRuntime('/radio/desktop/desktop-add-playlist-shared.js?v=20260824-controls2', 'data-desktop-playlist-shared-loader');
+  loadRuntime('/radio/desktop/desktop-control-order.js?v=20260824-controls2', 'data-desktop-control-order-loader');
 
   window.StashboxDesktopPersistentControls = Object.freeze({
     refresh: () => {
