@@ -1,0 +1,60 @@
+name: Diagnose PROD Profile Media API Route
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/radio-prod-profile-media-route-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Probe production API route and CORS
+        shell: bash
+        env:
+          API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+          ORIGIN: https://stashbox.com
+        run: |
+          set -u
+          mkdir -p radio/docs/diagnostics /tmp/profile-route
+          report='radio/docs/diagnostics/PROD_PROFILE_MEDIA_ROUTE_LATEST.txt'
+          : > "$report"
+          echo 'Stashbox Radio PROD profile media API route diagnostic' >> "$report"
+          echo "run_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$report"
+          echo "source_commit=${GITHUB_SHA}" >> "$report"
+
+          get_code="$(curl -sS --max-time 30 -D /tmp/profile-route/get.headers -o /tmp/profile-route/get.body -w '%{http_code}' -H "Origin: ${ORIGIN}" "$API/radio/me/media" || echo curl_error)"
+          echo "unauth_get_status=${get_code}" >> "$report"
+          echo "unauth_get_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-route/get.headers 2>/dev/null)" >> "$report"
+          echo "unauth_get_content_type=$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-route/get.headers 2>/dev/null)" >> "$report"
+          echo "unauth_get_body=$(tr '\n' ' ' < /tmp/profile-route/get.body 2>/dev/null | head -c 800)" >> "$report"
+
+          options_code="$(curl -sS --max-time 30 -D /tmp/profile-route/options.headers -o /tmp/profile-route/options.body -w '%{http_code}' -X OPTIONS -H "Origin: ${ORIGIN}" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,x-cognito-id-token,content-type' "$API/radio/me/media/presign" || echo curl_error)"
+          echo "presign_options_status=${options_code}" >> "$report"
+          echo "presign_options_acao=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-origin:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-route/options.headers 2>/dev/null)" >> "$report"
+          echo "presign_options_methods=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-methods:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-route/options.headers 2>/dev/null)" >> "$report"
+          echo "presign_options_headers=$(awk 'BEGIN{IGNORECASE=1} /^access-control-allow-headers:/ {gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' /tmp/profile-route/options.headers 2>/dev/null)" >> "$report"
+          echo "presign_options_body=$(tr '\n' ' ' < /tmp/profile-route/options.body 2>/dev/null | head -c 800)" >> "$report"
+          cat "$report"
+
+      - name: Publish diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add radio/docs/diagnostics/PROD_PROFILE_MEDIA_ROUTE_LATEST.txt
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record PROD profile media route diagnostic [skip ci]'
+          git push
