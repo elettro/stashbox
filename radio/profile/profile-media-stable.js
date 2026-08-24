@@ -4,6 +4,8 @@
   const API = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const TOKEN_KEY = 'stashbox_radio_prod_cognito_tokens';
   const MAX_BYTES = 10 * 1024 * 1024;
+  const PROD_MEDIA_BASE = 'https://d34ez960394y8w.cloudfront.net';
+  const LEGACY_MEDIA_HOSTS = new Set(['d1ufj7xan6uxy0.cloudfront.net']);
   const mobile = window.matchMedia('(max-width: 699px)');
   const app = document.getElementById('profileApp');
   if (!app) return;
@@ -45,6 +47,18 @@
   let scheduled = false;
   const clean = value => String(value ?? '').trim();
 
+  function normalizeSavedUrl(value) {
+    const raw = clean(value);
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, location.href);
+      if (LEGACY_MEDIA_HOSTS.has(url.hostname) && /^\/user-profiles(?:-|\/)/.test(url.pathname)) {
+        return `${PROD_MEDIA_BASE}${url.pathname}${url.search}`;
+      }
+    } catch (_) {}
+    return raw;
+  }
+
   function tokens() {
     try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') || {}; }
     catch (_) { return {}; }
@@ -80,7 +94,11 @@
       credentials: 'omit',
       headers: headers(false)
     }).then(parse);
-    media = body.media || {};
+    const next = body.media || {};
+    Object.values(config).forEach(item => {
+      if (next[item.media]) next[item.media] = normalizeSavedUrl(next[item.media]);
+    });
+    media = next;
     return media;
   }
 
@@ -89,7 +107,7 @@
   }
 
   function value(kind) {
-    return clean(input(kind)?.value || media?.[config[kind].media]);
+    return normalizeSavedUrl(input(kind)?.value || media?.[config[kind].media]);
   }
 
   function card(kind) {
@@ -110,7 +128,7 @@
   }
 
   function setValue(kind, url) {
-    const normalized = clean(url);
+    const normalized = normalizeSavedUrl(url);
     const node = input(kind);
     if (node) node.value = normalized;
     media = { ...(media || {}), [config[kind].media]: normalized };
@@ -122,14 +140,15 @@
   function render(kind, url = '') {
     const node = card(kind)?.querySelector('[data-profile-media-preview]');
     if (!node) return;
+    const normalized = normalizeSavedUrl(url);
     node.innerHTML = '';
-    if (!url) {
+    if (!normalized) {
       node.textContent = `No ${config[kind].label.toLowerCase()} uploaded`;
       return;
     }
     const image = new Image();
     image.alt = `${config[kind].label} preview`;
-    image.src = `${url}${url.includes('?') ? '&' : '?'}preview=${Date.now()}`;
+    image.src = `${normalized}${normalized.includes('?') ? '&' : '?'}preview=${Date.now()}`;
     image.onerror = () => { node.textContent = 'Image preview unavailable'; };
     node.appendChild(image);
   }
@@ -158,7 +177,7 @@
       vertical = document.createElement('input');
       vertical.type = 'hidden';
       vertical.name = 'vertical_banner_url';
-      vertical.value = clean(media?.vertical_banner_image_url);
+      vertical.value = normalizeSavedUrl(media?.vertical_banner_image_url);
       form.appendChild(vertical);
     }
 
@@ -170,12 +189,17 @@
     else form.querySelector('.profile-form-actions')?.before(editor);
 
     Object.keys(config).forEach(kind => {
-      const saved = clean(media?.[config[kind].media]);
       const node = input(kind);
+      const apiSaved = normalizeSavedUrl(media?.[config[kind].media]);
+      const formSaved = normalizeSavedUrl(node?.value);
+      const saved = apiSaved || formSaved;
       if (node) node.value = saved;
+      if (saved) media = { ...(media || {}), [config[kind].media]: saved };
       render(kind, saved);
-      status(kind, 'Loaded from your saved profile.');
+      status(kind, saved ? 'Loaded from your saved profile.' : 'No saved image on this profile.');
     });
+    applyBanner();
+    notifyChanged();
   }
 
   function queue() {
@@ -219,23 +243,24 @@
 
   async function persistAndVerify(kind, expectedUrl) {
     const key = config[kind].media;
+    const normalizedExpected = normalizeSavedUrl(expectedUrl);
     const body = await fetch(`${API}/radio/me/media`, {
       method: 'PATCH',
       cache: 'no-store',
       credentials: 'omit',
       headers: headers(true),
-      body: JSON.stringify({ [key]: clean(expectedUrl) })
+      body: JSON.stringify({ [key]: normalizedExpected })
     }).then(parse);
 
-    const returned = clean(body.media?.[key]);
-    if (returned !== clean(expectedUrl)) {
+    const returned = normalizeSavedUrl(body.media?.[key]);
+    if (returned !== normalizedExpected) {
       throw new Error(`${config[kind].label} save returned a different URL.`);
     }
 
     media = null;
     const fresh = await getMedia(true);
-    const actual = clean(fresh?.[key]);
-    if (actual !== clean(expectedUrl)) {
+    const actual = normalizeSavedUrl(fresh?.[key]);
+    if (actual !== normalizedExpected) {
       throw new Error(`${config[kind].label} did not survive a fresh RDS read-back.`);
     }
     setValue(kind, actual);
@@ -266,18 +291,24 @@
     }
 
     status(kind, 'Uploading image to Stashbox storage…');
-    const put = await fetch(presign.upload_url, {
-      method: presign.method || 'PUT',
-      mode: 'cors',
-      credentials: 'omit',
-      headers: presign.headers || { 'Content-Type': file.type },
-      body: file
-    });
+    let put;
+    try {
+      put = await fetch(presign.upload_url, {
+        method: presign.method || 'PUT',
+        mode: 'cors',
+        credentials: 'omit',
+        headers: presign.headers || { 'Content-Type': file.type },
+        body: file
+      });
+    } catch (_) {
+      throw new Error('Storage upload connection failed. Refresh this page and try again.');
+    }
     if (!put.ok) throw new Error(`Image upload failed with status ${put.status}.`);
 
-    render(kind, presign.public_url);
+    const publicUrl = normalizeSavedUrl(presign.public_url);
+    render(kind, publicUrl);
     status(kind, 'Upload complete. Saving and verifying your profile…');
-    await persistAndVerify(kind, presign.public_url);
+    await persistAndVerify(kind, publicUrl);
     status(kind, `${size.width} × ${size.height} px uploaded, saved, and verified.${note(kind, size)}`);
   }
 
@@ -290,8 +321,8 @@
   function applyBanner() {
     const hero = document.querySelector('#profileApp .profile-hero');
     if (!hero) return;
-    const horizontal = clean(media?.horizontal_banner_image_url);
-    const vertical = clean(media?.vertical_banner_image_url);
+    const horizontal = normalizeSavedUrl(media?.horizontal_banner_image_url || input('horizontal')?.value);
+    const vertical = normalizeSavedUrl(media?.vertical_banner_image_url || input('vertical')?.value);
     const selected = mobile.matches && vertical ? vertical : horizontal;
     if (selected) hero.style.setProperty('--profile-banner', `url(${JSON.stringify(selected)})`);
     else hero.style.removeProperty('--profile-banner');
