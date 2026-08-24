@@ -6,7 +6,7 @@
 
   const scripts = [
     '/radio/profile/profile.js?v=20260823-sessiongate2',
-    '/radio/profile/profile-real-stats.js?v=20260824-streaklive1',
+    '/radio/profile/profile-real-stats.js?v=20260824-streakmonth1',
     '/radio/profile/profile-streak-visual-fix.js?v=20260824-streaklive1',
     '/radio/profile/profile-nav-cleanup.js?v=20260823-mobileoffline1',
     '/radio/profile/profile-playlist-reorder.js?v=20260723-profile14',
