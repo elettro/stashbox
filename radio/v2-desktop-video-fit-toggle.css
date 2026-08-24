@@ -1,15 +1,23 @@
 @media (min-width: 900px) {
   .v2-artist-row .v2-desktop-video-fit-toggle {
+    order: 30;
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
-    margin-left: auto;
+    margin-left: 0;
     padding: 4px 7px;
     border: 1px solid rgba(255,255,255,.18);
     border-radius: 999px;
     background: rgba(5,6,7,.42);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+  }
+  .desktop-clean-runtime .v2-player .v2-artist-row .desktop-add-playlist-button {
+    order: 20;
+    margin-left: auto;
+  }
+  .desktop-clean-runtime .v2-player .v2-artist-row .v2-li-song-more {
+    order: 25;
   }
   .v2-desktop-video-fit-toggle button {
     min-width: 32px;
