@@ -122,6 +122,13 @@
   [0, 50, 150, 350, 750, 1500, 3000].forEach(delay => window.setTimeout(positionAtContentBoundary, delay));
   syncLogin();
 
+  if (!document.querySelector('script[data-desktop-add-playlist-loader]')) {
+    const playlistScript = document.createElement('script');
+    playlistScript.src = '/radio/desktop/desktop-add-playlist.js?v=20260824-playlist1';
+    playlistScript.dataset.desktopAddPlaylistLoader = 'true';
+    document.body.appendChild(playlistScript);
+  }
+
   window.StashboxDesktopPersistentControls = Object.freeze({
     refresh: () => {
       syncLogin();
