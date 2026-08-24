@@ -124,11 +124,24 @@
     }
   }
 
+  const directEnded = () => {
+    if (!active) return;
+    advance(1, 'ended-direct');
+  };
+
+  function ownAudioEndedHandler() {
+    if (!active) return false;
+    const audio = app.querySelector('[data-player] [data-audio]');
+    if (!(audio instanceof HTMLAudioElement)) return false;
+    if (audio.onended !== directEnded) audio.onended = directEnded;
+    audio.dataset.profilePlaylistQueue = 'true';
+    return true;
+  }
+
   document.addEventListener('ended', event => {
     if (!active) return;
     const media = event.target;
     if (!(media instanceof HTMLAudioElement) || !media.matches('[data-audio]') || !media.closest('#v2App [data-player]')) return;
-
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
@@ -182,6 +195,7 @@
   ['playing', 'loadedmetadata'].forEach(type => {
     document.addEventListener(type, event => {
       if (!active || !(event.target instanceof HTMLAudioElement) || !event.target.matches('[data-audio]')) return;
+      ownAudioEndedHandler();
       syncIndex();
     }, true);
   });
@@ -191,6 +205,7 @@
     attempts += 1;
     if (app.querySelector('[data-song]') || app.querySelector('[data-player]')) {
       window.clearInterval(startup);
+      ownAudioEndedHandler();
       playIndex(queue.index, 'start');
       return;
     }
@@ -202,6 +217,7 @@
 
   const syncTimer = window.setInterval(() => {
     if (!active) return window.clearInterval(syncTimer);
+    ownAudioEndedHandler();
     syncIndex();
   }, 350);
 
