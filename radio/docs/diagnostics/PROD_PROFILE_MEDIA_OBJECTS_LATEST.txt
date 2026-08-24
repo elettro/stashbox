@@ -1,0 +1,21 @@
+Stashbox Radio PROD profile media objects
+run_utc=2026-08-24T13:07:02Z
+source_commit=d0a32b3cdd3bee27847a5320a37a8fe50c06a015
+bucket=stashbox-radio-media-prod-us-east-1
+
+count=3
+key=user-profiles-9fdf3d028d6519a1b96955bd/horizontal_banner/1787487689921-05fd4945-d42f-4eb8-987c-65dc33e11732-dean_palermo_stashbox_wide_text_across_the_top_high_constrast_a947d433-6a6b-46bf-9be1-5958.png
+content_type=image/png
+bytes=2030730
+metadata={"media_purpose":"horizontal_banner","owner":"9fdf3d028d6519a1b96955bd"}
+
+key=user-profiles-9fdf3d028d6519a1b96955bd/profile_image/1787487684101-484f24fb-a013-4ce5-bf06-d9ac16318c4e-dean_palermo_1960s_timeless_jamican_reggae_hero_album_artwork_a7431037-a9c1-40cc-93e0-d7cf.png
+content_type=image/png
+bytes=1680223
+metadata={"media_purpose":"profile_image","owner":"9fdf3d028d6519a1b96955bd"}
+
+key=user-profiles-9fdf3d028d6519a1b96955bd/vertical_banner/1787487694863-f846dab9-cd89-4cda-b1d1-0a588b2baa5f-dean2.jpg
+content_type=image/jpeg
+bytes=634797
+metadata={"media_purpose":"vertical_banner","owner":"9fdf3d028d6519a1b96955bd"}
+
