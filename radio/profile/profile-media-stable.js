@@ -141,6 +141,8 @@
     const node = card(kind)?.querySelector('[data-profile-media-preview]');
     if (!node) return;
     const normalized = normalizeSavedUrl(url);
+    if (node.dataset.profileMediaUrl === normalized) return;
+    node.dataset.profileMediaUrl = normalized;
     node.innerHTML = '';
     if (!normalized) {
       node.textContent = `No ${config[kind].label.toLowerCase()} uploaded`;
@@ -149,7 +151,10 @@
     const image = new Image();
     image.alt = `${config[kind].label} preview`;
     image.src = `${normalized}${normalized.includes('?') ? '&' : '?'}preview=${Date.now()}`;
-    image.onerror = () => { node.textContent = 'Image preview unavailable'; };
+    image.onerror = () => {
+      node.dataset.profileMediaUrl = '';
+      node.textContent = 'Image preview unavailable';
+    };
     node.appendChild(image);
   }
 
@@ -158,10 +163,33 @@
     return `<article class="profile-media-card" data-profile-media-kind="${kind}"><div class="profile-media-card-head"><strong>${item.label}</strong><span>${item.help}</span></div><div class="profile-media-preview ${item.preview}" data-profile-media-preview>No ${item.label.toLowerCase()} uploaded</div><div class="profile-media-controls"><button type="button" data-profile-media-choose="${kind}">Upload / Replace</button><button type="button" class="secondary" data-profile-media-clear="${kind}">Remove</button></div><input class="profile-media-file" type="file" accept="image/jpeg,image/png,image/webp" data-profile-media-file="${kind}"><p class="profile-media-status" data-profile-media-status aria-live="polite"></p></article>`;
   }
 
+  function syncEditorFromSources() {
+    const form = document.querySelector('form[data-form="account"]');
+    if (!form || form.dataset.mediaUploadsReady !== 'true') return;
+    Object.keys(config).forEach(kind => {
+      const node = input(kind);
+      const apiSaved = normalizeSavedUrl(media?.[config[kind].media]);
+      const formSaved = normalizeSavedUrl(node?.value);
+      const saved = apiSaved || formSaved;
+      if (node && node.value !== saved) node.value = saved;
+      if (saved && clean(media?.[config[kind].media]) !== saved) {
+        media = { ...(media || {}), [config[kind].media]: saved };
+      }
+      render(kind, saved);
+      status(kind, saved ? 'Loaded from your saved profile.' : 'No saved image on this profile.');
+    });
+    applyBanner();
+    notifyChanged();
+  }
+
   function enhance() {
     scheduled = false;
     const form = document.querySelector('form[data-form="account"]');
-    if (!form || form.dataset.mediaUploadsReady === 'true') return;
+    if (!form) return;
+    if (form.dataset.mediaUploadsReady === 'true') {
+      syncEditorFromSources();
+      return;
+    }
     const avatar = form.querySelector('[name="avatar_url"]');
     const horizontal = form.querySelector('[name="banner_url"]');
     if (!avatar || !horizontal) return;
@@ -188,18 +216,7 @@
     if (email) email.before(editor);
     else form.querySelector('.profile-form-actions')?.before(editor);
 
-    Object.keys(config).forEach(kind => {
-      const node = input(kind);
-      const apiSaved = normalizeSavedUrl(media?.[config[kind].media]);
-      const formSaved = normalizeSavedUrl(node?.value);
-      const saved = apiSaved || formSaved;
-      if (node) node.value = saved;
-      if (saved) media = { ...(media || {}), [config[kind].media]: saved };
-      render(kind, saved);
-      status(kind, saved ? 'Loaded from your saved profile.' : 'No saved image on this profile.');
-    });
-    applyBanner();
-    notifyChanged();
+    syncEditorFromSources();
   }
 
   function queue() {
@@ -264,6 +281,7 @@
       throw new Error(`${config[kind].label} did not survive a fresh RDS read-back.`);
     }
     setValue(kind, actual);
+    syncEditorFromSources();
     return actual;
   }
 
