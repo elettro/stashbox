@@ -207,6 +207,8 @@
     $('#downloadCount').textContent = String(state.downloads.length);
     $('#downloadStorage').textContent = fmtBytes(totalBytes);
     empty.hidden = state.downloads.length > 0;
+    $('#playOfflineList')?.toggleAttribute('disabled', state.downloads.length === 0);
+    $('#shuffleOfflineList')?.toggleAttribute('disabled', state.downloads.length === 0);
     list.innerHTML = state.downloads.map((song, index) => `
       <article class="offline-track${index === state.currentIndex ? ' is-current' : ''}" data-download-id="${esc(song.id)}">
         <button class="offline-track-main" type="button" data-play-download="${esc(song.id)}">
@@ -352,6 +354,25 @@
     } catch (_) {}
   }
 
+  function syncShuffleButtons() {
+    $('#shuffleToggle')?.classList.toggle('is-active', state.shuffle);
+    $('#shuffleOfflineList')?.classList.toggle('is-active', state.shuffle);
+    $('#shuffleOfflineList')?.setAttribute('aria-pressed', state.shuffle ? 'true' : 'false');
+  }
+
+  function playDownloadedList(shuffleMode = false) {
+    if (!state.downloads.length) {
+      toast('Download a song first, then Play or Shuffle your offline list.', true);
+      return;
+    }
+    state.shuffle = Boolean(shuffleMode);
+    syncShuffleButtons();
+    const startIndex = state.shuffle && state.downloads.length > 1
+      ? Math.floor(Math.random() * state.downloads.length)
+      : 0;
+    return playById(state.downloads[startIndex].id, true);
+  }
+
   function nextIndex(direction) {
     if (!state.downloads.length) return -1;
     if (state.shuffle && state.downloads.length > 1) {
@@ -415,6 +436,8 @@
 
   function bind() {
     document.addEventListener('click', event => {
+      if (event.target.closest('#playOfflineList')) return playDownloadedList(false);
+      if (event.target.closest('#shuffleOfflineList')) return playDownloadedList(true);
       const play = event.target.closest('[data-play-download]');
       if (play) return playById(play.dataset.playDownload, true);
       const remove = event.target.closest('[data-remove-download]');
@@ -430,7 +453,7 @@
       if (event.target.closest('#nextTrack')) return adjacent(1);
       if (event.target.closest('#shuffleToggle')) {
         state.shuffle = !state.shuffle;
-        $('#shuffleToggle').classList.toggle('is-active', state.shuffle);
+        syncShuffleButtons();
         return;
       }
       if (event.target.closest('#repeatToggle')) {

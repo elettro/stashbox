@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050607">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="stashbox-offline-build" content="offlineplaylist2-20260822">
+  <meta name="stashbox-offline-build" content="offlineplaylist3-20260824">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Stashbox Offline">
@@ -52,6 +52,12 @@
     .section-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
     .metric{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .metric span{padding:6px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10px;font-weight:800}
+    .downloaded-head-actions{display:grid;gap:8px;justify-items:end}
+    .playlist-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .playlist-action{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid rgba(255,159,10,.42);border-radius:999px;background:rgba(255,159,10,.1);color:#ffbd56;font-size:11px;font-weight:950;letter-spacing:.01em;cursor:pointer}
+    .playlist-action.primary{background:var(--orange);border-color:var(--orange);color:#111}
+    .playlist-action.is-active{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);background:rgba(255,159,10,.18);color:#ffd18b}
+    .playlist-action:disabled{opacity:.42;cursor:default}
     .offline-message,.catalog-error{padding:14px 15px;border:1px solid rgba(255,159,10,.25);border-radius:14px;background:rgba(255,159,10,.06);color:#ffd18b;font-size:13px;line-height:1.4;margin-bottom:12px}
     .catalog-error{border-color:rgba(255,95,87,.25);background:rgba(255,95,87,.06);color:#ffaaa4}
     .offline-empty{padding:26px 16px;border:1px dashed var(--line);border-radius:18px;text-align:center;color:var(--muted)}
@@ -78,7 +84,7 @@
     .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:99;max-width:calc(100vw - 28px);padding:11px 14px;border:1px solid rgba(85,223,131,.35);border-radius:999px;background:rgba(8,12,10,.95);color:#baf6cd;font-size:12px;font-weight:800;opacity:0;pointer-events:none;transform:translate(-50%,12px);transition:.2s ease}
     .toast.is-visible{opacity:1;transform:translate(-50%,0)}
     .toast.is-error{border-color:rgba(255,95,87,.4);background:rgba(25,8,8,.96);color:#ffc0bc}
-    @media(max-width:600px){.offline-shell{padding-left:12px;padding-right:12px}.offline-header{align-items:flex-start}.offline-brand{font-size:25px}.player-ready{grid-template-columns:84px 1fr;gap:13px}.offline-player{border-radius:20px;padding:14px}.now-copy h1{font-size:28px}.transport{gap:6px}.transport button{border-radius:12px}.offline-available{grid-template-columns:50px minmax(0,1fr) auto}.offline-available .offline-track-art{width:50px;height:50px}.offline-download-button{min-width:82px;padding:0 8px}.section-head{align-items:flex-start;flex-direction:column}.metric{justify-content:flex-start}}
+    @media(max-width:600px){.offline-shell{padding-left:12px;padding-right:12px}.offline-header{align-items:flex-start}.offline-brand{font-size:25px}.player-ready{grid-template-columns:84px 1fr;gap:13px}.offline-player{border-radius:20px;padding:14px}.now-copy h1{font-size:28px}.transport{gap:6px}.transport button{border-radius:12px}.offline-available{grid-template-columns:50px minmax(0,1fr) auto}.offline-available .offline-track-art{width:50px;height:50px}.offline-download-button{min-width:82px;padding:0 8px}.section-head{align-items:flex-start;flex-direction:column}.metric{justify-content:flex-start}.downloaded-head-actions{justify-items:start}.playlist-actions{justify-content:flex-start}}
     @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.toast{transition:none}}
   </style>
 </head>
@@ -116,7 +122,13 @@
     <section class="section" aria-labelledby="downloadsTitle">
       <div class="section-head">
         <div><h2 id="downloadsTitle">Downloaded Songs</h2><p>These audio files live on this device.</p></div>
-        <div class="metric"><span><b id="downloadCount">0</b> songs</span><span id="downloadStorage">0 B</span></div>
+        <div class="downloaded-head-actions">
+          <div class="playlist-actions" aria-label="Offline playlist controls">
+            <button class="playlist-action primary" type="button" id="playOfflineList"><span aria-hidden="true">▶</span> Play</button>
+            <button class="playlist-action" type="button" id="shuffleOfflineList"><span aria-hidden="true">⤨</span> Shuffle</button>
+          </div>
+          <div class="metric"><span><b id="downloadCount">0</b> songs</span><span id="downloadStorage">0 B</span></div>
+        </div>
       </div>
       <div class="offline-message" id="offlineMessage" hidden>You are offline. Everything in this section plays directly from this device with no Stashbox server connection.</div>
       <div class="offline-empty" id="downloadedEmpty">No songs downloaded yet. Come back here while online and save a few.</div>
@@ -137,6 +149,6 @@
   </main>
   <div class="toast" id="offlineToast" role="status" aria-live="polite"></div>
   <script src="/radio/desktop/browser-audio-map.js?v=20260818-stream320-80"></script>
-  <script src="/radio/offline/offline.js?v=20260822-offlineplaylist2"></script>
+  <script src="/radio/offline/offline.js?v=20260824-offlineplaylist3"></script>
 </body>
 </html>
