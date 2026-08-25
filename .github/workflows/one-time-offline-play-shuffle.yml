@@ -1,0 +1,93 @@
+name: One-time offline playlist controls
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-offline-play-shuffle.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Add offline list Play and Shuffle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index_files = [
+            Path('radio/offline/index.html'),
+            Path('radio/dev/v2/offline/index.html'),
+          ]
+          js_files = [
+            Path('radio/offline/offline.js'),
+            Path('radio/dev/v2/offline/offline.js'),
+          ]
+
+          css_anchor = '    .metric span{padding:6px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10px;font-weight:800}\n'
+          css_add = '''    .downloaded-head-actions{display:grid;gap:8px;justify-items:end}\n    .playlist-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}\n    .playlist-action{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid rgba(255,159,10,.42);border-radius:999px;background:rgba(255,159,10,.1);color:#ffbd56;font-size:11px;font-weight:950;letter-spacing:.01em;cursor:pointer}\n    .playlist-action.primary{background:var(--orange);border-color:var(--orange);color:#111}\n    .playlist-action.is-active{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);background:rgba(255,159,10,.18);color:#ffd18b}\n    .playlist-action:disabled{opacity:.42;cursor:default}\n'''
+
+          old_metric = '        <div class="metric"><span><b id="downloadCount">0</b> songs</span><span id="downloadStorage">0 B</span></div>'
+          new_metric = '''        <div class="downloaded-head-actions">\n          <div class="playlist-actions" aria-label="Offline playlist controls">\n            <button class="playlist-action primary" type="button" id="playOfflineList"><span aria-hidden="true">▶</span> Play</button>\n            <button class="playlist-action" type="button" id="shuffleOfflineList"><span aria-hidden="true">⤨</span> Shuffle</button>\n          </div>\n          <div class="metric"><span><b id="downloadCount">0</b> songs</span><span id="downloadStorage">0 B</span></div>\n        </div>'''
+
+          for path in index_files:
+            text = path.read_text()
+            if '.downloaded-head-actions{' not in text:
+              if css_anchor not in text:
+                raise SystemExit(f'CSS anchor missing in {path}')
+              text = text.replace(css_anchor, css_anchor + css_add, 1)
+            if 'id="playOfflineList"' not in text:
+              if old_metric not in text:
+                raise SystemExit(f'Download metric anchor missing in {path}')
+              text = text.replace(old_metric, new_metric, 1)
+            text = text.replace('offlineplaylist2-20260822', 'offlineplaylist3-20260824')
+            text = text.replace('offline.js?v=20260822-offlineplaylist2', 'offline.js?v=20260824-offlineplaylist3')
+            text = text.replace('.metric{justify-content:flex-start}}', '.metric{justify-content:flex-start}.downloaded-head-actions{justify-items:start}.playlist-actions{justify-content:flex-start}}')
+            path.write_text(text)
+
+          helper_anchor = '  function nextIndex(direction) {'
+          helper = '''  function syncShuffleButtons() {\n    $('#shuffleToggle')?.classList.toggle('is-active', state.shuffle);\n    $('#shuffleOfflineList')?.classList.toggle('is-active', state.shuffle);\n    $('#shuffleOfflineList')?.setAttribute('aria-pressed', state.shuffle ? 'true' : 'false');\n  }\n\n  function playDownloadedList(shuffleMode = false) {\n    if (!state.downloads.length) {\n      toast('Download a song first, then Play or Shuffle your offline list.', true);\n      return;\n    }\n    state.shuffle = Boolean(shuffleMode);\n    syncShuffleButtons();\n    const startIndex = state.shuffle && state.downloads.length > 1\n      ? Math.floor(Math.random() * state.downloads.length)\n      : 0;\n    return playById(state.downloads[startIndex].id, true);\n  }\n\n'''
+
+          render_anchor = "    empty.hidden = state.downloads.length > 0;\n"
+          render_add = "    $('#playOfflineList')?.toggleAttribute('disabled', state.downloads.length === 0);\n    $('#shuffleOfflineList')?.toggleAttribute('disabled', state.downloads.length === 0);\n"
+
+          bind_anchor = "    document.addEventListener('click', event => {\n"
+          bind_add = "      if (event.target.closest('#playOfflineList')) return playDownloadedList(false);\n      if (event.target.closest('#shuffleOfflineList')) return playDownloadedList(true);\n"
+
+          old_shuffle = "      if (event.target.closest('#shuffleToggle')) {\n        state.shuffle = !state.shuffle;\n        $('#shuffleToggle').classList.toggle('is-active', state.shuffle);\n        return;\n      }"
+          new_shuffle = "      if (event.target.closest('#shuffleToggle')) {\n        state.shuffle = !state.shuffle;\n        syncShuffleButtons();\n        return;\n      }"
+
+          for path in js_files:
+            text = path.read_text()
+            if 'function playDownloadedList(' not in text:
+              if helper_anchor not in text:
+                raise SystemExit(f'nextIndex anchor missing in {path}')
+              text = text.replace(helper_anchor, helper + helper_anchor, 1)
+            if "$('#playOfflineList')?.toggleAttribute" not in text:
+              if render_anchor not in text:
+                raise SystemExit(f'render anchor missing in {path}')
+              text = text.replace(render_anchor, render_anchor + render_add, 1)
+            if "event.target.closest('#playOfflineList')" not in text:
+              if bind_anchor not in text:
+                raise SystemExit(f'bind anchor missing in {path}')
+              text = text.replace(bind_anchor, bind_anchor + bind_add, 1)
+            if old_shuffle in text:
+              text = text.replace(old_shuffle, new_shuffle, 1)
+            elif new_shuffle not in text:
+              raise SystemExit(f'shuffle handler anchor missing in {path}')
+            path.write_text(text)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add radio/offline/index.html radio/offline/offline.js radio/dev/v2/offline/index.html radio/dev/v2/offline/offline.js
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+          else
+            git commit -m 'Add Play and Shuffle to offline playlist'
+            git push origin main
+          fi
