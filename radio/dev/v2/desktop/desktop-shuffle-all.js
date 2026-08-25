@@ -66,8 +66,44 @@
       .desktop-clean-runtime .desktop-shuffle-all:active {
         transform: translate(-50%, -50%) scale(.92);
       }
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-header > *,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-content > *,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-li-player-rail,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-li-merch-tray,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-vec-clip-commerce,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-mobile-vec-status,
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-swipe-hint {
+        opacity: .025 !important;
+        pointer-events: none !important;
+        transition: opacity .28s ease !important;
+      }
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-shade {
+        opacity: 0 !important;
+        transition: opacity .28s ease !important;
+      }
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-backdrop {
+        filter: none !important;
+        -webkit-filter: none !important;
+      }
+      .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-mobile-vec-stage::after {
+        opacity: 0 !important;
+        transition: opacity .28s ease !important;
+      }
       @media (max-width: 899px) {
         .desktop-clean-runtime .desktop-shuffle-all { display: none !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-header > *,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-content > *,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-li-player-rail,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-li-merch-tray,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-vec-clip-commerce,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-mobile-vec-status,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-swipe-hint,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-shade,
+        .desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-mobile-vec-stage::after {
+          transition: none !important;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -203,9 +239,13 @@
     triggerSong(catalogKeys[nextIndex]);
   }
 
-  function playerIsOpen() {
+  function activePlayer() {
     const player = app.querySelector('[data-player]');
-    return Boolean(player && !player.hidden);
+    return player && !player.hidden ? player : null;
+  }
+
+  function playerIsOpen() {
+    return Boolean(activePlayer());
   }
 
   function likeHotkey() {
@@ -214,6 +254,30 @@
     if (!likeButton) return false;
     likeButton.click();
     return true;
+  }
+
+  function setCinemaMode(active, source = 'desktop-hotkey-m') {
+    const player = activePlayer();
+    if (!player) return false;
+
+    player.classList.remove('is-video-focus-mode', 'is-video-title-mode', 'is-cinema-controls-peek');
+    player.classList.toggle('is-video-cinema-mode', Boolean(active));
+    const mode = active ? 'cinema' : 'full';
+    player.dataset.playerViewMode = mode;
+
+    window.dispatchEvent(new CustomEvent('stashbox:video-focus-change', {
+      detail: { active: Boolean(active), mode, source }
+    }));
+    window.dispatchEvent(new CustomEvent('stashbox:player-view-mode-change', {
+      detail: { mode, source }
+    }));
+    return true;
+  }
+
+  function toggleCinemaMode() {
+    const player = activePlayer();
+    if (!player) return false;
+    return setCinemaMode(!player.classList.contains('is-video-cinema-mode'));
   }
 
   function injectButton() {
@@ -243,8 +307,13 @@
   const observer = new MutationObserver(() => {
     captureCatalog();
     injectButton();
+    const player = app.querySelector('[data-player]');
+    if (player?.hidden && player.classList.contains('is-video-cinema-mode')) {
+      player.classList.remove('is-video-cinema-mode', 'is-cinema-controls-peek');
+      player.dataset.playerViewMode = 'full';
+    }
   });
-  observer.observe(app, { childList: true, subtree: true });
+  observer.observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
 
   document.addEventListener('keydown', event => {
     if (!desktopQuery.matches || event.repeat) return;
@@ -252,8 +321,8 @@
     if (isTypingTarget(event.target)) return;
 
     const key = String(event.key || '').toLowerCase();
-    if (!['s', 'w', 'e', 'f', 'l'].includes(key)) return;
-    if ((key === 'f' || key === 'l') && !playerIsOpen()) return;
+    if (!['s', 'w', 'e', 'f', 'l', 'm'].includes(key)) return;
+    if ((key === 'f' || key === 'l' || key === 'm') && !playerIsOpen()) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -270,6 +339,11 @@
 
     if (key === 'e') {
       adjacentHotkey(1);
+      return;
+    }
+
+    if (key === 'm') {
+      toggleCinemaMode();
       return;
     }
 
@@ -315,6 +389,7 @@
 
   const onDesktopChange = event => {
     if (!event.matches) {
+      setCinemaMode(false, 'desktop-breakpoint-exit');
       disableShuffle();
       app.querySelector('[data-desktop-shuffle-all]')?.remove();
       return;
