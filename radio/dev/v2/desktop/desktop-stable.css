@@ -133,3 +133,10 @@ html, body { min-height: 100%; }
   color: #fff !important;
   text-decoration: none !important;
 }
+
+/* Desktop Cinema Mode keeps the exit navigation visible and usable. */
+.desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-header > .v2-icon-button[data-close],
+.desktop-clean-runtime .v2-player.is-video-cinema-mode .v2-player-header > .v2-player-mark {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
