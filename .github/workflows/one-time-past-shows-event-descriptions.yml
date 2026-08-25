@@ -1,0 +1,87 @@
+name: One-time past shows event descriptions
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-past-shows-event-descriptions.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Add missing Event descriptions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('past-shows/index.html')
+          text = path.read_text()
+
+          replacements = {
+            '"name": "Stashbox Live at Black Flamingo Brew Co", "startDate": "2021-07-09", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox Live at Black Flamingo Brew Co", "startDate": "2021-07-09", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at Black Flamingo Brew Co in Pompano Beach, Florida.", "location"',
+
+            '"name": "Stashbox Live at Kelly Brothers Irish Pub", "startDate": "2021-03-29", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox Live at Kelly Brothers Irish Pub", "startDate": "2021-03-29", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at Kelly Brothers Irish Pub in Fort Lauderdale, Florida.", "location"',
+
+            '"name": "Stashbox Live — Bahamas Paradise Reggae Cruise", "startDate": "2020-04-24", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox Live — Bahamas Paradise Reggae Cruise", "startDate": "2020-04-24", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance aboard the Bahamas Paradise Reggae Cruise departing from West Palm Beach, Florida.", "location"',
+
+            '"name": "Stashbox Live at Rip\'s Music Lounge", "startDate": "2020-03-14", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox Live at Rip\'s Music Lounge", "startDate": "2020-03-14", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at Rip\'s Music Lounge in Pompano Beach, Florida.", "location"',
+
+            '"name": "Stashbox Live at Tarpon River Brewery", "startDate": "2019-10-25", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox Live at Tarpon River Brewery", "startDate": "2019-10-25", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at Tarpon River Brewery in Fort Lauderdale, Florida.", "location"',
+
+            '"name": "Stashbox at Funky Biscuit Blues Jam", "startDate": "2018-10-22", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox at Funky Biscuit Blues Jam", "startDate": "2018-10-22", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at the Funky Biscuit Blues Jam in Boca Raton, Florida.", "location"',
+
+            '"name": "Stashbox at Silverball Museum", "startDate": "2018-06-02", "eventStatus": "https://schema.org/EventScheduled", "location"':
+            '"name": "Stashbox at Silverball Museum", "startDate": "2018-06-02", "eventStatus": "https://schema.org/EventScheduled", "description": "Stashbox live performance at Silverball Museum in Delray Beach, Florida.", "location"',
+          }
+
+          for old, new in replacements.items():
+            if old not in text:
+              raise SystemExit(f'Missing expected Event schema anchor: {old}')
+            text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+      - name: Verify all MusicEvent descriptions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          text = Path('past-shows/index.html').read_text()
+          blocks = re.findall(r'<script type="application/ld\+json">\s*(.*?)\s*</script>', text, re.S)
+          if not blocks:
+            raise SystemExit('No JSON-LD found')
+          data = json.loads(blocks[0])
+          events = []
+          for node in data:
+            if node.get('@type') == 'ItemList':
+              for entry in node.get('itemListElement', []):
+                item = entry.get('item', {})
+                if item.get('@type') == 'MusicEvent':
+                  events.append(item)
+          missing = [event.get('name') for event in events if not str(event.get('description', '')).strip()]
+          if missing:
+            raise SystemExit('MusicEvent descriptions still missing: ' + ', '.join(missing))
+          print(f'Validated {len(events)} MusicEvent entries with descriptions.')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add past-shows/index.html
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+          else
+            git commit -m 'Add descriptions to past show Event schema'
+            git push origin main
+          fi
