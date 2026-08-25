@@ -293,7 +293,6 @@
     button.dataset.desktopShuffleAll = 'true';
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', 'Shuffle all');
-    button.title = 'Shuffle All: On (S skips)';
     button.title = 'Shuffle All (S)';
     button.innerHTML = SHUFFLE_ICON;
 
