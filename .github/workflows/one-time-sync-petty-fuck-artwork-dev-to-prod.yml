@@ -1,0 +1,212 @@
+name: One-time Sync Petty Fuck Artwork DEV to PROD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-sync-petty-fuck-artwork-dev-to-prod.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sync-artwork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      DEV_FUNCTION: stashbox-radio-api-dev-v2
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+      AWS_REGION: us-east-1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Read DEV and PROD runtime configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration --function-name "${DEV_FUNCTION}" --region "${AWS_REGION}" > /tmp/dev-lambda.json
+          aws lambda get-function-configuration --function-name "${PROD_FUNCTION}" --region "${AWS_REGION}" > /tmp/prod-lambda.json
+
+          DEV_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // empty' /tmp/dev-lambda.json)"
+          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // empty' /tmp/prod-lambda.json)"
+          DEV_BUCKET="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' /tmp/dev-lambda.json)"
+          PROD_BUCKET="$(jq -r '.Environment.Variables.UPLOAD_BUCKET // .Environment.Variables.UPLOAD_BUCKET_NAME // .Environment.Variables.RADIO_UPLOAD_BUCKET // .Environment.Variables.S3_BUCKET // .Environment.Variables.MEDIA_BUCKET // empty' /tmp/prod-lambda.json)"
+          DEV_PUBLIC_BASE="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // .Environment.Variables.MEDIA_PUBLIC_BASE_URL // .Environment.Variables.RADIO_MEDIA_PUBLIC_BASE_URL // empty' /tmp/dev-lambda.json)"
+          PROD_PUBLIC_BASE="$(jq -r '.Environment.Variables.UPLOAD_PUBLIC_BASE_URL // .Environment.Variables.MEDIA_PUBLIC_BASE_URL // .Environment.Variables.RADIO_MEDIA_PUBLIC_BASE_URL // empty' /tmp/prod-lambda.json)"
+          PROD_REGION="$(jq -r '.Environment.Variables.UPLOAD_REGION // .Environment.Variables.UPLOAD_BUCKET_REGION // .Environment.Variables.S3_BUCKET_REGION // .Environment.Variables.RADIO_UPLOAD_BUCKET_REGION // empty' /tmp/prod-lambda.json)"
+          PROD_REGION="${PROD_REGION:-us-east-1}"
+
+          test -n "${DEV_TOKEN}"
+          test -n "${PROD_TOKEN}"
+          test -n "${DEV_BUCKET}"
+          test -n "${PROD_BUCKET}"
+
+          echo "::add-mask::${DEV_TOKEN}"
+          echo "::add-mask::${PROD_TOKEN}"
+          printf 'DEV_TOKEN=%s\nPROD_TOKEN=%s\nDEV_BUCKET=%s\nPROD_BUCKET=%s\nDEV_PUBLIC_BASE=%s\nPROD_PUBLIC_BASE=%s\nPROD_REGION=%s\n' \
+            "${DEV_TOKEN}" "${PROD_TOKEN}" "${DEV_BUCKET}" "${PROD_BUCKET}" "${DEV_PUBLIC_BASE}" "${PROD_PUBLIC_BASE}" "${PROD_REGION}" >> "${GITHUB_ENV}"
+
+          echo "DEV bucket: ${DEV_BUCKET}"
+          echo "PROD bucket: ${PROD_BUCKET}"
+
+      - name: Resolve Petty Fuck song key from DEV
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -H "x-admin-token: ${DEV_TOKEN}" \
+            "${DEV_API}/admin/songs" > /tmp/dev-songs.json
+
+          python3 - <<'PY'
+          import json, sys
+          data=json.load(open('/tmp/dev-songs.json'))
+          def rows(obj):
+              if isinstance(obj,list): return obj
+              if not isinstance(obj,dict): return []
+              for k in ('songs','items','data'):
+                  v=obj.get(k)
+                  if isinstance(v,list): return v
+                  if isinstance(v,dict):
+                      for kk in ('songs','items','data'):
+                          vv=v.get(kk)
+                          if isinstance(vv,list): return vv
+              return []
+          found=[]
+          for s in rows(data):
+              title=str(s.get('display_title') or s.get('song_name') or '').strip().lower()
+              artist=str(s.get('artist') or '').strip().lower()
+              if title == 'petty fuck' and artist == 'stashbox':
+                  found.append(s)
+          if len(found) != 1:
+              print(f'Expected exactly one DEV Petty Fuck by Stashbox, found {len(found)}', file=sys.stderr)
+              sys.exit(2)
+          key=str(found[0].get('song_key') or '').strip()
+          if not key: raise SystemExit('DEV song has no song_key')
+          open('/tmp/song-key.txt','w').write(key)
+          print('Song key:', key)
+          PY
+
+      - name: Read and validate all 6 latest DEV artwork images
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -H "x-admin-token: ${DEV_TOKEN}" \
+            "${DEV_API}/radio/admin/songs/${SONG_KEY}/artwork-images" > /tmp/dev-art.json
+
+          jq '{
+            "1x1": (.media.artwork_images["1x1"] // .media.song_artwork_url // .song_artwork_url // empty),
+            "16x9": (.media.artwork_images["16x9"] // .media.song_artwork_16x9_url // .song_artwork_16x9_url // empty),
+            "9x16": (.media.artwork_images["9x16"] // .media.song_artwork_9x16_url // .song_artwork_9x16_url // empty),
+            "3x4": (.media.artwork_images["3x4"] // .media.song_artwork_3x4_url // .song_artwork_3x4_url // empty),
+            "4x5": (.media.artwork_images["4x5"] // .media.song_artwork_4x5_url // .song_artwork_4x5_url // empty),
+            "21x9": (.media.artwork_images["21x9"] // .media.song_artwork_21x9_url // .song_artwork_21x9_url // empty)
+          }' /tmp/dev-art.json > /tmp/dev-six.json
+
+          jq -e 'length == 6 and all(.[]; type == "string" and length > 0)' /tmp/dev-six.json >/dev/null
+          echo "Validated 6 of 6 DEV artwork URLs."
+          jq -r 'to_entries[] | "\(.key): \(.value)"' /tmp/dev-six.json
+
+      - name: Copy the 6 artwork objects from DEV S3 to PROD S3
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from urllib.parse import urlparse, unquote
+
+          urls=json.load(open('/tmp/dev-six.json'))
+          dev_bucket=os.environ['DEV_BUCKET']
+          prod_bucket=os.environ['PROD_BUCKET']
+          dev_base=(os.environ.get('DEV_PUBLIC_BASE') or '').rstrip('/')
+          prod_base=(os.environ.get('PROD_PUBLIC_BASE') or '').rstrip('/')
+          prod_region=os.environ.get('PROD_REGION') or 'us-east-1'
+
+          def key_from_url(url):
+              if dev_base and url.startswith(dev_base + '/'):
+                  return unquote(url[len(dev_base)+1:])
+              p=urlparse(url)
+              path=unquote(p.path.lstrip('/'))
+              host=p.netloc.lower()
+              if host.startswith(dev_bucket.lower()+'.'):
+                  return path
+              if host.startswith('s3.') or host == 's3.amazonaws.com':
+                  if path.startswith(dev_bucket + '/'):
+                      return path[len(dev_bucket)+1:]
+              raise SystemExit(f'Artwork URL is not recognized as a DEV bucket object: {url}')
+
+          prod_urls={}
+          for ratio,url in urls.items():
+              key=key_from_url(url)
+              subprocess.run([
+                  'aws','s3api','copy-object',
+                  '--bucket',prod_bucket,
+                  '--copy-source',f'{dev_bucket}/{key}',
+                  '--key',key,
+                  '--metadata-directive','COPY',
+                  '--region',prod_region
+              ], check=True, stdout=subprocess.DEVNULL)
+              if prod_base:
+                  prod_url=f'{prod_base}/{key}'
+              else:
+                  prod_url=f'https://{prod_bucket}.s3.{prod_region}.amazonaws.com/{key}'
+              prod_urls[ratio]=prod_url
+              print(f'Copied {ratio}: s3://{dev_bucket}/{key} -> s3://{prod_bucket}/{key}')
+
+          json.dump(prod_urls, open('/tmp/prod-six.json','w'))
+          PY
+
+      - name: Patch only Petty Fuck artwork in PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          jq '{
+            song_artwork_url: .["1x1"],
+            song_artwork_16x9_url: .["16x9"],
+            song_artwork_9x16_url: .["9x16"],
+            song_artwork_3x4_url: .["3x4"],
+            song_artwork_4x5_url: .["4x5"],
+            song_artwork_21x9_url: .["21x9"]
+          }' /tmp/prod-six.json > /tmp/prod-art-patch.json
+
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -X PATCH \
+            -H "x-admin-token: ${PROD_TOKEN}" \
+            -H 'content-type: application/json' \
+            --data-binary @/tmp/prod-art-patch.json \
+            "${PROD_API}/radio/admin/songs/${SONG_KEY}/artwork-images" > /tmp/prod-art-write.json
+          jq -e '.success == true' /tmp/prod-art-write.json >/dev/null
+
+      - name: Verify PROD has all 6 and exactly matches promoted PROD URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -H "x-admin-token: ${PROD_TOKEN}" \
+            "${PROD_API}/radio/admin/songs/${SONG_KEY}/artwork-images?verify=${GITHUB_RUN_ID}" > /tmp/prod-art.json
+
+          jq '{
+            "1x1": (.media.artwork_images["1x1"] // .media.song_artwork_url // .song_artwork_url // empty),
+            "16x9": (.media.artwork_images["16x9"] // .media.song_artwork_16x9_url // .song_artwork_16x9_url // empty),
+            "9x16": (.media.artwork_images["9x16"] // .media.song_artwork_9x16_url // .song_artwork_9x16_url // empty),
+            "3x4": (.media.artwork_images["3x4"] // .media.song_artwork_3x4_url // .song_artwork_3x4_url // empty),
+            "4x5": (.media.artwork_images["4x5"] // .media.song_artwork_4x5_url // .song_artwork_4x5_url // empty),
+            "21x9": (.media.artwork_images["21x9"] // .media.song_artwork_21x9_url // .song_artwork_21x9_url // empty)
+          }' /tmp/prod-art.json > /tmp/prod-six-verified.json
+
+          jq -e 'length == 6 and all(.[]; type == "string" and length > 0)' /tmp/prod-six-verified.json >/dev/null
+          diff -u <(jq -S . /tmp/prod-six.json) <(jq -S . /tmp/prod-six-verified.json)
+          echo "SUCCESS: Petty Fuck PROD artwork is 6/6 and matches the latest DEV set."
