@@ -3,89 +3,97 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio Admin Migration Staging</title>
+  <title>Stashbox Radio Admin · Migration Staging</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <p class="eyebrow">ISSUE #1077 · PHASE 2</p>
-      <h1>STASHBOX RADIO ADMIN</h1>
-      <p class="subtitle">Isolated migration staging shell. No production cutover.</p>
-    </div>
-    <div class="environment-control">
-      <label for="environmentSelect">Inspect environment</label>
-      <select id="environmentSelect">
-        <option value="dev" selected>DEV</option>
-        <option value="prod">PROD · protected</option>
-      </select>
-      <span id="envBadge" class="env-badge">DEV</span>
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>STASHBOX RADIO</h1>
+      <p class="subtitle">Unified Admin build · DEV data only</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/" aria-current="page">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/dev/vec/" target="_blank" rel="noopener">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
+      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
+      <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
+    </nav>
+    <div class="env-lock">
+      <span class="env-badge">DEV</span>
+      <span>PROD locked</span>
     </div>
   </header>
 
   <main class="shell">
-    <section class="warning-card">
-      <strong>Migration guardrail:</strong>
-      `/radio-admin/dev/`, `/radio-admin/`, and `/radio/` are not modified by this staging build. Production writes are disabled here until explicitly approved.
+    <section class="guardrail">
+      This staging Admin is connected only to the DEV Radio API. Production writes and production cutover remain blocked.
     </section>
 
-    <section class="card status-grid">
+    <section id="tokenPanel" class="card token-panel">
       <div>
-        <span class="label">API</span>
-        <code id="endpointValue"></code>
+        <p class="eyebrow">AUTHENTICATION</p>
+        <h2>DEV Admin Token</h2>
+        <p class="muted">Uses the new migration token namespace and can read your existing DEV token as a fallback.</p>
       </div>
-      <div>
-        <span class="label">Player</span>
-        <code id="playerValue"></code>
+      <div class="token-row">
+        <input id="adminToken" type="password" autocomplete="off" placeholder="Paste DEV x-admin-token" />
+        <button id="saveTokenButton" type="button">Save Token</button>
+        <button id="clearTokenButton" class="secondary" type="button">Clear</button>
       </div>
-      <div>
-        <span class="label">Write state</span>
-        <p id="writeState" class="status"></p>
-      </div>
+      <p id="tokenStatus" class="status-text">Checking browser token…</p>
     </section>
 
     <section class="card">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">TARGET ARCHITECTURE</p>
-          <h2>One Admin, deliberate data boundaries</h2>
+          <p class="eyebrow">MIGRATED DASHBOARD</p>
+          <h2>Dashboard HQ</h2>
+          <p class="muted">Live read from the DEV admin APIs. No PROD requests are made by this page.</p>
         </div>
+        <button id="refreshButton" type="button">Refresh</button>
+      </div>
+      <div id="dashboardMessage" class="message">Enter or reuse your DEV admin token to load data.</div>
+      <div id="kpiGrid" class="kpi-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SONG PERFORMANCE</p>
+          <h2>Top DEV Songs</h2>
+        </div>
+        <a class="button-link" href="/radio-admin/staging/songs/">Open migrated Songs</a>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Module</th>
-              <th>Target</th>
-              <th>Staging policy</th>
-              <th>Reason</th>
+              <th>Song</th>
+              <th>Artist</th>
+              <th>Plays</th>
+              <th>Likes</th>
+              <th>Shares</th>
+              <th>Skips</th>
             </tr>
           </thead>
-          <tbody id="policyBody"></tbody>
+          <tbody id="songStatsBody">
+            <tr><td colspan="6" class="muted">No data loaded.</td></tr>
+          </tbody>
         </table>
       </div>
     </section>
 
     <section class="card">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">MIGRATION MAP</p>
-          <h2>Current modern modules</h2>
-          <p>These links open the untouched current DEV tools for reference while each module is migrated into this staging architecture.</p>
-        </div>
+      <p class="eyebrow">MIGRATION STATUS</p>
+      <div class="migration-grid">
+        <article><strong>Dashboard</strong><span class="done">Migrating now</span><p>DEV summary and song analytics are wired into staging.</p></article>
+        <article><strong>Songs</strong><span class="done">Migrating now</span><p>Separate staging Songs route reads the DEV catalog.</p></article>
+        <article><strong>VEC / Video / Ads</strong><span>Queued</span><p>Remain on untouched DEV tools until their staging copies are migrated.</p></article>
+        <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production writes, route replacement, or cutover in this phase.</p></article>
       </div>
-      <div id="moduleGrid" class="module-grid"></div>
-    </section>
-
-    <section class="card next-steps">
-      <p class="eyebrow">NEXT BUILD ORDER</p>
-      <ol>
-        <li>Normalize shared navigation and environment configuration.</li>
-        <li>Migrate the Dashboard shell against DEV.</li>
-        <li>Migrate Song CMS with canonical-song abstraction, still DEV-write-only during staging.</li>
-        <li>Migrate VEC, Video Factory, Ads, Artists, Notifications, Bugs, and Health with explicit module policies.</li>
-        <li>Run DEV staging QA before any PROD-read work begins.</li>
-      </ol>
     </section>
   </main>
 
