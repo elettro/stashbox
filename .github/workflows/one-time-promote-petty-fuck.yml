@@ -1,0 +1,198 @@
+name: One-time Promote Petty Fuck DEV to PROD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-promote-petty-fuck.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+      DEV_FUNCTION: stashbox-radio-api-dev-v2
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Read admin tokens from the two Lambda environments
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEV_TOKEN="$(aws lambda get-function-configuration --function-name "${DEV_FUNCTION}" --region us-east-1 --query 'Environment.Variables.ADMIN_TOKEN' --output text)"
+          PROD_TOKEN="$(aws lambda get-function-configuration --function-name "${PROD_FUNCTION}" --region us-east-1 --query 'Environment.Variables.ADMIN_TOKEN' --output text)"
+          test -n "${DEV_TOKEN}" && test "${DEV_TOKEN}" != "None"
+          test -n "${PROD_TOKEN}" && test "${PROD_TOKEN}" != "None"
+          echo "::add-mask::${DEV_TOKEN}"
+          echo "::add-mask::${PROD_TOKEN}"
+          printf 'DEV_TOKEN=%s\n' "${DEV_TOKEN}" >> "${GITHUB_ENV}"
+          printf 'PROD_TOKEN=%s\n' "${PROD_TOKEN}" >> "${GITHUB_ENV}"
+
+      - name: Fetch Petty Fuck from DEV and build a clean create payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -H "x-admin-token: ${DEV_TOKEN}" \
+            "${DEV_API}/admin/songs" > /tmp/dev-songs.json
+
+          python3 - <<'PY'
+          import json, sys
+          data=json.load(open('/tmp/dev-songs.json'))
+          def rows(obj):
+              if isinstance(obj,list): return obj
+              if not isinstance(obj,dict): return []
+              for k in ('songs','items','data'):
+                  v=obj.get(k)
+                  if isinstance(v,list): return v
+                  if isinstance(v,dict):
+                      for kk in ('songs','items','data'):
+                          vv=v.get(kk)
+                          if isinstance(vv,list): return vv
+              return []
+          candidates=[]
+          for s in rows(data):
+              title=str(s.get('display_title') or s.get('song_name') or '').strip().lower()
+              artist=str(s.get('artist') or '').strip().lower()
+              if title == 'petty fuck' and artist == 'stashbox':
+                  candidates.append(s)
+          if len(candidates) != 1:
+              print(f'Expected exactly one DEV Stashbox / Petty Fuck song, found {len(candidates)}', file=sys.stderr)
+              sys.exit(2)
+          song=candidates[0]
+          allowed=[
+              'song_key','song_name','display_title','artist','album_name','genre','internal_version_name',
+              'languages','secondary_genre','release_format','song_origin','audio_url','song_artwork_url','video_link',
+              'enhanced_visuals_enabled','shuffle_visuals','visual_still_duration_seconds','public_track_note',
+              'show_public_note','public_video_note','video_setlist','public_visibility','exclusive','explicit',
+              'live_recording','featured','specific_product_urls','spotify_url','apple_music_url','youtube_music_url',
+              'official_song_page_url','shop_url','mood_tags','internal_notes'
+          ]
+          payload={k:song[k] for k in allowed if k in song and song[k] is not None}
+          if not payload.get('song_key'):
+              raise SystemExit('DEV song has no song_key')
+          json.dump(payload,open('/tmp/song-payload.json','w'))
+          open('/tmp/song-key.txt','w').write(str(payload['song_key']))
+          print('DEV song found:', payload['song_key'])
+          PY
+
+      - name: Create or refresh the song in PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            -H "x-admin-token: ${PROD_TOKEN}" \
+            "${PROD_API}/admin/songs" > /tmp/prod-songs-before.json
+
+          if python3 - <<'PY'
+          import json
+          key=open('/tmp/song-key.txt').read().strip().lower()
+          data=json.load(open('/tmp/prod-songs-before.json'))
+          def rows(obj):
+              if isinstance(obj,list): return obj
+              if not isinstance(obj,dict): return []
+              for k in ('songs','items','data'):
+                  v=obj.get(k)
+                  if isinstance(v,list): return v
+                  if isinstance(v,dict):
+                      for kk in ('songs','items','data'):
+                          vv=v.get(kk)
+                          if isinstance(vv,list): return vv
+              return []
+          raise SystemExit(0 if any(str(s.get('song_key','')).lower()==key for s in rows(data)) else 1)
+          PY
+          then
+            echo "Song already exists in PROD. Updating it."
+            curl --fail --silent --show-error --retry 3 --max-time 45 \
+              -X PUT \
+              -H "x-admin-token: ${PROD_TOKEN}" \
+              -H 'content-type: application/json' \
+              --data-binary @/tmp/song-payload.json \
+              "${PROD_API}/admin/songs/${SONG_KEY}" > /tmp/prod-write.json
+          else
+            echo "Creating song in PROD."
+            curl --fail --silent --show-error --retry 3 --max-time 45 \
+              -X POST \
+              -H "x-admin-token: ${PROD_TOKEN}" \
+              -H 'content-type: application/json' \
+              --data-binary @/tmp/song-payload.json \
+              "${PROD_API}/admin/songs" > /tmp/prod-write.json
+          fi
+          jq -e '.success == true' /tmp/prod-write.json >/dev/null
+
+      - name: Copy the prepared 6-image artwork references into PROD
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          DEV_ART_STATUS="$(curl --silent --show-error --max-time 45 -o /tmp/dev-art.json -w '%{http_code}' \
+            -H "x-admin-token: ${DEV_TOKEN}" \
+            "${DEV_API}/radio/admin/songs/${SONG_KEY}/artwork-images")"
+          if [ "${DEV_ART_STATUS}" != "200" ]; then
+            echo "DEV artwork endpoint returned ${DEV_ART_STATUS}; leaving primary artwork from song record only."
+            exit 0
+          fi
+          jq '{
+            song_artwork_url: (.media.song_artwork_url // .song_artwork_url // empty),
+            song_artwork_16x9_url: (.media.song_artwork_16x9_url // .song_artwork_16x9_url // empty),
+            song_artwork_9x16_url: (.media.song_artwork_9x16_url // .song_artwork_9x16_url // empty),
+            song_artwork_3x4_url: (.media.song_artwork_3x4_url // .song_artwork_3x4_url // empty),
+            song_artwork_4x5_url: (.media.song_artwork_4x5_url // .song_artwork_4x5_url // empty),
+            song_artwork_21x9_url: (.media.song_artwork_21x9_url // .song_artwork_21x9_url // empty)
+          } | with_entries(select(.value != "" and .value != null))' /tmp/dev-art.json > /tmp/art-patch.json
+          if [ "$(jq 'length' /tmp/art-patch.json)" -gt 0 ]; then
+            curl --fail --silent --show-error --retry 3 --max-time 45 \
+              -X PATCH \
+              -H "x-admin-token: ${PROD_TOKEN}" \
+              -H 'content-type: application/json' \
+              --data-binary @/tmp/art-patch.json \
+              "${PROD_API}/radio/admin/songs/${SONG_KEY}/artwork-images" > /tmp/prod-art-write.json
+            jq -e '.success == true' /tmp/prod-art-write.json >/dev/null
+          fi
+
+      - name: Verify production public catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONG_KEY="$(cat /tmp/song-key.txt)"
+          curl --fail --silent --show-error --retry 3 --max-time 45 \
+            "${PROD_API}/radio/songs?verify=${GITHUB_RUN_ID}" > /tmp/prod-public.json
+          python3 - <<'PY'
+          import json,sys
+          key=open('/tmp/song-key.txt').read().strip().lower()
+          data=json.load(open('/tmp/prod-public.json'))
+          def rows(obj):
+              if isinstance(obj,list): return obj
+              if not isinstance(obj,dict): return []
+              for k in ('songs','items','data'):
+                  v=obj.get(k)
+                  if isinstance(v,list): return v
+                  if isinstance(v,dict):
+                      for kk in ('songs','items','data'):
+                          vv=v.get(kk)
+                          if isinstance(vv,list): return vv
+              return []
+          found=[s for s in rows(data) if str(s.get('song_key','')).lower()==key]
+          if len(found)!=1:
+              print(f'PROD verification failed. Found {len(found)} rows for {key}', file=sys.stderr)
+              sys.exit(3)
+          s=found[0]
+          print('PROD verified:', s.get('display_title') or s.get('song_name'), '/', s.get('artist'), '/', s.get('song_key'))
+          print('Audio URL present:', bool(s.get('audio_url')))
+          print('Artwork URL present:', bool(s.get('song_artwork_url') or s.get('resolved_artwork_url')))
+          PY
