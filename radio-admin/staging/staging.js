@@ -2,79 +2,202 @@
   'use strict';
 
   const migration = window.StashboxAdminMigration;
-  if (!migration) {
-    throw new Error('StashboxAdminMigration config is required before staging.js');
-  }
+  if (!migration) throw new Error('StashboxAdminMigration config is required');
 
-  const { config } = migration;
-  const environmentSelect = document.getElementById('environmentSelect');
-  const envBadge = document.getElementById('envBadge');
-  const writeState = document.getElementById('writeState');
-  const endpointValue = document.getElementById('endpointValue');
-  const playerValue = document.getElementById('playerValue');
-  const policyBody = document.getElementById('policyBody');
-  const moduleGrid = document.getElementById('moduleGrid');
+  const env = migration.getEnvironment('dev');
+  const els = {
+    token: document.getElementById('adminToken'),
+    save: document.getElementById('saveTokenButton'),
+    clear: document.getElementById('clearTokenButton'),
+    status: document.getElementById('tokenStatus'),
+    refresh: document.getElementById('refreshButton'),
+    message: document.getElementById('dashboardMessage'),
+    kpis: document.getElementById('kpiGrid'),
+    songs: document.getElementById('songStatsBody')
+  };
 
-  const modules = [
-    ['Dashboard', config.routes.currentModernDev, 'DEV', 'Current modern dashboard reference'],
-    ['Songs', config.routes.songsDev, 'CANONICAL LIVE TARGET', 'Will become the single shared real-song catalog'],
-    ['Video Library', config.routes.visualLibraryDev, 'DEV', 'Environment-specific visual assets/config'],
-    ['VEC Lab', config.routes.vecDev, 'DEV', 'Environment-specific recipes and testing'],
-    ['Video Factory', config.routes.videoFactoryDev, 'DEV', 'DEV jobs until production workflow is explicitly validated'],
-    ['Ads', config.routes.adsDev, 'DEV / PROD SEPARATE', 'Live ad settings must remain isolated'],
-    ['Artists', config.routes.artistsDev, 'DEV', 'Needs route/token normalization before PROD'],
-    ['Notifications', config.routes.notificationsDev, 'DEV / PROD SEPARATE', 'PROD publishing remains blocked'],
-    ['Bug Base', config.routes.bugsDev, 'SHARED', 'Safe shared operational module'],
-    ['System Health', config.routes.systemHealthDev, 'DEV / PROD SEPARATE', 'Must identify which environment is being checked'],
-    ['Social Factory', config.routes.socialFactoryDev, 'DEV-ONLY SERVICE', 'Separate backend and credentials']
+  const preferredKpis = [
+    ['plays', 'Plays'],
+    ['total_plays', 'Total Plays'],
+    ['full_plays', 'Full Plays'],
+    ['partial_plays', 'Partial Plays'],
+    ['likes', 'Likes'],
+    ['shares', 'Shares'],
+    ['skips', 'Skips'],
+    ['video_clicks', 'Video Clicks'],
+    ['product_clicks', 'Product Clicks'],
+    ['unique_sessions', 'Unique Sessions'],
+    ['sessions', 'Sessions'],
+    ['events', 'Events']
   ];
 
-  function renderModules() {
-    moduleGrid.innerHTML = modules.map(([name, href, scope, note]) => `
-      <article class="module-card">
-        <div class="module-card__top">
-          <h3>${name}</h3>
-          <span class="scope-badge">${scope}</span>
-        </div>
-        <p>${note}</p>
-        <a href="${href}" target="_blank" rel="noopener">Open current reference</a>
-      </article>
-    `).join('');
-  }
-
-  function renderPolicies() {
-    const rows = [
-      ['Songs', 'Canonical LIVE catalog', 'PROD write disabled in staging', 'DEV/V2 and PROD player should ultimately read the same real-song catalog'],
-      ['Ads', 'Environment-specific', 'PROD write blocked', 'Protect live commercial behavior'],
-      ['VEC', 'Environment-specific', 'PROD write blocked', 'Share song identity, not recipes/config'],
-      ['Analytics', 'Environment-specific', 'PROD read validation later', 'Retain current production analytics freeze until tested'],
-      ['Notifications', 'Environment-specific', 'PROD write blocked', 'Publishing is high-risk'],
-      ['Social Factory', 'Separate service', 'DEV-only', 'No implicit PROD toggle']
-    ];
-
-    policyBody.innerHTML = rows.map(row => `
-      <tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>
-    `).join('');
-  }
-
-  function renderEnvironment() {
-    const key = environmentSelect.value;
-    const env = migration.getEnvironment(key);
-    envBadge.textContent = env.label;
-    endpointValue.textContent = env.apiBase;
-    playerValue.textContent = env.playerPath;
-
-    if (env.writesAllowedInStaging) {
-      writeState.textContent = 'DEV writes allowed only when a migrated module explicitly uses this config.';
-      writeState.className = 'status status-dev';
-    } else {
-      writeState.textContent = 'PROD writes BLOCKED. Phase 4 is read-only and has not started.';
-      writeState.className = 'status status-blocked';
+  function getStoredToken() {
+    const current = localStorage.getItem(env.tokenStorageKey);
+    if (current) return current;
+    for (const key of env.legacyTokenStorageKeys || []) {
+      const legacy = localStorage.getItem(key);
+      if (legacy) return legacy;
     }
+    return '';
   }
 
-  environmentSelect.addEventListener('change', renderEnvironment);
-  renderModules();
-  renderPolicies();
-  renderEnvironment();
+  function saveToken() {
+    const token = String(els.token.value || '').trim();
+    if (!token) return;
+    localStorage.setItem(env.tokenStorageKey, token);
+    els.token.value = '';
+    els.status.textContent = 'DEV admin token saved in the migration namespace.';
+    loadDashboard();
+  }
+
+  function clearToken() {
+    localStorage.removeItem(env.tokenStorageKey);
+    els.status.textContent = 'Migration token cleared. Existing legacy DEV token, if present, is not deleted.';
+    els.kpis.innerHTML = '';
+    els.songs.innerHTML = '<tr><td colspan="6" class="muted">No data loaded.</td></tr>';
+  }
+
+  async function adminGet(path) {
+    const token = getStoredToken();
+    if (!token) throw new Error('No DEV admin token is available in this browser.');
+    const url = `${env.apiBase}${path}`;
+    if (!url.startsWith(env.apiBase)) throw new Error('Blocked non-DEV API request.');
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'x-admin-token': token, 'accept': 'application/json' },
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return response.json();
+  }
+
+  function numberValue(value) {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+    return null;
+  }
+
+  function flattenSummary(payload) {
+    const candidates = [payload, payload && payload.summary, payload && payload.stats, payload && payload.data].filter(Boolean);
+    const source = candidates.find(item => item && typeof item === 'object' && !Array.isArray(item)) || {};
+    const flat = {};
+    Object.entries(source).forEach(([key, value]) => {
+      const n = numberValue(value);
+      if (n !== null) flat[key] = n;
+    });
+    return flat;
+  }
+
+  function renderKpis(payload) {
+    const stats = flattenSummary(payload);
+    const used = new Set();
+    const entries = [];
+
+    preferredKpis.forEach(([key, label]) => {
+      if (Object.prototype.hasOwnProperty.call(stats, key) && !used.has(key)) {
+        used.add(key);
+        entries.push([label, stats[key]]);
+      }
+    });
+
+    Object.entries(stats).forEach(([key, value]) => {
+      if (entries.length >= 10 || used.has(key)) return;
+      used.add(key);
+      entries.push([key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value]);
+    });
+
+    if (!entries.length) {
+      els.kpis.innerHTML = '<div class="message">Summary endpoint responded, but no numeric KPI fields were found.</div>';
+      return;
+    }
+
+    els.kpis.innerHTML = entries.slice(0, 10).map(([label, value]) => `
+      <article class="kpi"><span>${escapeHtml(label)}</span><strong>${Number(value).toLocaleString()}</strong></article>
+    `).join('');
+  }
+
+  function getRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    for (const key of ['songs', 'items', 'rows', 'data', 'results']) {
+      if (Array.isArray(payload && payload[key])) return payload[key];
+    }
+    return [];
+  }
+
+  function pick(row, keys, fallback = '') {
+    for (const key of keys) {
+      if (row && row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+    }
+    return fallback;
+  }
+
+  function renderSongStats(payload) {
+    const rows = getRows(payload).slice(0, 25);
+    if (!rows.length) {
+      els.songs.innerHTML = '<tr><td colspan="6" class="muted">Song stats endpoint returned no rows.</td></tr>';
+      return;
+    }
+
+    els.songs.innerHTML = rows.map(row => `
+      <tr>
+        <td>${escapeHtml(String(pick(row, ['display_title', 'song_name', 'title', 'song_key'], 'Untitled')))}</td>
+        <td>${escapeHtml(String(pick(row, ['artist', 'artist_name'], '')))}</td>
+        <td>${formatCount(pick(row, ['plays', 'play_count', 'total_plays'], 0))}</td>
+        <td>${formatCount(pick(row, ['likes', 'like_count'], 0))}</td>
+        <td>${formatCount(pick(row, ['shares', 'share_count'], 0))}</td>
+        <td>${formatCount(pick(row, ['skips', 'skip_count'], 0))}</td>
+      </tr>
+    `).join('');
+  }
+
+  function formatCount(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toLocaleString() : '0';
+  }
+
+  function escapeHtml(value) {
+    return value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  }
+
+  async function loadDashboard() {
+    const token = getStoredToken();
+    if (!token) {
+      els.status.textContent = 'No DEV admin token found.';
+      els.message.textContent = 'Enter your DEV admin token above. No production token is used by this page.';
+      return;
+    }
+
+    els.status.textContent = localStorage.getItem(env.tokenStorageKey)
+      ? 'Migration DEV token available.'
+      : 'Using existing legacy DEV token as fallback.';
+    els.message.textContent = 'Loading DEV dashboard…';
+    els.refresh.disabled = true;
+
+    const [summaryResult, songsResult] = await Promise.allSettled([
+      adminGet('/admin/stats/summary'),
+      adminGet('/admin/stats/songs?limit=25')
+    ]);
+
+    const errors = [];
+    if (summaryResult.status === 'fulfilled') renderKpis(summaryResult.value);
+    else errors.push(`Summary: ${summaryResult.reason.message}`);
+
+    if (songsResult.status === 'fulfilled') renderSongStats(songsResult.value);
+    else errors.push(`Songs: ${songsResult.reason.message}`);
+
+    els.message.textContent = errors.length
+      ? `DEV loaded with warnings. ${errors.join(' · ')}`
+      : 'DEV dashboard loaded successfully.';
+    els.refresh.disabled = false;
+  }
+
+  els.save.addEventListener('click', saveToken);
+  els.clear.addEventListener('click', clearToken);
+  els.refresh.addEventListener('click', loadDashboard);
+  els.token.addEventListener('keydown', event => {
+    if (event.key === 'Enter') saveToken();
+  });
+
+  loadDashboard();
 })();
