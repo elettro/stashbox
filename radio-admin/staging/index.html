@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin Migration Staging</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">ISSUE #1077 · PHASE 2</p>
+      <h1>STASHBOX RADIO ADMIN</h1>
+      <p class="subtitle">Isolated migration staging shell. No production cutover.</p>
+    </div>
+    <div class="environment-control">
+      <label for="environmentSelect">Inspect environment</label>
+      <select id="environmentSelect">
+        <option value="dev" selected>DEV</option>
+        <option value="prod">PROD · protected</option>
+      </select>
+      <span id="envBadge" class="env-badge">DEV</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="warning-card">
+      <strong>Migration guardrail:</strong>
+      `/radio-admin/dev/`, `/radio-admin/`, and `/radio/` are not modified by this staging build. Production writes are disabled here until explicitly approved.
+    </section>
+
+    <section class="card status-grid">
+      <div>
+        <span class="label">API</span>
+        <code id="endpointValue"></code>
+      </div>
+      <div>
+        <span class="label">Player</span>
+        <code id="playerValue"></code>
+      </div>
+      <div>
+        <span class="label">Write state</span>
+        <p id="writeState" class="status"></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TARGET ARCHITECTURE</p>
+          <h2>One Admin, deliberate data boundaries</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Target</th>
+              <th>Staging policy</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="policyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MIGRATION MAP</p>
+          <h2>Current modern modules</h2>
+          <p>These links open the untouched current DEV tools for reference while each module is migrated into this staging architecture.</p>
+        </div>
+      </div>
+      <div id="moduleGrid" class="module-grid"></div>
+    </section>
+
+    <section class="card next-steps">
+      <p class="eyebrow">NEXT BUILD ORDER</p>
+      <ol>
+        <li>Normalize shared navigation and environment configuration.</li>
+        <li>Migrate the Dashboard shell against DEV.</li>
+        <li>Migrate Song CMS with canonical-song abstraction, still DEV-write-only during staging.</li>
+        <li>Migrate VEC, Video Factory, Ads, Artists, Notifications, Bugs, and Health with explicit module policies.</li>
+        <li>Run DEV staging QA before any PROD-read work begins.</li>
+      </ol>
+    </section>
+  </main>
+
+  <script src="./admin-env.js"></script>
+  <script src="./staging.js"></script>
+</body>
+</html>
