@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin · Songs Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>STASHBOX RADIO</h1>
+      <p class="subtitle">Unified Admin build · DEV data only</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/" aria-current="page">Songs</a>
+      <a href="/radio-admin/dev/vec/" target="_blank" rel="noopener">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
+      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
+      <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV</span><span>PROD locked</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This migrated Songs view reads only the DEV song catalog. No production song write path exists in this staging page.</section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MIGRATED SONG CMS · STEP 1</p>
+          <h2>Song Catalog</h2>
+          <p class="muted">Read-only migration view while the edit/create workflow is ported behind environment guards.</p>
+        </div>
+        <div class="search-row">
+          <input id="songSearch" type="search" placeholder="Search song, artist, genre, key…" />
+          <button id="refreshSongs" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="songsMessage" class="message">Loading DEV songs…</div>
+      <p id="songCount" class="song-count"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Song</th>
+              <th>Artist</th>
+              <th>Genre</th>
+              <th>Song Key</th>
+              <th>Visibility</th>
+              <th>Audio</th>
+              <th>Video</th>
+              <th>Enhanced VEC</th>
+            </tr>
+          </thead>
+          <tbody id="songsBody"><tr><td colspan="8" class="muted">No data loaded.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">NEXT SONG CMS MIGRATION STEP</p>
+      <p class="muted">Port create/edit, artwork upload, visual assets, archive, and validation into this staging route. DEV writes will remain permitted only through the centralized migration guard. PROD writes remain blocked.</p>
+      <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open untouched current DEV Song CMS</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script src="./songs.js"></script>
+</body>
+</html>
