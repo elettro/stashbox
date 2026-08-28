@@ -1,69 +1,51 @@
 # Stashbox Radio Admin migration staging
 
-Issue: #1077
-Branch: `feature/admin-unification-1077`
-Target staging route: `/radio-admin/staging/`
+Tracking: GitHub issue #1077
 
-## Guardrails
+This directory is the isolated Phase 2 workspace for consolidating the modern Radio Admin without changing the current DEV Admin, ancient PROD Admin, or production player.
 
-This workspace exists only for the isolated Admin migration build.
+## Hard guardrails
 
-Do not use it as a production cutover until the staged migration has completed DEV QA, PROD read-only verification, explicit PROD write approval, backup/checkpoint work, and final cutover approval.
+- Do not modify `/radio-admin/dev/` as part of staging work.
+- Do not replace `/radio-admin/` until explicit cutover approval.
+- Do not modify `/radio/` during the staging build.
+- Do not delete the ancient PROD Admin. At cutover it is intended to move to `/radio-admin/legacy/`.
+- PROD writes are blocked in the staging environment manifest.
+- PROD analytics freeze/protection remains in place until separate read-only validation proves the modern analytics safe.
+- DEV and PROD Ads, VEC configuration, analytics, notifications, health, and job systems remain environment-specific.
+- Social Factory remains a separate DEV service unless a PROD stack is explicitly designed and approved.
 
-Explicitly untouched during the current build phase:
+## Target song model
 
-- `/radio-admin/dev/`
-- existing `/radio-admin/`
-- `/radio/`
-- PROD RDS
-- PROD Lambda
-- PROD S3
-- PROD API Gateway
-- PROD auth/session behavior
+Songs are the exception to normal environment separation. The target architecture is one canonical LIVE song catalog keyed by the production song identity. Production `/radio/` and development `/radio/dev/v2/` should ultimately read the same real-song catalog, while development playback behavior, VEC configuration, test analytics, Ads, auth, and other experimental behavior remain DEV-specific.
 
-## Implemented
+No production song write is enabled by this staging build.
 
-- migration branch synced to current `main`
-- centralized DEV/PROD environment manifest
-- separate target token namespaces
-- hard block on PROD writes in staging
-- staging Dashboard reads DEV summary/song stats
-- staging Songs catalog reads and searches DEV songs
-- staging Song CMS creates DEV songs with `POST /admin/songs`
-- staging Song CMS edits DEV songs with `PUT /admin/songs/{song_key}`
-- modern metadata fields included in the migrated editor
-- DEV audio upload ported using the existing `/admin/uploads/presign` contract
-- DEV song-specific visual image uploads ported with `purpose: visual_image`
-- DEV song-specific visual clip uploads ported with `purpose: visual_clip`
-- uploaded visual media is appended to the modern `visual_assets` editor field
-- six-image DEV artwork library ported for 1:1, 9:16, 16:9, 3:4, 4:5, and 21:9
-- artwork upload uses the existing DEV `/admin/uploads/presign` flow and DEV artwork attach endpoint
-- current legacy DEV admin token may be read as a fallback without deleting or modifying it
+## Build sequence
 
-## Still to migrate / verify
+1. Centralized environment and route manifest.
+2. Shared staging shell/navigation.
+3. Dashboard migration against DEV only.
+4. Song CMS migration with canonical-song abstraction while still using DEV-only writes in staging.
+5. Migrate VEC, Video Factory, Ads, Artists, Notifications, Bugs, Health, and Social Factory navigation with explicit module policies.
+6. Complete DEV QA.
+7. Separate Phase 4 PROD read-only validation.
+8. PROD write testing only after explicit approval.
+9. Snapshot/checkpoint and rollback plan.
+10. Cutover only after explicit approval.
 
-- DEV runtime QA of the migrated Song CMS
-- deeper VEC recipe/folder management
-- VEC
-- Video Factory
-- Ads
-- Artists
-- Notifications
-- Bug Base integration
-- environment-correct System Health
-- Social Factory navigation/integration
-- PROD read-only validation
-- controlled PROD write validation only after explicit approval
-- backup/checkpoint and cutover workflow
+## Current status
 
-## Target data policy
+Implemented on branch `feature/admin-unification-1077`:
 
-Songs become the canonical LIVE catalog eventually. DEV/V2 and production should read the same real song catalog after the migration is proven safe.
+- staging Dashboard reads DEV stats
+- staging Song catalog reads/searches DEV songs
+- Song create/edit against DEV only
+- modern song metadata editor
+- audio upload through DEV presign
+- song-specific visual image/clip uploads through DEV presign
+- six-image artwork workflow for 1:1, 9:16, 16:9, 3:4, 4:5, and 21:9
+- browser/CI smoke test with mocked DEV API and explicit PROD-request failure condition
+- VEC controller and styles copied into an isolated staging module without changing `/radio-admin/dev/vec/`
 
-Ads, VEC configuration, analytics, notifications, health checks, and job/render systems remain environment-specific.
-
-Social Factory remains a separate DEV-only service until an explicit PROD implementation exists.
-
-## Current safety state
-
-All branch changes remain under `radio-admin/staging/`. No production cutover has been performed and no production write path has been enabled in staging.
+Production cutover and production writes remain explicitly unapproved.
