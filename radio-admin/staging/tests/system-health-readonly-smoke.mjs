@@ -63,7 +63,7 @@ await page.route(`${DEV_HOST}/**`, async route => {
 try {
   await page.goto(ROOT, { waitUntil: 'domcontentloaded' });
   await page.locator('#overallStatus').waitFor();
-  await page.getByText('Healthy', { exact: true }).waitFor({ timeout: 15000 });
+  await page.locator('#overallStatus').filter({ hasText: 'Healthy' }).waitFor({ timeout: 15000 });
 
   const cardStates = await page.locator('[data-check-card]').evaluateAll(cards => cards.map(card => ({ key: card.dataset.checkCard, state: card.dataset.state, status: card.querySelector('.health-status')?.textContent || '' })));
   const failed = cardStates.filter(card => card.state !== 'pass');
