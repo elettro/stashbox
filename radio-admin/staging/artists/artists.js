@@ -6,7 +6,6 @@
   const env = migration.getEnvironment('dev');
   const ARTISTS_URL = `${env.apiBase}/radio/admin/artists`;
   const SONG_STATS_URL = `${env.apiBase}/admin/stats/songs?limit=500`;
-  const UPLOAD_PRESIGN_URL = `${env.apiBase}/admin/uploads/presign`;
   const DEV_MEDIA_BUCKET = 'stashbox-radio-media-dev-us-east-1';
   const PROD_MEDIA_BUCKET = 'stashbox-radio-media-prod-us-east-1';
   const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -14,8 +13,16 @@
   const els = {
     token: document.getElementById('adminToken'), saveToken: document.getElementById('saveToken'), clearToken: document.getElementById('clearToken'), tokenStatus: document.getElementById('tokenStatus'), refresh: document.getElementById('refreshArtists'), message: document.getElementById('artistMessage'), stats: document.getElementById('artistStats'), search: document.getElementById('artistSearch'), count: document.getElementById('artistCount'), body: document.getElementById('artistsBody'),
     newArtist: document.getElementById('newArtist'), editorCard: document.getElementById('artistEditorCard'), editorHeading: document.getElementById('artistEditorHeading'), editor: document.getElementById('artistEditor'),
-    name: document.getElementById('artistName'), key: document.getElementById('artistKey'), slug: document.getElementById('artistSlug'), sortName: document.getElementById('artistSortName'), status: document.getElementById('artistStatus'), location: document.getElementById('artistLocation'), profileImageUrl: document.getElementById('profileImageUrl'), bannerImageUrl: document.getElementById('bannerImageUrl'), bio: document.getElementById('artistBio'), websiteUrl: document.getElementById('websiteUrl'), merchUrl: document.getElementById('merchUrl'), spotifyUrl: document.getElementById('spotifyUrl'), appleMusicUrl: document.getElementById('appleMusicUrl'), youtubeUrl: document.getElementById('youtubeUrl'), instagramUrl: document.getElementById('instagramUrl'), xUrl: document.getElementById('xUrl'), facebookUrl: document.getElementById('facebookUrl'), notes: document.getElementById('artistNotes'), verified: document.getElementById('artistVerified'), featured: document.getElementById('artistFeatured'), saveArtist: document.getElementById('saveArtist'), cancelArtist: document.getElementById('cancelArtist'),
-    profileImageFile: document.getElementById('profileImageFile'), uploadProfileImage: document.getElementById('uploadProfileImage'), profileImageStatus: document.getElementById('profileImageStatus'), bannerImageFile: document.getElementById('bannerImageFile'), uploadBannerImage: document.getElementById('uploadBannerImage'), bannerImageStatus: document.getElementById('bannerImageStatus')
+    name: document.getElementById('artistName'), key: document.getElementById('artistKey'), slug: document.getElementById('artistSlug'), sortName: document.getElementById('artistSortName'), status: document.getElementById('artistStatus'), location: document.getElementById('artistLocation'), profileImageUrl: document.getElementById('profileImageUrl'), bannerImageUrl: document.getElementById('bannerImageUrl'), verticalBannerImageUrl: document.getElementById('verticalBannerImageUrl'), bio: document.getElementById('artistBio'), websiteUrl: document.getElementById('websiteUrl'), merchUrl: document.getElementById('merchUrl'), spotifyUrl: document.getElementById('spotifyUrl'), appleMusicUrl: document.getElementById('appleMusicUrl'), youtubeUrl: document.getElementById('youtubeUrl'), instagramUrl: document.getElementById('instagramUrl'), xUrl: document.getElementById('xUrl'), facebookUrl: document.getElementById('facebookUrl'), notes: document.getElementById('artistNotes'), verified: document.getElementById('artistVerified'), featured: document.getElementById('artistFeatured'), saveArtist: document.getElementById('saveArtist'), cancelArtist: document.getElementById('cancelArtist'),
+    profileImageFile: document.getElementById('profileImageFile'), uploadProfileImage: document.getElementById('uploadProfileImage'), deleteProfileImage: document.getElementById('deleteProfileImage'), profileImageStatus: document.getElementById('profileImageStatus'),
+    bannerImageFile: document.getElementById('bannerImageFile'), uploadBannerImage: document.getElementById('uploadBannerImage'), deleteBannerImage: document.getElementById('deleteBannerImage'), bannerImageStatus: document.getElementById('bannerImageStatus'),
+    verticalBannerImageFile: document.getElementById('verticalBannerImageFile'), uploadVerticalBannerImage: document.getElementById('uploadVerticalBannerImage'), deleteVerticalBannerImage: document.getElementById('deleteVerticalBannerImage'), verticalBannerImageStatus: document.getElementById('verticalBannerImageStatus')
+  };
+
+  const mediaConfig = {
+    profile: { url: els.profileImageUrl, file: els.profileImageFile, upload: els.uploadProfileImage, remove: els.deleteProfileImage, status: els.profileImageStatus, purpose: 'profile_image', payload: 'profile_image_url', response: 'profile_image_url', label: 'profile image' },
+    banner: { url: els.bannerImageUrl, file: els.bannerImageFile, upload: els.uploadBannerImage, remove: els.deleteBannerImage, status: els.bannerImageStatus, purpose: 'horizontal_banner', payload: 'horizontal_banner_image_url', response: 'horizontal_banner_image_url', label: 'horizontal banner' },
+    verticalBanner: { url: els.verticalBannerImageUrl, file: els.verticalBannerImageFile, upload: els.uploadVerticalBannerImage, remove: els.deleteVerticalBannerImage, status: els.verticalBannerImageStatus, purpose: 'vertical_banner', payload: 'vertical_banner_image_url', response: 'vertical_banner_image_url', label: 'vertical banner' }
   };
 
   let artists = [];
@@ -43,10 +50,9 @@
     const method = String(options.method || 'GET').toUpperCase();
     const artistBoundary = url === ARTISTS_URL || url.startsWith(`${ARTISTS_URL}/`);
     const statsBoundary = url === SONG_STATS_URL;
-    const uploadBoundary = url === UPLOAD_PRESIGN_URL;
-    if (!url.startsWith(env.apiBase) || (!artistBoundary && !statsBoundary && !uploadBoundary)) throw new Error('Blocked request outside the DEV Artist API boundary.');
+    if (!url.startsWith(env.apiBase) || (!artistBoundary && !statsBoundary)) throw new Error('Blocked request outside the DEV Artist API boundary.');
     if (!['GET', 'HEAD'].includes(method)) {
-      if (!artistBoundary && !uploadBoundary) throw new Error('Blocked write outside the DEV Artist profile/media API boundary.');
+      if (!artistBoundary) throw new Error('Blocked write outside the DEV Artist API boundary.');
       migration.assertWriteAllowed('dev', 'artists');
     }
     const token = getToken();
@@ -71,13 +77,12 @@
     if (typeof body?.body === 'string') {
       try { body = JSON.parse(body.body); } catch {}
     }
-    if (!response.ok) throw new Error(body.error || body.message || `${response.status} ${response.statusText}`);
+    if (!response.ok || body?.success === false) throw new Error(body.error || body.message || `${response.status} ${response.statusText}`);
     return body;
   }
 
   function normName(value) { return String(value || '').trim().toLowerCase().replace(/\s+/g, ' '); }
   function number(value) { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; }
-  function slugify(value) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'artist'; }
   function aggregatePerformance(rows) {
     const map = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
@@ -126,34 +131,44 @@
       artists = Array.isArray(artistData?.artists) ? artistData.artists : [];
       performance = aggregatePerformance(songData?.songs || []);
       renderStats(); renderArtists();
-      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata and media writes are DEV-only.`;
+      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata and profile-media writes are DEV-only.`;
     } catch (error) {
       artists = []; performance = new Map(); els.stats.innerHTML = ''; els.body.innerHTML = '<tr><td colspan="9" class="muted">DEV Artist load failed.</td></tr>'; els.count.textContent = ''; els.message.textContent = `DEV Artist load failed: ${error.message}`;
     } finally { els.refresh.disabled = false; updateTokenStatus(); }
   }
 
-  function setImageStatus(kind, message) {
-    const target = kind === 'profile' ? els.profileImageStatus : els.bannerImageStatus;
-    if (target) target.textContent = message;
+  function setMediaStatus(kind, message) {
+    const config = mediaConfig[kind];
+    if (config?.status) config.status.textContent = message;
   }
 
-  function resetImageStatuses() {
-    setImageStatus('profile', 'JPG, PNG or WEBP · max 10 MB · recommended 1200×1200.');
-    setImageStatus('banner', 'JPG, PNG or WEBP · max 10 MB · recommended 1920×1080.');
+  function resetMediaStatuses() {
+    setMediaStatus('profile', selectedKey ? 'Recommended: 1200 × 1200 px · ready for DEV upload.' : 'Save the artist before uploading profile media.');
+    setMediaStatus('banner', selectedKey ? 'Recommended: 1920 × 1080 px · ready for DEV upload.' : 'Save the artist before uploading profile media.');
+    setMediaStatus('verticalBanner', selectedKey ? 'Recommended: 1080 × 1920 px · ready for DEV upload.' : 'Save the artist before uploading profile media.');
+  }
+
+  function applyMedia(media = {}) {
+    els.profileImageUrl.value = media.profile_image_url || '';
+    els.bannerImageUrl.value = media.horizontal_banner_image_url || media.banner_image_url || '';
+    els.verticalBannerImageUrl.value = media.vertical_banner_image_url || '';
   }
 
   function fillEditor(artist = {}) {
-    els.name.value = artist.name || ''; els.key.value = artist.artist_key || ''; els.slug.value = artist.slug || ''; els.sortName.value = artist.sort_name || ''; els.status.value = artist.status || 'draft'; els.location.value = artist.location || ''; els.profileImageUrl.value = artist.profile_image_url || ''; els.bannerImageUrl.value = artist.banner_image_url || ''; els.bio.value = artist.bio || ''; els.websiteUrl.value = artist.website_url || ''; els.merchUrl.value = artist.merch_url || ''; els.spotifyUrl.value = artist.spotify_url || ''; els.appleMusicUrl.value = artist.apple_music_url || ''; els.youtubeUrl.value = artist.youtube_url || ''; els.instagramUrl.value = artist.instagram_url || ''; els.xUrl.value = artist.x_url || ''; els.facebookUrl.value = artist.facebook_url || ''; els.notes.value = artist.notes || ''; els.verified.checked = Boolean(artist.verified); els.featured.checked = Boolean(artist.featured);
-    if (els.profileImageFile) els.profileImageFile.value = '';
-    if (els.bannerImageFile) els.bannerImageFile.value = '';
-    resetImageStatuses();
+    els.name.value = artist.name || ''; els.key.value = artist.artist_key || ''; els.slug.value = artist.slug || ''; els.sortName.value = artist.sort_name || ''; els.status.value = artist.status || 'draft'; els.location.value = artist.location || ''; els.profileImageUrl.value = artist.profile_image_url || ''; els.bannerImageUrl.value = artist.banner_image_url || artist.horizontal_banner_image_url || ''; els.verticalBannerImageUrl.value = artist.vertical_banner_image_url || artist.verticalBannerImageUrl || ''; els.bio.value = artist.bio || ''; els.websiteUrl.value = artist.website_url || ''; els.merchUrl.value = artist.merch_url || ''; els.spotifyUrl.value = artist.spotify_url || ''; els.appleMusicUrl.value = artist.apple_music_url || ''; els.youtubeUrl.value = artist.youtube_url || ''; els.instagramUrl.value = artist.instagram_url || ''; els.xUrl.value = artist.x_url || ''; els.facebookUrl.value = artist.facebook_url || ''; els.notes.value = artist.notes || ''; els.verified.checked = Boolean(artist.verified); els.featured.checked = Boolean(artist.featured);
+    Object.values(mediaConfig).forEach(config => { if (config.file) config.file.value = ''; });
+    resetMediaStatuses();
   }
 
   function setEditorLoading(loading) {
-    els.editor.querySelectorAll('input, select, textarea').forEach(control => { control.disabled = Boolean(loading); });
+    els.editor.querySelectorAll('input:not([readonly]), select, textarea').forEach(control => { control.disabled = Boolean(loading); });
     els.saveArtist.disabled = Boolean(loading);
-    els.uploadProfileImage.disabled = Boolean(loading);
-    els.uploadBannerImage.disabled = Boolean(loading);
+    const mediaDisabled = Boolean(loading) || !selectedKey;
+    Object.values(mediaConfig).forEach(config => {
+      config.file.disabled = mediaDisabled;
+      config.upload.disabled = mediaDisabled;
+      config.remove.disabled = mediaDisabled;
+    });
     els.cancelArtist.disabled = false;
   }
 
@@ -167,6 +182,15 @@
     els.editorHeading.textContent = `Edit DEV Artist: ${artist.name || key}`;
     els.saveArtist.textContent = 'Save DEV Artist Changes';
     els.editorCard.classList.remove('hidden');
+    resetMediaStatuses();
+  }
+
+  function mediaUrl(key) { return `${ARTISTS_URL}/${encodeURIComponent(key)}/media`; }
+  function mediaPresignUrl(key) { return `${mediaUrl(key)}/presign`; }
+
+  async function readMedia(key) {
+    const result = await apiRequest(`${mediaUrl(key)}?verify=${Date.now()}`);
+    return result?.media || {};
   }
 
   async function openEditor(key = '') {
@@ -180,6 +204,7 @@
       els.editorHeading.textContent = 'New DEV Artist';
       els.saveArtist.textContent = 'Create DEV Artist';
       els.editorCard.classList.remove('hidden');
+      resetMediaStatuses();
       return;
     }
 
@@ -188,10 +213,15 @@
     els.message.textContent = `Loading DEV artist ${requestedKey}…`;
     setEditorLoading(true);
     try {
-      const data = await apiRequest(`${ARTISTS_URL}/${encodeURIComponent(requestedKey)}`);
+      const [data, media] = await Promise.all([
+        apiRequest(`${ARTISTS_URL}/${encodeURIComponent(requestedKey)}`),
+        readMedia(requestedKey)
+      ]);
       if (loadSequence !== editorLoadSequence || selectedKey !== requestedKey) return;
       const artist = data?.artist || artists.find(item => String(item.artist_key) === requestedKey) || {};
       showSavedArtistInEditor(artist, requestedKey);
+      applyMedia(media);
+      Object.keys(mediaConfig).forEach(kind => setMediaStatus(kind, 'Profile media loaded and verified from DEV RDS.'));
       els.message.textContent = `Editing DEV artist ${requestedKey}.`;
     } catch (error) {
       if (loadSequence !== editorLoadSequence || selectedKey !== requestedKey) return;
@@ -211,7 +241,7 @@
 
   function payload() {
     const data = {
-      name: String(els.name.value || '').trim(), artist_key: String(els.key.value || selectedKey || '').trim(), slug: String(els.slug.value || '').trim(), sort_name: String(els.sortName.value || '').trim(), status: els.status.value || 'draft', location: String(els.location.value || '').trim(), profile_image_url: String(els.profileImageUrl.value || '').trim(), banner_image_url: String(els.bannerImageUrl.value || '').trim(), bio: String(els.bio.value || '').trim(), website_url: String(els.websiteUrl.value || '').trim(), merch_url: String(els.merchUrl.value || '').trim(), spotify_url: String(els.spotifyUrl.value || '').trim(), apple_music_url: String(els.appleMusicUrl.value || '').trim(), youtube_url: String(els.youtubeUrl.value || '').trim(), instagram_url: String(els.instagramUrl.value || '').trim(), x_url: String(els.xUrl.value || '').trim(), facebook_url: String(els.facebookUrl.value || '').trim(), notes: String(els.notes.value || '').trim(), verified: Boolean(els.verified.checked), featured: Boolean(els.featured.checked)
+      name: String(els.name.value || '').trim(), artist_key: String(els.key.value || selectedKey || '').trim(), slug: String(els.slug.value || '').trim(), sort_name: String(els.sortName.value || '').trim(), status: els.status.value || 'draft', location: String(els.location.value || '').trim(), profile_image_url: String(els.profileImageUrl.value || '').trim(), banner_image_url: String(els.bannerImageUrl.value || '').trim(), vertical_banner_image_url: String(els.verticalBannerImageUrl.value || '').trim(), bio: String(els.bio.value || '').trim(), website_url: String(els.websiteUrl.value || '').trim(), merch_url: String(els.merchUrl.value || '').trim(), spotify_url: String(els.spotifyUrl.value || '').trim(), apple_music_url: String(els.appleMusicUrl.value || '').trim(), youtube_url: String(els.youtubeUrl.value || '').trim(), instagram_url: String(els.instagramUrl.value || '').trim(), x_url: String(els.xUrl.value || '').trim(), facebook_url: String(els.facebookUrl.value || '').trim(), notes: String(els.notes.value || '').trim(), verified: Boolean(els.verified.checked), featured: Boolean(els.featured.checked)
     };
     if (!data.name) throw new Error('Artist Name is required.');
     if (!data.artist_key) throw new Error('Artist Key is required.');
@@ -235,54 +265,79 @@
     }
   }
 
-  async function uploadArtistImage(kind) {
-    const isProfile = kind === 'profile';
-    const fileInput = isProfile ? els.profileImageFile : els.bannerImageFile;
-    const uploadButton = isProfile ? els.uploadProfileImage : els.uploadBannerImage;
-    const urlInput = isProfile ? els.profileImageUrl : els.bannerImageUrl;
-    const file = fileInput.files?.[0];
+  async function persistAndVerifyMedia(kind, url) {
+    const config = mediaConfig[kind];
+    if (!selectedKey) throw new Error('Select an existing artist first.');
+    const result = await apiRequest(mediaUrl(selectedKey), {
+      method: 'PATCH',
+      body: JSON.stringify({ [config.payload]: String(url || '').trim() })
+    });
+    const returned = String(result?.media?.[config.response] || '').trim();
+    if (returned !== String(url || '').trim()) throw new Error(`The DEV API returned a different ${config.label} URL after saving.`);
+    const fresh = await readMedia(selectedKey);
+    const verified = String(fresh?.[config.response] || '').trim();
+    if (verified !== String(url || '').trim()) throw new Error(`The ${config.label} did not survive a fresh DEV RDS read-back.`);
+    applyMedia(fresh);
+    return verified;
+  }
+
+  async function uploadArtistMedia(kind) {
+    const config = mediaConfig[kind];
+    if (!selectedKey) { setMediaStatus(kind, 'Save and select the artist before uploading profile media.'); return; }
+    const file = config.file.files?.[0];
     const validationError = validateImage(file);
-    if (validationError) { setImageStatus(kind, validationError); return; }
+    if (validationError) { setMediaStatus(kind, validationError); return; }
 
-    const artistName = String(els.name.value || '').trim();
-    const artistKey = slugify(els.key.value || els.slug.value || artistName);
-    if (!artistName) { setImageStatus(kind, 'Enter the artist name before uploading.'); return; }
-    if (!artistKey) { setImageStatus(kind, 'Enter the artist key or slug before uploading.'); return; }
-
-    uploadButton.disabled = true;
-    setImageStatus(kind, 'Requesting DEV upload authorization…');
+    config.upload.disabled = true;
+    config.remove.disabled = true;
+    setMediaStatus(kind, 'Requesting secure DEV artist upload URL…');
     try {
-      const presign = await apiRequest(UPLOAD_PRESIGN_URL, {
+      const presign = await apiRequest(mediaPresignUrl(selectedKey), {
         method: 'POST',
-        body: JSON.stringify({
-          song_key: `artist-${artistKey}-${kind}`,
-          song_name: `${artistName} ${kind} image`,
-          artist: artistName,
-          purpose: 'artwork',
-          filename: file.name,
-          content_type: file.type
-        })
+        body: JSON.stringify({ purpose: config.purpose, filename: file.name, content_type: file.type, size_bytes: file.size })
       });
       const uploadUrl = presign.upload_url || presign.uploadUrl;
       const publicUrl = presign.public_url || presign.publicUrl;
-      if (!uploadUrl || !publicUrl) throw new Error('DEV presign response was missing upload/public URLs.');
+      if (!uploadUrl || !publicUrl) throw new Error('DEV media presign did not return upload_url and public_url.');
       assertDevMediaTarget(uploadUrl, publicUrl);
 
-      setImageStatus(kind, 'Uploading image to DEV media storage…');
-      const uploadResponse = await fetch(uploadUrl, {
+      setMediaStatus(kind, 'Uploading image to DEV media storage…');
+      const put = await fetch(uploadUrl, {
         method: presign.method || 'PUT',
         mode: 'cors',
         credentials: 'omit',
         headers: presign.headers || { 'Content-Type': file.type },
         body: file
       });
-      if (!uploadResponse.ok) throw new Error(`DEV storage upload failed with status ${uploadResponse.status}.`);
-      urlInput.value = publicUrl;
-      setImageStatus(kind, `DEV ${kind} image uploaded. Click Save Artist to persist this URL.`);
+      if (!put.ok) throw new Error(`DEV storage upload failed with status ${put.status}.`);
+
+      config.url.value = publicUrl;
+      setMediaStatus(kind, 'Upload complete. Saving and verifying DEV RDS…');
+      await persistAndVerifyMedia(kind, publicUrl);
+      setMediaStatus(kind, `DEV ${config.label} uploaded, saved, and verified.`);
     } catch (error) {
-      setImageStatus(kind, error.message || String(error));
+      setMediaStatus(kind, error.message || String(error));
     } finally {
-      uploadButton.disabled = false;
+      config.upload.disabled = false;
+      config.remove.disabled = false;
+    }
+  }
+
+  async function removeArtistMedia(kind) {
+    const config = mediaConfig[kind];
+    if (!selectedKey) { setMediaStatus(kind, 'Select an existing artist first.'); return; }
+    config.upload.disabled = true;
+    config.remove.disabled = true;
+    setMediaStatus(kind, `Removing DEV ${config.label}…`);
+    try {
+      await persistAndVerifyMedia(kind, '');
+      config.file.value = '';
+      setMediaStatus(kind, `DEV ${config.label} removal verified in RDS.`);
+    } catch (error) {
+      setMediaStatus(kind, error.message || String(error));
+    } finally {
+      config.upload.disabled = false;
+      config.remove.disabled = false;
     }
   }
 
@@ -300,7 +355,7 @@
       const savedKey = String(saved.artist_key || data.artist_key || selectedKey);
       showSavedArtistInEditor(saved, savedKey);
       await load();
-      els.message.textContent = isCreate ? 'DEV artist created.' : 'DEV artist metadata saved.';
+      els.message.textContent = isCreate ? 'DEV artist created. Profile media controls are now enabled.' : 'DEV artist metadata saved.';
     } catch (error) {
       els.message.textContent = `DEV Artist save failed: ${error.message}`;
     } finally { els.saveArtist.disabled = false; }
@@ -313,8 +368,12 @@
   els.newArtist.addEventListener('click', () => openEditor());
   els.cancelArtist.addEventListener('click', closeEditor);
   els.editor.addEventListener('submit', saveArtist);
-  els.uploadProfileImage.addEventListener('click', () => uploadArtistImage('profile'));
-  els.uploadBannerImage.addEventListener('click', () => uploadArtistImage('banner'));
+  els.uploadProfileImage.addEventListener('click', () => uploadArtistMedia('profile'));
+  els.uploadBannerImage.addEventListener('click', () => uploadArtistMedia('banner'));
+  els.uploadVerticalBannerImage.addEventListener('click', () => uploadArtistMedia('verticalBanner'));
+  els.deleteProfileImage.addEventListener('click', () => removeArtistMedia('profile'));
+  els.deleteBannerImage.addEventListener('click', () => removeArtistMedia('banner'));
+  els.deleteVerticalBannerImage.addEventListener('click', () => removeArtistMedia('verticalBanner'));
   els.body.addEventListener('click', event => { const button = event.target.closest('.edit-artist'); if (button) openEditor(button.dataset.artistKey); });
 
   updateTokenStatus();
