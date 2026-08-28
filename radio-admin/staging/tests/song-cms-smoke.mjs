@@ -94,18 +94,20 @@ try {
   const generatedKey = await page.locator('#field-song_key').inputValue();
   if (generatedKey !== 'qa-created-song-stashbox') throw new Error(`Unexpected generated key: ${generatedKey}`);
   await page.locator('#saveSongButton').click();
-  await page.getByText('DEV song created: qa-created-song-stashbox', { exact: true }).waitFor();
-
-  const editButton = page.locator('button.edit-song').first();
-  await editButton.waitFor();
-  await editButton.click();
   await page.locator('#field-song_key:disabled').waitFor();
+  if ((await page.locator('#field-song_key').inputValue()) !== generatedKey) throw new Error('Created song did not reopen in edit mode.');
+
+  const existingEditButton = page.locator('button.edit-song[data-song-key="qa-existing-song"]');
+  await existingEditButton.waitFor();
+  await existingEditButton.click();
+  await page.locator('#field-song_key:disabled').waitFor();
+  if ((await page.locator('#field-song_key').inputValue()) !== 'qa-existing-song') throw new Error('Existing song did not open in edit mode.');
   if (await page.locator('#uploadAudioButton').isDisabled()) throw new Error('DEV media upload controls did not enable in edit mode.');
   if (await page.locator('#refreshArtworkButton').isDisabled()) throw new Error('DEV artwork controls did not enable in edit mode.');
 
   await page.locator('#field-display_title').fill('QA Existing Song Updated');
   await page.locator('#saveSongButton').click();
-  await page.getByText('DEV song saved: qa-existing-song', { exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector('#field-display_title')?.value === 'QA Existing Song Updated');
 
   const hasPost = writes.some(item => item.method === 'POST' && item.url === `${DEV_HOST}/admin/songs`);
   const hasPut = writes.some(item => item.method === 'PUT' && item.url === `${DEV_HOST}/admin/songs/qa-existing-song`);
