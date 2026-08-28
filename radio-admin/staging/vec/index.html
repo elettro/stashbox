@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
   <title>Stashbox Radio Admin · VEC Migration Staging</title>
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="./vec.css" />
@@ -12,21 +13,26 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>STASHBOX RADIO VEC LAB</h1>
-      <p class="subtitle">Unified Admin build · DEV VEC only</p>
+      <p class="subtitle">Unified Admin build · guarded DEV VEC</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/">Dashboard</a>
       <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/">Video Library</a>
       <a href="/radio-admin/staging/vec/" aria-current="page">VEC Lab</a>
-      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
-      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
-      <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/ads/">Ads</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
     <div class="env-lock"><span class="env-badge">DEV VEC</span><span>PROD locked</span></div>
   </header>
 
   <main class="shell vec-lab" aria-labelledby="vecLabTitle">
-    <section class="guardrail">This staging VEC module is DEV-only. It is an isolated copy of the current DEV VEC controller and cannot select the PROD API or PROD token namespace.</section>
+    <section class="guardrail">This staging VEC module is hard-bound to TRUE DEV. A migration fetch guard blocks PROD API requests and PROD/unknown S3 writes before the proven DEV controller runs. Production VEC remains untouched.</section>
 
     <section class="card vec-hero" aria-labelledby="vecLabTitle">
       <div>
@@ -41,28 +47,13 @@
 
     <section class="card">
       <p class="eyebrow">MIGRATION NOTE</p>
-      <p class="muted">This first parity pass preserves the proven DEV controller logic exactly. The staging wrapper bridges the new namespaced DEV token in memory without rewriting or deleting the existing DEV browser token.</p>
+      <p class="muted">The proven DEV VEC controller is preserved while a staging boundary layer maps the namespaced DEV token and enforces API/storage isolation. No existing DEV browser token or controller file is modified.</p>
       <a class="button-link" href="/radio-admin/dev/vec/" target="_blank" rel="noopener">Open untouched current DEV VEC Lab</a>
     </section>
   </main>
 
   <script src="../admin-env.js"></script>
-  <script>
-    (() => {
-      'use strict';
-      const migration = window.StashboxAdminMigration;
-      const env = migration.getEnvironment('dev');
-      const nativeGetItem = Storage.prototype.getItem;
-      Storage.prototype.getItem = function (key) {
-        if (key === 'stashbox_admin_token_dev') {
-          return nativeGetItem.call(this, env.tokenStorageKey)
-            || nativeGetItem.call(this, 'stashbox_admin_token_dev')
-            || '';
-        }
-        return nativeGetItem.call(this, key);
-      };
-    })();
-  </script>
+  <script src="./migration-guard.js"></script>
   <script src="./vec-controller.js"></script>
   <script>
     window.StashboxVecController.initVecController(document.getElementById('vecControllerMount'), {
