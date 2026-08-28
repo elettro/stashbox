@@ -12,15 +12,18 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>ADS CMS</h1>
-      <p class="subtitle">Real DEV RDS data · no browser fallback</p>
+      <p class="subtitle">Authoritative DEV RDS · guarded DEV writes</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/">Dashboard</a>
       <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/">Video Library</a>
       <a href="/radio-admin/staging/vec/">VEC Lab</a>
       <a href="/radio-admin/staging/video-factory/">Video Factory</a>
       <a href="/radio-admin/staging/ads/" aria-current="page">Ads</a>
       <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
       <a href="/radio-admin/staging/bugs/">Bug Base</a>
       <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
@@ -28,7 +31,7 @@
   </header>
 
   <main class="shell">
-    <section class="guardrail">This migration page reads the real DEV Ads RDS API only. It intentionally does not use the old browser fallback. PROD Ads and PROD settings are not reachable. Ads writes remain locked during this parity pass.</section>
+    <section class="guardrail">All data and writes on this page are hard-bound to the TRUE DEV Ads API. No browser inventory/settings fallback is used. Production Ads and production settings are not reachable from this staging module.</section>
 
     <section class="card token-panel">
       <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the migration DEV token namespace.</p></div>
@@ -37,26 +40,67 @@
     </section>
 
     <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">DEV AD SETTINGS</p><h2>Commercial Break Controller</h2><p class="muted">Read directly from DEV `/admin/ad-settings`. Write controls stay locked until the migration write contract is QA'd.</p></div><button id="refreshAds" type="button">Refresh DEV Ads</button></div>
+      <div class="section-heading">
+        <div><p class="eyebrow">DEV AD SETTINGS</p><h2>Commercial Break Controller</h2><p class="muted">Reads and saves the authoritative DEV `/admin/ad-settings` row.</p></div>
+        <button id="refreshAds" class="secondary" type="button">Refresh DEV Ads</button>
+      </div>
       <div id="adsMessage" class="message">Add or reuse a DEV admin token to load data.</div>
-      <div id="settingsGrid" class="kpi-grid"></div>
+      <div class="editor-grid" style="margin-top:1rem">
+        <div class="editor-field"><label for="adsEnabled">Ads Enabled</label><select id="adsEnabled"><option value="true">On</option><option value="false">Off</option></select></div>
+        <div class="editor-field"><label for="breakMethod">Break Method</label><select id="breakMethod"><option value="count">Count</option><option value="seconds">Seconds</option></select></div>
+        <div class="editor-field"><label for="adsPerBreak">Ads Per Break</label><select id="adsPerBreak"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+        <div class="editor-field"><label for="targetAdSeconds">Target Ad Seconds</label><select id="targetAdSeconds"><option>15</option><option>30</option><option>45</option><option>60</option><option>90</option></select></div>
+        <div class="editor-field"><label for="breakInterval">Break Interval</label><select id="breakInterval"><option>1</option><option>2</option><option>3</option></select></div>
+      </div>
+      <div class="editor-actions" style="margin-top:1rem"><button id="saveAdSettings" type="button">Save DEV Ad Settings</button></div>
+      <div id="settingsGrid" class="kpi-grid" style="margin-top:1rem"></div>
     </section>
 
     <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">DEV ADS INVENTORY</p><h2>RDS Ad Records</h2><p class="muted">No localStorage inventory fallback is used on this page.</p></div><input id="adSearch" type="search" placeholder="Search title, type, artist, genre…" style="max-width:360px" /></div>
+      <div class="section-heading">
+        <div><p class="eyebrow">DEV ADS INVENTORY</p><h2>RDS Ad Records</h2><p class="muted">Create, edit and delete against DEV RDS only. No localStorage fallback.</p></div>
+        <div class="search-row"><input id="adSearch" type="search" placeholder="Search title, type, artist, genre…" /><button id="newAd" type="button">New DEV Ad</button></div>
+      </div>
       <p id="adCount" class="song-count"></p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Title</th><th>Type</th><th>Ratio</th><th>Active</th><th>Hidden</th><th>Frequency</th><th>Views</th><th>Clicks</th><th>Skips</th><th>Video</th></tr></thead>
-          <tbody id="adsBody"><tr><td colspan="10" class="muted">No data loaded.</td></tr></tbody>
+          <thead><tr><th>Action</th><th>Title</th><th>Type</th><th>Ratio</th><th>Active</th><th>Hidden</th><th>Frequency</th><th>Views</th><th>Clicks</th><th>Skips</th><th>Video</th></tr></thead>
+          <tbody id="adsBody"><tr><td colspan="11" class="muted">No data loaded.</td></tr></tbody>
         </table>
       </div>
     </section>
 
+    <section id="adEditorCard" class="card hidden">
+      <div class="section-heading"><div><p class="eyebrow">DEV AD EDITOR</p><h2 id="adEditorHeading">New DEV Ad</h2><p class="muted">Metadata writes are enabled only for DEV. Video upload remains on the current DEV Ads tool until its presign/S3 flow is separately browser-tested.</p></div></div>
+      <form id="adEditor" autocomplete="off">
+        <div class="editor-grid">
+          <div class="editor-field"><label for="adTitle">Public Title *</label><input id="adTitle" required /></div>
+          <div class="editor-field"><label for="adType">Ad Type *</label><select id="adType"><option>Stashbox Radio Branding</option><option>Song Promo</option><option>Merch Promo</option><option>Elettro Promo</option><option>Sponsor Ad</option><option>Event Promo</option><option>Donation Campaign</option><option>Global Promo</option></select></div>
+          <div class="editor-field editor-field--full"><label for="adDescription">Description</label><textarea id="adDescription"></textarea></div>
+          <div class="editor-field editor-field--full"><label for="adVideoUrl">Video URL *</label><input id="adVideoUrl" type="url" required /></div>
+          <div class="editor-field editor-field--full"><label for="adClickUrl">Click URL</label><input id="adClickUrl" type="url" /></div>
+          <div class="editor-field"><label for="adRatio">Ratio</label><select id="adRatio"><option>Auto Detect</option><option>1:1</option><option>9:16</option><option>16:9</option><option>3:4</option><option>Custom</option></select></div>
+          <div class="editor-field"><label for="adFrequency">Frequency</label><select id="adFrequency"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+          <div class="editor-field"><label for="adSkipSeconds">Skip After Seconds</label><input id="adSkipSeconds" type="number" min="0" step="1" value="5" /></div>
+          <div class="editor-field"><label for="adStartDate">Start Date</label><input id="adStartDate" type="date" /></div>
+          <div class="editor-field"><label for="adEndDate">End Date</label><input id="adEndDate" type="date" /></div>
+          <div class="editor-field"><label><input id="adNoSkipping" type="checkbox" /> No Skipping</label></div>
+          <div class="editor-field"><label><input id="adActive" type="checkbox" /> Active</label></div>
+          <div class="editor-field"><label><input id="adHidden" type="checkbox" /> Hidden</label></div>
+          <div class="editor-field editor-field--full"><label for="adGenreTargeting">Genre Targeting</label><input id="adGenreTargeting" /></div>
+          <div class="editor-field editor-field--full"><label for="adMoodTargeting">Mood Targeting</label><input id="adMoodTargeting" /></div>
+          <div class="editor-field editor-field--full"><label for="adArtistTargeting">Artist Targeting</label><input id="adArtistTargeting" /></div>
+          <div class="editor-field editor-field--full"><label for="adSongTargeting">Song Targeting</label><input id="adSongTargeting" /></div>
+          <div class="editor-field editor-field--full"><label for="adNotes">Notes</label><textarea id="adNotes"></textarea></div>
+        </div>
+        <div class="editor-actions" style="margin-top:1rem"><button id="saveAd" type="submit">Create DEV Ad</button><button id="cancelAd" class="secondary" type="button">Cancel</button><button id="deleteAd" class="secondary hidden" type="button">Delete DEV Ad</button></div>
+      </form>
+    </section>
+
     <section class="card">
-      <p class="eyebrow">WRITE MIGRATION STATUS</p>
-      <p class="muted">Master on/off, break interval, create/edit/delete, duplication, and video upload remain on the untouched DEV Ads CMS until their staging write flows are ported and browser-tested. This prevents a DEV fallback state from being mistaken for authoritative RDS settings.</p>
-      <a class="button-link" href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Open untouched DEV Ads CMS</a>
+      <p class="eyebrow">VIDEO UPLOAD MIGRATION STATUS</p>
+      <p class="muted">Ad video presign/S3 upload remains on the untouched DEV Ads CMS for now. The RDS metadata/settings write paths above are migrated first so they can be independently browser-tested without introducing storage ambiguity.</p>
+      <a class="button-link" href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Open untouched DEV Ads CMS for video upload</a>
     </section>
   </main>
 
