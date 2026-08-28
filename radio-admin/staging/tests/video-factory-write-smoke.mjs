@@ -85,9 +85,7 @@ await page.route(`${DEV_HOST}/**`, async route => {
 
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
-  await page.getByText('5 songs available').waitFor().catch(async () => {
-    await page.getByText('1 songs available').waitFor();
-  });
+  await page.getByText('1 songs available').waitFor();
 
   await page.locator('#songKey').selectOption('qa-song');
   await page.locator('#clientName').fill('QA Client');
@@ -113,7 +111,7 @@ try {
   await clickAction('failed-1', 'retry');
 
   await page.locator('#historyStatus').selectOption('all');
-  const archive = page.locator('[data-archive-action="archive"][data-job-id="failed-1"]');
+  const archive = page.locator('[data-archive-action="archive"][data-job-id="completed-1"]');
   await archive.waitFor();
   page.once('dialog', dialog => dialog.accept());
   await archive.click();
@@ -145,7 +143,7 @@ try {
     `POST ${DEV_HOST}/admin/video-factory/jobs/draft-1/render`,
     `POST ${DEV_HOST}/admin/video-factory/jobs/active-1/cancel`,
     `POST ${DEV_HOST}/admin/video-factory/jobs/failed-1/retry`,
-    `POST ${DEV_HOST}/admin/video-factory/jobs/failed-1/archive`,
+    `POST ${DEV_HOST}/admin/video-factory/jobs/completed-1/archive`,
     `POST ${DEV_HOST}/admin/video-factory/jobs/archived-1/restore`
   ];
   for (const expected of expectedWrites) {
