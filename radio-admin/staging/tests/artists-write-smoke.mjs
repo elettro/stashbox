@@ -58,19 +58,24 @@ try {
   await page.locator('#artistName').fill('QA Created Artist');
   await page.locator('#artistKey').fill('qa-created-artist');
   await page.locator('#artistSlug').fill('qa-created-artist');
+  const createRequestPromise = page.waitForRequest(request => request.method() === 'POST' && request.url() === `${DEV_HOST}/radio/admin/artists`);
   await page.locator('#saveArtist').click();
+  const createRequest = await createRequestPromise;
+  const createPayload = JSON.parse(createRequest.postData() || '{}');
+  if (createPayload.name !== 'QA Created Artist' || createPayload.artist_key !== 'qa-created-artist') throw new Error(`Unexpected Artist POST payload: ${JSON.stringify(createPayload)}`);
   await page.locator('button.edit-artist[data-artist-key="qa-created-artist"]').waitFor();
 
   await page.locator('button.edit-artist[data-artist-key="qa-created-artist"]').click();
   await page.locator('#artistName').fill('QA Created Artist Updated');
+  const patchRequestPromise = page.waitForRequest(request => request.method() === 'PATCH' && request.url() === `${DEV_HOST}/radio/admin/artists/qa-created-artist`);
   await page.locator('#saveArtist').click();
+  const patchRequest = await patchRequestPromise;
+  const patchPayload = JSON.parse(patchRequest.postData() || '{}');
+  if (patchPayload.name !== 'QA Created Artist Updated') throw new Error(`Unexpected Artist PATCH payload: ${JSON.stringify(patchPayload)}`);
 
-  await page.waitForFunction(() => {
-    const input = document.querySelector('#artistName');
-    return input && input.value === 'QA Created Artist Updated' && input.closest('#artistEditorCard') && !input.closest('#artistEditorCard').classList.contains('hidden');
-  });
+  await page.waitForResponse(response => response.request().method() === 'GET' && response.url() === `${DEV_HOST}/radio/admin/artists`);
   const updatedArtist = artists.find(item => item.artist_key === 'qa-created-artist');
-  if (!updatedArtist || updatedArtist.name !== 'QA Created Artist Updated') throw new Error('PATCH response did not persist the updated DEV artist name in the mocked backend state.');
+  if (!updatedArtist || updatedArtist.name !== 'QA Created Artist Updated') throw new Error('PATCH did not persist the updated DEV artist name in mocked backend state.');
 
   const expectedWrites = [
     `POST ${DEV_HOST}/radio/admin/artists`,
@@ -82,7 +87,7 @@ try {
   if (prodRequests.length) throw new Error(`PROD request detected: ${prodRequests.join(', ')}`);
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
 
-  console.log(JSON.stringify({ pass: true, writes, prodRequests, updatedArtist: updatedArtist.name }, null, 2));
+  console.log(JSON.stringify({ pass: true, writes, prodRequests, createPayload, patchPayload }, null, 2));
 } finally {
   await browser.close();
 }
