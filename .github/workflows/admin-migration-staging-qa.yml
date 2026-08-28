@@ -38,6 +38,7 @@ jobs:
           node --check radio-admin/staging/songs/artwork.js
           node --check radio-admin/staging/songs/editor-sync.js
           node --check radio-admin/staging/video-library/video-library.js
+          node --check radio-admin/staging/vec/migration-guard.js
           node --check radio-admin/staging/vec/vec-controller.js
           node --check radio-admin/staging/video-factory/video-factory.js
           node --check radio-admin/staging/video-factory/video-factory-archive.js
@@ -49,6 +50,7 @@ jobs:
           node --check radio-admin/staging/system-health/system-health.js
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
           node --check radio-admin/staging/tests/module-smoke.mjs
+          node --check radio-admin/staging/tests/vec-guard-smoke.mjs
           node --check radio-admin/staging/tests/ads-write-smoke.mjs
           node --check radio-admin/staging/tests/ads-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-write-smoke.mjs
@@ -89,6 +91,9 @@ jobs:
       - name: Run migrated module browser smoke test with mocked DEV APIs
         run: node radio-admin/staging/tests/module-smoke.mjs
 
+      - name: Run VEC DEV API and storage boundary browser smoke test
+        run: node radio-admin/staging/tests/vec-guard-smoke.mjs
+
       - name: Run DEV Ads settings and CRUD browser smoke test
         run: node radio-admin/staging/tests/ads-write-smoke.mjs
 
@@ -111,6 +116,19 @@ jobs:
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
             echo 'Direct PROD Song CMS target found in staging source.'
+            exit 1
+          fi
+
+      - name: Assert VEC staging boundary is installed before the proven controller
+        run: |
+          grep -q "./migration-guard.js" radio-admin/staging/vec/index.html
+          grep -q "assertWriteAllowed('dev', 'vec')" radio-admin/staging/vec/migration-guard.js
+          grep -q "assertWriteAllowed('dev', 'vec-media')" radio-admin/staging/vec/migration-guard.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/vec/migration-guard.js
+          grep -q "Blocked VEC request to PROD API" radio-admin/staging/vec/migration-guard.js
+          grep -q "Blocked VEC storage write to PROD media bucket" radio-admin/staging/vec/migration-guard.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod" radio-admin/staging/vec/vec-controller.js radio-admin/staging/vec/index.html; then
+            echo 'PROD API/token binding found in VEC controller or page.'
             exit 1
           fi
 
