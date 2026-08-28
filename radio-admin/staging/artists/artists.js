@@ -16,7 +16,8 @@
     name: document.getElementById('artistName'), key: document.getElementById('artistKey'), slug: document.getElementById('artistSlug'), sortName: document.getElementById('artistSortName'), status: document.getElementById('artistStatus'), location: document.getElementById('artistLocation'), profileImageUrl: document.getElementById('profileImageUrl'), bannerImageUrl: document.getElementById('bannerImageUrl'), verticalBannerImageUrl: document.getElementById('verticalBannerImageUrl'), bio: document.getElementById('artistBio'), websiteUrl: document.getElementById('websiteUrl'), merchUrl: document.getElementById('merchUrl'), spotifyUrl: document.getElementById('spotifyUrl'), appleMusicUrl: document.getElementById('appleMusicUrl'), youtubeUrl: document.getElementById('youtubeUrl'), instagramUrl: document.getElementById('instagramUrl'), xUrl: document.getElementById('xUrl'), facebookUrl: document.getElementById('facebookUrl'), notes: document.getElementById('artistNotes'), verified: document.getElementById('artistVerified'), featured: document.getElementById('artistFeatured'), saveArtist: document.getElementById('saveArtist'), cancelArtist: document.getElementById('cancelArtist'),
     profileImageFile: document.getElementById('profileImageFile'), uploadProfileImage: document.getElementById('uploadProfileImage'), deleteProfileImage: document.getElementById('deleteProfileImage'), profileImageStatus: document.getElementById('profileImageStatus'),
     bannerImageFile: document.getElementById('bannerImageFile'), uploadBannerImage: document.getElementById('uploadBannerImage'), deleteBannerImage: document.getElementById('deleteBannerImage'), bannerImageStatus: document.getElementById('bannerImageStatus'),
-    verticalBannerImageFile: document.getElementById('verticalBannerImageFile'), uploadVerticalBannerImage: document.getElementById('uploadVerticalBannerImage'), deleteVerticalBannerImage: document.getElementById('deleteVerticalBannerImage'), verticalBannerImageStatus: document.getElementById('verticalBannerImageStatus')
+    verticalBannerImageFile: document.getElementById('verticalBannerImageFile'), uploadVerticalBannerImage: document.getElementById('uploadVerticalBannerImage'), deleteVerticalBannerImage: document.getElementById('deleteVerticalBannerImage'), verticalBannerImageStatus: document.getElementById('verticalBannerImageStatus'),
+    accessCard: document.getElementById('artistAccessCard'), accessMessage: document.getElementById('artistAccessMessage'), accessList: document.getElementById('artistAccessList'), accessEmail: document.getElementById('accessEmail'), accessRole: document.getElementById('accessRole'), accessLevel: document.getElementById('accessLevel'), grantAccess: document.getElementById('grantAccess')
   };
 
   const mediaConfig = {
@@ -29,6 +30,8 @@
   let performance = new Map();
   let selectedKey = '';
   let editorLoadSequence = 0;
+  let accessLoadSequence = 0;
+  let accessAssignments = [];
 
   function getToken() {
     const direct = localStorage.getItem(env.tokenStorageKey);
@@ -131,7 +134,7 @@
       artists = Array.isArray(artistData?.artists) ? artistData.artists : [];
       performance = aggregatePerformance(songData?.songs || []);
       renderStats(); renderArtists();
-      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata and profile-media writes are DEV-only.`;
+      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata, profile-media, and delegated-access writes are DEV-only.`;
     } catch (error) {
       artists = []; performance = new Map(); els.stats.innerHTML = ''; els.body.innerHTML = '<tr><td colspan="9" class="muted">DEV Artist load failed.</td></tr>'; els.count.textContent = ''; els.message.textContent = `DEV Artist load failed: ${error.message}`;
     } finally { els.refresh.disabled = false; updateTokenStatus(); }
@@ -187,10 +190,47 @@
 
   function mediaUrl(key) { return `${ARTISTS_URL}/${encodeURIComponent(key)}/media`; }
   function mediaPresignUrl(key) { return `${mediaUrl(key)}/presign`; }
+  function accessUrl(key) { return `${ARTISTS_URL}/${encodeURIComponent(key)}/access`; }
 
   async function readMedia(key) {
     const result = await apiRequest(`${mediaUrl(key)}?verify=${Date.now()}`);
     return result?.media || {};
+  }
+
+  function renderAccess() {
+    if (!els.accessList) return;
+    if (!accessAssignments.length) {
+      els.accessList.innerHTML = '<p class="muted">No delegated DEV access assignments yet.</p>';
+      return;
+    }
+    els.accessList.innerHTML = `<table><thead><tr><th>Account</th><th>Access Level</th><th>Status</th></tr></thead><tbody>${accessAssignments.map(row => `<tr><td><strong>${escapeHtml(row.display_name || row.email || row.user_id || 'Account')}</strong><br><span class="muted">${escapeHtml(row.email || '')}</span></td><td>${escapeHtml(row.access_level || 'viewer')}</td><td>${escapeHtml(row.status || 'pending')}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  async function loadAccess(key) {
+    const requestedKey = String(key || '').trim();
+    const loadSequence = ++accessLoadSequence;
+    if (!requestedKey) {
+      accessAssignments = [];
+      els.accessCard.classList.add('hidden');
+      return;
+    }
+    els.accessCard.classList.remove('hidden');
+    els.grantAccess.disabled = true;
+    els.accessMessage.textContent = `Loading DEV access assignments for ${requestedKey}…`;
+    try {
+      const result = await apiRequest(accessUrl(requestedKey));
+      if (loadSequence !== accessLoadSequence || selectedKey !== requestedKey) return;
+      accessAssignments = Array.isArray(result?.access) ? result.access : [];
+      renderAccess();
+      els.accessMessage.textContent = `Loaded ${accessAssignments.length} DEV access assignment${accessAssignments.length === 1 ? '' : 's'}.`;
+    } catch (error) {
+      if (loadSequence !== accessLoadSequence || selectedKey !== requestedKey) return;
+      accessAssignments = [];
+      renderAccess();
+      els.accessMessage.textContent = `DEV access load failed: ${error.message}`;
+    } finally {
+      if (loadSequence === accessLoadSequence && selectedKey === requestedKey) els.grantAccess.disabled = false;
+    }
   }
 
   async function openEditor(key = '') {
@@ -198,6 +238,9 @@
     const loadSequence = ++editorLoadSequence;
     selectedKey = requestedKey;
     if (!requestedKey) {
+      accessLoadSequence += 1;
+      accessAssignments = [];
+      els.accessCard.classList.add('hidden');
       fillEditor({ status: 'draft' });
       setEditorLoading(false);
       els.key.disabled = false;
@@ -209,6 +252,7 @@
     }
 
     els.editorCard.classList.remove('hidden');
+    els.accessCard.classList.remove('hidden');
     els.editorHeading.textContent = `Loading DEV Artist: ${requestedKey}`;
     els.message.textContent = `Loading DEV artist ${requestedKey}…`;
     setEditorLoading(true);
@@ -223,6 +267,7 @@
       applyMedia(media);
       Object.keys(mediaConfig).forEach(kind => setMediaStatus(kind, 'Profile media loaded and verified from DEV RDS.'));
       els.message.textContent = `Editing DEV artist ${requestedKey}.`;
+      loadAccess(requestedKey);
     } catch (error) {
       if (loadSequence !== editorLoadSequence || selectedKey !== requestedKey) return;
       setEditorLoading(false);
@@ -233,9 +278,12 @@
 
   function closeEditor() {
     editorLoadSequence += 1;
+    accessLoadSequence += 1;
     selectedKey = '';
+    accessAssignments = [];
     setEditorLoading(false);
     els.key.disabled = false;
+    els.accessCard.classList.add('hidden');
     els.editorCard.classList.add('hidden');
   }
 
@@ -341,6 +389,33 @@
     }
   }
 
+  async function grantArtistAccess() {
+    if (!selectedKey) return;
+    const email = String(els.accessEmail.value || '').trim().toLowerCase();
+    if (!email) { els.accessMessage.textContent = 'Account email is required.'; return; }
+    els.grantAccess.disabled = true;
+    els.accessMessage.textContent = `Granting DEV access to ${email}…`;
+    try {
+      const result = await apiRequest(accessUrl(selectedKey), {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          role: els.accessRole.value,
+          access_level: els.accessLevel.value,
+          status: 'approved'
+        })
+      });
+      accessAssignments = Array.isArray(result?.access) ? result.access : [];
+      renderAccess();
+      els.accessEmail.value = '';
+      els.accessMessage.textContent = `DEV artist access granted to ${email}.`;
+    } catch (error) {
+      els.accessMessage.textContent = `DEV access grant failed: ${error.message}`;
+    } finally {
+      els.grantAccess.disabled = false;
+    }
+  }
+
   async function saveArtist(event) {
     event.preventDefault();
     let data;
@@ -355,7 +430,8 @@
       const savedKey = String(saved.artist_key || data.artist_key || selectedKey);
       showSavedArtistInEditor(saved, savedKey);
       await load();
-      els.message.textContent = isCreate ? 'DEV artist created. Profile media controls are now enabled.' : 'DEV artist metadata saved.';
+      els.message.textContent = isCreate ? 'DEV artist created. Media and access controls are now enabled.' : 'DEV artist metadata saved.';
+      loadAccess(savedKey);
     } catch (error) {
       els.message.textContent = `DEV Artist save failed: ${error.message}`;
     } finally { els.saveArtist.disabled = false; }
@@ -374,6 +450,7 @@
   els.deleteProfileImage.addEventListener('click', () => removeArtistMedia('profile'));
   els.deleteBannerImage.addEventListener('click', () => removeArtistMedia('banner'));
   els.deleteVerticalBannerImage.addEventListener('click', () => removeArtistMedia('verticalBanner'));
+  els.grantAccess.addEventListener('click', grantArtistAccess);
   els.body.addEventListener('click', event => { const button = event.target.closest('.edit-artist'); if (button) openEditor(button.dataset.artistKey); });
 
   updateTokenStatus();
