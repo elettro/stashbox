@@ -3,16 +3,16 @@ name: Admin Migration Canonical Song Cutover QA
 on:
   push:
     branches:
-      - feature/admin-unification-1077
+      - feature/admin-unification-1077-cutover-candidate
     paths:
-      - 'radio-admin/staging/cutover/**'
-      - 'radio-admin/staging/tests/canonical-song-cutover-smoke.mjs'
       - '.github/workflows/admin-migration-canonical-song-cutover-qa.yml'
-  pull_request:
-    paths:
-      - 'radio-admin/staging/cutover/**'
-      - 'radio-admin/staging/tests/canonical-song-cutover-smoke.mjs'
-      - '.github/workflows/admin-migration-canonical-song-cutover-qa.yml'
+      - 'radio/canonical-song-source.js'
+      - 'radio/index.html'
+      - 'radio/desktop/index.html'
+      - 'radio/dev/v2/index.html'
+      - 'radio/dev/v2/desktop/index.html'
+      - 'radio-admin/staging/songs/**'
+      - 'radio-admin/staging/admin-env.js'
 
 permissions:
   contents: read
@@ -22,59 +22,98 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out migration branch
+      - name: Check out materialized candidate
         uses: actions/checkout@v4
+        with:
+          ref: feature/admin-unification-1077-cutover-candidate
+          fetch-depth: 0
+
+      - name: Fetch migration reference branch
+        run: git fetch origin feature/admin-unification-1077:refs/remotes/origin/feature/admin-unification-1077
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Syntax check cutover package
+      - name: Syntax check actual candidate
         run: |
-          node --check radio-admin/staging/cutover/canonical-song-source.js
-          node --check radio-admin/staging/cutover/apply-canonical-song-cutover.mjs
+          node --check radio/canonical-song-source.js
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/songs/songs.js
+          node --check radio-admin/staging/songs/media.js
+          node --check radio-admin/staging/songs/artwork.js
           node --check radio-admin/staging/tests/canonical-song-cutover-smoke.mjs
+          node --check radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs
 
-      - name: Assert canonical guard is read-only and PROD-only as a source
+      - name: Assert production-facing diff is the planned candidate only
         run: |
-          grep -q "canonicalUrl: PROD_SONGS" radio-admin/staging/cutover/canonical-song-source.js
-          grep -q "readOnly: true" radio-admin/staging/cutover/canonical-song-source.js
-          grep -q "Blocked non-read song catalog request" radio-admin/staging/cutover/canonical-song-source.js
-          if grep -q "DEV_SONGS" radio-admin/staging/cutover/canonical-song-source.js; then
-            echo 'DEV catalog fallback was reintroduced into canonical song source.'
+          changed="$(git diff --name-only origin/feature/admin-unification-1077...HEAD -- radio radio-admin/staging/songs | sort)"
+          expected="$(printf '%s\n' \
+            radio/canonical-song-source.js \
+            radio/desktop/index.html \
+            radio/dev/v2/desktop/index.html \
+            radio/dev/v2/index.html \
+            radio/index.html \
+            radio-admin/staging/songs/artwork.js \
+            radio-admin/staging/songs/index.html \
+            radio-admin/staging/songs/media.js \
+            radio-admin/staging/songs/songs.js | sort)"
+          echo "$changed"
+          test "$changed" = "$expected"
+
+      - name: Assert actual candidate player source is PROD-only and read-only
+        run: |
+          grep -q "canonicalUrl: PROD_SONGS" radio/canonical-song-source.js
+          grep -q "readOnly: true" radio/canonical-song-source.js
+          grep -q "Blocked non-read song catalog request" radio/canonical-song-source.js
+          if grep -q "DEV_SONGS" radio/canonical-song-source.js; then
+            echo 'DEV catalog fallback was reintroduced into candidate source.'
             exit 1
           fi
-
-      - name: Apply cutover only inside CI workspace
-        run: node radio-admin/staging/cutover/apply-canonical-song-cutover.mjs --apply
-
-      - name: Assert only expected player files are changed by cutover
-        run: |
-          test -f radio/canonical-song-source.js
           for file in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do
             grep -q '/radio/canonical-song-source.js' "$file"
           done
-          changed="$(git diff --name-only | sort)"
-          expected="$(printf '%s\n' radio/desktop/index.html radio/dev/v2/desktop/index.html radio/dev/v2/index.html radio/index.html | sort)"
-          test "$changed" = "$expected"
-          untracked="$(git ls-files --others --exclude-standard)"
-          test "$untracked" = 'radio/canonical-song-source.js'
+
+      - name: Assert actual candidate Admin is PROD-targeted but write-locked
+        run: |
+          grep -q 'phase4ProdReadApproved: true' radio-admin/staging/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js
+          grep -q 'writesAllowedInStaging: false' radio-admin/staging/admin-env.js
+          grep -q 'prodSongCountValidated: 84' radio-admin/staging/admin-env.js
+          grep -q 'devSongCountValidated: 84' radio-admin/staging/admin-env.js
+          for file in radio-admin/staging/songs/songs.js radio-admin/staging/songs/media.js radio-admin/staging/songs/artwork.js; do
+            if grep -q "getEnvironment('dev')" "$file"; then
+              echo "DEV environment remains in candidate Song CMS file: $file"
+              exit 1
+            fi
+            grep -q 'getCanonicalSongEnvironment' "$file"
+          done
+          grep -q "assertCanonicalSongWriteApproved('songs')" radio-admin/staging/songs/songs.js
+          grep -q 'assertCanonicalSongWriteApproved' radio-admin/staging/songs/media.js
+          grep -q "assertCanonicalSongWriteApproved('song-artwork')" radio-admin/staging/songs/artwork.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/media.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/artwork.js
 
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Start isolated static server
+      - name: Start isolated candidate server
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/canonical-song-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/candidate-http.log 2>&1 &
           for i in {1..20}; do
-            curl --fail --silent http://127.0.0.1:4173/radio/canonical-song-source.js >/dev/null && exit 0
+            curl --fail --silent http://127.0.0.1:4173/radio/canonical-song-source.js >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null && exit 0
             sleep 1
           done
-          cat /tmp/canonical-song-http.log
+          cat /tmp/candidate-http.log
           exit 1
 
-      - name: Verify DEV and PROD song requests both resolve to canonical PROD
+      - name: Verify both player families route song reads to canonical PROD
         run: node radio-admin/staging/tests/canonical-song-cutover-smoke.mjs
+
+      - name: Verify candidate Admin reads PROD while all writes remain blocked before network
+        run: node radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs
