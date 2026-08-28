@@ -32,14 +32,18 @@ Explicitly untouched during the current build phase:
 - staging Song CMS creates DEV songs with `POST /admin/songs`
 - staging Song CMS edits DEV songs with `PUT /admin/songs/{song_key}`
 - modern metadata fields included in the migrated editor
+- DEV audio upload ported using the existing `/admin/uploads/presign` contract
+- DEV song-specific visual image uploads ported with `purpose: visual_image`
+- DEV song-specific visual clip uploads ported with `purpose: visual_clip`
+- uploaded visual media is appended to the modern `visual_assets` editor field
 - six-image DEV artwork library ported for 1:1, 9:16, 16:9, 3:4, 4:5, and 21:9
 - artwork upload uses the existing DEV `/admin/uploads/presign` flow and DEV artwork attach endpoint
 - current legacy DEV admin token may be read as a fallback without deleting or modifying it
 
-## Still to migrate
+## Still to migrate / verify
 
-- audio/media upload workflow
-- deeper visual asset management
+- DEV runtime QA of the migrated Song CMS
+- deeper VEC recipe/folder management
 - VEC
 - Video Factory
 - Ads
@@ -48,7 +52,6 @@ Explicitly untouched during the current build phase:
 - Bug Base integration
 - environment-correct System Health
 - Social Factory navigation/integration
-- DEV staging QA
 - PROD read-only validation
 - controlled PROD write validation only after explicit approval
 - backup/checkpoint and cutover workflow
