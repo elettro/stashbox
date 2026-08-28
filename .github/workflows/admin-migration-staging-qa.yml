@@ -38,8 +38,10 @@ jobs:
           node --check radio-admin/staging/songs/artwork.js
           node --check radio-admin/staging/songs/editor-sync.js
           node --check radio-admin/staging/video-library/video-library.js
+          node --check radio-admin/staging/video-library/duplicate-upload-safety.js
           node --check radio-admin/staging/vec/migration-guard.js
           node --check radio-admin/staging/vec/vec-controller.js
+          node --check radio-admin/staging/video-factory/migration-guard.js
           node --check radio-admin/staging/video-factory/video-factory.js
           node --check radio-admin/staging/video-factory/video-factory-archive.js
           node --check radio-admin/staging/video-factory/video-factory-resolution-preview.js
@@ -51,12 +53,16 @@ jobs:
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
           node --check radio-admin/staging/tests/module-smoke.mjs
           node --check radio-admin/staging/tests/vec-guard-smoke.mjs
+          node --check radio-admin/staging/tests/video-library-write-smoke.mjs
+          node --check radio-admin/staging/tests/video-library-duplicate-smoke.mjs
+          node --check radio-admin/staging/tests/video-factory-write-smoke.mjs
           node --check radio-admin/staging/tests/ads-write-smoke.mjs
           node --check radio-admin/staging/tests/ads-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-write-smoke.mjs
           node --check radio-admin/staging/tests/artists-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-access-smoke.mjs
           node --check radio-admin/staging/tests/notifications-write-smoke.mjs
+          node --check radio-admin/staging/tests/system-health-readonly-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -94,6 +100,15 @@ jobs:
       - name: Run VEC DEV API and storage boundary browser smoke test
         run: node radio-admin/staging/tests/vec-guard-smoke.mjs
 
+      - name: Run DEV Video Library write and upload browser smoke test
+        run: node radio-admin/staging/tests/video-library-write-smoke.mjs
+
+      - name: Run DEV Video Library duplicate filename browser smoke test
+        run: node radio-admin/staging/tests/video-library-duplicate-smoke.mjs
+
+      - name: Run DEV Video Factory lifecycle and boundary browser smoke test
+        run: node radio-admin/staging/tests/video-factory-write-smoke.mjs
+
       - name: Run DEV Ads settings and CRUD browser smoke test
         run: node radio-admin/staging/tests/ads-write-smoke.mjs
 
@@ -112,6 +127,9 @@ jobs:
       - name: Run DEV Notification lifecycle browser smoke test
         run: node radio-admin/staging/tests/notifications-write-smoke.mjs
 
+      - name: Run read-only DEV System Health browser smoke test
+        run: node radio-admin/staging/tests/system-health-readonly-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -129,6 +147,32 @@ jobs:
           grep -q "Blocked VEC storage write to PROD media bucket" radio-admin/staging/vec/migration-guard.js
           if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod" radio-admin/staging/vec/vec-controller.js radio-admin/staging/vec/index.html; then
             echo 'PROD API/token binding found in VEC controller or page.'
+            exit 1
+          fi
+
+      - name: Assert Video Library staging uses guarded DEV write contracts
+        run: |
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/video-library.js
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/duplicate-upload-safety.js
+          grep -q "/admin/visuals/folders" radio-admin/staging/video-library/video-library.js
+          grep -q "/admin/visuals/song-folders" radio-admin/staging/video-library/video-library.js
+          grep -q "/admin/uploads/presign" radio-admin/staging/video-library/video-library.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/video-library/video-library.js
+          grep -q "Blocked Video Library upload because DEV presign returned a PROD media target" radio-admin/staging/video-library/video-library.js
+          grep -q "./duplicate-upload-safety.js" radio-admin/staging/video-library/index.html
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-library/*.js radio-admin/staging/video-library/index.html; then
+            echo 'Video Library staging contains an unapproved PROD API, PROD environment, or PROD token binding.'
+            exit 1
+          fi
+
+      - name: Assert Video Factory staging boundary is installed
+        run: |
+          grep -q './migration-guard.js' radio-admin/staging/video-factory/index.html
+          grep -q "assertWriteAllowed('dev', 'video-factory')" radio-admin/staging/video-factory/migration-guard.js
+          grep -q 'stashbox-radio-video-factory-dev-' radio-admin/staging/video-factory/migration-guard.js
+          grep -q 'Blocked Video Factory request to PROD API' radio-admin/staging/video-factory/migration-guard.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-factory/video-factory.js radio-admin/staging/video-factory/video-factory-archive.js radio-admin/staging/video-factory/index.html; then
+            echo 'Video Factory staging contains an unapproved PROD binding.'
             exit 1
           fi
 
@@ -175,15 +219,16 @@ jobs:
             exit 1
           fi
 
-      - name: Assert Video Library staging stays DEV read-only
+      - name: Assert DEV Health stays read-only and analytics freeze stays installed
         run: |
-          grep -q "/admin/visuals/folders" radio-admin/staging/video-library/video-library.js
-          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/video-library/video-library.js; then
-            echo 'Write method found in read-only Video Library staging module.'
+          grep -q "Scope: DEV System Health only" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          grep -q "Do not call the heavy /dashboard/summary analytics route" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/system-health/system-health.js; then
+            echo 'Write method found in read-only System Health module.'
             exit 1
           fi
-          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2" radio-admin/staging/video-library; then
-            echo 'PROD API target found in Video Library staging module.'
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2" radio-admin/staging/system-health; then
+            echo 'PROD API target found in DEV System Health staging.'
             exit 1
           fi
 
