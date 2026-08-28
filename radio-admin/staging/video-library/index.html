@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Admin · Video Library Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>VIDEO LIBRARY</h1>
+      <p class="subtitle">DEV visual folders · read-only staging bridge</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/" aria-current="page">Video Library</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/ads/">Ads</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV</span><span>Writes locked here</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This staging page reads DEV visual-folder data only. Folder/media editing remains in the untouched current DEV Video Library until its write contract receives behavioral QA. No PROD visual endpoint is available here.</section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">AUTHORITATIVE DEV DATA</p>
+          <h2>Visual Folder Library</h2>
+          <p class="muted">Reads <code>/admin/visuals/folders</code> from the TRUE DEV Radio API using the migration DEV token namespace.</p>
+        </div>
+        <div class="search-row">
+          <input id="folderSearch" type="search" placeholder="Search folders…" />
+          <button id="refreshFolders" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="videoLibraryMessage" class="message">Loading DEV visual folders…</div>
+      <p id="folderCount" class="song-count"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Folder</th><th>Status</th><th>Priority</th><th>Assets</th><th>Artist</th><th>Genre</th><th>Mood</th></tr></thead>
+          <tbody id="foldersBody"><tr><td colspan="7" class="muted">No data loaded.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">WRITE WORKFLOW</p>
+      <h2>Current DEV editor remains the write surface</h2>
+      <p class="muted">This is intentional during migration. Creating folders, uploading assets, changing visibility, mappings, sequence, captions, product links, or deleting media still happens in the existing DEV Video Library until that behavior is ported and browser-tested.</p>
+      <a class="button-link" href="/radio/visual-experience/dev/" target="_blank" rel="noopener">Open untouched DEV Video Library</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script src="./video-library.js"></script>
+</body>
+</html>
