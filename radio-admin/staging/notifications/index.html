@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
   <title>Stashbox Radio Admin · Notifications Migration Staging</title>
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="../styles.css" />
@@ -12,21 +13,26 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>NOTIFICATION CMS</h1>
-      <p class="subtitle">Unified Admin build · DEV notifications only</p>
+      <p class="subtitle">Unified Admin build · guarded DEV notifications</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/">Dashboard</a>
       <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/">Video Library</a>
       <a href="/radio-admin/staging/vec/">VEC Lab</a>
       <a href="/radio-admin/staging/video-factory/">Video Factory</a>
-      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
+      <a href="/radio-admin/staging/ads/">Ads</a>
       <a href="/radio-admin/staging/notifications/" aria-current="page">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
     <div class="env-lock"><span class="env-badge">DEV NOTIFY</span><span>PROD locked</span></div>
   </header>
 
   <main class="shell">
-    <section class="guardrail">This staging Notification CMS can only call the DEV notification API. Publishing here is DEV-only. No production notification endpoint or production token is exposed by this page.</section>
+    <section class="guardrail">This staging Notification CMS is hard-bound to the migration DEV environment. Create, update, publish, schedule, target and archive actions call only the DEV notification API. No production notification endpoint or production token is exposed.</section>
     <div id="message" class="message hidden" role="status" aria-live="polite"></div>
 
     <section class="card" aria-labelledby="tokenHeading">
@@ -93,27 +99,6 @@
   </main>
 
   <script src="../admin-env.js"></script>
-  <script>
-    (() => {
-      'use strict';
-      const env = window.StashboxAdminMigration.getEnvironment('dev');
-      const nativeGetItem = Storage.prototype.getItem;
-      const nativeSetItem = Storage.prototype.setItem;
-      const nativeRemoveItem = Storage.prototype.removeItem;
-      Storage.prototype.getItem = function (key) {
-        if (key === 'stashbox_admin_token_dev') return nativeGetItem.call(this, env.tokenStorageKey) || nativeGetItem.call(this, key) || '';
-        return nativeGetItem.call(this, key);
-      };
-      Storage.prototype.setItem = function (key, value) {
-        if (key === 'stashbox_admin_token_dev') return nativeSetItem.call(this, env.tokenStorageKey, value);
-        return nativeSetItem.call(this, key, value);
-      };
-      Storage.prototype.removeItem = function (key) {
-        if (key === 'stashbox_admin_token_dev') return nativeRemoveItem.call(this, env.tokenStorageKey);
-        return nativeRemoveItem.call(this, key);
-      };
-    })();
-  </script>
   <script src="./app.js" defer></script>
 </body>
 </html>
