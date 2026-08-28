@@ -20,6 +20,8 @@
       <a href="/radio-admin/staging/video-factory/">Video Factory</a>
       <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
       <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
     <div class="env-lock"><span class="env-badge">DEV</span><span>PROD locked</span></div>
   </header>
@@ -52,7 +54,9 @@
         <article><strong>VEC Lab</strong><span class="done">Staging</span><p>DEV VEC controller is copied into the isolated staging route.</p></article>
         <article><strong>Video Factory</strong><span class="done">Staging</span><p>DEV render workflow is copied into staging with migration-token bridging.</p></article>
         <article><strong>Notifications</strong><span class="done">Staging</span><p>DEV Notification CMS is isolated in staging. PROD publishing is unavailable.</p></article>
-        <article><strong>Ads / Artists / Health</strong><span>Next</span><p>Remain on untouched DEV tools until their staging policies and modules are ready.</p></article>
+        <article><strong>Bug Base</strong><span class="done">Shared</span><p>Read-only checked-in bug registry. No API or database writes.</p></article>
+        <article><strong>DEV Health</strong><span class="done">Staging</span><p>Explicitly DEV-only health checks. It does not represent PROD health.</p></article>
+        <article><strong>Ads / Artists</strong><span>Next</span><p>Remain on untouched DEV tools until their stricter migration policies are complete.</p></article>
         <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production writes, route replacement, or cutover in this phase.</p></article>
       </div>
     </section>
