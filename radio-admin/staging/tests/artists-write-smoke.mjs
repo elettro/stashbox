@@ -64,7 +64,13 @@ try {
   await page.locator('button.edit-artist[data-artist-key="qa-created-artist"]').click();
   await page.locator('#artistName').fill('QA Created Artist Updated');
   await page.locator('#saveArtist').click();
-  await page.getByText('QA Created Artist Updated', { exact: true }).waitFor();
+
+  await page.waitForFunction(() => {
+    const input = document.querySelector('#artistName');
+    return input && input.value === 'QA Created Artist Updated' && input.closest('#artistEditorCard') && !input.closest('#artistEditorCard').classList.contains('hidden');
+  });
+  const updatedArtist = artists.find(item => item.artist_key === 'qa-created-artist');
+  if (!updatedArtist || updatedArtist.name !== 'QA Created Artist Updated') throw new Error('PATCH response did not persist the updated DEV artist name in the mocked backend state.');
 
   const expectedWrites = [
     `POST ${DEV_HOST}/radio/admin/artists`,
@@ -76,7 +82,7 @@ try {
   if (prodRequests.length) throw new Error(`PROD request detected: ${prodRequests.join(', ')}`);
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
 
-  console.log(JSON.stringify({ pass: true, writes, prodRequests }, null, 2));
+  console.log(JSON.stringify({ pass: true, writes, prodRequests, updatedArtist: updatedArtist.name }, null, 2));
 } finally {
   await browser.close();
 }
