@@ -37,6 +37,7 @@ jobs:
           node --check radio-admin/staging/songs/media.js
           node --check radio-admin/staging/songs/artwork.js
           node --check radio-admin/staging/songs/editor-sync.js
+          node --check radio-admin/staging/video-library/video-library.js
           node --check radio-admin/staging/vec/vec-controller.js
           node --check radio-admin/staging/video-factory/video-factory.js
           node --check radio-admin/staging/video-factory/video-factory-archive.js
@@ -59,11 +60,13 @@ jobs:
           echo $! > /tmp/admin-staging-http.pid
           for i in {1..20}; do
             if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-library/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/vec/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-factory/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/ads/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/notifications/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/artists/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/social-factory/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/bugs/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/system-health/ >/dev/null; then
               exit 0
@@ -95,6 +98,27 @@ jobs:
         run: |
           if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/artists/artists.js; then
             echo 'Write method found in read-only Artist staging module.'
+            exit 1
+          fi
+
+      - name: Assert Video Library staging stays DEV read-only
+        run: |
+          grep -q "/admin/visuals/folders" radio-admin/staging/video-library/video-library.js
+          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/video-library/video-library.js; then
+            echo 'Write method found in read-only Video Library staging module.'
+            exit 1
+          fi
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2" radio-admin/staging/video-library; then
+            echo 'PROD API target found in Video Library staging module.'
+            exit 1
+          fi
+
+      - name: Assert Social Factory remains a separate DEV bridge
+        run: |
+          grep -q "/radio-admin/dev/social-factory/" radio-admin/staging/social-factory/index.html
+          grep -q "separate DEV-only service" radio-admin/staging/social-factory/index.html
+          if grep -R "prod-v2\|radio_admin_token_prod" radio-admin/staging/social-factory; then
+            echo 'PROD binding found in Social Factory staging bridge.'
             exit 1
           fi
 
