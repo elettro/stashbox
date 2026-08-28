@@ -1,0 +1,76 @@
+name: Admin Migration Video Library QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/video-library/**'
+      - 'radio-admin/staging/tests/video-library-write-smoke.mjs'
+      - 'radio-admin/staging/admin-env.js'
+      - '.github/workflows/admin-migration-video-library-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/video-library/**'
+      - 'radio-admin/staging/tests/video-library-write-smoke.mjs'
+      - 'radio-admin/staging/admin-env.js'
+      - '.github/workflows/admin-migration-video-library-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  video-library-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check Video Library staging JavaScript
+        run: |
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/video-library/video-library.js
+          node --check radio-admin/staging/tests/video-library-write-smoke.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/video-library-staging-http.log 2>&1 &
+          echo $! > /tmp/video-library-staging-http.pid
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-library/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/video-library-staging-http.log
+          exit 1
+
+      - name: Run DEV Video Library write and upload browser smoke test
+        run: node radio-admin/staging/tests/video-library-write-smoke.mjs
+
+      - name: Assert Video Library stays DEV guarded
+        run: |
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/video-library.js
+          grep -q 'stashbox-radio-media-dev-us-east-1' radio-admin/staging/video-library/video-library.js
+          grep -q 'Blocked Video Library upload because DEV presign returned a PROD media target' radio-admin/staging/video-library/video-library.js
+          grep -q '/admin/visuals/song-folders' radio-admin/staging/video-library/video-library.js
+          grep -q '/admin/uploads/presign' radio-admin/staging/video-library/video-library.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-library/video-library.js radio-admin/staging/video-library/index.html; then
+            echo 'Video Library staging contains an unapproved PROD API, PROD environment, or PROD token binding.'
+            exit 1
+          fi
+          if grep -E "FOLDERS_URL.*method:[[:space:]]*['\"]DELETE['\"]" radio-admin/staging/video-library/video-library.js; then
+            echo 'Folder DELETE was introduced even though current DEV folder deletion is paused.'
+            exit 1
+          fi
