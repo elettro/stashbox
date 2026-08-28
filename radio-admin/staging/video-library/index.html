@@ -85,10 +85,11 @@
       <div id="assetsList" class="vl-assets-list" style="margin-top:1rem"></div>
     </section>
 
-    <section class="card"><p class="eyebrow">MIGRATION SAFETY</p><p class="muted">Folder removal remains disabled. Asset “Hide” uses the existing DEV asset DELETE route, which is the current CMS behavior. The untouched DEV Visual Library remains available as fallback during this migration.</p><a class="button-link" href="/radio/visual-experience/dev/" target="_blank" rel="noopener">Open untouched DEV Video Library</a></section>
+    <section class="card"><p class="eyebrow">MIGRATION SAFETY</p><p class="muted">Folder removal remains disabled. Asset “Hide” uses the existing DEV asset DELETE route, which is the current CMS behavior. Duplicate filenames are checked before upload with Skip, Replace, or Keep Both behavior. The untouched DEV Visual Library remains available as fallback during this migration.</p><a class="button-link" href="/radio/visual-experience/dev/" target="_blank" rel="noopener">Open untouched DEV Video Library</a></section>
   </main>
 
   <script src="../admin-env.js"></script>
   <script src="./video-library.js"></script>
+  <script src="./duplicate-upload-safety.js"></script>
 </body>
 </html>
