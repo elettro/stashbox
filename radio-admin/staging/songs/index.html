@@ -44,6 +44,40 @@
       <div id="editorMessage" class="message">DEV write guard active. PROD writes are blocked.</div>
       <form id="songEditor" class="song-editor" autocomplete="off"></form>
 
+      <section class="media-library" aria-labelledby="mediaHeading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">MIGRATED MEDIA UPLOAD · DEV ONLY</p>
+            <h3 id="mediaHeading">Audio & Song Visual Media</h3>
+            <p class="muted">Select an existing DEV song first. Uploaded URLs are placed into the editor; click Save DEV Changes to persist the song metadata.</p>
+          </div>
+        </div>
+        <div id="mediaMessage" class="message">Choose Edit on a DEV song before uploading media.</div>
+        <div class="media-upload-grid">
+          <article class="media-upload-card">
+            <strong>Audio File</strong>
+            <p class="muted">WAV, MP3, M4A, FLAC, AIFF</p>
+            <input id="audioFileInput" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/flac,audio/aiff,audio/x-aiff,.wav,.mp3,.m4a,.flac,.aiff,.aif" />
+            <button id="uploadAudioButton" type="button">Upload Audio to DEV</button>
+            <p id="audioUploadStatus" class="artwork-status"></p>
+          </article>
+          <article class="media-upload-card">
+            <strong>Visual Images</strong>
+            <p class="muted">JPG, PNG, WEBP. Multiple files supported.</p>
+            <input id="visualImageInput" type="file" multiple accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" />
+            <button id="uploadVisualImagesButton" type="button">Upload Visual Images to DEV</button>
+            <p id="visualImageStatus" class="artwork-status"></p>
+          </article>
+          <article class="media-upload-card">
+            <strong>Visual Clips</strong>
+            <p class="muted">MP4, WEBM, MOV. Multiple files supported.</p>
+            <input id="visualClipInput" type="file" multiple accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+            <button id="uploadVisualClipsButton" type="button">Upload Visual Clips to DEV</button>
+            <p id="visualClipStatus" class="artwork-status"></p>
+          </article>
+        </div>
+      </section>
+
       <section class="artwork-library" aria-labelledby="artworkHeading">
         <div class="section-heading compact-heading">
           <div>
@@ -94,13 +128,14 @@
 
     <section class="card">
       <p class="eyebrow">NEXT SONG CMS MIGRATION STEP</p>
-      <p class="muted">Audio/media upload and deeper visual-asset management still remain on the untouched current DEV Song CMS while those flows are ported and verified.</p>
+      <p class="muted">The main Song CMS create/edit, six-image artwork, audio upload, and song-specific visual image/clip upload flows are now represented in staging. Next is DEV runtime QA and then migration of the VEC/Video Factory/Ads modules.</p>
       <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open untouched current DEV Song CMS</a>
     </section>
   </main>
 
   <script src="../admin-env.js"></script>
   <script src="./songs.js"></script>
+  <script src="./media.js"></script>
   <script src="./artwork.js"></script>
 </body>
 </html>
