@@ -79,6 +79,16 @@ await page.route(`${PROD_BASE}/**`, async route => {
 
 await page.route(`https://${PROD_BUCKET}.s3.amazonaws.com/**`, async route => route.fulfill({ status: 200, body: '' }));
 
+async function waitUntil(predicate, label, timeoutMs = 8000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  const status = await page.locator('.artwork-card[data-ratio="1x1"] .artwork-status').textContent().catch(() => '');
+  throw new Error(`${label} did not occur. Artwork status: ${String(status || '').trim() || '(empty)'}`);
+}
+
 async function reopenSavedSong() {
   const edit = page.locator('button.edit-song[data-song-key="canonical-qa-song"]');
   await edit.waitFor({ state: 'visible' });
@@ -128,15 +138,20 @@ try {
   await waitForArtworkReady();
   const artworkCard = page.locator('.artwork-card[data-ratio="1x1"]');
   await artworkCard.locator('.artwork-file').setInputFiles({ name: 'rehearsal.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
-  const artworkPresignResponse = page.waitForResponse(response => {
-    if (response.url() !== `${PROD_BASE}/admin/uploads/presign` || response.request().method() !== 'POST') return false;
-    try { return JSON.parse(response.request().postData() || '{}').purpose === 'artwork'; } catch { return false; }
-  });
-  const artworkStorageResponse = page.waitForResponse(response => response.url().includes(`${PROD_BUCKET}.s3.amazonaws.com/artwork/`) && response.request().method() === 'PUT');
-  const artworkPatchResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/radio/admin/songs/canonical-qa-song/artwork-images` && response.request().method() === 'PATCH');
   await artworkCard.locator('.upload-artwork').click();
-  await Promise.all([artworkPresignResponse, artworkStorageResponse, artworkPatchResponse]);
-  if (!writes.some(item => item.method === 'PATCH' && item.path === '/radio/admin/songs/canonical-qa-song/artwork-images')) throw new Error('Canonical artwork PATCH did not use PROD API.');
+
+  await waitUntil(
+    () => writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'artwork'),
+    'Canonical artwork presign'
+  );
+  await waitUntil(
+    () => storagePuts.some(url => url.includes(`${PROD_BUCKET}.s3.amazonaws.com/artwork/`)),
+    'Canonical artwork S3 PUT'
+  );
+  await waitUntil(
+    () => writes.some(item => item.method === 'PATCH' && item.path === '/radio/admin/songs/canonical-qa-song/artwork-images'),
+    'Canonical artwork PATCH'
+  );
 
   if (storagePuts.length !== 2) throw new Error(`Expected exactly two PROD S3 PUTs, saw ${storagePuts.length}.`);
   if (devRequests.length) throw new Error(`Canonical write rehearsal reached DEV: ${devRequests.join(' | ')}`);
