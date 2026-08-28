@@ -91,6 +91,16 @@ async function reopenSavedSong() {
   });
 }
 
+async function waitForArtworkReady() {
+  await page.locator('#artworkMessage').getByText(/LIVE artwork loaded for canonical-qa-song/).waitFor();
+  await page.waitForFunction(() => {
+    const card = document.querySelector('.artwork-card[data-ratio="1x1"]');
+    const input = card?.querySelector('.artwork-file');
+    const button = card?.querySelector('.upload-artwork');
+    return Boolean(card && input && button && !input.disabled && !button.disabled);
+  });
+}
+
 try {
   await page.goto(pageUrl, { waitUntil: 'networkidle' });
   await reopenSavedSong();
@@ -102,8 +112,6 @@ try {
   const metadataWrite = writes.find(item => item.method === 'PUT' && item.path === '/admin/songs/canonical-qa-song');
   if (metadataWrite?.payload?.display_title !== 'Canonical QA Updated') throw new Error('Canonical metadata PUT payload was not sent to PROD correctly.');
 
-  // saveSong() reloads and re-opens asynchronously. Explicitly re-enter edit mode
-  // so media/artwork rehearsals test the stable post-save UI state.
   await reopenSavedSong();
 
   await page.locator('#audioFileInput').setInputFiles({ name: 'rehearsal.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('fake-audio') });
@@ -117,11 +125,17 @@ try {
   if (!writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'audio')) throw new Error('Canonical audio presign did not use PROD API.');
 
   await reopenSavedSong();
+  await waitForArtworkReady();
   const artworkCard = page.locator('.artwork-card[data-ratio="1x1"]');
   await artworkCard.locator('.artwork-file').setInputFiles({ name: 'rehearsal.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
+  const artworkPresignResponse = page.waitForResponse(response => {
+    if (response.url() !== `${PROD_BASE}/admin/uploads/presign` || response.request().method() !== 'POST') return false;
+    try { return JSON.parse(response.request().postData() || '{}').purpose === 'artwork'; } catch { return false; }
+  });
+  const artworkStorageResponse = page.waitForResponse(response => response.url().includes(`${PROD_BUCKET}.s3.amazonaws.com/artwork/`) && response.request().method() === 'PUT');
   const artworkPatchResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/radio/admin/songs/canonical-qa-song/artwork-images` && response.request().method() === 'PATCH');
   await artworkCard.locator('.upload-artwork').click();
-  await artworkPatchResponse;
+  await Promise.all([artworkPresignResponse, artworkStorageResponse, artworkPatchResponse]);
   if (!writes.some(item => item.method === 'PATCH' && item.path === '/radio/admin/songs/canonical-qa-song/artwork-images')) throw new Error('Canonical artwork PATCH did not use PROD API.');
 
   if (storagePuts.length !== 2) throw new Error(`Expected exactly two PROD S3 PUTs, saw ${storagePuts.length}.`);
