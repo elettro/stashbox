@@ -4,7 +4,10 @@ const DEV_HOST = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const PROD_HOST = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
 const baseUrl = process.env.STAGING_ARTISTS_QA_URL || 'http://127.0.0.1:4173/radio-admin/staging/artists/';
 
-let artists = [{ id: 1, artist_key: 'qa-artist', name: 'QA Artist', slug: 'qa-artist', sort_name: 'QA Artist', status: 'published', location: 'DEV', profile_image_url: '', banner_image_url: '', bio: 'Existing QA artist', follower_count: 3, verified: false, featured: false }];
+let artists = [{ id: 1, artist_key: 'qa-artist', name: 'QA Artist', slug: 'qa-artist', sort_name: 'QA Artist', status: 'published', location: 'DEV', profile_image_url: '', banner_image_url: '', vertical_banner_image_url: '', bio: 'Existing QA artist', follower_count: 3, verified: false, featured: false }];
+const mediaByKey = new Map([
+  ['qa-artist', { artist_key: 'qa-artist', slug: 'qa-artist', profile_image_url: '', horizontal_banner_image_url: '', vertical_banner_image_url: '' }]
+]);
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1200 } });
@@ -33,18 +36,39 @@ await page.route(`${DEV_HOST}/**`, async route => {
   if (path === '/radio/admin/artists' && method === 'POST') {
     const artist = { id: 2, follower_count: 0, ...body() };
     artists = [artist, ...artists];
+    mediaByKey.set(artist.artist_key, {
+      artist_key: artist.artist_key,
+      slug: artist.slug || artist.artist_key,
+      profile_image_url: artist.profile_image_url || '',
+      horizontal_banner_image_url: artist.banner_image_url || '',
+      vertical_banner_image_url: artist.vertical_banner_image_url || ''
+    });
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ artist }) });
   }
-  if (path.startsWith('/radio/admin/artists/') && method === 'GET') {
-    const key = decodeURIComponent(path.split('/').pop());
+  const mediaMatch = path.match(/^\/radio\/admin\/artists\/([^/]+)\/media$/);
+  if (mediaMatch && method === 'GET') {
+    const key = decodeURIComponent(mediaMatch[1]);
+    const media = mediaByKey.get(key);
+    return route.fulfill({ status: media ? 200 : 404, contentType: 'application/json', body: JSON.stringify(media ? { success: true, media } : { error: 'Media not found' }) });
+  }
+  const detailMatch = path.match(/^\/radio\/admin\/artists\/([^/]+)$/);
+  if (detailMatch && method === 'GET') {
+    const key = decodeURIComponent(detailMatch[1]);
     const artist = artists.find(item => item.artist_key === key);
     return route.fulfill({ status: artist ? 200 : 404, contentType: 'application/json', body: JSON.stringify(artist ? { artist } : { error: 'Not found' }) });
   }
-  if (path.startsWith('/radio/admin/artists/') && method === 'PATCH') {
-    const key = decodeURIComponent(path.split('/').pop());
+  if (detailMatch && method === 'PATCH') {
+    const key = decodeURIComponent(detailMatch[1]);
     const update = body();
     artists = artists.map(item => item.artist_key === key ? { ...item, ...update, artist_key: key } : item);
     const artist = artists.find(item => item.artist_key === key);
+    const currentMedia = mediaByKey.get(key) || { artist_key: key, slug: artist?.slug || key };
+    mediaByKey.set(key, {
+      ...currentMedia,
+      profile_image_url: artist?.profile_image_url || '',
+      horizontal_banner_image_url: artist?.banner_image_url || '',
+      vertical_banner_image_url: artist?.vertical_banner_image_url || ''
+    });
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ artist }) });
   }
   return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: `Unhandled QA route ${method} ${path}` }) });
@@ -66,6 +90,7 @@ try {
   await page.locator('button.edit-artist[data-artist-key="qa-created-artist"]').waitFor();
 
   await page.locator('button.edit-artist[data-artist-key="qa-created-artist"]').click();
+  await page.getByText('Profile media loaded and verified from DEV RDS.', { exact: true }).first().waitFor();
   await page.locator('#artistName').fill('QA Created Artist Updated');
   const patchRequestPromise = page.waitForRequest(request => request.method() === 'PATCH' && request.url() === `${DEV_HOST}/radio/admin/artists/qa-created-artist`);
   await page.locator('#saveArtist').click();
