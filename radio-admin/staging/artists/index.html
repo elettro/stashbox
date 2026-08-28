@@ -12,7 +12,7 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>ARTIST CMS</h1>
-      <p class="subtitle">DEV artist profiles · guarded metadata + profile media</p>
+      <p class="subtitle">DEV artist profiles · guarded metadata, media + access</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/">Dashboard</a><a href="/radio-admin/staging/songs/">Songs</a><a href="/radio-admin/staging/video-library/">Video Library</a><a href="/radio-admin/staging/vec/">VEC Lab</a><a href="/radio-admin/staging/video-factory/">Video Factory</a><a href="/radio-admin/staging/ads/">Ads</a><a href="/radio-admin/staging/notifications/">Notifications</a><a href="/radio-admin/staging/artists/" aria-current="page">Artists</a><a href="/radio-admin/staging/social-factory/">Social Factory</a><a href="/radio-admin/staging/bugs/">Bug Base</a><a href="/radio-admin/staging/system-health/">DEV Health</a>
@@ -21,7 +21,7 @@
   </header>
 
   <main class="shell">
-    <section class="guardrail">Artist metadata and all three profile-media slots are hard-bound to DEV. Uploads use the current Artist media presign/PATCH/read-back contract and must resolve to the known DEV media bucket before any storage PUT is allowed. Cognito/account auth, delegated-access writes, and production public-profile routing remain locked.</section>
+    <section class="guardrail">Artist metadata, all three profile-media slots, and delegated artist access are hard-bound to DEV. Access grants require the DEV admin token and are re-validated by the backend as platform-admin actions. Cognito/account-login mode and production public-profile routing remain locked.</section>
 
     <section class="card token-panel">
       <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Migration staging uses the DEV admin token only. Cognito fallback is intentionally not enabled here.</p></div>
@@ -49,7 +49,7 @@
           <div class="editor-field"><label for="artistKey">Artist Key *</label><input id="artistKey" required /></div>
           <div class="editor-field"><label for="artistSlug">Slug</label><input id="artistSlug" /></div>
           <div class="editor-field"><label for="artistSortName">Sort Name</label><input id="artistSortName" /></div>
-          <div class="editor-field"><label for="artistStatus">Status</label><select id="artistStatus"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>
+          <div class="editor-field"><label for="artistStatus">Status</label><select id="artistStatus"><option value="draft">Draft</option><option value="published">Published</option><option value="hidden">Hidden</option></select></div>
           <div class="editor-field"><label for="artistLocation">Location</label><input id="artistLocation" /></div>
 
           <div class="editor-field editor-field--full">
@@ -85,12 +85,24 @@
         </div>
         <div class="editor-actions" style="margin-top:1rem"><button id="saveArtist" type="submit">Create DEV Artist</button><button id="cancelArtist" class="secondary" type="button">Cancel</button></div>
       </form>
+
+      <section id="artistAccessCard" class="card hidden" style="margin-top:1rem">
+        <div class="section-heading"><div><p class="eyebrow">DEV ROLE-BASED ACCESS</p><h3>Artist, Manager, or Label Access</h3><p class="muted">The account must already exist. The backend requires platform-admin authorization for every access read/grant.</p></div></div>
+        <div id="artistAccessMessage" class="message">Select an existing DEV artist to load assignments.</div>
+        <div id="artistAccessList" class="table-wrap" style="margin-top:1rem"></div>
+        <div class="editor-grid" style="margin-top:1rem">
+          <div class="editor-field"><label for="accessEmail">Account Email</label><input id="accessEmail" type="email" placeholder="artist@example.com" /></div>
+          <div class="editor-field"><label for="accessRole">Role</label><select id="accessRole"><option value="artist">Artist</option><option value="band_manager">Band Manager</option><option value="label_staff">Label Staff</option></select></div>
+          <div class="editor-field"><label for="accessLevel">Access Level</label><select id="accessLevel"><option value="viewer">Viewer</option><option value="editor" selected>Editor</option><option value="manager">Manager</option><option value="owner">Owner</option></select></div>
+        </div>
+        <div class="editor-actions" style="margin-top:1rem"><button id="grantAccess" type="button">Grant DEV Access</button></div>
+      </section>
     </section>
 
     <section class="card">
-      <p class="eyebrow">AUTH / ACCESS MIGRATION STATUS</p>
-      <p class="muted">Cognito/account tokens, delegated artist-access assignments, and production public-profile routes remain on the untouched DEV Artist CMS until their contracts are ported and browser-tested separately.</p>
-      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS for account/access tools</a>
+      <p class="eyebrow">ACCOUNT AUTH MIGRATION STATUS</p>
+      <p class="muted">Cognito/account-token mode and production public-profile routes remain on the untouched DEV Artist CMS. This staging module intentionally uses only the DEV administrator token.</p>
+      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS</a>
     </section>
   </main>
 
