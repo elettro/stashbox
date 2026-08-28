@@ -12,27 +12,19 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>ARTIST CMS</h1>
-      <p class="subtitle">DEV artist profiles · safe parity view</p>
+      <p class="subtitle">DEV artist profiles · guarded metadata writes</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
-      <a href="/radio-admin/staging/">Dashboard</a>
-      <a href="/radio-admin/staging/songs/">Songs</a>
-      <a href="/radio-admin/staging/vec/">VEC Lab</a>
-      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
-      <a href="/radio-admin/staging/ads/">Ads</a>
-      <a href="/radio-admin/staging/notifications/">Notifications</a>
-      <a href="/radio-admin/staging/artists/" aria-current="page">Artists</a>
-      <a href="/radio-admin/staging/bugs/">Bug Base</a>
-      <a href="/radio-admin/staging/system-health/">DEV Health</a>
+      <a href="/radio-admin/staging/">Dashboard</a><a href="/radio-admin/staging/songs/">Songs</a><a href="/radio-admin/staging/video-library/">Video Library</a><a href="/radio-admin/staging/vec/">VEC Lab</a><a href="/radio-admin/staging/video-factory/">Video Factory</a><a href="/radio-admin/staging/ads/">Ads</a><a href="/radio-admin/staging/notifications/">Notifications</a><a href="/radio-admin/staging/artists/" aria-current="page">Artists</a><a href="/radio-admin/staging/social-factory/">Social Factory</a><a href="/radio-admin/staging/bugs/">Bug Base</a><a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
-    <div class="env-lock"><span class="env-badge">DEV ARTISTS</span><span>Writes locked</span></div>
+    <div class="env-lock"><span class="env-badge">DEV ARTISTS</span><span>PROD locked</span></div>
   </header>
 
   <main class="shell">
-    <section class="guardrail">This Artist migration pass is read-only against DEV. Profile media uploads, delegated access, Cognito-account writes, and public profile routing remain locked until their parity rules are verified.</section>
+    <section class="guardrail">Artist profile metadata create/edit is hard-bound to DEV in this staging pass. Profile/banner file upload, Cognito/account auth, delegated-access writes, and production public-profile routing remain locked until separate parity tests are complete.</section>
 
     <section class="card token-panel">
-      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the migration DEV token namespace. Account/Cognito access is not being migrated in this first pass.</p></div>
+      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Migration staging uses the DEV admin token only. Cognito fallback is intentionally not enabled here.</p></div>
       <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="DEV x-admin-token" /><button id="saveToken" type="button">Save Token</button><button id="clearToken" class="secondary" type="button">Clear</button></div>
       <p id="tokenStatus" class="status-text"></p>
     </section>
@@ -44,15 +36,44 @@
     </section>
 
     <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST DIRECTORY</p><h2>Profiles</h2></div><input id="artistSearch" type="search" placeholder="Search artist, key, status…" style="max-width:360px" /></div>
+      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST DIRECTORY</p><h2>Profiles</h2></div><div class="search-row"><input id="artistSearch" type="search" placeholder="Search artist, key, status…" /><button id="newArtist" type="button">New DEV Artist</button></div></div>
       <p id="artistCount" class="song-count"></p>
-      <div class="table-wrap"><table><thead><tr><th>Artist</th><th>Key</th><th>Status</th><th>Followers</th><th>Likes</th><th>Shares</th><th>Listening</th><th>Profile image</th></tr></thead><tbody id="artistsBody"><tr><td colspan="8" class="muted">No data loaded.</td></tr></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Action</th><th>Artist</th><th>Key</th><th>Status</th><th>Followers</th><th>Likes</th><th>Shares</th><th>Listening</th><th>Profile image</th></tr></thead><tbody id="artistsBody"><tr><td colspan="9" class="muted">No data loaded.</td></tr></tbody></table></div>
+    </section>
+
+    <section id="artistEditorCard" class="card hidden">
+      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST EDITOR</p><h2 id="artistEditorHeading">New DEV Artist</h2><p class="muted">Metadata only in this pass. Image URL fields may be edited, but file upload remains on the current DEV Artist CMS.</p></div></div>
+      <form id="artistEditor" autocomplete="off">
+        <div class="editor-grid">
+          <div class="editor-field"><label for="artistName">Name *</label><input id="artistName" required /></div>
+          <div class="editor-field"><label for="artistKey">Artist Key *</label><input id="artistKey" required /></div>
+          <div class="editor-field"><label for="artistSlug">Slug</label><input id="artistSlug" /></div>
+          <div class="editor-field"><label for="artistSortName">Sort Name</label><input id="artistSortName" /></div>
+          <div class="editor-field"><label for="artistStatus">Status</label><select id="artistStatus"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>
+          <div class="editor-field"><label for="artistLocation">Location</label><input id="artistLocation" /></div>
+          <div class="editor-field editor-field--full"><label for="profileImageUrl">Profile Image URL</label><input id="profileImageUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="bannerImageUrl">Banner Image URL</label><input id="bannerImageUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="artistBio">Bio</label><textarea id="artistBio"></textarea></div>
+          <div class="editor-field editor-field--full"><label for="websiteUrl">Website URL</label><input id="websiteUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="merchUrl">Merch URL</label><input id="merchUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="spotifyUrl">Spotify URL</label><input id="spotifyUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="appleMusicUrl">Apple Music URL</label><input id="appleMusicUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="youtubeUrl">YouTube URL</label><input id="youtubeUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="instagramUrl">Instagram URL</label><input id="instagramUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="xUrl">X URL</label><input id="xUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="facebookUrl">Facebook URL</label><input id="facebookUrl" type="url" /></div>
+          <div class="editor-field editor-field--full"><label for="artistNotes">Notes</label><textarea id="artistNotes"></textarea></div>
+          <div class="editor-field"><label><input id="artistVerified" type="checkbox" /> Verified</label></div>
+          <div class="editor-field"><label><input id="artistFeatured" type="checkbox" /> Featured</label></div>
+        </div>
+        <div class="editor-actions" style="margin-top:1rem"><button id="saveArtist" type="submit">Create DEV Artist</button><button id="cancelArtist" class="secondary" type="button">Cancel</button></div>
+      </form>
     </section>
 
     <section class="card">
-      <p class="eyebrow">WRITE MIGRATION STATUS</p>
-      <p class="muted">Create/edit, image upload, delegated access, account-token fallback, and public profile links remain on the untouched DEV Artist CMS until the media/auth contracts are migrated without leaking DEV routes into the future production Admin.</p>
-      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS</a>
+      <p class="eyebrow">MEDIA / AUTH MIGRATION STATUS</p>
+      <p class="muted">Profile/banner file upload, delegated access, Cognito tokens, and production public-profile routes remain on the untouched DEV Artist CMS until their upload/auth contracts are ported and browser-tested separately.</p>
+      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS for media/access</a>
     </section>
   </main>
 
