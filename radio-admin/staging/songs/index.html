@@ -43,6 +43,19 @@
 
       <div id="editorMessage" class="message">DEV write guard active. PROD writes are blocked.</div>
       <form id="songEditor" class="song-editor" autocomplete="off"></form>
+
+      <section class="artwork-library" aria-labelledby="artworkHeading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">MIGRATED ARTWORK WORKFLOW · DEV ONLY</p>
+            <h3 id="artworkHeading">Six-Image Artwork Library</h3>
+            <p class="muted">Select an existing DEV song first. Upload authorization comes from the DEV presign endpoint, and artwork is attached only to that DEV song.</p>
+          </div>
+          <button id="refreshArtworkButton" class="secondary" type="button">Refresh Artwork</button>
+        </div>
+        <div id="artworkMessage" class="message">Choose Edit on a DEV song to load its artwork.</div>
+        <div id="artworkGrid" class="artwork-grid"></div>
+      </section>
     </section>
 
     <section class="card">
@@ -81,12 +94,13 @@
 
     <section class="card">
       <p class="eyebrow">NEXT SONG CMS MIGRATION STEP</p>
-      <p class="muted">Artwork/media upload and the six-image artwork workflow remain on the untouched current DEV Song CMS until the presign/upload flow is ported and verified inside staging.</p>
+      <p class="muted">Audio/media upload and deeper visual-asset management still remain on the untouched current DEV Song CMS while those flows are ported and verified.</p>
       <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open untouched current DEV Song CMS</a>
     </section>
   </main>
 
   <script src="../admin-env.js"></script>
   <script src="./songs.js"></script>
+  <script src="./artwork.js"></script>
 </body>
 </html>
