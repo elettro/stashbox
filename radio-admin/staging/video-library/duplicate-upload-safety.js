@@ -10,6 +10,7 @@
   const nativeFetch = window.fetch.bind(window);
   let activeFolderId = '';
   let pendingReplace = null;
+  let bypassNextUpload = false;
 
   const clean = value => String(value ?? '').trim();
   const normalizeName = value => clean(value).normalize('NFKC').replace(/\s+/g, ' ').toLowerCase();
@@ -124,6 +125,10 @@
   document.addEventListener('click', async event => {
     const upload = event.target.closest('#uploadAsset');
     if (!upload) return;
+    if (bypassNextUpload) {
+      bypassNextUpload = false;
+      return;
+    }
     const input = document.getElementById('uploadAssetFile');
     const file = input?.files?.[0];
     if (!file || !activeFolderId) return;
@@ -136,6 +141,7 @@
       const assets = rows(data);
       const conflicts = assets.filter(asset => normalizeName(asset.file_name) === normalizeName(file.name));
       if (!conflicts.length) {
+        bypassNextUpload = true;
         upload.disabled = false;
         upload.click();
         return;
@@ -151,6 +157,7 @@
         const renamed = renamedFile(file, assets);
         replaceInputFile(input, renamed);
         message(`Duplicate detected. Uploading as ${renamed.name}.`);
+        bypassNextUpload = true;
         upload.disabled = false;
         upload.click();
         return;
@@ -161,6 +168,7 @@
         assetIds: conflicts.filter(asset => asset.id && clean(asset.status).toLowerCase() !== 'hidden').map(asset => String(asset.id))
       };
       message(`Duplicate detected. Saving the new ${file.name} first, then hiding ${pendingReplace.assetIds.length} existing match${pendingReplace.assetIds.length === 1 ? '' : 'es'}.`);
+      bypassNextUpload = true;
       upload.disabled = false;
       upload.click();
     } catch (error) {
