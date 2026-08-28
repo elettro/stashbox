@@ -79,9 +79,21 @@ await page.route(`${PROD_BASE}/**`, async route => {
 
 await page.route(`https://${PROD_BUCKET}.s3.amazonaws.com/**`, async route => route.fulfill({ status: 200, body: '' }));
 
+async function reopenSavedSong() {
+  const edit = page.locator('button.edit-song[data-song-key="canonical-qa-song"]');
+  await edit.waitFor({ state: 'visible' });
+  await edit.click();
+  await page.locator('#field-song_key').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => {
+    const key = document.querySelector('#field-song_key');
+    const audio = document.querySelector('#uploadAudioButton');
+    return key?.disabled === true && key?.value === 'canonical-qa-song' && audio?.disabled === false;
+  });
+}
+
 try {
   await page.goto(pageUrl, { waitUntil: 'networkidle' });
-  await page.locator('button.edit-song[data-song-key="canonical-qa-song"]').click();
+  await reopenSavedSong();
 
   await page.locator('#field-display_title').fill('Canonical QA Updated');
   const metadataResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/admin/songs/canonical-qa-song` && response.request().method() === 'PUT');
@@ -89,6 +101,10 @@ try {
   await metadataResponse;
   const metadataWrite = writes.find(item => item.method === 'PUT' && item.path === '/admin/songs/canonical-qa-song');
   if (metadataWrite?.payload?.display_title !== 'Canonical QA Updated') throw new Error('Canonical metadata PUT payload was not sent to PROD correctly.');
+
+  // saveSong() reloads and re-opens asynchronously. Explicitly re-enter edit mode
+  // so media/artwork rehearsals test the stable post-save UI state.
+  await reopenSavedSong();
 
   await page.locator('#audioFileInput').setInputFiles({ name: 'rehearsal.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('fake-audio') });
   const audioPresignResponse = page.waitForResponse(response => {
@@ -100,6 +116,7 @@ try {
   await Promise.all([audioPresignResponse, audioStorageResponse]);
   if (!writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'audio')) throw new Error('Canonical audio presign did not use PROD API.');
 
+  await reopenSavedSong();
   const artworkCard = page.locator('.artwork-card[data-ratio="1x1"]');
   await artworkCard.locator('.artwork-file').setInputFiles({ name: 'rehearsal.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
   const artworkPatchResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/radio/admin/songs/canonical-qa-song/artwork-images` && response.request().method() === 'PATCH');
