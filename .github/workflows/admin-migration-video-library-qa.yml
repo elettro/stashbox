@@ -7,12 +7,14 @@ on:
     paths:
       - 'radio-admin/staging/video-library/**'
       - 'radio-admin/staging/tests/video-library-write-smoke.mjs'
+      - 'radio-admin/staging/tests/video-library-duplicate-smoke.mjs'
       - 'radio-admin/staging/admin-env.js'
       - '.github/workflows/admin-migration-video-library-qa.yml'
   pull_request:
     paths:
       - 'radio-admin/staging/video-library/**'
       - 'radio-admin/staging/tests/video-library-write-smoke.mjs'
+      - 'radio-admin/staging/tests/video-library-duplicate-smoke.mjs'
       - 'radio-admin/staging/admin-env.js'
       - '.github/workflows/admin-migration-video-library-qa.yml'
 
@@ -36,7 +38,9 @@ jobs:
         run: |
           node --check radio-admin/staging/admin-env.js
           node --check radio-admin/staging/video-library/video-library.js
+          node --check radio-admin/staging/video-library/duplicate-upload-safety.js
           node --check radio-admin/staging/tests/video-library-write-smoke.mjs
+          node --check radio-admin/staging/tests/video-library-duplicate-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -59,14 +63,22 @@ jobs:
       - name: Run DEV Video Library write and upload browser smoke test
         run: node radio-admin/staging/tests/video-library-write-smoke.mjs
 
+      - name: Run DEV Video Library duplicate filename browser smoke test
+        run: node radio-admin/staging/tests/video-library-duplicate-smoke.mjs
+
       - name: Assert Video Library stays DEV guarded
         run: |
           grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/video-library.js
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/duplicate-upload-safety.js
           grep -q 'stashbox-radio-media-dev-us-east-1' radio-admin/staging/video-library/video-library.js
           grep -q 'Blocked Video Library upload because DEV presign returned a PROD media target' radio-admin/staging/video-library/video-library.js
           grep -q '/admin/visuals/song-folders' radio-admin/staging/video-library/video-library.js
           grep -q '/admin/uploads/presign' radio-admin/staging/video-library/video-library.js
-          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-library/video-library.js radio-admin/staging/video-library/index.html; then
+          grep -q './duplicate-upload-safety.js' radio-admin/staging/video-library/index.html
+          grep -q 'Skip existing filename' radio-admin/staging/video-library/duplicate-upload-safety.js
+          grep -q 'Replace existing asset' radio-admin/staging/video-library/duplicate-upload-safety.js
+          grep -q 'Keep Both' radio-admin/staging/video-library/duplicate-upload-safety.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-library/video-library.js radio-admin/staging/video-library/duplicate-upload-safety.js radio-admin/staging/video-library/index.html; then
             echo 'Video Library staging contains an unapproved PROD API, PROD environment, or PROD token binding.'
             exit 1
           fi
