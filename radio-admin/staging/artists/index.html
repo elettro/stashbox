@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Admin · Artists Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>ARTIST CMS</h1>
+      <p class="subtitle">DEV artist profiles · safe parity view</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/ads/">Ads</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/" aria-current="page">Artists</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV ARTISTS</span><span>Writes locked</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This Artist migration pass is read-only against DEV. Profile media uploads, delegated access, Cognito-account writes, and public profile routing remain locked until their parity rules are verified.</section>
+
+    <section class="card token-panel">
+      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the migration DEV token namespace. Account/Cognito access is not being migrated in this first pass.</p></div>
+      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="DEV x-admin-token" /><button id="saveToken" type="button">Save Token</button><button id="clearToken" class="secondary" type="button">Clear</button></div>
+      <p id="tokenStatus" class="status-text"></p>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST OVERVIEW</p><h2>Artist Profiles</h2><p class="muted">Reads `/radio/admin/artists` plus DEV song-performance stats.</p></div><button id="refreshArtists" type="button">Refresh DEV Artists</button></div>
+      <div id="artistMessage" class="message">Add or reuse a DEV admin token to load artist profiles.</div>
+      <div id="artistStats" class="kpi-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST DIRECTORY</p><h2>Profiles</h2></div><input id="artistSearch" type="search" placeholder="Search artist, key, status…" style="max-width:360px" /></div>
+      <p id="artistCount" class="song-count"></p>
+      <div class="table-wrap"><table><thead><tr><th>Artist</th><th>Key</th><th>Status</th><th>Followers</th><th>Likes</th><th>Shares</th><th>Listening</th><th>Profile image</th></tr></thead><tbody id="artistsBody"><tr><td colspan="8" class="muted">No data loaded.</td></tr></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">WRITE MIGRATION STATUS</p>
+      <p class="muted">Create/edit, image upload, delegated access, account-token fallback, and public profile links remain on the untouched DEV Artist CMS until the media/auth contracts are migrated without leaking DEV routes into the future production Admin.</p>
+      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script src="./artists.js"></script>
+</body>
+</html>
