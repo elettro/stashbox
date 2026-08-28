@@ -50,6 +50,7 @@ jobs:
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
           node --check radio-admin/staging/tests/module-smoke.mjs
           node --check radio-admin/staging/tests/ads-write-smoke.mjs
+          node --check radio-admin/staging/tests/artists-write-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -87,6 +88,9 @@ jobs:
       - name: Run DEV Ads settings and CRUD browser smoke test
         run: node radio-admin/staging/tests/ads-write-smoke.mjs
 
+      - name: Run DEV Artist metadata browser smoke test
+        run: node radio-admin/staging/tests/artists-write-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -103,10 +107,11 @@ jobs:
             exit 1
           fi
 
-      - name: Assert Artist staging stays read-only
+      - name: Assert Artist staging writes are DEV metadata only
         run: |
-          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/artists/artists.js; then
-            echo 'Write method found in read-only Artist staging module.'
+          grep -q "assertWriteAllowed('dev', 'artists')" radio-admin/staging/artists/artists.js
+          if grep -R "prod-v2\|radio_admin_token_prod\|stashbox_radio_dev_cognito_tokens\|X-Cognito-Id-Token\|/admin/uploads/presign\|/access" radio-admin/staging/artists; then
+            echo 'Artist staging contains a PROD, Cognito, upload, or delegated-access binding that is not approved in this pass.'
             exit 1
           fi
 
