@@ -55,6 +55,9 @@ await page.route(`${DEV_HOST}/**`, async route => {
 await page.route(`https://${DEV_BUCKET}.s3.amazonaws.com/**`, async route => route.fulfill({ status: 200, body: '' }));
 
 const duplicateFile = { name: 'existing.mp4', mimeType: 'video/mp4', buffer: Buffer.from('fake-mp4') };
+const presignUrl = `${DEV_HOST}/admin/uploads/presign`;
+const assetCollectionUrl = `${DEV_HOST}/admin/visuals/folders/folder-1/assets`;
+const oldAssetUrl = `${DEV_HOST}/admin/visuals/folders/folder-1/assets/asset-1`;
 
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
@@ -72,8 +75,12 @@ try {
 
   await page.locator('#duplicateUploadAction').selectOption('keep');
   await page.locator('#uploadAssetFile').setInputFiles(duplicateFile);
+  const keepPresignRequest = page.waitForRequest(request => request.method() === 'POST' && request.url() === presignUrl);
+  const keepAssetPostRequest = page.waitForRequest(request => request.method() === 'POST' && request.url() === assetCollectionUrl);
   await page.locator('#uploadAsset').click();
-  await page.getByText('DEV visual asset uploaded and saved.', { exact: true }).waitFor();
+  await keepPresignRequest;
+  await keepAssetPostRequest;
+  await page.waitForResponse(response => response.request().method() === 'GET' && response.url() === assetCollectionUrl);
   const keepPresign = presignBodies.at(-1);
   const keepAsset = createdAssets.at(-1);
   if (keepPresign?.filename !== 'existing (2).mp4' || keepAsset?.file_name !== 'existing (2).mp4') throw new Error(`Keep Both did not rename the duplicate: ${JSON.stringify({ keepPresign, keepAsset })}`);
@@ -81,11 +88,17 @@ try {
 
   await page.locator('#duplicateUploadAction').selectOption('replace');
   await page.locator('#uploadAssetFile').setInputFiles(duplicateFile);
+  const replacePresignRequest = page.waitForRequest(request => request.method() === 'POST' && request.url() === presignUrl);
+  const replaceAssetPostRequest = page.waitForRequest(request => request.method() === 'POST' && request.url() === assetCollectionUrl);
+  const replaceDeleteRequest = page.waitForRequest(request => request.method() === 'DELETE' && request.url() === oldAssetUrl);
   await page.locator('#uploadAsset').click();
-  await page.getByText('DEV visual asset uploaded and saved.', { exact: true }).waitFor();
+  await replacePresignRequest;
+  await replaceAssetPostRequest;
+  await replaceDeleteRequest;
+  await page.waitForResponse(response => response.request().method() === 'GET' && response.url() === assetCollectionUrl);
   const replacePresign = presignBodies.at(-1);
   const replaceAsset = createdAssets.at(-1);
-  if (replacePresign?.filename !== 'existing.mp4' || replaceAsset?.file_name !== 'existing.mp4') throw new Error('Replace changed the incoming filename unexpectedly.');
+  if (replacePresign?.filename !== 'existing.mp4' || replaceAsset?.file_name !== 'existing.mp4') throw new Error(`Replace changed the incoming filename unexpectedly: ${JSON.stringify({ replacePresign, replaceAsset })}`);
   if (!deletedAssets.includes('asset-1')) throw new Error(`Replace did not hide the prior matching asset after save: ${deletedAssets.join(', ')}`);
 
   if (storagePuts.length !== 2) throw new Error(`Expected two storage PUTs for Keep + Replace, saw ${storagePuts.length}.`);
