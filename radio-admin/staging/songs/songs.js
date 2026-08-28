@@ -3,7 +3,7 @@
 
   const migration = window.StashboxAdminMigration;
   if (!migration) throw new Error('StashboxAdminMigration config is required');
-  const env = migration.getEnvironment('dev');
+  const env = migration.getCanonicalSongEnvironment();
 
   const els = {
     search: document.getElementById('songSearch'),
@@ -111,7 +111,7 @@
 
   function requireToken() {
     const token = getStoredToken();
-    if (!token) throw new Error('No DEV admin token found. Save one on the staging Dashboard first.');
+    if (!token) throw new Error('No canonical PROD admin token found. Save the separate PROD token before editing the LIVE catalog.');
     return token;
   }
 
@@ -120,8 +120,8 @@
     const token = requireToken();
     const url = `${env.apiBase}${path}`;
     const allowedPrefix = `${env.apiBase}/admin/songs`;
-    if (!url.startsWith(allowedPrefix)) throw new Error('Blocked request outside the DEV Song CMS API boundary.');
-    if (!['GET', 'HEAD'].includes(method)) migration.assertWriteAllowed('dev', 'songs');
+    if (!url.startsWith(allowedPrefix)) throw new Error('Blocked request outside the canonical PROD Song CMS API boundary.');
+    if (!['GET', 'HEAD'].includes(method)) migration.assertCanonicalSongWriteApproved('songs');
 
     const response = await fetch(url, {
       ...options,
@@ -218,10 +218,10 @@
     clearEditor();
     const key = fieldElement('song_key');
     if (key) key.disabled = false;
-    els.editorHeading.textContent = 'Create DEV Song';
-    els.editorModeText.textContent = 'Create a song in the DEV catalog. PROD writes remain blocked.';
-    els.saveSongButton.textContent = 'Create in DEV';
-    els.editorMessage.textContent = 'DEV write guard active. PROD writes are blocked.';
+    els.editorHeading.textContent = 'Create LIVE Song';
+    els.editorModeText.textContent = 'Create a song in the canonical LIVE catalog. Production writes remain locked until explicitly approved.';
+    els.saveSongButton.textContent = 'Create LIVE Song';
+    els.editorMessage.textContent = 'Canonical LIVE Song CMS selected. Production writes are currently locked.';
   }
 
   function openEditMode(songKey) {
@@ -232,10 +232,10 @@
     allFields.forEach(field => setFieldValue(field, song[field.name]));
     const key = fieldElement('song_key');
     if (key) key.disabled = true;
-    els.editorHeading.textContent = `Edit DEV Song: ${song.display_title || song.song_name || selectedSongKey}`;
-    els.editorModeText.textContent = 'Saving updates the selected DEV song only.';
-    els.saveSongButton.textContent = 'Save DEV Changes';
-    els.editorMessage.textContent = `Editing DEV song key: ${selectedSongKey}`;
+    els.editorHeading.textContent = `Edit LIVE Song: ${song.display_title || song.song_name || selectedSongKey}`;
+    els.editorModeText.textContent = 'Saving updates the selected canonical LIVE song only.';
+    els.saveSongButton.textContent = 'Save LIVE Changes';
+    els.editorMessage.textContent = `Editing LIVE song key: ${selectedSongKey}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -298,7 +298,7 @@
     const source = [title, artist].filter(Boolean).join('-');
     const slug = source.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120);
     fieldElement('song_key').value = slug;
-    els.editorMessage.textContent = slug ? `Generated DEV song key: ${slug}` : 'Enter Song Name/Display Title and Artist before generating a key.';
+    els.editorMessage.textContent = slug ? `Generated LIVE song key: ${slug}` : 'Enter Song Name/Display Title and Artist before generating a key.';
   }
 
   async function saveSong() {
@@ -318,16 +318,16 @@
     if (!isCreate) delete payload.song_key;
 
     els.saveSongButton.disabled = true;
-    els.editorMessage.textContent = isCreate ? 'Creating DEV song…' : `Saving DEV song ${targetKey}…`;
+    els.editorMessage.textContent = isCreate ? 'Creating LIVE song…' : `Saving LIVE song ${targetKey}…`;
 
     try {
       await apiRequest(path, { method, body: JSON.stringify(payload) });
-      els.editorMessage.textContent = isCreate ? `DEV song created: ${targetKey}` : `DEV song saved: ${targetKey}`;
+      els.editorMessage.textContent = isCreate ? `LIVE song created: ${targetKey}` : `LIVE song saved: ${targetKey}`;
       await loadSongs({ preserveMessage: true });
       if (isCreate) openEditMode(targetKey);
       else openEditMode(targetKey);
     } catch (error) {
-      els.editorMessage.textContent = `DEV save failed: ${error.message}`;
+      els.editorMessage.textContent = `LIVE save blocked/failed: ${error.message}`;
     } finally {
       els.saveSongButton.disabled = false;
     }
@@ -335,7 +335,7 @@
 
   async function loadSongs(options = {}) {
     if (!getStoredToken()) {
-      els.message.textContent = 'No DEV admin token found. Save one on the staging Dashboard first.';
+      els.message.textContent = 'No canonical PROD admin token found. Save the separate PROD token before editing the LIVE catalog.';
       els.body.innerHTML = '<tr><td colspan="9" class="muted">Authentication required.</td></tr>';
       return;
     }

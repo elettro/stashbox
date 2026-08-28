@@ -3,7 +3,7 @@
 
   const migration = window.StashboxAdminMigration;
   if (!migration) throw new Error('StashboxAdminMigration config is required');
-  const env = migration.getEnvironment('dev');
+  const env = migration.getCanonicalSongEnvironment();
 
   const MAX_BYTES = 10 * 1024 * 1024;
   const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -47,15 +47,15 @@
 
   async function guardedRequest(path, options = {}) {
     const token = getStoredToken();
-    if (!token) throw new Error('No DEV admin token found.');
+    if (!token) throw new Error('No canonical PROD admin token found.');
     const method = String(options.method || 'GET').toUpperCase();
     const url = `${env.apiBase}${path}`;
     const allowed = [
       `${env.apiBase}/admin/uploads/presign`,
       `${env.apiBase}/radio/admin/songs/`
     ];
-    if (!allowed.some(prefix => url.startsWith(prefix))) throw new Error('Blocked request outside the DEV artwork API boundary.');
-    if (!['GET', 'HEAD'].includes(method)) migration.assertWriteAllowed('dev', 'song-artwork');
+    if (!allowed.some(prefix => url.startsWith(prefix))) throw new Error('Blocked request outside the canonical PROD artwork API boundary.');
+    if (!['GET', 'HEAD'].includes(method)) migration.assertCanonicalSongWriteApproved('song-artwork');
 
     const response = await fetch(url, {
       ...options,
@@ -105,7 +105,7 @@
         </div>
         <input class="artwork-file" type="file" accept="image/jpeg,image/png,image/webp" ${key ? '' : 'disabled'} />
         <div class="artwork-actions">
-          <button type="button" class="upload-artwork" data-ratio="${format.ratio}" ${key ? '' : 'disabled'}>Upload to DEV</button>
+          <button type="button" class="upload-artwork" data-ratio="${format.ratio}" ${key ? '' : 'disabled'}>Upload to LIVE</button>
           ${url ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener">Open</a>` : ''}
         </div>
         <p class="artwork-status"></p>
@@ -117,21 +117,21 @@
     const key = currentSongKey();
     if (!key) {
       media = {};
-      els.message.textContent = 'Save or select an existing DEV song before managing artwork.';
+      els.message.textContent = 'Save or select an existing LIVE song before managing artwork.';
       render();
       return;
     }
 
     els.refresh.disabled = true;
-    els.message.textContent = `Loading DEV artwork for ${key}…`;
+    els.message.textContent = `Loading LIVE artwork for ${key}…`;
     try {
       const payload = await guardedRequest(`/radio/admin/songs/${encodeURIComponent(key)}/artwork-images`, { method: 'GET' });
       media = payload?.media || payload?.song?.media || payload || {};
-      els.message.textContent = `DEV artwork loaded for ${key}.`;
+      els.message.textContent = `LIVE artwork loaded for ${key}.`;
       render();
     } catch (error) {
       media = {};
-      els.message.textContent = `Unable to load DEV artwork: ${error.message}`;
+      els.message.textContent = `Unable to load LIVE artwork: ${error.message}`;
       render();
     } finally {
       els.refresh.disabled = false;
@@ -155,7 +155,7 @@
 
   async function uploadArtwork(card, ratio) {
     const key = currentSongKey();
-    if (!key) throw new Error('Select an existing DEV song first.');
+    if (!key) throw new Error('Select an existing LIVE song first.');
     const format = formats.find(item => item.ratio === ratio);
     if (!format) throw new Error('Unknown artwork ratio.');
     const file = card.querySelector('.artwork-file')?.files?.[0];
@@ -164,7 +164,7 @@
     const status = card.querySelector('.artwork-status');
     const button = card.querySelector('.upload-artwork');
     button.disabled = true;
-    status.textContent = 'Requesting DEV upload authorization…';
+    status.textContent = 'Requesting PROD upload authorization…';
 
     try {
       const presign = await guardedRequest('/admin/uploads/presign', {
@@ -181,11 +181,13 @@
 
       const uploadUrl = String(presign?.upload_url || presign?.uploadUrl || '').trim();
       const publicUrl = String(presign?.public_url || presign?.publicUrl || '').trim();
-      if (!uploadUrl || !publicUrl) throw new Error('DEV presign response is missing upload_url or public_url.');
+      if (!uploadUrl || !publicUrl) throw new Error('Canonical PROD presign response is missing upload_url or public_url.');
       const parsedUpload = new URL(uploadUrl);
       if (parsedUpload.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');
+    const allowedProdBucket = 'stashbox-radio-media-prod-us-east-1';
+    if (!parsedUpload.hostname.includes(allowedProdBucket)) throw new Error('Blocked canonical Song CMS upload outside PROD media bucket.');
 
-      status.textContent = 'Uploading image to DEV media storage…';
+      status.textContent = 'Uploading image to PROD media storage…';
       const put = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'content-type': contentType(file) },
@@ -193,7 +195,7 @@
       });
       if (!put.ok) throw new Error(`Storage upload failed with status ${put.status}.`);
 
-      status.textContent = 'Attaching image to DEV song…';
+      status.textContent = 'Attaching image to LIVE song…';
       const result = await guardedRequest(`/radio/admin/songs/${encodeURIComponent(key)}/artwork-images`, {
         method: 'PATCH',
         body: JSON.stringify({ [format.field]: publicUrl })
@@ -205,8 +207,8 @@
         if (input) input.value = publicUrl;
       }
 
-      status.textContent = `${format.ratio} uploaded to DEV.`;
-      els.message.textContent = `DEV artwork updated for ${key}.`;
+      status.textContent = `${format.ratio} uploaded to LIVE.`;
+      els.message.textContent = `LIVE artwork updated for ${key}.`;
       await loadArtwork();
     } finally {
       button.disabled = false;
@@ -232,7 +234,7 @@
   els.newSong.addEventListener('click', () => {
     media = {};
     window.setTimeout(() => {
-      els.message.textContent = 'Save the new DEV song before uploading artwork.';
+      els.message.textContent = 'Save the new LIVE song before uploading artwork.';
       render();
     }, 0);
   });

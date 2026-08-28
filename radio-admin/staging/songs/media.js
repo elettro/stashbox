@@ -3,7 +3,7 @@
 
   const migration = window.StashboxAdminMigration;
   if (!migration) throw new Error('StashboxAdminMigration config is required');
-  const env = migration.getEnvironment('dev');
+  const env = migration.getCanonicalSongEnvironment();
 
   const configs = {
     audio: {
@@ -72,7 +72,7 @@
       if (input) input.disabled = !enabled;
       if (button) button.disabled = !enabled;
     }
-    if (!enabled) els.message.textContent = 'Choose Edit on an existing DEV song before uploading media.';
+    if (!enabled) els.message.textContent = 'Choose Edit on an existing LIVE song before uploading media.';
   }
 
   function extensionOf(file) {
@@ -102,12 +102,12 @@
   async function presign(file, config) {
     const token = getStoredToken();
     const key = currentSongKey();
-    if (!token) throw new Error('No DEV admin token found.');
-    if (!key) throw new Error('Select an existing DEV song first.');
+    if (!token) throw new Error('No canonical PROD admin token found.');
+    if (!key) throw new Error('Select an existing LIVE song first.');
 
-    migration.assertWriteAllowed('dev', `song-media-${config.purpose}`);
+    migration.assertCanonicalSongWriteApproved(`song-media-${config.purpose}`);
     const url = `${env.apiBase}/admin/uploads/presign`;
-    if (url !== `${env.apiBase}/admin/uploads/presign`) throw new Error('Blocked non-DEV presign route.');
+    if (url !== `${env.apiBase}/admin/uploads/presign`) throw new Error('Blocked non-canonical presign route.');
 
     const response = await fetch(url, {
       method: 'POST',
@@ -146,9 +146,11 @@
     const uploadUrl = String(signed.upload_url || signed.uploadUrl || '').trim();
     const publicUrl = String(signed.public_url || signed.publicUrl || '').trim();
     const objectKey = String(signed.key || signed.object_key || signed.objectKey || '').trim();
-    if (!uploadUrl || !publicUrl) throw new Error('DEV presign response is missing upload_url or public_url.');
+    if (!uploadUrl || !publicUrl) throw new Error('Canonical PROD presign response is missing upload_url or public_url.');
     const parsed = new URL(uploadUrl);
     if (parsed.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');
+    const allowedProdBucket = 'stashbox-radio-media-prod-us-east-1';
+    if (!parsed.hostname.includes(allowedProdBucket)) throw new Error('Blocked canonical Song CMS upload outside PROD media bucket.');
 
     const put = await fetch(uploadUrl, {
       method: 'PUT',
@@ -211,7 +213,7 @@
     if (!config.multiple && files.length > 1) files.splice(1);
 
     button.disabled = true;
-    status.textContent = `Uploading ${files.length} file${files.length === 1 ? '' : 's'} to DEV…`;
+    status.textContent = `Uploading ${files.length} file${files.length === 1 ? '' : 's'} to LIVE media…`;
     try {
       const uploaded = [];
       for (let index = 0; index < files.length; index += 1) {
@@ -223,12 +225,12 @@
         const audioField = document.getElementById('field-audio_url');
         if (!audioField) throw new Error('Audio URL field is missing from the migrated editor.');
         audioField.value = uploaded[0].url;
-        status.textContent = 'Audio uploaded to DEV. Click Save DEV Changes to persist the URL.';
+        status.textContent = 'Audio uploaded to PROD media. Click Save LIVE Changes to persist the URL.';
       } else {
         const assets = appendVisualAssets(uploaded, config.assetType);
-        status.textContent = `${uploaded.length} ${config.assetType} upload${uploaded.length === 1 ? '' : 's'} added. ${assets.length} total visual assets in editor. Click Save DEV Changes.`;
+        status.textContent = `${uploaded.length} ${config.assetType} upload${uploaded.length === 1 ? '' : 's'} added. ${assets.length} total visual assets in editor. Click Save LIVE Changes.`;
       }
-      els.message.textContent = 'DEV media upload complete. Song metadata is not persisted until you click Save DEV Changes.';
+      els.message.textContent = 'LIVE media upload complete. Song metadata is not persisted until you click Save LIVE Changes.';
       input.value = '';
     } catch (error) {
       status.textContent = `Upload failed: ${error.message}`;
@@ -244,7 +246,7 @@
   els.songsBody.addEventListener('click', event => {
     if (event.target.closest('.edit-song')) window.setTimeout(() => {
       setEnabledState();
-      els.message.textContent = `DEV media uploads enabled for ${currentSongKey()}.`;
+      els.message.textContent = `LIVE media uploads enabled for ${currentSongKey()}.`;
     }, 0);
   });
   els.newSong.addEventListener('click', () => window.setTimeout(setEnabledState, 0));
