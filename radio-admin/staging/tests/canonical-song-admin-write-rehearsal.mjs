@@ -85,8 +85,9 @@ async function waitUntil(predicate, label, timeoutMs = 8000) {
     if (predicate()) return;
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  const status = await page.locator('.artwork-card[data-ratio="1x1"] .artwork-status').textContent().catch(() => '');
-  throw new Error(`${label} did not occur. Artwork status: ${String(status || '').trim() || '(empty)'}`);
+  const mediaStatus = await page.locator('#audioUploadStatus').textContent().catch(() => '');
+  const artworkStatus = await page.locator('.artwork-card[data-ratio="1x1"] .artwork-status').textContent().catch(() => '');
+  throw new Error(`${label} did not occur. Audio status: ${String(mediaStatus || '').trim() || '(empty)'}; Artwork status: ${String(artworkStatus || '').trim() || '(empty)'}`);
 }
 
 async function reopenSavedSong() {
@@ -99,6 +100,7 @@ async function reopenSavedSong() {
     const audio = document.querySelector('#uploadAudioButton');
     return key?.disabled === true && key?.value === 'canonical-qa-song' && audio?.disabled === false;
   });
+  await page.locator('#mediaMessage').getByText(/LIVE media uploads enabled for canonical-qa-song/).waitFor();
 }
 
 async function waitForArtworkReady() {
@@ -125,14 +127,15 @@ try {
   await reopenSavedSong();
 
   await page.locator('#audioFileInput').setInputFiles({ name: 'rehearsal.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('fake-audio') });
-  const audioPresignResponse = page.waitForResponse(response => {
-    if (response.url() !== `${PROD_BASE}/admin/uploads/presign` || response.request().method() !== 'POST') return false;
-    try { return JSON.parse(response.request().postData() || '{}').purpose === 'audio'; } catch { return false; }
-  });
-  const audioStorageResponse = page.waitForResponse(response => response.url().includes(`${PROD_BUCKET}.s3.amazonaws.com/audio/`) && response.request().method() === 'PUT');
   await page.locator('#uploadAudioButton').click();
-  await Promise.all([audioPresignResponse, audioStorageResponse]);
-  if (!writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'audio')) throw new Error('Canonical audio presign did not use PROD API.');
+  await waitUntil(
+    () => writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'audio'),
+    'Canonical audio presign'
+  );
+  await waitUntil(
+    () => storagePuts.some(url => url.includes(`${PROD_BUCKET}.s3.amazonaws.com/audio/`)),
+    'Canonical audio S3 PUT'
+  );
 
   await reopenSavedSong();
   await waitForArtworkReady();
