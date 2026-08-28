@@ -1,0 +1,56 @@
+name: Materialize Admin Cutover Candidate
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077-cutover-candidate
+    paths:
+      - .github/workflows/materialize-admin-cutover-candidate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+        with:
+          ref: feature/admin-unification-1077-cutover-candidate
+          fetch-depth: 0
+
+      - name: Verify production writes remain locked
+        run: |
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js
+          grep -q 'writesAllowedInStaging: false' radio-admin/staging/admin-env.js
+
+      - name: Apply tested player and Admin cutovers
+        run: |
+          node radio-admin/staging/cutover/apply-canonical-song-cutover.mjs --apply
+          node radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs --apply
+
+      - name: Verify candidate shape
+        run: |
+          test -f radio/canonical-song-source.js
+          grep -q '/radio/canonical-song-source.js' radio/index.html
+          grep -q '/radio/canonical-song-source.js' radio/desktop/index.html
+          grep -q '/radio/canonical-song-source.js' radio/dev/v2/index.html
+          grep -q '/radio/canonical-song-source.js' radio/dev/v2/desktop/index.html
+          grep -q 'getCanonicalSongEnvironment' radio-admin/staging/songs/songs.js
+          grep -q 'getCanonicalSongEnvironment' radio-admin/staging/songs/media.js
+          grep -q 'getCanonicalSongEnvironment' radio-admin/staging/songs/artwork.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/media.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/artwork.js
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js
+
+      - name: Commit candidate-only transformations
+        run: |
+          git config user.name 'stashbox-admin-migration'
+          git config user.email 'actions@users.noreply.github.com'
+          git add radio/canonical-song-source.js radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html radio-admin/staging/songs/songs.js radio-admin/staging/songs/media.js radio-admin/staging/songs/artwork.js radio-admin/staging/songs/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Candidate: apply canonical song Admin/player cutover [skip ci]'
+          git push origin HEAD:feature/admin-unification-1077-cutover-candidate
