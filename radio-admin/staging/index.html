@@ -20,6 +20,7 @@
       <a href="/radio-admin/staging/video-factory/">Video Factory</a>
       <a href="/radio-admin/staging/ads/">Ads</a>
       <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
       <a href="/radio-admin/staging/bugs/">Bug Base</a>
       <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
@@ -55,9 +56,9 @@
         <article><strong>Video Factory</strong><span class="done">Staging</span><p>DEV render workflow is copied into staging with migration-token bridging.</p></article>
         <article><strong>Ads</strong><span class="done">DEV RDS Read</span><p>Staging reads authoritative DEV Ads/settings APIs only. Browser fallback and writes are locked.</p></article>
         <article><strong>Notifications</strong><span class="done">Staging</span><p>DEV Notification CMS is isolated in staging. PROD publishing is unavailable.</p></article>
+        <article><strong>Artists</strong><span class="done">DEV Read</span><p>Profiles and performance read from DEV. Media/auth/delegated-access writes remain locked.</p></article>
         <article><strong>Bug Base</strong><span class="done">Shared</span><p>Read-only checked-in bug registry. No API or database writes.</p></article>
         <article><strong>DEV Health</strong><span class="done">Staging</span><p>Explicitly DEV-only health checks. It does not represent PROD health.</p></article>
-        <article><strong>Artists</strong><span>Next</span><p>Needs a deliberate media/auth/profile-route parity pass before staging writes.</p></article>
         <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production writes, route replacement, or cutover in this phase.</p></article>
       </div>
     </section>
