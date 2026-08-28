@@ -16,8 +16,8 @@
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/" aria-current="page">Dashboard</a>
       <a href="/radio-admin/staging/songs/">Songs</a>
-      <a href="/radio-admin/dev/vec/" target="_blank" rel="noopener">VEC Lab</a>
-      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
       <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
       <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
     </nav>
@@ -69,19 +69,8 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Song</th>
-              <th>Artist</th>
-              <th>Plays</th>
-              <th>Likes</th>
-              <th>Shares</th>
-              <th>Skips</th>
-            </tr>
-          </thead>
-          <tbody id="songStatsBody">
-            <tr><td colspan="6" class="muted">No data loaded.</td></tr>
-          </tbody>
+          <thead><tr><th>Song</th><th>Artist</th><th>Plays</th><th>Likes</th><th>Shares</th><th>Skips</th></tr></thead>
+          <tbody id="songStatsBody"><tr><td colspan="6" class="muted">No data loaded.</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -89,9 +78,11 @@
     <section class="card">
       <p class="eyebrow">MIGRATION STATUS</p>
       <div class="migration-grid">
-        <article><strong>Dashboard</strong><span class="done">Migrating now</span><p>DEV summary and song analytics are wired into staging.</p></article>
-        <article><strong>Songs</strong><span class="done">Migrating now</span><p>Separate staging Songs route reads the DEV catalog.</p></article>
-        <article><strong>VEC / Video / Ads</strong><span>Queued</span><p>Remain on untouched DEV tools until their staging copies are migrated.</p></article>
+        <article><strong>Dashboard</strong><span class="done">Staging</span><p>DEV summary and song analytics are wired into the unified staging Admin.</p></article>
+        <article><strong>Songs</strong><span class="done">Staging + QA</span><p>Create/edit, media uploads and six-image artwork are migrated against DEV only.</p></article>
+        <article><strong>VEC Lab</strong><span class="done">Staging</span><p>DEV VEC controller is copied into the isolated staging route.</p></article>
+        <article><strong>Video Factory</strong><span class="done">Staging</span><p>DEV render workflow is copied into staging with the migration token namespace.</p></article>
+        <article><strong>Ads / Artists / Notifications</strong><span>Next</span><p>Remain on untouched DEV tools until their staging modules are migrated.</p></article>
         <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production writes, route replacement, or cutover in this phase.</p></article>
       </div>
     </section>
