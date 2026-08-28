@@ -53,6 +53,7 @@ jobs:
           node --check radio-admin/staging/tests/ads-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-write-smoke.mjs
           node --check radio-admin/staging/tests/artists-upload-smoke.mjs
+          node --check radio-admin/staging/tests/artists-access-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -99,6 +100,9 @@ jobs:
       - name: Run DEV Artist profile media browser smoke test
         run: node radio-admin/staging/tests/artists-upload-smoke.mjs
 
+      - name: Run DEV Artist delegated access browser smoke test
+        run: node radio-admin/staging/tests/artists-access-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -117,7 +121,7 @@ jobs:
             exit 1
           fi
 
-      - name: Assert Artist staging uses current DEV media contract only
+      - name: Assert Artist staging uses current DEV media and admin access contracts only
         run: |
           grep -q "assertWriteAllowed('dev', 'artists')" radio-admin/staging/artists/artists.js
           grep -q "mediaPresignUrl" radio-admin/staging/artists/artists.js
@@ -125,11 +129,13 @@ jobs:
           grep -q "purpose: 'profile_image'" radio-admin/staging/artists/artists.js
           grep -q "purpose: 'horizontal_banner'" radio-admin/staging/artists/artists.js
           grep -q "purpose: 'vertical_banner'" radio-admin/staging/artists/artists.js
+          grep -q "accessUrl" radio-admin/staging/artists/artists.js
+          grep -q "grantArtistAccess" radio-admin/staging/artists/artists.js
           grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/artists/artists.js
           grep -q "stashbox-radio-media-prod-us-east-1" radio-admin/staging/artists/artists.js
           grep -q "Blocked Artist upload because DEV presign returned a PROD media target" radio-admin/staging/artists/artists.js
-          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|getEnvironment\(['\"]prod['\"]\)|/access" radio-admin/staging/artists/*.js; then
-            echo 'Artist staging contains an unapproved PROD API, PROD environment, Cognito, or delegated-access binding.'
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/artists/*.js; then
+            echo 'Artist staging contains an unapproved PROD API, PROD environment, or Cognito binding.'
             exit 1
           fi
 
