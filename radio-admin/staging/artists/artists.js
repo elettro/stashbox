@@ -128,6 +128,17 @@
     els.name.value = artist.name || ''; els.key.value = artist.artist_key || ''; els.slug.value = artist.slug || ''; els.sortName.value = artist.sort_name || ''; els.status.value = artist.status || 'draft'; els.location.value = artist.location || ''; els.profileImageUrl.value = artist.profile_image_url || ''; els.bannerImageUrl.value = artist.banner_image_url || ''; els.bio.value = artist.bio || ''; els.websiteUrl.value = artist.website_url || ''; els.merchUrl.value = artist.merch_url || ''; els.spotifyUrl.value = artist.spotify_url || ''; els.appleMusicUrl.value = artist.apple_music_url || ''; els.youtubeUrl.value = artist.youtube_url || ''; els.instagramUrl.value = artist.instagram_url || ''; els.xUrl.value = artist.x_url || ''; els.facebookUrl.value = artist.facebook_url || ''; els.notes.value = artist.notes || ''; els.verified.checked = Boolean(artist.verified); els.featured.checked = Boolean(artist.featured);
   }
 
+  function showSavedArtistInEditor(artist = {}, fallbackKey = '') {
+    const key = String(artist.artist_key || fallbackKey || '').trim();
+    if (!key) { closeEditor(); return; }
+    selectedKey = key;
+    fillEditor({ ...artist, artist_key: key });
+    els.key.disabled = true;
+    els.editorHeading.textContent = `Edit DEV Artist: ${artist.name || key}`;
+    els.saveArtist.textContent = 'Save DEV Artist Changes';
+    els.editorCard.classList.remove('hidden');
+  }
+
   async function openEditor(key = '') {
     selectedKey = String(key || '');
     if (!selectedKey) {
@@ -142,11 +153,7 @@
     try {
       const data = await apiRequest(`${ARTISTS_URL}/${encodeURIComponent(selectedKey)}`);
       const artist = data?.artist || artists.find(item => String(item.artist_key) === selectedKey) || {};
-      fillEditor(artist);
-      els.key.disabled = true;
-      els.editorHeading.textContent = `Edit DEV Artist: ${artist.name || selectedKey}`;
-      els.saveArtist.textContent = 'Save DEV Artist Changes';
-      els.editorCard.classList.remove('hidden');
+      showSavedArtistInEditor(artist, selectedKey);
       els.message.textContent = `Editing DEV artist ${selectedKey}.`;
     } catch (error) {
       els.message.textContent = `DEV Artist load failed: ${error.message}`;
@@ -176,9 +183,9 @@
       const result = await apiRequest(url, { method: isCreate ? 'POST' : 'PATCH', body: JSON.stringify(data) });
       const saved = result?.artist || data;
       const savedKey = String(saved.artist_key || data.artist_key || selectedKey);
+      showSavedArtistInEditor(saved, savedKey);
       await load();
       els.message.textContent = isCreate ? 'DEV artist created.' : 'DEV artist metadata saved.';
-      if (savedKey) await openEditor(savedKey); else closeEditor();
     } catch (error) {
       els.message.textContent = `DEV Artist save failed: ${error.message}`;
     } finally { els.saveArtist.disabled = false; }
