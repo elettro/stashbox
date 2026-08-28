@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Admin · Ads Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>ADS CMS</h1>
+      <p class="subtitle">Real DEV RDS data · no browser fallback</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/ads/" aria-current="page">Ads</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV ADS</span><span>PROD locked</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This migration page reads the real DEV Ads RDS API only. It intentionally does not use the old browser fallback. PROD Ads and PROD settings are not reachable. Ads writes remain locked during this parity pass.</section>
+
+    <section class="card token-panel">
+      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the migration DEV token namespace.</p></div>
+      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="DEV x-admin-token" /><button id="saveToken" type="button">Save Token</button><button id="clearToken" class="secondary" type="button">Clear</button></div>
+      <p id="tokenStatus" class="status-text"></p>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">DEV AD SETTINGS</p><h2>Commercial Break Controller</h2><p class="muted">Read directly from DEV `/admin/ad-settings`. Write controls stay locked until the migration write contract is QA'd.</p></div><button id="refreshAds" type="button">Refresh DEV Ads</button></div>
+      <div id="adsMessage" class="message">Add or reuse a DEV admin token to load data.</div>
+      <div id="settingsGrid" class="kpi-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">DEV ADS INVENTORY</p><h2>RDS Ad Records</h2><p class="muted">No localStorage inventory fallback is used on this page.</p></div><input id="adSearch" type="search" placeholder="Search title, type, artist, genre…" style="max-width:360px" /></div>
+      <p id="adCount" class="song-count"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Type</th><th>Ratio</th><th>Active</th><th>Hidden</th><th>Frequency</th><th>Views</th><th>Clicks</th><th>Skips</th><th>Video</th></tr></thead>
+          <tbody id="adsBody"><tr><td colspan="10" class="muted">No data loaded.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">WRITE MIGRATION STATUS</p>
+      <p class="muted">Master on/off, break interval, create/edit/delete, duplication, and video upload remain on the untouched DEV Ads CMS until their staging write flows are ported and browser-tested. This prevents a DEV fallback state from being mistaken for authoritative RDS settings.</p>
+      <a class="button-link" href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Open untouched DEV Ads CMS</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script src="./ads.js"></script>
+</body>
+</html>
