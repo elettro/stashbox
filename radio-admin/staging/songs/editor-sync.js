@@ -15,6 +15,7 @@
   const artworkRefresh = document.getElementById('refreshArtworkButton');
   let lastKey = '';
   let lastEditMode = false;
+  let explicitEditClick = false;
 
   function syncEditorDependents() {
     const key = String(keyInput.value || '').trim();
@@ -27,7 +28,11 @@
 
     if (artworkRefresh) artworkRefresh.disabled = !editMode;
 
-    if (editMode && (!lastEditMode || key !== lastKey)) {
+    // artwork.js already owns the refresh triggered by an explicit Edit click.
+    // Only synthesize a refresh for programmatic editor-mode changes such as
+    // auto-opening a newly created/saved song. This prevents two overlapping
+    // artwork loads from replacing a file input after the user selects a file.
+    if (editMode && (!lastEditMode || key !== lastKey) && !explicitEditClick) {
       window.setTimeout(() => {
         if (artworkRefresh && !artworkRefresh.disabled) artworkRefresh.click();
       }, 0);
@@ -41,7 +46,12 @@
   observer.observe(keyInput, { attributes: true, attributeFilter: ['disabled'] });
 
   document.getElementById('songsBody')?.addEventListener('click', event => {
-    if (event.target.closest('.edit-song')) window.setTimeout(syncEditorDependents, 0);
+    if (!event.target.closest('.edit-song')) return;
+    explicitEditClick = true;
+    window.setTimeout(() => {
+      syncEditorDependents();
+      explicitEditClick = false;
+    }, 0);
   });
   document.getElementById('newSongButton')?.addEventListener('click', () => window.setTimeout(syncEditorDependents, 0));
 
