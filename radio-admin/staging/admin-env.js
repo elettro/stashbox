@@ -5,6 +5,7 @@
     build: Object.freeze({
       issue: 1077,
       mode: 'migration-staging',
+      phase4ProdReadApproved: true,
       productionCutoverApproved: false,
       productionWritesApproved: false
     }),
@@ -36,7 +37,16 @@
         canonicalEnvironment: 'prod',
         publicReadPath: '/radio/songs',
         adminPath: '/admin/songs',
-        stagingProdWritesAllowed: false
+        stagingProdWritesAllowed: false,
+        prodReadValidated: true,
+        prodReadValidatedAt: '2026-08-28',
+        devSongCountValidated: 84,
+        prodSongCountValidated: 84,
+        sharedSongKeysValidated: 84,
+        devOnlySongKeysValidated: 0,
+        prodOnlySongKeysValidated: 0,
+        playerContractValidated: true,
+        canonicalPlayerReadCandidateReady: true
       }),
       ads: Object.freeze({
         targetArchitecture: 'environment-specific',
@@ -102,12 +112,40 @@
     return env;
   }
 
+  function getCanonicalSongEnvironment() {
+    const name = CONFIG.dataPolicy.songs.canonicalEnvironment;
+    return getEnvironment(name);
+  }
+
   function assertWriteAllowed(environmentName, moduleName) {
     const env = getEnvironment(environmentName);
     if (!env.writesAllowedInStaging) {
       throw new Error(`Blocked staging write: ${moduleName || 'module'} -> ${env.label}. Production writes are not approved.`);
     }
     return true;
+  }
+
+  function assertCanonicalSongWriteApproved(moduleName = 'canonical-song') {
+    const env = getCanonicalSongEnvironment();
+    const approved = CONFIG.build.productionWritesApproved === true
+      && CONFIG.dataPolicy.songs.stagingProdWritesAllowed === true
+      && env.writesAllowedInStaging === true;
+    if (!approved) {
+      throw new Error(`Blocked canonical song write: ${moduleName} -> ${env.label}. Production Song CMS writes are not approved.`);
+    }
+    return true;
+  }
+
+  function canonicalSongPublicUrl(search = '') {
+    const env = getCanonicalSongEnvironment();
+    const url = new URL(`${env.apiBase}${CONFIG.dataPolicy.songs.publicReadPath}`);
+    if (search) url.search = String(search).replace(/^\?/, '');
+    return url.toString();
+  }
+
+  function canonicalSongAdminUrl(path = '') {
+    const env = getCanonicalSongEnvironment();
+    return `${env.apiBase}${CONFIG.dataPolicy.songs.adminPath}${path}`;
   }
 
   function escapeHtml(value) {
@@ -139,7 +177,11 @@
   window.StashboxAdminMigration = Object.freeze({
     config: CONFIG,
     getEnvironment,
+    getCanonicalSongEnvironment,
     assertWriteAllowed,
+    assertCanonicalSongWriteApproved,
+    canonicalSongPublicUrl,
+    canonicalSongAdminUrl,
     installStagingNavigation,
     stagingNavigation: STAGING_NAV_ITEMS
   });
