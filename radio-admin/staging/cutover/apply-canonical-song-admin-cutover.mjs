@@ -34,6 +34,7 @@ function transformSongs(source) {
   next = next.replaceAll('Saving DEV song ', 'Saving LIVE song ');
   next = next.replaceAll('DEV song created:', 'LIVE song created:');
   next = next.replaceAll('DEV song saved:', 'LIVE song saved:');
+  next = next.replaceAll('DEV save failed:', 'LIVE save blocked/failed:');
   next = next.replaceAll('Loading DEV songs…', 'Loading canonical LIVE songs…');
   next = next.replaceAll('DEV Song CMS', 'Canonical LIVE Song CMS');
   return next;
@@ -56,8 +57,9 @@ function transformMedia(source) {
   next = next.replaceAll('DEV presign response is missing upload_url or public_url.', 'Canonical PROD presign response is missing upload_url or public_url.');
   next = addProdBucketGuard(next, "    if (parsed.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');", 'media');
   next = next.replaceAll('Choose Edit on an existing DEV song before uploading media.', 'Choose Edit on an existing LIVE song before uploading media.');
+  next = next.replaceAll('Save DEV Changes', 'Save LIVE Changes');
   next = next.replaceAll('Uploading ${files.length} file${files.length === 1 ? \'\' : \'s\'} to DEV…', 'Uploading ${files.length} file${files.length === 1 ? \'\' : \'s\'} to LIVE media…');
-  next = next.replaceAll('Audio uploaded to DEV. Click Save LIVE Changes to persist the URL.', 'Audio uploaded to PROD media. Click Save LIVE Changes to persist the URL.');
+  next = next.replaceAll('Audio uploaded to DEV.', 'Audio uploaded to PROD media.');
   next = next.replaceAll('DEV media upload complete.', 'LIVE media upload complete.');
   next = next.replaceAll('DEV media uploads enabled for', 'LIVE media uploads enabled for');
   return next;
