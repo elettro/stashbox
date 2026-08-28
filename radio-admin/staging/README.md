@@ -45,7 +45,11 @@ Implemented on branch `feature/admin-unification-1077`:
 - audio upload through DEV presign
 - song-specific visual image/clip uploads through DEV presign
 - six-image artwork workflow for 1:1, 9:16, 16:9, 3:4, 4:5, and 21:9
+- Song editor dependent controls synchronize correctly after create/edit mode changes
 - browser/CI smoke test with mocked DEV API and explicit PROD-request failure condition
+- Song CMS browser QA is GREEN: render, create POST, edit PUT, dependent controls, console/page errors, and no-PROD guard all passed
 - VEC controller and styles copied into an isolated staging module without changing `/radio-admin/dev/vec/`
+- Video Factory copied into an isolated staging module with DEV-only API behavior and migration token bridging
+- staging navigation now routes Dashboard, Songs, VEC and Video Factory within the isolated Admin
 
 Production cutover and production writes remain explicitly unapproved.
