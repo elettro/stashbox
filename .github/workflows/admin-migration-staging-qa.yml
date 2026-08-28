@@ -42,6 +42,8 @@ jobs:
           node --check radio-admin/staging/video-factory/video-factory-archive.js
           node --check radio-admin/staging/video-factory/video-factory-resolution-preview.js
           node --check radio-admin/staging/notifications/app.js
+          node --check radio-admin/staging/system-health/dashboard-summary-freeze.js
+          node --check radio-admin/staging/system-health/system-health.js
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
 
       - name: Install Playwright Chromium
@@ -57,7 +59,9 @@ jobs:
             if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/vec/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-factory/ >/dev/null \
-              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/notifications/ >/dev/null; then
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/notifications/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/bugs/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/system-health/ >/dev/null; then
               exit 0
             fi
             sleep 1
