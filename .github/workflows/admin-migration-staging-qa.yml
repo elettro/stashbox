@@ -96,7 +96,7 @@ jobs:
       - name: Run DEV Artist metadata browser smoke test
         run: node radio-admin/staging/tests/artists-write-smoke.mjs
 
-      - name: Run DEV Artist image upload browser smoke test
+      - name: Run DEV Artist profile media browser smoke test
         run: node radio-admin/staging/tests/artists-upload-smoke.mjs
 
       - name: Assert staging source has no direct PROD Song CMS write target
@@ -117,14 +117,19 @@ jobs:
             exit 1
           fi
 
-      - name: Assert Artist staging stays DEV-only without Cognito or delegated-access writes
+      - name: Assert Artist staging uses current DEV media contract only
         run: |
           grep -q "assertWriteAllowed('dev', 'artists')" radio-admin/staging/artists/artists.js
-          grep -q "/admin/uploads/presign" radio-admin/staging/artists/artists.js
+          grep -q "mediaPresignUrl" radio-admin/staging/artists/artists.js
+          grep -q "persistAndVerifyMedia" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'profile_image'" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'horizontal_banner'" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'vertical_banner'" radio-admin/staging/artists/artists.js
           grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/artists/artists.js
+          grep -q "stashbox-radio-media-prod-us-east-1" radio-admin/staging/artists/artists.js
           grep -q "Blocked Artist upload because DEV presign returned a PROD media target" radio-admin/staging/artists/artists.js
-          if grep -E "prod-v2|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|/access" radio-admin/staging/artists/*.js; then
-            echo 'Artist staging contains a PROD, Cognito, or delegated-access binding that is not approved in this pass.'
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|getEnvironment\(['\"]prod['\"]\)|/access" radio-admin/staging/artists/*.js; then
+            echo 'Artist staging contains an unapproved PROD API, PROD environment, Cognito, or delegated-access binding.'
             exit 1
           fi
 
