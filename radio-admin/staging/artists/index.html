@@ -12,7 +12,7 @@
     <a class="brand" href="/radio-admin/staging/">
       <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
       <h1>ARTIST CMS</h1>
-      <p class="subtitle">DEV artist profiles · guarded metadata writes</p>
+      <p class="subtitle">DEV artist profiles · guarded metadata + media writes</p>
     </a>
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/">Dashboard</a><a href="/radio-admin/staging/songs/">Songs</a><a href="/radio-admin/staging/video-library/">Video Library</a><a href="/radio-admin/staging/vec/">VEC Lab</a><a href="/radio-admin/staging/video-factory/">Video Factory</a><a href="/radio-admin/staging/ads/">Ads</a><a href="/radio-admin/staging/notifications/">Notifications</a><a href="/radio-admin/staging/artists/" aria-current="page">Artists</a><a href="/radio-admin/staging/social-factory/">Social Factory</a><a href="/radio-admin/staging/bugs/">Bug Base</a><a href="/radio-admin/staging/system-health/">DEV Health</a>
@@ -21,7 +21,7 @@
   </header>
 
   <main class="shell">
-    <section class="guardrail">Artist profile metadata create/edit is hard-bound to DEV in this staging pass. Profile/banner file upload, Cognito/account auth, delegated-access writes, and production public-profile routing remain locked until separate parity tests are complete.</section>
+    <section class="guardrail">Artist metadata and profile/banner image uploads are hard-bound to DEV. Uploads must resolve to the known DEV media bucket before any storage PUT is allowed. Cognito/account auth, delegated-access writes, and production public-profile routing remain locked.</section>
 
     <section class="card token-panel">
       <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Migration staging uses the DEV admin token only. Cognito fallback is intentionally not enabled here.</p></div>
@@ -42,7 +42,7 @@
     </section>
 
     <section id="artistEditorCard" class="card hidden">
-      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST EDITOR</p><h2 id="artistEditorHeading">New DEV Artist</h2><p class="muted">Metadata only in this pass. Image URL fields may be edited, but file upload remains on the current DEV Artist CMS.</p></div></div>
+      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST EDITOR</p><h2 id="artistEditorHeading">New DEV Artist</h2><p class="muted">Metadata and image uploads are DEV-only. Uploaded image URLs are not persisted to the artist profile until Save Artist is clicked.</p></div></div>
       <form id="artistEditor" autocomplete="off">
         <div class="editor-grid">
           <div class="editor-field"><label for="artistName">Name *</label><input id="artistName" required /></div>
@@ -51,8 +51,19 @@
           <div class="editor-field"><label for="artistSortName">Sort Name</label><input id="artistSortName" /></div>
           <div class="editor-field"><label for="artistStatus">Status</label><select id="artistStatus"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>
           <div class="editor-field"><label for="artistLocation">Location</label><input id="artistLocation" /></div>
-          <div class="editor-field editor-field--full"><label for="profileImageUrl">Profile Image URL</label><input id="profileImageUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="bannerImageUrl">Banner Image URL</label><input id="bannerImageUrl" type="url" /></div>
+
+          <div class="editor-field editor-field--full">
+            <label for="profileImageUrl">Profile Image URL</label><input id="profileImageUrl" type="url" />
+            <div class="search-row" style="margin-top:.5rem"><input id="profileImageFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" /><button id="uploadProfileImage" class="secondary" type="button">Upload DEV Profile Image</button></div>
+            <p id="profileImageStatus" class="muted">JPG, PNG or WEBP · max 10 MB · recommended 1200×1200.</p>
+          </div>
+
+          <div class="editor-field editor-field--full">
+            <label for="bannerImageUrl">Banner Image URL</label><input id="bannerImageUrl" type="url" />
+            <div class="search-row" style="margin-top:.5rem"><input id="bannerImageFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" /><button id="uploadBannerImage" class="secondary" type="button">Upload DEV Banner Image</button></div>
+            <p id="bannerImageStatus" class="muted">JPG, PNG or WEBP · max 10 MB · recommended 1920×1080.</p>
+          </div>
+
           <div class="editor-field editor-field--full"><label for="artistBio">Bio</label><textarea id="artistBio"></textarea></div>
           <div class="editor-field editor-field--full"><label for="websiteUrl">Website URL</label><input id="websiteUrl" type="url" /></div>
           <div class="editor-field editor-field--full"><label for="merchUrl">Merch URL</label><input id="merchUrl" type="url" /></div>
@@ -71,9 +82,9 @@
     </section>
 
     <section class="card">
-      <p class="eyebrow">MEDIA / AUTH MIGRATION STATUS</p>
-      <p class="muted">Profile/banner file upload, delegated access, Cognito tokens, and production public-profile routes remain on the untouched DEV Artist CMS until their upload/auth contracts are ported and browser-tested separately.</p>
-      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS for media/access</a>
+      <p class="eyebrow">AUTH / ACCESS MIGRATION STATUS</p>
+      <p class="muted">Cognito/account tokens, delegated artist-access assignments, and production public-profile routes remain on the untouched DEV Artist CMS until their contracts are ported and browser-tested separately.</p>
+      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS for account/access tools</a>
     </section>
   </main>
 
