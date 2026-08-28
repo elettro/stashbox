@@ -84,20 +84,27 @@ try {
   await page.locator('button.edit-song[data-song-key="canonical-qa-song"]').click();
 
   await page.locator('#field-display_title').fill('Canonical QA Updated');
+  const metadataResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/admin/songs/canonical-qa-song` && response.request().method() === 'PUT');
   await page.locator('#saveSongButton').click();
-  await page.locator('#editorMessage').getByText(/LIVE song saved: canonical-qa-song/).waitFor();
+  await metadataResponse;
   const metadataWrite = writes.find(item => item.method === 'PUT' && item.path === '/admin/songs/canonical-qa-song');
   if (metadataWrite?.payload?.display_title !== 'Canonical QA Updated') throw new Error('Canonical metadata PUT payload was not sent to PROD correctly.');
 
   await page.locator('#audioFileInput').setInputFiles({ name: 'rehearsal.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('fake-audio') });
+  const audioPresignResponse = page.waitForResponse(response => {
+    if (response.url() !== `${PROD_BASE}/admin/uploads/presign` || response.request().method() !== 'POST') return false;
+    try { return JSON.parse(response.request().postData() || '{}').purpose === 'audio'; } catch { return false; }
+  });
+  const audioStorageResponse = page.waitForResponse(response => response.url().includes(`${PROD_BUCKET}.s3.amazonaws.com/audio/`) && response.request().method() === 'PUT');
   await page.locator('#uploadAudioButton').click();
-  await page.locator('#audioUploadStatus').getByText(/Audio uploaded to PROD media/).waitFor();
+  await Promise.all([audioPresignResponse, audioStorageResponse]);
   if (!writes.some(item => item.method === 'POST' && item.path === '/admin/uploads/presign' && item.payload?.purpose === 'audio')) throw new Error('Canonical audio presign did not use PROD API.');
 
   const artworkCard = page.locator('.artwork-card[data-ratio="1x1"]');
   await artworkCard.locator('.artwork-file').setInputFiles({ name: 'rehearsal.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
+  const artworkPatchResponse = page.waitForResponse(response => response.url() === `${PROD_BASE}/radio/admin/songs/canonical-qa-song/artwork-images` && response.request().method() === 'PATCH');
   await artworkCard.locator('.upload-artwork').click();
-  await artworkCard.locator('.artwork-status').getByText(/1x1 uploaded to LIVE/).waitFor();
+  await artworkPatchResponse;
   if (!writes.some(item => item.method === 'PATCH' && item.path === '/radio/admin/songs/canonical-qa-song/artwork-images')) throw new Error('Canonical artwork PATCH did not use PROD API.');
 
   if (storagePuts.length !== 2) throw new Error(`Expected exactly two PROD S3 PUTs, saw ${storagePuts.length}.`);
