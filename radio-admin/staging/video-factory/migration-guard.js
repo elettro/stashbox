@@ -8,6 +8,8 @@
   const DEV_RENDER_BUCKET_PREFIX = 'stashbox-radio-video-factory-dev-';
 
   const nativeFetch = window.fetch.bind(window);
+  const nativeOpen = window.open.bind(window);
+  const nativeAnchorClick = HTMLAnchorElement.prototype.click;
   const nativeGetItem = Storage.prototype.getItem;
   const nativeSetItem = Storage.prototype.setItem;
   const nativeRemoveItem = Storage.prototype.removeItem;
@@ -25,6 +27,13 @@
   function isApiGateway(url) {
     try { return new URL(url).hostname.includes('.execute-api.'); }
     catch { return false; }
+  }
+
+  function isS3Url(url) {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return host.includes('.s3.') || host.endsWith('.s3.amazonaws.com');
+    } catch { return false; }
   }
 
   function assertSignedAssetUrl(url) {
@@ -76,6 +85,18 @@
     }
 
     return nativeFetch(input, init);
+  };
+
+  window.open = function guardedVideoFactoryOpen(url, ...args) {
+    const target = String(url || '');
+    if (isS3Url(target)) assertSignedAssetUrl(target);
+    return nativeOpen(url, ...args);
+  };
+
+  HTMLAnchorElement.prototype.click = function guardedVideoFactoryAnchorClick() {
+    const target = String(this.href || '');
+    if (isS3Url(target)) assertSignedAssetUrl(target);
+    return nativeAnchorClick.call(this);
   };
 
   window.StashboxVideoFactoryMigrationGuard = Object.freeze({
