@@ -63,3 +63,7 @@ Songs become the canonical LIVE catalog eventually. DEV/V2 and production should
 Ads, VEC configuration, analytics, notifications, health checks, and job/render systems remain environment-specific.
 
 Social Factory remains a separate DEV-only service until an explicit PROD implementation exists.
+
+## Current safety state
+
+All branch changes remain under `radio-admin/staging/`. No production cutover has been performed and no production write path has been enabled in staging.
