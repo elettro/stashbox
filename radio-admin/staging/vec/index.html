@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin · VEC Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="./vec.css" />
+</head>
+<body class="vec-lab-page">
+  <header class="topbar vec-topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>STASHBOX RADIO VEC LAB</h1>
+      <p class="subtitle">Unified Admin build · DEV VEC only</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/vec/" aria-current="page">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
+      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
+      <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV VEC</span><span>PROD locked</span></div>
+  </header>
+
+  <main class="shell vec-lab" aria-labelledby="vecLabTitle">
+    <section class="guardrail">This staging VEC module is DEV-only. It is an isolated copy of the current DEV VEC controller and cannot select the PROD API or PROD token namespace.</section>
+
+    <section class="card vec-hero" aria-labelledby="vecLabTitle">
+      <div>
+        <p class="eyebrow">MIGRATED VEC · DEV PARITY PASS</p>
+        <h2 id="vecLabTitle">Stashbox Radio VEC Lab</h2>
+        <p class="vec-copy">Song-level Visual Experience Controller running inside the migration staging Admin.</p>
+      </div>
+      <p class="vec-notice" role="note">DEV VEC only. Production VEC remains untouched.</p>
+    </section>
+
+    <div id="vecControllerMount" data-vec-controller></div>
+
+    <section class="card">
+      <p class="eyebrow">MIGRATION NOTE</p>
+      <p class="muted">This first parity pass preserves the proven DEV controller logic exactly. The staging wrapper bridges the new namespaced DEV token in memory without rewriting or deleting the existing DEV browser token.</p>
+      <a class="button-link" href="/radio-admin/dev/vec/" target="_blank" rel="noopener">Open untouched current DEV VEC Lab</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const migration = window.StashboxAdminMigration;
+      const env = migration.getEnvironment('dev');
+      const nativeGetItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key) {
+        if (key === 'stashbox_admin_token_dev') {
+          return nativeGetItem.call(this, env.tokenStorageKey)
+            || nativeGetItem.call(this, 'stashbox_admin_token_dev')
+            || '';
+        }
+        return nativeGetItem.call(this, key);
+      };
+    })();
+  </script>
+  <script src="./vec-controller.js"></script>
+  <script>
+    window.StashboxVecController.initVecController(document.getElementById('vecControllerMount'), {
+      mode: 'lab',
+      songKey: ''
+    });
+  </script>
+</body>
+</html>
