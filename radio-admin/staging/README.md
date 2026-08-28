@@ -23,6 +23,7 @@ Explicitly untouched during the current build phase:
 
 ## Implemented
 
+- migration branch synced to current `main`
 - centralized DEV/PROD environment manifest
 - separate target token namespaces
 - hard block on PROD writes in staging
