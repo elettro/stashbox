@@ -6,11 +6,16 @@
   const env = migration.getEnvironment('dev');
   const ARTISTS_URL = `${env.apiBase}/radio/admin/artists`;
   const SONG_STATS_URL = `${env.apiBase}/admin/stats/songs?limit=500`;
+  const UPLOAD_PRESIGN_URL = `${env.apiBase}/admin/uploads/presign`;
+  const DEV_MEDIA_BUCKET = 'stashbox-radio-media-dev-us-east-1';
+  const PROD_MEDIA_BUCKET = 'stashbox-radio-media-prod-us-east-1';
+  const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
   const els = {
     token: document.getElementById('adminToken'), saveToken: document.getElementById('saveToken'), clearToken: document.getElementById('clearToken'), tokenStatus: document.getElementById('tokenStatus'), refresh: document.getElementById('refreshArtists'), message: document.getElementById('artistMessage'), stats: document.getElementById('artistStats'), search: document.getElementById('artistSearch'), count: document.getElementById('artistCount'), body: document.getElementById('artistsBody'),
     newArtist: document.getElementById('newArtist'), editorCard: document.getElementById('artistEditorCard'), editorHeading: document.getElementById('artistEditorHeading'), editor: document.getElementById('artistEditor'),
-    name: document.getElementById('artistName'), key: document.getElementById('artistKey'), slug: document.getElementById('artistSlug'), sortName: document.getElementById('artistSortName'), status: document.getElementById('artistStatus'), location: document.getElementById('artistLocation'), profileImageUrl: document.getElementById('profileImageUrl'), bannerImageUrl: document.getElementById('bannerImageUrl'), bio: document.getElementById('artistBio'), websiteUrl: document.getElementById('websiteUrl'), merchUrl: document.getElementById('merchUrl'), spotifyUrl: document.getElementById('spotifyUrl'), appleMusicUrl: document.getElementById('appleMusicUrl'), youtubeUrl: document.getElementById('youtubeUrl'), instagramUrl: document.getElementById('instagramUrl'), xUrl: document.getElementById('xUrl'), facebookUrl: document.getElementById('facebookUrl'), notes: document.getElementById('artistNotes'), verified: document.getElementById('artistVerified'), featured: document.getElementById('artistFeatured'), saveArtist: document.getElementById('saveArtist'), cancelArtist: document.getElementById('cancelArtist')
+    name: document.getElementById('artistName'), key: document.getElementById('artistKey'), slug: document.getElementById('artistSlug'), sortName: document.getElementById('artistSortName'), status: document.getElementById('artistStatus'), location: document.getElementById('artistLocation'), profileImageUrl: document.getElementById('profileImageUrl'), bannerImageUrl: document.getElementById('bannerImageUrl'), bio: document.getElementById('artistBio'), websiteUrl: document.getElementById('websiteUrl'), merchUrl: document.getElementById('merchUrl'), spotifyUrl: document.getElementById('spotifyUrl'), appleMusicUrl: document.getElementById('appleMusicUrl'), youtubeUrl: document.getElementById('youtubeUrl'), instagramUrl: document.getElementById('instagramUrl'), xUrl: document.getElementById('xUrl'), facebookUrl: document.getElementById('facebookUrl'), notes: document.getElementById('artistNotes'), verified: document.getElementById('artistVerified'), featured: document.getElementById('artistFeatured'), saveArtist: document.getElementById('saveArtist'), cancelArtist: document.getElementById('cancelArtist'),
+    profileImageFile: document.getElementById('profileImageFile'), uploadProfileImage: document.getElementById('uploadProfileImage'), profileImageStatus: document.getElementById('profileImageStatus'), bannerImageFile: document.getElementById('bannerImageFile'), uploadBannerImage: document.getElementById('uploadBannerImage'), bannerImageStatus: document.getElementById('bannerImageStatus')
   };
 
   let artists = [];
@@ -38,9 +43,10 @@
     const method = String(options.method || 'GET').toUpperCase();
     const artistBoundary = url === ARTISTS_URL || url.startsWith(`${ARTISTS_URL}/`);
     const statsBoundary = url === SONG_STATS_URL;
-    if (!url.startsWith(env.apiBase) || (!artistBoundary && !statsBoundary)) throw new Error('Blocked request outside the DEV Artist API boundary.');
+    const uploadBoundary = url === UPLOAD_PRESIGN_URL;
+    if (!url.startsWith(env.apiBase) || (!artistBoundary && !statsBoundary && !uploadBoundary)) throw new Error('Blocked request outside the DEV Artist API boundary.');
     if (!['GET', 'HEAD'].includes(method)) {
-      if (!artistBoundary) throw new Error('Blocked write outside the DEV Artist profile API boundary.');
+      if (!artistBoundary && !uploadBoundary) throw new Error('Blocked write outside the DEV Artist profile/media API boundary.');
       migration.assertWriteAllowed('dev', 'artists');
     }
     const token = getToken();
@@ -71,6 +77,7 @@
 
   function normName(value) { return String(value || '').trim().toLowerCase().replace(/\s+/g, ' '); }
   function number(value) { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; }
+  function slugify(value) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'artist'; }
   function aggregatePerformance(rows) {
     const map = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
@@ -119,19 +126,34 @@
       artists = Array.isArray(artistData?.artists) ? artistData.artists : [];
       performance = aggregatePerformance(songData?.songs || []);
       renderStats(); renderArtists();
-      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata writes are DEV-only.`;
+      els.message.textContent = `Loaded ${artists.length} DEV artist profile${artists.length === 1 ? '' : 's'}. Metadata and media writes are DEV-only.`;
     } catch (error) {
       artists = []; performance = new Map(); els.stats.innerHTML = ''; els.body.innerHTML = '<tr><td colspan="9" class="muted">DEV Artist load failed.</td></tr>'; els.count.textContent = ''; els.message.textContent = `DEV Artist load failed: ${error.message}`;
     } finally { els.refresh.disabled = false; updateTokenStatus(); }
   }
 
+  function setImageStatus(kind, message) {
+    const target = kind === 'profile' ? els.profileImageStatus : els.bannerImageStatus;
+    if (target) target.textContent = message;
+  }
+
+  function resetImageStatuses() {
+    setImageStatus('profile', 'JPG, PNG or WEBP · max 10 MB · recommended 1200×1200.');
+    setImageStatus('banner', 'JPG, PNG or WEBP · max 10 MB · recommended 1920×1080.');
+  }
+
   function fillEditor(artist = {}) {
     els.name.value = artist.name || ''; els.key.value = artist.artist_key || ''; els.slug.value = artist.slug || ''; els.sortName.value = artist.sort_name || ''; els.status.value = artist.status || 'draft'; els.location.value = artist.location || ''; els.profileImageUrl.value = artist.profile_image_url || ''; els.bannerImageUrl.value = artist.banner_image_url || ''; els.bio.value = artist.bio || ''; els.websiteUrl.value = artist.website_url || ''; els.merchUrl.value = artist.merch_url || ''; els.spotifyUrl.value = artist.spotify_url || ''; els.appleMusicUrl.value = artist.apple_music_url || ''; els.youtubeUrl.value = artist.youtube_url || ''; els.instagramUrl.value = artist.instagram_url || ''; els.xUrl.value = artist.x_url || ''; els.facebookUrl.value = artist.facebook_url || ''; els.notes.value = artist.notes || ''; els.verified.checked = Boolean(artist.verified); els.featured.checked = Boolean(artist.featured);
+    if (els.profileImageFile) els.profileImageFile.value = '';
+    if (els.bannerImageFile) els.bannerImageFile.value = '';
+    resetImageStatuses();
   }
 
   function setEditorLoading(loading) {
     els.editor.querySelectorAll('input, select, textarea').forEach(control => { control.disabled = Boolean(loading); });
     els.saveArtist.disabled = Boolean(loading);
+    els.uploadProfileImage.disabled = Boolean(loading);
+    els.uploadBannerImage.disabled = Boolean(loading);
     els.cancelArtist.disabled = false;
   }
 
@@ -196,6 +218,74 @@
     return data;
   }
 
+  function validateImage(file) {
+    if (!file) return 'Choose an image first.';
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Use a JPG, PNG, or WEBP image.';
+    if (file.size > MAX_IMAGE_BYTES) return 'Image must be 10 MB or smaller.';
+    return '';
+  }
+
+  function assertDevMediaTarget(uploadUrl, publicUrl) {
+    const joined = `${uploadUrl || ''} ${publicUrl || ''}`;
+    if (joined.includes(PROD_MEDIA_BUCKET) || joined.includes('prod-v2')) {
+      throw new Error('Blocked Artist upload because DEV presign returned a PROD media target.');
+    }
+    if (!joined.includes(DEV_MEDIA_BUCKET)) {
+      throw new Error('Blocked Artist upload because DEV presign did not return the expected DEV media bucket.');
+    }
+  }
+
+  async function uploadArtistImage(kind) {
+    const isProfile = kind === 'profile';
+    const fileInput = isProfile ? els.profileImageFile : els.bannerImageFile;
+    const uploadButton = isProfile ? els.uploadProfileImage : els.uploadBannerImage;
+    const urlInput = isProfile ? els.profileImageUrl : els.bannerImageUrl;
+    const file = fileInput.files?.[0];
+    const validationError = validateImage(file);
+    if (validationError) { setImageStatus(kind, validationError); return; }
+
+    const artistName = String(els.name.value || '').trim();
+    const artistKey = slugify(els.key.value || els.slug.value || artistName);
+    if (!artistName) { setImageStatus(kind, 'Enter the artist name before uploading.'); return; }
+    if (!artistKey) { setImageStatus(kind, 'Enter the artist key or slug before uploading.'); return; }
+
+    uploadButton.disabled = true;
+    setImageStatus(kind, 'Requesting DEV upload authorization…');
+    try {
+      const presign = await apiRequest(UPLOAD_PRESIGN_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          song_key: `artist-${artistKey}-${kind}`,
+          song_name: `${artistName} ${kind} image`,
+          artist: artistName,
+          purpose: 'artwork',
+          filename: file.name,
+          content_type: file.type
+        })
+      });
+      const uploadUrl = presign.upload_url || presign.uploadUrl;
+      const publicUrl = presign.public_url || presign.publicUrl;
+      if (!uploadUrl || !publicUrl) throw new Error('DEV presign response was missing upload/public URLs.');
+      assertDevMediaTarget(uploadUrl, publicUrl);
+
+      setImageStatus(kind, 'Uploading image to DEV media storage…');
+      const uploadResponse = await fetch(uploadUrl, {
+        method: presign.method || 'PUT',
+        mode: 'cors',
+        credentials: 'omit',
+        headers: presign.headers || { 'Content-Type': file.type },
+        body: file
+      });
+      if (!uploadResponse.ok) throw new Error(`DEV storage upload failed with status ${uploadResponse.status}.`);
+      urlInput.value = publicUrl;
+      setImageStatus(kind, `DEV ${kind} image uploaded. Click Save Artist to persist this URL.`);
+    } catch (error) {
+      setImageStatus(kind, error.message || String(error));
+    } finally {
+      uploadButton.disabled = false;
+    }
+  }
+
   async function saveArtist(event) {
     event.preventDefault();
     let data;
@@ -223,6 +313,8 @@
   els.newArtist.addEventListener('click', () => openEditor());
   els.cancelArtist.addEventListener('click', closeEditor);
   els.editor.addEventListener('submit', saveArtist);
+  els.uploadProfileImage.addEventListener('click', () => uploadArtistImage('profile'));
+  els.uploadBannerImage.addEventListener('click', () => uploadArtistImage('banner'));
   els.body.addEventListener('click', event => { const button = event.target.closest('.edit-artist'); if (button) openEditor(button.dataset.artistKey); });
 
   updateTokenStatus();
