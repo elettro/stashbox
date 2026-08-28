@@ -40,9 +40,9 @@ function transformSongs(source) {
   return next;
 }
 
-function addProdBucketGuard(source, marker, label) {
+function addProdBucketGuard(source, marker, label, urlVariable = 'parsed') {
   if (source.includes(PROD_BUCKET)) return source;
-  const guard = `${marker}\n    const allowedProdBucket = '${PROD_BUCKET}';\n    if (!parsed.hostname.includes(allowedProdBucket)) throw new Error('Blocked canonical Song CMS upload outside PROD media bucket.');`;
+  const guard = `${marker}\n    const allowedProdBucket = '${PROD_BUCKET}';\n    if (!${urlVariable}.hostname.includes(allowedProdBucket)) throw new Error('Blocked canonical Song CMS upload outside PROD media bucket.');`;
   if (!source.includes(marker)) throw new Error(`Missing ${label} upload URL marker.`);
   return source.replace(marker, guard);
 }
@@ -55,7 +55,7 @@ function transformMedia(source) {
   next = next.replaceAll('Select an existing DEV song first.', 'Select an existing LIVE song first.');
   next = next.replaceAll('Blocked non-DEV presign route.', 'Blocked non-canonical presign route.');
   next = next.replaceAll('DEV presign response is missing upload_url or public_url.', 'Canonical PROD presign response is missing upload_url or public_url.');
-  next = addProdBucketGuard(next, "    if (parsed.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');", 'media');
+  next = addProdBucketGuard(next, "    if (parsed.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');", 'media', 'parsed');
   next = next.replaceAll('Choose Edit on an existing DEV song before uploading media.', 'Choose Edit on an existing LIVE song before uploading media.');
   next = next.replaceAll('Save DEV Changes', 'Save LIVE Changes');
   next = next.replaceAll('Uploading ${files.length} file${files.length === 1 ? \'\' : \'s\'} to DEV…', 'Uploading ${files.length} file${files.length === 1 ? \'\' : \'s\'} to LIVE media…');
@@ -78,7 +78,7 @@ function transformArtwork(source) {
   next = next.replaceAll('Select an existing DEV song first.', 'Select an existing LIVE song first.');
   next = next.replaceAll('Requesting DEV upload authorization…', 'Requesting PROD upload authorization…');
   next = next.replaceAll('DEV presign response is missing upload_url or public_url.', 'Canonical PROD presign response is missing upload_url or public_url.');
-  next = addProdBucketGuard(next, "      if (parsedUpload.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');", 'artwork');
+  next = addProdBucketGuard(next, "      if (parsedUpload.protocol !== 'https:') throw new Error('Blocked non-HTTPS upload URL.');", 'artwork', 'parsedUpload');
   next = next.replaceAll('Uploading image to DEV media storage…', 'Uploading image to PROD media storage…');
   next = next.replaceAll('Attaching image to DEV song…', 'Attaching image to LIVE song…');
   next = next.replaceAll('uploaded to DEV.', 'uploaded to LIVE.');
