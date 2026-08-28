@@ -6,13 +6,16 @@
   const env = migration.getEnvironment('dev');
   const ADS_URL = `${env.apiBase}/admin/ads`;
   const SETTINGS_URL = `${env.apiBase}/admin/ad-settings`;
+  const UPLOAD_PRESIGN_URL = `${env.apiBase}/admin/uploads/presign`;
+  const DEV_MEDIA_BUCKET = 'stashbox-radio-media-dev-us-east-1';
+  const PROD_MEDIA_BUCKET = 'stashbox-radio-media-prod-us-east-1';
 
   const els = {
     token: document.getElementById('adminToken'), saveToken: document.getElementById('saveToken'), clearToken: document.getElementById('clearToken'), tokenStatus: document.getElementById('tokenStatus'),
     refresh: document.getElementById('refreshAds'), message: document.getElementById('adsMessage'), settings: document.getElementById('settingsGrid'), search: document.getElementById('adSearch'), count: document.getElementById('adCount'), body: document.getElementById('adsBody'),
     adsEnabled: document.getElementById('adsEnabled'), breakMethod: document.getElementById('breakMethod'), adsPerBreak: document.getElementById('adsPerBreak'), targetAdSeconds: document.getElementById('targetAdSeconds'), breakInterval: document.getElementById('breakInterval'), saveAdSettings: document.getElementById('saveAdSettings'),
     newAd: document.getElementById('newAd'), editorCard: document.getElementById('adEditorCard'), editorHeading: document.getElementById('adEditorHeading'), editor: document.getElementById('adEditor'),
-    title: document.getElementById('adTitle'), type: document.getElementById('adType'), description: document.getElementById('adDescription'), videoUrl: document.getElementById('adVideoUrl'), clickUrl: document.getElementById('adClickUrl'), ratio: document.getElementById('adRatio'), frequency: document.getElementById('adFrequency'), skipSeconds: document.getElementById('adSkipSeconds'), startDate: document.getElementById('adStartDate'), endDate: document.getElementById('adEndDate'), noSkipping: document.getElementById('adNoSkipping'), active: document.getElementById('adActive'), hidden: document.getElementById('adHidden'), genre: document.getElementById('adGenreTargeting'), mood: document.getElementById('adMoodTargeting'), artist: document.getElementById('adArtistTargeting'), song: document.getElementById('adSongTargeting'), notes: document.getElementById('adNotes'), saveAd: document.getElementById('saveAd'), cancelAd: document.getElementById('cancelAd'), deleteAd: document.getElementById('deleteAd')
+    title: document.getElementById('adTitle'), type: document.getElementById('adType'), description: document.getElementById('adDescription'), videoUrl: document.getElementById('adVideoUrl'), videoFile: document.getElementById('adVideoFile'), uploadVideo: document.getElementById('uploadAdVideo'), uploadStatus: document.getElementById('adVideoUploadStatus'), clickUrl: document.getElementById('adClickUrl'), ratio: document.getElementById('adRatio'), frequency: document.getElementById('adFrequency'), skipSeconds: document.getElementById('adSkipSeconds'), startDate: document.getElementById('adStartDate'), endDate: document.getElementById('adEndDate'), noSkipping: document.getElementById('adNoSkipping'), active: document.getElementById('adActive'), hidden: document.getElementById('adHidden'), genre: document.getElementById('adGenreTargeting'), mood: document.getElementById('adMoodTargeting'), artist: document.getElementById('adArtistTargeting'), song: document.getElementById('adSongTargeting'), notes: document.getElementById('adNotes'), saveAd: document.getElementById('saveAd'), cancelAd: document.getElementById('cancelAd'), deleteAd: document.getElementById('deleteAd')
   };
 
   let ads = [];
@@ -41,7 +44,7 @@
 
   async function apiRequest(url, options = {}) {
     const method = String(options.method || 'GET').toUpperCase();
-    const allowed = url === ADS_URL || url.startsWith(`${ADS_URL}/`) || url === SETTINGS_URL;
+    const allowed = url === ADS_URL || url.startsWith(`${ADS_URL}/`) || url === SETTINGS_URL || url === UPLOAD_PRESIGN_URL;
     if (!url.startsWith(env.apiBase) || !allowed) throw new Error('Blocked request outside the DEV Ads API boundary.');
     if (!['GET', 'HEAD'].includes(method)) migration.assertWriteAllowed('dev', 'ads');
     const token = getToken();
@@ -168,6 +171,81 @@
 
   function today() { return new Date().toISOString().slice(0, 10); }
 
+  function setUploadStatus(message) {
+    if (els.uploadStatus) els.uploadStatus.textContent = message;
+  }
+
+  function fileExtension(file) {
+    return String(file?.name || '').split('.').pop().toLowerCase();
+  }
+
+  function videoContentType(file) {
+    const extension = fileExtension(file);
+    const type = String(file?.type || '').toLowerCase();
+    if (type && !(extension === 'm4v' && type === 'video/x-m4v')) return type;
+    return ({ mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime', m4v:'application/octet-stream' })[extension] || 'application/octet-stream';
+  }
+
+  function validateVideoFile(file) {
+    if (!file) return 'Select a video file first.';
+    const extension = fileExtension(file);
+    const type = videoContentType(file);
+    if (!new Set(['mp4','webm','mov','m4v']).has(extension)) return 'Use an MP4, WEBM, MOV, or M4V file.';
+    if (!new Set(['video/mp4','video/webm','video/quicktime','application/octet-stream']).has(type)) return 'Unsupported video MIME type.';
+    return '';
+  }
+
+  function normalizePresign(data) {
+    if (typeof data?.body === 'string') {
+      try { return JSON.parse(data.body); } catch { return data; }
+    }
+    return data || {};
+  }
+
+  function assertDevUploadTargets(uploadUrl, publicUrl) {
+    const upload = String(uploadUrl || '');
+    const publicTarget = String(publicUrl || '');
+    if (!/^https:\/\//i.test(upload) || !/^https:\/\//i.test(publicTarget)) throw new Error('DEV presign response did not return secure upload/public URLs.');
+    const combined = `${upload}\n${publicTarget}`.toLowerCase();
+    if (combined.includes(PROD_MEDIA_BUCKET.toLowerCase()) || combined.includes('/prod-v2') || combined.includes('je3zud66nb.execute-api')) {
+      throw new Error('Blocked Ads upload because DEV presign returned a PROD media target.');
+    }
+    if (!upload.toLowerCase().includes(DEV_MEDIA_BUCKET.toLowerCase())) {
+      throw new Error('Blocked Ads upload because the signed upload target is not the known DEV media bucket.');
+    }
+  }
+
+  async function uploadAdVideo() {
+    const file = els.videoFile?.files?.[0];
+    const validationError = validateVideoFile(file);
+    if (validationError) { setUploadStatus(validationError); return; }
+    els.uploadVideo.disabled = true;
+    setUploadStatus('Requesting DEV upload authorization…');
+    try {
+      const contentType = videoContentType(file);
+      const presign = normalizePresign(await apiRequest(UPLOAD_PRESIGN_URL, {
+        method: 'POST',
+        body: JSON.stringify({ purpose: 'ad_video', filename: file.name, contentType })
+      }));
+      const uploadUrl = presign.uploadUrl || presign.upload_url;
+      const publicUrl = presign.publicUrl || presign.public_url;
+      assertDevUploadTargets(uploadUrl, publicUrl);
+      setUploadStatus('Uploading video to DEV media storage…');
+      const uploadResponse = await fetch(uploadUrl, {
+        method: presign.method || 'PUT',
+        headers: presign.headers || { 'Content-Type': contentType },
+        body: file
+      });
+      if (!uploadResponse.ok) throw new Error(`DEV storage upload failed with status ${uploadResponse.status}.`);
+      els.videoUrl.value = publicUrl;
+      setUploadStatus('DEV ad video uploaded. Save the ad to persist this URL.');
+    } catch (error) {
+      setUploadStatus(`DEV ad video upload failed: ${error.message}`);
+    } finally {
+      els.uploadVideo.disabled = false;
+    }
+  }
+
   function openEditor(id = '') {
     selectedId = String(id || '');
     const ad = selectedId ? ads.find(item => String(item.id) === selectedId) : null;
@@ -176,6 +254,8 @@
     els.type.value = ad?.ad_type || 'Stashbox Radio Branding';
     els.description.value = ad?.description || '';
     els.videoUrl.value = ad?.video_url || '';
+    if (els.videoFile) els.videoFile.value = '';
+    setUploadStatus('MP4, WEBM, MOV, or M4V. DEV presign + storage only.');
     els.clickUrl.value = ad?.click_url || ad?.click_video_url || '';
     els.ratio.value = ad?.ad_ratio_label || ad?.ad_ratio || 'Auto Detect';
     els.frequency.value = ad?.frequency || 'Medium';
@@ -266,6 +346,7 @@
   els.newAd.addEventListener('click', () => openEditor());
   els.cancelAd.addEventListener('click', closeEditor);
   els.deleteAd.addEventListener('click', deleteSelectedAd);
+  els.uploadVideo.addEventListener('click', uploadAdVideo);
   els.editor.addEventListener('submit', saveAd);
   els.body.addEventListener('click', event => { const button = event.target.closest('.edit-ad'); if (button) openEditor(button.dataset.adId); });
 
