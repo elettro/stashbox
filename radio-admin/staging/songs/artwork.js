@@ -20,7 +20,6 @@
     grid: document.getElementById('artworkGrid'),
     message: document.getElementById('artworkMessage'),
     refresh: document.getElementById('refreshArtworkButton'),
-    songsBody: document.getElementById('songsBody'),
     newSong: document.getElementById('newSongButton')
   };
 
@@ -226,10 +225,10 @@
     }
   });
 
+  // editor-sync.js is the sole owner of artwork refreshes when editor mode changes.
+  // Keeping the explicit Edit listener here as well caused overlapping GET/render cycles
+  // that could replace a file input immediately after a user selected artwork.
   els.refresh.addEventListener('click', loadArtwork);
-  els.songsBody.addEventListener('click', event => {
-    if (event.target.closest('.edit-song')) window.setTimeout(loadArtwork, 0);
-  });
   els.newSong.addEventListener('click', () => {
     media = {};
     window.setTimeout(() => {
