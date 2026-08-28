@@ -96,34 +96,13 @@
 
     <section class="card">
       <p class="eyebrow">MIGRATION NOTE</p>
-      <p class="muted">This parity pass preserves the current DEV Video Factory implementation inside staging. The wrapper bridges the migration token namespace without modifying the current DEV tool.</p>
+      <p class="muted">This parity pass preserves the current DEV Video Factory implementation inside staging. The migration guard bridges the namespaced DEV token, blocks non-DEV API writes, and restricts signed output links to the private DEV Video Factory bucket family.</p>
       <a class="button-link" href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Open untouched current DEV Video Factory</a>
     </section>
   </main>
 
   <script src="../admin-env.js"></script>
-  <script>
-    (() => {
-      'use strict';
-      const migration = window.StashboxAdminMigration;
-      const env = migration.getEnvironment('dev');
-      const nativeGetItem = Storage.prototype.getItem;
-      const nativeSetItem = Storage.prototype.setItem;
-      const nativeRemoveItem = Storage.prototype.removeItem;
-      Storage.prototype.getItem = function (key) {
-        if (key === 'stashbox_admin_token_dev') return nativeGetItem.call(this, env.tokenStorageKey) || nativeGetItem.call(this, key) || '';
-        return nativeGetItem.call(this, key);
-      };
-      Storage.prototype.setItem = function (key, value) {
-        if (key === 'stashbox_admin_token_dev') return nativeSetItem.call(this, env.tokenStorageKey, value);
-        return nativeSetItem.call(this, key, value);
-      };
-      Storage.prototype.removeItem = function (key) {
-        if (key === 'stashbox_admin_token_dev') return nativeRemoveItem.call(this, env.tokenStorageKey);
-        return nativeRemoveItem.call(this, key);
-      };
-    })();
-  </script>
+  <script src="./migration-guard.js"></script>
   <script src="./video-factory.js"></script>
   <script src="./video-factory-resolution-preview.js"></script>
   <script src="./video-factory-archive.js"></script>
