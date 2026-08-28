@@ -81,6 +81,20 @@
     })
   });
 
+  const STAGING_NAV_ITEMS = Object.freeze([
+    ['Dashboard', '/radio-admin/staging/'],
+    ['Songs', '/radio-admin/staging/songs/'],
+    ['Video Library', '/radio-admin/staging/video-library/'],
+    ['VEC Lab', '/radio-admin/staging/vec/'],
+    ['Video Factory', '/radio-admin/staging/video-factory/'],
+    ['Ads', '/radio-admin/staging/ads/'],
+    ['Notifications', '/radio-admin/staging/notifications/'],
+    ['Artists', '/radio-admin/staging/artists/'],
+    ['Social Factory', '/radio-admin/staging/social-factory/'],
+    ['Bug Base', '/radio-admin/staging/bugs/'],
+    ['DEV Health', '/radio-admin/staging/system-health/']
+  ]);
+
   function getEnvironment(name) {
     const key = String(name || '').toLowerCase();
     const env = CONFIG.environments[key];
@@ -96,9 +110,43 @@
     return true;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+  function currentStagingRoute(pathname = window.location.pathname) {
+    const path = String(pathname || '/');
+    if (path === CONFIG.routes.stagingRoot || path === CONFIG.routes.stagingRoot.slice(0, -1)) return CONFIG.routes.stagingRoot;
+    const matches = STAGING_NAV_ITEMS
+      .map(([, href]) => href)
+      .filter(href => href !== CONFIG.routes.stagingRoot && path.startsWith(href))
+      .sort((a, b) => b.length - a.length);
+    return matches[0] || '';
+  }
+
+  function installStagingNavigation(root = document) {
+    if (!String(window.location.pathname || '').startsWith(CONFIG.routes.stagingRoot)) return;
+    const current = currentStagingRoute();
+    root.querySelectorAll('nav.topnav').forEach(nav => {
+      nav.setAttribute('aria-label', 'Staging admin navigation');
+      nav.innerHTML = STAGING_NAV_ITEMS.map(([label, href]) => {
+        const active = href === current ? ' aria-current="page"' : '';
+        return `<a href="${escapeHtml(href)}"${active}>${escapeHtml(label)}</a>`;
+      }).join('');
+    });
+  }
+
   window.StashboxAdminMigration = Object.freeze({
     config: CONFIG,
     getEnvironment,
-    assertWriteAllowed
+    assertWriteAllowed,
+    installStagingNavigation,
+    stagingNavigation: STAGING_NAV_ITEMS
   });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => installStagingNavigation(), { once: true });
+  } else {
+    installStagingNavigation();
+  }
 })();
