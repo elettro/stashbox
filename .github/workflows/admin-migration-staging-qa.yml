@@ -52,6 +52,7 @@ jobs:
           node --check radio-admin/staging/tests/ads-write-smoke.mjs
           node --check radio-admin/staging/tests/ads-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-write-smoke.mjs
+          node --check radio-admin/staging/tests/artists-upload-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -95,6 +96,9 @@ jobs:
       - name: Run DEV Artist metadata browser smoke test
         run: node radio-admin/staging/tests/artists-write-smoke.mjs
 
+      - name: Run DEV Artist image upload browser smoke test
+        run: node radio-admin/staging/tests/artists-upload-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -113,11 +117,14 @@ jobs:
             exit 1
           fi
 
-      - name: Assert Artist staging writes are DEV metadata only
+      - name: Assert Artist staging stays DEV-only without Cognito or delegated-access writes
         run: |
           grep -q "assertWriteAllowed('dev', 'artists')" radio-admin/staging/artists/artists.js
-          if grep -R "prod-v2\|radio_admin_token_prod\|stashbox_radio_dev_cognito_tokens\|X-Cognito-Id-Token\|/admin/uploads/presign\|/access" radio-admin/staging/artists; then
-            echo 'Artist staging contains a PROD, Cognito, upload, or delegated-access binding that is not approved in this pass.'
+          grep -q "/admin/uploads/presign" radio-admin/staging/artists/artists.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/artists/artists.js
+          grep -q "Blocked Artist upload because DEV presign returned a PROD media target" radio-admin/staging/artists/artists.js
+          if grep -E "prod-v2|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|/access" radio-admin/staging/artists/*.js; then
+            echo 'Artist staging contains a PROD, Cognito, or delegated-access binding that is not approved in this pass.'
             exit 1
           fi
 
