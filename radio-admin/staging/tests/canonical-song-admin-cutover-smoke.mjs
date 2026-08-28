@@ -66,18 +66,18 @@ try {
   await page.locator('button.edit-song[data-song-key="canonical-qa-song"]').click();
   await page.locator('#field-display_title').fill('Attempted PROD Change');
   await page.locator('#saveSongButton').click();
-  await page.getByText(/Production Song CMS writes are not approved/).waitFor();
+  await page.locator('#editorMessage').getByText(/Production Song CMS writes are not approved/).waitFor();
   if (prodWrites !== 0) throw new Error(`Locked metadata save reached PROD network ${prodWrites} time(s).`);
 
   await page.locator('#audioFileInput').setInputFiles({ name: 'locked.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('fake-audio') });
   await page.locator('#uploadAudioButton').click();
-  await page.getByText(/Production Song CMS writes are not approved/).waitFor();
+  await page.locator('#audioUploadStatus').getByText(/Production Song CMS writes are not approved/).waitFor();
   if (prodWrites !== 0 || storagePuts !== 0) throw new Error('Locked audio upload reached PROD API or storage.');
 
   const artworkCard = page.locator('.artwork-card[data-ratio="1x1"]');
   await artworkCard.locator('.artwork-file').setInputFiles({ name: 'locked.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
   await artworkCard.locator('.upload-artwork').click();
-  await artworkCard.getByText(/Production Song CMS writes are not approved/).waitFor();
+  await artworkCard.locator('.artwork-status').getByText(/Production Song CMS writes are not approved/).waitFor();
   if (prodWrites !== 0 || storagePuts !== 0) throw new Error('Locked artwork upload reached PROD API or storage.');
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
