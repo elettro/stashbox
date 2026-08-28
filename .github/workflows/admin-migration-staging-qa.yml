@@ -41,6 +41,7 @@ jobs:
           node --check radio-admin/staging/video-factory/video-factory.js
           node --check radio-admin/staging/video-factory/video-factory-archive.js
           node --check radio-admin/staging/video-factory/video-factory-resolution-preview.js
+          node --check radio-admin/staging/ads/ads.js
           node --check radio-admin/staging/notifications/app.js
           node --check radio-admin/staging/system-health/dashboard-summary-freeze.js
           node --check radio-admin/staging/system-health/system-health.js
@@ -59,6 +60,7 @@ jobs:
             if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/vec/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-factory/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/ads/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/notifications/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/bugs/ >/dev/null \
               && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/system-health/ >/dev/null; then
@@ -76,6 +78,14 @@ jobs:
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
             echo 'Direct PROD Song CMS target found in staging source.'
+            exit 1
+          fi
+
+      - name: Assert Ads staging remains DEV-only and no fallback inventory is used
+        run: |
+          grep -q "d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev" radio-admin/staging/admin-env.js
+          if grep -R "stashbox_radio_dev_ads_v1\|stashbox_radio_dev_ads_settings_v1" radio-admin/staging/ads; then
+            echo 'Legacy Ads browser fallback key found in staging Ads module.'
             exit 1
           fi
 
