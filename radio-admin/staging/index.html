@@ -16,11 +16,13 @@
     <nav class="topnav" aria-label="Staging admin navigation">
       <a href="/radio-admin/staging/" aria-current="page">Dashboard</a>
       <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/">Video Library</a>
       <a href="/radio-admin/staging/vec/">VEC Lab</a>
       <a href="/radio-admin/staging/video-factory/">Video Factory</a>
       <a href="/radio-admin/staging/ads/">Ads</a>
       <a href="/radio-admin/staging/notifications/">Notifications</a>
       <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
       <a href="/radio-admin/staging/bugs/">Bug Base</a>
       <a href="/radio-admin/staging/system-health/">DEV Health</a>
     </nav>
@@ -28,7 +30,7 @@
   </header>
 
   <main class="shell">
-    <section class="guardrail">This staging Admin is connected only to the DEV Radio API. Production writes and production cutover remain blocked.</section>
+    <section class="guardrail">This staging Admin is connected only to DEV services. Production writes, route replacement, and production cutover remain blocked.</section>
 
     <section id="tokenPanel" class="card token-panel">
       <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the new migration token namespace and can read your existing DEV token as a fallback.</p></div>
@@ -52,11 +54,13 @@
       <div class="migration-grid">
         <article><strong>Dashboard</strong><span class="done">Staging</span><p>DEV summary and song analytics are wired into the unified staging Admin.</p></article>
         <article><strong>Songs</strong><span class="done">QA Green</span><p>Create/edit, media uploads and six-image artwork are migrated and browser-tested against mocked DEV APIs.</p></article>
+        <article><strong>Video Library</strong><span class="done">DEV Read</span><p>Authoritative DEV visual-folder data is visible in staging. Existing DEV editor remains the write surface until behavioral QA is complete.</p></article>
         <article><strong>VEC Lab</strong><span class="done">Staging</span><p>DEV VEC controller is copied into the isolated staging route.</p></article>
         <article><strong>Video Factory</strong><span class="done">Staging</span><p>DEV render workflow is copied into staging with migration-token bridging.</p></article>
         <article><strong>Ads</strong><span class="done">DEV RDS Read</span><p>Staging reads authoritative DEV Ads/settings APIs only. Browser fallback and writes are locked.</p></article>
         <article><strong>Notifications</strong><span class="done">Staging</span><p>DEV Notification CMS is isolated in staging. PROD publishing is unavailable.</p></article>
         <article><strong>Artists</strong><span class="done">DEV Read</span><p>Profiles and performance read from DEV. Media/auth/delegated-access writes remain locked.</p></article>
+        <article><strong>Social Factory</strong><span class="done">DEV Bridge</span><p>Unified navigation reaches the separate DEV service without merging its Lambda, DB, token, secrets, or bucket into Radio.</p></article>
         <article><strong>Bug Base</strong><span class="done">Shared</span><p>Read-only checked-in bug registry. No API or database writes.</p></article>
         <article><strong>DEV Health</strong><span class="done">Staging</span><p>Explicitly DEV-only health checks. It does not represent PROD health.</p></article>
         <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production writes, route replacement, or cutover in this phase.</p></article>
