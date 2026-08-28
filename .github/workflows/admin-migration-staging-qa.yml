@@ -49,6 +49,7 @@ jobs:
           node --check radio-admin/staging/system-health/system-health.js
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
           node --check radio-admin/staging/tests/module-smoke.mjs
+          node --check radio-admin/staging/tests/ads-write-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -83,6 +84,9 @@ jobs:
       - name: Run migrated module browser smoke test with mocked DEV APIs
         run: node radio-admin/staging/tests/module-smoke.mjs
 
+      - name: Run DEV Ads settings and CRUD browser smoke test
+        run: node radio-admin/staging/tests/ads-write-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -93,6 +97,7 @@ jobs:
       - name: Assert Ads staging remains DEV-only and no fallback inventory is used
         run: |
           grep -q "d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev" radio-admin/staging/admin-env.js
+          grep -q "assertWriteAllowed('dev', 'ads')" radio-admin/staging/ads/ads.js
           if grep -R "stashbox_radio_dev_ads_v1\|stashbox_radio_dev_ads_settings_v1" radio-admin/staging/ads; then
             echo 'Legacy Ads browser fallback key found in staging Ads module.'
             exit 1
