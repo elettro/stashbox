@@ -54,6 +54,7 @@ jobs:
           node --check radio-admin/staging/tests/artists-write-smoke.mjs
           node --check radio-admin/staging/tests/artists-upload-smoke.mjs
           node --check radio-admin/staging/tests/artists-access-smoke.mjs
+          node --check radio-admin/staging/tests/notifications-write-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -103,6 +104,9 @@ jobs:
       - name: Run DEV Artist delegated access browser smoke test
         run: node radio-admin/staging/tests/artists-access-smoke.mjs
 
+      - name: Run DEV Notification lifecycle browser smoke test
+        run: node radio-admin/staging/tests/notifications-write-smoke.mjs
+
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
           if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
@@ -136,6 +140,20 @@ jobs:
           grep -q "Blocked Artist upload because DEV presign returned a PROD media target" radio-admin/staging/artists/artists.js
           if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/artists/*.js; then
             echo 'Artist staging contains an unapproved PROD API, PROD environment, or Cognito binding.'
+            exit 1
+          fi
+
+      - name: Assert Notifications staging is migration-guarded DEV only
+        run: |
+          grep -q "getEnvironment('dev')" radio-admin/staging/notifications/app.js
+          grep -q "assertWriteAllowed('dev', 'notifications')" radio-admin/staging/notifications/app.js
+          grep -q "/admin/notifications" radio-admin/staging/notifications/app.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/notifications/*.js; then
+            echo 'Notification staging contains an unapproved PROD API or PROD environment binding.'
+            exit 1
+          fi
+          if grep -q "Storage.prototype" radio-admin/staging/notifications/index.html; then
+            echo 'Legacy Notification token-storage shim is still present.'
             exit 1
           fi
 
