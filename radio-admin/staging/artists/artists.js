@@ -16,6 +16,7 @@
   let artists = [];
   let performance = new Map();
   let selectedKey = '';
+  let editorLoadSequence = 0;
 
   function getToken() {
     const direct = localStorage.getItem(env.tokenStorageKey);
@@ -128,11 +129,18 @@
     els.name.value = artist.name || ''; els.key.value = artist.artist_key || ''; els.slug.value = artist.slug || ''; els.sortName.value = artist.sort_name || ''; els.status.value = artist.status || 'draft'; els.location.value = artist.location || ''; els.profileImageUrl.value = artist.profile_image_url || ''; els.bannerImageUrl.value = artist.banner_image_url || ''; els.bio.value = artist.bio || ''; els.websiteUrl.value = artist.website_url || ''; els.merchUrl.value = artist.merch_url || ''; els.spotifyUrl.value = artist.spotify_url || ''; els.appleMusicUrl.value = artist.apple_music_url || ''; els.youtubeUrl.value = artist.youtube_url || ''; els.instagramUrl.value = artist.instagram_url || ''; els.xUrl.value = artist.x_url || ''; els.facebookUrl.value = artist.facebook_url || ''; els.notes.value = artist.notes || ''; els.verified.checked = Boolean(artist.verified); els.featured.checked = Boolean(artist.featured);
   }
 
+  function setEditorLoading(loading) {
+    els.editor.querySelectorAll('input, select, textarea').forEach(control => { control.disabled = Boolean(loading); });
+    els.saveArtist.disabled = Boolean(loading);
+    els.cancelArtist.disabled = false;
+  }
+
   function showSavedArtistInEditor(artist = {}, fallbackKey = '') {
     const key = String(artist.artist_key || fallbackKey || '').trim();
     if (!key) { closeEditor(); return; }
     selectedKey = key;
     fillEditor({ ...artist, artist_key: key });
+    setEditorLoading(false);
     els.key.disabled = true;
     els.editorHeading.textContent = `Edit DEV Artist: ${artist.name || key}`;
     els.saveArtist.textContent = 'Save DEV Artist Changes';
@@ -140,27 +148,44 @@
   }
 
   async function openEditor(key = '') {
-    selectedKey = String(key || '');
-    if (!selectedKey) {
+    const requestedKey = String(key || '');
+    const loadSequence = ++editorLoadSequence;
+    selectedKey = requestedKey;
+    if (!requestedKey) {
       fillEditor({ status: 'draft' });
+      setEditorLoading(false);
       els.key.disabled = false;
       els.editorHeading.textContent = 'New DEV Artist';
       els.saveArtist.textContent = 'Create DEV Artist';
       els.editorCard.classList.remove('hidden');
       return;
     }
-    els.message.textContent = `Loading DEV artist ${selectedKey}…`;
+
+    els.editorCard.classList.remove('hidden');
+    els.editorHeading.textContent = `Loading DEV Artist: ${requestedKey}`;
+    els.message.textContent = `Loading DEV artist ${requestedKey}…`;
+    setEditorLoading(true);
     try {
-      const data = await apiRequest(`${ARTISTS_URL}/${encodeURIComponent(selectedKey)}`);
-      const artist = data?.artist || artists.find(item => String(item.artist_key) === selectedKey) || {};
-      showSavedArtistInEditor(artist, selectedKey);
-      els.message.textContent = `Editing DEV artist ${selectedKey}.`;
+      const data = await apiRequest(`${ARTISTS_URL}/${encodeURIComponent(requestedKey)}`);
+      if (loadSequence !== editorLoadSequence || selectedKey !== requestedKey) return;
+      const artist = data?.artist || artists.find(item => String(item.artist_key) === requestedKey) || {};
+      showSavedArtistInEditor(artist, requestedKey);
+      els.message.textContent = `Editing DEV artist ${requestedKey}.`;
     } catch (error) {
+      if (loadSequence !== editorLoadSequence || selectedKey !== requestedKey) return;
+      setEditorLoading(false);
+      els.key.disabled = true;
       els.message.textContent = `DEV Artist load failed: ${error.message}`;
     }
   }
 
-  function closeEditor() { selectedKey = ''; els.key.disabled = false; els.editorCard.classList.add('hidden'); }
+  function closeEditor() {
+    editorLoadSequence += 1;
+    selectedKey = '';
+    setEditorLoading(false);
+    els.key.disabled = false;
+    els.editorCard.classList.add('hidden');
+  }
 
   function payload() {
     const data = {
