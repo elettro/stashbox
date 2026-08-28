@@ -1,0 +1,76 @@
+name: Admin Migration Staging QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/**'
+      - '.github/workflows/admin-migration-staging-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/**'
+      - '.github/workflows/admin-migration-staging-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  song-cms-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check staging JavaScript
+        run: |
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/staging.js
+          node --check radio-admin/staging/songs/songs.js
+          node --check radio-admin/staging/songs/media.js
+          node --check radio-admin/staging/songs/artwork.js
+          node --check radio-admin/staging/tests/song-cms-smoke.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/admin-staging-http.log 2>&1 &
+          echo $! > /tmp/admin-staging-http.pid
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/admin-staging-http.log
+          exit 1
+
+      - name: Run browser smoke test with mocked DEV API
+        run: node radio-admin/staging/tests/song-cms-smoke.mjs
+
+      - name: Assert staging source has no direct PROD Song CMS write target
+        run: |
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
+            echo 'Direct PROD Song CMS target found in staging source.'
+            exit 1
+          fi
+
+      - name: Upload QA screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-staging-song-cms-qa
+          path: artifacts/admin-staging-song-cms-smoke.png
+          if-no-files-found: ignore
+          retention-days: 7
