@@ -1,0 +1,75 @@
+name: Admin Migration System Health QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/system-health/**'
+      - 'radio-admin/staging/tests/system-health-readonly-smoke.mjs'
+      - 'radio-admin/staging/admin-env.js'
+      - '.github/workflows/admin-migration-system-health-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/system-health/**'
+      - 'radio-admin/staging/tests/system-health-readonly-smoke.mjs'
+      - 'radio-admin/staging/admin-env.js'
+      - '.github/workflows/admin-migration-system-health-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  system-health-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check System Health staging JavaScript
+        run: |
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/system-health/dashboard-summary-freeze.js
+          node --check radio-admin/staging/system-health/system-health.js
+          node --check radio-admin/staging/tests/system-health-readonly-smoke.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/system-health-staging-http.log 2>&1 &
+          echo $! > /tmp/system-health-staging-http.pid
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/system-health/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/system-health-staging-http.log
+          exit 1
+
+      - name: Run read-only DEV System Health browser smoke test
+        run: node radio-admin/staging/tests/system-health-readonly-smoke.mjs
+
+      - name: Assert DEV Health stays read-only and analytics freeze stays installed
+        run: |
+          grep -q "Scope: DEV System Health only" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          grep -q "Do not call the heavy /dashboard/summary analytics route" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          grep -q "https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev" radio-admin/staging/system-health/system-health.js
+          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/system-health/system-health.js; then
+            echo 'Write method found in read-only System Health module.'
+            exit 1
+          fi
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2" radio-admin/staging/system-health; then
+            echo 'PROD API target found in DEV System Health staging.'
+            exit 1
+          fi
