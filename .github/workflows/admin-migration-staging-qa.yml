@@ -48,6 +48,7 @@ jobs:
           node --check radio-admin/staging/system-health/dashboard-summary-freeze.js
           node --check radio-admin/staging/system-health/system-health.js
           node --check radio-admin/staging/tests/song-cms-smoke.mjs
+          node --check radio-admin/staging/tests/module-smoke.mjs
 
       - name: Install Playwright Chromium
         run: |
@@ -76,8 +77,11 @@ jobs:
           cat /tmp/admin-staging-http.log
           exit 1
 
-      - name: Run browser smoke test with mocked DEV API
+      - name: Run Song CMS browser smoke test with mocked DEV API
         run: node radio-admin/staging/tests/song-cms-smoke.mjs
+
+      - name: Run migrated module browser smoke test with mocked DEV APIs
+        run: node radio-admin/staging/tests/module-smoke.mjs
 
       - name: Assert staging source has no direct PROD Song CMS write target
         run: |
