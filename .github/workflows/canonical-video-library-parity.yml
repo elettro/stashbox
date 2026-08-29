@@ -38,7 +38,7 @@ jobs:
               Path('radio/dev/v2/desktop/index.html'),
           ]
           visual = '<script src="/radio/canonical-visual-source.js"></script>'
-          song_re = re.compile(r'(<script\s+src="/radio/canonical-song-source\.js[^\"]*"\s*></script>)')
+          song_re = re.compile(r'(<script\b[^>]*canonical-song-source\.js[^>]*></script>)', re.I)
           for path in files:
               text = path.read_text()
               if visual not in text:
