@@ -24,6 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           node <<'NODE'
+          (async () => {
           const fs = require('fs');
           const DEV = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
           const PROD = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
@@ -127,6 +128,7 @@ jobs:
             devOnlyFolderSlugs:report.devOnlyFolderSlugs, prodOnlyFolderSlugs:report.prodOnlyFolderSlugs,
             songCount:report.songCount, recipeDiffCount:report.recipeDiffCount
           }, null, 2));
+          })().catch(error => { console.error(error); process.exit(1); });
           NODE
       - uses: actions/upload-artifact@v4
         with:
