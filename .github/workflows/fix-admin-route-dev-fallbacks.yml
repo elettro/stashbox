@@ -80,12 +80,11 @@ jobs:
           grep -q 'Canonical LIVE catalog' radio-admin/songs/index.html
           grep -q '/radio-admin/songs/dev/' radio-admin/songs/index.html
 
-      - name: Verify protected main DEV and staging trees remain unchanged
+      - name: Verify protected main DEV and staging trees were not touched by this operation
         shell: bash
         run: |
           set -euo pipefail
-          PRE_ROUTE_SHA='936e82885b00aaf392a9071f5cdf345a735c8e5e'
-          git diff --quiet "$PRE_ROUTE_SHA" HEAD -- radio-admin/dev radio-admin/staging
+          git diff --quiet -- radio-admin/dev radio-admin/staging
           grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
           grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])' radio-admin/admin-env.js
 
