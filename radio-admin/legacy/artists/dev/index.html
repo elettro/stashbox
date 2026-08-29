@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stashbox Radio Artist CMS · Dev</title>
+  <link rel="stylesheet" href="./styles.css?v=20260724-profilemedia9">
+  <link rel="stylesheet" href="./profile-media.css?v=20260724-profilemedia9">
+  <link rel="stylesheet" href="./save-confirmation.css?v=20260724-profilemedia9">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio/dev/"><span>Stashbox Radio · Dev Admin</span><strong>Artist CMS</strong></a>
+    <nav aria-label="Stashbox Radio admin tools">
+      <a href="/radio-admin/songs/dev/">Songs</a>
+      <a href="/radio-admin/artists/dev/" aria-current="page">Artists</a>
+      <a href="/radio/visual-experience/dev/">Video Library</a>
+      <a href="/radio-admin/dev/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/">Video Factory</a>
+      <a href="/radio-admin/ads/dev/">Ads</a>
+      <a href="/radio-admin/notifications/dev/">Notifications</a>
+      <a href="/radio/dashboard/dev/">Dashboard</a>
+      <a href="/radio/dev/">Radio Dev</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section class="card access-card">
+      <div>
+        <p class="eyebrow">Secure Access</p>
+        <h1>Artist Profiles, Follows, and Permissions</h1>
+        <p class="copy">Stashbox administrators can manage every artist. Approved artists, managers, and label staff see only their assigned profiles.</p>
+      </div>
+      <div class="token-controls">
+        <label>DEV admin token
+          <input id="adminToken" type="password" autocomplete="off" placeholder="Admin token or use your signed-in account">
+        </label>
+        <button id="saveToken" class="button" type="button">Save Token</button>
+        <button id="clearToken" class="button ghost" type="button">Use Account Access</button>
+      </div>
+    </section>
+
+    <section class="stats" id="stats"></section>
+
+    <section class="workspace">
+      <aside class="card library">
+        <div class="panel-head">
+          <div><p class="eyebrow">Artist Library</p><h2>Artists</h2></div>
+          <button id="newArtist" class="button" type="button">New Artist</button>
+        </div>
+        <label class="search">Search<input id="search" type="search" placeholder="Artist name or key"></label>
+        <div id="artistList" class="artist-list"></div>
+      </aside>
+
+      <section class="card editor">
+        <div class="panel-head">
+          <div><p class="eyebrow">Profile Editor</p><h2 id="editorTitle">Select an Artist</h2></div>
+          <a id="publicProfileLink" class="button ghost hidden" target="_blank" rel="noopener">Public Profile</a>
+        </div>
+
+        <form id="artistForm" class="hidden">
+          <input id="artistId" type="hidden">
+          <input id="profileImageUrl" type="hidden">
+          <input id="bannerImageUrl" type="hidden">
+          <input id="verticalBannerImageUrl" type="hidden">
+          <div class="form-grid">
+            <label>Artist name *<input id="name" maxlength="220" required></label>
+            <label>Artist key<input id="artistKey" maxlength="160" placeholder="stashbox"></label>
+            <label>Public slug<input id="slug" maxlength="160" placeholder="stashbox"></label>
+            <label>Sort name<input id="sortName" maxlength="220"></label>
+            <label>Status<select id="status"><option value="draft">Draft</option><option value="published">Published</option><option value="hidden">Hidden</option></select></label>
+            <label>Location<input id="location" maxlength="300"></label>
+
+            <section class="media-field full" aria-labelledby="profileImageHeading">
+              <div class="media-field-head">
+                <div><span class="field-label" id="profileImageHeading">Profile image</span><span class="field-help">Recommended: 1200 × 1200 px · 1:1 square JPG, PNG, or WEBP</span><span class="media-format-badge">1:1 Profile</span></div>
+                <span id="profileImageDimensions" class="dimension-pill"></span>
+              </div>
+              <div class="media-field-body">
+                <div id="profileImagePreview" class="media-preview profile-preview"><span>No profile image</span></div>
+                <div class="media-field-actions">
+                  <input id="profileImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+                  <button id="uploadProfileImage" class="button" type="button">Upload / Replace</button>
+                  <button id="deleteProfileImage" class="button ghost danger-ghost" type="button">Delete Image</button>
+                  <p id="profileImageStatus" class="upload-status" aria-live="polite"></p>
+                </div>
+              </div>
+            </section>
+
+            <div class="artist-banner-pair full">
+              <section class="media-field" aria-labelledby="bannerImageHeading">
+                <div class="media-field-head">
+                  <div><span class="field-label" id="bannerImageHeading">Horizontal banner image</span><span class="field-help">Recommended: 1920 × 1080 px · 16:9 landscape JPG, PNG, or WEBP</span><span class="media-format-badge">16:9 Desktop</span></div>
+                  <span id="bannerImageDimensions" class="dimension-pill"></span>
+                </div>
+                <div class="media-field-body banner-media-body">
+                  <div id="bannerImagePreview" class="media-preview banner-preview"><span>No horizontal banner</span></div>
+                  <div class="media-field-actions">
+                    <input id="bannerImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+                    <button id="uploadBannerImage" class="button" type="button">Upload / Replace</button>
+                    <button id="deleteBannerImage" class="button ghost danger-ghost" type="button">Delete Image</button>
+                    <p id="bannerImageStatus" class="upload-status" aria-live="polite"></p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="media-field" aria-labelledby="verticalBannerImageHeading">
+                <div class="media-field-head">
+                  <div><span class="field-label" id="verticalBannerImageHeading">Vertical banner image</span><span class="field-help">Recommended: 1080 × 1920 px · 9:16 portrait JPG, PNG, or WEBP</span><span class="media-format-badge">9:16 Mobile</span></div>
+                  <span id="verticalBannerImageDimensions" class="dimension-pill"></span>
+                </div>
+                <div class="vertical-media-body">
+                  <div id="verticalBannerImagePreview" class="media-preview vertical-banner-preview"><span>No vertical banner</span></div>
+                  <div class="media-field-actions">
+                    <input id="verticalBannerImageFile" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+                    <button id="uploadVerticalBannerImage" class="button" type="button">Upload / Replace</button>
+                    <button id="deleteVerticalBannerImage" class="button ghost danger-ghost" type="button">Delete Image</button>
+                    <p id="verticalBannerImageStatus" class="upload-status" aria-live="polite"></p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <label class="full">Biography<textarea id="bio" rows="7"></textarea></label>
+            <label>Website<input id="websiteUrl" type="url"></label>
+            <label>Merch store<input id="merchUrl" type="url"></label>
+            <label>Spotify<input id="spotifyUrl" type="url"></label>
+            <label>Apple Music<input id="appleMusicUrl" type="url"></label>
+            <label>YouTube<input id="youtubeUrl" type="url"></label>
+            <label>Instagram<input id="instagramUrl" type="url"></label>
+            <label>X / Twitter<input id="xUrl" type="url"></label>
+            <label>Facebook<input id="facebookUrl" type="url"></label>
+            <label class="toggle"><input id="verified" type="checkbox"><span>Verified artist</span></label>
+            <label class="toggle"><input id="featured" type="checkbox"><span>Featured artist</span></label>
+            <label class="full">Internal notes<textarea id="notes" rows="4"></textarea></label>
+          </div>
+          <div class="actions"><button class="button" type="submit">Save Artist</button><button id="cancelEdit" class="button ghost" type="button">Cancel</button></div>
+        </form>
+
+        <div id="artistTools" class="tools hidden">
+          <section class="subcard">
+            <div class="subhead"><div><p class="eyebrow">Artist Performance</p><h3>Audience and Listening</h3></div></div>
+            <div class="artist-performance-grid">
+              <div><span>Followers</span><strong id="followerCount">0</strong></div>
+              <div><span>Total Likes</span><strong id="artistLikes">0</strong></div>
+              <div><span>Total Shares</span><strong id="artistShares">0</strong></div>
+              <div><span>Total Listening Time</span><strong id="artistListeningTime">0m</strong></div>
+            </div>
+            <p class="copy">Likes, shares, and listening time are totaled from every Song CMS record whose Artist field matches this artist. Total listening time is combined listener time, not catalog duration.</p>
+          </section>
+
+          <section class="subcard source-of-truth-note">
+            <div class="subhead"><div><p class="eyebrow">Catalog Source</p><h3>Song CMS Controls Artist Music</h3></div></div>
+            <p class="copy">Songs appear on this artist’s public profile automatically when the Song CMS Artist field matches this artist name. Manage catalog relationships in Songs CMS.</p>
+            <a class="button ghost" href="/radio-admin/songs/dev/">Open Songs CMS</a>
+          </section>
+
+          <section class="subcard">
+            <div class="subhead"><div><p class="eyebrow">Role-Based Access</p><h3>Artist, Manager, or Label Access</h3></div></div>
+            <div id="accessList" class="access-list"></div>
+            <div class="grant-grid">
+              <label>Account email<input id="accessEmail" type="email" placeholder="artist@example.com"></label>
+              <label>Role<select id="accessRole"><option value="artist">Artist</option><option value="band_manager">Band Manager</option><option value="label_staff">Label Staff</option></select></label>
+              <label>Access level<select id="accessLevel"><option value="viewer">Viewer</option><option value="editor" selected>Editor</option><option value="manager">Manager</option><option value="owner">Owner</option></select></label>
+              <button id="grantAccess" class="button" type="button">Grant Access</button>
+            </div>
+            <p class="copy">The account must already exist. Assignments are verified by the backend on every artist write.</p>
+          </section>
+        </div>
+
+        <div id="emptyEditor" class="empty">Select an artist from the library or create a new one.</div>
+      </section>
+    </section>
+  </main>
+  <script src="./token-compat.js?v=20260724-profilemedia9" defer></script>
+  <script src="./performance-aggregate-bridge.js?v=20260820-artistperf1" defer></script>
+  <script src="./app.js?v=20260724-profilemedia9" defer></script>
+  <script src="./profile-media-unified.js?v=20260724-profilemedia9" defer></script>
+  <script src="./save-confirmation.js?v=20260724-profilemedia9" defer></script>
+  <script src="/radio-admin/dev/shared-admin-header.js?v=20260820-vecaudit1" defer></script>
+</body>
+</html>
