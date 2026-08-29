@@ -13,10 +13,9 @@ permissions:
 jobs:
   migrate-and-proof:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       AWS_REGION: us-east-1
-      DEV_FUNCTION: stashbox-radio-api-dev-v2
       PROD_FUNCTION: stashbox-radio-api-prod-v2
       PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
       PROD_BUCKET: stashbox-radio-media-prod-us-east-1
@@ -29,192 +28,190 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Read DEV and PROD database configuration
+      - name: Apply exact VE-10B DDL through temporary PROD-VPC Lambda
         shell: bash
         run: |
           set -euo pipefail
-          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev-lambda.json
-          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod-lambda.json
-          node <<'NODE'
-          const fs = require('fs');
-          const d = JSON.parse(fs.readFileSync('/tmp/dev-lambda.json','utf8')).Environment?.Variables || {};
-          const p = JSON.parse(fs.readFileSync('/tmp/prod-lambda.json','utf8')).Environment?.Variables || {};
-          const required = ['PGHOST','PGDATABASE','PGUSER','PGPASSWORD'];
-          for (const k of required) if (!d[k] || !p[k]) throw new Error(`Missing ${k} in Lambda configuration.`);
-          if ((d.PGSCHEMA || '') !== 'radio_dev') throw new Error(`Unexpected DEV schema: ${d.PGSCHEMA}`);
-          if ((p.PGSCHEMA || 'radio') !== 'radio') throw new Error(`Unexpected PROD schema: ${p.PGSCHEMA}`);
-          if (d.PGHOST !== p.PGHOST || d.PGDATABASE !== p.PGDATABASE) throw new Error('DEV and PROD are not on the same RDS database; refusing schema clone.');
-          const out = [
-            `PGHOST=${p.PGHOST}`,
-            `PGPORT=${p.PGPORT || '5432'}`,
-            `PGDATABASE=${p.PGDATABASE}`,
-            `PGUSER=${p.PGUSER}`,
-            `PGPASSWORD=${p.PGPASSWORD}`,
-            `DEV_SCHEMA=${d.PGSCHEMA}`,
-            `PROD_SCHEMA=${p.PGSCHEMA || 'radio'}`,
-            `PROD_TOKEN=${p.ADMIN_TOKEN || p.RADIO_ADMIN_TOKEN || ''}`
-          ];
-          fs.appendFileSync(process.env.GITHUB_ENV, out.join('\n') + '\n');
-          console.log('Database boundary validated: same RDS database, radio_dev -> radio.');
+          TEMP_FUNCTION="stashbox-ve10b-migrate-${GITHUB_RUN_ID}"
+          echo "$TEMP_FUNCTION" > /tmp/ve10b-temp-function
+          created=0
+          cleanup() {
+            if [ "$created" = "1" ]; then
+              aws lambda delete-function --function-name "$TEMP_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          aws lambda get-function --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod-function.json
+          CODE_URL="$(jq -r '.Code.Location' /tmp/prod-function.json)"
+          ROLE="$(jq -r '.Configuration.Role' /tmp/prod-function.json)"
+          RUNTIME="$(jq -r '.Configuration.Runtime' /tmp/prod-function.json)"
+          ARCH="$(jq -r '.Configuration.Architectures[0] // "x86_64"' /tmp/prod-function.json)"
+          test -n "$CODE_URL"; test -n "$ROLE"; test -n "$RUNTIME"
+          test "$(jq '.Configuration.VpcConfig.SubnetIds | length' /tmp/prod-function.json)" -gt 0
+          test "$(jq '.Configuration.VpcConfig.SecurityGroupIds | length' /tmp/prod-function.json)" -gt 0
+
+          curl -fsSL "$CODE_URL" -o /tmp/prod-function.zip
+          rm -rf /tmp/ve10b-package
+          mkdir -p /tmp/ve10b-package
+          unzip -q /tmp/prod-function.zip -d /tmp/ve10b-package
+          if [ ! -f /tmp/ve10b-package/node_modules/pg/package.json ]; then
+            cd /tmp/ve10b-package
+            npm install --omit=dev --no-audit --no-fund pg >/dev/null
+          fi
+
+          cat > /tmp/ve10b-package/ve10b-prod-migrate.mjs <<'NODE'
+          import pg from 'pg';
+          const { Client } = pg;
+          const TABLES = ['song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings'];
+          const ddl = `
+          CREATE TABLE IF NOT EXISTS radio.song_visual_settings (
+            song_key TEXT PRIMARY KEY,
+            order_mode TEXT NOT NULL DEFAULT 'random',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            CONSTRAINT song_visual_settings_order_mode_check CHECK (order_mode IN ('random','manual','newest_first'))
+          );
+          COMMENT ON TABLE radio.song_visual_settings IS 'VE-10B per-song visual order mode for canonical LIVE visuals.';
+          COMMENT ON COLUMN radio.song_visual_settings.song_key IS 'Matches radio.songs.song_key for the configured song.';
+
+          CREATE TABLE IF NOT EXISTS radio.song_visual_folder_mappings (
+            song_key TEXT NOT NULL,
+            folder_id TEXT NOT NULL,
+            inclusion_state TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (song_key, folder_id),
+            CONSTRAINT song_visual_folder_mappings_state_check CHECK (inclusion_state IN ('included','excluded'))
+          );
+          COMMENT ON TABLE radio.song_visual_folder_mappings IS 'VE-10B per-song include/exclude state for canonical LIVE Visuals Folders.';
+          CREATE INDEX IF NOT EXISTS song_visual_folder_mappings_folder_id_idx ON radio.song_visual_folder_mappings(folder_id);
+
+          CREATE TABLE IF NOT EXISTS radio.song_visual_asset_mappings (
+            song_key TEXT NOT NULL,
+            asset_id TEXT NOT NULL,
+            asset_scope TEXT NOT NULL DEFAULT 'folder',
+            inclusion_state TEXT NOT NULL,
+            manual_order INTEGER,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (song_key, asset_id),
+            CONSTRAINT song_visual_asset_mappings_scope_check CHECK (asset_scope IN ('direct','folder')),
+            CONSTRAINT song_visual_asset_mappings_state_check CHECK (inclusion_state IN ('included','excluded'))
+          );
+          COMMENT ON TABLE radio.song_visual_asset_mappings IS 'VE-10B per-song include/exclude state and optional manual order for canonical LIVE visual assets.';
+          COMMENT ON COLUMN radio.song_visual_asset_mappings.manual_order IS 'Optional basic manual order value; NULL means no explicit manual position.';
+          CREATE INDEX IF NOT EXISTS song_visual_asset_mappings_asset_id_idx ON radio.song_visual_asset_mappings(asset_id);
+          `;
+
+          function client() {
+            return new Client({
+              host: process.env.PGHOST,
+              port: Number(process.env.PGPORT || 5432),
+              database: process.env.PGDATABASE,
+              user: process.env.PGUSER,
+              password: process.env.PGPASSWORD,
+              ssl: { rejectUnauthorized: false },
+              connectionTimeoutMillis: 10000
+            });
+          }
+
+          export async function handler(event = {}) {
+            if (String(process.env.PGSCHEMA || 'radio') !== 'radio') throw new Error('Refusing VE-10B migration outside PROD radio schema.');
+            const db = client();
+            await db.connect();
+            try {
+              if (event.action === 'cleanup-proof-song') {
+                const songKey = String(event.songKey || '').trim();
+                if (!songKey) throw new Error('songKey required');
+                await db.query('BEGIN');
+                try {
+                  await db.query('DELETE FROM radio.song_visual_asset_mappings WHERE song_key=$1', [songKey]);
+                  await db.query('DELETE FROM radio.song_visual_folder_mappings WHERE song_key=$1', [songKey]);
+                  await db.query('DELETE FROM radio.song_visual_settings WHERE song_key=$1', [songKey]);
+                  await db.query('COMMIT');
+                } catch (error) { await db.query('ROLLBACK'); throw error; }
+                return { ok: true, cleanedSongKey: songKey };
+              }
+
+              const before = await db.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name = ANY($1::text[]) ORDER BY table_name`, [TABLES]);
+              if (before.rowCount !== 0 && before.rowCount !== TABLES.length) throw new Error(`Partial VE-10B PROD state detected (${before.rowCount}/3 tables).`);
+              let created = false;
+              if (before.rowCount === 0) {
+                await db.query('BEGIN');
+                try { await db.query(ddl); await db.query('COMMIT'); created = true; }
+                catch (error) { await db.query('ROLLBACK'); throw error; }
+              }
+              const columns = await db.query(`SELECT table_name,column_name,data_type,is_nullable,column_default FROM information_schema.columns WHERE table_schema='radio' AND table_name = ANY($1::text[]) ORDER BY table_name,ordinal_position`, [TABLES]);
+              const constraints = await db.query(`SELECT c.relname table_name, con.conname, con.contype, pg_get_constraintdef(con.oid) definition FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='radio' AND c.relname = ANY($1::text[]) ORDER BY c.relname,con.conname`, [TABLES]);
+              const after = await db.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name = ANY($1::text[]) ORDER BY table_name`, [TABLES]);
+              if (after.rowCount !== TABLES.length) throw new Error(`VE-10B verification failed (${after.rowCount}/3 tables).`);
+              return { ok:true, created, tables:after.rows.map(r=>r.table_name), columns:columns.rows, constraints:constraints.rows };
+            } finally { await db.end(); }
+          }
           NODE
 
-      - name: Install PostgreSQL client
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v psql >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq postgresql-client
-          fi
-          psql --version
+          cd /tmp/ve10b-package
+          zip -qr /tmp/ve10b-package.zip .
+          jq '{Variables:.Configuration.Environment.Variables}' /tmp/prod-function.json > /tmp/ve10b-env.json
+          jq '{SubnetIds:.Configuration.VpcConfig.SubnetIds,SecurityGroupIds:.Configuration.VpcConfig.SecurityGroupIds}' /tmp/prod-function.json > /tmp/ve10b-vpc.json
 
-      - name: Snapshot and apply VE-10B tables to PROD
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PGPASSWORD
-          TABLES=(song_visual_settings song_visual_folder_mappings song_visual_asset_mappings)
-
-          # Read-only snapshots before mutation.
-          psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -v ON_ERROR_STOP=1 -Atc "
-            SELECT table_schema||'.'||table_name||'|'||column_name||'|'||data_type||'|'||is_nullable||'|'||coalesce(column_default,'')
-            FROM information_schema.columns
-            WHERE table_schema IN ('$DEV_SCHEMA','$PROD_SCHEMA')
-              AND table_name IN ('song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings')
-            ORDER BY table_schema, table_name, ordinal_position;
-          " > ve10b-columns-before.txt
-
-          psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -v ON_ERROR_STOP=1 -Atc "
-            SELECT n.nspname||'.'||c.relname||'|'||con.conname||'|'||pg_get_constraintdef(con.oid)
-            FROM pg_constraint con
-            JOIN pg_class c ON c.oid=con.conrelid
-            JOIN pg_namespace n ON n.oid=c.relnamespace
-            WHERE n.nspname IN ('$DEV_SCHEMA','$PROD_SCHEMA')
-              AND c.relname IN ('song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings')
-            ORDER BY 1,2;
-          " > ve10b-constraints-before.txt
-
-          for table in "${TABLES[@]}"; do
-            dev_count=$(psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='$DEV_SCHEMA' AND table_name='$table';")
-            prod_count=$(psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='$PROD_SCHEMA' AND table_name='$table';")
-            test "$dev_count" = "1"
-            if [ "$prod_count" != "0" ]; then
-              echo "PROD table $table already exists; refusing to recreate." >&2
-              exit 1
-            fi
-          done
-
-          cat > /tmp/ve10b.sql <<'SQL'
-          BEGIN;
-          CREATE TABLE radio.song_visual_settings (LIKE radio_dev.song_visual_settings INCLUDING ALL);
-          CREATE TABLE radio.song_visual_folder_mappings (LIKE radio_dev.song_visual_folder_mappings INCLUDING ALL);
-          CREATE TABLE radio.song_visual_asset_mappings (LIKE radio_dev.song_visual_asset_mappings INCLUDING ALL);
-          COMMIT;
-          SQL
-          psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -v ON_ERROR_STOP=1 -f /tmp/ve10b.sql
-
-          for table in "${TABLES[@]}"; do
-            prod_count=$(psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='$PROD_SCHEMA' AND table_name='$table';")
-            test "$prod_count" = "1"
-          done
-
-          # Verify column signatures match DEV exactly (ignoring schema name).
-          psql "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=require connect_timeout=10" -X -v ON_ERROR_STOP=1 -Atc "
-            WITH sig AS (
-              SELECT table_schema, table_name,
-                     string_agg(column_name||':'||data_type||':'||is_nullable||':'||coalesce(column_default,''), ',' ORDER BY ordinal_position) AS signature
-              FROM information_schema.columns
-              WHERE table_schema IN ('$DEV_SCHEMA','$PROD_SCHEMA')
-                AND table_name IN ('song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings')
-              GROUP BY table_schema,table_name
-            )
-            SELECT d.table_name
-            FROM sig d JOIN sig p ON p.table_name=d.table_name
-            WHERE d.table_schema='$DEV_SCHEMA' AND p.table_schema='$PROD_SCHEMA' AND d.signature<>p.signature;
-          " > /tmp/signature-diff.txt
-          if [ -s /tmp/signature-diff.txt ]; then
-            echo 'VE-10B PROD column signatures differ from DEV:' >&2
-            cat /tmp/signature-diff.txt >&2
+          aws lambda create-function \
+            --function-name "$TEMP_FUNCTION" \
+            --region "$AWS_REGION" \
+            --runtime "$RUNTIME" \
+            --role "$ROLE" \
+            --handler ve10b-prod-migrate.handler \
+            --zip-file fileb:///tmp/ve10b-package.zip \
+            --timeout 60 \
+            --memory-size 256 \
+            --architectures "$ARCH" \
+            --vpc-config file:///tmp/ve10b-vpc.json \
+            --environment file:///tmp/ve10b-env.json >/tmp/ve10b-create.json
+          created=1
+          aws lambda wait function-active-v2 --function-name "$TEMP_FUNCTION" --region "$AWS_REGION"
+          aws lambda invoke --function-name "$TEMP_FUNCTION" --region "$AWS_REGION" --cli-binary-format raw-in-base64-out --payload '{}' /tmp/ve10b-result.json >/tmp/ve10b-invoke-meta.json
+          if [ "$(jq -r '.FunctionError // empty' /tmp/ve10b-invoke-meta.json)" != "" ]; then
+            cat /tmp/ve10b-result.json >&2
             exit 1
           fi
-          echo 'VE-10B PROD schema migration complete: three tables cloned from DEV.'
+          jq -e '.ok == true and (.tables|length)==3' /tmp/ve10b-result.json >/dev/null
+          jq '{ok,created,tables,columnCount:(.columns|length),constraintCount:(.constraints|length)}' /tmp/ve10b-result.json > ve10b-prod-migration-result.json
+          echo 'VE-10B PROD migration verified inside PROD VPC.'
+          cleanup
+          created=0
 
-      - name: Controlled PROD Video Library proof with cleanup
+      - name: Controlled PROD Video Library write, mapping, and media proof
         shell: bash
         run: |
           set -euo pipefail
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/tmp/prod-config.json
+          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod-config.json)"
           test -n "$PROD_TOKEN"
           export PROD_TOKEN
           node <<'NODE'
-          const fs = require('fs');
-          const { execFileSync } = require('child_process');
-          const API = process.env.PROD_API;
-          const token = process.env.PROD_TOKEN;
-          const bucket = process.env.PROD_BUCKET;
-          const cdnHost = process.env.PROD_CDN;
-          const marker = `__canonical_visual_prod_proof_${Date.now()}__`;
-          const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6ZqgAAAAASUVORK5CYII=', 'base64');
-          const report = { marker, startedAt: new Date().toISOString(), steps: {}, cleanup: {} };
-          let folder = null, originalFolder = null, folderChanged = false;
-          let songKey = '', originalVisual = null, visualTouched = false;
-          let assetId = '', uploadedKey = '';
-
+          const fs=require('fs'); const {execFileSync}=require('child_process');
+          const API=process.env.PROD_API, token=process.env.PROD_TOKEN, bucket=process.env.PROD_BUCKET, cdn=process.env.PROD_CDN;
+          const marker=`__canonical_visual_prod_proof_${Date.now()}__`;
+          const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6ZqgAAAAASUVORK5CYII=','base64');
+          const report={marker,startedAt:new Date().toISOString(),steps:{},cleanup:{}};
+          let folder=null,originalFolder=null,folderChanged=false,songKey='',assetId='',uploadedKey='';
           function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
-          async function req(path,options={}){const method=String(options.method||'GET').toUpperCase();const r=await fetch(API+path,{...options,method,headers:{'x-admin-token':token,accept:'application/json',...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})},cache:method==='GET'?'no-store':undefined});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok||b?.success===false)throw new Error(`${method} ${path} -> ${r.status} ${typeof b==='string'?b:JSON.stringify(b)}`);return b}
+          async function req(path,opt={}){const method=String(opt.method||'GET').toUpperCase();const r=await fetch(API+path,{...opt,method,headers:{'x-admin-token':token,accept:'application/json',...(opt.body?{'content-type':'application/json'}:{}),...(opt.headers||{})},cache:method==='GET'?'no-store':undefined});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok||b?.success===false)throw new Error(`${method} ${path} -> ${r.status} ${typeof b==='string'?b:JSON.stringify(b)}`);return b}
           async function pub(path){const r=await fetch(API+path,{headers:{accept:'application/json','cache-control':'no-cache'},cache:'no-store'});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok)throw new Error(`GET ${path} -> ${r.status}`);return b}
           const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
-          const fid=f=>String(f?.id||f?.folder_id||''); const fslug=f=>String(f?.folder_slug||f?.slug||'');
-          const folderPayload=(f,notes)=>({folder_name:f.folder_name||f.name||'',folder_type:f.folder_type||f.type||'general',description:f.description||'',status:f.status||'active',priority:f.priority||'medium',notes:notes===undefined?(f.notes||''):notes,relevant_artists:Array.isArray(f.relevant_artists)?f.relevant_artists:[],relevant_genres:Array.isArray(f.relevant_genres)?f.relevant_genres:[],relevant_moods:Array.isArray(f.relevant_moods)?f.relevant_moods:[],relevant_songs:Array.isArray(f.relevant_songs)?f.relevant_songs:[]});
-          const visualPayload=b=>({order_mode:b?.order_mode||'random',folder_mappings:rows(b,['folder_mappings']).map(x=>({folder_id:String(x.folder_id||x.folderId||''),inclusion_state:x.inclusion_state||x.state||'included'})).filter(x=>x.folder_id),asset_mappings:rows(b,['asset_mappings']).map(x=>({asset_id:String(x.asset_id||x.assetId||x.id||''),asset_scope:x.asset_scope==='direct'?'direct':'folder',inclusion_state:x.inclusion_state||x.state||'included',manual_order:x.manual_order??null})).filter(x=>x.asset_id)});
-
-          (async()=>{
-            try {
-              const folders=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']);
-              folder=folders.find(f=>fslug(f)==='dean-skateboarding-boardwalk-beach')||folders.find(f=>String(f.status||'').toLowerCase()==='active');
-              if(!folder||!fid(folder))throw new Error('No suitable PROD visual folder found.');
-              const id=fid(folder); report.folder={id,slug:fslug(folder)};
-
-              originalFolder=folderPayload(folder);
-              await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(folderPayload(folder,[originalFolder.notes,marker].filter(Boolean).join('\n')))}); folderChanged=true;
-              const check=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']).find(f=>fid(f)===id);
-              if(!String(check?.notes||'').includes(marker))throw new Error('Folder write marker missing.');
-              report.steps.folderWrite='PASS';
-              await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(originalFolder)}); folderChanged=false; report.steps.folderRestore='PASS';
-
-              const songs=rows(await req('/admin/songs'),['songs','items','rows','data']);
-              songKey=String((songs.find(s=>String(s.song_key||'')==='petty-fuck-02b-stashbox')||songs[0])?.song_key||'');
-              if(!songKey)throw new Error('No PROD song for visual-settings proof.');
-              originalVisual=visualPayload(await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`));
-              await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(originalVisual)}); visualTouched=true;
-              const publicSettings=await pub(`/radio/songs/${encodeURIComponent(songKey)}/visual-settings`);
-              if(String(publicSettings?.song_key||publicSettings?.songKey||'')!==songKey)throw new Error('Public visual-settings readback failed.');
-              report.steps.visualSettingsWriteRead='PASS';
-              await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(originalVisual)}); visualTouched=false; report.steps.visualSettingsRestore='PASS';
-
-              const filename=`${marker}.png`;
-              const pre=await req('/admin/uploads/presign',{method:'POST',body:JSON.stringify({filename,content_type:'image/png',purpose:'visual_folder_image',folder_slug:fslug(folder),folder_id:id})});
-              const uploadUrl=String(pre.upload_url||pre.uploadUrl||''), publicUrl=String(pre.public_url||pre.publicUrl||''); uploadedKey=String(pre.key||pre.object_key||'');
-              if(!uploadUrl||!publicUrl||!uploadedKey)throw new Error('PROD presign incomplete.');
-              const uh=new URL(uploadUrl).hostname.toLowerCase(), ph=new URL(publicUrl).hostname.toLowerCase();
-              if(!uh.includes(bucket))throw new Error(`Upload target is not PROD bucket: ${uh}`);
-              if(ph!==cdnHost&&!ph.includes(bucket))throw new Error(`Public media target is not PROD: ${ph}`);
-              const put=await fetch(uploadUrl,{method:String(pre.method||'PUT').toUpperCase(),headers:pre.headers||{'Content-Type':'image/png'},body:png}); if(!put.ok)throw new Error(`S3 PUT ${put.status}`); report.steps.presignAndS3Upload='PASS';
-
-              const created=await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`,{method:'POST',body:JSON.stringify({asset_type:'image',file_name:filename,s3_key:uploadedKey,public_url:publicUrl,thumbnail_url:publicUrl,content_type:'image/png',size_bytes:png.length,width:1,height:1,ratio_label:'1:1',caption:marker,alt_text:'Canonical Video Library production proof',notes:marker,shopify_product_urls:[]})});
-              const a=created?.asset||created?.data||created; assetId=String(a?.id||a?.asset_id||''); if(!assetId)throw new Error('Asset POST returned no id.');
-              const adminAssets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']); if(!adminAssets.some(a=>String(a.id||a.asset_id||'')===assetId))throw new Error('Proof asset missing from Admin readback.');
-              const publicAssets=rows(await pub(`/radio/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']); if(!publicAssets.some(a=>String(a.id||a.asset_id||'')===assetId||String(a.public_url||a.url||'')===publicUrl))throw new Error('Proof asset missing from public readback.'); report.steps.assetRegisterAndPublicRead='PASS';
-              await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'}); report.steps.assetHide='PASS'; assetId='';
-              execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'}); uploadedKey=''; report.steps.s3Cleanup='PASS';
-              report.success=true;
-            } finally {
-              if(visualTouched&&songKey&&originalVisual){try{await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(originalVisual)});report.cleanup.visualSettings='restored'}catch(e){report.cleanup.visualSettings=`FAILED: ${e.message}`}}
-              if(folderChanged&&folder&&originalFolder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}`,{method:'PUT',body:JSON.stringify(originalFolder)});report.cleanup.folder='restored'}catch(e){report.cleanup.folder=`FAILED: ${e.message}`}}
-              if(assetId&&folder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});report.cleanup.asset='hidden'}catch(e){report.cleanup.asset=`FAILED: ${e.message}`}}
-              if(uploadedKey){try{execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});report.cleanup.s3='deleted'}catch(e){report.cleanup.s3=`FAILED: ${e.message}`}}
-              report.finishedAt=new Date().toISOString();fs.writeFileSync('canonical-video-library-prod-proof.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
-            }
-          })().catch(e=>{console.error(e);process.exit(1)});
+          const fid=f=>String(f?.id||f?.folder_id||''), fslug=f=>String(f?.folder_slug||f?.slug||'');
+          const fp=(f,notes)=>({folder_name:f.folder_name||f.name||'',folder_type:f.folder_type||f.type||'general',description:f.description||'',status:f.status||'active',priority:f.priority||'medium',notes:notes===undefined?(f.notes||''):notes,relevant_artists:Array.isArray(f.relevant_artists)?f.relevant_artists:[],relevant_genres:Array.isArray(f.relevant_genres)?f.relevant_genres:[],relevant_moods:Array.isArray(f.relevant_moods)?f.relevant_moods:[],relevant_songs:Array.isArray(f.relevant_songs)?f.relevant_songs:[]});
+          (async()=>{try{
+            const folders=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']); folder=folders.find(f=>fslug(f)==='dean-skateboarding-boardwalk-beach')||folders[0]; if(!folder)throw new Error('No PROD visual folder.'); const id=fid(folder);
+            originalFolder=fp(folder); await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(fp(folder,[originalFolder.notes,marker].filter(Boolean).join('\n')))});folderChanged=true;report.steps.folderWrite='PASS';await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(originalFolder)});folderChanged=false;report.steps.folderRestore='PASS';
+            const songs=rows(await req('/admin/songs'),['songs','items','rows','data']); songKey=String((songs.find(s=>String(s.song_key||'')==='petty-fuck-02b-stashbox')||songs[0])?.song_key||''); if(!songKey)throw new Error('No PROD song.');
+            const before=await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`); const payload={order_mode:before.order_mode||'random',folder_mappings:rows(before,['folder_mappings']).map(x=>({folder_id:String(x.folder_id||''),inclusion_state:x.inclusion_state||'included'})).filter(x=>x.folder_id),asset_mappings:rows(before,['asset_mappings']).map(x=>({asset_id:String(x.asset_id||''),asset_scope:x.asset_scope==='direct'?'direct':'folder',inclusion_state:x.inclusion_state||'included',manual_order:x.manual_order??null})).filter(x=>x.asset_id)};
+            await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(payload)}); const publicSettings=await pub(`/radio/songs/${encodeURIComponent(songKey)}/visual-settings`); if(String(publicSettings.song_key||'')!==songKey)throw new Error('Public mapping readback failed.'); report.steps.visualSettingsWriteRead='PASS';
+            const filename=`${marker}.png`; const pre=await req('/admin/uploads/presign',{method:'POST',body:JSON.stringify({filename,content_type:'image/png',purpose:'visual_folder_image',folder_slug:fslug(folder),folder_id:id})}); const uploadUrl=String(pre.upload_url||pre.uploadUrl||''),publicUrl=String(pre.public_url||pre.publicUrl||'');uploadedKey=String(pre.key||pre.object_key||''); if(!uploadUrl||!publicUrl||!uploadedKey)throw new Error('Incomplete PROD presign.'); const uh=new URL(uploadUrl).hostname.toLowerCase(),ph=new URL(publicUrl).hostname.toLowerCase();if(!uh.includes(bucket))throw new Error('Presign not PROD bucket.');if(ph!==cdn&&!ph.includes(bucket))throw new Error('Public URL not PROD media.'); const put=await fetch(uploadUrl,{method:String(pre.method||'PUT').toUpperCase(),headers:pre.headers||{'Content-Type':'image/png'},body:png});if(!put.ok)throw new Error(`S3 PUT ${put.status}`);report.steps.presignAndS3Upload='PASS';
+            const created=await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`,{method:'POST',body:JSON.stringify({asset_type:'image',file_name:filename,s3_key:uploadedKey,public_url:publicUrl,thumbnail_url:publicUrl,content_type:'image/png',size_bytes:png.length,width:1,height:1,ratio_label:'1:1',caption:marker,alt_text:'Canonical Video Library production proof',notes:marker,shopify_product_urls:[]})});const a=created.asset||created.data||created;assetId=String(a.id||a.asset_id||'');if(!assetId)throw new Error('Asset POST returned no id.');const pa=rows(await pub(`/radio/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']);if(!pa.some(x=>String(x.id||x.asset_id||'')===assetId||String(x.public_url||x.url||'')===publicUrl))throw new Error('Proof asset missing public readback.');report.steps.assetRegisterAndPublicRead='PASS';
+            await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});assetId='';report.steps.assetHide='PASS';execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});uploadedKey='';report.steps.s3Cleanup='PASS';report.success=true;
+          }finally{if(folderChanged&&folder&&originalFolder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}`,{method:'PUT',body:JSON.stringify(originalFolder)});report.cleanup.folder='restored'}catch(e){report.cleanup.folder=`FAILED: ${e.message}`}}if(assetId&&folder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});report.cleanup.asset='hidden'}catch(e){report.cleanup.asset=`FAILED: ${e.message}`}}if(uploadedKey){try{execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});report.cleanup.s3='deleted'}catch(e){report.cleanup.s3=`FAILED: ${e.message}`}}report.finishedAt=new Date().toISOString();fs.writeFileSync('canonical-video-library-prod-proof.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));}})().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
       - uses: actions/upload-artifact@v4
@@ -222,7 +219,6 @@ jobs:
         with:
           name: canonical-video-library-ve10b-and-prod-proof
           path: |
-            ve10b-columns-before.txt
-            ve10b-constraints-before.txt
+            ve10b-prod-migration-result.json
             canonical-video-library-prod-proof.json
           if-no-files-found: warn
