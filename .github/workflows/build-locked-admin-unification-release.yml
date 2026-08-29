@@ -99,14 +99,15 @@ jobs:
           test ! -e radio-admin/staging
 
           # Ancient PROD Admin must be preserved at /legacy/ exactly as it existed at BASE_SHA.
+          # Normalize both sources to: <mode> <blob-sha> <path>.
           git ls-tree -r "$BASE_SHA" radio-admin \
-            | awk '$4 !~ /^radio-admin\/dev\//' \
-            | sed 's#radio-admin/#radio-admin/legacy/#' \
+            | awk '$4 !~ /^radio-admin\/dev\// { path=$4; sub(/^radio-admin\//,"radio-admin/legacy/",path); print $1, $3, path }' \
             | sort > /tmp/expected-legacy.txt
 
           git add -A radio-admin/legacy
-          git write-tree >/dev/null
-          git ls-files -s radio-admin/legacy | sort > /tmp/actual-legacy.txt
+          git ls-files -s radio-admin/legacy \
+            | awk '{ print $1, $2, $4 }' \
+            | sort > /tmp/actual-legacy.txt
           diff -u /tmp/expected-legacy.txt /tmp/actual-legacy.txt
 
           # Nested DEV fallbacks remain available at their original URLs.
