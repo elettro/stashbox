@@ -1,0 +1,104 @@
+name: Fix Unified Admin Nested DEV Fallbacks
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077-cutover-candidate
+    paths:
+      - '.github/workflows/fix-admin-route-dev-fallbacks.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  preserve-nested-dev-fallbacks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out cutover candidate
+        uses: actions/checkout@v4
+        with:
+          ref: feature/admin-unification-1077-cutover-candidate
+          fetch-depth: 0
+
+      - name: Restore exact nested DEV fallback trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          for route in songs artists notifications; do
+            test -d "radio-admin/legacy/$route/dev"
+            rm -rf "radio-admin/$route/dev"
+            cp -a "radio-admin/legacy/$route/dev" "radio-admin/$route/dev"
+          done
+
+          # Exact-tree equality against the preserved pre-cutover copies.
+          diff -qr radio-admin/legacy/songs/dev radio-admin/songs/dev
+          diff -qr radio-admin/legacy/artists/dev radio-admin/artists/dev
+          diff -qr radio-admin/legacy/notifications/dev radio-admin/notifications/dev
+
+      - name: Correct promoted canonical Song CMS copy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('radio-admin/songs/index.html')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+            '<title>Stashbox Radio Admin · Songs Migration Staging</title>': '<title>Stashbox Radio Admin · Canonical Songs</title>',
+            'ISSUE #1077 · MIGRATION STAGING': 'UNIFIED ADMIN · CANONICAL SONGS',
+            'Unified Admin build · DEV data only': 'Canonical LIVE catalog · PROD read path verified',
+            '<div class="env-lock"><span class="env-badge">DEV</span><span>PROD writes locked</span></div>': '<div class="env-lock"><span class="env-badge">PROD</span><span>Song writes locked until cutover</span></div>',
+            'This migrated Song CMS can create and edit songs in DEV only. Every write is forced through the DEV environment guard. No production song write path exists in this staging page.': 'This Song CMS reads the canonical LIVE/PROD catalog. Production metadata, media, and artwork write paths are proven but remain locked until the final activation switch.',
+            'MIGRATED SONG CMS · STEP 2': 'CANONICAL SONG CMS',
+            'Create DEV Song': 'Create LIVE Song',
+            'Create in DEV': 'Create LIVE Song',
+            'DEV write guard active. PROD writes are blocked.': 'Canonical PROD read active. Song writes are locked until final cutover.',
+            'MIGRATED MEDIA UPLOAD · DEV ONLY': 'CANONICAL MEDIA UPLOAD',
+            'Select an existing DEV song first. Uploaded URLs are placed into the editor; click Save DEV Changes to persist the song metadata.': 'Select an existing LIVE song first. The PROD presign/S3 path is validated; uploads remain locked until final cutover.',
+            'Choose Edit on a DEV song before uploading media.': 'Choose Edit on a LIVE song before uploading media.',
+            'Upload Audio to DEV': 'Upload Audio',
+            'Upload Visual Images to DEV': 'Upload Visual Images',
+            'Upload Visual Clips to DEV': 'Upload Visual Clips',
+            'MIGRATED ARTWORK WORKFLOW · DEV ONLY': 'CANONICAL ARTWORK WORKFLOW',
+            'Select an existing DEV song first. Upload authorization comes from the DEV presign endpoint, and artwork is attached only to that DEV song.': 'Select an existing LIVE song first. PROD artwork presign/S3/attachment is validated and remains locked until final cutover.',
+            'Choose Edit on a DEV song to load its artwork.': 'Choose Edit on a LIVE song to load its artwork.',
+            'DEV SONG CATALOG': 'LIVE SONG CATALOG',
+            'Read, search, select, create, and edit against the DEV admin API only.': 'Read and search against the canonical PROD admin API. Create/edit activates only after the final production write switch.',
+            'NEXT SONG CMS MIGRATION STEP': 'DEV FALLBACK / ROLLBACK',
+            'The main Song CMS create/edit, six-image artwork, audio upload, and song-specific visual image/clip upload flows are now represented in staging. Next is DEV runtime QA and then migration of the VEC/Video Factory/Ads modules.': 'The previous DEV Song CMS remains available at its original nested route as a fallback while the unified Admin cutover is finalized.',
+            'Open untouched current DEV Song CMS': 'Open preserved DEV Song CMS'
+          }
+          for old, new in replacements.items():
+            text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          if grep -E 'DEV ONLY|create and edit songs in DEV only|Upload Audio to DEV|DEV SONG CATALOG|Migration Staging' radio-admin/songs/index.html; then
+            echo 'Stale DEV-only migration copy remains in promoted Song CMS.' >&2
+            exit 1
+          fi
+          grep -q 'Canonical LIVE catalog' radio-admin/songs/index.html
+          grep -q '/radio-admin/songs/dev/' radio-admin/songs/index.html
+
+      - name: Verify protected main DEV and staging trees remain unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRE_ROUTE_SHA='936e82885b00aaf392a9071f5cdf345a735c8e5e'
+          git diff --quiet "$PRE_ROUTE_SHA" HEAD -- radio-admin/dev radio-admin/staging
+          grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
+          grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])' radio-admin/admin-env.js
+
+      - name: Commit fallback preservation only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'elettro'
+          git config user.email 'dpalermo@elettro.com'
+          git add radio-admin/songs radio-admin/artists/dev radio-admin/notifications/dev
+          if git diff --cached --quiet; then
+            echo 'No nested fallback/copy changes to commit.'
+            exit 1
+          fi
+          git commit -m 'Candidate: preserve nested DEV Admin fallbacks'
+          git push origin HEAD:feature/admin-unification-1077-cutover-candidate
