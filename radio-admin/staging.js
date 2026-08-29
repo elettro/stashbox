@@ -4,8 +4,9 @@
   const migration = window.StashboxAdminMigration;
   if (!migration) throw new Error('StashboxAdminMigration config is required');
 
-  const env = migration.getEnvironment('dev');
+  const env = migration.getEnvironment('prod');
   const els = {
+    tokenPanel: document.getElementById('tokenPanel'),
     token: document.getElementById('adminToken'),
     save: document.getElementById('saveTokenButton'),
     clear: document.getElementById('clearTokenButton'),
@@ -31,14 +32,39 @@
     ['events', 'Events']
   ];
 
-  function getStoredToken() {
-    const current = localStorage.getItem(env.tokenStorageKey);
-    if (current) return current;
-    for (const key of env.legacyTokenStorageKeys || []) {
-      const legacy = localStorage.getItem(key);
-      if (legacy) return legacy;
+  function updateProductionLabels() {
+    if (els.tokenPanel) {
+      const title = els.tokenPanel.querySelector('h2');
+      const copy = els.tokenPanel.querySelector('.muted');
+      if (title) title.textContent = 'PROD Admin Token';
+      if (copy) copy.textContent = 'Uses the production Admin token namespace. DEV tokens are never used by this dashboard.';
     }
-    return '';
+    if (els.token) els.token.placeholder = 'Paste PROD x-admin-token';
+
+    const dashboardCard = els.kpis && els.kpis.closest('.card');
+    if (dashboardCard) {
+      const copy = dashboardCard.querySelector('.section-heading .muted');
+      if (copy) copy.textContent = 'Live read from the PROD private admin stats APIs. This dashboard is GET-only.';
+    }
+
+    const songsCard = els.songs && els.songs.closest('.card');
+    if (songsCard) {
+      const title = songsCard.querySelector('.section-heading h2');
+      if (title) title.textContent = 'Top PROD Songs';
+    }
+
+    document.querySelectorAll('.migration-grid article').forEach(article => {
+      const strong = article.querySelector('strong');
+      if (!strong || strong.textContent.trim() !== 'Dashboard') return;
+      const status = article.querySelector('.done');
+      const copy = article.querySelector('p');
+      if (status) status.textContent = 'PROD Read';
+      if (copy) copy.textContent = 'Private PROD summary and song analytics are wired into the unified Admin dashboard with GET-only requests.';
+    });
+  }
+
+  function getStoredToken() {
+    return localStorage.getItem(env.tokenStorageKey) || '';
   }
 
   function saveToken() {
@@ -46,22 +72,22 @@
     if (!token) return;
     localStorage.setItem(env.tokenStorageKey, token);
     els.token.value = '';
-    els.status.textContent = 'DEV admin token saved in the migration namespace.';
+    els.status.textContent = 'PROD admin token saved in the production namespace.';
     loadDashboard();
   }
 
   function clearToken() {
     localStorage.removeItem(env.tokenStorageKey);
-    els.status.textContent = 'Migration token cleared. Existing legacy DEV token, if present, is not deleted.';
+    els.status.textContent = 'PROD admin token cleared.';
     els.kpis.innerHTML = '';
     els.songs.innerHTML = '<tr><td colspan="6" class="muted">No data loaded.</td></tr>';
   }
 
   async function adminGet(path) {
     const token = getStoredToken();
-    if (!token) throw new Error('No DEV admin token is available in this browser.');
+    if (!token) throw new Error('No PROD admin token is available in this browser.');
     const url = `${env.apiBase}${path}`;
-    if (!url.startsWith(env.apiBase)) throw new Error('Blocked non-DEV API request.');
+    if (!url.startsWith(env.apiBase)) throw new Error('Blocked non-PROD API request.');
 
     const response = await fetch(url, {
       method: 'GET',
@@ -163,15 +189,13 @@
   async function loadDashboard() {
     const token = getStoredToken();
     if (!token) {
-      els.status.textContent = 'No DEV admin token found.';
-      els.message.textContent = 'Enter your DEV admin token above. No production token is used by this page.';
+      els.status.textContent = 'No PROD admin token found.';
+      els.message.textContent = 'Enter your PROD admin token above to load production analytics.';
       return;
     }
 
-    els.status.textContent = localStorage.getItem(env.tokenStorageKey)
-      ? 'Migration DEV token available.'
-      : 'Using existing legacy DEV token as fallback.';
-    els.message.textContent = 'Loading DEV dashboard…';
+    els.status.textContent = 'PROD admin token available.';
+    els.message.textContent = 'Loading PROD dashboard…';
     els.refresh.disabled = true;
 
     const [summaryResult, songsResult] = await Promise.allSettled([
@@ -187,11 +211,12 @@
     else errors.push(`Songs: ${songsResult.reason.message}`);
 
     els.message.textContent = errors.length
-      ? `DEV loaded with warnings. ${errors.join(' · ')}`
-      : 'DEV dashboard loaded successfully.';
+      ? `PROD loaded with warnings. ${errors.join(' · ')}`
+      : 'PROD dashboard loaded successfully.';
     els.refresh.disabled = false;
   }
 
+  updateProductionLabels();
   els.save.addEventListener('click', saveToken);
   els.clear.addEventListener('click', clearToken);
   els.refresh.addEventListener('click', loadDashboard);
