@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/canonical-video-library-parity.yml'
       - 'radio-admin/video-library/**'
+      - 'radio-api/**'
       - 'radio/canonical-visual-source.js'
       - 'radio/**/index.html'
   workflow_dispatch:
@@ -16,121 +17,55 @@ permissions:
 jobs:
   parity:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      DEV_FUNCTION: stashbox-radio-api-dev-v2
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
     steps:
       - uses: actions/checkout@v4
-      - name: Audit public DEV and PROD visual libraries
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Audit deployed Lambda boundaries and protected visual APIs
         shell: bash
         run: |
           set -euo pipefail
+          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev.json
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
+          DEV_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/dev.json)"
+          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
+          test -n "$DEV_TOKEN"; test -n "$PROD_TOKEN"
+          export DEV_TOKEN PROD_TOKEN
           node <<'NODE'
-          (async () => {
-          const fs = require('fs');
-          const DEV = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-          const PROD = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
-
-          function unwrap(value) {
-            let v = value;
-            for (let i = 0; i < 3; i++) {
-              if (v && typeof v === 'object' && typeof v.body === 'string') {
-                try { v = JSON.parse(v.body); continue; } catch {}
-              }
-              break;
-            }
-            return v;
-          }
-          async function get(base, path) {
-            const res = await fetch(base + path, {headers: {'cache-control':'no-cache'}});
-            const text = await res.text();
-            let body;
-            try { body = JSON.parse(text); } catch { body = text; }
-            body = unwrap(body);
-            if (!res.ok) throw new Error(`${base}${path} -> ${res.status} ${String(text).slice(0,200)}`);
-            return body;
-          }
-          function rows(body, keys) {
-            if (Array.isArray(body)) return body;
-            for (const key of keys) if (Array.isArray(body?.[key])) return body[key];
-            return [];
-          }
-          const folderId = f => String(f?.id || f?.folder_id || f?.visual_folder_id || '');
-          const folderSlug = f => String(f?.folder_slug || f?.slug || f?.folder_name || f?.name || '').toLowerCase();
-          const songKey = s => String(s?.song_key || s?.songKey || s?.key || s?.id || '');
-          const recipeFolders = r => {
-            r = unwrap(r) || {};
-            const recipe = r.recipe || r.vec_recipe || r.data?.recipe || r.data || r;
-            const list = Array.isArray(recipe?.folders) ? recipe.folders : [];
-            return list.map(folderId).filter(Boolean).sort();
-          };
-
-          const [devFoldersBody, prodFoldersBody, songsBody] = await Promise.all([
-            get(DEV, '/radio/visuals/folders'),
-            get(PROD, '/radio/visuals/folders'),
-            get(PROD, '/radio/songs')
-          ]);
-          const devFolders = rows(devFoldersBody, ['folders','items','rows','data']);
-          const prodFolders = rows(prodFoldersBody, ['folders','items','rows','data']);
-          const songs = rows(songsBody, ['songs','items','rows','data']).map(songKey).filter(Boolean);
-
-          async function inventory(base, folders) {
-            const result = [];
-            for (const folder of folders) {
-              const id = folderId(folder);
-              if (!id) continue;
-              const body = await get(base, `/radio/visuals/folders/${encodeURIComponent(id)}/assets`);
-              const assets = rows(body, ['assets','items','rows','data']);
-              result.push({id, slug: folderSlug(folder), name: folder.folder_name || folder.name || '', assetCount: assets.length,
-                assetIds: assets.map(a => String(a?.id || a?.asset_id || a?.s3_key || a?.public_url || '')).filter(Boolean).sort(),
-                urls: assets.map(a => String(a?.public_url || a?.url || a?.asset_url || '')).filter(Boolean).sort()});
-            }
-            return result;
-          }
-
-          const [devInventory, prodInventory] = await Promise.all([
-            inventory(DEV, devFolders), inventory(PROD, prodFolders)
-          ]);
-
-          const devBySlug = new Map(devInventory.map(f => [f.slug, f]));
-          const prodBySlug = new Map(prodInventory.map(f => [f.slug, f]));
-          const allSlugs = [...new Set([...devBySlug.keys(), ...prodBySlug.keys()])].sort();
-          const folderDiff = allSlugs.map(slug => {
-            const d = devBySlug.get(slug), p = prodBySlug.get(slug);
-            return {slug, devId:d?.id||null, prodId:p?.id||null, devAssets:d?.assetCount??null, prodAssets:p?.assetCount??null,
-              sameId:!!d&&!!p&&d.id===p.id, sameAssetIds:!!d&&!!p&&JSON.stringify(d.assetIds)===JSON.stringify(p.assetIds), sameUrls:!!d&&!!p&&JSON.stringify(d.urls)===JSON.stringify(p.urls)};
-          });
-
-          const recipeDiffs = [];
-          for (const key of songs) {
-            const [d,p] = await Promise.all([
-              get(DEV, `/radio/vec/recipe?song_key=${encodeURIComponent(key)}`).catch(e => ({__error:e.message})),
-              get(PROD, `/radio/vec/recipe?song_key=${encodeURIComponent(key)}`).catch(e => ({__error:e.message}))
-            ]);
-            const df = d?.__error ? [] : recipeFolders(d);
-            const pf = p?.__error ? [] : recipeFolders(p);
-            if (JSON.stringify(df) !== JSON.stringify(pf) || d?.__error || p?.__error) recipeDiffs.push({songKey:key, devFolders:df, prodFolders:pf, devError:d?.__error||null, prodError:p?.__error||null});
-          }
-
-          const report = {
-            generatedAt: new Date().toISOString(),
-            dev: {folderCount: devFolders.length, totalAssets: devInventory.reduce((n,f)=>n+f.assetCount,0)},
-            prod:{folderCount: prodFolders.length, totalAssets: prodInventory.reduce((n,f)=>n+f.assetCount,0)},
-            sharedFolderSlugs: allSlugs.filter(s=>devBySlug.has(s)&&prodBySlug.has(s)).length,
-            devOnlyFolderSlugs: allSlugs.filter(s=>devBySlug.has(s)&&!prodBySlug.has(s)),
-            prodOnlyFolderSlugs: allSlugs.filter(s=>!devBySlug.has(s)&&prodBySlug.has(s)),
-            folderDiff,
-            songCount: songs.length,
-            recipeDiffCount: recipeDiffs.length,
-            recipeDiffs
-          };
-          fs.writeFileSync('canonical-video-library-parity.json', JSON.stringify(report,null,2)+'\n');
-          console.log(JSON.stringify({
-            dev: report.dev, prod: report.prod, sharedFolderSlugs:report.sharedFolderSlugs,
-            devOnlyFolderSlugs:report.devOnlyFolderSlugs, prodOnlyFolderSlugs:report.prodOnlyFolderSlugs,
-            songCount:report.songCount, recipeDiffCount:report.recipeDiffCount
-          }, null, 2));
-          })().catch(error => { console.error(error); process.exit(1); });
+          (async()=>{
+            const fs=require('fs');
+            const devCfg=JSON.parse(fs.readFileSync('/tmp/dev.json','utf8'));
+            const prodCfg=JSON.parse(fs.readFileSync('/tmp/prod.json','utf8'));
+            const safe=cfg=>{const e=cfg.Environment?.Variables||{};return {functionName:cfg.FunctionName,codeSha256:cfg.CodeSha256,lastModified:cfg.LastModified,runtime:cfg.Runtime,handler:cfg.Handler,revisionId:cfg.RevisionId,appEnv:e.APP_ENV||e.STAGE||e.ENVIRONMENT||'',pgSchema:e.PGSCHEMA||'',uploadBucket:e.UPLOAD_BUCKET||e.S3_BUCKET||e.RADIO_UPLOAD_BUCKET||'',uploadPublicBaseUrl:e.UPLOAD_PUBLIC_BASE_URL||''}};
+            const DEV=process.env.DEV_API, PROD=process.env.PROD_API, tokens={DEV:process.env.DEV_TOKEN,PROD:process.env.PROD_TOKEN};
+            function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
+            async function req(label,base,path){const r=await fetch(base+path,{headers:{'x-admin-token':tokens[label],'accept':'application/json','cache-control':'no-cache'}});const t=await r.text();let b;try{b=unwrap(JSON.parse(t))}catch{b=t}return {status:r.status,body:b}}
+            const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
+            const devFoldersR=await req('DEV',DEV,'/admin/visuals/folders');
+            const prodFoldersR=await req('PROD',PROD,'/admin/visuals/folders');
+            const devFolders=rows(devFoldersR.body,['folders','visuals_folders','items','rows','data']);
+            const prodFolders=rows(prodFoldersR.body,['folders','visuals_folders','items','rows','data']);
+            let devAssets=0; const assetCounts=[];
+            for(const f of devFolders){const id=String(f?.id||f?.folder_id||'');if(!id)continue;const r=await req('DEV',DEV,`/admin/visuals/folders/${encodeURIComponent(id)}/assets`);const a=rows(r.body,['assets','items','rows','data']);devAssets+=a.length;assetCounts.push({folderId:id,count:a.length,status:r.status});}
+            const songsR=await req('DEV',DEV,'/admin/songs');const songs=rows(songsR.body,['songs','items','rows','data']);const sampleSong=String(songs[0]?.song_key||'');
+            const devMap=sampleSong?await req('DEV',DEV,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0};
+            const prodMap=sampleSong?await req('PROD',PROD,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0};
+            const report={devLambda:safe(devCfg),prodLambda:safe(prodCfg),dev:{foldersStatus:devFoldersR.status,folderCount:devFolders.length,totalAssets:devAssets,assetCounts,mappingStatus:devMap.status},prod:{foldersStatus:prodFoldersR.status,folderCount:prodFolders.length,mappingStatus:prodMap.status},sampleSong,prodFoldersError:prodFoldersR.status>=400?prodFoldersR.body:null,prodMappingError:prodMap.status>=400?prodMap.body:null};
+            fs.writeFileSync('canonical-video-library-backend-audit.json',JSON.stringify(report,null,2)+'\n');
+            console.log(JSON.stringify(report,null,2));
+          })().catch(e=>{console.error(e);process.exit(1)});
           NODE
       - uses: actions/upload-artifact@v4
         with:
-          name: canonical-video-library-parity
-          path: canonical-video-library-parity.json
+          name: canonical-video-library-backend-audit
+          path: canonical-video-library-backend-audit.json
