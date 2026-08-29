@@ -4,18 +4,27 @@ import { chromium } from 'playwright';
 const PROD_BASE = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
 const DEV_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const PROD_BUCKET = 'stashbox-radio-media-prod-us-east-1';
-const pageUrl = 'http://127.0.0.1:4173/radio-admin/staging/songs/';
+const adminRoot = String(process.env.ADMIN_QA_ROOT || 'http://127.0.0.1:4173/radio-admin/staging').replace(/\/$/, '');
+const pageUrl = `${adminRoot}/songs/`;
+const envPath = process.env.ADMIN_QA_ENV_PATH || 'radio-admin/staging/admin-env.js';
+const manageLocks = process.env.ADMIN_QA_MANAGE_LOCKS !== 'false';
 
 if (process.env.CI !== 'true') throw new Error('This write-enabled rehearsal is CI-only.');
 
-const envPath = 'radio-admin/staging/admin-env.js';
 let envSource = await fs.readFile(envPath, 'utf8');
-envSource = envSource.replace('productionWritesApproved: false', 'productionWritesApproved: true');
-envSource = envSource.replace('stagingProdWritesAllowed: false', 'stagingProdWritesAllowed: true');
-const prodBlock = /prod: Object\.freeze\(\{([\s\S]*?)writesAllowedInStaging: false([\s\S]*?)\}\)/;
-if (!prodBlock.test(envSource)) throw new Error('Could not locate PROD write lock for CI rehearsal.');
-envSource = envSource.replace(prodBlock, match => match.replace('writesAllowedInStaging: false', 'writesAllowedInStaging: true'));
-await fs.writeFile(envPath, envSource);
+if (manageLocks) {
+  envSource = envSource.replace('productionWritesApproved: false', 'productionWritesApproved: true');
+  envSource = envSource.replace('stagingProdWritesAllowed: false', 'stagingProdWritesAllowed: true');
+  const prodBlock = /prod: Object\.freeze\(\{([\s\S]*?)writesAllowedInStaging: false([\s\S]*?)\}\)/;
+  if (!prodBlock.test(envSource)) throw new Error('Could not locate PROD write lock for CI rehearsal.');
+  envSource = envSource.replace(prodBlock, match => match.replace('writesAllowedInStaging: false', 'writesAllowedInStaging: true'));
+  await fs.writeFile(envPath, envSource);
+} else {
+  if (!envSource.includes('productionWritesApproved: true')) throw new Error('Externally activated Admin is missing productionWritesApproved: true.');
+  if (!envSource.includes('stagingProdWritesAllowed: true')) throw new Error('Externally activated Admin is missing stagingProdWritesAllowed: true.');
+  const prodBlock = /prod: Object\.freeze\(\{([\s\S]*?)writesAllowedInStaging: true([\s\S]*?)\}\)/;
+  if (!prodBlock.test(envSource)) throw new Error('Externally activated Admin is missing PROD writesAllowedInStaging: true.');
+}
 
 let song = {
   song_key: 'canonical-qa-song',
@@ -159,7 +168,7 @@ try {
   if (storagePuts.length !== 2) throw new Error(`Expected exactly two PROD S3 PUTs, saw ${storagePuts.length}.`);
   if (devRequests.length) throw new Error(`Canonical write rehearsal reached DEV: ${devRequests.join(' | ')}`);
 
-  console.log(JSON.stringify({ pass: true, writes, storagePuts, devRequests }, null, 2));
+  console.log(JSON.stringify({ pass: true, adminRoot, envPath, manageLocks, writes, storagePuts, devRequests }, null, 2));
 } finally {
   await browser.close();
 }
