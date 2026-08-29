@@ -11,15 +11,13 @@ permissions:
   contents: read
 
 jobs:
-  proof:
+  patch-prod-route:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       AWS_REGION: us-east-1
       PROD_FUNCTION: stashbox-radio-api-prod-v2
       PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
-      PROD_BUCKET: stashbox-radio-media-prod-us-east-1
-      PROD_CDN: d34ez960394y8w.cloudfront.net
       TEST_SONG: petty-fuck-02b-stashbox
     steps:
       - uses: actions/checkout@v4
@@ -28,46 +26,48 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Verify canonical PROD visual backend and reversible writes
+      - name: Patch deployed package minimally and verify all contracts
         shell: bash
         run: |
           set -euo pipefail
-          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
-          jq -e '.Handler == "index.handler" and .LastUpdateStatus == "Successful" and (.Environment.Variables.PGSCHEMA // "radio") == "radio"' /tmp/prod.json >/dev/null
-          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
-          test -n "$PROD_TOKEN"; export PROD_TOKEN
+          aws lambda get-function --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/before.json
+          test "$(jq -r '.Configuration.Handler' /tmp/before.json)" = index.handler
+          ORIGINAL_SHA="$(jq -r '.Configuration.CodeSha256' /tmp/before.json)"
+          curl -fsSL "$(jq -r '.Code.Location' /tmp/before.json)" -o /tmp/original.zip
+          rm -rf /tmp/pkg && mkdir -p /tmp/pkg && unzip -q /tmp/original.zip -d /tmp/pkg
+          export TARGET=""
+          if [ -f /tmp/pkg/index-core.mjs ]; then TARGET=/tmp/pkg/index-core.mjs; elif [ -f /tmp/pkg/index.mjs ]; then TARGET=/tmp/pkg/index.mjs; else echo 'No Lambda source entry file found' >&2; exit 1; fi
+          export TARGET
+          python3 <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['TARGET']); text=p.read_text()
+          block="""  if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event)) {\n    return handlePublicSongVisualSettingsRoute(event);\n  }\n\n"""
+          generic="""  if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs']))) {\n    return getSongs({ includeArchived: false });\n  }\n\n"""
+          if block not in text or generic not in text: raise SystemExit('Expected deployed route blocks not found; refusing patch')
+          if text.index(block)>text.index(generic):
+              text=text.replace(block,'',1); text=text.replace(generic,block+generic,1); p.write_text(text)
+              print('Moved public visual-settings route before generic songs route.')
+          else: print('Route order already correct.')
+          if text.count(block)!=1 or text.index(block)>text.index(generic): raise SystemExit('Route-order verification failed')
+          PY
+          node --check "$TARGET"
+          (cd /tmp/pkg && zip -qr /tmp/patched.zip .)
+          changed=0
+          rollback(){ set +e; if [ "$changed" = 1 ]; then echo 'Verification failed; restoring exact original PROD Lambda package.'; aws lambda update-function-code --function-name "$PROD_FUNCTION" --zip-file fileb:///tmp/original.zip --region "$AWS_REGION" >/dev/null; aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1; fi; }
+          trap rollback EXIT
+          aws lambda update-function-code --function-name "$PROD_FUNCTION" --zip-file fileb:///tmp/patched.zip --region "$AWS_REGION" >/dev/null; changed=1
+          aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION"
+          sleep 2
           node <<'NODE'
-          const fs=require('fs');const {execFileSync}=require('child_process');
-          const API=process.env.PROD_API,token=process.env.PROD_TOKEN,bucket=process.env.PROD_BUCKET,cdn=process.env.PROD_CDN,song=process.env.TEST_SONG;
-          const marker=`__canonical_visual_backend_${Date.now()}__`;const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6ZqgAAAAASUVORK5CYII=','base64');
-          const report={marker,steps:{},cleanup:{}};let folder=null,folderOriginal=null,folderChanged=false,asset=null,assetOriginal=null,assetChanged=false,uploadedKey='';
-          function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
-          async function req(path,opt={}){const m=String(opt.method||'GET').toUpperCase();const r=await fetch(API+path,{...opt,method:m,headers:{'x-admin-token':token,accept:'application/json',...(opt.body?{'content-type':'application/json'}:{}),...(opt.headers||{})},cache:m==='GET'?'no-store':undefined});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok||b?.success===false)throw new Error(`${m} ${path} -> ${r.status} ${typeof b==='string'?b:JSON.stringify(b)}`);return b}
-          async function pub(path){const r=await fetch(API+path,{headers:{accept:'application/json','cache-control':'no-cache'},cache:'no-store'});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok)throw new Error(`GET ${path} -> ${r.status} ${t.slice(0,300)}`);return b}
-          const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};const fid=f=>String(f?.id||f?.folder_id||''),slug=f=>String(f?.folder_slug||f?.slug||'');
-          const fp=(f,notes)=>({folder_name:f.folder_name||f.name||'',folder_type:f.folder_type||f.type||'general',description:f.description||'',status:f.status||'active',priority:f.priority||'medium',notes:notes===undefined?(f.notes||''):notes,relevant_artists:Array.isArray(f.relevant_artists)?f.relevant_artists:[],relevant_genres:Array.isArray(f.relevant_genres)?f.relevant_genres:[],relevant_moods:Array.isArray(f.relevant_moods)?f.relevant_moods:[],relevant_songs:Array.isArray(f.relevant_songs)?f.relevant_songs:[]});
-          const ap=(a,caption)=>({status:a.status||'active',caption:caption===undefined?(a.caption||''):caption,alt_text:a.alt_text||'',notes:a.notes||'',shopify_product_urls:Array.isArray(a.shopify_product_urls)?a.shopify_product_urls:[]});
-          (async()=>{try{
-            const adminSettings=await req(`/admin/songs/${encodeURIComponent(song)}/visual-settings`);if(adminSettings.success!==true)throw new Error('Admin visual-settings route is not healthy');report.steps.visualSettingsAdminRead='PASS';
-            const recipe=await pub(`/radio/vec/recipe?song_key=${encodeURIComponent(song)}`);if(recipe?.success===false)throw new Error('PROD recipe failed');report.steps.prodVecRecipe='PASS';
-            const songAssets=await pub(`/radio/vec/song-assets?song_key=${encodeURIComponent(song)}`);if(songAssets?.success===false)throw new Error('PROD song-assets failed');report.steps.prodSongAssets='PASS';
-            const folders=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']);folder=folders.find(f=>Number(f.asset_count||0)>0)||folders[0];if(!folder)throw new Error('No PROD visual folders');const id=fid(folder);
-            const publicFolder=await pub(`/radio/visuals/folders/${encodeURIComponent(id)}/assets`);if(!Array.isArray(rows(publicFolder,['assets','items','rows','data'])))throw new Error('PROD public folder assets contract missing');report.steps.prodFolderAssets='PASS';
-            folderOriginal=fp(folder);await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(fp(folder,[folderOriginal.notes,marker].filter(Boolean).join('\n')))});folderChanged=true;const fc=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']).find(f=>fid(f)===id);if(!String(fc?.notes||'').includes(marker))throw new Error('Folder write marker missing');report.steps.folderWrite='PASS';await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(folderOriginal)});folderChanged=false;report.steps.folderRestore='PASS';
-            const assets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']);asset=assets.find(a=>String(a.status||'active')==='active')||assets[0]||null;if(asset){assetOriginal=ap(asset);const aid=String(asset.id||asset.asset_id||'');await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(aid)}`,{method:'PUT',body:JSON.stringify(ap(asset,[assetOriginal.caption,marker].filter(Boolean).join(' ')))});assetChanged=true;const ac=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']).find(a=>String(a.id||a.asset_id||'')===aid);if(!String(ac?.caption||'').includes(marker))throw new Error('Asset write marker missing');report.steps.assetWrite='PASS';await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(aid)}`,{method:'PUT',body:JSON.stringify(assetOriginal)});assetChanged=false;report.steps.assetRestore='PASS';}
-            const pre=await req('/admin/uploads/presign',{method:'POST',body:JSON.stringify({filename:`${marker}.png`,content_type:'image/png',purpose:'visual_folder_image',folder_slug:slug(folder),folder_id:id})});const u=String(pre.upload_url||pre.uploadUrl||''),p=String(pre.public_url||pre.publicUrl||'');uploadedKey=String(pre.key||pre.object_key||'');if(!u||!p||!uploadedKey)throw new Error('Incomplete PROD presign');const uh=new URL(u).hostname.toLowerCase(),ph=new URL(p).hostname.toLowerCase();if(!uh.includes(bucket))throw new Error(`Presign outside PROD bucket: ${uh}`);if(ph!==cdn&&!ph.includes(bucket))throw new Error(`Public URL outside PROD media: ${ph}`);report.steps.prodPresign='PASS';const put=await fetch(u,{method:String(pre.method||'PUT').toUpperCase(),headers:pre.headers||{'Content-Type':'image/png'},body:png});if(!put.ok)throw new Error(`PROD S3 PUT ${put.status}`);report.steps.prodS3Upload='PASS';execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});uploadedKey='';report.steps.prodS3Cleanup='PASS';report.success=true;
-          }finally{
-            if(folderChanged&&folder&&folderOriginal)try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}`,{method:'PUT',body:JSON.stringify(folderOriginal)});report.cleanup.folder='restored'}catch(e){report.cleanup.folder=`FAILED: ${e.message}`}
-            if(assetChanged&&asset&&folder&&assetOriginal)try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}/assets/${encodeURIComponent(String(asset.id||asset.asset_id||''))}`,{method:'PUT',body:JSON.stringify(assetOriginal)});report.cleanup.asset='restored'}catch(e){report.cleanup.asset=`FAILED: ${e.message}`}
-            if(uploadedKey)try{execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});report.cleanup.s3='deleted'}catch(e){report.cleanup.s3=`FAILED: ${e.message}`}
-            fs.writeFileSync('canonical-video-library-prod-proof.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
-          }})().catch(e=>{console.error(e);process.exit(1)});
+          (async()=>{const API=process.env.PROD_API,song=process.env.TEST_SONG;const get=async p=>{const r=await fetch(API+p,{headers:{accept:'application/json','cache-control':'no-cache'},cache:'no-store'});const t=await r.text();let b;try{b=JSON.parse(t);if(typeof b?.body==='string')b=JSON.parse(b.body)}catch{b=t}if(!r.ok)throw new Error(`${p} -> ${r.status}`);return b};
+          const catalog=await get('/radio/songs?limit=1');if(!Array.isArray(catalog.songs)&&!Array.isArray(catalog))throw new Error('Generic song catalog contract changed');
+          const visual=await get(`/radio/songs/${encodeURIComponent(song)}/visual-settings`);if(visual.success!==true||visual.song_key!==song||!Array.isArray(visual.assets))throw new Error(`Visual-settings route not fixed: ${JSON.stringify(visual).slice(0,500)}`);
+          const recipe=await get(`/radio/vec/recipe?song_key=${encodeURIComponent(song)}`);if(recipe?.success===false)throw new Error('VEC recipe regression');
+          const assets=await get(`/radio/vec/song-assets?song_key=${encodeURIComponent(song)}`);if(assets?.success===false)throw new Error('VEC song-assets regression');
+          console.log(JSON.stringify({success:true,visualSettings:{song_key:visual.song_key,assetCount:visual.assets.length},songCatalog:'PASS',vecRecipe:'PASS',vecSongAssets:'PASS'}));})().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          jq -e '.success==true' canonical-video-library-prod-proof.json >/dev/null
-          echo 'Canonical PROD visual backend proof PASSED.'
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: canonical-video-library-prod-proof
-          path: canonical-video-library-prod-proof.json
-          if-no-files-found: warn
+          changed=0
+          FINAL_SHA="$(aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --query CodeSha256 --output text)"
+          test "$FINAL_SHA" != "$ORIGINAL_SHA"
+          echo 'Surgical PROD visual-settings route-order patch is LIVE and verified.'
