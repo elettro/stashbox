@@ -1,0 +1,122 @@
+name: Unified Admin Live Activation Rehearsal
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077-cutover-candidate
+    paths:
+      - '.github/workflows/admin-live-activation-rehearsal.yml'
+      - 'radio-admin/staging/cutover/activate-unified-admin-live-writes.mjs'
+      - 'radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs'
+      - 'radio-admin/admin-env.js'
+      - 'radio-admin/index.html'
+      - 'radio-admin/songs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse-live-activation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out locked cutover candidate
+        uses: actions/checkout@v4
+        with:
+          ref: feature/admin-unification-1077-cutover-candidate
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Assert committed candidate is still locked
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check radio-admin/staging/cutover/activate-unified-admin-live-writes.mjs
+          node --check radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs
+          grep -q "mode: 'cutover-candidate'" radio-admin/admin-env.js
+          grep -q 'productionCutoverApproved: false' radio-admin/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/admin-env.js
+          prod_block="$(sed -n '/prod: Object.freeze({/,/}),/p' radio-admin/admin-env.js)"
+          echo "$prod_block" | grep -q 'writesAllowedInStaging: false'
+          echo "$prod_block" | grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])'
+          if echo "$prod_block" | grep -q 'stashbox_admin_token_dev'; then
+            echo 'Locked candidate contains a DEV token fallback in PROD config.' >&2
+            exit 1
+          fi
+
+      - name: Verify activation dry-run changes nothing
+        shell: bash
+        run: |
+          set -euo pipefail
+          node radio-admin/staging/cutover/activate-unified-admin-live-writes.mjs
+          git diff --quiet
+
+      - name: Apply live activation only inside CI workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          node radio-admin/staging/cutover/activate-unified-admin-live-writes.mjs --apply
+
+          grep -q "mode: 'production'" radio-admin/admin-env.js
+          grep -q 'productionCutoverApproved: true' radio-admin/admin-env.js
+          grep -q 'productionWritesApproved: true' radio-admin/admin-env.js
+          grep -q 'stagingProdWritesAllowed: true' radio-admin/admin-env.js
+          prod_block="$(sed -n '/prod: Object.freeze({/,/}),/p' radio-admin/admin-env.js)"
+          echo "$prod_block" | grep -q 'writesAllowedInStaging: true'
+          echo "$prod_block" | grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])'
+
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' radio-admin/admin-env.js radio-admin/index.html radio-admin/songs/index.html | sort)"
+          echo "$changed"
+          test "$changed" = "$expected"
+
+          git diff --quiet -- radio-admin/dev radio-admin/staging radio-admin/legacy radio
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated activated Admin server
+        shell: bash
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/live-activation-http.log 2>&1 &
+          for i in {1..30}; do
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/songs/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/live-activation-http.log
+          exit 1
+
+      - name: Prove activated promoted Song CMS write paths against mocked PROD only
+        env:
+          CI: 'true'
+          ADMIN_QA_ROOT: http://127.0.0.1:4173/radio-admin
+          ADMIN_QA_ENV_PATH: radio-admin/admin-env.js
+          ADMIN_QA_MANAGE_LOCKS: 'false'
+        run: node radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs
+
+      - name: Assert rehearsal never persisted activation to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Workspace activation must still be limited to exactly the three root files.
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' radio-admin/admin-env.js radio-admin/index.html radio-admin/songs/index.html | sort)"
+          test "$changed" = "$expected"
+          git diff --quiet -- radio-admin/dev radio-admin/staging radio-admin/legacy radio
+
+          # The committed HEAD itself must remain locked after the CI-only exercise.
+          git show HEAD:radio-admin/admin-env.js | grep -q "mode: 'cutover-candidate'"
+          git show HEAD:radio-admin/admin-env.js | grep -q 'productionCutoverApproved: false'
+          git show HEAD:radio-admin/admin-env.js | grep -q 'productionWritesApproved: false'
+          git show HEAD:radio-admin/admin-env.js | grep -q 'stagingProdWritesAllowed: false'
+
+          echo 'CI-only activation rehearsal complete; committed cutover candidate remains locked.'
