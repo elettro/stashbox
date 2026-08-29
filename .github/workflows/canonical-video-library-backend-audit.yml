@@ -11,14 +11,12 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  reconcile:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     env:
       AWS_REGION: us-east-1
-      DEV_FUNCTION: stashbox-radio-api-dev-v2
       PROD_FUNCTION: stashbox-radio-api-prod-v2
-      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
       PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
     steps:
       - uses: actions/checkout@v4
@@ -27,89 +25,83 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Compare deployed visual-library inventories and player contracts
+      - name: Snapshot, reconcile skate assets, verify
         shell: bash
         run: |
           set -euo pipefail
-          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev.json
           aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
-          DEV_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/dev.json)"
           PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
-          test -n "$DEV_TOKEN"; test -n "$PROD_TOKEN"
-          export DEV_TOKEN PROD_TOKEN
-
+          test -n "$PROD_TOKEN"
+          export PROD_TOKEN
           node <<'NODE'
           (async()=>{
             const fs=require('fs');
-            const devCfg=JSON.parse(fs.readFileSync('/tmp/dev.json','utf8'));
-            const prodCfg=JSON.parse(fs.readFileSync('/tmp/prod.json','utf8'));
-            const safe=cfg=>{const e=cfg.Environment?.Variables||{};return {functionName:cfg.FunctionName,codeSha256:cfg.CodeSha256,lastModified:cfg.LastModified,runtime:cfg.Runtime,handler:cfg.Handler,revisionId:cfg.RevisionId,appEnv:e.APP_ENV||e.STAGE||e.ENVIRONMENT||'',pgSchema:e.PGSCHEMA||'',uploadBucket:e.UPLOAD_BUCKET||e.S3_BUCKET||e.RADIO_UPLOAD_BUCKET||'',uploadPublicBaseUrl:e.UPLOAD_PUBLIC_BASE_URL||''}};
-            const DEV=process.env.DEV_API, PROD=process.env.PROD_API, tokens={DEV:process.env.DEV_TOKEN,PROD:process.env.PROD_TOKEN};
+            const API=process.env.PROD_API;
+            const token=process.env.PROD_TOKEN;
             function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
-            async function req(label,base,path,{admin=true}={}){const headers={'accept':'application/json','cache-control':'no-cache'};if(admin)headers['x-admin-token']=tokens[label];const r=await fetch(base+path,{headers});const t=await r.text();let b;try{b=unwrap(JSON.parse(t))}catch{b=t}return {status:r.status,body:b}}
+            async function req(path, options={}){
+              const method=String(options.method||'GET').toUpperCase();
+              const r=await fetch(API+path,{...options,method,headers:{'x-admin-token':token,'accept':'application/json',...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})}});
+              const text=await r.text();let body;try{body=unwrap(JSON.parse(text))}catch{body=text}
+              if(!r.ok||body?.success===false)throw new Error(`${method} ${path} -> ${r.status} ${typeof body==='string'?body:JSON.stringify(body)}`);
+              return body;
+            }
             const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
-            const fid=f=>String(f?.id||f?.folder_id||'');
-            const fslug=f=>String(f?.folder_slug||f?.slug||f?.folder_name||f?.name||'').trim().toLowerCase();
-            const aid=a=>String(a?.id||a?.asset_id||'');
-            const akey=a=>String(a?.s3_key||a?.key||'');
-            const aurl=a=>String(a?.public_url||a?.url||'');
-            const songKey=s=>String(s?.song_key||s?.songKey||s?.key||'');
-            const folderRefs=obj=>{const out=new Set();const walk=v=>{if(Array.isArray(v)){v.forEach(walk);return}if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if((k==='folder_id'||k==='folderId')&&x)out.add(String(x));if((k==='folder_ids'||k==='folderIds'||k==='folders')&&Array.isArray(x)){for(const y of x){if(typeof y==='string')out.add(y);else if(y&&typeof y==='object'&&(y.id||y.folder_id))out.add(String(y.id||y.folder_id));}}walk(x)}};walk(obj);return [...out].sort()};
-
-            async function inventory(label,base){
-              const folderResp=await req(label,base,'/admin/visuals/folders');
-              const folders=rows(folderResp.body,['folders','visuals_folders','items','rows','data']);
-              const detailed=[];
-              for(const folder of folders){
-                const id=fid(folder);if(!id)continue;
-                const ar=await req(label,base,`/admin/visuals/folders/${encodeURIComponent(id)}/assets`);
-                const assets=rows(ar.body,['assets','items','rows','data']);
-                detailed.push({
-                  id,slug:fslug(folder),name:String(folder.folder_name||folder.name||''),type:String(folder.folder_type||''),status:String(folder.status||''),priority:String(folder.priority||''),
-                  relevantArtists:folder.relevant_artists||[],relevantGenres:folder.relevant_genres||[],relevantMoods:folder.relevant_moods||[],relevantSongs:folder.relevant_songs||[],
-                  assetStatus:ar.status,assetCount:assets.length,
-                  assets:assets.map(a=>({id:aid(a),s3Key:akey(a),url:aurl(a),type:String(a.asset_type||a.type||''),status:String(a.status||''),fileName:String(a.file_name||a.filename||''),caption:String(a.caption||''),altText:String(a.alt_text||'')}))
-                });
-              }
-              return {folderStatus:folderResp.status,folders:detailed,totalAssets:detailed.reduce((n,f)=>n+f.assetCount,0)};
+            const folderBody=await req('/admin/visuals/folders');
+            const folders=rows(folderBody,['folders','items','rows','data']);
+            const slug=f=>String(f.folder_slug||f.slug||'').toLowerCase();
+            const id=f=>String(f.id||f.folder_id||'');
+            const source=folders.find(f=>slug(f)==='dean-skateboarding');
+            const target=folders.find(f=>slug(f)==='dean-skateboarding-boardwalk-beach');
+            if(!source||!target)throw new Error('Expected PROD skate source and canonical target folders were not found.');
+            const sourceAssets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(source))}/assets`),['assets','items','rows','data']);
+            const targetBefore=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`),['assets','items','rows','data']);
+            const full=[];
+            for(const f of folders){const fid=id(f);const assets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(fid)}/assets`),['assets','items','rows','data']);full.push({folder:f,assets});}
+            fs.writeFileSync('prod-visual-library-precanonical.json',JSON.stringify({capturedAt:new Date().toISOString(),folders:full},null,2)+'\n');
+            const key=a=>String(a.public_url||a.url||a.s3_key||a.id||'');
+            const existing=new Set(targetBefore.map(key));
+            let created=0;
+            for(const asset of sourceAssets){
+              if(existing.has(key(asset)))continue;
+              const payload={
+                asset_type:asset.asset_type||asset.type||'image',
+                file_name:asset.file_name||asset.filename||asset.name||'visual-asset',
+                s3_key:asset.s3_key||asset.key||'',
+                public_url:asset.public_url||asset.url||'',
+                thumbnail_url:asset.thumbnail_url||'',
+                content_type:asset.content_type||asset.mime_type||'',
+                size_bytes:asset.size_bytes??null,
+                width:asset.width??null,
+                height:asset.height??null,
+                ratio_label:asset.ratio_label||'',
+                caption:asset.caption||'',
+                alt_text:asset.alt_text||'',
+                notes:asset.notes||'',
+                shopify_product_urls:Array.isArray(asset.shopify_product_urls)?asset.shopify_product_urls:[]
+              };
+              await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`,{method:'POST',body:JSON.stringify(payload)});
+              created++;
             }
-            const [dev,prod]=await Promise.all([inventory('DEV',DEV),inventory('PROD',PROD)]);
-            const devBySlug=new Map(dev.folders.map(f=>[f.slug,f])), prodBySlug=new Map(prod.folders.map(f=>[f.slug,f]));
-            const slugs=[...new Set([...devBySlug.keys(),...prodBySlug.keys()])].sort();
-            const folderDiffs=slugs.map(slug=>{const d=devBySlug.get(slug),p=prodBySlug.get(slug);const dKeys=new Set((d?.assets||[]).map(a=>a.s3Key||a.id||a.url));const pKeys=new Set((p?.assets||[]).map(a=>a.s3Key||a.id||a.url));return {slug,devId:d?.id||null,prodId:p?.id||null,devAssets:d?.assetCount??null,prodAssets:p?.assetCount??null,sameId:!!d&&!!p&&d.id===p.id,devOnlyAssets:[...dKeys].filter(x=>x&&!pKeys.has(x)),prodOnlyAssets:[...pKeys].filter(x=>x&&!dKeys.has(x))}});
-
-            const songsResp=await req('PROD',PROD,'/admin/songs');
-            const songs=rows(songsResp.body,['songs','items','rows','data']).map(songKey).filter(Boolean);
-            const contract=[];
-            for(const key of songs){
-              const [dr,pr,da,pa,dv,pv]=await Promise.all([
-                req('DEV',DEV,`/radio/vec/recipe?song_key=${encodeURIComponent(key)}`,{admin:false}),
-                req('PROD',PROD,`/radio/vec/recipe?song_key=${encodeURIComponent(key)}`,{admin:false}),
-                req('DEV',DEV,`/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`,{admin:false}),
-                req('PROD',PROD,`/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`,{admin:false}),
-                req('DEV',DEV,`/radio/songs/${encodeURIComponent(key)}/visual-settings`,{admin:false}),
-                req('PROD',PROD,`/radio/songs/${encodeURIComponent(key)}/visual-settings`,{admin:false})
-              ]);
-              contract.push({songKey:key,devRecipeStatus:dr.status,prodRecipeStatus:pr.status,devRecipeFolders:folderRefs(dr.body),prodRecipeFolders:folderRefs(pr.body),devSongAssetStatus:da.status,prodSongAssetStatus:pa.status,devSongAssetCount:rows(da.body,['assets','images','clips']).length,prodSongAssetCount:rows(pa.body,['assets','images','clips']).length,devVisualSettingsStatus:dv.status,prodVisualSettingsStatus:pv.status,devVisualSettingsFolders:folderRefs(dv.body),prodVisualSettingsFolders:folderRefs(pv.body)});
-            }
-            const report={
-              generatedAt:new Date().toISOString(),devLambda:safe(devCfg),prodLambda:safe(prodCfg),
-              dev:{folderStatus:dev.folderStatus,folderCount:dev.folders.length,totalAssets:dev.totalAssets},
-              prod:{folderStatus:prod.folderStatus,folderCount:prod.folders.length,totalAssets:prod.totalAssets},
-              sharedFolderSlugs:slugs.filter(s=>devBySlug.has(s)&&prodBySlug.has(s)).length,
-              devOnlyFolders:slugs.filter(s=>devBySlug.has(s)&&!prodBySlug.has(s)),
-              prodOnlyFolders:slugs.filter(s=>!devBySlug.has(s)&&prodBySlug.has(s)),
-              folderDiffs,
-              recipeDifferences:contract.filter(x=>JSON.stringify(x.devRecipeFolders)!==JSON.stringify(x.prodRecipeFolders)),
-              visualSettingsDifferences:contract.filter(x=>JSON.stringify(x.devVisualSettingsFolders)!==JSON.stringify(x.prodVisualSettingsFolders)),
-              contract,
-              inventories:{dev:dev.folders,prod:prod.folders}
-            };
-            fs.writeFileSync('canonical-video-library-backend-audit.json',JSON.stringify(report,null,2)+'\n');
-            console.log(JSON.stringify({dev:report.dev,prod:report.prod,sharedFolderSlugs:report.sharedFolderSlugs,devOnlyFolders:report.devOnlyFolders,prodOnlyFolders:report.prodOnlyFolders,foldersWithAssetDiffs:folderDiffs.filter(f=>f.devOnlyAssets.length||f.prodOnlyAssets.length||f.devAssets!==f.prodAssets).length,songCount:songs.length,recipeDifferences:report.recipeDifferences.length,visualSettingsDifferences:report.visualSettingsDifferences.length,sampleContracts:contract.slice(0,3)},null,2));
+            const targetAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`),['assets','items','rows','data']);
+            const sourceAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(source))}/assets`),['assets','items','rows','data']);
+            const afterSet=new Set(targetAfter.map(key));
+            const missing=sourceAfter.map(key).filter(k=>k&&!afterSet.has(k));
+            if(missing.length)throw new Error(`Canonical target still missing ${missing.length} source assets.`);
+            if(sourceAfter.length!==sourceAssets.length)throw new Error('Legacy source folder changed during reconciliation.');
+            const publicAssets=await fetch(`${API}/radio/visuals/folders/${encodeURIComponent(id(target))}/assets`,{headers:{'cache-control':'no-cache'}});
+            if(!publicAssets.ok)throw new Error(`Public canonical folder assets returned ${publicAssets.status}`);
+            const publicBody=unwrap(await publicAssets.json());
+            const publicRows=rows(publicBody,['assets','items','rows','data']);
+            if(publicRows.length<sourceAssets.length)throw new Error(`Public canonical folder exposes only ${publicRows.length} assets.`);
+            const result={sourceFolder:{id:id(source),slug:slug(source),assetCount:sourceAfter.length},canonicalFolder:{id:id(target),slug:slug(target),before:targetBefore.length,after:targetAfter.length},created,publicAssetCount:publicRows.length,verifiedAt:new Date().toISOString()};
+            fs.writeFileSync('prod-visual-library-reconcile-result.json',JSON.stringify(result,null,2)+'\n');
+            console.log(JSON.stringify(result,null,2));
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
       - uses: actions/upload-artifact@v4
         with:
-          name: canonical-video-library-backend-audit
-          path: canonical-video-library-backend-audit.json
+          name: canonical-video-library-prod-reconcile
+          path: |
+            prod-visual-library-precanonical.json
+            prod-visual-library-reconcile-result.json
