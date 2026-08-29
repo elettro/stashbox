@@ -24,11 +24,19 @@ jobs:
           ref: release/admin-unification-1077-locked
           fetch-depth: 0
 
-      - name: Fetch tested cutover candidate
+      - name: Verify clean release ancestry and tested candidate
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "$BASE_SHA" || test "$(git rev-parse HEAD)" = "$BASE_SHA"
-          git fetch origin "$CANDIDATE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          prebuild_unexpected="$(git diff --name-only "$BASE_SHA"..HEAD | grep -v '^.github/workflows/build-locked-admin-unification-release.yml$' || true)"
+          if [ -n "$prebuild_unexpected" ]; then
+            echo 'Release branch contains unexpected pre-build changes:' >&2
+            echo "$prebuild_unexpected" >&2
+            exit 1
+          fi
+          if ! git cat-file -e "${CANDIDATE_SHA}^{commit}" 2>/dev/null; then
+            git fetch origin feature/admin-unification-1077-cutover-candidate
+          fi
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
 
       - name: Preserve current PROD Admin under legacy and replace root with tested unified Admin
