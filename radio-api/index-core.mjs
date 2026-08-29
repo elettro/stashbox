@@ -3584,6 +3584,10 @@ async function dispatch(event) {
 
   if (method === 'OPTIONS') return response(204, {});
 
+  if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event)) {
+    return handlePublicSongVisualSettingsRoute(event);
+  }
+
   if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs']))) {
     return getSongs({ includeArchived: false });
   }
@@ -3647,10 +3651,6 @@ async function dispatch(event) {
 
   if (routeStartsWith(segments, ['admin', 'songs']) && isVisualSettingsRoute(event)) {
     return handleAdminSongVisualSettingsRoute(event);
-  }
-
-  if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event)) {
-    return handlePublicSongVisualSettingsRoute(event);
   }
 
   if (routeStartsWith(segments, ['dashboard', 'summary']) && method === 'GET') {
