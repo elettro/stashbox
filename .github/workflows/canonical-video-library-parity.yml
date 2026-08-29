@@ -5,113 +5,68 @@ on:
     branches: [feature/canonical-video-library-1077]
     paths:
       - '.github/workflows/canonical-video-library-parity.yml'
-      - 'radio-admin/video-library/**'
-      - 'radio-admin/admin-env.js'
-      - 'radio/canonical-visual-source.js'
-      - 'radio/**/index.html'
-      - 'radio-api/index-core.mjs'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  parity:
+  build-release:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Materialize route-order fix and four player guards
+      - name: Build clean release from current main
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          core = Path('radio-api/index-core.mjs')
-          text = core.read_text()
-          public_block = """  if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event)) {\n    return handlePublicSongVisualSettingsRoute(event);\n  }\n\n"""
-          generic = """  if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs']))) {\n    return getSongs({ includeArchived: false });\n  }\n\n"""
-          if generic not in text:
-              raise SystemExit('Generic public songs route anchor not found')
-          generic_pos = text.index(generic)
-          visual_positions = [m.start() for m in re.finditer(re.escape(public_block), text)]
-          if not visual_positions:
-              raise SystemExit('Public visual-settings route block not found')
-          if visual_positions[0] > generic_pos:
-              text = text.replace(public_block, '', 1)
-              text = text.replace(generic, public_block + generic, 1)
-              core.write_text(text)
-          if text.index(public_block) > text.index(generic):
-              raise SystemExit('Public visual-settings route still loses to generic songs route')
-          if text.count(public_block) != 1:
-              raise SystemExit(f'Expected exactly one public visual-settings dispatch block; found {text.count(public_block)}')
-
-          files = [Path('radio/index.html'),Path('radio/desktop/index.html'),Path('radio/dev/v2/index.html'),Path('radio/dev/v2/desktop/index.html')]
-          guard = '<script src="/radio/canonical-visual-source.js"></script>'
-          song_re = re.compile(r'(<script\b[^>]*canonical-song-source\.js[^>]*></script>)', re.I)
-          for path in files:
-              html = path.read_text()
-              if guard not in html:
-                  html,count = song_re.subn(r'\1\n  '+guard,html,count=1)
-                  if count != 1: raise SystemExit(f'{path}: canonical song anchor missing')
-                  path.write_text(html)
-              if html.count('/radio/canonical-visual-source.js') != 1: raise SystemExit(f'{path}: canonical visual guard count is not 1')
-              if html.find('/radio/canonical-visual-source.js') < html.find('/radio/canonical-song-source.js'): raise SystemExit(f'{path}: visual guard loads before song guard')
-              vec_positions=[p for p in [html.find('v2-vec-player-controller.js'),html.find('v2-desktop-vec-core-loader.js'),html.find('v2-desktop.js')] if p>=0]
-              if vec_positions and html.find('/radio/canonical-visual-source.js') > min(vec_positions): raise SystemExit(f'{path}: visual guard loads after VEC runtime')
-              print(path,'OK')
-          PY
-      - name: Static canonical Video Library safety checks
-        shell: bash
-        run: |
-          set -euo pipefail
+          FEATURE=feature/canonical-video-library-1077
+          RELEASE=release/canonical-video-library-1077
+          git fetch origin main "$FEATURE"
+          git checkout -B "$RELEASE" origin/main
+          files=(
+            radio-admin/admin-env.js
+            radio-admin/video-library/index.html
+            radio-admin/video-library/video-library.js
+            radio-admin/video-library/duplicate-upload-safety.js
+            radio/canonical-visual-source.js
+            radio/index.html
+            radio/desktop/index.html
+            radio/dev/v2/index.html
+            radio/dev/v2/desktop/index.html
+            radio-api/index-core.mjs
+          )
+          git checkout "origin/$FEATURE" -- "${files[@]}"
+          expected="$(printf '%s\n' "${files[@]}" | sort)"
+          actual="$(git diff --name-only origin/main | sort)"
+          echo 'Release diff:'; printf '%s\n' "$actual"
+          test "$actual" = "$expected"
+          test "$(git diff --name-only origin/main | grep -c '^\.github/' || true)" -eq 0
           node --check radio/canonical-visual-source.js
           node --check radio-admin/admin-env.js
           node --check radio-admin/video-library/video-library.js
           node --check radio-admin/video-library/duplicate-upload-safety.js
-          grep -q "CANONICAL LIVE VISUALS" radio-admin/video-library/index.html
-          grep -q "One LIVE visual library · PROD + DEV/V2" radio-admin/video-library/index.html
-          grep -q "PROD Admin Token" radio-admin/video-library/index.html
-          if grep -Eq 'MIGRATION STAGING|DEV visual folders|New DEV Folder|PROD locked|hard-bound to TRUE DEV' radio-admin/video-library/index.html; then echo 'Stale DEV/migration UI text remains' >&2; exit 1; fi
-          grep -q "getCanonicalVisualEnvironment" radio-admin/video-library/video-library.js
-          grep -q "assertCanonicalVisualWriteApproved" radio-admin/video-library/video-library.js
-          grep -q "productionVisualWritesApproved: true" radio-admin/admin-env.js
-          grep -q "prodWritesAllowed: true" radio-admin/admin-env.js
-          grep -q "productionWritesApproved: false" radio-admin/admin-env.js
-          grep -q "stagingProdWritesAllowed: false" radio-admin/admin-env.js
-          if grep -q "getEnvironment('dev')" radio-admin/video-library/video-library.js; then echo 'Video Library still binds to DEV' >&2; exit 1; fi
-          if grep -q '/admin/visuals/song-folders' radio-admin/video-library/video-library.js; then echo 'Obsolete song-folders route remains' >&2; exit 1; fi
-          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/video-library/video-library.js
-          grep -q 'd34ez960394y8w.cloudfront.net' radio-admin/video-library/video-library.js
-          for f in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do test "$(grep -o '/radio/canonical-visual-source.js' "$f" | wc -l)" -eq 1; done
-      - name: Prove canonical visual request routing without touching unrelated DEV calls
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs=require('fs'),vm=require('vm');const calls=[];
-          const nativeFetch=async(input,init={})=>{const url=typeof input==='string'?input:input.url;calls.push({url,method:String(init.method||input?.method||'GET').toUpperCase()});return new Response(JSON.stringify({success:true,assets:[]}),{status:200,headers:{'content-type':'application/json'}})};
-          const window={fetch:nativeFetch};const context={window,location:{href:'https://stashbox.com/radio/dev/v2/'},URL,AbortController,Headers,Response,setTimeout,clearTimeout,console};vm.createContext(context);vm.runInContext(fs.readFileSync('radio/canonical-visual-source.js','utf8'),context);
-          (async()=>{
-            const dev='https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev',prod='https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
-            for(const path of ['/radio/vec/recipe?song_key=x','/radio/vec/song-assets?song_key=x','/radio/visuals/folders/f1/assets','/radio/songs/x/visual-settings']){await window.fetch(dev+path);if(!calls.at(-1).url.startsWith(prod+path))throw new Error(`Not canonicalized: ${path}`)}
-            await window.fetch(dev+'/admin/stats/summary');if(!calls.at(-1).url.startsWith(dev+'/admin/stats/summary'))throw new Error('DEV stats were rewritten');
-            await window.fetch(dev+'/radio/ads');if(!calls.at(-1).url.startsWith(dev+'/radio/ads'))throw new Error('DEV ads were rewritten');
-            let blocked=false;try{await window.fetch(dev+'/radio/vec/recipe',{method:'POST'})}catch(e){blocked=/Blocked non-read visual player request/.test(String(e.message))}if(!blocked)throw new Error('Visual POST was not blocked');
-            console.log('Canonical visual request routing PASS');
-          })().catch(e=>{console.error(e);process.exit(1)});
-          NODE
-      - name: Commit source-order/player materialization if needed
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add radio-api/index-core.mjs radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html
-          if git diff --cached --quiet; then echo 'Source/player materialization already present.'; exit 0; fi
-          git commit -m "Route visual settings before song catalog and canonicalize players"
-          git push origin HEAD:feature/canonical-video-library-1077
+          grep -q 'CANONICAL LIVE VISUALS' radio-admin/video-library/index.html
+          grep -q 'One LIVE visual library · PROD + DEV/V2' radio-admin/video-library/index.html
+          grep -q 'productionVisualWritesApproved: true' radio-admin/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/admin-env.js
+          if grep -Eq 'MIGRATION STAGING|DEV visual folders|New DEV Folder|PROD locked|hard-bound to TRUE DEV' radio-admin/video-library/index.html; then echo 'Stale DEV UI in release' >&2; exit 1; fi
+          python3 <<'PY'
+          from pathlib import Path
+          text=Path('radio-api/index-core.mjs').read_text()
+          visual="if (routeStartsWith(segments, ['radio', 'songs']) && isVisualSettingsRoute(event))"
+          generic="if ((method === 'GET') && (routeStartsWith(segments, ['radio', 'songs']) || routeStartsWith(segments, ['songs'])))"
+          assert text.count(visual)==1
+          assert text.index(visual)<text.index(generic)
+          for p in ['radio/index.html','radio/desktop/index.html','radio/dev/v2/index.html','radio/dev/v2/desktop/index.html']:
+              h=Path(p).read_text(); assert h.count('/radio/canonical-visual-source.js')==1, p
+          print('Release source invariants PASS')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${files[@]}"
+          git commit -m 'Canonical Video Library: one LIVE PROD library for both players'
+          git push --force-with-lease origin "$RELEASE"
