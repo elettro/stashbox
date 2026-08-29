@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin · Songs Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>STASHBOX RADIO</h1>
+      <p class="subtitle">Unified Admin build · DEV data only</p>
+    </a>
+    <nav class="topnav" aria-label="Unified admin navigation">
+      <a href="/radio-admin/">Dashboard</a>
+      <a href="/radio-admin/songs/" aria-current="page">Songs</a>
+      <a href="/radio-admin/vec/">VEC Lab</a>
+      <a href="/radio-admin/dev/video-factory/" target="_blank" rel="noopener">Video Factory</a>
+      <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
+      <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV</span><span>PROD writes locked</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This migrated Song CMS can create and edit songs in DEV only. Every write is forced through the DEV environment guard. No production song write path exists in this staging page.</section>
+
+    <section class="card editor-card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MIGRATED SONG CMS · STEP 2</p>
+          <h2 id="editorHeading">Create DEV Song</h2>
+          <p id="editorModeText" class="muted">Create a song in the canonical LIVE catalog. Choose Edit from the catalog below to update an existing song.</p>
+        </div>
+        <div class="editor-actions">
+          <button id="newSongButton" class="secondary" type="button">New Song</button>
+          <button id="generateKeyButton" class="secondary" type="button">Generate Key</button>
+          <button id="saveSongButton" type="button">Create in DEV</button>
+        </div>
+      </div>
+
+      <div id="editorMessage" class="message">DEV write guard active. PROD writes are blocked.</div>
+      <form id="songEditor" class="song-editor" autocomplete="off"></form>
+
+      <section class="media-library" aria-labelledby="mediaHeading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">MIGRATED MEDIA UPLOAD · DEV ONLY</p>
+            <h3 id="mediaHeading">Audio & Song Visual Media</h3>
+            <p class="muted">Select an existing DEV song first. Uploaded URLs are placed into the editor; click Save DEV Changes to persist the song metadata.</p>
+          </div>
+        </div>
+        <div id="mediaMessage" class="message">Choose Edit on a DEV song before uploading media.</div>
+        <div class="media-upload-grid">
+          <article class="media-upload-card">
+            <strong>Audio File</strong>
+            <p class="muted">WAV, MP3, M4A, FLAC, AIFF</p>
+            <input id="audioFileInput" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/flac,audio/aiff,audio/x-aiff,.wav,.mp3,.m4a,.flac,.aiff,.aif" />
+            <button id="uploadAudioButton" type="button">Upload Audio to DEV</button>
+            <p id="audioUploadStatus" class="artwork-status"></p>
+          </article>
+          <article class="media-upload-card">
+            <strong>Visual Images</strong>
+            <p class="muted">JPG, PNG, WEBP. Multiple files supported.</p>
+            <input id="visualImageInput" type="file" multiple accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" />
+            <button id="uploadVisualImagesButton" type="button">Upload Visual Images to DEV</button>
+            <p id="visualImageStatus" class="artwork-status"></p>
+          </article>
+          <article class="media-upload-card">
+            <strong>Visual Clips</strong>
+            <p class="muted">MP4, WEBM, MOV. Multiple files supported.</p>
+            <input id="visualClipInput" type="file" multiple accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+            <button id="uploadVisualClipsButton" type="button">Upload Visual Clips to DEV</button>
+            <p id="visualClipStatus" class="artwork-status"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="artwork-library" aria-labelledby="artworkHeading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">MIGRATED ARTWORK WORKFLOW · DEV ONLY</p>
+            <h3 id="artworkHeading">Six-Image Artwork Library</h3>
+            <p class="muted">Select an existing DEV song first. Upload authorization comes from the DEV presign endpoint, and artwork is attached only to that DEV song.</p>
+          </div>
+          <button id="refreshArtworkButton" class="secondary" type="button">Refresh Artwork</button>
+        </div>
+        <div id="artworkMessage" class="message">Choose Edit on a DEV song to load its artwork.</div>
+        <div id="artworkGrid" class="artwork-grid"></div>
+      </section>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">DEV SONG CATALOG</p>
+          <h2>Song Catalog</h2>
+          <p class="muted">Read, search, select, create, and edit against the DEV admin API only.</p>
+        </div>
+        <div class="search-row">
+          <input id="songSearch" type="search" placeholder="Search song, artist, genre, key…" />
+          <button id="refreshSongs" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="songsMessage" class="message">Loading LIVE songs…</div>
+      <p id="songCount" class="song-count"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Song</th>
+              <th>Artist</th>
+              <th>Genre</th>
+              <th>Song Key</th>
+              <th>Visibility</th>
+              <th>Audio</th>
+              <th>Video</th>
+              <th>Enhanced VEC</th>
+            </tr>
+          </thead>
+          <tbody id="songsBody"><tr><td colspan="9" class="muted">No data loaded.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">NEXT SONG CMS MIGRATION STEP</p>
+      <p class="muted">The main Song CMS create/edit, six-image artwork, audio upload, and song-specific visual image/clip upload flows are now represented in staging. Next is DEV runtime QA and then migration of the VEC/Video Factory/Ads modules.</p>
+      <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open untouched current DEV Song CMS</a>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script src="./songs.js"></script>
+  <script src="./media.js"></script>
+  <script src="./artwork.js"></script>
+  <script src="./editor-sync.js"></script>
+</body>
+</html>

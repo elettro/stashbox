@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Admin · Social Factory Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>SOCIAL FACTORY</h1>
+      <p class="subtitle">Separate DEV service · unified navigation bridge</p>
+    </a>
+    <nav class="topnav" aria-label="Unified admin navigation">
+      <a href="/radio-admin/">Dashboard</a>
+      <a href="/radio-admin/songs/">Songs</a>
+      <a href="/radio-admin/video-library/">Video Library</a>
+      <a href="/radio-admin/vec/">VEC Lab</a>
+      <a href="/radio-admin/video-factory/">Video Factory</a>
+      <a href="/radio-admin/ads/">Ads</a>
+      <a href="/radio-admin/notifications/">Notifications</a>
+      <a href="/radio-admin/artists/">Artists</a>
+      <a href="/radio-admin/social-factory/" aria-current="page">Social Factory</a>
+      <a href="/radio-admin/bugs/">Bug Base</a>
+      <a href="/radio-admin/system-health/">DEV Health</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV</span><span>Separate service</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">Social Factory is intentionally not being merged into the Radio API. It remains a separate DEV-only service with its own Lambda, database schema, admin token, secrets, and private publishing bucket. This staging page provides one unified entry point without changing that architecture.</section>
+
+    <section class="card">
+      <p class="eyebrow">CURRENT DEV SOCIAL TOOLS</p>
+      <h2>Open the existing isolated service</h2>
+      <p class="muted">These links continue to use the untouched DEV Social Factory implementation. No PROD Social Factory service has been enabled by this migration.</p>
+      <div class="migration-grid">
+        <article><strong>Social Factory</strong><span class="done">DEV only</span><p>Create and manage social publishing work.</p><a class="button-link" href="/radio-admin/dev/social-factory/" target="_blank" rel="noopener">Open Social Factory</a></article>
+        <article><strong>Campaign Review</strong><span class="done">DEV only</span><p>Review campaign candidates and publishing decisions.</p><a class="button-link" href="/radio-admin/dev/social-factory/?section=review" target="_blank" rel="noopener">Open Review</a></article>
+        <article><strong>Scheduled</strong><span class="done">DEV only</span><p>Review scheduled publishing work.</p><a class="button-link" href="/radio-admin/dev/social-factory/scheduled/" target="_blank" rel="noopener">Open Scheduled</a></article>
+        <article><strong>Calendar</strong><span class="done">DEV only</span><p>Calendar view of scheduled publishing.</p><a class="button-link" href="/radio-admin/dev/social-factory/scheduled/calendar/" target="_blank" rel="noopener">Open Calendar</a></article>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">MIGRATION POLICY</p>
+      <h2>No global DEV/PROD toggle</h2>
+      <p class="muted">Social Factory keeps its dedicated DEV credential and its allowlisted bridge to the TRUE DEV Radio API. A production Social Factory would require an explicit production service build and approval; this migration does not manufacture one by changing a hostname.</p>
+    </section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+</body>
+</html>
