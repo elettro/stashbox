@@ -7,7 +7,8 @@
       mode: 'cutover-candidate',
       phase4ProdReadApproved: true,
       productionCutoverApproved: false,
-      productionWritesApproved: false
+      productionWritesApproved: false,
+      productionVisualWritesApproved: true
     }),
 
     environments: Object.freeze({
@@ -48,13 +49,33 @@
         playerContractValidated: true,
         canonicalPlayerReadCandidateReady: true
       }),
+      visualLibrary: Object.freeze({
+        targetArchitecture: 'canonical-live',
+        canonicalEnvironment: 'prod',
+        adminFoldersPath: '/admin/visuals/folders',
+        adminSongsPath: '/admin/songs',
+        adminVisualSettingsPrefix: '/admin/songs',
+        presignPath: '/admin/uploads/presign',
+        publicRecipePath: '/radio/vec/recipe',
+        publicSongAssetsPath: '/radio/vec/song-assets',
+        publicFolderAssetsPrefix: '/radio/visuals/folders',
+        prodWritesAllowed: true,
+        prodReadValidated: true,
+        prodReadValidatedAt: '2026-08-29',
+        devFolderCountAudited: 22,
+        prodFolderCountAudited: 23,
+        devAssetCountAudited: 738,
+        prodAssetCountAuditedBeforeReconcile: 740,
+        logicalRecipeParityValidated: true,
+        canonicalPlayerReadApproved: true
+      }),
       ads: Object.freeze({
         targetArchitecture: 'environment-specific',
         path: '/admin/ads',
         settingsPath: '/admin/ad-settings'
       }),
       vec: Object.freeze({
-        targetArchitecture: 'environment-specific',
+        targetArchitecture: 'environment-specific-authoring-canonical-player-read',
         recipePath: '/admin/vec/recipe',
         songAssetsPath: '/admin/vec/song-assets'
       }),
@@ -113,8 +134,11 @@
   }
 
   function getCanonicalSongEnvironment() {
-    const name = CONFIG.dataPolicy.songs.canonicalEnvironment;
-    return getEnvironment(name);
+    return getEnvironment(CONFIG.dataPolicy.songs.canonicalEnvironment);
+  }
+
+  function getCanonicalVisualEnvironment() {
+    return getEnvironment(CONFIG.dataPolicy.visualLibrary.canonicalEnvironment);
   }
 
   function assertWriteAllowed(environmentName, moduleName) {
@@ -136,6 +160,17 @@
     return true;
   }
 
+  function assertCanonicalVisualWriteApproved(moduleName = 'canonical-visual-library') {
+    const env = getCanonicalVisualEnvironment();
+    const approved = CONFIG.build.productionVisualWritesApproved === true
+      && CONFIG.dataPolicy.visualLibrary.prodWritesAllowed === true
+      && env.label === 'PROD';
+    if (!approved) {
+      throw new Error(`Blocked canonical visual write: ${moduleName} -> ${env.label}. Production Video Library writes are not approved.`);
+    }
+    return true;
+  }
+
   function canonicalSongPublicUrl(search = '') {
     const env = getCanonicalSongEnvironment();
     const url = new URL(`${env.apiBase}${CONFIG.dataPolicy.songs.publicReadPath}`);
@@ -146,6 +181,18 @@
   function canonicalSongAdminUrl(path = '') {
     const env = getCanonicalSongEnvironment();
     return `${env.apiBase}${CONFIG.dataPolicy.songs.adminPath}${path}`;
+  }
+
+  function canonicalVisualAdminUrl(path = '') {
+    const env = getCanonicalVisualEnvironment();
+    return `${env.apiBase}${path}`;
+  }
+
+  function canonicalVisualPublicUrl(path = '', search = '') {
+    const env = getCanonicalVisualEnvironment();
+    const url = new URL(`${env.apiBase}${path}`);
+    if (search) url.search = String(search).replace(/^\?/, '');
+    return url.toString();
   }
 
   function escapeHtml(value) {
@@ -178,10 +225,14 @@
     config: CONFIG,
     getEnvironment,
     getCanonicalSongEnvironment,
+    getCanonicalVisualEnvironment,
     assertWriteAllowed,
     assertCanonicalSongWriteApproved,
+    assertCanonicalVisualWriteApproved,
     canonicalSongPublicUrl,
     canonicalSongAdminUrl,
+    canonicalVisualAdminUrl,
+    canonicalVisualPublicUrl,
     installStagingNavigation,
     stagingNavigation: STAGING_NAV_ITEMS
   });
