@@ -64,12 +64,18 @@ jobs:
             let created=0;
             for(const asset of sourceAssets){
               if(existing.has(key(asset)))continue;
+              const publicUrl=String(asset.public_url||asset.url||'').trim();
+              let s3Key=String(asset.s3_key||asset.key||'').trim();
+              if(!s3Key&&publicUrl){
+                try{s3Key=new URL(publicUrl).pathname.replace(/^\/+/, '');}catch{}
+              }
+              if(!publicUrl||!s3Key)throw new Error(`Cannot reconcile ${asset.file_name||asset.id||'asset'}: public_url/s3_key could not be resolved.`);
               const payload={
                 asset_type:asset.asset_type||asset.type||'image',
                 file_name:asset.file_name||asset.filename||asset.name||'visual-asset',
-                s3_key:asset.s3_key||asset.key||'',
-                public_url:asset.public_url||asset.url||'',
-                thumbnail_url:asset.thumbnail_url||'',
+                s3_key:s3Key,
+                public_url:publicUrl,
+                thumbnail_url:asset.thumbnail_url||publicUrl,
                 content_type:asset.content_type||asset.mime_type||'',
                 size_bytes:asset.size_bytes??null,
                 width:asset.width??null,
@@ -82,6 +88,7 @@ jobs:
               };
               await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`,{method:'POST',body:JSON.stringify(payload)});
               created++;
+              existing.add(key(asset));
             }
             const targetAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`),['assets','items','rows','data']);
             const sourceAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(source))}/assets`),['assets','items','rows','data']);
@@ -100,8 +107,10 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: canonical-video-library-prod-reconcile
           path: |
             prod-visual-library-precanonical.json
             prod-visual-library-reconcile-result.json
+          if-no-files-found: warn
