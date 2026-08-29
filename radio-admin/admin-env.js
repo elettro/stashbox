@@ -24,7 +24,7 @@
         label: 'PROD',
         apiBase: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2',
         tokenStorageKey: 'radio_admin_token_prod',
-        legacyTokenStorageKeys: Object.freeze(['stashbox_admin_token_dev']),
+        legacyTokenStorageKeys: Object.freeze([]),
         playerPath: '/radio/',
         healthPath: null,
         writesAllowedInStaging: false
@@ -76,7 +76,7 @@
     routes: Object.freeze({
       stagingRoot: '/radio-admin/',
       currentModernDev: '/radio-admin/dev/',
-      currentAncientProd: '/radio-admin/',
+      currentAncientProd: '/radio-admin/legacy/',
       futureLegacyProd: '/radio-admin/legacy/',
       songsDev: '/radio-admin/songs/dev/',
       visualLibraryDev: '/radio/visual-experience/dev/',
