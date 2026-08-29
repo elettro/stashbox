@@ -1,159 +1,197 @@
-name: One-time add Social Factory batch scheduling
+name: QA Locked Admin Unification Release
 
 on:
-  workflow_dispatch:
   push:
+    branches:
+      - release/admin-unification-1077-locked
     paths:
       - '.github/workflows/one-time-add-social-batch-scheduling.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
+  qa-locked-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_SHA: 99ac45fc8c45abdc062a8471ead627567f509484
+      CANDIDATE_SHA: 5927c467addfb717e853cd2de0c1a58e76ffd19c
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out clean locked release
+        uses: actions/checkout@v4
         with:
+          ref: release/admin-unification-1077-locked
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
+          node-version: '22'
 
-      - name: Patch batch scheduling API and Custom GPT schema
+      - name: Verify release is clean, locked, and production-front-end only
+        shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test ! -e radio-admin/staging
+          git diff --quiet "$BASE_SHA" HEAD -- radio-admin/dev
 
-          schedule_path = Path('social-factory-api/schedule-publish.mjs')
-          schedule = schedule_path.read_text()
-          marker = "    async batchSchedule(event) {"
-          if marker not in schedule:
-              needle = "\n    async cancel(event, reviewId) {"
-              batch_method = r'''
+          git ls-tree -r "$BASE_SHA" radio-admin \
+            | awk '$4 !~ /^radio-admin\/dev\// { path=$4; sub(/^radio-admin\//,"radio-admin/legacy/",path); print $1, $3, path }' \
+            | sort > /tmp/expected-legacy.txt
+          git ls-tree -r HEAD radio-admin/legacy \
+            | awk '{ print $1, $3, $4 }' \
+            | sort > /tmp/actual-legacy.txt
+          diff -u /tmp/expected-legacy.txt /tmp/actual-legacy.txt
 
-    async batchSchedule(event) {
-      const config = await secretStore.read(configSecretId);
-      assertAdmin(event, config);
-      const input = parseBody(event);
-      const entries = Array.isArray(input.items) ? input.items : [];
-      if (!entries.length || entries.length > 100) {
-        throw serviceError('batch_schedule_items_required', 422, { maximum_items: 100 });
-      }
+          diff -qr radio-admin/legacy/songs/dev radio-admin/songs/dev
+          diff -qr radio-admin/legacy/artists/dev radio-admin/artists/dev
+          diff -qr radio-admin/legacy/notifications/dev radio-admin/notifications/dev
 
-      const normalized = entries.map((entry, index) => {
-        const reviewId = safeReviewId(entry?.review_id);
-        const scheduledText = String(entry?.scheduled_at || '').trim();
-        const scheduledMs = Date.parse(scheduledText);
-        if (!Number.isFinite(scheduledMs)) {
-          throw serviceError('scheduled_at_required', 422, { index, review_id: reviewId });
-        }
-        return {
-          review_id: reviewId,
-          scheduled_at: new Date(scheduledMs).toISOString(),
-          timezone: String(entry?.timezone || input.timezone || 'America/New_York')
-        };
-      });
-
-      if (new Set(normalized.map((entry) => entry.review_id)).size !== normalized.length) {
-        throw serviceError('duplicate_review_id', 422);
-      }
-
-      const validationResults = [];
-      for (const entry of normalized) {
-        const childEvent = {
-          ...event,
-          body: JSON.stringify({
-            scheduled_at: entry.scheduled_at,
-            timezone: entry.timezone,
-            confirm_schedule: false
-          }),
-          isBase64Encoded: false
-        };
-        validationResults.push(await this.schedule(childEvent, entry.review_id));
-      }
-
-      if (input.confirm_schedule !== true) {
-        return {
-          scheduled: false,
-          mode: 'validation_only',
-          approval_required: true,
-          item_count: normalized.length,
-          items: validationResults.map((result, index) => ({
-            review_id: normalized[index].review_id,
-            scheduled_at: result.scheduled_at,
-            valid: true
-          }))
-        };
-      }
-
-      const results = [];
-      for (const entry of normalized) {
-        const childEvent = {
-          ...event,
-          body: JSON.stringify({
-            scheduled_at: entry.scheduled_at,
-            timezone: entry.timezone,
-            confirm_schedule: true
-          }),
-          isBase64Encoded: false
-        };
-        results.push(await this.schedule(childEvent, entry.review_id));
-      }
-
-      return {
-        scheduled: true,
-        mode: 'batch_scheduled',
-        item_count: results.length,
-        scheduled_item_count: results.filter((result) => result.scheduled).length,
-        items: results.map((result) => ({
-          review_id: result.review_id,
-          scheduled_at: result.scheduled_at,
-          publishing_status: result.item?.publishing_status || 'scheduled',
-          item: result.item
-        }))
-      };
-    },
-'''
-              if needle not in schedule:
-                  raise SystemExit('Could not locate cancel method insertion point')
-              schedule = schedule.replace(needle, batch_method + needle, 1)
-              schedule_path.write_text(schedule)
-
-          index_path = Path('social-factory-api/index.mjs')
-          index = index_path.read_text()
-          route_marker = "path === '/social/review-items/batch-schedule'"
-          if route_marker not in index:
-              needle = "      if (method === 'POST' && review.cancelScheduleReviewId) {"
-              route = """      if (method === 'POST' && path === '/social/review-items/batch-schedule') {\n        return json(200, {\n          ok: true,\n          ...(await getReviewScheduler().batchSchedule(event))\n        });\n      }\n\n"""
-              if needle not in index:
-                  raise SystemExit('Could not locate schedule route insertion point')
-              index = index.replace(needle, route + needle, 1)
-              index = index.replace("const SERVICE_VERSION = '0.7.0';", "const SERVICE_VERSION = '0.8.0';")
-              index_path.write_text(index)
-
-          schema_path = Path('custom-gpt/stashbox-radio/openapi.yaml')
-          schema = schema_path.read_text()
-          openapi_marker = "operationId: validateOrScheduleSocialContentBatch"
-          if openapi_marker not in schema:
-              needle = "  /social/review-items/{reviewId}/schedule:\n"
-              block = """  /social/review-items/batch-schedule:\n    post:\n      operationId: validateOrScheduleSocialContentBatch\n      summary: Validate or schedule multiple approved Content Review items using one confirmed batch.\n      description: Validate the complete schedule first. Set confirm_schedule true only after the user approves the displayed dates and times once.\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [items]\n              properties:\n                timezone:\n                  type: string\n                  default: America/New_York\n                confirm_schedule:\n                  type: boolean\n                  default: false\n                items:\n                  type: array\n                  minItems: 1\n                  maxItems: 100\n                  items:\n                    type: object\n                    required: [review_id, scheduled_at]\n                    properties:\n                      review_id:\n                        type: string\n                      scheduled_at:\n                        type: string\n                        format: date-time\n                      timezone:\n                        type: string\n                        default: America/New_York\n      responses:\n        '200':\n          description: Complete validation or saved batch schedule with updated review items.\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/GenericResponse'\n"""
-              if needle not in schema:
-                  raise SystemExit('Could not locate OpenAPI schedule insertion point')
-              schema = schema.replace(needle, block + needle, 1)
-              schema = schema.replace('version: 0.7.0', 'version: 0.8.0')
-              schema_path.write_text(schema)
-          PY
-
-      - name: Commit patched files
-        run: |
-          if git diff --quiet; then
-            echo "No changes needed"
-            exit 0
+          test -f radio-admin/index.html
+          test -f radio-admin/admin-env.js
+          for route in songs video-library vec video-factory ads notifications artists social-factory bugs system-health; do
+            test -f "radio-admin/$route/index.html"
+          done
+          grep -q "mode: 'cutover-candidate'" radio-admin/admin-env.js
+          grep -q "canonicalEnvironment: 'prod'" radio-admin/admin-env.js
+          grep -q "currentAncientProd: '/radio-admin/legacy/'" radio-admin/admin-env.js
+          grep -q 'productionCutoverApproved: false' radio-admin/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/admin-env.js
+          prod_block="$(sed -n '/prod: Object.freeze({/,/}),/p' radio-admin/admin-env.js)"
+          echo "$prod_block" | grep -q 'writesAllowedInStaging: false'
+          echo "$prod_block" | grep -q "tokenStorageKey: 'radio_admin_token_prod'"
+          echo "$prod_block" | grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])'
+          if echo "$prod_block" | grep -q 'stashbox_admin_token_dev'; then
+            echo 'PROD Admin contains legacy DEV-token fallback.' >&2
+            exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add social-factory-api/schedule-publish.mjs social-factory-api/index.mjs custom-gpt/stashbox-radio/openapi.yaml
-          git commit -m "Add confirmed batch scheduling for Social Factory"
-          git push
+
+          grep -q 'canonicalUrl: PROD_SONGS' radio/canonical-song-source.js
+          grep -q 'readOnly: true' radio/canonical-song-source.js
+          grep -q 'Blocked non-read song catalog request' radio/canonical-song-source.js
+          if grep -q 'DEV_SONGS' radio/canonical-song-source.js; then
+            echo 'Canonical player source contains DEV catalog fallback.' >&2
+            exit 1
+          fi
+          for file in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do
+            grep -q '/radio/canonical-song-source.js' "$file"
+          done
+
+          unexpected="$(git diff --name-only "$BASE_SHA" HEAD \
+            | grep -vE '^(radio-admin/|radio/canonical-song-source\.js$|radio/index\.html$|radio/desktop/index\.html$|radio/dev/v2/index\.html$|radio/dev/v2/desktop/index\.html$|\.github/workflows/build-locked-admin-unification-release\.yml$|\.github/workflows/one-time-add-social-batch-scheduling\.yml$)' || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Unexpected release paths:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
+          node --check radio/canonical-song-source.js
+          node --check radio-admin/admin-env.js
+          node --check radio-admin/songs/songs.js
+          node --check radio-admin/songs/media.js
+          node --check radio-admin/songs/artwork.js
+
+      - name: Extract proven browser tests without adding them to release tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feature/admin-unification-1077-cutover-candidate
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          mkdir -p .qa-temp
+          git show "$CANDIDATE_SHA:radio-admin/staging/tests/module-smoke.mjs" > .qa-temp/module-smoke.mjs
+          git show "$CANDIDATE_SHA:radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs" > .qa-temp/canonical-song-admin-cutover-smoke.mjs
+          git show "$CANDIDATE_SHA:radio-admin/staging/tests/canonical-song-cutover-smoke.mjs" \
+            | sed "s#http://127.0.0.1:4173/radio-admin/staging/#http://127.0.0.1:4173/radio-admin/#g" \
+            > .qa-temp/canonical-song-cutover-smoke.mjs
+          node --check .qa-temp/module-smoke.mjs
+          node --check .qa-temp/canonical-song-admin-cutover-smoke.mjs
+          node --check .qa-temp/canonical-song-cutover-smoke.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated release server
+        shell: bash
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/locked-release-http.log 2>&1 &
+          for i in {1..30}; do
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/legacy/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/songs/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/artists/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/notifications/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio/canonical-song-source.js >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/locked-release-http.log
+          exit 1
+
+      - name: Verify unified operational modules start safely
+        env:
+          STAGING_QA_ROOT: http://127.0.0.1:4173/radio-admin
+        run: node .qa-temp/module-smoke.mjs
+
+      - name: Verify unified Song CMS reads PROD while writes stay blocked before network
+        env:
+          ADMIN_QA_ROOT: http://127.0.0.1:4173/radio-admin
+        run: node .qa-temp/canonical-song-admin-cutover-smoke.mjs
+
+      - name: Verify PROD and DEV/V2 player families resolve songs to canonical PROD
+        run: node .qa-temp/canonical-song-cutover-smoke.mjs
+
+      - name: Verify unified, legacy, and all preserved DEV fallback routes in browser
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+          const page = await context.newPage();
+          const pageErrors = [];
+          page.on('pageerror', error => pageErrors.push(error.message));
+
+          await page.goto('http://127.0.0.1:4173/radio-admin/', { waitUntil: 'domcontentloaded' });
+          await page.locator('nav.topnav').waitFor();
+          const hrefs = await page.locator('nav.topnav a').evaluateAll(nodes => nodes.map(node => node.getAttribute('href')));
+          const required = [
+            '/radio-admin/', '/radio-admin/songs/', '/radio-admin/video-library/', '/radio-admin/vec/',
+            '/radio-admin/video-factory/', '/radio-admin/ads/', '/radio-admin/notifications/',
+            '/radio-admin/artists/', '/radio-admin/social-factory/', '/radio-admin/bugs/', '/radio-admin/system-health/'
+          ];
+          for (const href of required) if (!hrefs.includes(href)) throw new Error(`Unified nav missing ${href}`);
+          if (hrefs.some(href => String(href).includes('/radio-admin/staging/'))) throw new Error('Unified nav exposes staging route.');
+
+          await page.goto('http://127.0.0.1:4173/radio-admin/legacy/', { waitUntil: 'domcontentloaded' });
+          const legacyAdsHref = await page.locator('a.dev-admin-link').getAttribute('href');
+          const legacyAdsPath = new URL(legacyAdsHref, page.url()).pathname;
+          if (legacyAdsPath !== '/radio-admin/legacy/ads/') throw new Error(`Legacy Ads resolves to ${legacyAdsPath}`);
+
+          const fallbacks = [
+            '/radio-admin/dev/', '/radio-admin/songs/dev/', '/radio-admin/artists/dev/', '/radio-admin/notifications/dev/'
+          ];
+          for (const route of fallbacks) {
+            await page.goto(`http://127.0.0.1:4173${route}`, { waitUntil: 'domcontentloaded' });
+            const body = (await page.locator('body').innerText()).trim();
+            if (body.length < 100) throw new Error(`${route} rendered too little content.`);
+          }
+
+          if (pageErrors.length) throw new Error(`Browser page errors: ${pageErrors.join(' | ')}`);
+          await browser.close();
+          console.log(JSON.stringify({ pass: true, hrefs, legacyAdsPath, fallbacks }, null, 2));
+          NODE
+
+      - name: Confirm QA introduced no tracked release changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .qa-temp
+          git status --short
+          tracked="$(git status --short | grep -v '^?? node_modules/' | grep -v '^?? package-lock.json$' | grep -v '^?? package.json$' || true)"
+          test -z "$tracked"
