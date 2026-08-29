@@ -1,0 +1,107 @@
+name: Canonical Video Library Reconcile PROD
+
+on:
+  push:
+    branches: [feature/canonical-video-library-1077]
+    paths:
+      - '.github/workflows/canonical-video-library-reconcile-prod.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Snapshot, reconcile skate assets, verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
+          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
+          test -n "$PROD_TOKEN"
+          export PROD_TOKEN
+          node <<'NODE'
+          (async()=>{
+            const fs=require('fs');
+            const API=process.env.PROD_API;
+            const token=process.env.PROD_TOKEN;
+            function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
+            async function req(path, options={}){
+              const method=String(options.method||'GET').toUpperCase();
+              const r=await fetch(API+path,{...options,method,headers:{'x-admin-token':token,'accept':'application/json',...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})}});
+              const text=await r.text();let body;try{body=unwrap(JSON.parse(text))}catch{body=text}
+              if(!r.ok||body?.success===false)throw new Error(`${method} ${path} -> ${r.status} ${typeof body==='string'?body:JSON.stringify(body)}`);
+              return body;
+            }
+            const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
+            const folderBody=await req('/admin/visuals/folders');
+            const folders=rows(folderBody,['folders','items','rows','data']);
+            const slug=f=>String(f.folder_slug||f.slug||'').toLowerCase();
+            const id=f=>String(f.id||f.folder_id||'');
+            const source=folders.find(f=>slug(f)==='dean-skateboarding');
+            const target=folders.find(f=>slug(f)==='dean-skateboarding-boardwalk-beach');
+            if(!source||!target)throw new Error('Expected PROD skate source and canonical target folders were not found.');
+            const sourceAssets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(source))}/assets`),['assets','items','rows','data']);
+            const targetBefore=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`),['assets','items','rows','data']);
+            const full=[];
+            for(const f of folders){const fid=id(f);const assets=rows(await req(`/admin/visuals/folders/${encodeURIComponent(fid)}/assets`),['assets','items','rows','data']);full.push({folder:f,assets});}
+            fs.writeFileSync('prod-visual-library-precanonical.json',JSON.stringify({capturedAt:new Date().toISOString(),folders:full},null,2)+'\n');
+            const key=a=>String(a.public_url||a.url||a.s3_key||a.id||'');
+            const existing=new Set(targetBefore.map(key));
+            let created=0;
+            for(const asset of sourceAssets){
+              if(existing.has(key(asset)))continue;
+              const payload={
+                asset_type:asset.asset_type||asset.type||'image',
+                file_name:asset.file_name||asset.filename||asset.name||'visual-asset',
+                s3_key:asset.s3_key||asset.key||'',
+                public_url:asset.public_url||asset.url||'',
+                thumbnail_url:asset.thumbnail_url||'',
+                content_type:asset.content_type||asset.mime_type||'',
+                size_bytes:asset.size_bytes??null,
+                width:asset.width??null,
+                height:asset.height??null,
+                ratio_label:asset.ratio_label||'',
+                caption:asset.caption||'',
+                alt_text:asset.alt_text||'',
+                notes:asset.notes||'',
+                shopify_product_urls:Array.isArray(asset.shopify_product_urls)?asset.shopify_product_urls:[]
+              };
+              await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`,{method:'POST',body:JSON.stringify(payload)});
+              created++;
+            }
+            const targetAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(target))}/assets`),['assets','items','rows','data']);
+            const sourceAfter=rows(await req(`/admin/visuals/folders/${encodeURIComponent(id(source))}/assets`),['assets','items','rows','data']);
+            const afterSet=new Set(targetAfter.map(key));
+            const missing=sourceAfter.map(key).filter(k=>k&&!afterSet.has(k));
+            if(missing.length)throw new Error(`Canonical target still missing ${missing.length} source assets.`);
+            if(sourceAfter.length!==sourceAssets.length)throw new Error('Legacy source folder changed during reconciliation.');
+            const publicAssets=await fetch(`${API}/radio/visuals/folders/${encodeURIComponent(id(target))}/assets`,{headers:{'cache-control':'no-cache'}});
+            if(!publicAssets.ok)throw new Error(`Public canonical folder assets returned ${publicAssets.status}`);
+            const publicBody=unwrap(await publicAssets.json());
+            const publicRows=rows(publicBody,['assets','items','rows','data']);
+            if(publicRows.length<sourceAssets.length)throw new Error(`Public canonical folder exposes only ${publicRows.length} assets.`);
+            const result={sourceFolder:{id:id(source),slug:slug(source),assetCount:sourceAfter.length},canonicalFolder:{id:id(target),slug:slug(target),before:targetBefore.length,after:targetAfter.length},created,publicAssetCount:publicRows.length,verifiedAt:new Date().toISOString()};
+            fs.writeFileSync('prod-visual-library-reconcile-result.json',JSON.stringify(result,null,2)+'\n');
+            console.log(JSON.stringify(result,null,2));
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-video-library-prod-reconcile
+          path: |
+            prod-visual-library-precanonical.json
+            prod-visual-library-reconcile-result.json
