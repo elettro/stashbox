@@ -1,0 +1,162 @@
+name: Build Locked Admin Unification Release
+
+on:
+  push:
+    branches:
+      - release/admin-unification-1077-locked
+    paths:
+      - '.github/workflows/build-locked-admin-unification-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-locked-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      BASE_SHA: 99ac45fc8c45abdc062a8471ead627567f509484
+      CANDIDATE_SHA: 5927c467addfb717e853cd2de0c1a58e76ffd19c
+    steps:
+      - name: Check out clean release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/admin-unification-1077-locked
+          fetch-depth: 0
+
+      - name: Fetch tested cutover candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$BASE_SHA" || test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          git fetch origin "$CANDIDATE_SHA"
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+
+      - name: Preserve current PROD Admin under legacy and replace root with tested unified Admin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Remove the temporary release-builder workflow from the final tree.
+          rm -f .github/workflows/build-locked-admin-unification-release.yml
+
+          rm -rf radio-admin/legacy
+          mkdir -p radio-admin/legacy
+
+          # Preserve every current production Admin root item except the protected DEV tree.
+          shopt -s dotglob nullglob
+          for entry in radio-admin/*; do
+            base="$(basename "$entry")"
+            case "$base" in
+              dev|legacy) continue ;;
+            esac
+            cp -a "$entry" radio-admin/legacy/
+          done
+
+          # Remove the old root surface while leaving /radio-admin/dev/ exactly intact.
+          for entry in radio-admin/*; do
+            base="$(basename "$entry")"
+            case "$base" in
+              dev|legacy) continue ;;
+            esac
+            rm -rf "$entry"
+          done
+
+          # Pull only production-intended player cutover files from the fully tested candidate.
+          git checkout "$CANDIDATE_SHA" -- \
+            radio/canonical-song-source.js \
+            radio/index.html \
+            radio/desktop/index.html \
+            radio/dev/v2/index.html \
+            radio/dev/v2/desktop/index.html
+
+          # Pull only the functional unified Admin surface. No staging/tests/cutover helpers.
+          git checkout "$CANDIDATE_SHA" -- \
+            radio-admin/admin-env.js \
+            radio-admin/index.html \
+            radio-admin/staging.js \
+            radio-admin/styles.css \
+            radio-admin/ads \
+            radio-admin/artists \
+            radio-admin/bugs \
+            radio-admin/notifications \
+            radio-admin/social-factory \
+            radio-admin/songs \
+            radio-admin/system-health \
+            radio-admin/vec \
+            radio-admin/video-factory \
+            radio-admin/video-library
+
+          # Release branch intentionally contains no migration staging tree.
+          rm -rf radio-admin/staging
+
+      - name: Verify locked release invariants before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The protected modern DEV Admin must be byte-for-byte unchanged from production main.
+          git diff --quiet "$BASE_SHA" -- radio-admin/dev
+          test ! -e radio-admin/staging
+
+          # Ancient PROD Admin must be preserved at /legacy/ exactly as it existed at BASE_SHA.
+          git ls-tree -r "$BASE_SHA" radio-admin \
+            | awk '$4 !~ /^radio-admin\/dev\//' \
+            | sed 's#radio-admin/#radio-admin/legacy/#' \
+            | sort > /tmp/expected-legacy.txt
+
+          git add -A radio-admin/legacy
+          git write-tree >/dev/null
+          git ls-files -s radio-admin/legacy | sort > /tmp/actual-legacy.txt
+          diff -u /tmp/expected-legacy.txt /tmp/actual-legacy.txt
+
+          # Nested DEV fallbacks remain available at their original URLs.
+          diff -qr radio-admin/legacy/songs/dev radio-admin/songs/dev
+          diff -qr radio-admin/legacy/artists/dev radio-admin/artists/dev
+          diff -qr radio-admin/legacy/notifications/dev radio-admin/notifications/dev
+
+          # Canonical players are PROD-only/read-only; Admin reads PROD but stays write-locked.
+          grep -q 'canonicalUrl: PROD_SONGS' radio/canonical-song-source.js
+          grep -q 'readOnly: true' radio/canonical-song-source.js
+          if grep -q 'DEV_SONGS' radio/canonical-song-source.js; then
+            echo 'Release canonical player source contains DEV fallback.' >&2
+            exit 1
+          fi
+          for file in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do
+            grep -q '/radio/canonical-song-source.js' "$file"
+          done
+
+          grep -q "mode: 'cutover-candidate'" radio-admin/admin-env.js
+          grep -q "canonicalEnvironment: 'prod'" radio-admin/admin-env.js
+          grep -q 'productionCutoverApproved: false' radio-admin/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/admin-env.js
+          prod_block="$(sed -n '/prod: Object.freeze({/,/}),/p' radio-admin/admin-env.js)"
+          echo "$prod_block" | grep -q 'writesAllowedInStaging: false'
+          echo "$prod_block" | grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])'
+          if echo "$prod_block" | grep -q 'stashbox_admin_token_dev'; then
+            echo 'Release canonical PROD Admin contains legacy DEV token fallback.' >&2
+            exit 1
+          fi
+
+          # The final release diff must contain only Radio player/Admin frontend paths.
+          git add -A
+          unexpected="$(git diff --cached --name-only "$BASE_SHA" | grep -vE '^(radio-admin/|radio/canonical-song-source\.js$|radio/index\.html$|radio/desktop/index\.html$|radio/dev/v2/index\.html$|radio/dev/v2/desktop/index\.html$)' || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Unexpected release paths:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          if git diff --cached --name-only "$BASE_SHA" | grep -q '^\.github/'; then
+            echo 'Release builder workflow leaked into final release diff.' >&2
+            exit 1
+          fi
+
+      - name: Commit clean locked release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'elettro'
+          git config user.email 'dpalermo@elettro.com'
+          git add -A
+          git commit -m 'Release candidate: unified Admin and canonical song readers (locked)'
+          git push origin HEAD:release/admin-unification-1077-locked
