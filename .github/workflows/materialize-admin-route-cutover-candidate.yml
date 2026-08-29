@@ -1,0 +1,198 @@
+name: Materialize Unified Admin Route Candidate
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077-cutover-candidate
+    paths:
+      - '.github/workflows/materialize-admin-route-cutover-candidate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-admin-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out disposable cutover candidate
+        uses: actions/checkout@v4
+        with:
+          ref: feature/admin-unification-1077-cutover-candidate
+          fetch-depth: 0
+
+      - name: Verify route-cutover preconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f radio-admin/index.html
+          test -d radio-admin/dev
+          test -d radio-admin/staging
+          test -f radio-admin/staging/admin-env.js
+          test -f radio-admin/staging/songs/index.html
+          test ! -e radio-admin/legacy
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q "canonicalEnvironment: 'prod'" radio-admin/staging/admin-env.js
+
+      - name: Preserve ancient PROD Admin and promote unified functional surface
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/precutover-old-admin radio-admin/legacy
+
+          # Snapshot every current root-level PROD Admin file/dir except protected DEV and staging trees.
+          shopt -s dotglob nullglob
+          for entry in radio-admin/*; do
+            base="$(basename "$entry")"
+            case "$base" in
+              dev|staging|legacy) continue ;;
+            esac
+            cp -a "$entry" /tmp/precutover-old-admin/
+            cp -a "$entry" radio-admin/legacy/
+          done
+
+          # Remove only the old root PROD Admin surface. Protected DEV/staging trees remain in place.
+          for entry in radio-admin/*; do
+            base="$(basename "$entry")"
+            case "$base" in
+              dev|staging|legacy) continue ;;
+            esac
+            rm -rf "$entry"
+          done
+
+          # Promote only functional unified Admin assets. Migration docs/tests/cutover helpers stay under /staging/ only.
+          promote=(
+            admin-env.js
+            index.html
+            staging.js
+            styles.css
+            ads
+            artists
+            bugs
+            notifications
+            social-factory
+            songs
+            system-health
+            vec
+            video-factory
+            video-library
+          )
+          for item in "${promote[@]}"; do
+            test -e "radio-admin/staging/$item"
+            cp -a "radio-admin/staging/$item" "radio-admin/$item"
+          done
+
+          # Rewrite only the promoted copy from /staging/ paths to the unified root path.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('radio-admin')
+          protected = {root / 'dev', root / 'staging', root / 'legacy'}
+          text_suffixes = {'.html', '.js', '.css', '.json', '.md', '.txt'}
+
+          def is_protected(path: Path) -> bool:
+              return any(path == p or p in path.parents for p in protected)
+
+          for path in root.rglob('*'):
+              if not path.is_file() or is_protected(path):
+                  continue
+              if path.suffix.lower() not in text_suffixes:
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              updated = text.replace('/radio-admin/staging/', '/radio-admin/')
+              updated = updated.replace("mode: 'migration-staging'", "mode: 'cutover-candidate'")
+              updated = updated.replace('Staging admin navigation', 'Unified admin navigation')
+              updated = updated.replace('Blocked staging write:', 'Blocked Admin write:')
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+
+          index = root / 'index.html'
+          text = index.read_text(encoding='utf-8')
+          replacements = {
+              '<title>Stashbox Radio Admin · Migration Staging</title>': '<title>Stashbox Radio Admin</title>',
+              'ISSUE #1077 · MIGRATION STAGING': 'UNIFIED ADMIN',
+              'Unified Admin build · DEV data only': 'Unified Admin · canonical LIVE songs + DEV operational tools',
+              'aria-label="Staging admin navigation"': 'aria-label="Unified admin navigation"',
+              '<div class="env-lock"><span class="env-badge">DEV</span><span>PROD locked</span></div>': '<div class="env-lock"><span class="env-badge">UNIFIED</span><span>Song writes locked until cutover</span></div>',
+              'This staging Admin is connected only to DEV services. Production writes, route replacement, and production cutover remain blocked.': 'Cutover candidate: Songs read the canonical LIVE/PROD catalog. Song writes remain locked until final cutover; operational tools retain their tested DEV boundaries.',
+              '<p class="eyebrow">MIGRATION STATUS</p>': '<p class="eyebrow">ADMIN STATUS</p>',
+              'using the same centralized staging navigation': 'using the same centralized unified navigation',
+              'wired into the unified staging Admin': 'wired into the unified Admin',
+              'Canonical LIVE/PROD song writes remain blocked in staging.': 'Canonical LIVE/PROD song reads are validated; writes remain locked until final cutover.',
+              '<article><strong>PROD</strong><span class="blocked">Locked</span><p>No production reads, writes, route replacement, legacy-admin move, or cutover has been approved in this phase.</p></article>': '<article><strong>Canonical Songs</strong><span class="done">PROD Verified</span><p>84/84 song keys match. A controlled hidden PROD metadata write was observed by the public catalog and exactly reverted. Final live route cutover remains pending.</p></article>'
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          index.write_text(text, encoding='utf-8')
+          PY
+
+          # Ancient Admin must be byte-for-byte preserved at /legacy/.
+          diff -qr /tmp/precutover-old-admin radio-admin/legacy
+
+          # Protected fallback/reference trees must remain untouched.
+          git diff --quiet -- radio-admin/dev radio-admin/staging
+
+      - name: Verify materialized route shape and safety locks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f radio-admin/index.html
+          test -f radio-admin/admin-env.js
+          test -f radio-admin/songs/index.html
+          test -f radio-admin/video-library/index.html
+          test -f radio-admin/vec/index.html
+          test -f radio-admin/video-factory/index.html
+          test -f radio-admin/ads/index.html
+          test -f radio-admin/notifications/index.html
+          test -f radio-admin/artists/index.html
+          test -f radio-admin/social-factory/index.html
+          test -f radio-admin/bugs/index.html
+          test -f radio-admin/system-health/index.html
+
+          test -f radio-admin/legacy/index.html
+          test -f radio-admin/legacy/app-live.js
+          test -d radio-admin/dev
+          test -d radio-admin/staging
+
+          # Do not expose migration-only helpers at the unified root.
+          test ! -e radio-admin/tests
+          test ! -e radio-admin/cutover
+          test ! -e radio-admin/CUTOVER-CHECKPOINT.md
+
+          grep -q "mode: 'cutover-candidate'" radio-admin/admin-env.js
+          grep -q "stagingRoot: '/radio-admin/'" radio-admin/admin-env.js
+          grep -q "productionCutoverApproved: false" radio-admin/admin-env.js
+          grep -q "productionWritesApproved: false" radio-admin/admin-env.js
+          grep -q "stagingProdWritesAllowed: false" radio-admin/admin-env.js
+          grep -q "writesAllowedInStaging: false" radio-admin/admin-env.js
+          grep -q "canonicalEnvironment: 'prod'" radio-admin/admin-env.js
+
+          if grep -R -n --exclude-dir=dev --exclude-dir=staging --exclude-dir=legacy '/radio-admin/staging/' radio-admin; then
+            echo 'Promoted unified Admin still contains /radio-admin/staging/ links.' >&2
+            exit 1
+          fi
+
+          # Legacy/dev/staging trees are present and the unified nav points at root modules.
+          grep -q "\['Songs', '/radio-admin/songs/'\]" radio-admin/admin-env.js
+          grep -q "\['Video Library', '/radio-admin/video-library/'\]" radio-admin/admin-env.js
+          grep -q '/radio-admin/legacy/' radio-admin/admin-env.js
+          grep -q '/radio-admin/dev/' radio-admin/admin-env.js
+
+      - name: Commit materialized route candidate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'elettro'
+          git config user.email 'dpalermo@elettro.com'
+          git add radio-admin
+          if git diff --cached --quiet; then
+            echo 'No route materialization changes to commit.'
+            exit 1
+          fi
+          git commit -m 'Candidate: promote unified Admin and preserve legacy route'
+          git push origin HEAD:feature/admin-unification-1077-cutover-candidate
