@@ -1,0 +1,41 @@
+name: Canonical Video Library Integration Audit
+
+on:
+  push:
+    branches: [feature/canonical-video-library-1077]
+    paths:
+      - '.github/workflows/canonical-video-library-integration-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      PROD_FUNCTION: stashbox-radio-api-prod-v2
+      API_ID: je3zud66nb
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Inspect safe Lambda and API Gateway wiring
+        shell: bash
+        run: |
+          set +e
+          echo '=== lambda config ==='
+          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --query '{FunctionName:FunctionName,Handler:Handler,Runtime:Runtime,Version:Version,RevisionId:RevisionId,VpcConfig:VpcConfig}' --output json
+          echo '=== aliases ==='
+          aws lambda list-aliases --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --query 'Aliases[].{Name:Name,FunctionVersion:FunctionVersion,RevisionId:RevisionId}' --output json
+          echo "aliases_exit=$?"
+          echo '=== api integrations ==='
+          aws apigatewayv2 get-integrations --api-id "$API_ID" --region "$AWS_REGION" --query 'Items[].{IntegrationId:IntegrationId,IntegrationUri:IntegrationUri,PayloadFormatVersion:PayloadFormatVersion}' --output json
+          echo "integrations_exit=$?"
+          echo '=== stages ==='
+          aws apigatewayv2 get-stages --api-id "$API_ID" --region "$AWS_REGION" --query 'Items[].{StageName:StageName,AutoDeploy:AutoDeploy,DeploymentId:DeploymentId}' --output json
+          echo "stages_exit=$?"
+          exit 0
