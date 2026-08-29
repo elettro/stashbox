@@ -2,7 +2,8 @@ import { chromium } from 'playwright';
 
 const PROD_BASE = 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
 const DEV_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-const pageUrl = 'http://127.0.0.1:4173/radio-admin/staging/songs/';
+const adminRoot = String(process.env.ADMIN_QA_ROOT || 'http://127.0.0.1:4173/radio-admin/staging').replace(/\/$/, '');
+const pageUrl = `${adminRoot}/songs/`;
 
 let prodGets = 0;
 let prodWrites = 0;
@@ -81,7 +82,7 @@ try {
   if (prodWrites !== 0 || storagePuts !== 0) throw new Error('Locked artwork upload reached PROD API or storage.');
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
-  console.log(JSON.stringify({ pass: true, prodGets, prodWrites, devRequests, storagePuts }, null, 2));
+  console.log(JSON.stringify({ pass: true, adminRoot, prodGets, prodWrites, devRequests, storagePuts }, null, 2));
 } finally {
   await browser.close();
 }
