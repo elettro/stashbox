@@ -1,8 +1,8 @@
 {
-  "v2_qualified_plays_live": "FAIL",
-  "source_commit": "8291b97d7cdd403f487cc37ee37f13dde6b75bc7",
-  "workflow_run_id": "33224264270",
-  "tested_at_utc": "2026-08-29T00:42:43.948Z",
+  "v2_qualified_plays_live": "PASS",
+  "source_commit": "86db9220b5068428a606dd839d098c1f82bf86e8",
+  "workflow_run_id": "33254335953",
+  "tested_at_utc": "2026-08-29T13:11:49.982Z",
   "chosen": {
     "songKey": "freedom-street-002b-stashbox",
     "songTitle": "Freedom Street (live)"
@@ -10,17 +10,17 @@
   "results": [
     {
       "name": "mobile",
-      "ok": false,
+      "ok": true,
       "build": "mobile-playstats1-20260822-titlemode2-adscms9-cadenceguard1-fitguard1-offlineaudio3-offlinededupe1-profileoverlay1-profilefavorites2-profilequeue4",
-      "songKey": "",
+      "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 117,
-      "afterTotal": null,
-      "qualifyingRequestCount": 0,
-      "qualifyingResponseCount": 0,
-      "persistAttempts": 0,
-      "persistSuccesses": 0,
-      "error": "page.waitForFunction: Timeout 12000ms exceeded.\n    at waitForAudioMotion (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:41:14)\n    at startSong (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:57:74)\n    at async runMode (/home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:92:34)\n    at async file:///home/runner/work/stashbox/stashbox/radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs:150:40"
+      "beforeTotal": 121,
+      "afterTotal": 122,
+      "qualifyingRequestCount": 1,
+      "qualifyingResponseCount": 1,
+      "persistAttempts": 1,
+      "persistSuccesses": 1,
+      "error": ""
     },
     {
       "name": "desktop",
@@ -28,8 +28,8 @@
       "build": "desktop-clean-20260822-adscms10-cadenceguard3-fitguard4-fitfull5-profileoverlay1-profilequeue1-profilebridge2-playstats7-ranktooltip1-centeredtransport1-sharecopy4-hotkeyc2-sharefix1-likestate2-vecstall2-frameheartbeat1-veccontinuity5-playtimeout1-shuffleall2-hotkeys4-notificationsrepair4-profilefavorites2-controls2-profilequeue4",
       "songKey": "freedom-street-002b-stashbox",
       "songTitle": "Freedom Street (live)",
-      "beforeTotal": 117,
-      "afterTotal": 118,
+      "beforeTotal": 122,
+      "afterTotal": 123,
       "qualifyingRequestCount": 1,
       "qualifyingResponseCount": 1,
       "persistAttempts": 1,
