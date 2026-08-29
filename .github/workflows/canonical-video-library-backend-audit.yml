@@ -36,17 +36,15 @@ jobs:
           aws lambda get-function --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod-before.json
           jq -e '.Configuration.Handler == "index.handler" and .Configuration.Runtime == "nodejs22.x"' /tmp/prod-before.json >/dev/null
           CODE_URL="$(jq -r '.Code.Location' /tmp/prod-before.json)"
-          test -n "$CODE_URL"
           curl -fsSL "$CODE_URL" -o /tmp/prod-original.zip
           unzip -tq /tmp/prod-original.zip >/dev/null
           jq '{FunctionName:.Configuration.FunctionName,Handler:.Configuration.Handler,Runtime:.Configuration.Runtime,CodeSha256:.Configuration.CodeSha256,RevisionId:.Configuration.RevisionId}' /tmp/prod-before.json > prod-lambda-before-safe.json
 
-      - name: Build temporary bridge package without changing original index.mjs
+      - name: Build authenticated temporary HTTP migration bridge
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/prod-bridge
-          mkdir -p /tmp/prod-bridge
+          rm -rf /tmp/prod-bridge && mkdir -p /tmp/prod-bridge
           unzip -q /tmp/prod-original.zip -d /tmp/prod-bridge
           test -f /tmp/prod-bridge/index.mjs
           test -f /tmp/prod-bridge/node_modules/pg/package.json
@@ -54,19 +52,67 @@ jobs:
           echo "$MIGRATION_NONCE" > /tmp/migration-nonce
           export MIGRATION_NONCE
           node <<'NODE'
-          const fs = require('fs');
-          const ddl = fs.readFileSync('radio-api/db/migrations/001_ve10b_song_visual_source_controller.sql','utf8')
+          const fs=require('fs');
+          const ddl=fs.readFileSync('radio-api/db/migrations/001_ve10b_song_visual_source_controller.sql','utf8')
             .replaceAll('radio_dev.','radio.')
             .replaceAll('TRUE DEV only','canonical LIVE')
             .replaceAll('TRUE DEV','canonical LIVE');
-          const nonce = process.env.MIGRATION_NONCE;
-          const source = `import * as original from './index.mjs';\nimport pg from 'pg';\nconst { Client } = pg;\nconst NONCE=${JSON.stringify(nonce)};\nconst DDL=${JSON.stringify(ddl)};\nconst TABLES=['song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings'];\nfunction dbClient(){return new Client({host:process.env.PGHOST,port:Number(process.env.PGPORT||5432),database:process.env.PGDATABASE,user:process.env.PGUSER,password:process.env.PGPASSWORD,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:10000});}\nasync function migration(event){if(String(process.env.PGSCHEMA||'radio')!=='radio')throw new Error('Refusing VE-10B outside PROD radio schema.');const db=dbClient();await db.connect();try{const action=String(event.action||'status');const songKey=String(event.songKey||'').trim();if(action==='migrate'){const before=await db.query(\"SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[]) ORDER BY table_name\",[TABLES]);if(before.rowCount!==0&&before.rowCount!==3)throw new Error('Partial VE-10B state.');let created=false;if(before.rowCount===0){await db.query('BEGIN');try{await db.query(DDL);await db.query('COMMIT');created=true;}catch(e){await db.query('ROLLBACK');throw e;}}const after=await db.query(\"SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[]) ORDER BY table_name\",[TABLES]);if(after.rowCount!==3)throw new Error('VE-10B verification failed.');let hadSettings=null;if(songKey){const r=await db.query('SELECT count(*)::int count FROM radio.song_visual_settings WHERE song_key=$1',[songKey]);hadSettings=Number(r.rows[0]?.count||0);}return {ok:true,action,created,tableCount:after.rowCount,hadSettings};}if(action==='cleanup-proof-song'){if(!songKey)throw new Error('songKey required');await db.query('BEGIN');try{await db.query('DELETE FROM radio.song_visual_asset_mappings WHERE song_key=$1',[songKey]);await db.query('DELETE FROM radio.song_visual_folder_mappings WHERE song_key=$1',[songKey]);await db.query('DELETE FROM radio.song_visual_settings WHERE song_key=$1',[songKey]);await db.query('COMMIT');}catch(e){await db.query('ROLLBACK');throw e;}return {ok:true,action};}const t=await db.query(\"SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[])\",[TABLES]);return {ok:true,action:'status',tableCount:t.rowCount};}finally{await db.end();}}\nexport async function handler(event,context){if(event?.__stashboxDirectMigration==='VE-10B'&&event?.nonce===NONCE)return migration(event);return original.handler(event,context);}\n`;
-          fs.writeFileSync('/tmp/prod-bridge/ve10b-bridge.mjs', source);
+          const nonce=process.env.MIGRATION_NONCE;
+          const source=`import * as original from './index.mjs';
+          import pg from 'pg';
+          const { Client }=pg;
+          const NONCE=${JSON.stringify(nonce)};
+          const DDL=${JSON.stringify(ddl)};
+          const TABLES=['song_visual_settings','song_visual_folder_mappings','song_visual_asset_mappings'];
+          const response=(statusCode,body)=>({statusCode,headers:{'content-type':'application/json','cache-control':'no-store'},body:JSON.stringify(body)});
+          const header=(event,name)=>{const h=event?.headers||{};const n=name.toLowerCase();for(const [k,v] of Object.entries(h))if(String(k).toLowerCase()===n)return String(v||'');return '';};
+          const query=(event,key)=>String(event?.queryStringParameters?.[key]||'');
+          function dbClient(){return new Client({host:process.env.PGHOST,port:Number(process.env.PGPORT||5432),database:process.env.PGDATABASE,user:process.env.PGUSER,password:process.env.PGPASSWORD,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:10000});}
+          async function migration(action,songKey){
+            if(String(process.env.PGSCHEMA||'radio')!=='radio')throw new Error('Refusing VE-10B outside PROD radio schema.');
+            const db=dbClient();await db.connect();
+            try{
+              if(action==='migrate'){
+                const before=await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[]) ORDER BY table_name",[TABLES]);
+                if(before.rowCount!==0&&before.rowCount!==3)throw new Error('Partial VE-10B state.');
+                let created=false;
+                if(before.rowCount===0){await db.query('BEGIN');try{await db.query(DDL);await db.query('COMMIT');created=true;}catch(e){await db.query('ROLLBACK');throw e;}}
+                const after=await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[]) ORDER BY table_name",[TABLES]);
+                if(after.rowCount!==3)throw new Error('VE-10B verification failed.');
+                let hadSettings=0;if(songKey){const r=await db.query('SELECT count(*)::int count FROM radio.song_visual_settings WHERE song_key=$1',[songKey]);hadSettings=Number(r.rows[0]?.count||0);}
+                return {ok:true,action,created,tableCount:after.rowCount,hadSettings};
+              }
+              if(action==='cleanup-proof-song'){
+                if(!songKey)throw new Error('songKey required');
+                await db.query('BEGIN');try{
+                  await db.query('DELETE FROM radio.song_visual_asset_mappings WHERE song_key=$1',[songKey]);
+                  await db.query('DELETE FROM radio.song_visual_folder_mappings WHERE song_key=$1',[songKey]);
+                  await db.query('DELETE FROM radio.song_visual_settings WHERE song_key=$1',[songKey]);
+                  await db.query('COMMIT');
+                }catch(e){await db.query('ROLLBACK');throw e;}
+                return {ok:true,action};
+              }
+              const t=await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='radio' AND table_name=ANY($1::text[])",[TABLES]);
+              return {ok:true,action:'status',tableCount:t.rowCount};
+            }finally{await db.end();}
+          }
+          export async function handler(event,context){
+            const action=query(event,'__ve10b_action');
+            const suppliedNonce=query(event,'__ve10b_nonce');
+            if(action&&suppliedNonce===NONCE){
+              const expected=String(process.env.ADMIN_TOKEN||process.env.RADIO_ADMIN_TOKEN||'');
+              if(!expected||header(event,'x-admin-token')!==expected)return response(401,{ok:false,error:'Unauthorized'});
+              try{return response(200,await migration(action,query(event,'song_key')));}catch(error){return response(500,{ok:false,error:error?.message||String(error)});}
+            }
+            return original.handler(event,context);
+          }
+          `;
+          fs.writeFileSync('/tmp/prod-bridge/ve10b-bridge.mjs',source);
           NODE
           node --check /tmp/prod-bridge/ve10b-bridge.mjs
           (cd /tmp/prod-bridge && zip -qr /tmp/prod-bridge.zip .)
 
-      - name: Temporarily install bridge, migrate, prove, and restore
+      - name: Migrate VE-10B via PROD HTTPS, prove writes, restore exact Lambda
         shell: bash
         run: |
           set -euo pipefail
@@ -75,20 +121,11 @@ jobs:
           MIGRATION_NONCE="$(cat /tmp/migration-nonce)"
           test -n "$PROD_TOKEN"; test -n "$MIGRATION_NONCE"
           export PROD_TOKEN MIGRATION_NONCE
-          code_changed=0
-          handler_changed=0
-          restore() {
+          code_changed=0; handler_changed=0
+          restore(){
             set +e
-            if [ "$handler_changed" = "1" ]; then
-              aws lambda update-function-configuration --function-name "$PROD_FUNCTION" --handler index.handler --region "$AWS_REGION" >/dev/null
-              aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1
-              handler_changed=0
-            fi
-            if [ "$code_changed" = "1" ]; then
-              aws lambda update-function-code --function-name "$PROD_FUNCTION" --zip-file fileb:///tmp/prod-original.zip --region "$AWS_REGION" >/dev/null
-              aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1
-              code_changed=0
-            fi
+            if [ "$handler_changed" = 1 ]; then aws lambda update-function-configuration --function-name "$PROD_FUNCTION" --handler index.handler --region "$AWS_REGION" >/dev/null; aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1; handler_changed=0; fi
+            if [ "$code_changed" = 1 ]; then aws lambda update-function-code --function-name "$PROD_FUNCTION" --zip-file fileb:///tmp/prod-original.zip --region "$AWS_REGION" >/dev/null; aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION" >/dev/null 2>&1; code_changed=0; fi
             set -e
           }
           trap restore EXIT
@@ -100,37 +137,62 @@ jobs:
           handler_changed=1
           aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION"
 
-          PAYLOAD="$(jq -nc --arg nonce "$MIGRATION_NONCE" --arg song "$TEST_SONG" '{__stashboxDirectMigration:"VE-10B",nonce:$nonce,action:"migrate",songKey:$song}')"
-          aws lambda invoke --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --cli-binary-format raw-in-base64-out --payload "$PAYLOAD" /tmp/migrate.json > /tmp/migrate-meta.json
-          test -z "$(jq -r '.FunctionError // empty' /tmp/migrate-meta.json)"
+          MIGRATE_URL="$PROD_API/admin/visuals/folders?__ve10b_action=migrate&__ve10b_nonce=$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["MIGRATION_NONCE"]))')&song_key=$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["TEST_SONG"]))')"
+          HTTP="$(curl -sS -o /tmp/migrate.json -w '%{http_code}' -H "x-admin-token: $PROD_TOKEN" -H 'accept: application/json' "$MIGRATE_URL")"
+          test "$HTTP" = 200
           jq -e '.ok == true and .tableCount == 3' /tmp/migrate.json >/dev/null
           HAD_SETTINGS="$(jq -r '.hadSettings // 0' /tmp/migrate.json)"
           jq '{ok,created,tableCount,hadSettings}' /tmp/migrate.json > ve10b-prod-migration-result.json
-          echo 'VE-10B PROD tables are present.'
+          echo "VE-10B PROD tables verified; hadSettings=$HAD_SETTINGS"
 
           proof_status=0
           node <<'NODE' || proof_status=$?
           const fs=require('fs');const {execFileSync}=require('child_process');
           const API=process.env.PROD_API,token=process.env.PROD_TOKEN,bucket=process.env.PROD_BUCKET,cdn=process.env.PROD_CDN,songKey=process.env.TEST_SONG;
-          const marker=`__canonical_visual_prod_proof_${Date.now()}__`;const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6ZqgAAAAASUVORK5CYII=','base64');
+          const marker=`__canonical_visual_prod_proof_${Date.now()}__`;
+          const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6ZqgAAAAASUVORK5CYII=','base64');
           const report={marker,startedAt:new Date().toISOString(),steps:{},cleanup:{}};let folder=null,originalFolder=null,folderChanged=false,assetId='',uploadedKey='';
           function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
           async function req(path,opt={}){const method=String(opt.method||'GET').toUpperCase();const r=await fetch(API+path,{...opt,method,headers:{'x-admin-token':token,accept:'application/json',...(opt.body?{'content-type':'application/json'}:{}),...(opt.headers||{})},cache:method==='GET'?'no-store':undefined});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok||b?.success===false)throw new Error(`${method} ${path} -> ${r.status} ${typeof b==='string'?b:JSON.stringify(b)}`);return b}
-          async function pub(path){const r=await fetch(API+path,{headers:{accept:'application/json','cache-control':'no-cache'},cache:'no-store'});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok)throw new Error(`GET ${path} -> ${r.status}`);return b}
-          const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};const fid=f=>String(f?.id||f?.folder_id||''),fslug=f=>String(f?.folder_slug||f?.slug||'');
+          async function pub(path){const r=await fetch(API+path,{headers:{accept:'application/json','cache-control':'no-cache'},cache:'no-store'});const t=await r.text();let b;try{b=unwrap(t?JSON.parse(t):{})}catch{b=t}if(!r.ok)throw new Error(`GET ${path} -> ${r.status} ${t}`);return b}
+          const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
+          const fid=f=>String(f?.id||f?.folder_id||''), fslug=f=>String(f?.folder_slug||f?.slug||'');
           const fp=(f,notes)=>({folder_name:f.folder_name||f.name||'',folder_type:f.folder_type||f.type||'general',description:f.description||'',status:f.status||'active',priority:f.priority||'medium',notes:notes===undefined?(f.notes||''):notes,relevant_artists:Array.isArray(f.relevant_artists)?f.relevant_artists:[],relevant_genres:Array.isArray(f.relevant_genres)?f.relevant_genres:[],relevant_moods:Array.isArray(f.relevant_moods)?f.relevant_moods:[],relevant_songs:Array.isArray(f.relevant_songs)?f.relevant_songs:[]});
-          (async()=>{try{const songs=rows(await req('/admin/songs'),['songs','items','rows','data']);if(!songs.some(s=>String(s.song_key||'')===songKey))throw new Error('Proof song missing.');const folders=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']);folder=folders.find(f=>fslug(f)==='dean-skateboarding-boardwalk-beach')||folders[0];if(!folder)throw new Error('No PROD visual folder.');const id=fid(folder);originalFolder=fp(folder);await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(fp(folder,[originalFolder.notes,marker].filter(Boolean).join('\n')))});folderChanged=true;const fc=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']).find(f=>fid(f)===id);if(!String(fc?.notes||'').includes(marker))throw new Error('Folder write missing.');report.steps.folderWrite='PASS';await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(originalFolder)});folderChanged=false;report.steps.folderRestore='PASS';const before=await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`);const payload={order_mode:before.order_mode||'random',folder_mappings:rows(before,['folder_mappings']).map(x=>({folder_id:String(x.folder_id||''),inclusion_state:x.inclusion_state||'included'})).filter(x=>x.folder_id),asset_mappings:rows(before,['asset_mappings']).map(x=>({asset_id:String(x.asset_id||''),asset_scope:x.asset_scope==='direct'?'direct':'folder',inclusion_state:x.inclusion_state||'included',manual_order:x.manual_order??null})).filter(x=>x.asset_id)};await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(payload)});const ps=await pub(`/radio/songs/${encodeURIComponent(songKey)}/visual-settings`);if(String(ps.song_key||'')!==songKey)throw new Error('Public mapping readback failed.');report.steps.visualSettingsWriteRead='PASS';const filename=`${marker}.png`;const pre=await req('/admin/uploads/presign',{method:'POST',body:JSON.stringify({filename,content_type:'image/png',purpose:'visual_folder_image',folder_slug:fslug(folder),folder_id:id})});const uploadUrl=String(pre.upload_url||pre.uploadUrl||''),publicUrl=String(pre.public_url||pre.publicUrl||'');uploadedKey=String(pre.key||pre.object_key||'');if(!uploadUrl||!publicUrl||!uploadedKey)throw new Error('Incomplete presign.');const uh=new URL(uploadUrl).hostname.toLowerCase(),ph=new URL(publicUrl).hostname.toLowerCase();if(!uh.includes(bucket))throw new Error('Not PROD upload bucket.');if(ph!==cdn&&!ph.includes(bucket))throw new Error('Not PROD public media.');const put=await fetch(uploadUrl,{method:String(pre.method||'PUT').toUpperCase(),headers:pre.headers||{'Content-Type':'image/png'},body:png});if(!put.ok)throw new Error(`S3 PUT ${put.status}`);report.steps.presignAndS3Upload='PASS';const created=await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`,{method:'POST',body:JSON.stringify({asset_type:'image',file_name:filename,s3_key:uploadedKey,public_url:publicUrl,thumbnail_url:publicUrl,content_type:'image/png',size_bytes:png.length,width:1,height:1,ratio_label:'1:1',caption:marker,alt_text:'Canonical Video Library production proof',notes:marker,shopify_product_urls:[]})});const a=created.asset||created.data||created;assetId=String(a.id||a.asset_id||'');if(!assetId)throw new Error('No asset id.');const pa=rows(await pub(`/radio/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']);if(!pa.some(x=>String(x.id||x.asset_id||'')===assetId||String(x.public_url||x.url||'')===publicUrl))throw new Error('Proof asset missing publicly.');report.steps.assetRegisterAndPublicRead='PASS';await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});assetId='';report.steps.assetHide='PASS';execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});uploadedKey='';report.steps.s3Cleanup='PASS';report.success=true;}finally{if(folderChanged&&folder&&originalFolder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}`,{method:'PUT',body:JSON.stringify(originalFolder)});report.cleanup.folder='restored'}catch(e){report.cleanup.folder=`FAILED: ${e.message}`}}if(assetId&&folder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});report.cleanup.asset='hidden'}catch(e){report.cleanup.asset=`FAILED: ${e.message}`}}if(uploadedKey){try{execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});report.cleanup.s3='deleted'}catch(e){report.cleanup.s3=`FAILED: ${e.message}`}}report.finishedAt=new Date().toISOString();fs.writeFileSync('canonical-video-library-prod-proof.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));}})().catch(e=>{console.error(e);process.exit(1)});
+          (async()=>{try{
+            const songs=rows(await req('/admin/songs'),['songs','items','rows','data']);if(!songs.some(s=>String(s.song_key||'')===songKey))throw new Error('Proof song missing.');
+            const folders=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']);folder=folders.find(f=>fslug(f)==='dean-skateboarding-boardwalk-beach')||folders[0];if(!folder)throw new Error('No PROD visual folder.');
+            const id=fid(folder);originalFolder=fp(folder);
+            await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(fp(folder,[originalFolder.notes,marker].filter(Boolean).join('\n')))});folderChanged=true;
+            const fc=rows(await req('/admin/visuals/folders'),['folders','items','rows','data']).find(f=>fid(f)===id);if(!String(fc?.notes||'').includes(marker))throw new Error('Folder write missing.');report.steps.folderWrite='PASS';
+            await req(`/admin/visuals/folders/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(originalFolder)});folderChanged=false;report.steps.folderRestore='PASS';
+            const before=await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`);
+            const payload={order_mode:before.order_mode||'random',folder_mappings:rows(before,['folder_mappings']).map(x=>({folder_id:String(x.folder_id||''),inclusion_state:x.inclusion_state||'included'})).filter(x=>x.folder_id),asset_mappings:rows(before,['asset_mappings']).map(x=>({asset_id:String(x.asset_id||''),asset_scope:x.asset_scope==='direct'?'direct':'folder',inclusion_state:x.inclusion_state||'included',manual_order:x.manual_order??null})).filter(x=>x.asset_id)};
+            await req(`/admin/songs/${encodeURIComponent(songKey)}/visual-settings`,{method:'PUT',body:JSON.stringify(payload)});
+            const ps=await pub(`/radio/songs/${encodeURIComponent(songKey)}/visual-settings`);if(String(ps.song_key||'')!==songKey)throw new Error('Public mapping readback failed.');report.steps.visualSettingsWriteRead='PASS';
+            const filename=`${marker}.png`;const pre=await req('/admin/uploads/presign',{method:'POST',body:JSON.stringify({filename,content_type:'image/png',purpose:'visual_folder_image',folder_slug:fslug(folder),folder_id:id})});
+            const uploadUrl=String(pre.upload_url||pre.uploadUrl||''),publicUrl=String(pre.public_url||pre.publicUrl||'');uploadedKey=String(pre.key||pre.object_key||'');if(!uploadUrl||!publicUrl||!uploadedKey)throw new Error('Incomplete presign.');
+            const uh=new URL(uploadUrl).hostname.toLowerCase(),ph=new URL(publicUrl).hostname.toLowerCase();if(!uh.includes(bucket))throw new Error(`Not PROD upload bucket: ${uh}`);if(ph!==cdn&&!ph.includes(bucket))throw new Error(`Not PROD public media: ${ph}`);
+            const put=await fetch(uploadUrl,{method:String(pre.method||'PUT').toUpperCase(),headers:pre.headers||{'Content-Type':'image/png'},body:png});if(!put.ok)throw new Error(`S3 PUT ${put.status}`);report.steps.presignAndS3Upload='PASS';
+            const created=await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets`,{method:'POST',body:JSON.stringify({asset_type:'image',file_name:filename,s3_key:uploadedKey,public_url:publicUrl,thumbnail_url:publicUrl,content_type:'image/png',size_bytes:png.length,width:1,height:1,ratio_label:'1:1',caption:marker,alt_text:'Canonical Video Library production proof',notes:marker,shopify_product_urls:[]})});
+            const a=created.asset||created.data||created;assetId=String(a.id||a.asset_id||'');if(!assetId)throw new Error('No asset id.');
+            const pa=rows(await pub(`/radio/visuals/folders/${encodeURIComponent(id)}/assets`),['assets','items','rows','data']);if(!pa.some(x=>String(x.id||x.asset_id||'')===assetId||String(x.public_url||x.url||'')===publicUrl))throw new Error('Proof asset missing publicly.');report.steps.assetRegisterAndPublicRead='PASS';
+            await req(`/admin/visuals/folders/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});assetId='';report.steps.assetHide='PASS';
+            execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});uploadedKey='';report.steps.s3Cleanup='PASS';report.success=true;
+          }finally{
+            if(folderChanged&&folder&&originalFolder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}`,{method:'PUT',body:JSON.stringify(originalFolder)});report.cleanup.folder='restored'}catch(e){report.cleanup.folder=`FAILED: ${e.message}`}}
+            if(assetId&&folder){try{await req(`/admin/visuals/folders/${encodeURIComponent(fid(folder))}/assets/${encodeURIComponent(assetId)}`,{method:'DELETE'});report.cleanup.asset='hidden'}catch(e){report.cleanup.asset=`FAILED: ${e.message}`}}
+            if(uploadedKey){try{execFileSync('aws',['s3api','delete-object','--region',process.env.AWS_REGION,'--bucket',bucket,'--key',uploadedKey],{stdio:'pipe'});report.cleanup.s3='deleted'}catch(e){report.cleanup.s3=`FAILED: ${e.message}`}}
+            report.finishedAt=new Date().toISOString();fs.writeFileSync('canonical-video-library-prod-proof.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
+          }})().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
           cleanup_status=0
-          if [ "$HAD_SETTINGS" = "0" ]; then
-            CLEAN="$(jq -nc --arg nonce "$MIGRATION_NONCE" --arg song "$TEST_SONG" '{__stashboxDirectMigration:"VE-10B",nonce:$nonce,action:"cleanup-proof-song",songKey:$song}')"
-            aws lambda invoke --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --cli-binary-format raw-in-base64-out --payload "$CLEAN" /tmp/cleanup.json > /tmp/cleanup-meta.json || cleanup_status=$?
-            if [ "$cleanup_status" = "0" ] && [ -n "$(jq -r '.FunctionError // empty' /tmp/cleanup-meta.json)" ]; then cleanup_status=1; fi
-            if [ "$cleanup_status" = "0" ]; then jq -e '.ok == true' /tmp/cleanup.json >/dev/null || cleanup_status=$?; fi
+          if [ "$HAD_SETTINGS" = 0 ]; then
+            CLEAN_URL="$PROD_API/admin/visuals/folders?__ve10b_action=cleanup-proof-song&__ve10b_nonce=$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["MIGRATION_NONCE"]))')&song_key=$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["TEST_SONG"]))')"
+            CLEAN_HTTP="$(curl -sS -o /tmp/cleanup.json -w '%{http_code}' -H "x-admin-token: $PROD_TOKEN" -H 'accept: application/json' "$CLEAN_URL")" || cleanup_status=$?
+            if [ "$cleanup_status" = 0 ]; then test "$CLEAN_HTTP" = 200 && jq -e '.ok == true' /tmp/cleanup.json >/dev/null || cleanup_status=$?; fi
           fi
 
-          # Restore handler first so the bridge file can then be removed safely.
           aws lambda update-function-configuration --function-name "$PROD_FUNCTION" --handler index.handler --region "$AWS_REGION" >/dev/null
           aws lambda wait function-updated --function-name "$PROD_FUNCTION" --region "$AWS_REGION"
           handler_changed=0
@@ -140,12 +202,12 @@ jobs:
 
           FINAL_HANDLER="$(aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --query Handler --output text)"
           FINAL_SHA="$(aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" --query CodeSha256 --output text)"
-          test "$FINAL_HANDLER" = "index.handler"
+          test "$FINAL_HANDLER" = index.handler
           test "$FINAL_SHA" = "$ORIGINAL_SHA"
           STATUS="$(curl -sS -o /tmp/post-restore.json -w '%{http_code}' "$PROD_API/radio/songs/$TEST_SONG/visual-settings")"
-          test "$STATUS" = "200"
-          if [ "$cleanup_status" != "0" ]; then echo 'Proof mapping cleanup failed.' >&2; exit 1; fi
-          if [ "$proof_status" != "0" ]; then echo 'Controlled PROD Video Library proof failed.' >&2; exit "$proof_status"; fi
+          test "$STATUS" = 200
+          test "$cleanup_status" = 0
+          test "$proof_status" = 0
           jq -e '.success == true' canonical-video-library-prod-proof.json >/dev/null
           echo 'VE-10B + controlled PROD Video Library proof PASSED; exact original Lambda restored.'
 
