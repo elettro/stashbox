@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio Admin · Songs Migration Staging</title>
+  <title>Stashbox Radio Admin · Canonical Songs</title>
   <link rel="stylesheet" href="../styles.css" />
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/radio-admin/">
-      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <p class="eyebrow">UNIFIED ADMIN · CANONICAL SONGS</p>
       <h1>STASHBOX RADIO</h1>
-      <p class="subtitle">Unified Admin build · DEV data only</p>
+      <p class="subtitle">Canonical LIVE catalog · PROD read path verified</p>
     </a>
     <nav class="topnav" aria-label="Unified admin navigation">
       <a href="/radio-admin/">Dashboard</a>
@@ -21,58 +21,58 @@
       <a href="/radio-admin/dev/ads/" target="_blank" rel="noopener">Ads</a>
       <a href="/radio-admin/notifications/dev/" target="_blank" rel="noopener">Notifications</a>
     </nav>
-    <div class="env-lock"><span class="env-badge">DEV</span><span>PROD writes locked</span></div>
+    <div class="env-lock"><span class="env-badge">PROD</span><span>Song writes locked until cutover</span></div>
   </header>
 
   <main class="shell">
-    <section class="guardrail">This migrated Song CMS can create and edit songs in DEV only. Every write is forced through the DEV environment guard. No production song write path exists in this staging page.</section>
+    <section class="guardrail">This Song CMS reads the canonical LIVE/PROD catalog. Production metadata, media, and artwork write paths are proven but remain locked until the final activation switch.</section>
 
     <section class="card editor-card">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">MIGRATED SONG CMS · STEP 2</p>
-          <h2 id="editorHeading">Create DEV Song</h2>
+          <p class="eyebrow">CANONICAL SONG CMS</p>
+          <h2 id="editorHeading">Create LIVE Song</h2>
           <p id="editorModeText" class="muted">Create a song in the canonical LIVE catalog. Choose Edit from the catalog below to update an existing song.</p>
         </div>
         <div class="editor-actions">
           <button id="newSongButton" class="secondary" type="button">New Song</button>
           <button id="generateKeyButton" class="secondary" type="button">Generate Key</button>
-          <button id="saveSongButton" type="button">Create in DEV</button>
+          <button id="saveSongButton" type="button">Create LIVE Song</button>
         </div>
       </div>
 
-      <div id="editorMessage" class="message">DEV write guard active. PROD writes are blocked.</div>
+      <div id="editorMessage" class="message">Canonical PROD read active. Song writes are locked until final cutover.</div>
       <form id="songEditor" class="song-editor" autocomplete="off"></form>
 
       <section class="media-library" aria-labelledby="mediaHeading">
         <div class="section-heading compact-heading">
           <div>
-            <p class="eyebrow">MIGRATED MEDIA UPLOAD · DEV ONLY</p>
+            <p class="eyebrow">CANONICAL MEDIA UPLOAD</p>
             <h3 id="mediaHeading">Audio & Song Visual Media</h3>
-            <p class="muted">Select an existing DEV song first. Uploaded URLs are placed into the editor; click Save DEV Changes to persist the song metadata.</p>
+            <p class="muted">Select an existing LIVE song first. The PROD presign/S3 path is validated; uploads remain locked until final cutover.</p>
           </div>
         </div>
-        <div id="mediaMessage" class="message">Choose Edit on a DEV song before uploading media.</div>
+        <div id="mediaMessage" class="message">Choose Edit on a LIVE song before uploading media.</div>
         <div class="media-upload-grid">
           <article class="media-upload-card">
             <strong>Audio File</strong>
             <p class="muted">WAV, MP3, M4A, FLAC, AIFF</p>
             <input id="audioFileInput" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/flac,audio/aiff,audio/x-aiff,.wav,.mp3,.m4a,.flac,.aiff,.aif" />
-            <button id="uploadAudioButton" type="button">Upload Audio to DEV</button>
+            <button id="uploadAudioButton" type="button">Upload Audio</button>
             <p id="audioUploadStatus" class="artwork-status"></p>
           </article>
           <article class="media-upload-card">
             <strong>Visual Images</strong>
             <p class="muted">JPG, PNG, WEBP. Multiple files supported.</p>
             <input id="visualImageInput" type="file" multiple accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" />
-            <button id="uploadVisualImagesButton" type="button">Upload Visual Images to DEV</button>
+            <button id="uploadVisualImagesButton" type="button">Upload Visual Images</button>
             <p id="visualImageStatus" class="artwork-status"></p>
           </article>
           <article class="media-upload-card">
             <strong>Visual Clips</strong>
             <p class="muted">MP4, WEBM, MOV. Multiple files supported.</p>
             <input id="visualClipInput" type="file" multiple accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
-            <button id="uploadVisualClipsButton" type="button">Upload Visual Clips to DEV</button>
+            <button id="uploadVisualClipsButton" type="button">Upload Visual Clips</button>
             <p id="visualClipStatus" class="artwork-status"></p>
           </article>
         </div>
@@ -81,13 +81,13 @@
       <section class="artwork-library" aria-labelledby="artworkHeading">
         <div class="section-heading compact-heading">
           <div>
-            <p class="eyebrow">MIGRATED ARTWORK WORKFLOW · DEV ONLY</p>
+            <p class="eyebrow">CANONICAL ARTWORK WORKFLOW</p>
             <h3 id="artworkHeading">Six-Image Artwork Library</h3>
-            <p class="muted">Select an existing DEV song first. Upload authorization comes from the DEV presign endpoint, and artwork is attached only to that DEV song.</p>
+            <p class="muted">Select an existing LIVE song first. PROD artwork presign/S3/attachment is validated and remains locked until final cutover.</p>
           </div>
           <button id="refreshArtworkButton" class="secondary" type="button">Refresh Artwork</button>
         </div>
-        <div id="artworkMessage" class="message">Choose Edit on a DEV song to load its artwork.</div>
+        <div id="artworkMessage" class="message">Choose Edit on a LIVE song to load its artwork.</div>
         <div id="artworkGrid" class="artwork-grid"></div>
       </section>
     </section>
@@ -95,9 +95,9 @@
     <section class="card">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">DEV SONG CATALOG</p>
+          <p class="eyebrow">LIVE SONG CATALOG</p>
           <h2>Song Catalog</h2>
-          <p class="muted">Read, search, select, create, and edit against the DEV admin API only.</p>
+          <p class="muted">Read and search against the canonical PROD admin API. Create/edit activates only after the final production write switch.</p>
         </div>
         <div class="search-row">
           <input id="songSearch" type="search" placeholder="Search song, artist, genre, key…" />
@@ -127,9 +127,9 @@
     </section>
 
     <section class="card">
-      <p class="eyebrow">NEXT SONG CMS MIGRATION STEP</p>
-      <p class="muted">The main Song CMS create/edit, six-image artwork, audio upload, and song-specific visual image/clip upload flows are now represented in staging. Next is DEV runtime QA and then migration of the VEC/Video Factory/Ads modules.</p>
-      <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open untouched current DEV Song CMS</a>
+      <p class="eyebrow">DEV FALLBACK / ROLLBACK</p>
+      <p class="muted">The previous DEV Song CMS remains available at its original nested route as a fallback while the unified Admin cutover is finalized.</p>
+      <a class="button-link" href="/radio-admin/songs/dev/" target="_blank" rel="noopener">Open preserved DEV Song CMS</a>
     </section>
   </main>
 
