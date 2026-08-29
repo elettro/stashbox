@@ -5,7 +5,7 @@
   if (!migration || window.__stashboxStagingDuplicateSafetyInstalled) return;
   window.__stashboxStagingDuplicateSafetyInstalled = true;
 
-  const env = migration.getEnvironment('dev');
+  const env = migration.getCanonicalVisualEnvironment();
   const FOLDERS_URL = `${env.apiBase}/admin/visuals/folders`;
   const nativeFetch = window.fetch.bind(window);
   let activeFolderId = '';
@@ -16,13 +16,7 @@
   const normalizeName = value => clean(value).normalize('NFKC').replace(/\s+/g, ' ').toLowerCase();
 
   function getToken() {
-    const direct = localStorage.getItem(env.tokenStorageKey);
-    if (direct) return clean(direct);
-    for (const key of env.legacyTokenStorageKeys || []) {
-      const value = localStorage.getItem(key);
-      if (value) return clean(value);
-    }
-    return '';
+    return clean(localStorage.getItem(env.tokenStorageKey));
   }
 
   function assetsUrl(folderId, assetId = '') {
@@ -31,11 +25,11 @@
   }
 
   async function adminFetch(url, options = {}) {
-    if (!url.startsWith(`${FOLDERS_URL}/`)) throw new Error('Blocked duplicate-safety request outside DEV Visual Folder assets.');
+    if (!url.startsWith(`${FOLDERS_URL}/`)) throw new Error('Blocked duplicate-safety request outside canonical PROD Visual Folder assets.');
     const method = String(options.method || 'GET').toUpperCase();
-    if (!['GET', 'HEAD'].includes(method)) migration.assertWriteAllowed('dev', 'video-library');
+    if (!['GET', 'HEAD'].includes(method)) migration.assertCanonicalVisualWriteApproved('video-library-duplicate-safety');
     const token = getToken();
-    if (!token) throw new Error('Save a DEV admin token first.');
+    if (!token) throw new Error('Save a PROD admin token first.');
     const response = await nativeFetch(url, {
       ...options,
       method,
@@ -51,12 +45,12 @@
     const text = await response.text();
     let body = {};
     try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text }; }
-    if (!response.ok) throw new Error(body.error || body.message || `${response.status} ${response.statusText}`);
+    if (!response.ok || body?.success === false) throw new Error(body.error || body.message || `${response.status} ${response.statusText}`);
     return body;
   }
 
   function rows(data) {
-    const source = Array.isArray(data) ? data : data?.assets || data?.items || [];
+    const source = Array.isArray(data) ? data : data?.assets || data?.items || data?.rows || [];
     return Array.isArray(source) ? source : [];
   }
 
@@ -65,7 +59,7 @@
     const typeLabel = document.getElementById('uploadAssetType')?.closest('label');
     if (!typeLabel) return;
     const label = document.createElement('label');
-    label.innerHTML = `Duplicate Filename Action<select id="duplicateUploadAction"><option value="skip" selected>Skip existing filename</option><option value="replace">Replace existing asset</option><option value="keep">Keep Both · rename new file</option></select><span class="vl-muted">Checked within the active DEV folder before upload.</span>`;
+    label.innerHTML = `Duplicate Filename Action<select id="duplicateUploadAction"><option value="skip" selected>Skip existing filename</option><option value="replace">Replace existing asset</option><option value="keep">Keep Both · rename new file</option></select><span class="vl-muted">Checked within the active LIVE folder before upload.</span>`;
     typeLabel.insertAdjacentElement('afterend', label);
   }
 
@@ -101,7 +95,7 @@
       try { await adminFetch(assetsUrl(folderId, id), { method: 'DELETE' }); }
       catch (error) { failures.push(`${id}: ${error.message}`); }
     }
-    if (failures.length) message(`New DEV asset saved, but replacement cleanup had warnings: ${failures.join(' | ')}`);
+    if (failures.length) message(`New LIVE asset saved, but replacement cleanup had warnings: ${failures.join(' | ')}`);
   }
 
   window.fetch = async function duplicateAwareFetch(input, init = {}) {
@@ -149,7 +143,7 @@
 
       const action = document.getElementById('duplicateUploadAction')?.value || 'skip';
       if (action === 'skip') {
-        message(`Skipped ${file.name}: that filename already exists in this DEV folder.`);
+        message(`Skipped ${file.name}: that filename already exists in this LIVE folder.`);
         return;
       }
 
