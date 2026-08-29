@@ -6,66 +6,133 @@ on:
     paths:
       - '.github/workflows/canonical-video-library-parity.yml'
       - 'radio-admin/video-library/**'
-      - 'radio-api/**'
+      - 'radio-admin/admin-env.js'
       - 'radio/canonical-visual-source.js'
       - 'radio/**/index.html'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  parity:
+  canonicalize:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      AWS_REGION: us-east-1
-      DEV_FUNCTION: stashbox-radio-api-dev-v2
-      PROD_FUNCTION: stashbox-radio-api-prod-v2
-      DEV_API: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
-      PROD_API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
     steps:
       - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      - name: Audit deployed Lambda boundaries and protected visual APIs
+          fetch-depth: 0
+
+      - name: Inject canonical visual guard into all player entry points
         shell: bash
         run: |
           set -euo pipefail
-          aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev.json
-          aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
-          DEV_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/dev.json)"
-          PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
-          test -n "$DEV_TOKEN"; test -n "$PROD_TOKEN"
-          export DEV_TOKEN PROD_TOKEN
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          files = [
+              Path('radio/index.html'),
+              Path('radio/desktop/index.html'),
+              Path('radio/dev/v2/index.html'),
+              Path('radio/dev/v2/desktop/index.html'),
+          ]
+          visual = '<script src="/radio/canonical-visual-source.js"></script>'
+          song_re = re.compile(r'(<script\s+src="/radio/canonical-song-source\.js[^\"]*"\s*></script>)')
+          for path in files:
+              text = path.read_text()
+              if visual not in text:
+                  new, count = song_re.subn(r'\1\n  ' + visual, text, count=1)
+                  if count != 1:
+                      raise SystemExit(f'{path}: canonical song source insertion anchor not found exactly once')
+                  text = new
+                  path.write_text(text)
+              if text.count('/radio/canonical-visual-source.js') != 1:
+                  raise SystemExit(f'{path}: expected exactly one canonical visual guard')
+              song_pos = text.find('/radio/canonical-song-source.js')
+              visual_pos = text.find('/radio/canonical-visual-source.js')
+              vec_positions = [p for p in [text.find('v2-vec-player-controller.js'), text.find('v2-desktop-vec-core-loader.js'), text.find('v2-desktop.js')] if p >= 0]
+              if song_pos < 0 or visual_pos < song_pos:
+                  raise SystemExit(f'{path}: canonical visual guard is not after canonical song source')
+              if vec_positions and visual_pos > min(vec_positions):
+                  raise SystemExit(f'{path}: canonical visual guard loads after VEC runtime')
+              print(f'{path}: canonical visual guard OK')
+          PY
+
+      - name: Static safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check radio/canonical-visual-source.js
+          node --check radio-admin/admin-env.js
+          node --check radio-admin/video-library/video-library.js
+          node --check radio-admin/video-library/duplicate-upload-safety.js
+          grep -q "getCanonicalVisualEnvironment" radio-admin/video-library/video-library.js
+          grep -q "assertCanonicalVisualWriteApproved" radio-admin/video-library/video-library.js
+          grep -q "radio_admin_token_prod" radio-admin/admin-env.js
+          grep -q "productionVisualWritesApproved: true" radio-admin/admin-env.js
+          grep -q "productionWritesApproved: false" radio-admin/admin-env.js
+          grep -q "stagingProdWritesAllowed: false" radio-admin/admin-env.js
+          if grep -q "getEnvironment('dev')" radio-admin/video-library/video-library.js; then
+            echo 'Video Library still binds to DEV environment.' >&2; exit 1
+          fi
+          if grep -q '/admin/visuals/song-folders' radio-admin/video-library/video-library.js; then
+            echo 'Removed/unsupported song-folders shim is still referenced.' >&2; exit 1
+          fi
+          grep -q '/admin/songs/.*visual-settings' radio-admin/video-library/video-library.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/video-library/video-library.js
+          grep -q 'd34ez960394y8w.cloudfront.net' radio-admin/video-library/video-library.js
+          grep -q 'stashbox-radio-media-dev-us-east-1' radio-admin/video-library/video-library.js
+          grep -q 'Blocked Video Library upload because PROD presign returned a DEV media target' radio-admin/video-library/video-library.js
+          for f in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do
+            test "$(grep -o '/radio/canonical-visual-source.js' "$f" | wc -l)" -eq 1
+          done
+
+      - name: Prove canonical visual fetch routing
+        shell: bash
+        run: |
+          set -euo pipefail
           node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const calls = [];
+          const nativeFetch = async (input, init={}) => {
+            const url = typeof input === 'string' ? input : input.url;
+            calls.push({url, method:String(init.method || input?.method || 'GET').toUpperCase()});
+            return new Response(JSON.stringify({success:true,url}), {status:200, headers:{'content-type':'application/json'}});
+          };
+          const window = {fetch:nativeFetch};
+          const context = {window, location:{href:'https://stashbox.com/radio/dev/v2/'}, URL, AbortController, Headers, Response, setTimeout, clearTimeout, console};
+          vm.createContext(context);
+          vm.runInContext(fs.readFileSync('radio/canonical-visual-source.js','utf8'), context);
           (async()=>{
-            const fs=require('fs');
-            const devCfg=JSON.parse(fs.readFileSync('/tmp/dev.json','utf8'));
-            const prodCfg=JSON.parse(fs.readFileSync('/tmp/prod.json','utf8'));
-            const safe=cfg=>{const e=cfg.Environment?.Variables||{};return {functionName:cfg.FunctionName,codeSha256:cfg.CodeSha256,lastModified:cfg.LastModified,runtime:cfg.Runtime,handler:cfg.Handler,revisionId:cfg.RevisionId,appEnv:e.APP_ENV||e.STAGE||e.ENVIRONMENT||'',pgSchema:e.PGSCHEMA||'',uploadBucket:e.UPLOAD_BUCKET||e.S3_BUCKET||e.RADIO_UPLOAD_BUCKET||'',uploadPublicBaseUrl:e.UPLOAD_PUBLIC_BASE_URL||''}};
-            const DEV=process.env.DEV_API, PROD=process.env.PROD_API, tokens={DEV:process.env.DEV_TOKEN,PROD:process.env.PROD_TOKEN};
-            function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
-            async function req(label,base,path){const r=await fetch(base+path,{headers:{'x-admin-token':tokens[label],'accept':'application/json','cache-control':'no-cache'}});const t=await r.text();let b;try{b=unwrap(JSON.parse(t))}catch{b=t}return {status:r.status,body:b}}
-            const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
-            const devFoldersR=await req('DEV',DEV,'/admin/visuals/folders');
-            const prodFoldersR=await req('PROD',PROD,'/admin/visuals/folders');
-            const devFolders=rows(devFoldersR.body,['folders','visuals_folders','items','rows','data']);
-            const prodFolders=rows(prodFoldersR.body,['folders','visuals_folders','items','rows','data']);
-            let devAssets=0; const assetCounts=[];
-            for(const f of devFolders){const id=String(f?.id||f?.folder_id||'');if(!id)continue;const r=await req('DEV',DEV,`/admin/visuals/folders/${encodeURIComponent(id)}/assets`);const a=rows(r.body,['assets','items','rows','data']);devAssets+=a.length;assetCounts.push({folderId:id,count:a.length,status:r.status});}
-            const songsR=await req('DEV',DEV,'/admin/songs');const songs=rows(songsR.body,['songs','items','rows','data']);const sampleSong=String(songs[0]?.song_key||'');
-            const devMap=sampleSong?await req('DEV',DEV,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0};
-            const prodMap=sampleSong?await req('PROD',PROD,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0};
-            const report={devLambda:safe(devCfg),prodLambda:safe(prodCfg),dev:{foldersStatus:devFoldersR.status,folderCount:devFolders.length,totalAssets:devAssets,assetCounts,mappingStatus:devMap.status},prod:{foldersStatus:prodFoldersR.status,folderCount:prodFolders.length,mappingStatus:prodMap.status},sampleSong,prodFoldersError:prodFoldersR.status>=400?prodFoldersR.body:null,prodMappingError:prodMap.status>=400?prodMap.body:null};
-            fs.writeFileSync('canonical-video-library-backend-audit.json',JSON.stringify(report,null,2)+'\n');
-            console.log(JSON.stringify(report,null,2));
+            await window.fetch('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/vec/recipe?song_key=test-song');
+            if (!calls.at(-1).url.startsWith('https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/vec/recipe?')) throw new Error('DEV recipe did not route to PROD');
+            await window.fetch('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/visuals/folders/folder-1/assets');
+            if (!calls.at(-1).url.includes('/prod-v2/radio/visuals/folders/folder-1/assets')) throw new Error('DEV folder assets did not route to PROD');
+            await window.fetch('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/songs/test-song/visual-settings');
+            if (!calls.at(-1).url.includes('/prod-v2/radio/songs/test-song/visual-settings')) throw new Error('DEV visual settings did not route to PROD');
+            const before = calls.length;
+            await window.fetch('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/summary');
+            if (calls.length !== before + 1 || !calls.at(-1).url.includes('/dev/admin/stats/summary')) throw new Error('Nonvisual DEV request was unexpectedly rewritten');
+            let blocked = false;
+            try { await window.fetch('https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/radio/vec/recipe', {method:'POST'}); }
+            catch (e) { blocked = /Blocked non-read visual player request/.test(String(e.message)); }
+            if (!blocked) throw new Error('Non-read visual player request was not blocked');
+            console.log('Canonical visual routing proof passed.');
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-      - uses: actions/upload-artifact@v4
-        with:
-          name: canonical-video-library-backend-audit
-          path: canonical-video-library-backend-audit.json
+
+      - name: Commit player entry-point materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html
+          if git diff --cached --quiet; then
+            echo 'Player entry points already materialized.'
+            exit 0
+          fi
+          git commit -m "Route both players through canonical PROD visuals"
+          git push origin HEAD:feature/canonical-video-library-1077
