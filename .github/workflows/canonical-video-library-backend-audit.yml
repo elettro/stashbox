@@ -13,7 +13,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       AWS_REGION: us-east-1
       DEV_FUNCTION: stashbox-radio-api-dev-v2
@@ -27,84 +27,89 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Inspect Lambda boundaries and protected APIs
+      - name: Compare deployed visual-library inventories and player contracts
         shell: bash
         run: |
           set -euo pipefail
           aws lambda get-function-configuration --function-name "$DEV_FUNCTION" --region "$AWS_REGION" > /tmp/dev.json
           aws lambda get-function-configuration --function-name "$PROD_FUNCTION" --region "$AWS_REGION" > /tmp/prod.json
-
-          node <<'NODE'
-          const fs = require('fs');
-          const {execFileSync} = require('child_process');
-          const dev = JSON.parse(fs.readFileSync('/tmp/dev.json','utf8'));
-          const prod = JSON.parse(fs.readFileSync('/tmp/prod.json','utf8'));
-          const env = cfg => cfg.Environment?.Variables || {};
-          const safe = (cfg) => ({
-            functionName: cfg.FunctionName,
-            codeSha256: cfg.CodeSha256,
-            lastModified: cfg.LastModified,
-            runtime: cfg.Runtime,
-            handler: cfg.Handler,
-            revisionId: cfg.RevisionId,
-            appEnv: env(cfg).APP_ENV || env(cfg).STAGE || env(cfg).ENVIRONMENT || '',
-            pgSchema: env(cfg).PGSCHEMA || '',
-            uploadBucket: env(cfg).UPLOAD_BUCKET || env(cfg).S3_BUCKET || env(cfg).RADIO_UPLOAD_BUCKET || '',
-            uploadPublicBaseUrl: env(cfg).UPLOAD_PUBLIC_BASE_URL || ''
-          });
-          fs.writeFileSync('lambda-boundaries.json', JSON.stringify({dev:safe(dev),prod:safe(prod)},null,2)+'\n');
-          console.log(JSON.stringify({dev:safe(dev),prod:safe(prod)},null,2));
-          NODE
-
           DEV_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/dev.json)"
           PROD_TOKEN="$(jq -r '.Environment.Variables.ADMIN_TOKEN // .Environment.Variables.RADIO_ADMIN_TOKEN // empty' /tmp/prod.json)"
-          test -n "$DEV_TOKEN"
-          test -n "$PROD_TOKEN"
+          test -n "$DEV_TOKEN"; test -n "$PROD_TOKEN"
           export DEV_TOKEN PROD_TOKEN
 
           node <<'NODE'
-          (async () => {
-            const fs = require('fs');
-            const DEV = process.env.DEV_API || 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-            const PROD = process.env.PROD_API || 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
-            const tokens = {DEV:process.env.DEV_TOKEN, PROD:process.env.PROD_TOKEN};
+          (async()=>{
+            const fs=require('fs');
+            const devCfg=JSON.parse(fs.readFileSync('/tmp/dev.json','utf8'));
+            const prodCfg=JSON.parse(fs.readFileSync('/tmp/prod.json','utf8'));
+            const safe=cfg=>{const e=cfg.Environment?.Variables||{};return {functionName:cfg.FunctionName,codeSha256:cfg.CodeSha256,lastModified:cfg.LastModified,runtime:cfg.Runtime,handler:cfg.Handler,revisionId:cfg.RevisionId,appEnv:e.APP_ENV||e.STAGE||e.ENVIRONMENT||'',pgSchema:e.PGSCHEMA||'',uploadBucket:e.UPLOAD_BUCKET||e.S3_BUCKET||e.RADIO_UPLOAD_BUCKET||'',uploadPublicBaseUrl:e.UPLOAD_PUBLIC_BASE_URL||''}};
+            const DEV=process.env.DEV_API, PROD=process.env.PROD_API, tokens={DEV:process.env.DEV_TOKEN,PROD:process.env.PROD_TOKEN};
             function unwrap(v){for(let i=0;i<3;i++){if(v&&typeof v==='object'&&typeof v.body==='string'){try{v=JSON.parse(v.body);continue}catch{}}break}return v}
-            async function request(label, base, path) {
-              const res = await fetch(base+path,{headers:{'x-admin-token':tokens[label],'cache-control':'no-cache','accept':'application/json'}});
-              const text=await res.text(); let body; try{body=unwrap(JSON.parse(text))}catch{body=text}
-              return {status:res.status,body};
+            async function req(label,base,path,{admin=true}={}){const headers={'accept':'application/json','cache-control':'no-cache'};if(admin)headers['x-admin-token']=tokens[label];const r=await fetch(base+path,{headers});const t=await r.text();let b;try{b=unwrap(JSON.parse(t))}catch{b=t}return {status:r.status,body:b}}
+            const rows=(b,ks)=>{if(Array.isArray(b))return b;for(const k of ks)if(Array.isArray(b?.[k]))return b[k];return[]};
+            const fid=f=>String(f?.id||f?.folder_id||'');
+            const fslug=f=>String(f?.folder_slug||f?.slug||f?.folder_name||f?.name||'').trim().toLowerCase();
+            const aid=a=>String(a?.id||a?.asset_id||'');
+            const akey=a=>String(a?.s3_key||a?.key||'');
+            const aurl=a=>String(a?.public_url||a?.url||'');
+            const songKey=s=>String(s?.song_key||s?.songKey||s?.key||'');
+            const folderRefs=obj=>{const out=new Set();const walk=v=>{if(Array.isArray(v)){v.forEach(walk);return}if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if((k==='folder_id'||k==='folderId')&&x)out.add(String(x));if((k==='folder_ids'||k==='folderIds'||k==='folders')&&Array.isArray(x)){for(const y of x){if(typeof y==='string')out.add(y);else if(y&&typeof y==='object'&&(y.id||y.folder_id))out.add(String(y.id||y.folder_id));}}walk(x)}};walk(obj);return [...out].sort()};
+
+            async function inventory(label,base){
+              const folderResp=await req(label,base,'/admin/visuals/folders');
+              const folders=rows(folderResp.body,['folders','visuals_folders','items','rows','data']);
+              const detailed=[];
+              for(const folder of folders){
+                const id=fid(folder);if(!id)continue;
+                const ar=await req(label,base,`/admin/visuals/folders/${encodeURIComponent(id)}/assets`);
+                const assets=rows(ar.body,['assets','items','rows','data']);
+                detailed.push({
+                  id,slug:fslug(folder),name:String(folder.folder_name||folder.name||''),type:String(folder.folder_type||''),status:String(folder.status||''),priority:String(folder.priority||''),
+                  relevantArtists:folder.relevant_artists||[],relevantGenres:folder.relevant_genres||[],relevantMoods:folder.relevant_moods||[],relevantSongs:folder.relevant_songs||[],
+                  assetStatus:ar.status,assetCount:assets.length,
+                  assets:assets.map(a=>({id:aid(a),s3Key:akey(a),url:aurl(a),type:String(a.asset_type||a.type||''),status:String(a.status||''),fileName:String(a.file_name||a.filename||''),caption:String(a.caption||''),altText:String(a.alt_text||'')}))
+                });
+              }
+              return {folderStatus:folderResp.status,folders:detailed,totalAssets:detailed.reduce((n,f)=>n+f.assetCount,0)};
             }
-            function rows(body,keys){if(Array.isArray(body))return body;for(const k of keys)if(Array.isArray(body?.[k]))return body[k];return[]}
-            const devFoldersResp=await request('DEV',DEV,'/admin/visuals/folders');
-            const prodFoldersResp=await request('PROD',PROD,'/admin/visuals/folders');
-            const devFolders=rows(devFoldersResp.body,['folders','visuals_folders','items','rows','data']);
-            const prodFolders=rows(prodFoldersResp.body,['folders','visuals_folders','items','rows','data']);
-            const folderId=f=>String(f?.id||f?.folder_id||'');
-            const assets=[];
-            for(const f of devFolders){const id=folderId(f);if(!id)continue;const r=await request('DEV',DEV,`/admin/visuals/folders/${encodeURIComponent(id)}/assets`);assets.push({folderId:id,status:r.status,count:rows(r.body,['assets','items','rows','data']).length});}
-            const songsResp=await request('DEV',DEV,'/admin/songs');
-            const songs=rows(songsResp.body,['songs','items','rows','data']);
-            const sampleSong=String(songs[0]?.song_key||songs[0]?.songKey||'');
-            const devMap=sampleSong?await request('DEV',DEV,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0,body:null};
-            const prodMap=sampleSong?await request('PROD',PROD,`/admin/visuals/song-folders/${encodeURIComponent(sampleSong)}`):{status:0,body:null};
-            const summary={
-              devFoldersStatus:devFoldersResp.status, devFolderCount:devFolders.length,
-              devAssetCount:assets.reduce((n,x)=>n+x.count,0), devAssetRequests:assets,
-              prodFoldersStatus:prodFoldersResp.status, prodFolderCount:prodFolders.length,
-              sampleSong, devMappingStatus:devMap.status, prodMappingStatus:prodMap.status,
-              prodFoldersError:prodFoldersResp.status>=400?prodFoldersResp.body:null,
-              prodMappingError:prodMap.status>=400?prodMap.body:null
+            const [dev,prod]=await Promise.all([inventory('DEV',DEV),inventory('PROD',PROD)]);
+            const devBySlug=new Map(dev.folders.map(f=>[f.slug,f])), prodBySlug=new Map(prod.folders.map(f=>[f.slug,f]));
+            const slugs=[...new Set([...devBySlug.keys(),...prodBySlug.keys()])].sort();
+            const folderDiffs=slugs.map(slug=>{const d=devBySlug.get(slug),p=prodBySlug.get(slug);const dKeys=new Set((d?.assets||[]).map(a=>a.s3Key||a.id||a.url));const pKeys=new Set((p?.assets||[]).map(a=>a.s3Key||a.id||a.url));return {slug,devId:d?.id||null,prodId:p?.id||null,devAssets:d?.assetCount??null,prodAssets:p?.assetCount??null,sameId:!!d&&!!p&&d.id===p.id,devOnlyAssets:[...dKeys].filter(x=>x&&!pKeys.has(x)),prodOnlyAssets:[...pKeys].filter(x=>x&&!dKeys.has(x))}});
+
+            const songsResp=await req('PROD',PROD,'/admin/songs');
+            const songs=rows(songsResp.body,['songs','items','rows','data']).map(songKey).filter(Boolean);
+            const contract=[];
+            for(const key of songs){
+              const [dr,pr,da,pa,dv,pv]=await Promise.all([
+                req('DEV',DEV,`/radio/vec/recipe?song_key=${encodeURIComponent(key)}`,{admin:false}),
+                req('PROD',PROD,`/radio/vec/recipe?song_key=${encodeURIComponent(key)}`,{admin:false}),
+                req('DEV',DEV,`/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`,{admin:false}),
+                req('PROD',PROD,`/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`,{admin:false}),
+                req('DEV',DEV,`/radio/songs/${encodeURIComponent(key)}/visual-settings`,{admin:false}),
+                req('PROD',PROD,`/radio/songs/${encodeURIComponent(key)}/visual-settings`,{admin:false})
+              ]);
+              contract.push({songKey:key,devRecipeStatus:dr.status,prodRecipeStatus:pr.status,devRecipeFolders:folderRefs(dr.body),prodRecipeFolders:folderRefs(pr.body),devSongAssetStatus:da.status,prodSongAssetStatus:pa.status,devSongAssetCount:rows(da.body,['assets','images','clips']).length,prodSongAssetCount:rows(pa.body,['assets','images','clips']).length,devVisualSettingsStatus:dv.status,prodVisualSettingsStatus:pv.status,devVisualSettingsFolders:folderRefs(dv.body),prodVisualSettingsFolders:folderRefs(pv.body)});
+            }
+            const report={
+              generatedAt:new Date().toISOString(),devLambda:safe(devCfg),prodLambda:safe(prodCfg),
+              dev:{folderStatus:dev.folderStatus,folderCount:dev.folders.length,totalAssets:dev.totalAssets},
+              prod:{folderStatus:prod.folderStatus,folderCount:prod.folders.length,totalAssets:prod.totalAssets},
+              sharedFolderSlugs:slugs.filter(s=>devBySlug.has(s)&&prodBySlug.has(s)).length,
+              devOnlyFolders:slugs.filter(s=>devBySlug.has(s)&&!prodBySlug.has(s)),
+              prodOnlyFolders:slugs.filter(s=>!devBySlug.has(s)&&prodBySlug.has(s)),
+              folderDiffs,
+              recipeDifferences:contract.filter(x=>JSON.stringify(x.devRecipeFolders)!==JSON.stringify(x.prodRecipeFolders)),
+              visualSettingsDifferences:contract.filter(x=>JSON.stringify(x.devVisualSettingsFolders)!==JSON.stringify(x.prodVisualSettingsFolders)),
+              contract,
+              inventories:{dev:dev.folders,prod:prod.folders}
             };
-            fs.writeFileSync('backend-audit.json',JSON.stringify(summary,null,2)+'\n');
-            console.log(JSON.stringify(summary,null,2));
+            fs.writeFileSync('canonical-video-library-backend-audit.json',JSON.stringify(report,null,2)+'\n');
+            console.log(JSON.stringify({dev:report.dev,prod:report.prod,sharedFolderSlugs:report.sharedFolderSlugs,devOnlyFolders:report.devOnlyFolders,prodOnlyFolders:report.prodOnlyFolders,foldersWithAssetDiffs:folderDiffs.filter(f=>f.devOnlyAssets.length||f.prodOnlyAssets.length||f.devAssets!==f.prodAssets).length,songCount:songs.length,recipeDifferences:report.recipeDifferences.length,visualSettingsDifferences:report.visualSettingsDifferences.length,sampleContracts:contract.slice(0,3)},null,2));
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-        env:
-          DEV_API: ${{ env.DEV_API }}
-          PROD_API: ${{ env.PROD_API }}
       - uses: actions/upload-artifact@v4
         with:
           name: canonical-video-library-backend-audit
-          path: |
-            backend-audit.json
-            lambda-boundaries.json
+          path: canonical-video-library-backend-audit.json
