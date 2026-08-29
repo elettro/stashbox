@@ -34,7 +34,16 @@ jobs:
           PRE_ROUTE_SHA='936e82885b00aaf392a9071f5cdf345a735c8e5e'
 
           git cat-file -e "${PRE_ROUTE_SHA}^{commit}"
-          git diff --quiet "$PRE_ROUTE_SHA" HEAD -- radio-admin/dev radio-admin/staging
+          git diff --quiet "$PRE_ROUTE_SHA" HEAD -- radio-admin/dev
+
+          # Staging functional files remain frozen. QA-test refinements are allowed
+          # because those tests are what validate the materialized candidate.
+          staging_functional_changes="$(git diff --name-only "$PRE_ROUTE_SHA" HEAD -- radio-admin/staging | grep -v '^radio-admin/staging/tests/' || true)"
+          if [ -n "$staging_functional_changes" ]; then
+            echo 'Unexpected staging functional changes since route materialization:' >&2
+            echo "$staging_functional_changes" >&2
+            exit 1
+          fi
 
           git ls-tree -r "$PRE_ROUTE_SHA" radio-admin \
             | awk '$4 !~ /^radio-admin\/(dev|staging)\//' \
@@ -42,6 +51,12 @@ jobs:
             | sort > /tmp/expected-legacy.txt
           git ls-tree -r HEAD radio-admin/legacy | sort > /tmp/actual-legacy.txt
           diff -u /tmp/expected-legacy.txt /tmp/actual-legacy.txt
+
+          # Nested DEV fallbacks that historically lived below old root modules
+          # must remain byte-for-byte available at their original URLs.
+          diff -qr radio-admin/legacy/songs/dev radio-admin/songs/dev
+          diff -qr radio-admin/legacy/artists/dev radio-admin/artists/dev
+          diff -qr radio-admin/legacy/notifications/dev radio-admin/notifications/dev
 
       - name: Verify unified root shape and production write locks
         shell: bash
@@ -55,6 +70,9 @@ jobs:
           test -f radio-admin/legacy/index.html
           test -f radio-admin/dev/index.html
           test -f radio-admin/staging/index.html
+          test -f radio-admin/songs/dev/index.html
+          test -f radio-admin/artists/dev/index.html
+          test -f radio-admin/notifications/dev/index.html
 
           test ! -e radio-admin/tests
           test ! -e radio-admin/cutover
@@ -63,15 +81,30 @@ jobs:
           grep -q "mode: 'cutover-candidate'" radio-admin/admin-env.js
           grep -q "stagingRoot: '/radio-admin/'" radio-admin/admin-env.js
           grep -q "canonicalEnvironment: 'prod'" radio-admin/admin-env.js
+          grep -q "currentAncientProd: '/radio-admin/legacy/'" radio-admin/admin-env.js
           grep -q 'productionCutoverApproved: false' radio-admin/admin-env.js
           grep -q 'productionWritesApproved: false' radio-admin/admin-env.js
           grep -q 'stagingProdWritesAllowed: false' radio-admin/admin-env.js
           grep -q 'writesAllowedInStaging: false' radio-admin/admin-env.js
+          grep -q 'tokenStorageKey: '\''radio_admin_token_prod'\''' radio-admin/admin-env.js
+
+          prod_block="$(sed -n '/prod: Object.freeze({/,/}),/p' radio-admin/admin-env.js)"
+          echo "$prod_block" | grep -q 'legacyTokenStorageKeys: Object.freeze(\[\])'
+          if echo "$prod_block" | grep -q 'stashbox_admin_token_dev'; then
+            echo 'Canonical PROD Admin reintroduced the legacy DEV token fallback.' >&2
+            exit 1
+          fi
 
           if grep -R -n --exclude-dir=dev --exclude-dir=staging --exclude-dir=legacy '/radio-admin/staging/' radio-admin; then
             echo 'Unified root contains stale staging route links.' >&2
             exit 1
           fi
+
+          if grep -E 'DEV ONLY|create and edit songs in DEV only|Upload Audio to DEV|DEV SONG CATALOG|Migration Staging' radio-admin/songs/index.html; then
+            echo 'Promoted canonical Song CMS contains stale DEV-only copy.' >&2
+            exit 1
+          fi
+          grep -q 'Canonical LIVE catalog' radio-admin/songs/index.html
 
           node --check radio-admin/admin-env.js
           node --check radio-admin/staging.js
@@ -91,7 +124,10 @@ jobs:
           for i in {1..30}; do
             curl --fail --silent http://127.0.0.1:4173/radio-admin/ >/dev/null && \
             curl --fail --silent http://127.0.0.1:4173/radio-admin/legacy/ >/dev/null && \
-            curl --fail --silent http://127.0.0.1:4173/radio-admin/dev/ >/dev/null && exit 0
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/songs/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/artists/dev/ >/dev/null && \
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/notifications/dev/ >/dev/null && exit 0
             sleep 1
           done
           cat /tmp/admin-route-http.log
@@ -149,11 +185,19 @@ jobs:
           const resolvedAds = new URL(adsHref, page.url()).pathname;
           if (resolvedAds !== '/radio-admin/legacy/ads/') throw new Error(`Legacy Ads link resolves to ${resolvedAds}`);
 
-          await page.goto('http://127.0.0.1:4173/radio-admin/dev/', { waitUntil: 'domcontentloaded' });
-          const devBody = (await page.locator('body').innerText()).trim();
-          if (devBody.length < 100) throw new Error('DEV fallback rendered too little content.');
+          const fallbackRoutes = [
+            '/radio-admin/dev/',
+            '/radio-admin/songs/dev/',
+            '/radio-admin/artists/dev/',
+            '/radio-admin/notifications/dev/'
+          ];
+          for (const route of fallbackRoutes) {
+            await page.goto(`http://127.0.0.1:4173${route}`, { waitUntil: 'domcontentloaded' });
+            const body = (await page.locator('body').innerText()).trim();
+            if (body.length < 100) throw new Error(`${route} rendered too little content.`);
+          }
 
           if (errors.length) throw new Error(`Route page errors: ${errors.join(' | ')}`);
           await browser.close();
-          console.log(JSON.stringify({ pass: true, rootHrefs, legacyAds: resolvedAds, devFallback: true }, null, 2));
+          console.log(JSON.stringify({ pass: true, rootHrefs, legacyAds: resolvedAds, fallbackRoutes }, null, 2));
           NODE
