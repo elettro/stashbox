@@ -1,72 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <title>Stashbox Radio Admin · DEV System Health Staging</title>
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="./system-health.css" />
-</head>
-<body class="system-health-page">
-  <header class="topbar">
-    <a class="brand" href="/radio-admin/">
-      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
-      <h1>DEV SYSTEM HEALTH</h1>
-      <p class="subtitle">DEV player, APIs, CMS and media readiness only</p>
-    </a>
-    <nav class="topnav" aria-label="Unified admin navigation">
-      <a href="/radio-admin/">Dashboard</a>
-      <a href="/radio-admin/songs/">Songs</a>
-      <a href="/radio-admin/vec/">VEC Lab</a>
-      <a href="/radio-admin/video-factory/">Video Factory</a>
-      <a href="/radio-admin/notifications/">Notifications</a>
-      <a href="/radio-admin/bugs/">Bug Base</a>
-      <a href="/radio-admin/system-health/" aria-current="page">DEV Health</a>
-    </nav>
-    <div class="env-lock"><span class="env-badge">DEV HEALTH</span><span>Not PROD health</span></div>
-  </header>
-
-  <main class="shell health-shell">
-    <section class="guardrail">These checks are deliberately DEV-only. They test `/radio/dev/v2/` and DEV APIs. This page must never be interpreted as production health.</section>
-
-    <section class="card health-hero">
-      <div><p class="eyebrow">STABILITY CONTROL CENTER</p><h2>Know which DEV layer failed before troubleshooting begins.</h2><p>The dashboard runs read-only checks against the DEV V2 interface, core startup files, DEV song catalog, Ads CMS, VEC, and Video Factory. Heavy dashboard analytics remain paused.</p></div>
-      <div class="health-overall" data-overall="checking"><span class="health-dot"></span><div><small>DEV platform status</small><strong id="overallStatus">Checking</strong></div></div>
-    </section>
-
-    <section class="card health-controls" aria-label="DEV system health controls">
-      <div class="health-token-control"><label for="adminToken">DEV Admin Token</label><input id="adminToken" type="password" autocomplete="off" placeholder="Optional for protected DEV CMS checks" /></div>
-      <button id="saveToken" class="button" type="button">Save DEV Token</button>
-      <button id="clearToken" class="health-button-secondary" type="button">Clear</button>
-      <button id="runChecks" class="button" type="button">Run DEV Checks</button>
-      <span id="lastChecked" class="health-last-checked">Not checked yet</span>
-    </section>
-
-    <section class="health-grid" aria-label="DEV platform health checks">
-      <article class="card health-card" data-check-card="v2-browser"><div class="health-card-header"><div><p class="eyebrow">Listener experience</p><h2>DEV V2 Browser</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Loads the DEV V2 interface and waits for songs, player, and media readiness.</p><dl class="health-details"><div><dt>Build</dt><dd data-field="build">—</dd></div><div><dt>Songs</dt><dd data-field="songs">—</dd></div><div><dt>Startup</dt><dd data-field="startup">—</dd></div><div><dt>Catalog</dt><dd data-field="catalog">—</dd></div></dl></article>
-      <article class="card health-card" data-check-card="core-files"><div class="health-card-header"><div><p class="eyebrow">Release contract</p><h2>DEV Core Startup Files</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Confirms DEV boot guard, health signal, and recovery files are reachable.</p><div class="health-file-list" data-file-list></div></article>
-      <article class="card health-card" data-check-card="songs-api"><div class="health-card-header"><div><p class="eyebrow">Public API</p><h2>DEV Song Catalog</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Checks the public DEV song response and visible catalog count.</p><dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Visible songs</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl></article>
-      <article class="card health-card" data-check-card="dashboard-api"><div class="health-card-header"><div><p class="eyebrow">Analytics API · Paused</p><h2>DEV Dashboard Summary Paused</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Heavy analytics remain intentionally paused. No summary request is sent by this check.</p><dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Events</dt><dd data-field="events">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl></article>
-      <article class="card health-card" data-check-card="ads-api"><div class="health-card-header"><div><p class="eyebrow">Protected DEV CMS</p><h2>DEV Ads CMS</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Checks the protected DEV ads route when a DEV admin token is saved.</p><dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Records</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl></article>
-      <article class="card health-card" data-check-card="vec-api"><div class="health-card-header"><div><p class="eyebrow">Protected DEV CMS</p><h2>DEV VEC Library</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Checks the protected DEV visuals-folder route.</p><dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Folders</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl></article>
-      <article class="card health-card" data-check-card="video-factory-api"><div class="health-card-header"><div><p class="eyebrow">Protected DEV CMS</p><h2>DEV Video Factory</h2></div><span class="health-status">Waiting</span></div><p class="health-message">Checks DEV Video Factory summary access and job totals.</p><dl class="health-details"><div><dt>HTTP</dt><dd data-field="http">—</dd></div><div><dt>Jobs</dt><dd data-field="count">—</dd></div><div><dt>Latency</dt><dd data-field="latency">—</dd></div></dl></article>
-    </section>
-  </main>
-
-  <iframe id="v2HealthFrame" class="health-probe-frame" title="DEV V2 health probe" aria-hidden="true"></iframe>
-  <script src="../admin-env.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=/radio-admin/dev/system-health/">
+  <title>Stashbox Radio System Health</title>
   <script>
-    (()=>{
-      'use strict';
-      const env=window.StashboxAdminMigration.getEnvironment('dev');
-      const get=Storage.prototype.getItem,set=Storage.prototype.setItem,remove=Storage.prototype.removeItem;
-      Storage.prototype.getItem=function(key){if(key==='stashbox_admin_token_dev')return get.call(this,env.tokenStorageKey)||get.call(this,key)||'';return get.call(this,key)};
-      Storage.prototype.setItem=function(key,value){if(key==='stashbox_admin_token_dev')return set.call(this,env.tokenStorageKey,value);return set.call(this,key,value)};
-      Storage.prototype.removeItem=function(key){if(key==='stashbox_admin_token_dev')return remove.call(this,env.tokenStorageKey);return remove.call(this,key)};
+    (() => {
+      const target = new URL('/radio-admin/dev/system-health/', location.origin);
+      target.search = location.search;
+      target.hash = location.hash;
+      location.replace(target.href);
     })();
   </script>
-  <script src="./dashboard-summary-freeze.js"></script>
-  <script src="./system-health.js"></script>
+</head>
+<body>
+  <p><a href="/radio-admin/dev/system-health/">Open the modern System Health dashboard</a></p>
 </body>
 </html>

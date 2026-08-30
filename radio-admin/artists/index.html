@@ -1,112 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <title>Stashbox Radio Admin · Artists Migration Staging</title>
-  <link rel="stylesheet" href="../styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=/radio-admin/artists/dev/">
+  <title>Stashbox Radio Artist CMS</title>
+  <script>
+    (() => {
+      const target = new URL('/radio-admin/artists/dev/', location.origin);
+      target.search = location.search;
+      target.hash = location.hash;
+      location.replace(target.href);
+    })();
+  </script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/radio-admin/">
-      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
-      <h1>ARTIST CMS</h1>
-      <p class="subtitle">DEV artist profiles · guarded metadata, media + access</p>
-    </a>
-    <nav class="topnav" aria-label="Unified admin navigation">
-      <a href="/radio-admin/">Dashboard</a><a href="/radio-admin/songs/">Songs</a><a href="/radio-admin/video-library/">Video Library</a><a href="/radio-admin/vec/">VEC Lab</a><a href="/radio-admin/video-factory/">Video Factory</a><a href="/radio-admin/ads/">Ads</a><a href="/radio-admin/notifications/">Notifications</a><a href="/radio-admin/artists/" aria-current="page">Artists</a><a href="/radio-admin/social-factory/">Social Factory</a><a href="/radio-admin/bugs/">Bug Base</a><a href="/radio-admin/system-health/">DEV Health</a>
-    </nav>
-    <div class="env-lock"><span class="env-badge">DEV ARTISTS</span><span>PROD locked</span></div>
-  </header>
-
-  <main class="shell">
-    <section class="guardrail">Artist metadata, all three profile-media slots, and delegated artist access are hard-bound to DEV. Access grants require the DEV admin token and are re-validated by the backend as platform-admin actions. Cognito/account-login mode and production public-profile routing remain locked.</section>
-
-    <section class="card token-panel">
-      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Migration staging uses the DEV admin token only. Cognito fallback is intentionally not enabled here.</p></div>
-      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="DEV x-admin-token" /><button id="saveToken" type="button">Save Token</button><button id="clearToken" class="secondary" type="button">Clear</button></div>
-      <p id="tokenStatus" class="status-text"></p>
-    </section>
-
-    <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST OVERVIEW</p><h2>Artist Profiles</h2><p class="muted">Reads `/radio/admin/artists` plus DEV song-performance stats.</p></div><button id="refreshArtists" type="button">Refresh DEV Artists</button></div>
-      <div id="artistMessage" class="message">Add or reuse a DEV admin token to load artist profiles.</div>
-      <div id="artistStats" class="kpi-grid"></div>
-    </section>
-
-    <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST DIRECTORY</p><h2>Profiles</h2></div><div class="search-row"><input id="artistSearch" type="search" placeholder="Search artist, key, status…" /><button id="newArtist" type="button">New DEV Artist</button></div></div>
-      <p id="artistCount" class="song-count"></p>
-      <div class="table-wrap"><table><thead><tr><th>Action</th><th>Artist</th><th>Key</th><th>Status</th><th>Followers</th><th>Likes</th><th>Shares</th><th>Listening</th><th>Profile image</th></tr></thead><tbody id="artistsBody"><tr><td colspan="9" class="muted">No data loaded.</td></tr></tbody></table></div>
-    </section>
-
-    <section id="artistEditorCard" class="card hidden">
-      <div class="section-heading"><div><p class="eyebrow">DEV ARTIST EDITOR</p><h2 id="artistEditorHeading">New DEV Artist</h2><p class="muted">Metadata uses DEV artist create/edit. Media upload/remove is immediate-save for existing artists and is verified with a fresh DEV RDS read-back.</p></div></div>
-      <form id="artistEditor" autocomplete="off">
-        <div class="editor-grid">
-          <div class="editor-field"><label for="artistName">Name *</label><input id="artistName" required /></div>
-          <div class="editor-field"><label for="artistKey">Artist Key *</label><input id="artistKey" required /></div>
-          <div class="editor-field"><label for="artistSlug">Slug</label><input id="artistSlug" /></div>
-          <div class="editor-field"><label for="artistSortName">Sort Name</label><input id="artistSortName" /></div>
-          <div class="editor-field"><label for="artistStatus">Status</label><select id="artistStatus"><option value="draft">Draft</option><option value="published">Published</option><option value="hidden">Hidden</option></select></div>
-          <div class="editor-field"><label for="artistLocation">Location</label><input id="artistLocation" /></div>
-
-          <div class="editor-field editor-field--full">
-            <label for="profileImageUrl">Profile Image URL</label><input id="profileImageUrl" type="url" readonly />
-            <div class="search-row" style="margin-top:.5rem"><input id="profileImageFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" /><button id="uploadProfileImage" class="secondary" type="button">Upload / Replace</button><button id="deleteProfileImage" class="secondary" type="button">Delete Image</button></div>
-            <p id="profileImageStatus" class="muted">Recommended: 1200 × 1200 px · JPG, PNG or WEBP · max 10 MB.</p>
-          </div>
-
-          <div class="editor-field editor-field--full">
-            <label for="bannerImageUrl">Horizontal Banner URL</label><input id="bannerImageUrl" type="url" readonly />
-            <div class="search-row" style="margin-top:.5rem"><input id="bannerImageFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" /><button id="uploadBannerImage" class="secondary" type="button">Upload / Replace</button><button id="deleteBannerImage" class="secondary" type="button">Delete Image</button></div>
-            <p id="bannerImageStatus" class="muted">Recommended: 1920 × 1080 px · JPG, PNG or WEBP · max 10 MB.</p>
-          </div>
-
-          <div class="editor-field editor-field--full">
-            <label for="verticalBannerImageUrl">Vertical Banner URL</label><input id="verticalBannerImageUrl" type="url" readonly />
-            <div class="search-row" style="margin-top:.5rem"><input id="verticalBannerImageFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" /><button id="uploadVerticalBannerImage" class="secondary" type="button">Upload / Replace</button><button id="deleteVerticalBannerImage" class="secondary" type="button">Delete Image</button></div>
-            <p id="verticalBannerImageStatus" class="muted">Recommended: 1080 × 1920 px · JPG, PNG or WEBP · max 10 MB.</p>
-          </div>
-
-          <div class="editor-field editor-field--full"><label for="artistBio">Bio</label><textarea id="artistBio"></textarea></div>
-          <div class="editor-field editor-field--full"><label for="websiteUrl">Website URL</label><input id="websiteUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="merchUrl">Merch URL</label><input id="merchUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="spotifyUrl">Spotify URL</label><input id="spotifyUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="appleMusicUrl">Apple Music URL</label><input id="appleMusicUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="youtubeUrl">YouTube URL</label><input id="youtubeUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="instagramUrl">Instagram URL</label><input id="instagramUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="xUrl">X URL</label><input id="xUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="facebookUrl">Facebook URL</label><input id="facebookUrl" type="url" /></div>
-          <div class="editor-field editor-field--full"><label for="artistNotes">Notes</label><textarea id="artistNotes"></textarea></div>
-          <div class="editor-field"><label><input id="artistVerified" type="checkbox" /> Verified</label></div>
-          <div class="editor-field"><label><input id="artistFeatured" type="checkbox" /> Featured</label></div>
-        </div>
-        <div class="editor-actions" style="margin-top:1rem"><button id="saveArtist" type="submit">Create DEV Artist</button><button id="cancelArtist" class="secondary" type="button">Cancel</button></div>
-      </form>
-
-      <section id="artistAccessCard" class="card hidden" style="margin-top:1rem">
-        <div class="section-heading"><div><p class="eyebrow">DEV ROLE-BASED ACCESS</p><h3>Artist, Manager, or Label Access</h3><p class="muted">The account must already exist. The backend requires platform-admin authorization for every access read/grant.</p></div></div>
-        <div id="artistAccessMessage" class="message">Select an existing DEV artist to load assignments.</div>
-        <div id="artistAccessList" class="table-wrap" style="margin-top:1rem"></div>
-        <div class="editor-grid" style="margin-top:1rem">
-          <div class="editor-field"><label for="accessEmail">Account Email</label><input id="accessEmail" type="email" placeholder="artist@example.com" /></div>
-          <div class="editor-field"><label for="accessRole">Role</label><select id="accessRole"><option value="artist">Artist</option><option value="band_manager">Band Manager</option><option value="label_staff">Label Staff</option></select></div>
-          <div class="editor-field"><label for="accessLevel">Access Level</label><select id="accessLevel"><option value="viewer">Viewer</option><option value="editor" selected>Editor</option><option value="manager">Manager</option><option value="owner">Owner</option></select></div>
-        </div>
-        <div class="editor-actions" style="margin-top:1rem"><button id="grantAccess" type="button">Grant DEV Access</button></div>
-      </section>
-    </section>
-
-    <section class="card">
-      <p class="eyebrow">ACCOUNT AUTH MIGRATION STATUS</p>
-      <p class="muted">Cognito/account-token mode and production public-profile routes remain on the untouched DEV Artist CMS. This staging module intentionally uses only the DEV administrator token.</p>
-      <a class="button-link" href="/radio-admin/artists/dev/" target="_blank" rel="noopener">Open untouched DEV Artist CMS</a>
-    </section>
-  </main>
-
-  <script src="../admin-env.js"></script>
-  <script src="./artists.js"></script>
+  <p><a href="/radio-admin/artists/dev/">Open the modern Artist CMS</a></p>
 </body>
 </html>

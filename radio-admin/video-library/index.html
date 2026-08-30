@@ -1,95 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <title>Stashbox Radio Admin · Video Library</title>
-  <link rel="stylesheet" href="../styles.css" />
-  <style>
-    .vl-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.vl-full{grid-column:1/-1}.vl-actions{display:flex;gap:.5rem;flex-wrap:wrap}.vl-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.vl-form-grid .full{grid-column:1/-1}.vl-form-grid label{display:grid;gap:.35rem;font-weight:700}.vl-form-grid input,.vl-form-grid select,.vl-form-grid textarea,.vl-mapping select,.vl-mapping input,.vl-assets input,.vl-assets select,.vl-assets textarea{width:100%;padding:.7rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#101511;color:inherit}.vl-checks{display:grid;gap:.5rem;max-height:20rem;overflow:auto}.vl-check{display:flex;gap:.55rem;align-items:flex-start;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.6rem}.vl-check input{width:auto;margin-top:.15rem}.vl-assets-list{display:grid;gap:.75rem}.vl-asset{border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:.8rem;display:grid;gap:.6rem}.vl-asset-head{display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start}.vl-asset-fields{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}.vl-asset-fields .full{grid-column:1/-1}.vl-pill{display:inline-block;border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:.2rem .5rem;font-size:.78rem}.vl-muted{color:#a9b4ac}.vl-hidden{display:none!important}@media(max-width:820px){.vl-grid,.vl-form-grid,.vl-asset-fields{grid-template-columns:1fr}.vl-full,.vl-form-grid .full,.vl-asset-fields .full{grid-column:auto}}
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=/radio/visual-experience/dev/">
+  <title>Stashbox Radio Video Library</title>
+  <script>
+    (() => {
+      const target = new URL('/radio/visual-experience/dev/', location.origin);
+      target.search = location.search;
+      target.hash = location.hash;
+      location.replace(target.href);
+    })();
+  </script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/radio-admin/">
-      <p class="eyebrow">CANONICAL LIVE VISUALS</p>
-      <h1>VIDEO LIBRARY</h1>
-      <p class="subtitle">One LIVE visual library · PROD + DEV/V2</p>
-    </a>
-    <nav class="topnav" aria-label="Unified admin navigation">
-      <a href="/radio-admin/">Dashboard</a><a href="/radio-admin/songs/">Songs</a><a href="/radio-admin/video-library/" aria-current="page">Video Library</a><a href="/radio-admin/vec/">VEC Lab</a><a href="/radio-admin/video-factory/">Video Factory</a><a href="/radio-admin/ads/">Ads</a><a href="/radio-admin/notifications/">Notifications</a><a href="/radio-admin/artists/">Artists</a><a href="/radio-admin/social-factory/">Social Factory</a><a href="/radio-admin/bugs/">Bug Base</a><a href="/radio-admin/system-health/">DEV Health</a>
-    </nav>
-    <div class="env-lock"><span class="env-badge">LIVE VISUALS</span><span>PROD canonical</span></div>
-  </header>
-
-  <main class="shell">
-    <section class="guardrail">This is the canonical LIVE Video Library. Folder, song-mapping, asset, and upload writes go to PROD only. Both <code>/radio/</code> and <code>/radio/dev/v2/</code> consume this same PROD visual source; DEV-specific playback/testing controls remain separate.</section>
-
-    <section class="card token-panel">
-      <div><p class="eyebrow">AUTHENTICATION</p><h2>PROD Admin Token</h2><p class="muted">Uses only the production Admin token namespace. DEV tokens are never used by this Video Library.</p></div>
-      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="PROD x-admin-token" /><button id="saveToken" type="button">Save Token</button><button id="clearToken" class="secondary" type="button">Clear</button></div>
-      <p id="tokenStatus" class="status-text"></p>
-    </section>
-
-    <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">LIVE VISUAL FOLDERS</p><h2>Visual Folder Library</h2><p class="muted">Create/edit canonical folders and manage media used by both production and DEV/V2 players.</p></div><div class="search-row"><input id="folderSearch" type="search" placeholder="Search folders…" /><button id="newFolder" type="button">New LIVE Folder</button><button id="refreshFolders" class="secondary" type="button">Refresh</button></div></div>
-      <div id="videoLibraryMessage" class="message">Loading LIVE visual folders…</div>
-      <p id="folderCount" class="song-count"></p>
-      <div class="table-wrap"><table><thead><tr><th>Actions</th><th>Folder</th><th>Type</th><th>Status</th><th>Priority</th><th>Assets</th><th>Targets</th></tr></thead><tbody id="foldersBody"><tr><td colspan="7" class="muted">No data loaded.</td></tr></tbody></table></div>
-    </section>
-
-    <section id="folderEditorCard" class="card vl-hidden">
-      <div class="section-heading"><div><p class="eyebrow">LIVE FOLDER EDITOR</p><h2 id="folderEditorHeading">New LIVE Visual Folder</h2></div></div>
-      <form id="folderForm">
-        <input id="folderId" type="hidden" />
-        <div class="vl-form-grid">
-          <label>Folder Name *<input id="folderName" required /></label>
-          <label>Folder Type<select id="folderType"><option value="general">General</option><option value="artist">Artist</option><option value="song">Song</option><option value="genre">Genre</option><option value="mood">Mood</option><option value="global">Global</option><option value="campaign">Campaign</option><option value="brand">Brand</option><option value="location">Location</option></select></label>
-          <label>Status<select id="folderStatus"><option value="active">Active</option><option value="hidden">Hidden</option></select></label>
-          <label>Priority<select id="folderPriority"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
-          <label class="full">Description<textarea id="folderDescription"></textarea></label>
-          <label class="full">Relevant Artists <span class="vl-muted">comma or line separated</span><textarea id="folderArtists"></textarea></label>
-          <label class="full">Relevant Genres<textarea id="folderGenres"></textarea></label>
-          <label class="full">Relevant Moods<textarea id="folderMoods"></textarea></label>
-          <label class="full">Relevant Songs<textarea id="folderSongs"></textarea></label>
-          <label class="full">Internal Notes<textarea id="folderNotes"></textarea></label>
-        </div>
-        <div class="editor-actions" style="margin-top:1rem"><button id="saveFolder" type="submit">Create LIVE Folder</button><button id="cancelFolder" class="secondary" type="button">Cancel</button></div>
-      </form>
-      <p class="muted">Folder deletion remains disabled. Use status controls instead of destructive folder removal.</p>
-    </section>
-
-    <section class="card vl-mapping">
-      <div class="section-heading"><div><p class="eyebrow">SONG → LIVE VISUAL FOLDERS</p><h2>Song Visual Mapping</h2><p class="muted">Uses the supported PROD <code>/admin/songs/{song_key}/visual-settings</code> contract. Included folders become explicit canonical visuals for that song.</p></div><button id="reloadMapping" class="secondary" type="button">Reload Mapping</button></div>
-      <div class="vl-grid">
-        <label>Song<select id="mappingSong"><option value="">Select a song…</option></select></label>
-        <label>Asset Order<select id="visualMixMode"><option value="random">Random</option><option value="newest_first">Newest First</option><option value="manual">Manual</option></select></label>
-        <div class="vl-full"><p id="mappingStatus" class="status-text">Select a song to load its mapping.</p><div id="mappingFolders" class="vl-checks"></div></div>
-      </div>
-      <div class="editor-actions" style="margin-top:1rem"><button id="saveMapping" type="button" disabled>Save LIVE Mapping</button></div>
-    </section>
-
-    <section id="assetManagerCard" class="card vl-assets vl-hidden">
-      <div class="section-heading"><div><p class="eyebrow">LIVE FOLDER MEDIA</p><h2 id="assetManagerHeading">Manage Folder Assets</h2><p id="assetManagerMeta" class="muted"></p></div><button id="closeAssets" class="secondary" type="button">Close</button></div>
-      <div id="assetMessage" class="message">Select a folder.</div>
-      <div class="vl-grid" style="margin-top:1rem">
-        <label>Asset Type<select id="uploadAssetType"><option value="image">Image · JPG/PNG/WEBP</option><option value="clip">Video Clip · MP4</option></select></label>
-        <label>Choose File<input id="uploadAssetFile" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" /></label>
-        <label class="vl-full">Caption<input id="uploadCaption" /></label>
-        <label class="vl-full">Alt Text<input id="uploadAltText" /></label>
-        <label class="vl-full">Notes<textarea id="uploadNotes"></textarea></label>
-        <label class="vl-full">Shopify Product URLs <span class="vl-muted">clips only, comma or line separated</span><textarea id="uploadProductUrls"></textarea></label>
-      </div>
-      <div class="editor-actions" style="margin-top:1rem"><button id="uploadAsset" type="button">Upload to LIVE Folder</button><button id="refreshAssets" class="secondary" type="button">Refresh Assets</button></div>
-      <div id="assetsList" class="vl-assets-list" style="margin-top:1rem"></div>
-    </section>
-
-    <section class="card"><p class="eyebrow">CANONICAL SAFETY</p><p class="muted">Folder removal remains disabled. Asset “Hide” uses the existing PROD asset DELETE/hide route. Duplicate filenames are checked before upload with Skip, Replace, or Keep Both behavior. The old DEV Visual Library remains available as a rollback reference, but it is no longer the player source after canonical cutover.</p><a class="button-link" href="/radio/visual-experience/dev/" target="_blank" rel="noopener">Open legacy DEV Video Library</a></section>
-  </main>
-
-  <script src="../admin-env.js"></script>
-  <script src="./video-library.js"></script>
-  <script src="./duplicate-upload-safety.js"></script>
+  <p><a href="/radio/visual-experience/dev/">Open the modern Video Library</a></p>
 </body>
 </html>

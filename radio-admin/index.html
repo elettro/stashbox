@@ -1,74 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=/radio-admin/dev/">
   <title>Stashbox Radio Admin</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <script>
+    (() => {
+      const target = new URL('/radio-admin/dev/', location.origin);
+      target.search = location.search;
+      target.hash = location.hash;
+      location.replace(target.href);
+    })();
+  </script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/radio-admin/">
-      <p class="eyebrow">UNIFIED ADMIN</p>
-      <h1>STASHBOX RADIO</h1>
-      <p class="subtitle">Unified Admin · canonical LIVE songs + DEV operational tools</p>
-    </a>
-    <nav class="topnav" aria-label="Unified admin navigation">
-      <a href="/radio-admin/" aria-current="page">Dashboard</a>
-      <a href="/radio-admin/songs/">Songs</a>
-      <a href="/radio-admin/video-library/">Video Library</a>
-      <a href="/radio-admin/vec/">VEC Lab</a>
-      <a href="/radio-admin/video-factory/">Video Factory</a>
-      <a href="/radio-admin/ads/">Ads</a>
-      <a href="/radio-admin/notifications/">Notifications</a>
-      <a href="/radio-admin/artists/">Artists</a>
-      <a href="/radio-admin/social-factory/">Social Factory</a>
-      <a href="/radio-admin/bugs/">Bug Base</a>
-      <a href="/radio-admin/system-health/">DEV Health</a>
-    </nav>
-    <div class="env-lock"><span class="env-badge">UNIFIED</span><span>Song writes locked until cutover</span></div>
-  </header>
-
-  <main class="shell">
-    <section class="guardrail">Cutover candidate: Songs read the canonical LIVE/PROD catalog. Song writes remain locked until final cutover; operational tools retain their tested DEV boundaries.</section>
-
-    <section id="tokenPanel" class="card token-panel">
-      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the new migration token namespace and can read your existing DEV token as a fallback.</p></div>
-      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="Paste DEV x-admin-token" /><button id="saveTokenButton" type="button">Save Token</button><button id="clearTokenButton" class="secondary" type="button">Clear</button></div>
-      <p id="tokenStatus" class="status-text">Checking browser token…</p>
-    </section>
-
-    <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">MIGRATED DASHBOARD</p><h2>Dashboard HQ</h2><p class="muted">Live read from the DEV private admin stats APIs. No PROD requests are made by this page.</p></div><button id="refreshButton" type="button">Refresh</button></div>
-      <div id="dashboardMessage" class="message">Enter or reuse your DEV admin token to load data.</div>
-      <div id="kpiGrid" class="kpi-grid"></div>
-    </section>
-
-    <section class="card">
-      <div class="section-heading"><div><p class="eyebrow">SONG PERFORMANCE</p><h2>Top DEV Songs</h2></div><a class="button-link" href="/radio-admin/songs/">Open migrated Songs</a></div>
-      <div class="table-wrap"><table><thead><tr><th>Song</th><th>Artist</th><th>Plays</th><th>Likes</th><th>Shares</th><th>Skips</th></tr></thead><tbody id="songStatsBody"><tr><td colspan="6" class="muted">No data loaded.</td></tr></tbody></table></div>
-    </section>
-
-    <section class="card">
-      <p class="eyebrow">ADMIN STATUS</p>
-      <div class="migration-grid">
-        <article><strong>Dashboard</strong><span class="done">DEV Read</span><p>Private DEV summary and song analytics are wired into the unified Admin. PROD analytics remain gated separately.</p></article>
-        <article><strong>Songs</strong><span class="done">QA Green</span><p>DEV create/edit, media uploads, six-image artwork, and browser safety checks are migrated. Canonical LIVE/PROD song reads are validated; writes remain locked until final cutover.</p></article>
-        <article><strong>Video Library</strong><span class="done">QA Green</span><p>DEV folder create/edit, song-folder mapping, media upload, asset metadata/status, asset hide, and Skip / Replace / Keep Both duplicate handling are migrated and browser-tested behind DEV API/storage guards.</p></article>
-        <article><strong>VEC Lab</strong><span class="done">QA Green</span><p>The proven DEV VEC controller is staged behind API and storage guards that block PROD and unknown storage targets.</p></article>
-        <article><strong>Video Factory</strong><span class="done">QA Green</span><p>DEV draft, render/retry/cancel, archive/restore, token forwarding, and private signed-output boundaries are browser-tested.</p></article>
-        <article><strong>Ads</strong><span class="done">QA Green</span><p>DEV settings, CRUD, and video upload paths are migrated and tested against authoritative DEV APIs. Browser fallback inventory is removed.</p></article>
-        <article><strong>Notifications</strong><span class="done">QA Green</span><p>DEV draft create, edit, publish, and archive lifecycle is migration-guarded and browser-tested. PROD publishing remains unavailable.</p></article>
-        <article><strong>Artists</strong><span class="done">QA Green</span><p>DEV metadata, profile/horizontal/vertical media, and delegated-access administration are migrated and browser-tested with the DEV admin token.</p></article>
-        <article><strong>Social Factory</strong><span class="done">DEV Bridge</span><p>Unified navigation reaches the separate DEV service without merging its Lambda, DB, token, secrets, or bucket into Radio.</p></article>
-        <article><strong>Bug Base</strong><span class="done">Shared</span><p>Read-only checked-in bug registry using the same centralized unified navigation. No API or database writes.</p></article>
-        <article><strong>DEV Health</strong><span class="done">QA Green</span><p>Explicitly DEV-only player/API checks are browser-tested with zero writes and zero PROD traffic. Heavy dashboard analytics remain locally frozen in the probe.</p></article>
-        <article><strong>Canonical Songs</strong><span class="done">PROD Verified</span><p>84/84 song keys match. A controlled hidden PROD metadata write was observed by the public catalog and exactly reverted. Final live route cutover remains pending.</p></article>
-      </div>
-    </section>
-  </main>
-
-  <script src="./admin-env.js"></script>
-  <script src="./staging.js"></script>
+  <p><a href="/radio-admin/dev/">Open the modern Stashbox Radio Admin</a></p>
 </body>
 </html>
