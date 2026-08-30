@@ -21,7 +21,7 @@ const targetPages = [
   'radio/dashboard/dev/index.html'
 ];
 
-const loaderPath = '/radio-admin/dev/shared-admin-header.js?v=20260721-shared-header1';
+const loaderPath = '/radio-admin/dev/shared-admin-header.js';
 
 test('every DEV CMS entry page loads the shared admin header exactly once', () => {
   targetPages.forEach(relativePath => {
