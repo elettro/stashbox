@@ -14,11 +14,17 @@ const targetPages = [
   'radio-admin/dev/vec/index.html',
   'radio-admin/dev/video-factory/index.html',
   'radio-admin/dev/social-factory/index.html',
-  'radio-admin/ads/dev/index.html',
   'radio-admin/dev/ads/index.html',
   'radio-admin/notifications/dev/index.html',
   'radio-admin/dev/system-health/index.html',
   'radio/dashboard/dev/index.html'
+];
+
+const redirectOnlyPages = [
+  {
+    path: 'radio-admin/ads/dev/index.html',
+    canonical: '/radio-admin/dev/ads/'
+  }
 ];
 
 const loaderPath = '/radio-admin/dev/shared-admin-header.js';
@@ -28,6 +34,15 @@ test('every DEV CMS entry page loads the shared admin header exactly once', () =
     const html = read(relativePath);
     const count = html.split(loaderPath).length - 1;
     assert.equal(count, 1, `${relativePath} should load the shared header exactly once`);
+  });
+});
+
+test('redirect-only DEV compatibility pages route to their canonical CMS without loading the shared header', () => {
+  redirectOnlyPages.forEach(({ path: relativePath, canonical }) => {
+    const html = read(relativePath);
+    const count = html.split(loaderPath).length - 1;
+    assert.equal(count, 0, `${relativePath} is redirect-only and should not boot the shared header`);
+    assert.match(html, new RegExp(canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   });
 });
 
