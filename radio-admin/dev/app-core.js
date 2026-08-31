@@ -1,16 +1,22 @@
-const API_BASE_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/songs';
-const EVENTS_API_BASE_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/events';
-const STATS_SUMMARY_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/summary';
-const VISUAL_FOLDERS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/visuals/folders';
-// TODO: If product focused views need true top-50+ pagination beyond the current client-side payload, add backend pagination/limit support without changing dashboard calculations.
-const PRODUCT_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/products?limit=25';
-const SONG_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/songs?limit=100';
-const UPLOAD_PRESIGN_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/uploads/presign';
-const REFERRER_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/referrers?limit=50';
-const DEVICE_STATS_API_URL = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev/admin/stats/devices?limit=50';
-const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
-const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const IS_SONGS_CMS_PAGE = window.location.pathname.includes('/radio-admin/songs/dev');
+const DEV_API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+const CANONICAL_CONTENT = window.StashboxCanonicalContent || Object.freeze({
+  apiRoot: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2',
+  tokenStorageKey: 'radio_admin_token_prod'
+});
+const ADMIN_API_ROOT = IS_SONGS_CMS_PAGE ? CANONICAL_CONTENT.apiRoot : DEV_API_ROOT;
+const API_BASE_URL = `${ADMIN_API_ROOT}/admin/songs`;
+const EVENTS_API_BASE_URL = `${ADMIN_API_ROOT}/admin/events`;
+const STATS_SUMMARY_API_URL = `${ADMIN_API_ROOT}/admin/stats/summary`;
+const VISUAL_FOLDERS_API_URL = `${ADMIN_API_ROOT}/admin/visuals/folders`;
+// TODO: If product focused views need true top-50+ pagination beyond the current client-side payload, add backend pagination/limit support without changing dashboard calculations.
+const PRODUCT_STATS_API_URL = `${ADMIN_API_ROOT}/admin/stats/products?limit=25`;
+const SONG_STATS_API_URL = `${ADMIN_API_ROOT}/admin/stats/songs?limit=100`;
+const UPLOAD_PRESIGN_API_URL = `${ADMIN_API_ROOT}/admin/uploads/presign`;
+const REFERRER_STATS_API_URL = `${ADMIN_API_ROOT}/admin/stats/referrers?limit=50`;
+const DEVICE_STATS_API_URL = `${ADMIN_API_ROOT}/admin/stats/devices?limit=50`;
+const TOKEN_STORAGE_KEY = IS_SONGS_CMS_PAGE ? CANONICAL_CONTENT.tokenStorageKey : 'stashbox_admin_token_dev';
+const RADIO_DEV_BASE_URL = 'https://elettro.github.io/stashbox/radio/dev/';
 const DEFAULT_TAB = IS_SONGS_CMS_PAGE ? 'songs' : 'dashboard';
 const DEFAULT_LANGUAGES = ['English'];
 const SHOPIFY_PRODUCT_BASE_URL = 'https://stashbox.ai/products';

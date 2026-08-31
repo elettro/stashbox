@@ -4,8 +4,12 @@
   if (window.__stashboxVideoLibraryDuplicateManagerInstalled) return;
   window.__stashboxVideoLibraryDuplicateManagerInstalled = true;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
-  const TOKEN_KEY = 'stashbox_admin_token_dev';
+  const CONTENT_CONFIG = window.StashboxCanonicalContent || Object.freeze({
+    apiRoot: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2',
+    tokenStorageKey: 'radio_admin_token_prod'
+  });
+  const API_ROOT = CONTENT_CONFIG.apiRoot;
+  const TOKEN_KEY = CONTENT_CONFIG.tokenStorageKey;
   const INPUT_TYPES = new Map([
     ['imageUploadInput', 'image'],
     ['clipUploadInput', 'clip']
@@ -80,7 +84,7 @@
 
   async function adminFetch(url, options = {}) {
     const token = getToken();
-    if (!token) throw new Error('Enter your DEV admin token before uploading files.');
+    if (!token) throw new Error('Enter your PROD admin token before uploading files.');
     const headers = { 'x-admin-token': token, ...(options.headers || {}) };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const response = await fetch(url, { cache: 'no-store', ...options, headers });

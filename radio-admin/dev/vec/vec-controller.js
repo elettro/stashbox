@@ -1,11 +1,15 @@
 (function () {
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const CONTENT_CONFIG = window.StashboxCanonicalContent || Object.freeze({
+    apiRoot: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2',
+    tokenStorageKey: 'radio_admin_token_prod'
+  });
+  const API_ROOT = CONTENT_CONFIG.apiRoot;
   const SONGS_API_URL = `${API_ROOT}/admin/songs`;
   const VISUALS_FOLDERS_API_URL = `${API_ROOT}/admin/visuals/folders`;
   const VEC_RECIPE_API_URL = `${API_ROOT}/admin/vec/recipe`;
   const VEC_SONG_ASSETS_API_URL = `${API_ROOT}/admin/vec/song-assets`;
   const UPLOAD_PRESIGN_API_URL = `${API_ROOT}/admin/uploads/presign`;
-  const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
+  const TOKEN_STORAGE_KEY = CONTENT_CONFIG.tokenStorageKey;
 
   const VEC_PREVIEW_READY_TIMEOUT_MS = 5000;
   const VEC_PREVIEW_MEDIA_STATES = Object.freeze({ IDLE: 'idle', LOADING: 'loading', READY: 'ready', PLAYING: 'playing', WAITING: 'waiting', FAILED: 'failed' });
@@ -190,7 +194,7 @@
 
   async function adminFetchJson(url, options = {}) {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
-    if (!token) throw new Error('Save an admin token in the dev admin first.');
+    if (!token) throw new Error('Save the PROD admin token first.');
     const headers = { 'x-admin-token': token, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
     const response = await fetch(url, { ...options, headers });
     const text = await response.text();
@@ -1251,7 +1255,7 @@
         <div class="panel-header vec-section-header"><div><p class="eyebrow">Song</p><h2 id="songSelectorHeading">Select Song</h2><p class="vec-copy">Select a song to simulate the song context for this VEC Lab.</p></div></div>
         <label class="vec-label" for="songSelect">Song</label>
         <select id="songSelect" class="vec-select" data-vec-song-select><option value="">Loading songs...</option></select>
-        <p class="vec-microcopy" data-vec-song-status>Loading real Songs CMS data from the existing dev admin songs API.</p>
+        <p class="vec-microcopy" data-vec-song-status>Loading Songs CMS data from the canonical LIVE API.</p>
       </section>
       <section class="card vec-section" aria-labelledby="vecPreviewHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Preview</p><h2 id="vecPreviewHeading">VEC Preview</h2><p class="vec-copy">Preview only — local audio only; does not count plays, ads, skips, or stats.</p></div></div><div class="vec-preview-window" aria-label="Visual experience preview" data-vec-preview></div><div class="vec-audio-preview" data-vec-audio-preview aria-label="Local preview audio scrubber"><p class="vec-audio-message" data-vec-audio-message>Select a song to load preview audio.</p><div class="vec-scrubber-row"><span data-vec-current-time>0:00</span><input type="range" min="0" max="0" step="0.01" value="0" data-vec-scrubber aria-label="Preview audio time scrubber" disabled /><span data-vec-duration>--:--</span></div></div><div class="vec-button-row" aria-label="Preview controls"><button type="button" data-vec-preview-play>Play Preview</button><button type="button" data-vec-preview-pause>Pause</button><button type="button" data-vec-preview-restart>Restart</button><button type="button" data-vec-preview-next>Next Visual</button></div></section>
       <section class="card vec-section" aria-labelledby="artworkControllerHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Artwork</p><h2 id="artworkControllerHeading">Official Artwork</h2><p class="vec-copy">Plan how the official song artwork anchors the visual experience at the start, end, and throughout playback.</p></div></div><div data-vec-artwork-status></div><div class="vec-artwork-only-control"><label class="vec-field vec-toggle-field"><span>Use Song Artwork Only</span><button class="vec-toggle is-off" type="button" aria-pressed="false" data-vec-artwork-only-toggle>OFF</button></label><p class="vec-microcopy">Shows only the official song artwork for the full song and ignores song-only assets, borrowed assets, and visual library folders.</p><p class="vec-artwork-only-note hidden" data-vec-artwork-only-note>Artwork Only Mode is active. Other visual sources are ignored for this song.</p></div><div class="vec-control-grid" role="group" aria-label="Official song artwork controller">${renderReadonlyToggle('Start with artwork', state.artworkRules.startWithArtwork, 'start_with_artwork')}${renderReadonlySelect('Start duration', 'start_artwork_duration_seconds', state.artworkRules.startDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('End with artwork', state.artworkRules.endWithArtwork, 'end_with_artwork')}${renderReadonlySelect('End duration', 'end_artwork_duration_seconds', state.artworkRules.endDurationSeconds, DURATION_OPTIONS)}${renderReadonlyToggle('Re-present artwork', state.artworkRules.rePresentArtwork, 're_present_artwork')}${renderReadonlySelect('Repeat every', 'repeat_artwork_every_seconds', state.artworkRules.repeatEverySeconds, REPEAT_OPTIONS)}</div></section>
@@ -1260,8 +1264,8 @@
       <section class="card vec-section" aria-labelledby="borrowSongsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Borrow</p><h2 id="borrowSongsHeading">Borrow From Other Songs</h2><p class="vec-copy">Reuse visuals from another song without copying or moving the files.</p></div></div><div data-vec-borrow-assets></div></section>
       <section class="card vec-section" aria-labelledby="renderImageSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Rendered Video</p><h2 id="renderImageSettingsHeading">Still Image Motion</h2><p class="vec-copy">Controls still-image timing and subtle Ken Burns movement in Video Factory renders. These settings do not change video clip length.</p></div></div><div class="vec-control-grid" role="group" aria-label="Rendered video still image settings"><label class="vec-field"><span>Still image duration</span><select class="vec-select" data-vec-still-image-duration>${optionMarkup(STILL_IMAGE_DURATION_OPTIONS, state.renderSettings.stillImageDurationSeconds)}</select></label><label class="vec-field vec-toggle-field"><span>Ken Burns effect</span><button class="vec-toggle ${state.renderSettings.kenBurnsEnabled ? 'is-on' : 'is-off'}" type="button" data-vec-ken-burns-toggle aria-pressed="${state.renderSettings.kenBurnsEnabled}">${onOffLabel(state.renderSettings.kenBurnsEnabled)}</button></label></div><p class="vec-microcopy">Ken Burns uses slow, subtle, seeded random movement and a restrained zoom. Each render remains repeatable from its saved recipe.</p></section>
       <section class="card vec-section" aria-labelledby="shuffleSettingsHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Shuffle</p><h2 id="shuffleSettingsHeading">Controlled Shuffle</h2><p class="vec-copy">Set basic rules for how selected visuals should rotate during the song.</p></div></div><div class="vec-control-grid" role="group" aria-label="Controlled shuffle settings"><label class="vec-field"><span>Order mode</span><select class="vec-select" data-vec-order-mode><option value="manual">Manual Order</option><option value="randomize">Randomize</option><option value="newest">Newest First</option></select></label><label class="vec-field"><span>Max assets from same folder in a row</span><select class="vec-select" data-vec-max-same-folder><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="none">No limit</option></select></label><label class="vec-field"><span>Max assets per folder per play</span><select class="vec-select" data-vec-max-folder-assets><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="all">All</option></select></label><label class="vec-field"><span>Avoid repeating same asset</span><button class="vec-toggle is-on" type="button" data-vec-avoid-repeats aria-pressed="true">ON</button></label></div></section>
-      <section class="card vec-section hidden" data-vec-manual-sequence-section aria-labelledby="manualSequenceHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Manual Sequence</p><h2 id="manualSequenceHeading">Manual Visual Sequence</h2><p class="vec-copy">Drag visuals into the exact order used by VEC Preview, DEV Radio, and Video Factory.</p></div></div><div data-vec-manual-sequence></div></section>
-      <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload this dev-only VEC recipe for the selected song.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
+      <section class="card vec-section hidden" data-vec-manual-sequence-section aria-labelledby="manualSequenceHeading"><div class="panel-header vec-section-header"><div><p class="eyebrow">Manual Sequence</p><h2 id="manualSequenceHeading">Manual Visual Sequence</h2><p class="vec-copy">Drag visuals into the exact order used by VEC Preview, PROD, DEV/V2, and Video Factory.</p></div></div><div data-vec-manual-sequence></div></section>
+      <section class="card vec-section vec-save-panel" aria-labelledby="vecSaveHeading"><div class="vec-save-content"><p class="eyebrow">Save / Reset</p><h2 id="vecSaveHeading">Save / Reset</h2><p class="vec-copy">Save and reload the canonical LIVE VEC recipe used by PROD and DEV/V2.</p><p class="vec-microcopy" data-vec-recipe-status>No song selected.</p><div class="vec-recipe-summary-block" aria-labelledby="recipeSummaryHeading"><h3 id="recipeSummaryHeading">Recipe Summary</h3><div data-vec-summary></div></div></div><div class="vec-button-row"><button type="button" data-vec-save-recipe disabled>Save VEC Recipe</button><button type="button" data-vec-reset-recipe disabled>Reset Unsaved Changes</button></div></section><div class="vec-media-modal hidden" data-vec-media-modal role="dialog" aria-modal="true" aria-labelledby="vecMediaModalTitle"></div>`;
 
     const elements = {
       select: container.querySelector('[data-vec-song-select]'),
@@ -1297,7 +1301,7 @@
       recipeStatus: container.querySelector('[data-vec-recipe-status]'),
     };
 
-    // Song-specific VEC recipe draft state stays in this dev-only controller; /radio/dev/ does not consume it yet.
+    // Draft state stays local until Save. Saved recipes go to the canonical LIVE API used by PROD and DEV/V2.
     const previewAudio = new Audio();
     previewAudio.preload = 'metadata';
 
@@ -2942,7 +2946,7 @@
           return `<option value="${escapeHtml(songKey)}">${escapeHtml(label)}</option>`;
         }).join('')}`;
         elements.select.disabled = false;
-        elements.status.textContent = `Loaded ${state.songs.length} song${state.songs.length === 1 ? '' : 's'} from the existing dev Songs CMS API.`;
+        elements.status.textContent = `Loaded ${state.songs.length} song${state.songs.length === 1 ? '' : 's'} from the canonical LIVE Songs CMS API.`;
         if (state.songKey) {
           const initialSong = state.songs.find((song) => getSongKey(song) === state.songKey);
           if (initialSong) { setSongContext(initialSong); loadSongAssetsForCurrentSong(); loadRecipeForCurrentSong(); }

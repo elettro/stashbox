@@ -3,7 +3,7 @@
 
   if (!window.location.pathname.includes('/radio-admin/songs/dev')) return;
 
-  const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const API_ROOT = window.StashboxCanonicalContent?.apiRoot || 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const ARTWORK_API_ROOT = `${API_ROOT}/radio/admin/songs`;
   const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   const MAX_ZIP_BYTES = 150 * 1024 * 1024;

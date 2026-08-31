@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio VEC Lab · Dev</title>
+  <title>Stashbox Radio VEC Lab · Master Content</title>
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="./vec.css" />
 </head>
@@ -13,7 +13,7 @@
       <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
       <div class="radio-title-row">
         <h1>Stashbox Radio VEC Lab</h1>
-        <span class="dev-admin-badge">Prototype</span>
+        <span class="dev-admin-badge">Master Content</span>
       </div>
       <p class="radio-admin-meta">Experimental song-level Visual Experience Controller</p>
     </a>
@@ -35,18 +35,19 @@
   <main class="shell vec-lab" aria-labelledby="vecLabTitle">
     <section class="card vec-hero" aria-labelledby="vecLabTitle">
       <div>
-        <p class="eyebrow">Dev-only Lab</p>
+        <p class="eyebrow">Master Content Controller</p>
         <h2 id="vecLabTitle">Stashbox Radio VEC Lab</h2>
         <p class="vec-copy">Experimental song-level Visual Experience Controller</p>
       </div>
-      <p class="vec-notice" role="note">Prototype only — does not affect production radio.</p>
+      <p class="vec-notice" role="note">Saved recipes control the canonical LIVE source used by PROD and DEV/V2.</p>
     </section>
 
     <div id="vecControllerMount" data-vec-controller></div>
 
-    <footer class="vec-footer-note">VEC Lab PR 1: dev-only song recipe save/load. No player, tracking, or stats changes.</footer>
+    <footer class="vec-footer-note">One VEC recipe source for PROD and DEV/V2. Tracking and stats remain environment-specific.</footer>
   </main>
 
+  <script src="/radio-admin/canonical-content-config.js?v=20260831-unified1"></script>
   <script src="./vec-controller.js"></script>
   <script>
     window.StashboxVecController.initVecController(document.getElementById('vecControllerMount'), {

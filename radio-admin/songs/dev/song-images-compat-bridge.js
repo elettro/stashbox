@@ -5,10 +5,13 @@
   if (window.__stashboxSongImagesCompatBridgeV4Installed) return;
   window.__stashboxSongImagesCompatBridgeV4Installed = true;
 
-  const API_ORIGIN = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com';
-  const LEGACY_PRESIGN_PATH = '/dev/admin/uploads/presign';
-  const SONG_API_PATH = '/dev/admin/songs';
-  const VEC_RECIPE_PATH = '/dev/admin/vec/recipe';
+  const API_ROOT = window.StashboxCanonicalContent?.apiRoot || 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
+  const API_URL = new URL(API_ROOT);
+  const API_ORIGIN = API_URL.origin;
+  const API_STAGE_PATH = API_URL.pathname.replace(/\/+$/, '');
+  const LEGACY_PRESIGN_PATH = `${API_STAGE_PATH}/admin/uploads/presign`;
+  const SONG_API_PATH = `${API_STAGE_PATH}/admin/songs`;
+  const VEC_RECIPE_PATH = `${API_STAGE_PATH}/admin/vec/recipe`;
   const PREPARED_RECIPE_FIELD = 'prepared_artwork_images';
   const PROFILE_SOURCE_PREFIX = 'song_profile_image:';
 
@@ -355,12 +358,12 @@
 
     if (url.origin === API_ORIGIN) {
       const bodyText = await requestBody(input, init);
-      const presignMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images\/presign$/);
+      const presignMatch = url.pathname.match(/^\/prod-v2\/radio\/admin\/songs\/([^/]+)\/artwork-images\/presign$/);
       if (presignMatch && method === 'POST') {
         return handleDedicatedPresign(input, init, presignMatch, bodyText);
       }
 
-      const mediaMatch = url.pathname.match(/^\/dev\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
+      const mediaMatch = url.pathname.match(/^\/prod-v2\/radio\/admin\/songs\/([^/]+)\/artwork-images$/);
       if (mediaMatch && (method === 'GET' || method === 'PATCH')) {
         const canonicalResponse = await fetchWithRetry(input, init, {
           label: 'Canonical song artwork request',

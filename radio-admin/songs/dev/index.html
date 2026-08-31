@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stashbox Radio Songs CMS · Dev</title>
+  <title>Stashbox Radio Songs CMS · Master Content</title>
   <link rel="stylesheet" href="../../dev/styles.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
       <p class="radio-tagline">LISTEN. WATCH. SHOP. SHARE.</p>
       <div class="radio-title-row">
         <h1>STASHBOX RADIO</h1>
-        <span class="dev-admin-badge">DEV ADMIN</span>
+        <span class="dev-admin-badge">MASTER CONTENT</span>
       </div>
       <p class="radio-admin-meta">Private Songs CMS catalog and editor</p>
     </a>
@@ -41,7 +41,7 @@
   <main class="shell">
     <section id="tokenPanel" class="card token-panel" aria-labelledby="tokenHeading">
       <h2 id="tokenHeading">Admin token</h2>
-      <p>Enter the dev admin token to load the private dashboard and song editor. The token is saved locally in this browser only.</p>
+      <p>Enter the PROD admin token to manage the canonical song catalog used by PROD and DEV/V2. The token is saved locally in this browser only.</p>
       <div class="token-form">
         <label for="adminToken">x-admin-token</label>
         <input id="adminToken" type="password" autocomplete="off" placeholder="Paste admin token" />
@@ -563,6 +563,7 @@
     </div>
   </main>
 
+  <script src="/radio-admin/canonical-content-config.js?v=20260831-unified1"></script>
   <script src="../../dev/app.js"></script>
   <script src="/radio-admin/dev/shared-admin-header.js?v=20260820-vecaudit1" defer></script>
 </body>
