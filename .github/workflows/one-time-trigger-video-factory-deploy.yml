@@ -19,5 +19,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Redeploy latest merged stale-job recovery fix.
+          # Deploy canonical LIVE content support for Video Factory.
           gh workflow run deploy-video-factory-renderer-dev.yml --repo "${GITHUB_REPOSITORY}" --ref main
