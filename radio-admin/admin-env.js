@@ -79,6 +79,14 @@
         recipePath: '/admin/vec/recipe',
         songAssetsPath: '/admin/vec/song-assets'
       }),
+      videoFactory: Object.freeze({
+        targetArchitecture: 'dev-render-service-canonical-live-content',
+        jobEnvironment: 'dev',
+        contentEnvironment: 'prod',
+        publicSongsPath: '/radio/songs',
+        publicRecipePath: '/radio/vec/recipe',
+        publicSongAssetsPath: '/radio/vec/song-assets'
+      }),
       analytics: Object.freeze({
         targetArchitecture: 'environment-specific',
         prodReadValidationRequired: true,

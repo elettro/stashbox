@@ -29,9 +29,14 @@ async function apiRequestFromOriginal(requestUrl, input, init, pathname) {
   const markerIndex = requestUrl.indexOf(routeMarker);
   if (markerIndex < 0) throw new Error('Unable to resolve the Video Factory API base URL.');
   const apiBase = requestUrl.slice(0, markerIndex);
-  const response = await nativeFetch(`${apiBase}${pathname}`, {
+  const publicPathname = pathname
+    .replace(/^\/admin\/vec\/recipe/, '/radio/vec/recipe')
+    .replace(/^\/admin\/vec\/song-assets/, '/radio/vec/song-assets');
+  const headers = requestHeaders(input, init);
+  headers.delete('x-admin-token');
+  const response = await nativeFetch(`${apiBase}${publicPathname}`, {
     method: 'GET',
-    headers: requestHeaders(input, init)
+    headers
   });
   const body = await readJson(response);
   if (!response.ok) {

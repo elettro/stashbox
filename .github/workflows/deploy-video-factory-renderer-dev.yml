@@ -15,6 +15,7 @@ jobs:
       STACK_NAME: stashbox-video-factory-dev
       TRUE_DEV_LAMBDA_FUNCTION_NAME: stashbox-radio-api-dev-v2
       TRUE_DEV_API_BASE: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+      CANONICAL_CONTENT_API_BASE: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
       ADMIN_TOKEN: ${{ secrets.STASHBOX_DEV_ADMIN_TOKEN }}
 
     steps:
@@ -132,7 +133,8 @@ jobs:
                 ApiLambdaSecurityGroupId="${API_LAMBDA_SECURITY_GROUP_ID}" \
                 ApiLambdaEndpointSubnetIds="${API_LAMBDA_ENDPOINT_SUBNETS}" \
                 ApiLambdaRouteTableIds="${API_LAMBDA_ROUTE_TABLE_IDS}" \
-                ApiBase="${TRUE_DEV_API_BASE}"
+                ApiBase="${TRUE_DEV_API_BASE}" \
+                ContentApiBase="${CANONICAL_CONTENT_API_BASE}"
           fi
 
       - name: Read ECR repository URI
@@ -169,7 +171,8 @@ jobs:
               ApiLambdaSecurityGroupId="${API_LAMBDA_SECURITY_GROUP_ID}" \
               ApiLambdaEndpointSubnetIds="${API_LAMBDA_ENDPOINT_SUBNETS}" \
               ApiLambdaRouteTableIds="${API_LAMBDA_ROUTE_TABLE_IDS}" \
-              ApiBase="${TRUE_DEV_API_BASE}"
+              ApiBase="${TRUE_DEV_API_BASE}" \
+              ContentApiBase="${CANONICAL_CONTENT_API_BASE}"
 
       - name: Store worker admin token in Secrets Manager
         run: |

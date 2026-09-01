@@ -2,9 +2,11 @@
   'use strict';
 
   const API_ROOT = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
+  const CONTENT_API_ROOT = window.StashboxCanonicalContent?.apiRoot
+    || 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2';
   const JOBS_URL = `${API_ROOT}/admin/video-factory/jobs`;
   const SUMMARY_URL = `${API_ROOT}/admin/video-factory/summary`;
-  const SONGS_URL = `${API_ROOT}/admin/songs`;
+  const SONGS_URL = `${CONTENT_API_ROOT}/radio/songs`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
   const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 
@@ -159,7 +161,7 @@
   async function loadSongs() {
     els.songStatus.textContent = 'Loading songs…';
     try {
-      const body = await fetchJson(SONGS_URL, { headers: headers() });
+      const body = await fetchJson(SONGS_URL, { headers: { Accept: 'application/json' } });
       state.songs = Array.isArray(body.songs) ? body.songs : Array.isArray(body) ? body : [];
       state.songs.sort((a, b) => {
         const left = `${a.artist || ''} ${a.display_title || a.song_name || ''}`.toLowerCase();
@@ -354,8 +356,18 @@
   }
 
   function buildPayload() {
+    const song = selectedSong();
     return {
       song_key: els.songKey.value,
+      song_context: {
+        song_key: song.song_key,
+        song_name: song.song_name,
+        display_title: song.display_title,
+        artist: song.artist,
+        album_name: song.album_name,
+        audio_url: song.audio_url,
+        song_artwork_url: song.song_artwork_url || song.resolved_artwork_url
+      },
       client_name: els.clientName.value.trim(),
       project_name: els.projectName.value.trim(),
       batch_name: els.batchName.value.trim(),

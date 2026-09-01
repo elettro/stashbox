@@ -51,7 +51,8 @@ test('each original controller loads canonical config before its application cod
   const pages = [
     ['radio-admin/songs/dev/index.html', '../../dev/app.js'],
     ['radio/visual-experience/dev/index.html', '<script>'],
-    ['radio-admin/dev/vec/index.html', './vec-controller.js']
+    ['radio-admin/dev/vec/index.html', './vec-controller.js'],
+    ['radio-admin/dev/video-factory/index.html', './video-factory.js']
   ];
 
   pages.forEach(([relativePath, controllerMarker]) => {
@@ -61,6 +62,18 @@ test('each original controller loads canonical config before its application cod
     assert.notEqual(configPosition, -1, `${relativePath} is missing canonical content config`);
     assert.ok(controllerPosition > configPosition, `${relativePath} must load canonical config before its controller`);
   });
+});
+
+test('Video Factory keeps private jobs in DEV while reading canonical LIVE content', () => {
+  const controller = read('radio-admin/dev/video-factory/video-factory.js');
+  const worker = read('video-render-worker/src/index.mjs');
+  const stack = read('infra/video-factory/dev-stack.yml');
+
+  assert.match(controller, /const JOBS_URL = `\$\{API_ROOT\}\/admin\/video-factory\/jobs`/);
+  assert.match(controller, /const SONGS_URL = `\$\{CONTENT_API_ROOT\}\/radio\/songs`/);
+  assert.match(controller, /window\.StashboxCanonicalContent\?\.apiRoot/);
+  assert.match(worker, /contentApiBase: requiredEnv\('VIDEO_FACTORY_CONTENT_API_BASE'\)/);
+  assert.match(stack, /ContentApiBase:[\s\S]*?prod-v2/);
 });
 
 test('PROD and DEV/V2 players both consume canonical song and visual sources', () => {
@@ -79,7 +92,7 @@ test('PROD and DEV/V2 players both consume canonical song and visual sources', (
   assert.match(read('radio/canonical-visual-source.js'), /const PROD_BASE = `https:\/\/\$\{PROD_HOST\}\/prod-v2`/);
 });
 
-test('canonical content changes stay limited to Songs, Video Library, and VEC', () => {
+test('environment-specific systems remain isolated from canonical content changes', () => {
   const config = read('radio-admin/admin-env.js');
   assert.match(config, /ads: Object\.freeze\(\{[\s\S]*?targetArchitecture: 'environment-specific'/);
   assert.match(config, /notifications: Object\.freeze\(\{[\s\S]*?targetArchitecture: 'environment-specific'/);

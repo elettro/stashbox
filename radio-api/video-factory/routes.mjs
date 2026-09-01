@@ -162,7 +162,10 @@ function normalizeCreateInput(input = {}) {
       include_artist: input.include_artist ?? input.includeArtist ?? VIDEO_FACTORY_DEFAULTS.include_artist,
       include_song: input.include_song ?? input.includeSong ?? VIDEO_FACTORY_DEFAULTS.include_song,
       include_album: input.include_album ?? input.includeAlbum ?? VIDEO_FACTORY_DEFAULTS.include_album,
-      metadata_comment: String(input.metadata_comment || input.metadataComment || '').trim()
+      metadata_comment: String(input.metadata_comment || input.metadataComment || '').trim(),
+      song_context: input.song_context && typeof input.song_context === 'object'
+        ? input.song_context
+        : (input.songContext && typeof input.songContext === 'object' ? input.songContext : null)
     }
   };
 }
@@ -176,6 +179,22 @@ async function loadSong(client, qname, songKey) {
     [songKey]
   );
   return result.rows[0] || null;
+}
+
+export function canonicalSongFromContext(songKey, songContext) {
+  if (!songContext || typeof songContext !== 'object') return null;
+  if (String(songContext.song_key || '').trim() !== songKey) return null;
+  const audioUrl = String(songContext.audio_url || '').trim();
+  if (!/^https:\/\//i.test(audioUrl)) return null;
+  return {
+    song_key: songKey,
+    song_name: String(songContext.song_name || '').trim(),
+    display_title: String(songContext.display_title || '').trim(),
+    artist: String(songContext.artist || '').trim(),
+    album_name: String(songContext.album_name || '').trim(),
+    audio_url: audioUrl,
+    song_artwork_url: String(songContext.song_artwork_url || '').trim()
+  };
 }
 
 function buildJobResponse(row) {
@@ -219,7 +238,8 @@ export async function createVideoFactoryDraft(input, { client, qname }) {
   if (normalized.error) return { statusCode: 400, body: { success: false, error: normalized.error } };
 
   const payload = normalized.payload;
-  const song = await loadSong(client, qname, payload.song_key);
+  const canonicalSong = canonicalSongFromContext(payload.song_key, payload.song_context);
+  const song = canonicalSong || await loadSong(client, qname, payload.song_key);
   if (!song) return { statusCode: 404, body: { success: false, error: 'Song not found.' } };
   if (!String(song.audio_url || '').trim()) {
     return { statusCode: 400, body: { success: false, error: 'The selected song does not have an audio_url.' } };

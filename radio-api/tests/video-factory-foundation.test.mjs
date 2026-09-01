@@ -7,7 +7,10 @@ import {
   normalizeDuration,
   sanitizeFilenameToken
 } from '../video-factory/recipe.mjs';
-import { getVideoFactoryRouteMatch } from '../video-factory/routes.mjs';
+import {
+  canonicalSongFromContext,
+  getVideoFactoryRouteMatch
+} from '../video-factory/routes.mjs';
 
 test('Video Factory route matcher accepts only private admin routes', () => {
   assert.deepEqual(getVideoFactoryRouteMatch(['admin', 'video-factory', 'jobs']), {
@@ -92,6 +95,37 @@ test('initial recipe includes output, overlays, metadata, and an empty timeline'
   assert.equal(recipe.overlays.include_album, false);
   assert.equal(recipe.metadata.publisher, 'Elettro Incorporated');
   assert.deepEqual(recipe.timeline, []);
+});
+
+test('canonical song context supplies a LIVE song missing from the DEV schema', () => {
+  assert.deepEqual(canonicalSongFromContext('house-on-the-hill-stashbox', {
+    song_key: 'house-on-the-hill-stashbox',
+    song_name: 'House on the Hill',
+    display_title: 'House on the Hill (Samba)',
+    artist: 'Stashbox',
+    album_name: 'House on the Hill',
+    audio_url: 'https://cdn.example.com/house-on-the-hill.mp3',
+    song_artwork_url: 'https://cdn.example.com/house-on-the-hill.jpg'
+  }), {
+    song_key: 'house-on-the-hill-stashbox',
+    song_name: 'House on the Hill',
+    display_title: 'House on the Hill (Samba)',
+    artist: 'Stashbox',
+    album_name: 'House on the Hill',
+    audio_url: 'https://cdn.example.com/house-on-the-hill.mp3',
+    song_artwork_url: 'https://cdn.example.com/house-on-the-hill.jpg'
+  });
+});
+
+test('canonical song context rejects mismatched keys and non-HTTPS audio', () => {
+  assert.equal(canonicalSongFromContext('expected-song', {
+    song_key: 'different-song',
+    audio_url: 'https://cdn.example.com/song.mp3'
+  }), null);
+  assert.equal(canonicalSongFromContext('expected-song', {
+    song_key: 'expected-song',
+    audio_url: 'http://cdn.example.com/song.mp3'
+  }), null);
 });
 
 

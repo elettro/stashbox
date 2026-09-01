@@ -53,7 +53,7 @@ function extensionForUrl(url, type = 'clip') {
 async function apiRequest(apiBase, adminToken, pathname, options = {}) {
   const headers = {
     Accept: 'application/json',
-    'x-admin-token': adminToken,
+    ...(adminToken ? { 'x-admin-token': adminToken } : {}),
     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers || {})
   };
@@ -111,8 +111,8 @@ async function loadArtworkFallback(context, job, recipe) {
   const recipeArtwork = stringValue(recipe?.artwork?.url || recipe?.artwork_url);
   try {
     const body = await apiRequest(
-      context.apiBase,
-      context.adminToken,
+      context.contentApiBase,
+      '',
       `/radio/admin/songs/${encodeURIComponent(job.song_key)}/artwork-images`,
       { method: 'GET' }
     );
@@ -123,7 +123,7 @@ async function loadArtworkFallback(context, job, recipe) {
   }
 
   try {
-    const body = await apiRequest(context.apiBase, context.adminToken, '/admin/songs', { method: 'GET' });
+    const body = await apiRequest(context.contentApiBase, '', '/radio/songs', { method: 'GET' });
     const songs = Array.isArray(body.songs) ? body.songs : [];
     const song = songs.find(item => String(item.song_key) === String(job.song_key));
     return selectRenderArtwork({
@@ -140,8 +140,8 @@ async function loadArtworkFallback(context, job, recipe) {
 async function loadVisualSettings(context, job) {
   try {
     const body = await apiRequest(
-      context.apiBase,
-      context.adminToken,
+      context.contentApiBase,
+      '',
       `/radio/songs/${encodeURIComponent(job.song_key)}/visual-settings`,
       { method: 'GET' }
     );
@@ -188,6 +188,7 @@ async function main() {
   const context = {
     jobId: requiredEnv('JOB_ID'),
     apiBase: requiredEnv('VIDEO_FACTORY_API_BASE'),
+    contentApiBase: requiredEnv('VIDEO_FACTORY_CONTENT_API_BASE'),
     adminToken: requiredEnv('ADMIN_TOKEN'),
     outputBucket: requiredEnv('VIDEO_FACTORY_OUTPUT_BUCKET'),
     outputPrefix: stringValue(process.env.VIDEO_FACTORY_OUTPUT_PREFIX) || 'video-factory',

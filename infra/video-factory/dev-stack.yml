@@ -23,6 +23,9 @@ Parameters:
   ApiBase:
     Type: String
     Default: https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev
+  ContentApiBase:
+    Type: String
+    Default: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
   AdminTokenSecretName:
     Type: String
     Default: stashbox/video-factory/dev/admin-token
@@ -310,6 +313,8 @@ Resources:
           Environment:
             - Name: VIDEO_FACTORY_API_BASE
               Value: !Ref ApiBase
+            - Name: VIDEO_FACTORY_CONTENT_API_BASE
+              Value: !Ref ContentApiBase
             - Name: VIDEO_FACTORY_OUTPUT_BUCKET
               Value: !Ref RenderBucket
             - Name: VIDEO_FACTORY_OUTPUT_PREFIX
