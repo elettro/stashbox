@@ -1,0 +1,75 @@
+name: Admin Migration Canonical Song Write Rehearsal
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/admin-env.js'
+      - 'radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs'
+      - 'radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs'
+      - '.github/workflows/admin-migration-canonical-song-write-rehearsal.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/admin-env.js'
+      - 'radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs'
+      - 'radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs'
+      - '.github/workflows/admin-migration-canonical-song-write-rehearsal.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-song-write-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check CI-only write rehearsal
+        run: |
+          node --check radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs
+          node --check radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs
+
+      - name: Assert committed production write lock remains closed
+        run: |
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js
+          grep -q 'writesAllowedInStaging: false' radio-admin/staging/admin-env.js
+          grep -q "process.env.CI !== 'true'" radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs
+
+      - name: Apply canonical Song CMS only inside CI workspace
+        run: node radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs --apply
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/canonical-write-rehearsal-http.log 2>&1 &
+          for i in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/canonical-write-rehearsal-http.log
+          exit 1
+
+      - name: Rehearse write-enabled canonical Song CMS against mocked PROD only
+        env:
+          CI: 'true'
+        run: node radio-admin/staging/tests/canonical-song-admin-write-rehearsal.mjs
+
+      - name: Assert CI rehearsal did not persist write enablement
+        if: always()
+        run: |
+          git checkout -- radio-admin/staging/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Stashbox Radio Admin · Bug Base Migration Staging</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .bug-controls{display:grid;grid-template-columns:minmax(260px,1fr) repeat(4,minmax(130px,auto));gap:10px}.bug-list{display:grid;gap:12px}.bug-card{padding:16px;border:1px solid #2b302d;border-radius:10px;background:#101311}.bug-top{display:flex;justify-content:space-between;gap:14px}.bug-id{font-weight:800}.pills{display:flex;flex-wrap:wrap;gap:6px}.pill{padding:4px 8px;border:1px solid #3a423d;border-radius:999px;font-size:11px}.bug-meta{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0;color:#9ca79f;font-size:12px}.bug-details{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bug-details h4{margin:0 0 5px}.bug-details p{margin:0;color:#aeb9b2;line-height:1.45}.bug-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.bug-links a{padding:7px 9px;border:1px solid #3a423d;border-radius:8px}.bug-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.bug-stat{padding:12px;border:1px solid #2b302d;border-radius:9px;background:#101311}.bug-stat span{display:block;color:#9ca79f;font-size:11px}.bug-stat strong{font-size:24px}@media(max-width:900px){.bug-controls,.bug-details{grid-template-columns:1fr}.bug-top{display:block}.pills{margin-top:8px}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>BUG BASE</h1>
+      <p class="subtitle">Shared operational registry · no database writes</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/bugs/" aria-current="page">Bug Base</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">SHARED</span><span>Read-only</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">Bug Base is a shared operational module. This staging view reads only its checked-in JSON registry and links to GitHub documentation. It makes no DEV or PROD API writes.</section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div><p class="eyebrow">PERMANENT REPAIR MEMORY</p><h2>Bug & Fix Log</h2><p class="muted">Search retained defects by symptom, system area, status, severity, file, commit, or working comparison.</p></div>
+        <div class="bug-stats"><div class="bug-stat"><span>Total</span><strong id="statTotal">—</strong></div><div class="bug-stat"><span>Open</span><strong id="statOpen">—</strong></div><div class="bug-stat"><span>Verified</span><strong id="statVerified">—</strong></div></div>
+      </div>
+    </section>
+
+    <section class="card bug-controls">
+      <input id="search" type="search" placeholder="Search bug registry…" />
+      <select id="status"><option value="">All statuses</option></select>
+      <select id="area"><option value="">All areas</option></select>
+      <select id="severity"><option value="">All severities</option></select>
+      <select id="environment"><option value="">All environments</option></select>
+    </section>
+
+    <section id="bugList" class="bug-list"><div class="card muted">Loading bug registry…</div></section>
+  </main>
+
+  <script src="../admin-env.js"></script>
+  <script>
+  (()=>{
+    const q=id=>document.getElementById(id); const els={search:q('search'),status:q('status'),area:q('area'),severity:q('severity'),environment:q('environment'),list:q('bugList')}; let bugs=[];
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); const arr=v=>Array.isArray(v)?v:[];
+    const unique=k=>[...new Set(bugs.map(x=>x[k]).filter(Boolean))].sort(); const fill=(el,values)=>values.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;el.appendChild(o)});
+    const github=path=>`https://github.com/elettro/stashbox/blob/main/${path}`;
+    function render(){const search=els.search.value.trim().toLowerCase(); const rows=bugs.filter(b=>{const h=[b.id,b.title,b.status,b.verification,b.severity,b.area,b.environment,b.symptom,b.root_cause,b.fix_summary,b.future_repair,...arr(b.files_changed),...arr(b.commits)].join(' ').toLowerCase();return(!search||h.includes(search))&&(!els.status.value||b.status===els.status.value)&&(!els.area.value||b.area===els.area.value)&&(!els.severity.value||b.severity===els.severity.value)&&(!els.environment.value||b.environment===els.environment.value)}); els.list.innerHTML=rows.length?rows.map(b=>`<article class="bug-card"><div class="bug-top"><div><div class="bug-id">${esc(b.id)}</div><h3>${esc(b.title)}</h3></div><div class="pills"><span class="pill">${esc(b.severity)}</span><span class="pill">${esc(b.status)}</span>${b.verification?`<span class="pill">${esc(b.verification)}</span>`:''}</div></div><div class="bug-meta"><span>${esc(b.area)}</span><span>${esc(b.environment)}</span><span>Reported ${esc(b.reported_at||'—')}</span></div><div class="bug-details"><div><h4>Symptom</h4><p>${esc(b.symptom)}</p></div><div><h4>Fix / status</h4><p>${esc(b.fix_summary||b.future_repair||'No repair recorded yet.')}</p></div></div><div class="bug-links">${b.record_path?`<a href="${github(b.record_path)}" target="_blank" rel="noreferrer">Full Bug Record</a>`:''}${arr(b.commits).map(c=>`<a href="https://github.com/elettro/stashbox/commit/${encodeURIComponent(c)}" target="_blank" rel="noreferrer">Commit ${esc(c.slice(0,8))}</a>`).join('')}</div></article>`).join(''):'<div class="card muted">No matching bugs.</div>'}
+    Promise.all([fetch('./bugs.json',{cache:'no-store'}).then(r=>r.json()),fetch('./open-bugs.json',{cache:'no-store'}).then(r=>r.ok?r.json():{bugs:[]})]).then(([a,b])=>{const map=new Map();[...arr(a.bugs),...arr(b.bugs)].forEach(x=>x?.id&&map.set(x.id,x));bugs=[...map.values()].sort((x,y)=>String(x.id).localeCompare(String(y.id)));q('statTotal').textContent=bugs.length;q('statOpen').textContent=bugs.filter(x=>['Open','Investigating','Reopened'].includes(x.status)).length;q('statVerified').textContent=bugs.filter(x=>x.verification==='Verified'||x.status==='Verified').length;fill(els.status,unique('status'));fill(els.area,unique('area'));fill(els.severity,unique('severity'));fill(els.environment,unique('environment'));render()}).catch(e=>els.list.innerHTML=`<div class="card">Registry load failed: ${esc(e.message||e)}</div>`);
+    ['input','change'].forEach(t=>Object.values(els).forEach(el=>(el instanceof HTMLInputElement||el instanceof HTMLSelectElement)&&el.addEventListener(t,render)));
+  })();
+  </script>
+</body>
+</html>

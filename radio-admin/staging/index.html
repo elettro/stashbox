@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stashbox Radio Admin · Migration Staging</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/radio-admin/staging/">
+      <p class="eyebrow">ISSUE #1077 · MIGRATION STAGING</p>
+      <h1>STASHBOX RADIO</h1>
+      <p class="subtitle">Unified Admin build · DEV data only</p>
+    </a>
+    <nav class="topnav" aria-label="Staging admin navigation">
+      <a href="/radio-admin/staging/" aria-current="page">Dashboard</a>
+      <a href="/radio-admin/staging/songs/">Songs</a>
+      <a href="/radio-admin/staging/video-library/">Video Library</a>
+      <a href="/radio-admin/staging/vec/">VEC Lab</a>
+      <a href="/radio-admin/staging/video-factory/">Video Factory</a>
+      <a href="/radio-admin/staging/ads/">Ads</a>
+      <a href="/radio-admin/staging/notifications/">Notifications</a>
+      <a href="/radio-admin/staging/artists/">Artists</a>
+      <a href="/radio-admin/staging/social-factory/">Social Factory</a>
+      <a href="/radio-admin/staging/bugs/">Bug Base</a>
+      <a href="/radio-admin/staging/system-health/">DEV Health</a>
+    </nav>
+    <div class="env-lock"><span class="env-badge">DEV</span><span>PROD locked</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="guardrail">This staging Admin is connected only to DEV services. Production writes, route replacement, and production cutover remain blocked.</section>
+
+    <section id="tokenPanel" class="card token-panel">
+      <div><p class="eyebrow">AUTHENTICATION</p><h2>DEV Admin Token</h2><p class="muted">Uses the new migration token namespace and can read your existing DEV token as a fallback.</p></div>
+      <div class="token-row"><input id="adminToken" type="password" autocomplete="off" placeholder="Paste DEV x-admin-token" /><button id="saveTokenButton" type="button">Save Token</button><button id="clearTokenButton" class="secondary" type="button">Clear</button></div>
+      <p id="tokenStatus" class="status-text">Checking browser token…</p>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">MIGRATED DASHBOARD</p><h2>Dashboard HQ</h2><p class="muted">Live read from the DEV private admin stats APIs. No PROD requests are made by this page.</p></div><button id="refreshButton" type="button">Refresh</button></div>
+      <div id="dashboardMessage" class="message">Enter or reuse your DEV admin token to load data.</div>
+      <div id="kpiGrid" class="kpi-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-heading"><div><p class="eyebrow">SONG PERFORMANCE</p><h2>Top DEV Songs</h2></div><a class="button-link" href="/radio-admin/staging/songs/">Open migrated Songs</a></div>
+      <div class="table-wrap"><table><thead><tr><th>Song</th><th>Artist</th><th>Plays</th><th>Likes</th><th>Shares</th><th>Skips</th></tr></thead><tbody id="songStatsBody"><tr><td colspan="6" class="muted">No data loaded.</td></tr></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">MIGRATION STATUS</p>
+      <div class="migration-grid">
+        <article><strong>Dashboard</strong><span class="done">DEV Read</span><p>Private DEV summary and song analytics are wired into the unified staging Admin. PROD analytics remain gated separately.</p></article>
+        <article><strong>Songs</strong><span class="done">QA Green</span><p>DEV create/edit, media uploads, six-image artwork, and browser safety checks are migrated. Canonical LIVE/PROD song writes remain blocked in staging.</p></article>
+        <article><strong>Video Library</strong><span class="done">QA Green</span><p>DEV folder create/edit, song-folder mapping, media upload, asset metadata/status, asset hide, and Skip / Replace / Keep Both duplicate handling are migrated and browser-tested behind DEV API/storage guards.</p></article>
+        <article><strong>VEC Lab</strong><span class="done">QA Green</span><p>The proven DEV VEC controller is staged behind API and storage guards that block PROD and unknown storage targets.</p></article>
+        <article><strong>Video Factory</strong><span class="done">QA Green</span><p>DEV draft, render/retry/cancel, archive/restore, token forwarding, and private signed-output boundaries are browser-tested.</p></article>
+        <article><strong>Ads</strong><span class="done">QA Green</span><p>DEV settings, CRUD, and video upload paths are migrated and tested against authoritative DEV APIs. Browser fallback inventory is removed.</p></article>
+        <article><strong>Notifications</strong><span class="done">QA Green</span><p>DEV draft create, edit, publish, and archive lifecycle is migration-guarded and browser-tested. PROD publishing remains unavailable.</p></article>
+        <article><strong>Artists</strong><span class="done">QA Green</span><p>DEV metadata, profile/horizontal/vertical media, and delegated-access administration are migrated and browser-tested with the DEV admin token.</p></article>
+        <article><strong>Social Factory</strong><span class="done">DEV Bridge</span><p>Unified navigation reaches the separate DEV service without merging its Lambda, DB, token, secrets, or bucket into Radio.</p></article>
+        <article><strong>Bug Base</strong><span class="done">Shared</span><p>Read-only checked-in bug registry using the same centralized staging navigation. No API or database writes.</p></article>
+        <article><strong>DEV Health</strong><span class="done">QA Green</span><p>Explicitly DEV-only player/API checks are browser-tested with zero writes and zero PROD traffic. Heavy dashboard analytics remain locally frozen in the probe.</p></article>
+        <article><strong>PROD</strong><span class="blocked">Locked</span><p>No production reads, writes, route replacement, legacy-admin move, or cutover has been approved in this phase.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <script src="./admin-env.js"></script>
+  <script src="./staging.js"></script>
+</body>
+</html>

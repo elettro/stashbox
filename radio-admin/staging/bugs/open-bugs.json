@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-22T07:19:00-04:00",
+  "bugs": [
+    {
+      "id": "SR-BUG-0018",
+      "title": "Vertical ad creative is cropped instead of displayed with FIT",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Ads / Player",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-21",
+      "fixed_at": "2026-08-22",
+      "verified_at": "2026-08-22",
+      "symptom": "Ad video sizing and positioning previously cropped or misplaced sponsored creatives instead of centering the complete frame in the browser viewport.",
+      "affected_examples": [
+        "Clementine - Album sponsored video",
+        "Jon Phillips Silverback Management sponsored video",
+        "DEV V2 desktop sponsored overlay"
+      ],
+      "working_comparisons": [
+        "Verified full ad media centered in the browser viewport with balanced black space around fitted creative"
+      ],
+      "root_cause": "Nested ad media geometry and centering rule order allowed the fitted video box to resolve against the wrong origin. One pass also applied inset:auto after left/top, erasing the intended centering coordinates.",
+      "fix_summary": "The dedicated Ads FIT guard sizes from intrinsic media dimensions, uses the browser viewport as the positioning reference, applies inset before the 50vw/50vh coordinates, and centers with translate(-50%, -50%). User verified the live result.",
+      "files_changed": [
+        "radio/dev/v2/v2-ads-fit-guard.js",
+        "radio/dev/v2/desktop/index.html"
+      ],
+      "commits": [
+        "9c0d557dee16ec39fdbaa2c82d87ad3723d12587"
+      ],
+      "related_bugs": [
+        "SR-BUG-0019"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0018.md",
+      "repair_playbook": null,
+      "future_repair": "Keep ad media sizing and positioning isolated from normal VEC video geometry."
+    },
+    {
+      "id": "SR-BUG-0019",
+      "title": "Ads CMS break cadence is ignored and ads play every other song",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Ads / Player",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-21",
+      "fixed_at": "2026-08-22",
+      "verified_at": "2026-08-22",
+      "symptom": "The player appeared to ignore an every-song ad instruction and play commercials every other song.",
+      "affected_examples": [
+        "DEV V2 desktop live sequence on 2026-08-21",
+        "Shared V2 Ads cadence/controller path"
+      ],
+      "working_comparisons": [
+        "Player follows the saved Ads CMS break_interval value"
+      ],
+      "root_cause": "Final user verification found the Ads CMS controller itself had remained set to every other song during the test. The player behavior matched the saved controller setting.",
+      "fix_summary": "The CMS remains the cadence source of truth. Earlier cadence hardening remains in place, and the user verified the issue should be closed after confirming the controller setting.",
+      "files_changed": [
+        "radio/dev/v2/v2-ads-cms-runtime.js",
+        "radio/dev/v2/v2-ads-cms-live-refresh.js",
+        "radio/dev/v2/v2-ads-cms-cadence-guard.js",
+        "radio-admin/dev/ads/index.html"
+      ],
+      "commits": [
+        "c4815d211d43d35916654945b291d4881f125aed",
+        "ca9aaddbc8b63d0e0172b0e92d525d34de9b4c09"
+      ],
+      "related_bugs": [
+        "SR-BUG-0018"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0019.md",
+      "repair_playbook": null,
+      "future_repair": "Compare the live public break_interval with the saved Ads CMS selection before diagnosing a cadence mismatch."
+    }
+  ]
+}
