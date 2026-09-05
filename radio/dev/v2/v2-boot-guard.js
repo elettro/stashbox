@@ -59,13 +59,11 @@
     requestUrl.searchParams.set('limit', '250');
     requestUrl.searchParams.set('_stashbox_random', `${Date.now()}-${Math.random()}`);
 
+    // Keep this a simple cross-origin GET. Do not add custom request headers,
+    // which would force a CORS preflight against Shopify's products.json endpoint.
     const response = await timeoutFetch(requestUrl.toString(), {
       ...init,
-      cache: 'no-store',
-      headers: {
-        ...(init.headers || {}),
-        'Cache-Control': 'no-cache'
-      }
+      cache: 'no-store'
     }, 10000);
 
     if (!response.ok) return response;
