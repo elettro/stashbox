@@ -37,6 +37,57 @@
     );
   }
 
+  function isShopProductsRequest(rawUrl) {
+    const url = parsedUrl(rawUrl);
+    return Boolean(url && url.hostname === 'stashbox.ai' && /\/products\.json$/i.test(url.pathname));
+  }
+
+  function shuffle(items) {
+    const list = [...items];
+    for (let index = list.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
+    }
+    return list;
+  }
+
+  async function fetchRandomizedShopProducts(input, init = {}) {
+    const rawUrl = typeof input === 'string' ? input : input?.url || '';
+    const requestUrl = parsedUrl(rawUrl);
+    if (!requestUrl) return timeoutFetch(input, init, 10000);
+
+    requestUrl.searchParams.set('limit', '250');
+    requestUrl.searchParams.set('_stashbox_random', `${Date.now()}-${Math.random()}`);
+
+    const response = await timeoutFetch(requestUrl.toString(), {
+      ...init,
+      cache: 'no-store',
+      headers: {
+        ...(init.headers || {}),
+        'Cache-Control': 'no-cache'
+      }
+    }, 10000);
+
+    if (!response.ok) return response;
+
+    try {
+      const payload = await response.clone().json();
+      if (!Array.isArray(payload?.products)) return response;
+      payload.products = shuffle(payload.products);
+      const headers = new Headers(response.headers);
+      headers.set('content-type', 'application/json');
+      headers.set('cache-control', 'no-store');
+      headers.set('x-stashbox-shop-randomized', 'dev-v2');
+      return new Response(JSON.stringify(payload), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    } catch (_) {
+      return response;
+    }
+  }
+
   function alternateSongsUrl(rawUrl) {
     const requested = parsedUrl(rawUrl);
     const fallback = new URL(requested?.hostname === PROD_HOST ? DEV_SONGS : PROD_SONGS);
@@ -170,6 +221,7 @@
   window.fetch = (input, init = {}) => {
     const rawUrl = typeof input === 'string' ? input : input?.url || '';
     if (isSongsRequest(rawUrl)) return fetchSongsWithFallback(input, init);
+    if (isShopProductsRequest(rawUrl)) return fetchRandomizedShopProducts(input, init);
 
     const url = parsedUrl(rawUrl);
     if (isCognitoRequest(url)) return timeoutFetch(input, init, COGNITO_TIMEOUT_MS);
