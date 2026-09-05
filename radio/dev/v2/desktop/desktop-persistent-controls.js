@@ -6,6 +6,74 @@
   const app = document.getElementById('v2App');
   if (!root || !app) return;
 
+  // DEV desktop Shopify fallback repair.
+  // v2-boot-guard currently wraps fetch for stashbox.ai. Its cache-control request
+  // header causes the storefront JSON request to preflight and fail. Bypass that
+  // wrapped path for products.json with a simple XHR GET, then shuffle locally.
+  const guardedFetch = window.fetch.bind(window);
+
+  const isShopProductsUrl = raw => {
+    try {
+      const url = new URL(typeof raw === 'string' ? raw : raw?.url || '', location.href);
+      return url.hostname === 'stashbox.ai' && /\/products\.json$/i.test(url.pathname);
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const shuffleProducts = products => {
+    const list = Array.isArray(products) ? products.slice() : [];
+    for (let index = list.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
+    }
+    return list;
+  };
+
+  const fetchShopProductsSimple = raw => new Promise((resolve, reject) => {
+    let url;
+    try {
+      url = new URL(typeof raw === 'string' ? raw : raw?.url || '', location.href);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    url.searchParams.set('limit', '250');
+    url.searchParams.set('_stashbox_desktop_random', `${Date.now()}-${Math.random()}`);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url.toString(), true);
+    xhr.timeout = 10000;
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`Shop HTTP ${xhr.status}`));
+        return;
+      }
+      try {
+        const payload = JSON.parse(xhr.responseText || '{}');
+        if (Array.isArray(payload.products)) payload.products = shuffleProducts(payload.products);
+        resolve(new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stashbox-Shop-Randomized': 'dev-desktop-xhr'
+          }
+        }));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    xhr.onerror = () => reject(new Error('Shop network request failed'));
+    xhr.ontimeout = () => reject(new Error('Shop request timed out'));
+    xhr.send();
+  });
+
+  window.fetch = (input, init) => {
+    if (isShopProductsUrl(input)) return fetchShopProductsSimple(input);
+    return guardedFetch(input, init);
+  };
+
   const login = root.querySelector('[data-desktop-login]');
   const bell = root.querySelector('[data-desktop-notifications]');
   let positionFrame = 0;
