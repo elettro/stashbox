@@ -1,0 +1,251 @@
+name: Admin Migration Staging QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/**'
+      - '.github/workflows/admin-migration-staging-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/**'
+      - '.github/workflows/admin-migration-staging-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  song-cms-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check staging JavaScript
+        run: |
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/staging.js
+          node --check radio-admin/staging/songs/songs.js
+          node --check radio-admin/staging/songs/media.js
+          node --check radio-admin/staging/songs/artwork.js
+          node --check radio-admin/staging/songs/editor-sync.js
+          node --check radio-admin/staging/video-library/video-library.js
+          node --check radio-admin/staging/video-library/duplicate-upload-safety.js
+          node --check radio-admin/staging/vec/migration-guard.js
+          node --check radio-admin/staging/vec/vec-controller.js
+          node --check radio-admin/staging/video-factory/migration-guard.js
+          node --check radio-admin/staging/video-factory/video-factory.js
+          node --check radio-admin/staging/video-factory/video-factory-archive.js
+          node --check radio-admin/staging/video-factory/video-factory-resolution-preview.js
+          node --check radio-admin/staging/ads/ads.js
+          node --check radio-admin/staging/notifications/app.js
+          node --check radio-admin/staging/artists/artists.js
+          node --check radio-admin/staging/system-health/dashboard-summary-freeze.js
+          node --check radio-admin/staging/system-health/system-health.js
+          node --check radio-admin/staging/tests/song-cms-smoke.mjs
+          node --check radio-admin/staging/tests/module-smoke.mjs
+          node --check radio-admin/staging/tests/vec-guard-smoke.mjs
+          node --check radio-admin/staging/tests/video-library-write-smoke.mjs
+          node --check radio-admin/staging/tests/video-library-duplicate-smoke.mjs
+          node --check radio-admin/staging/tests/video-factory-write-smoke.mjs
+          node --check radio-admin/staging/tests/ads-write-smoke.mjs
+          node --check radio-admin/staging/tests/ads-upload-smoke.mjs
+          node --check radio-admin/staging/tests/artists-write-smoke.mjs
+          node --check radio-admin/staging/tests/artists-upload-smoke.mjs
+          node --check radio-admin/staging/tests/artists-access-smoke.mjs
+          node --check radio-admin/staging/tests/notifications-write-smoke.mjs
+          node --check radio-admin/staging/tests/system-health-readonly-smoke.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/admin-staging-http.log 2>&1 &
+          echo $! > /tmp/admin-staging-http.pid
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-library/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/vec/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/video-factory/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/ads/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/notifications/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/artists/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/social-factory/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/bugs/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/system-health/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/admin-staging-http.log
+          exit 1
+
+      - name: Run Song CMS browser smoke test with mocked DEV API
+        run: node radio-admin/staging/tests/song-cms-smoke.mjs
+
+      - name: Run migrated module browser smoke test with mocked DEV APIs
+        run: node radio-admin/staging/tests/module-smoke.mjs
+
+      - name: Run VEC DEV API and storage boundary browser smoke test
+        run: node radio-admin/staging/tests/vec-guard-smoke.mjs
+
+      - name: Run DEV Video Library write and upload browser smoke test
+        run: node radio-admin/staging/tests/video-library-write-smoke.mjs
+
+      - name: Run DEV Video Library duplicate filename browser smoke test
+        run: node radio-admin/staging/tests/video-library-duplicate-smoke.mjs
+
+      - name: Run DEV Video Factory lifecycle and boundary browser smoke test
+        run: node radio-admin/staging/tests/video-factory-write-smoke.mjs
+
+      - name: Run DEV Ads settings and CRUD browser smoke test
+        run: node radio-admin/staging/tests/ads-write-smoke.mjs
+
+      - name: Run DEV Ads video upload browser smoke test
+        run: node radio-admin/staging/tests/ads-upload-smoke.mjs
+
+      - name: Run DEV Artist metadata browser smoke test
+        run: node radio-admin/staging/tests/artists-write-smoke.mjs
+
+      - name: Run DEV Artist profile media browser smoke test
+        run: node radio-admin/staging/tests/artists-upload-smoke.mjs
+
+      - name: Run DEV Artist delegated access browser smoke test
+        run: node radio-admin/staging/tests/artists-access-smoke.mjs
+
+      - name: Run DEV Notification lifecycle browser smoke test
+        run: node radio-admin/staging/tests/notifications-write-smoke.mjs
+
+      - name: Run read-only DEV System Health browser smoke test
+        run: node radio-admin/staging/tests/system-health-readonly-smoke.mjs
+
+      - name: Assert staging source has no direct PROD Song CMS write target
+        run: |
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/admin/songs" radio-admin/staging; then
+            echo 'Direct PROD Song CMS target found in staging source.'
+            exit 1
+          fi
+
+      - name: Assert VEC staging boundary is installed before the proven controller
+        run: |
+          grep -q "./migration-guard.js" radio-admin/staging/vec/index.html
+          grep -q "assertWriteAllowed('dev', 'vec')" radio-admin/staging/vec/migration-guard.js
+          grep -q "assertWriteAllowed('dev', 'vec-media')" radio-admin/staging/vec/migration-guard.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/vec/migration-guard.js
+          grep -q "Blocked VEC request to PROD API" radio-admin/staging/vec/migration-guard.js
+          grep -q "Blocked VEC storage write to PROD media bucket" radio-admin/staging/vec/migration-guard.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod" radio-admin/staging/vec/vec-controller.js radio-admin/staging/vec/index.html; then
+            echo 'PROD API/token binding found in VEC controller or page.'
+            exit 1
+          fi
+
+      - name: Assert Video Library staging uses guarded DEV write contracts
+        run: |
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/video-library.js
+          grep -q "assertWriteAllowed('dev', 'video-library')" radio-admin/staging/video-library/duplicate-upload-safety.js
+          grep -q "/admin/visuals/folders" radio-admin/staging/video-library/video-library.js
+          grep -q "/admin/visuals/song-folders" radio-admin/staging/video-library/video-library.js
+          grep -q "/admin/uploads/presign" radio-admin/staging/video-library/video-library.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/video-library/video-library.js
+          grep -q "Blocked Video Library upload because DEV presign returned a PROD media target" radio-admin/staging/video-library/video-library.js
+          grep -q "./duplicate-upload-safety.js" radio-admin/staging/video-library/index.html
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-library/*.js radio-admin/staging/video-library/index.html; then
+            echo 'Video Library staging contains an unapproved PROD API, PROD environment, or PROD token binding.'
+            exit 1
+          fi
+
+      - name: Assert Video Factory staging boundary is installed
+        run: |
+          grep -q './migration-guard.js' radio-admin/staging/video-factory/index.html
+          grep -q "assertWriteAllowed('dev', 'video-factory')" radio-admin/staging/video-factory/migration-guard.js
+          grep -q 'stashbox-radio-video-factory-dev-' radio-admin/staging/video-factory/migration-guard.js
+          grep -q 'Blocked Video Factory request to PROD API' radio-admin/staging/video-factory/migration-guard.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/video-factory/video-factory.js radio-admin/staging/video-factory/video-factory-archive.js radio-admin/staging/video-factory/index.html; then
+            echo 'Video Factory staging contains an unapproved PROD binding.'
+            exit 1
+          fi
+
+      - name: Assert Ads staging remains DEV-only and no fallback inventory is used
+        run: |
+          grep -q "d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev" radio-admin/staging/admin-env.js
+          grep -q "assertWriteAllowed('dev', 'ads')" radio-admin/staging/ads/ads.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/ads/ads.js
+          grep -q "Blocked Ads upload because DEV presign returned a PROD media target" radio-admin/staging/ads/ads.js
+          if grep -R "stashbox_radio_dev_ads_v1\|stashbox_radio_dev_ads_settings_v1" radio-admin/staging/ads; then
+            echo 'Legacy Ads browser fallback key found in staging Ads module.'
+            exit 1
+          fi
+
+      - name: Assert Artist staging uses current DEV media and admin access contracts only
+        run: |
+          grep -q "assertWriteAllowed('dev', 'artists')" radio-admin/staging/artists/artists.js
+          grep -q "mediaPresignUrl" radio-admin/staging/artists/artists.js
+          grep -q "persistAndVerifyMedia" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'profile_image'" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'horizontal_banner'" radio-admin/staging/artists/artists.js
+          grep -q "purpose: 'vertical_banner'" radio-admin/staging/artists/artists.js
+          grep -q "accessUrl" radio-admin/staging/artists/artists.js
+          grep -q "grantArtistAccess" radio-admin/staging/artists/artists.js
+          grep -q "stashbox-radio-media-dev-us-east-1" radio-admin/staging/artists/artists.js
+          grep -q "stashbox-radio-media-prod-us-east-1" radio-admin/staging/artists/artists.js
+          grep -q "Blocked Artist upload because DEV presign returned a PROD media target" radio-admin/staging/artists/artists.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|stashbox_radio_dev_cognito_tokens|X-Cognito-Id-Token|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/artists/*.js; then
+            echo 'Artist staging contains an unapproved PROD API, PROD environment, or Cognito binding.'
+            exit 1
+          fi
+
+      - name: Assert Notifications staging is migration-guarded DEV only
+        run: |
+          grep -q "getEnvironment('dev')" radio-admin/staging/notifications/app.js
+          grep -q "assertWriteAllowed('dev', 'notifications')" radio-admin/staging/notifications/app.js
+          grep -q "/admin/notifications" radio-admin/staging/notifications/app.js
+          if grep -E "je3zud66nb\.execute-api|radio_admin_token_prod|getEnvironment\(['\"]prod['\"]\)" radio-admin/staging/notifications/*.js; then
+            echo 'Notification staging contains an unapproved PROD API or PROD environment binding.'
+            exit 1
+          fi
+          if grep -q "Storage.prototype" radio-admin/staging/notifications/index.html; then
+            echo 'Legacy Notification token-storage shim is still present.'
+            exit 1
+          fi
+
+      - name: Assert DEV Health stays read-only and analytics freeze stays installed
+        run: |
+          grep -q "Scope: DEV System Health only" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          grep -q "Do not call the heavy /dashboard/summary analytics route" radio-admin/staging/system-health/dashboard-summary-freeze.js
+          if grep -E "method:[[:space:]]*['\"](POST|PATCH|PUT|DELETE)['\"]" radio-admin/staging/system-health/system-health.js; then
+            echo 'Write method found in read-only System Health module.'
+            exit 1
+          fi
+          if grep -R "je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2" radio-admin/staging/system-health; then
+            echo 'PROD API target found in DEV System Health staging.'
+            exit 1
+          fi
+
+      - name: Assert Social Factory remains a separate DEV bridge
+        run: |
+          grep -q "/radio-admin/dev/social-factory/" radio-admin/staging/social-factory/index.html
+          grep -q "separate DEV-only service" radio-admin/staging/social-factory/index.html
+          if grep -R "prod-v2\|radio_admin_token_prod" radio-admin/staging/social-factory; then
+            echo 'PROD binding found in Social Factory staging bridge.'
+            exit 1
+          fi
+
+      - name: Upload QA screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-staging-song-cms-qa
+          path: artifacts/admin-staging-song-cms-smoke.png
+          if-no-files-found: ignore
+          retention-days: 7
