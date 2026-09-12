@@ -6,7 +6,7 @@ on:
       - fix/canonical-vec-authoring-20260912
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   diagnose:
@@ -14,102 +14,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: fix/canonical-vec-authoring-20260912
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply atomic artwork merge repair if needed
-        run: |
-          python <<'PY'
-          from pathlib import Path
-          route = Path('radio-api/song-artwork-routes.mjs')
-          text = route.read_text()
-          marker = 'Atomic JSONB merge. Artwork updates must never replace VEC folders'
-          if marker not in text:
-              start = text.index('async function syncLegacyPreparedArtwork(songKey, patch, deps) {')
-              end = text.index('\nasync function readCanonicalArtwork', start)
-              replacement = '''async function syncLegacyPreparedArtwork(songKey, patch, deps) {
-            const optionalPatch = Object.fromEntries(
-              Object.entries(patch || {}).filter(([field]) => OPTIONAL_FIELDS.includes(field))
-            );
-            if (!Object.keys(optionalPatch).length) return;
-
-            await ensureLegacyVisualRecipeTable(deps);
-            const preparedPatch = {};
-            const removedRatios = [];
-
-            for (const [field, value] of Object.entries(optionalPatch)) {
-              const ratio = Object.entries(ARTWORK_FIELDS).find(([, artworkField]) => artworkField === field)?.[0];
-              if (!ratio) continue;
-              const url = cleanText(value);
-              if (url) preparedPatch[ratio] = url;
-              else removedRatios.push(ratio);
-            }
-
-            const recipePatch = {
-              [LEGACY_PREPARED_FIELD]: preparedPatch,
-              prepared_artwork_updated_at: new Date().toISOString()
-            };
-            const table = deps.qname('song_visual_recipes');
-
-            // Atomic JSONB merge. Artwork updates must never replace VEC folders,
-            // song_assets, shuffle rules, or other recipe fields written concurrently.
-            await deps.client.query(`
-              INSERT INTO ${table} (song_key, recipe)
-              VALUES ($1, $2::jsonb)
-              ON CONFLICT (song_key) DO UPDATE SET
-                recipe = ${table}.recipe || jsonb_build_object(
-                  '${LEGACY_PREPARED_FIELD}',
-                  COALESCE(${table}.recipe->'${LEGACY_PREPARED_FIELD}', '{}'::jsonb)
-                    || COALESCE(EXCLUDED.recipe->'${LEGACY_PREPARED_FIELD}', '{}'::jsonb),
-                  'prepared_artwork_updated_at',
-                  EXCLUDED.recipe->'prepared_artwork_updated_at'
-                ),
-                updated_at = now()
-            `, [songKey, JSON.stringify(recipePatch)]);
-
-            for (const ratio of removedRatios) {
-              await deps.client.query(`
-                UPDATE ${table}
-                SET recipe = jsonb_set(
-                  recipe,
-                  '{${LEGACY_PREPARED_FIELD}}',
-                  COALESCE(recipe->'${LEGACY_PREPARED_FIELD}', '{}'::jsonb) - $2,
-                  true
-                ), updated_at = now()
-                WHERE lower(song_key) = lower($1)
-              `, [songKey, ratio]);
-            }
-          }
-          '''
-              route.write_text(text[:start] + replacement + text[end:])
-
-          test = Path('radio-api/tests/song-artwork-canonical.test.mjs')
-          t = test.read_text()
-          if "import fs from 'node:fs';" not in t:
-              t = t.replace("import assert from 'node:assert/strict';\n", "import assert from 'node:assert/strict';\nimport fs from 'node:fs';\n")
-          if 'artwork recipe persistence uses an atomic JSONB merge' not in t:
-              t += '''\n\ntest('artwork recipe persistence uses an atomic JSONB merge', () => {\n  const source = fs.readFileSync(new URL('../song-artwork-routes.mjs', import.meta.url), 'utf8');\n  const start = source.indexOf('async function syncLegacyPreparedArtwork');\n  const end = source.indexOf('async function readCanonicalArtwork', start);\n  const syncSource = source.slice(start, end);\n  assert.match(syncSource, /recipe = .*\\.recipe \\|\\| jsonb_build_object\\(/s);\n  assert.doesNotMatch(syncSource, /const recipe = await readLegacyVisualRecipe/);\n});\n'''
-              test.write_text(t)
-
-          deploy = Path('.github/workflows/deploy-true-dev-lambda.yml')
-          d = deploy.read_text()
-          if "'radio-api/song-artwork-routes.mjs'" not in d:
-              anchor = "      - 'radio-api/personalized-notifications.mjs'\n"
-              d = d.replace(anchor, anchor + "      - 'radio-api/song-artwork-routes.mjs'\n")
-              deploy.write_text(d)
-
-          import subprocess
-          subprocess.run(['git', 'checkout', 'origin/main', '--', 'radio/dev/v2/v2-desktop-vec-core-loader.js'], check=True)
-          stale = Path('radio-api/tests/vec-desktop-canonical-runtime.test.mjs')
-          if stale.exists(): stale.unlink()
-          PY
-      - name: Validate repaired source
-        run: |
-          node --check radio-api/song-artwork-routes.mjs
-          node --test radio-api/tests/song-artwork-canonical.test.mjs
       - name: Compare SolarMeister VEC persistence across APIs
         run: |
           node <<'NODE'
@@ -135,21 +42,11 @@ jobs:
             }
           }
           fs.writeFileSync('sr-bug-0027-diagnostic.json', JSON.stringify(report, null, 2));
+          console.log(JSON.stringify(report, null, 2));
           NODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: sr-bug-0027-diagnostic
           path: sr-bug-0027-diagnostic.json
-          if-no-files-found: warn
-      - name: Commit repair to branch
-        run: |
-          git config user.name 'stashbox-repair-bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add -A
-          if git diff --cached --quiet; then
-            echo 'No source changes to commit.'
-            exit 0
-          fi
-          git commit -m 'fix: preserve VEC recipe during artwork updates'
-          git push origin HEAD:fix/canonical-vec-authoring-20260912
+          if-no-files-found: error
