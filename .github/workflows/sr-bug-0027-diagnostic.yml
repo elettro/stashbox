@@ -1,4 +1,4 @@
-name: SR-BUG-0027 Diagnostic
+name: SR-BUG-0027 Repair
 
 on:
   push:
@@ -6,47 +6,101 @@ on:
       - fix/canonical-vec-authoring-20260912
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix/canonical-vec-authoring-20260912
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Compare SolarMeister VEC persistence across APIs
+      - name: Patch VEC save verification and cache busting
         run: |
-          node <<'NODE'
-          import fs from 'node:fs';
-          const apis = {
-            prod: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2',
-            dev: 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev'
-          };
-          const keys = ['solarmeister-stashbox','riding-waves-014b-jv1-stashbox'];
-          const report = { checked_at: new Date().toISOString(), results: {} };
-          for (const [env, api] of Object.entries(apis)) {
-            report.results[env] = {};
-            for (const key of keys) {
-              const entry = {};
-              for (const route of ['recipe','song-assets']) {
-                const res = await fetch(`${api}/radio/vec/${route}?song_key=${encodeURIComponent(key)}`, { headers: { accept: 'application/json' } });
-                const text = await res.text();
-                let body = text;
-                try { body = JSON.parse(text); } catch {}
-                entry[route] = { status: res.status, body };
-              }
-              report.results[env][key] = entry;
-            }
-          }
-          fs.writeFileSync('sr-bug-0027-diagnostic.json', JSON.stringify(report, null, 2));
-          console.log(JSON.stringify(report, null, 2));
-          NODE
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: sr-bug-0027-diagnostic
-          path: sr-bug-0027-diagnostic.json
-          if-no-files-found: error
+          python <<'PY'
+          from pathlib import Path
+
+          controller = Path('radio-admin/dev/vec/vec-controller.js')
+          text = controller.read_text()
+          old = """    async function saveCurrentRecipe() {
+      if (!state.songKey) return false;
+      state.recipeStatus = 'Saving recipe...';
+      renderDynamic();
+      try {
+        const data = await putRecipe(state.songKey, buildCurrentRecipe());
+        state.savedRecipe = data?.recipe || null;
+        state.savedRecipeUpdatedAt = data?.updated_at || data?.recipe?.updated_at || '';
+        state.dirty = false;
+        state.recipeStatus = 'Saved';
+        return true;
+      } catch (error) {
+        state.recipeStatus = error.message || 'Could not save recipe.';
+        return false;
+      } finally { renderDynamic(); }
+    }
+"""
+          new = """    async function saveCurrentRecipe() {
+      if (!state.songKey) return false;
+      state.recipeStatus = 'Saving recipe...';
+      renderDynamic();
+      try {
+        const outgoingRecipe = buildCurrentRecipe();
+        await putRecipe(state.songKey, outgoingRecipe);
+        const confirmed = await fetchRecipe(state.songKey);
+        const persistedRecipe = confirmed?.recipe || null;
+        if (!persistedRecipe) throw new Error('Save verification failed: canonical recipe was not found after PUT.');
+
+        const collectActiveClipIds = (recipe) => (Array.isArray(recipe?.folders) ? recipe.folders : [])
+          .flatMap((folder) => Array.isArray(folder?.active_clip_ids) ? folder.active_clip_ids : [])
+          .map((value) => String(value || '').trim())
+          .filter(Boolean)
+          .sort();
+        const expectedClipIds = collectActiveClipIds(outgoingRecipe);
+        const persistedClipIds = collectActiveClipIds(persistedRecipe);
+        if (JSON.stringify(expectedClipIds) !== JSON.stringify(persistedClipIds)) {
+          throw new Error(`Save verification failed: expected ${expectedClipIds.length} active clips but canonical recipe has ${persistedClipIds.length}.`);
+        }
+
+        state.savedRecipe = persistedRecipe;
+        state.savedRecipeUpdatedAt = confirmed?.updated_at || persistedRecipe?.updated_at || '';
+        state.dirty = false;
+        state.recipeStatus = `Saved & verified (${persistedClipIds.length} active clips)`;
+        return true;
+      } catch (error) {
+        state.recipeStatus = error.message || 'Could not save recipe.';
+        return false;
+      } finally { renderDynamic(); }
+    }
+"""
+          if old not in text:
+              raise SystemExit('saveCurrentRecipe block not found; refusing blind patch')
+          controller.write_text(text.replace(old, new, 1))
+
+          index = Path('radio-admin/dev/vec/index.html')
+          html = index.read_text()
+          html = html.replace('/radio-admin/canonical-content-config.js?v=20260831-unified1', '/radio-admin/canonical-content-config.js?v=20260912-vecfix1')
+          html = html.replace('./vec-controller.js"></script>', './vec-controller.js?v=20260912-vecfix1"></script>')
+          index.write_text(html)
+          PY
+      - name: Validate controller syntax and canonical wiring
+        run: |
+          node --check radio-admin/dev/vec/vec-controller.js
+          grep -F "apiRoot: 'https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2'" radio-admin/dev/vec/vec-controller.js
+          grep -F "Saved & verified" radio-admin/dev/vec/vec-controller.js
+          grep -F "vec-controller.js?v=20260912-vecfix1" radio-admin/dev/vec/index.html
+      - name: Commit verified repair to branch
+        run: |
+          git config user.name 'stashbox-repair-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add radio-admin/dev/vec/vec-controller.js radio-admin/dev/vec/index.html
+          if git diff --cached --quiet; then
+            echo 'No repair changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: verify canonical VEC saves and bust stale controller cache'
+          git push origin HEAD:fix/canonical-vec-authoring-20260912
