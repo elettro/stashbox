@@ -1,0 +1,45 @@
+name: SR-BUG-0027 Diagnostic
+
+on:
+  push:
+    branches:
+      - fix/canonical-vec-authoring-20260912
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect canonical SolarMeister VEC content
+        env:
+          API: https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2
+          SONG_KEY: solarmeister-stashbox
+        run: |
+          node <<'NODE'
+          const api = process.env.API;
+          const key = process.env.SONG_KEY;
+          const get = async path => {
+            const res = await fetch(`${api}${path}`, { headers: { accept: 'application/json' } });
+            const text = await res.text();
+            let body = text;
+            try { body = JSON.parse(text); } catch {}
+            console.log(`\n--- ${path} HTTP ${res.status} ---`);
+            console.log(JSON.stringify(body, null, 2));
+            if (!res.ok) process.exitCode = 1;
+            return body;
+          };
+          await get(`/radio/vec/recipe?song_key=${encodeURIComponent(key)}`);
+          await get(`/radio/vec/song-assets?song_key=${encodeURIComponent(key)}`);
+          const songs = await get('/radio/songs');
+          const rows = Array.isArray(songs) ? songs : songs?.songs || songs?.items || songs?.data || [];
+          const song = rows.find(x => String(x.song_key || x.songKey || x.id || '') === key);
+          console.log('\n--- MATCHED SONG ---');
+          console.log(JSON.stringify(song || null, null, 2));
+          NODE
