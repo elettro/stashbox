@@ -4,12 +4,10 @@
   if (!location.pathname.includes('/radio/dev/v2/') || location.pathname.includes('/artist/')) return;
   if (!matchMedia('(min-width: 900px)').matches) return;
 
-  const params = new URLSearchParams(location.search);
-  const allowLegacyDesktopVec = params.get('desktopvec') === 'legacy';
-  if (!allowLegacyDesktopVec) {
-    document.documentElement.dataset.desktopVecSafeMode = 'artwork-only';
-    return;
-  }
+  // Canonical VEC content is live content, not a legacy-only runtime.
+  // DEV and PROD player builds read the same canonical recipe/assets while
+  // structural player changes remain environment-specific.
+  document.documentElement.dataset.desktopVecSafeMode = 'canonical';
 
   if (document.querySelector('script[data-desktop-vec-core="true"]')) return;
 
