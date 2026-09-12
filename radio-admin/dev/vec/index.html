@@ -47,8 +47,57 @@
     <footer class="vec-footer-note">One VEC recipe source for PROD and DEV/V2. Tracking and stats remain environment-specific.</footer>
   </main>
 
-  <script src="/radio-admin/canonical-content-config.js?v=20260912-vecfix1"></script>
-  <script src="./vec-controller.js?v=20260912-vecfix1"></script>
+  <script src="/radio-admin/canonical-content-config.js?v=20260912-vecfix2"></script>
+  <script>
+    (() => {
+      const nativeFetch = window.fetch.bind(window);
+      const recipePath = '/admin/vec/recipe';
+
+      const collectClipIds = (recipe) => (Array.isArray(recipe?.folders) ? recipe.folders : [])
+        .flatMap((folder) => Array.isArray(folder?.active_clip_ids) ? folder.active_clip_ids : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .sort();
+
+      window.fetch = async (input, init = {}) => {
+        const response = await nativeFetch(input, init);
+        const method = String(init?.method || 'GET').toUpperCase();
+        const url = typeof input === 'string' ? input : input?.url || '';
+        if (method !== 'PUT' || !url.includes(recipePath) || !response.ok) return response;
+
+        let outgoing = null;
+        try { outgoing = JSON.parse(String(init?.body || '{}')); } catch {}
+        const songKey = String(outgoing?.song_key || '').trim();
+        if (!songKey || !outgoing?.recipe) return response;
+
+        const verifyUrl = `${window.StashboxCanonicalContent.apiRoot}${recipePath}?song_key=${encodeURIComponent(songKey)}`;
+        const verifyResponse = await nativeFetch(verifyUrl, {
+          method: 'GET',
+          headers: init?.headers || {},
+          cache: 'no-store',
+        });
+
+        let verified = null;
+        try { verified = await verifyResponse.json(); } catch {}
+        const expectedIds = collectClipIds(outgoing.recipe);
+        const persistedIds = collectClipIds(verified?.recipe);
+        const sameClips = JSON.stringify(expectedIds) === JSON.stringify(persistedIds);
+
+        if (!verifyResponse.ok || !verified?.found || !sameClips) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Canonical VEC save verification failed for ${songKey}: expected ${expectedIds.length} active clips, found ${persistedIds.length}.`,
+          }), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        return response;
+      };
+    })();
+  </script>
+  <script src="./vec-controller.js?v=20260912-vecfix2"></script>
   <script>
     window.StashboxVecController.initVecController(document.getElementById('vecControllerMount'), {
       mode: 'lab',
