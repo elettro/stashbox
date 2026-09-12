@@ -1,0 +1,4 @@
+SR-BUG-0027 GitHub Pages redeploy trigger
+2026-09-12
+Source: main
+Purpose: force static-site rebuild so /radio-admin/dev/vec/ serves the canonical Master Content VEC CMS repair merged in PR #1092.
