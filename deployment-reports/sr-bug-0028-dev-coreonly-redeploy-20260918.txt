@@ -1,0 +1,4 @@
+SR-BUG-0028 DEV GitHub Pages redeploy trigger
+2026-09-18
+Source: main
+Purpose: force static-site rebuild so /radio/dev/v2/artist/ serves the core-only VEC transition stack with transition guard, artist watchdog, and stability supervisor removed from the DEV artist page.
