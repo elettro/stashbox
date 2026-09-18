@@ -1,0 +1,4 @@
+SR-BUG-0028 GitHub Pages redeploy trigger
+2026-09-18
+Source: main
+Purpose: force static-site rebuild for PROD artist VEC pre-roll transition so outgoing clip remains visible until incoming clip is playing.
