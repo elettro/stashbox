@@ -539,28 +539,40 @@
       ? state.activeMedia
       : stage.querySelector('.artist-realm-media.is-active');
 
-    stage.querySelectorAll('.artist-realm-media:not(.is-active)').forEach(node => {
+    stage.querySelectorAll('.artist-realm-media').forEach(node => {
       if (node !== previous) node.remove();
     });
 
     const media = document.createElement(asset.type === 'clip' ? 'video' : 'img');
     media.className = 'artist-realm-media';
     media.setAttribute('aria-label', asset.alt || 'Artist VEC visual');
+    media.style.visibility = 'hidden';
+    media.style.opacity = '1';
+    media.style.transition = 'none';
+    media.style.zIndex = '2';
+
+    if (previous) {
+      previous.style.visibility = 'visible';
+      previous.style.opacity = '1';
+      previous.style.transition = 'none';
+      previous.style.zIndex = '1';
+    }
 
     let activated = false;
     const activate = () => {
       if (activated || run !== state.vecRun || !media.isConnected) return;
       activated = true;
       state.activeMedia = media;
-      requestAnimationFrame(() => media.classList.add('is-active'));
+      media.classList.add('is-active');
+      media.style.visibility = 'visible';
+      media.style.opacity = '1';
 
-      if (previous && previous !== media) {
-        window.setTimeout(() => {
-          if (!previous.isConnected) return;
+      requestAnimationFrame(() => {
+        if (previous && previous !== media && previous.isConnected) {
           try { previous.pause?.(); } catch (_) {}
           previous.remove();
-        }, 350);
-      }
+        }
+      });
 
       stage.querySelectorAll('.artist-realm-media').forEach(node => {
         if (node !== media && node !== previous && node.isConnected) node.remove();
