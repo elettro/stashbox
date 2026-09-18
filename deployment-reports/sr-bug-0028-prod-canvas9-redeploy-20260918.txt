@@ -1,0 +1,4 @@
+SR-BUG-0028 PROD rebuild trigger
+2026-09-18
+Build: artist-vec-canvas9-prod-20260918
+Purpose: force static rebuild for PROD artist player using approved DEV Build 9 canvas compositor and matching simplified script stack.
