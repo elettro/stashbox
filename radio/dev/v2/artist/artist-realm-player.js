@@ -585,7 +585,7 @@
       media.src = asset.url;
       stage.appendChild(media);
 
-      const PREROLL_SECONDS = 0.18;
+      const PREROLL_SECONDS = 0.5;
       let firstFramePresented = false;
       let startedPlayback = false;
 
