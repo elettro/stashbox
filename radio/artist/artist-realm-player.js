@@ -585,7 +585,27 @@
       media.src = asset.url;
       stage.appendChild(media);
 
-      media.addEventListener('playing', activate, { once: true });
+      let firstFramePresented = false;
+      const activateAfterFirstFrame = () => {
+        if (firstFramePresented || run !== state.vecRun || !media.isConnected) return;
+        firstFramePresented = true;
+        activate();
+      };
+
+      media.addEventListener('playing', () => {
+        if (typeof media.requestVideoFrameCallback === 'function') {
+          media.requestVideoFrameCallback(() => activateAfterFirstFrame());
+        } else {
+          const waitForPaint = () => {
+            if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && media.currentTime > 0) {
+              requestAnimationFrame(() => requestAnimationFrame(activateAfterFirstFrame));
+            } else if (run === state.vecRun && media.isConnected) {
+              window.setTimeout(waitForPaint, 30);
+            }
+          };
+          waitForPaint();
+        }
+      }, { once: true });
 
       let advancing = false;
       const advanceToNext = () => {
