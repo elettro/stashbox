@@ -586,11 +586,22 @@
       stage.appendChild(media);
 
       media.addEventListener('playing', activate, { once: true });
-      media.onended = () => {
-        if (run !== state.vecRun) return;
+
+      let advancing = false;
+      const advanceToNext = () => {
+        if (advancing || run !== state.vecRun) return;
+        advancing = true;
         state.sequenceIndex = (state.sequenceIndex + 1) % state.sequence.length;
         renderAsset(song, recipe, run);
       };
+
+      media.addEventListener('timeupdate', () => {
+        if (!activated || advancing || !Number.isFinite(media.duration) || media.duration <= 0) return;
+        const remaining = media.duration - media.currentTime;
+        if (remaining > 0 && remaining <= 0.85) advanceToNext();
+      });
+
+      media.onended = advanceToNext;
       media.onerror = failBeforeStart;
       media.onstalled = () => {
         if (activated) scheduleNext(song, recipe, run, 900);
