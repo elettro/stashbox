@@ -1,0 +1,4 @@
+SR-BUG-0028 DEV rebuild trigger
+2026-09-18
+Build: DEV SR-BUG-0028 BUILD 9
+Purpose: force static rebuild for canvas-composited VEC clips. Visible video elements are removed from the rendering path; hidden decoder feeds ready frames to persistent canvas.
