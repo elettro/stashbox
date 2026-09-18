@@ -530,41 +530,142 @@
     const asset = state.sequence[state.sequenceIndex];
     if (!stage || !asset) return;
 
-    stopVisualPlayback();
-    const previous = [...stage.querySelectorAll('img,video')];
+    clearTimeout(state.visualTimer);
+    clearTimeout(state.visualSafetyTimer);
+    state.visualTimer = 0;
+    state.visualSafetyTimer = 0;
+
+    const previous = state.activeMedia && state.activeMedia.isConnected
+      ? state.activeMedia
+      : stage.querySelector('.artist-realm-media.is-active');
+
+    stage.querySelectorAll('.artist-realm-media:not(.is-active)').forEach(node => {
+      if (node !== previous) node.remove();
+    });
+
     const media = document.createElement(asset.type === 'clip' ? 'video' : 'img');
-    media.src = asset.url;
     media.className = 'artist-realm-media';
     media.setAttribute('aria-label', asset.alt || 'Artist VEC visual');
-    state.activeMedia = media;
-    stage.appendChild(media);
-    requestAnimationFrame(() => media.classList.add('is-active'));
-    window.setTimeout(() => previous.forEach(node => node.remove()), 500);
+
+    let activated = false;
+    const activate = () => {
+      if (activated || run !== state.vecRun || !media.isConnected) return;
+      activated = true;
+      state.activeMedia = media;
+      requestAnimationFrame(() => media.classList.add('is-active'));
+
+      if (previous && previous !== media) {
+        window.setTimeout(() => {
+          if (!previous.isConnected) return;
+          try { previous.pause?.(); } catch (_) {}
+          previous.remove();
+        }, 350);
+      }
+
+      stage.querySelectorAll('.artist-realm-media').forEach(node => {
+        if (node !== media && node !== previous && node.isConnected) node.remove();
+      });
+    };
+
+    const failBeforeStart = () => {
+      if (run !== state.vecRun) return;
+      if (!activated && media.isConnected) media.remove();
+      scheduleNext(song, recipe, run, 900);
+    };
 
     if (asset.type === 'clip') {
       media.muted = true;
       media.defaultMuted = true;
       media.volume = 0;
       media.playsInline = true;
-      media.autoplay = true;
+      media.autoplay = false;
       media.preload = 'auto';
       media.setAttribute('muted', '');
       media.setAttribute('playsinline', '');
-      media.onended = () => {
-        if (run !== state.vecRun) return;
+      media.src = asset.url;
+      stage.appendChild(media);
+
+      const PREROLL_SECONDS = 0.18;
+      let firstFramePresented = false;
+      let startedPlayback = false;
+
+      const activateAfterFirstFrame = () => {
+        if (firstFramePresented || run !== state.vecRun || !media.isConnected) return;
+        firstFramePresented = true;
+        activate();
+      };
+
+      const watchForFirstPaint = () => {
+        if (typeof media.requestVideoFrameCallback === 'function') {
+          media.requestVideoFrameCallback(() => activateAfterFirstFrame());
+          return;
+        }
+        const waitForPaint = () => {
+          if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && media.currentTime >= PREROLL_SECONDS) {
+            requestAnimationFrame(() => requestAnimationFrame(activateAfterFirstFrame));
+          } else if (run === state.vecRun && media.isConnected) {
+            window.setTimeout(waitForPaint, 30);
+          }
+        };
+        waitForPaint();
+      };
+
+      const startPlayback = () => {
+        if (startedPlayback || run !== state.vecRun || !media.isConnected) return;
+        startedPlayback = true;
+        if (Number.isFinite(media.duration) && media.duration > PREROLL_SECONDS + 0.1) {
+          try { media.currentTime = PREROLL_SECONDS; } catch (_) {}
+        }
+        media.play().then(watchForFirstPaint).catch(failBeforeStart);
+      };
+
+      media.addEventListener('loadedmetadata', startPlayback, { once: true });
+      if (media.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
+
+      let advancing = false;
+      const advanceToNext = () => {
+        if (advancing || run !== state.vecRun) return;
+        advancing = true;
         state.sequenceIndex = (state.sequenceIndex + 1) % state.sequence.length;
         renderAsset(song, recipe, run);
       };
-      media.onerror = media.onstalled = () => scheduleNext(song, recipe, run, 900);
-      media.play().catch(() => {});
+
+      media.addEventListener('timeupdate', () => {
+        if (!activated || advancing || !Number.isFinite(media.duration) || media.duration <= 0) return;
+        const remaining = media.duration - media.currentTime;
+        if (remaining > 0 && remaining <= 0.85) advanceToNext();
+      });
+
+      media.onended = advanceToNext;
+      media.onerror = failBeforeStart;
+      media.onstalled = () => {
+        if (activated) scheduleNext(song, recipe, run, 900);
+        else failBeforeStart();
+      };
+
+
       state.visualSafetyTimer = window.setTimeout(() => {
         if (run !== state.vecRun) return;
+        if (!activated) {
+          failBeforeStart();
+          return;
+        }
         state.sequenceIndex = (state.sequenceIndex + 1) % state.sequence.length;
         renderAsset(song, recipe, run);
       }, Math.max(12000, Math.min(60000, (asset.durationSeconds || 45) * 1000)));
     } else {
+      media.src = asset.url;
+      stage.appendChild(media);
+
       const duration = Math.max(2500, Math.min(15000, (asset.durationSeconds || recipe?.render?.still_image_duration_seconds || recipe?.render_settings?.still_image_duration_seconds || 6) * 1000));
-      scheduleNext(song, recipe, run, duration);
+      const startImage = () => {
+        activate();
+        if (activated) scheduleNext(song, recipe, run, duration);
+      };
+
+      media.addEventListener('load', startImage, { once: true });
+      media.addEventListener('error', failBeforeStart, { once: true });
+      if (media.complete && media.naturalWidth > 0) requestAnimationFrame(startImage);
     }
   }
 
