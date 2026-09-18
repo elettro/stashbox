@@ -578,34 +578,49 @@
       media.defaultMuted = true;
       media.volume = 0;
       media.playsInline = true;
-      media.autoplay = true;
+      media.autoplay = false;
       media.preload = 'auto';
       media.setAttribute('muted', '');
       media.setAttribute('playsinline', '');
       media.src = asset.url;
       stage.appendChild(media);
 
+      const PREROLL_SECONDS = 0.18;
       let firstFramePresented = false;
+      let startedPlayback = false;
+
       const activateAfterFirstFrame = () => {
         if (firstFramePresented || run !== state.vecRun || !media.isConnected) return;
         firstFramePresented = true;
         activate();
       };
 
-      media.addEventListener('playing', () => {
+      const watchForFirstPaint = () => {
         if (typeof media.requestVideoFrameCallback === 'function') {
           media.requestVideoFrameCallback(() => activateAfterFirstFrame());
-        } else {
-          const waitForPaint = () => {
-            if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && media.currentTime > 0) {
-              requestAnimationFrame(() => requestAnimationFrame(activateAfterFirstFrame));
-            } else if (run === state.vecRun && media.isConnected) {
-              window.setTimeout(waitForPaint, 30);
-            }
-          };
-          waitForPaint();
+          return;
         }
-      }, { once: true });
+        const waitForPaint = () => {
+          if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && media.currentTime >= PREROLL_SECONDS) {
+            requestAnimationFrame(() => requestAnimationFrame(activateAfterFirstFrame));
+          } else if (run === state.vecRun && media.isConnected) {
+            window.setTimeout(waitForPaint, 30);
+          }
+        };
+        waitForPaint();
+      };
+
+      const startPlayback = () => {
+        if (startedPlayback || run !== state.vecRun || !media.isConnected) return;
+        startedPlayback = true;
+        if (Number.isFinite(media.duration) && media.duration > PREROLL_SECONDS + 0.1) {
+          try { media.currentTime = PREROLL_SECONDS; } catch (_) {}
+        }
+        media.play().then(watchForFirstPaint).catch(failBeforeStart);
+      };
+
+      media.addEventListener('loadedmetadata', startPlayback, { once: true });
+      if (media.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
 
       let advancing = false;
       const advanceToNext = () => {
@@ -628,7 +643,6 @@
         else failBeforeStart();
       };
 
-      media.play().catch(failBeforeStart);
 
       state.visualSafetyTimer = window.setTimeout(() => {
         if (run !== state.vecRun) return;
