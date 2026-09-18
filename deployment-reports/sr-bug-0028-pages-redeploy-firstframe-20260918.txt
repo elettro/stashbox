@@ -1,0 +1,4 @@
+SR-BUG-0028 GitHub Pages redeploy trigger
+2026-09-18
+Source: main
+Purpose: force static-site rebuild for PROD artist VEC first-painted-frame handoff. Incoming video remains hidden until the browser presents its first decoded frame.
