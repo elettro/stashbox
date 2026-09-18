@@ -539,134 +539,201 @@
       ? state.activeMedia
       : stage.querySelector('.artist-realm-media.is-active');
 
-    stage.querySelectorAll('.artist-realm-media:not(.is-active)').forEach(node => {
+    stage.querySelectorAll('.artist-realm-media').forEach(node => {
       if (node !== previous) node.remove();
     });
 
-    const media = document.createElement(asset.type === 'clip' ? 'video' : 'img');
-    media.className = 'artist-realm-media';
-    media.setAttribute('aria-label', asset.alt || 'Artist VEC visual');
+    const activateSurface = surface => {
+      if (!surface || run !== state.vecRun || !surface.isConnected) return false;
+      state.activeMedia = surface;
+      surface.classList.add('is-active');
+      surface.style.visibility = 'visible';
+      surface.style.opacity = '1';
+      surface.style.transition = 'none';
+      surface.style.zIndex = '2';
 
-    let activated = false;
-    const activate = () => {
-      if (activated || run !== state.vecRun || !media.isConnected) return;
-      activated = true;
-      state.activeMedia = media;
-      requestAnimationFrame(() => media.classList.add('is-active'));
-
-      if (previous && previous !== media) {
-        window.setTimeout(() => {
-          if (!previous.isConnected) return;
-          try { previous.pause?.(); } catch (_) {}
-          previous.remove();
-        }, 350);
-      }
-
-      stage.querySelectorAll('.artist-realm-media').forEach(node => {
-        if (node !== media && node !== previous && node.isConnected) node.remove();
+      requestAnimationFrame(() => {
+        if (previous && previous !== surface && previous.isConnected) previous.remove();
       });
+
+      return true;
     };
 
-    const failBeforeStart = () => {
+    const failBeforeStart = node => {
       if (run !== state.vecRun) return;
-      if (!activated && media.isConnected) media.remove();
+      if (node?.isConnected) node.remove();
       scheduleNext(song, recipe, run, 900);
     };
 
     if (asset.type === 'clip') {
-      media.muted = true;
-      media.defaultMuted = true;
-      media.volume = 0;
-      media.playsInline = true;
-      media.autoplay = false;
-      media.preload = 'auto';
-      media.setAttribute('muted', '');
-      media.setAttribute('playsinline', '');
-      media.src = asset.url;
-      stage.appendChild(media);
+      const shell = document.createElement('div');
+      shell.className = 'artist-realm-media';
+      shell.setAttribute('aria-label', asset.alt || 'Artist VEC visual');
+      shell.style.visibility = 'hidden';
+      shell.style.opacity = '1';
+      shell.style.transition = 'none';
+      shell.style.zIndex = '2';
+      shell.style.background = '#050607';
 
-      const PREROLL_SECONDS = 0.18;
-      let firstFramePresented = false;
-      let startedPlayback = false;
+      const canvas = document.createElement('canvas');
+      canvas.setAttribute('aria-hidden', 'true');
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      canvas.style.background = '#050607';
 
-      const activateAfterFirstFrame = () => {
-        if (firstFramePresented || run !== state.vecRun || !media.isConnected) return;
-        firstFramePresented = true;
-        activate();
-      };
+      const decoder = document.createElement('video');
+      decoder.muted = true;
+      decoder.defaultMuted = true;
+      decoder.volume = 0;
+      decoder.playsInline = true;
+      decoder.autoplay = false;
+      decoder.preload = 'auto';
+      decoder.setAttribute('muted', '');
+      decoder.setAttribute('playsinline', '');
+      decoder.style.position = 'absolute';
+      decoder.style.width = '1px';
+      decoder.style.height = '1px';
+      decoder.style.opacity = '0';
+      decoder.style.pointerEvents = 'none';
+      decoder.style.left = '-9999px';
+      decoder.src = asset.url;
 
-      const watchForFirstPaint = () => {
-        if (typeof media.requestVideoFrameCallback === 'function') {
-          media.requestVideoFrameCallback(() => activateAfterFirstFrame());
-          return;
-        }
-        const waitForPaint = () => {
-          if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && media.currentTime >= PREROLL_SECONDS) {
-            requestAnimationFrame(() => requestAnimationFrame(activateAfterFirstFrame));
-          } else if (run === state.vecRun && media.isConnected) {
-            window.setTimeout(waitForPaint, 30);
-          }
-        };
-        waitForPaint();
-      };
+      shell.appendChild(canvas);
+      shell.appendChild(decoder);
+      stage.appendChild(shell);
 
-      const startPlayback = () => {
-        if (startedPlayback || run !== state.vecRun || !media.isConnected) return;
-        startedPlayback = true;
-        if (Number.isFinite(media.duration) && media.duration > PREROLL_SECONDS + 0.1) {
-          try { media.currentTime = PREROLL_SECONDS; } catch (_) {}
-        }
-        media.play().then(watchForFirstPaint).catch(failBeforeStart);
-      };
+      if (previous) {
+        previous.style.visibility = 'visible';
+        previous.style.opacity = '1';
+        previous.style.transition = 'none';
+        previous.style.zIndex = '1';
+      }
 
-      media.addEventListener('loadedmetadata', startPlayback, { once: true });
-      if (media.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
-
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const PREROLL_SECONDS = 0.5;
+      let activated = false;
       let advancing = false;
+      let stopped = false;
+
+      const sizeCanvas = () => {
+        const rect = stage.getBoundingClientRect();
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(rect.height * dpr));
+        if (canvas.width !== width) canvas.width = width;
+        if (canvas.height !== height) canvas.height = height;
+      };
+
+      const drawFrame = () => {
+        if (stopped || run !== state.vecRun || !shell.isConnected || !decoder.videoWidth || !decoder.videoHeight) return false;
+        sizeCanvas();
+
+        const cw = canvas.width;
+        const ch = canvas.height;
+        const vw = decoder.videoWidth;
+        const vh = decoder.videoHeight;
+        const scale = Math.min(cw / vw, ch / vh);
+        const dw = Math.round(vw * scale);
+        const dh = Math.round(vh * scale);
+        const dx = Math.round((cw - dw) / 2);
+        const dy = Math.round((ch - dh) / 2);
+
+        ctx.fillStyle = '#050607';
+        ctx.fillRect(0, 0, cw, ch);
+        try {
+          ctx.drawImage(decoder, dx, dy, dw, dh);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      };
+
       const advanceToNext = () => {
         if (advancing || run !== state.vecRun) return;
         advancing = true;
+        stopped = true;
         state.sequenceIndex = (state.sequenceIndex + 1) % state.sequence.length;
         renderAsset(song, recipe, run);
       };
 
-      media.addEventListener('timeupdate', () => {
-        if (!activated || advancing || !Number.isFinite(media.duration) || media.duration <= 0) return;
-        const remaining = media.duration - media.currentTime;
+      const paintLoop = () => {
+        if (stopped || run !== state.vecRun || !shell.isConnected) return;
+        if (drawFrame()) {
+          if (!activated && decoder.currentTime >= PREROLL_SECONDS) {
+            activated = activateSurface(shell);
+          }
+        }
+
+        if (typeof decoder.requestVideoFrameCallback === 'function') {
+          decoder.requestVideoFrameCallback(() => paintLoop());
+        } else {
+          requestAnimationFrame(paintLoop);
+        }
+      };
+
+      const startPlayback = () => {
+        if (run !== state.vecRun || !shell.isConnected) return;
+        if (Number.isFinite(decoder.duration) && decoder.duration > PREROLL_SECONDS + 0.1) {
+          try { decoder.currentTime = PREROLL_SECONDS; } catch (_) {}
+        }
+        decoder.play().then(() => paintLoop()).catch(() => failBeforeStart(shell));
+      };
+
+      decoder.addEventListener('loadedmetadata', startPlayback, { once: true });
+      if (decoder.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
+
+      decoder.addEventListener('timeupdate', () => {
+        if (!activated || advancing || !Number.isFinite(decoder.duration) || decoder.duration <= 0) return;
+        const remaining = decoder.duration - decoder.currentTime;
         if (remaining > 0 && remaining <= 0.85) advanceToNext();
       });
 
-      media.onended = advanceToNext;
-      media.onerror = failBeforeStart;
-      media.onstalled = () => {
+      decoder.onended = advanceToNext;
+      decoder.onerror = () => failBeforeStart(shell);
+      decoder.onstalled = () => {
         if (activated) scheduleNext(song, recipe, run, 900);
-        else failBeforeStart();
+        else failBeforeStart(shell);
       };
-
 
       state.visualSafetyTimer = window.setTimeout(() => {
         if (run !== state.vecRun) return;
         if (!activated) {
-          failBeforeStart();
+          failBeforeStart(shell);
           return;
         }
-        state.sequenceIndex = (state.sequenceIndex + 1) % state.sequence.length;
-        renderAsset(song, recipe, run);
+        advanceToNext();
       }, Math.max(12000, Math.min(60000, (asset.durationSeconds || 45) * 1000)));
-    } else {
-      media.src = asset.url;
-      stage.appendChild(media);
-
-      const duration = Math.max(2500, Math.min(15000, (asset.durationSeconds || recipe?.render?.still_image_duration_seconds || recipe?.render_settings?.still_image_duration_seconds || 6) * 1000));
-      const startImage = () => {
-        activate();
-        if (activated) scheduleNext(song, recipe, run, duration);
-      };
-
-      media.addEventListener('load', startImage, { once: true });
-      media.addEventListener('error', failBeforeStart, { once: true });
-      if (media.complete && media.naturalWidth > 0) requestAnimationFrame(startImage);
+      return;
     }
+
+    const media = document.createElement('img');
+    media.className = 'artist-realm-media';
+    media.setAttribute('aria-label', asset.alt || 'Artist VEC visual');
+    media.style.visibility = 'hidden';
+    media.style.opacity = '1';
+    media.style.transition = 'none';
+    media.style.zIndex = '2';
+    media.src = asset.url;
+    stage.appendChild(media);
+
+    if (previous) {
+      previous.style.visibility = 'visible';
+      previous.style.opacity = '1';
+      previous.style.transition = 'none';
+      previous.style.zIndex = '1';
+    }
+
+    const duration = Math.max(2500, Math.min(15000, (asset.durationSeconds || recipe?.render?.still_image_duration_seconds || recipe?.render_settings?.still_image_duration_seconds || 6) * 1000));
+    const startImage = () => {
+      if (activateSurface(media)) scheduleNext(song, recipe, run, duration);
+    };
+
+    media.addEventListener('load', startImage, { once: true });
+    media.addEventListener('error', () => failBeforeStart(media), { once: true });
+    if (media.complete && media.naturalWidth > 0) requestAnimationFrame(startImage);
   }
 
   function ensureHeroLaunch() {
