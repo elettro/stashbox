@@ -1211,13 +1211,21 @@
       const expanded = state.expandedFolderIds.has(folderId);
       const selectionLabel = selected ? 'Folder included. Click to exclude this folder.' : 'Folder excluded. Click to include this folder.';
       const activeCounts = getActiveAssetCounts(state, folder);
+      const loadedAssets = getFolderAssetState(state, folderId).assets || [];
+      const loadedCounts = loadedAssets.reduce((counts, asset) => {
+        if (normalizeAssetType(asset) === 'clip') counts.clips += 1;
+        else counts.images += 1;
+        return counts;
+      }, { images: 0, clips: 0 });
+      const displayImagesCount = loadedAssets.length ? loadedCounts.images : folder.images_count;
+      const displayClipsCount = loadedAssets.length ? loadedCounts.clips : folder.clips_count;
       return `<article class="vec-folder-card ${selected ? 'is-selected' : 'is-unselected'} ${expanded ? 'is-expanded' : ''}">
         <div class="vec-folder-summary vec-folder-card-top">
           <div class="vec-folder-card-main">
             <div class="vec-folder-card-head"><div class="vec-folder-title-area"><h3>${escapeHtml(folder.folder_name)}</h3><span class="vec-folder-status ${folder.status === 'hidden' ? 'is-hidden' : 'is-active'}">${escapeHtml(statusLabel)}</span></div></div>
             <div class="vec-folder-badges"><span>${escapeHtml(typeLabel)}</span></div>
             ${folder.description ? `<p>${escapeHtml(folder.description)}</p>` : '<p>No description available.</p>'}
-            <div class="vec-folder-summary-counts"><span>${folder.images_count} images</span><span>${folder.clips_count} clips</span><span>${activeCounts.images + activeCounts.clips} active</span></div>
+            <div class="vec-folder-summary-counts"><span>${displayImagesCount} images</span><span>${displayClipsCount} clips</span><span>${activeCounts.images + activeCounts.clips} active</span></div>
             ${dateLabel ? `<small>${folder.updated_at ? 'Updated' : 'Created'} ${escapeHtml(dateLabel)}</small>` : ''}
           </div>
           <div class="vec-folder-actions">
@@ -2686,24 +2694,38 @@
       const button = event.target.closest('[data-vec-folder-toggle]');
       if (!button || !state.songContext) return;
       const folderId = button.dataset.vecFolderToggle;
+      const previousRecipe = buildCurrentRecipe();
       if (state.selectedFolderIds.has(folderId)) {
         state.selectedFolderIds.delete(folderId);
         markDirty();
+        renderDynamic();
+        persistRecipeChange(previousRecipe, 'folder status');
       } else {
         state.selectedFolderIds.add(folderId);
         markDirty();
-        initializeFolderAssetInclusion(state, folderId, getFolderAssetState(state, folderId).assets || []);
+        const existingAssets = getFolderAssetState(state, folderId).assets || [];
+        initializeFolderAssetInclusion(state, folderId, existingAssets);
         if (!state.folderAssets.has(folderId)) {
           state.folderAssets.set(folderId, { loading: true, error: '', assets: [] });
+          renderDynamic();
           fetchFolderAssets(folderId).then((assets) => {
             state.folderAssets.set(folderId, { loading: false, error: '', assets });
             initializeFolderAssetInclusion(state, folderId, assets);
+            markDirty();
+            renderDynamic();
+            return persistRecipeChange(previousRecipe, 'folder status');
           }).catch((error) => {
             state.folderAssets.set(folderId, { loading: false, error: error.message || 'Could not load folder visuals.', assets: [] });
-          }).finally(renderDynamic);
+            state.selectedFolderIds.delete(folderId);
+            state.recipeStatus = `Folder could not be activated: ${error.message || 'Could not load folder visuals.'}`;
+            state.dirty = false;
+            renderDynamic();
+          });
+        } else {
+          renderDynamic();
+          persistRecipeChange(previousRecipe, 'folder status');
         }
       }
-      renderDynamic();
     });
 
     elements.mediaModal.addEventListener('click', (event) => {
