@@ -60,6 +60,14 @@
     .featured-setlists__item img{display:block;width:100%;height:auto}
     @media(max-width:760px){.featured-setlists{grid-template-columns:1fr;max-width:520px;gap:22px}}
   </style>
+  <style>
+    .setlist-lightbox{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:54px 16px 16px;background:rgba(0,0,0,.94)}
+    .setlist-lightbox[aria-hidden="false"]{display:flex}
+    .setlist-lightbox__image{display:block;max-width:100%;max-height:calc(100vh - 80px);object-fit:contain}
+    .setlist-lightbox__close{position:absolute;top:10px;right:16px;width:44px;height:44px;border:1px solid #aaa;border-radius:50%;background:#222;color:white;font-size:30px;line-height:1;cursor:pointer}
+    .setlist-lightbox__close:hover,.setlist-lightbox__close:focus-visible{background:#444;outline:2px solid white}
+    body.setlist-modal-open{overflow:hidden}
+  </style>
 </head>
 <body>
 
@@ -103,13 +111,13 @@
     <div class="container">
 
       <div class="featured-setlists" aria-label="Featured Stashbox show setlist artwork">
-        <a class="featured-setlists__item" href="/setlists/Stashbox%20Does%20Dylan%20Setlist%20260927.png" target="_blank" rel="noopener" aria-label="View Stashbox Does Dylan setlist full size">
+        <a class="featured-setlists__item" data-setlist-modal href="/setlists/Stashbox%20Does%20Dylan%20Setlist%20260927.png" aria-label="View Stashbox Does Dylan setlist full size">
           <img src="/setlists/Stashbox%20Does%20Dylan%20Setlist%20260927.png" alt="Stashbox Does Dylan tribute show setlist" loading="lazy">
         </a>
-        <a class="featured-setlists__item" href="/setlists/Stashbox-Sublime-Show-Setlist-260927.png" target="_blank" rel="noopener" aria-label="View Stashbox Sublime show setlist full size">
+        <a class="featured-setlists__item" data-setlist-modal href="/setlists/Stashbox-Sublime-Show-Setlist-260927.png" aria-label="View Stashbox Sublime show setlist full size">
           <img src="/setlists/Stashbox-Sublime-Show-Setlist-260927.png" alt="Stashbox Sublime show setlist" loading="lazy">
         </a>
-        <a class="featured-setlists__item" href="/setlists/Stashbox_Sublime_Show_Live_Setlist_260927.png" target="_blank" rel="noopener" aria-label="View Stashbox Sublime live show setlist full size">
+        <a class="featured-setlists__item" data-setlist-modal href="/setlists/Stashbox_Sublime_Show_Live_Setlist_260927.png" aria-label="View Stashbox Sublime live show setlist full size">
           <img src="/setlists/Stashbox_Sublime_Show_Live_Setlist_260927.png" alt="Stashbox Sublime live show setlist" loading="lazy">
         </a>
       </div>
@@ -482,5 +490,41 @@
 </style>
 
 <script src="/main.js?v=20260824-industry"></script>
+<div class="setlist-lightbox" id="setlistLightbox" role="dialog" aria-modal="true" aria-label="Full-size setlist" aria-hidden="true" tabindex="-1">
+  <button type="button" class="setlist-lightbox__close" id="setlistLightboxClose" aria-label="Close full-size setlist">&times;</button>
+  <img class="setlist-lightbox__image" id="setlistLightboxImage" src="" alt="">
+</div>
+<script>
+(function(){
+  const modal=document.getElementById('setlistLightbox');
+  const image=document.getElementById('setlistLightboxImage');
+  const closeButton=document.getElementById('setlistLightboxClose');
+  let previousFocus=null;
+  function close(){
+    modal.setAttribute('aria-hidden','true');
+    image.removeAttribute('src');
+    document.body.classList.remove('setlist-modal-open');
+    if(previousFocus) previousFocus.focus();
+  }
+  document.querySelectorAll('[data-setlist-modal]').forEach(link=>{
+    link.addEventListener('click',event=>{
+      event.preventDefault();
+      previousFocus=document.activeElement;
+      image.src=link.getAttribute('href');
+      image.alt=link.querySelector('img')?.alt || 'Full-size setlist';
+      modal.setAttribute('aria-hidden','false');
+      document.body.classList.add('setlist-modal-open');
+      closeButton.focus();
+    });
+  });
+  closeButton.addEventListener('click',close);
+  modal.addEventListener('click',event=>{if(event.target===modal)close()});
+  document.addEventListener('keydown',event=>{
+    if(modal.getAttribute('aria-hidden')==='true')return;
+    if(event.key==='Escape')close();
+    if(event.key==='Tab'){event.preventDefault();closeButton.focus()}
+  });
+})();
+</script>
 </body>
 </html>
