@@ -68,6 +68,12 @@
     .setlist-lightbox__close:hover,.setlist-lightbox__close:focus-visible{background:#444;outline:2px solid white}
     body.setlist-modal-open{overflow:hidden}
   </style>
+  <style>
+    /* Keep the gallery description prominent and on one line at desktop widths. */
+    .setlist-intro{max-width:none!important;width:100%;font-size:clamp(17px,1.35vw,20px);line-height:1.5}
+    @media(min-width:900px){.setlist-intro{white-space:nowrap}}
+    @media(max-width:899px){.setlist-intro{white-space:normal}}
+  </style>
 </head>
 <body>
 
