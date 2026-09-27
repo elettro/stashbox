@@ -244,6 +244,19 @@
   ]
 }
   </script>
+  <style>
+    .booking-flyers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:0 0 44px;align-items:start}
+    .booking-flyers__item{display:block;overflow:hidden;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:#171717;transition:transform .2s,border-color .2s;cursor:zoom-in}
+    .booking-flyers__item:hover,.booking-flyers__item:focus-visible{transform:translateY(-4px);border-color:#e5b44b}
+    .booking-flyers__item img{display:block;width:100%;height:auto}
+    @media(max-width:760px){.booking-flyers{grid-template-columns:1fr;max-width:520px;margin-inline:auto;gap:22px}}
+    .booking-flyer-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:54px 16px 16px;background:rgba(0,0,0,.94)}
+    .booking-flyer-modal[aria-hidden="false"]{display:flex}
+    .booking-flyer-modal__image{display:block;max-width:100%;max-height:calc(100vh - 80px);object-fit:contain}
+    .booking-flyer-modal__close{position:absolute;top:10px;right:16px;width:44px;height:44px;border:1px solid #aaa;border-radius:50%;background:#222;color:white;font-size:30px;line-height:1;cursor:pointer}
+    .booking-flyer-modal__close:hover,.booking-flyer-modal__close:focus-visible{background:#444;outline:2px solid white}
+    body.booking-flyer-open{overflow:hidden}
+  </style>
 </head>
 <body>
 
@@ -288,6 +301,11 @@
   <section class="section" aria-labelledby="tribute-heading">
     <div class="container">
       <h2 class="section-title fade-in" id="tribute-heading">TRIBUTE SHOWS</h2>
+      <div class="booking-flyers" aria-label="Stashbox show flyers and setlists">
+        <a class="booking-flyers__item" data-booking-flyer href="/setlists/Stashbox%20Does%20Dylan%20Setlist%20260927.png" aria-label="View Stashbox Does Dylan flyer full size"><img src="/setlists/Stashbox%20Does%20Dylan%20Setlist%20260927.png" alt="Stashbox Does Dylan tribute show flyer and setlist" loading="lazy"></a>
+        <a class="booking-flyers__item" data-booking-flyer href="/setlists/Stashbox-Sublime-Show-Setlist-260927.png" aria-label="View Stashbox Does Sublime flyer full size"><img src="/setlists/Stashbox-Sublime-Show-Setlist-260927.png" alt="Stashbox Does Sublime tribute show flyer and setlist" loading="lazy"></a>
+        <a class="booking-flyers__item" data-booking-flyer href="/setlists/Stashbox_Sublime_Show_Live_Setlist_260927.png" aria-label="View Stashbox Sublime live show flyer full size"><img src="/setlists/Stashbox_Sublime_Show_Live_Setlist_260927.png" alt="Stashbox Sublime live show flyer and setlist" loading="lazy"></a>
+      </div>
       <div class="tribute-detail-grid">
 
         <article class="tribute-detail-card tribute-detail-card--dylan fade-in">
@@ -569,5 +587,41 @@
 }
 </style>
 <script src="/main.js?v=20260824-industry"></script>
+<div class="booking-flyer-modal" id="bookingFlyerModal" role="dialog" aria-modal="true" aria-label="Full-size show flyer" aria-hidden="true" tabindex="-1">
+  <button type="button" class="booking-flyer-modal__close" id="bookingFlyerClose" aria-label="Close flyer">&times;</button>
+  <img class="booking-flyer-modal__image" id="bookingFlyerImage" src="" alt="">
+</div>
+<script>
+(function(){
+  const modal=document.getElementById('bookingFlyerModal');
+  const image=document.getElementById('bookingFlyerImage');
+  const closeButton=document.getElementById('bookingFlyerClose');
+  let previousFocus=null;
+  function close(){
+    modal.setAttribute('aria-hidden','true');
+    image.removeAttribute('src');
+    document.body.classList.remove('booking-flyer-open');
+    if(previousFocus)previousFocus.focus();
+  }
+  document.querySelectorAll('[data-booking-flyer]').forEach(link=>{
+    link.addEventListener('click',event=>{
+      event.preventDefault();
+      previousFocus=document.activeElement;
+      image.src=link.getAttribute('href');
+      image.alt=link.querySelector('img')?.alt||'Full-size show flyer';
+      modal.setAttribute('aria-hidden','false');
+      document.body.classList.add('booking-flyer-open');
+      closeButton.focus();
+    });
+  });
+  closeButton.addEventListener('click',close);
+  modal.addEventListener('click',event=>{if(event.target===modal)close()});
+  document.addEventListener('keydown',event=>{
+    if(modal.getAttribute('aria-hidden')==='true')return;
+    if(event.key==='Escape')close();
+    if(event.key==='Tab'){event.preventDefault();closeButton.focus()}
+  });
+})();
+</script>
 </body>
 </html>
