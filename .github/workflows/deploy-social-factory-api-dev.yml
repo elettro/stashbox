@@ -230,6 +230,19 @@ jobs:
               "${BASE_URL}/social/review-items/render-test-12345678/schedule/cancel")
             check_equal 'schedule_cancel_protected_http_status' "${CANCEL_STATUS}" '401'
 
+            CHATGPT_IMPORT_STATUS=$(curl --silent --show-error --max-time 60 \
+              -X POST -H 'Content-Type: application/json' \
+              -H 'x-admin-token: invalid-deployment-route-probe' -d '{}' \
+              -o /tmp/social-chatgpt-import-route.json -w '%{http_code}' \
+              "${BASE_URL}/social/uploads/imports")
+            check_equal 'chatgpt_import_route_http_status' "${CHATGPT_IMPORT_STATUS}" '401'
+
+            CHATGPT_IMPORT_BATCH_STATUS=$(curl --silent --show-error --max-time 60 \
+              -H 'x-admin-token: invalid-deployment-route-probe' \
+              -o /tmp/social-chatgpt-import-status-route.json -w '%{http_code}' \
+              "${BASE_URL}/social/uploads/imports/00000000-0000-4000-8000-000000000000")
+            check_equal 'chatgpt_import_status_route_http_status' "${CHATGPT_IMPORT_BATCH_STATUS}" '401'
+
             printf '%s' "${STACK_STATUS}" > /tmp/social-stack-status
             printf '%s' "${API_FUNCTION}" > /tmp/social-api-function
             printf '%s' "${WORKER_FUNCTION}" > /tmp/social-worker-function
@@ -242,6 +255,8 @@ jobs:
             printf '%s' "${YOUTUBE_STATUS}" > /tmp/social-youtube-status-code
             printf '%s' "${SCHEDULE_STATUS}" > /tmp/social-schedule-status-code
             printf '%s' "${CANCEL_STATUS}" > /tmp/social-cancel-status-code
+            printf '%s' "${CHATGPT_IMPORT_STATUS}" > /tmp/social-chatgpt-import-status-code
+            printf '%s' "${CHATGPT_IMPORT_BATCH_STATUS}" > /tmp/social-chatgpt-import-batch-status-code
             echo 'deployment_verification: passed'
           ) 2>&1 | tee /tmp/social-verify.log
           VERIFY_EXIT=${PIPESTATUS[0]}
@@ -281,6 +296,8 @@ jobs:
             --arg youtube_status_http_status "$(cat /tmp/social-youtube-status-code 2>/dev/null || true)" \
             --arg schedule_http_status "$(cat /tmp/social-schedule-status-code 2>/dev/null || true)" \
             --arg cancel_http_status "$(cat /tmp/social-cancel-status-code 2>/dev/null || true)" \
+            --arg chatgpt_import_http_status "$(cat /tmp/social-chatgpt-import-status-code 2>/dev/null || true)" \
+            --arg chatgpt_import_batch_http_status "$(cat /tmp/social-chatgpt-import-batch-status-code 2>/dev/null || true)" \
             --arg queue_url "$(cat /tmp/social-queue-url 2>/dev/null || true)" \
             --arg queue_arn "$(cat /tmp/social-queue-arn 2>/dev/null || true)" \
             --arg dlq_arn "$(cat /tmp/social-dlq-arn 2>/dev/null || true)" \
@@ -307,6 +324,8 @@ jobs:
               youtube_status_http_status:$youtube_status_http_status,
               scheduled_publish_http_status:$schedule_http_status,
               schedule_cancel_http_status:$cancel_http_status,
+              chatgpt_import_http_status:$chatgpt_import_http_status,
+              chatgpt_import_batch_http_status:$chatgpt_import_batch_http_status,
               scheduled_publish_queue_url:$queue_url,
               scheduled_publish_queue_arn:$queue_arn,
               scheduled_publish_dlq_arn:$dlq_arn,
