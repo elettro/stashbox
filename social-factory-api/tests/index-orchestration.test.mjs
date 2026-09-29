@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createHandler } from '../index.mjs';
 
 function request(path, method = 'GET', body, queryStringParameters = null) {
@@ -245,6 +246,48 @@ test('ChatGPT video import returns a batch status URL and external S3 upload rem
   ));
   assert.equal(completed.statusCode, 201);
   assert.equal(JSON.parse(completed.body).review_item.status, 'in_review');
+});
+
+test('ChatGPT video import POST and batch-status GET routes are registered', async () => {
+  const samTemplate = fs.readFileSync(new URL('../infrastructure/template.yaml', import.meta.url), 'utf8');
+  assert.match(
+    samTemplate,
+    /SocialApiDevFunction:\s+Type: AWS::Serverless::Function\s+Properties:\s+FunctionName: stashbox-social-api-dev[\s\S]*?Handler: index\.handler/
+  );
+  assert.match(
+    samTemplate,
+    /SocialVideoImportCreate:\s+Type: HttpApi\s+Properties:\s+ApiId: !Ref SocialFactoryHttpApi\s+Path: \/social\/uploads\/imports\s+Method: POST/
+  );
+  assert.match(
+    samTemplate,
+    /SocialVideoImportStatus:\s+Type: HttpApi\s+Properties:\s+ApiId: !Ref SocialFactoryHttpApi\s+Path: \/social\/uploads\/imports\/\{batchId\}\s+Method: GET/
+  );
+
+  const calls = [];
+  const api = createApi({
+    review: {
+      async queueChatGptImport(event) {
+        calls.push({ method: 'POST', path: event.rawPath });
+        return { batch_id: 'batch-registered-1234', status: 'queued' };
+      },
+      async getChatGptImportBatch(event, batchId) {
+        calls.push({ method: 'GET', path: event.rawPath, batchId });
+        return { batch_id: batchId, status: 'processing' };
+      }
+    }
+  });
+
+  const importResponse = await api(request('/social/uploads/imports', 'POST', { openaiFileIdRefs: [] }));
+  assert.equal(importResponse.statusCode, 202);
+  assert.equal(JSON.parse(importResponse.body).batch_id, 'batch-registered-1234');
+
+  const statusResponse = await api(request('/social/uploads/imports/batch-registered-1234'));
+  assert.equal(statusResponse.statusCode, 200);
+  assert.equal(JSON.parse(statusResponse.body).status, 'processing');
+  assert.deepEqual(calls, [
+    { method: 'POST', path: '/social/uploads/imports' },
+    { method: 'GET', path: '/social/uploads/imports/batch-registered-1234', batchId: 'batch-registered-1234' }
+  ]);
 });
 
 test('ChatGPT video import route returns accepted immediately while processing is pending', async () => {

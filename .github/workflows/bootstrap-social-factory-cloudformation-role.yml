@@ -159,6 +159,12 @@ jobs:
                 "Resource": "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:stashbox-social-chatgpt-import-dev*"
               },
               {
+                "Sid": "UseServerlessTransform",
+                "Effect": "Allow",
+                "Action": "cloudformation:CreateChangeSet",
+                "Resource": "arn:aws:cloudformation:${AWS_REGION}:aws:transform/Serverless-2016-10-31"
+              },
+              {
                 "Sid": "ManageSocialPublishSchedules",
                 "Effect": "Allow",
                 "Action": "scheduler:*",
