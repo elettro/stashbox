@@ -226,6 +226,16 @@ When the user identifies a song by title:
 - Before publishing or scheduling, validate first and repeat destination, title, privacy, date, time, timezone, and review ID.
 - Default planning timezone is America/Montreal when none is supplied.
 
+## Importing attached videos
+
+- When the user asks to import attached MP4 videos into Social Factory, use `importSocialChatGptVideos` with the current message's `openaiFileIdRefs`; do not send guessed file URLs or file bytes as JSON.
+- GPT Actions supplies attachment references with short-lived download links. The API queues each batch promptly; submit the references immediately after files are attached.
+- Import at most 10 attachments per action call. Split a larger batch into groups of up to 10, preserve file order, and submit every group before polling each batch with `getSocialChatGptVideoImportStatus`.
+- The import action returns a batch ID immediately. Poll its status until `completed`, `completed_with_errors`, or `failed`; report imported, duplicate, and failed counts and the exact successful review IDs for every group.
+- Pass `aspect_ratio` only when the user confirms that all videos in this action call share that ratio. Never guess; if the ratio is unknown, leave it unset and record that the review item needs a supported YouTube ratio before scheduling or publishing. Set a known ratio through the Content Review save action.
+- A successful import creates a pending Content Review item only. Never approve, publish, or schedule imported videos as part of the import.
+- If a group fails or returns partial completion details, report the exact files and review IDs that succeeded; retry only failed files whose attachment references are still valid, otherwise ask the user to reattach them.
+
 ## SR Profile Image Set
 
 Recognize `Make the full set`, `Create the SR Profile Image Set`, and similar established phrases.

@@ -21,6 +21,9 @@ This folder contains the isolated Social Factory backend. It does not extend or 
 - `GET /social/youtube/status`
 - `POST /social/youtube/disconnect`
 - `POST /social/uploads/presign`
+- `POST /social/uploads/imports`
+- `POST /social/uploads/imports/presign`
+- `POST /social/uploads/imports/{importId}/complete`
 - `POST /social/youtube/publish`
 
 ### Video Factory orchestration, Phase 1
@@ -45,6 +48,14 @@ The public presign response intentionally returns only the headers the client mu
 All direct test uploads are forced to YouTube privacy status `unlisted`. A caller cannot override this with `public` or `private` input.
 
 The synchronous direct-upload path is intentionally capped at 25 MB. Larger videos can be staged and validated, but require the later asynchronous queue worker before they can be published safely.
+
+## ChatGPT video import
+
+GPT Actions do not receive uploaded file bytes in their JSON arguments. OpenAI's file-transfer contract injects an `openaiFileIdRefs` array with each attachment's name, MIME type, file ID, and a five-minute `files.oaiusercontent.com` download URL. The `POST /social/uploads/imports` action validates and queues up to 10 references, then immediately returns a batch ID; `GET /social/uploads/imports/{batchId}` reports queued, processing, and terminal per-file outcomes. A 25-video transfer must be submitted as three action calls (10, 10, and 5), then polled by batch ID.
+
+The worker validates the reference host and path, refuses redirects, enforces the 512 MiB per-file limit while streaming, checks the MP4 `ftyp` signature, and hashes the stored video. Identical video bytes return the existing Content Review item. Files enter pending review with publishing and scheduling disabled. The caller may provide `aspect_ratio` only when all videos in that action share a confirmed supported ratio; otherwise reviewers must set the ratio to `9:16` or `16:9` through Content Review before scheduling or publishing. The direct S3 `presign` and `complete` routes are retained for clients that can perform their own PUT; they are not the ChatGPT Action upload contract.
+
+The API request only enqueues the import and therefore does not wait for large file transfers within the API Gateway/GPT Action timeout. Each worker has a 15-minute execution limit; OpenAI attachment references expire after five minutes, so the queue must begin promptly. Validate representative upload speeds and queue-start latency in GPT Preview before relying on the full 25-file batch. Import does not publish or schedule videos.
 
 ## Video Factory orchestration, Phase 1
 

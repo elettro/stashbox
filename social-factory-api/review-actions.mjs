@@ -4,6 +4,7 @@ import { createAwsSecretStore } from './youtube-oauth.mjs';
 const REVIEW_PREFIX = 'drafts/';
 const PREVIEW_TTL_SECONDS = 15 * 60;
 const ALLOWED_VISIBILITY = new Set(['private', 'unlisted', 'public']);
+const ALLOWED_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const ALLOWED_DECISIONS = new Set(['approve', 'hold', 'reopen', 'hide']);
 const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
 const DEFAULT_COLLABORATORS = Object.freeze([{
@@ -255,6 +256,13 @@ export function createReviewActionService({
         throw serviceError('invalid_youtube_description', 422, { max_characters: 5000 });
       }
 
+      const aspectRatio = cleanString(input.aspect_ratio ?? item.video?.aspect_ratio, 10);
+      if (aspectRatio && !ALLOWED_ASPECT_RATIOS.has(aspectRatio)) {
+        throw serviceError('invalid_video_aspect_ratio', 422, {
+          allowed: [...ALLOWED_ASPECT_RATIOS]
+        });
+      }
+
       const tags = cleanStringList(input.tags ?? input.metadata?.tags ?? currentMetadata.tags, 30, 120);
       if (tags.join(',').length > 500) {
         throw serviceError('invalid_youtube_tags', 422, { max_combined_characters: 500 });
@@ -270,6 +278,10 @@ export function createReviewActionService({
 
       const saved = {
         ...item,
+        video: {
+          ...item.video,
+          aspect_ratio: aspectRatio
+        },
         metadata: {
           ...currentMetadata,
           selected_title: selectedTitle,

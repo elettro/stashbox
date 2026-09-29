@@ -84,6 +84,21 @@ function createApi({ orchestrator = {}, batch = {}, operations = {}, review = {}
       ...operations
     },
     reviewWorkflow: {
+      queueChatGptImport: async () => ({
+        batch_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
+        status: 'queued',
+        count: 1,
+        status_url: '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'
+      }),
+      getChatGptImportBatch: async (_event, id) => ({ batch_id: id, status: 'completed' }),
+      createVideoImport: async () => ({
+        import_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
+        upload_url: 'https://uploads.example/signed'
+      }),
+      completeVideoImport: async (_event, id) => ({
+        imported: true,
+        review_item: { id: `upload-${id}`, status: 'in_review' }
+      }),
       stageRender: async (_event, id) => ({
         staged: true,
         review_item: { id: `render-${id}`, status: 'in_review' }
@@ -195,6 +210,63 @@ test('completed render staging path delegates to the review workflow', async () 
   const body = JSON.parse(response.body);
   assert.equal(body.staged, true);
   assert.equal(body.review_item.id, 'render-job-12345678');
+});
+
+test('ChatGPT video import returns a batch status URL and external S3 upload remains available', async () => {
+  const api = createApi();
+  const imported = await api(request('/social/uploads/imports', 'POST', {
+    openaiFileIdRefs: [{
+      id: 'file-abcdefgh12345678',
+      name: 'clip.mp4',
+      mime_type: 'video/mp4',
+      download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
+    }]
+  }));
+  assert.equal(imported.statusCode, 202);
+  assert.equal(JSON.parse(imported.body).status, 'queued');
+  assert.equal(JSON.parse(imported.body).status_url, '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad');
+
+  const status = await api(request('/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'));
+  assert.equal(status.statusCode, 200);
+  assert.equal(JSON.parse(status.body).status, 'completed');
+
+  const created = await api(request('/social/uploads/imports/presign', 'POST', {
+    file_name: 'clip.mp4',
+    content_type: 'video/mp4',
+    size_bytes: 16
+  }));
+  assert.equal(created.statusCode, 201);
+  assert.equal(JSON.parse(created.body).upload_url, 'https://uploads.example/signed');
+
+  const completed = await api(request(
+    '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad/complete',
+    'POST',
+    {}
+  ));
+  assert.equal(completed.statusCode, 201);
+  assert.equal(JSON.parse(completed.body).review_item.status, 'in_review');
+});
+
+test('ChatGPT video import route returns accepted immediately while processing is pending', async () => {
+  const api = createApi({
+    review: {
+      async queueChatGptImport() {
+        return {
+          batch_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
+          status: 'queued',
+          count: 2,
+          status_url: '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'
+        };
+      }
+    }
+  });
+  const response = await api(request('/social/uploads/imports', 'POST', { openaiFileIdRefs: [] }));
+  const body = JSON.parse(response.body);
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'queued');
+  assert.equal(body.count, 2);
 });
 
 test('review list and review item routes preserve IDs', async () => {

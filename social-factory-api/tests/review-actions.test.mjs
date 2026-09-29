@@ -100,6 +100,7 @@ test('save updates editable metadata and publishing settings without publishing'
     collaborators: [{ name: 'Guest Artist', youtube_handle: '@guestartist' }],
     credits: { producers: ['Dean Palermo'] },
     visibility: 'private',
+    aspect_ratio: '16:9',
     scheduled_at: '2026-08-01T18:00:00Z'
   }), 'render-job-12345678');
 
@@ -109,6 +110,7 @@ test('save updates editable metadata and publishing settings without publishing'
   assert.equal(result.item.metadata.collaborators[0].youtube_handle, '@guestartist');
   assert.deepEqual(result.item.metadata.credits.producers, ['Dean Palermo']);
   assert.equal(result.item.publish_settings.visibility, 'private');
+  assert.equal(result.item.video.aspect_ratio, '16:9');
   assert.equal(result.item.publish_settings.scheduled_at, '2026-08-01T18:00:00.000Z');
   assert.equal(result.item.publishing_status, 'not_published');
   assert.equal(reviews.get('render-job-12345678').updated_at, '2026-07-28T02:00:00.000Z');
@@ -119,6 +121,14 @@ test('save rejects titles longer than YouTube allows', async () => {
   await assert.rejects(
     service.save(event({ selected_title: 'x'.repeat(101) }), 'render-job-12345678'),
     (error) => error.statusCode === 422 && error.message === 'invalid_youtube_title'
+  );
+});
+
+test('save rejects unsupported YouTube aspect ratios', async () => {
+  const { service } = fixture();
+  await assert.rejects(
+    service.save(event({ aspect_ratio: '1:1' }), 'render-job-12345678'),
+    (error) => error.statusCode === 422 && error.message === 'invalid_video_aspect_ratio'
   );
 });
 

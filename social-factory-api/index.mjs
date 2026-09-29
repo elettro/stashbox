@@ -113,6 +113,14 @@ function reviewRoute(path) {
   };
 }
 
+function videoImportRoute(path) {
+  const completeMatch = String(path).match(/^\/social\/uploads\/imports\/([^/]+)\/complete$/);
+  return {
+    completeImportId: completeMatch ? decodeURIComponent(completeMatch[1]) : '',
+    statusBatchId: String(path).match(/^\/social\/uploads\/imports\/([^/]+)$/)?.[1] || ''
+  };
+}
+
 export function createHandler({
   youtubeOAuth = createYoutubeOAuthService(),
   youtubePublish = null,
@@ -204,6 +212,7 @@ export function createHandler({
     const path = getRequestPath(event);
     const route = orchestrationRoute(path);
     const review = reviewRoute(path);
+    const videoImport = videoImportRoute(path);
 
     if (method === 'OPTIONS') {
       return {
@@ -292,6 +301,29 @@ export function createHandler({
       if (method === 'POST' && path === '/social/uploads/presign') {
         const result = await getYoutubePublish().presign(event);
         return json(200, { ok: true, ...publicPresignContract(result) });
+      }
+
+      if (method === 'POST' && path === '/social/uploads/imports') {
+        return json(202, {
+          ok: true,
+          ...(await getReviewWorkflow().queueChatGptImport(event))
+        });
+      }
+
+      if (method === 'GET' && videoImport.statusBatchId) {
+        return json(200, {
+          ok: true,
+          ...(await getReviewWorkflow().getChatGptImportBatch(event, videoImport.statusBatchId))
+        });
+      }
+
+      if (method === 'POST' && path === '/social/uploads/imports/presign') {
+        return json(201, { ok: true, ...(await getReviewWorkflow().createVideoImport(event)) });
+      }
+
+      if (method === 'POST' && videoImport.completeImportId) {
+        const result = await getReviewWorkflow().completeVideoImport(event, videoImport.completeImportId);
+        return json(result.imported ? 201 : 200, { ok: true, ...result });
       }
 
       if (method === 'POST' && path === '/social/youtube/publish') {

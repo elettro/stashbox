@@ -1,11 +1,19 @@
 import crypto from 'node:crypto';
+import { Readable, Transform } from 'node:stream';
 import { createAwsSecretStore } from './youtube-oauth.mjs';
 
 const DEFAULT_RADIO_API_BASE = 'https://d21fbe6u80.execute-api.us-east-1.amazonaws.com/dev';
 const EXPECTED_RADIO_API_HOST = 'd21fbe6u80.execute-api.us-east-1.amazonaws.com';
 const REVIEW_PREFIX = 'drafts/';
 const VIDEO_PREFIX = 'incoming/render-jobs/';
+const CHATGPT_IMPORT_PREFIX = 'incoming/chatgpt-imports/';
+const CHATGPT_IMPORT_STATUS_PREFIX = 'imports/chatgpt/';
 const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbox';
+const VIDEO_UPLOAD_TTL_SECONDS = 15 * 60;
+const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_CHATGPT_ATTACHMENTS = 10;
+const CHATGPT_FILE_HOST = 'files.oaiusercontent.com';
+const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const DEFAULT_COLLABORATORS = Object.freeze([{
   name: 'Elettro TV',
   youtube_handle: '@Elettrotv',
@@ -104,6 +112,159 @@ function safeFileName(value) {
     .replace(/^-|-$/g, '')
     .slice(0, 140);
   return cleaned || 'video.mp4';
+}
+
+function validateVideoImportInput(body, maxBytes) {
+  if (!String(body.file_name || '').trim()) {
+    throw serviceError('invalid_video_import', 422, { required: ['file_name'] });
+  }
+  const fileName = safeFileName(body.file_name);
+  const sizeBytes = Number(body.size_bytes);
+  if (!fileName.toLowerCase().endsWith('.mp4')) {
+    throw serviceError('unsupported_video_type', 422, { allowed_content_types: ['video/mp4'] });
+  }
+  if (
+    String(body.content_type || '').split(';')[0].trim().toLowerCase() !== 'video/mp4' ||
+    !Number.isSafeInteger(sizeBytes) ||
+    sizeBytes <= 0 ||
+    sizeBytes > maxBytes
+  ) {
+    throw serviceError('invalid_video_import', 422, {
+      allowed_content_types: ['video/mp4'],
+      max_bytes: maxBytes
+    });
+  }
+  const title = String(body.title || fileName.replace(/\.mp4$/i, '')).trim();
+  if (!title || title.length > 100) {
+    throw serviceError('invalid_video_title', 422, { max_characters: 100 });
+  }
+  const aspectRatio = String(body.aspect_ratio || '').trim();
+  if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+    throw serviceError('invalid_video_aspect_ratio', 422, {
+      allowed: [...YOUTUBE_ASPECT_RATIOS]
+    });
+  }
+  return { fileName, sizeBytes, title, aspectRatio };
+}
+
+function safeImportId(value) {
+  const text = String(value || '').trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
+    throw serviceError('invalid_import_id', 422);
+  }
+  return text.toLowerCase();
+}
+
+function validateChatGptAttachments(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHATGPT_ATTACHMENTS) {
+    throw serviceError('invalid_chatgpt_attachments', 422, {
+      minimum: 1,
+      maximum: MAX_CHATGPT_ATTACHMENTS
+    });
+  }
+  return value.map((attachment, index) => {
+    const id = String(attachment?.id || '').trim();
+    const fileName = safeFileName(attachment?.name);
+    let downloadUrl;
+    try {
+      downloadUrl = new URL(String(attachment?.download_link || ''));
+    } catch {
+      throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
+    }
+    if (
+      !/^file-[a-zA-Z0-9_-]{8,200}$/.test(id) ||
+      String(attachment?.mime_type || '').toLowerCase() !== 'video/mp4' ||
+      !fileName.toLowerCase().endsWith('.mp4') ||
+      downloadUrl.protocol !== 'https:' ||
+      downloadUrl.hostname !== CHATGPT_FILE_HOST ||
+      downloadUrl.port ||
+      downloadUrl.username ||
+      downloadUrl.password ||
+      downloadUrl.hash ||
+      downloadUrl.pathname !== `/${id}`
+    ) {
+      throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
+    }
+    return { id, fileName, downloadUrl: downloadUrl.toString() };
+  });
+}
+
+function createMp4VerificationStream(maxBytes, expectedBytes = null) {
+  let totalBytes = 0;
+  let prefix = Buffer.alloc(0);
+  let contentSha256 = '';
+  const hash = crypto.createHash('sha256');
+  const stream = new Transform({
+    transform(chunk, _encoding, callback) {
+      const buffer = Buffer.from(chunk);
+      totalBytes += buffer.length;
+      if (totalBytes > maxBytes || (expectedBytes != null && totalBytes > expectedBytes)) {
+        callback(serviceError('uploaded_video_size_mismatch', 422, {
+          max_bytes: maxBytes,
+          expected_size_bytes: expectedBytes,
+          actual_size_bytes: totalBytes
+        }));
+        return;
+      }
+      if (prefix.length < 12) prefix = Buffer.concat([prefix, buffer]).subarray(0, 12);
+      if (prefix.length >= 8 && prefix.toString('ascii', 4, 8) !== 'ftyp') {
+        callback(serviceError('uploaded_file_is_not_mp4', 422));
+        return;
+      }
+      hash.update(buffer);
+      callback(null, buffer);
+    },
+    flush(callback) {
+      if (expectedBytes != null && totalBytes !== expectedBytes) {
+        callback(serviceError('uploaded_video_size_mismatch', 422, {
+          expected_size_bytes: expectedBytes,
+          actual_size_bytes: totalBytes
+        }));
+        return;
+      }
+      if (totalBytes <= 0 || prefix.length < 12 || prefix.toString('ascii', 4, 8) !== 'ftyp') {
+        callback(serviceError('uploaded_file_is_not_mp4', 422));
+        return;
+      }
+      contentSha256 = hash.digest('hex');
+      callback();
+    }
+  });
+  return {
+    stream,
+    get contentSha256() { return contentSha256; }
+  };
+}
+
+async function hashAndVerifyMp4(body, expectedBytes) {
+  if (!body || typeof body[Symbol.asyncIterator] !== 'function') {
+    throw serviceError('uploaded_video_unreadable', 422);
+  }
+  const hash = crypto.createHash('sha256');
+  let totalBytes = 0;
+  let prefix = Buffer.alloc(0);
+  for await (const chunk of body) {
+    const buffer = Buffer.from(chunk);
+    if (prefix.length < 12) prefix = Buffer.concat([prefix, buffer]).subarray(0, 12);
+    totalBytes += buffer.length;
+    if (totalBytes > expectedBytes) {
+      throw serviceError('uploaded_video_size_mismatch', 422, {
+        expected_size_bytes: expectedBytes,
+        actual_size_bytes: totalBytes
+      });
+    }
+    hash.update(buffer);
+  }
+  if (totalBytes !== expectedBytes) {
+    throw serviceError('uploaded_video_size_mismatch', 422, {
+      expected_size_bytes: expectedBytes,
+      actual_size_bytes: totalBytes
+    });
+  }
+  if (prefix.length < 12 || prefix.toString('ascii', 4, 8) !== 'ftyp') {
+    throw serviceError('uploaded_file_is_not_mp4', 422);
+  }
+  return hash.digest('hex');
 }
 
 function parseS3Uri(value) {
@@ -243,13 +404,16 @@ async function bodyToString(body) {
 
 export function createAwsReviewStore({
   bucketName = process.env.SOCIAL_PUBLISH_BUCKET,
-  sourceBucketName = process.env.VIDEO_FACTORY_SOURCE_BUCKET
+  sourceBucketName = process.env.VIDEO_FACTORY_SOURCE_BUCKET,
+  chatGptImportQueueUrl = process.env.CHATGPT_IMPORT_QUEUE_URL
 } = {}) {
   if (!bucketName) throw new Error('social_publish_bucket_missing');
   if (!sourceBucketName) throw new Error('video_factory_source_bucket_missing');
 
   let sdkPromise;
   let clientPromise;
+  let sqsSdkPromise;
+  let sqsClientPromise;
   async function getSdk() {
     if (!sdkPromise) sdkPromise = import('@aws-sdk/client-s3');
     return sdkPromise;
@@ -257,6 +421,14 @@ export function createAwsReviewStore({
   async function getClient() {
     if (!clientPromise) clientPromise = getSdk().then(({ S3Client }) => new S3Client({}));
     return clientPromise;
+  }
+  async function getSqsSdk() {
+    if (!sqsSdkPromise) sqsSdkPromise = import('@aws-sdk/client-sqs');
+    return sqsSdkPromise;
+  }
+  async function getSqsClient() {
+    if (!sqsClientPromise) sqsClientPromise = getSqsSdk().then(({ SQSClient }) => new SQSClient({}));
+    return sqsClientPromise;
   }
 
   return {
@@ -276,6 +448,100 @@ export function createAwsReviewStore({
       return client.send(new HeadObjectCommand({ Bucket: bucketName, Key: destinationKey }));
     },
 
+    async createVideoImportUploadUrl({ importId, fileName, sizeBytes }) {
+      const [{ PutObjectCommand }, client, { getSignedUrl }] = await Promise.all([
+        getSdk(),
+        getClient(),
+        import('@aws-sdk/s3-request-presigner')
+      ]);
+      const objectKey = `${CHATGPT_IMPORT_PREFIX}${importId}/video.mp4`;
+      const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey,
+        ContentType: 'video/mp4',
+        Metadata: {
+          expected_size_bytes: String(sizeBytes),
+          source: 'chatgpt-video-import',
+          file_name: fileName
+        }
+      });
+      return {
+        objectKey,
+        uploadUrl: await getSignedUrl(client, command, { expiresIn: VIDEO_UPLOAD_TTL_SECONDS })
+      };
+    },
+
+    async uploadChatGptVideo({ importId, fileName, body }) {
+      const [{ Upload }, client] = await Promise.all([
+        import('@aws-sdk/lib-storage'),
+        getClient()
+      ]);
+      const objectKey = `${CHATGPT_IMPORT_PREFIX}${importId}/video.mp4`;
+      const upload = new Upload({
+        client,
+        params: {
+          Bucket: bucketName,
+          Key: objectKey,
+          Body: body,
+          ContentType: 'video/mp4',
+          Metadata: {
+            source: 'chatgpt-video-import',
+            file_name: fileName
+          }
+        },
+        partSize: 8 * 1024 * 1024,
+        queueSize: 2,
+        leavePartsOnError: false
+      });
+      await upload.done();
+      return { objectKey };
+    },
+
+    async enqueueChatGptImportBatch(batchId, payload) {
+      if (!chatGptImportQueueUrl) throw new Error('chatgpt_import_queue_url_missing');
+      const [{ SendMessageCommand }, client] = await Promise.all([getSqsSdk(), getSqsClient()]);
+      await client.send(new SendMessageCommand({
+        QueueUrl: chatGptImportQueueUrl,
+        MessageBody: JSON.stringify({ batch_id: batchId, ...payload })
+      }));
+    },
+
+    async putChatGptImportBatch(batchId, batch) {
+      const [{ PutObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      await client.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: `${CHATGPT_IMPORT_STATUS_PREFIX}${batchId}.json`,
+        Body: JSON.stringify(batch, null, 2),
+        ContentType: 'application/json; charset=utf-8',
+        CacheControl: 'no-store'
+      }));
+      return batch;
+    },
+
+    async getChatGptImportBatch(batchId) {
+      const [{ GetObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      try {
+        const result = await client.send(new GetObjectCommand({
+          Bucket: bucketName,
+          Key: `${CHATGPT_IMPORT_STATUS_PREFIX}${batchId}.json`
+        }));
+        return JSON.parse(await bodyToString(result.Body));
+      } catch (error) {
+        if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return null;
+        throw error;
+      }
+    },
+
+    async headImportedVideo(objectKey) {
+      const [{ HeadObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      return client.send(new HeadObjectCommand({ Bucket: bucketName, Key: objectKey }));
+    },
+
+    async getImportedVideo(objectKey) {
+      const [{ GetObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      return client.send(new GetObjectCommand({ Bucket: bucketName, Key: objectKey }));
+    },
+
     async putReview(reviewKey, review) {
       const [{ PutObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
       await client.send(new PutObjectCommand({
@@ -284,6 +550,19 @@ export function createAwsReviewStore({
         Body: JSON.stringify(review, null, 2),
         ContentType: 'application/json; charset=utf-8',
         CacheControl: 'no-store'
+      }));
+      return review;
+    },
+
+    async putImportedReview(reviewKey, review) {
+      const [{ PutObjectCommand }, client] = await Promise.all([getSdk(), getClient()]);
+      await client.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: reviewKey,
+        Body: JSON.stringify(review, null, 2),
+        ContentType: 'application/json; charset=utf-8',
+        CacheControl: 'no-store',
+        IfNoneMatch: '*'
       }));
       return review;
     },
@@ -325,7 +604,9 @@ export function createReviewWorkflowService({
   fetchImpl = globalThis.fetch,
   configSecretId = process.env.YOUTUBE_OAUTH_CONFIG_SECRET,
   now = () => new Date(),
-  sourceBucketName = process.env.VIDEO_FACTORY_SOURCE_BUCKET
+  sourceBucketName = process.env.VIDEO_FACTORY_SOURCE_BUCKET,
+  maxUploadBytes = Number(process.env.SOCIAL_MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES),
+  createImportId = () => crypto.randomUUID()
 } = {}) {
   if (!fetchImpl) throw new Error('fetch_unavailable');
   if (!configSecretId) throw new Error('youtube_oauth_config_secret_missing');
@@ -364,7 +645,368 @@ export function createReviewWorkflowService({
     return payload;
   }
 
+  async function completeVideoImport(
+    importId,
+    titleOverride,
+    verifiedContentSha256 = '',
+    aspectRatio = ''
+  ) {
+    const safeIdValue = safeImportId(importId);
+    const objectKey = `${CHATGPT_IMPORT_PREFIX}${safeIdValue}/video.mp4`;
+    const store = getReviewStore();
+    let uploaded;
+    try {
+      uploaded = await store.headImportedVideo(objectKey);
+    } catch (error) {
+      if (error?.name === 'NotFound' || error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) {
+        throw serviceError('uploaded_video_not_found', 404);
+      }
+      throw error;
+    }
+
+    const contentLength = Number(uploaded.ContentLength || 0);
+    const expectedSize = Number(uploaded.Metadata?.expected_size_bytes || contentLength);
+    const uploadedName = String(uploaded.Metadata?.file_name || '');
+    const fileName = safeFileName(uploadedName);
+    const title = String(titleOverride || fileName.replace(/\.mp4$/i, '')).trim();
+    if (
+      uploaded.ContentType !== 'video/mp4' ||
+      uploaded.Metadata?.source !== 'chatgpt-video-import' ||
+      !fileName.toLowerCase().endsWith('.mp4') ||
+      uploadedName !== fileName ||
+      !Number.isSafeInteger(expectedSize) ||
+      expectedSize <= 0 ||
+      expectedSize > maxUploadBytes ||
+      contentLength !== expectedSize ||
+      !title ||
+      title.length > 100
+    ) {
+      throw serviceError('invalid_uploaded_video', 422, {
+        content_type: uploaded.ContentType || null,
+        content_length: contentLength,
+        expected_size_bytes: expectedSize,
+        max_bytes: maxUploadBytes
+      });
+    }
+
+    const contentSha256 = verifiedContentSha256 || await (async () => {
+      const object = await store.getImportedVideo(objectKey);
+      return hashAndVerifyMp4(object.Body, contentLength);
+    })();
+    if (!/^[0-9a-f]{64}$/.test(contentSha256)) {
+      throw serviceError('invalid_video_content_hash', 500);
+    }
+    const reviewId = `upload-${contentSha256}`;
+    const reviewKey = `${REVIEW_PREFIX}${reviewId}.json`;
+    const existing = await store.getReview(reviewKey);
+    if (existing) {
+      if (existing.source?.content_sha256 !== contentSha256) {
+        throw serviceError('video_import_hash_collision', 409);
+      }
+      return { imported: false, duplicate: true, review_item: existing };
+    }
+
+    const createdAt = now().toISOString();
+    const review = {
+      schema_version: 1,
+      id: reviewId,
+      status: 'in_review',
+      approval_state: 'pending',
+      publishing_status: 'not_published',
+      source: {
+        type: 'chatgpt_video_upload',
+        import_id: safeIdValue,
+        content_sha256: contentSha256
+      },
+      song: {
+        song_key: '',
+        title,
+        artist: 'Stashbox',
+        genre: '',
+        artwork_url: ''
+      },
+      video: {
+        bucket: store.bucketName,
+        object_key: objectKey,
+        staging_uri: `s3://${store.bucketName}/${objectKey}`,
+        file_name: fileName,
+        content_type: 'video/mp4',
+        size_bytes: contentLength,
+        aspect_ratio: aspectRatio,
+        duration_seconds: null,
+        width: 0,
+        height: 0
+      },
+      metadata: {
+        title_options: [title],
+        selected_title: title,
+        description: 'Video uploaded through the Stashbox Radio Custom GPT and awaiting Content Review.',
+        tags: ['Stashbox', 'Stashbox Radio'],
+        hashtags: ['#Stashbox', '#StashboxRadio'],
+        category_id: '10',
+        collaborators: DEFAULT_COLLABORATORS.map(item => ({ ...item })),
+        collaborator_review_required: true,
+        credits: {
+          artist: 'Stashbox',
+          song_title: title,
+          album_name: '',
+          publisher: 'Elettro Incorporated'
+        }
+      },
+      publish_settings: {
+        visibility: 'unlisted',
+        made_for_kids: false,
+        contains_synthetic_media: true,
+        playlist_titles: [DEFAULT_YOUTUBE_PLAYLIST_TITLE],
+        recording_date_mode: 'publish_date',
+        notify_subscribers: false,
+        scheduled_at: null
+      },
+      automation: {
+        auto_publish: false,
+        review_required: true,
+        review_window_status: 'open'
+      },
+      created_at: createdAt,
+      updated_at: createdAt
+    };
+
+    try {
+      await store.putImportedReview(reviewKey, review);
+      return { imported: true, duplicate: false, review_item: review };
+    } catch (error) {
+      if (
+        ![409, 412].includes(Number(error?.$metadata?.httpStatusCode)) &&
+        error?.name !== 'PreconditionFailed' &&
+        error?.name !== 'ConditionalRequestConflict'
+      ) {
+        throw error;
+      }
+      const racedReview = await store.getReview(reviewKey);
+      if (racedReview?.source?.content_sha256 !== contentSha256) {
+        throw serviceError('video_import_hash_collision', 409);
+      }
+      return { imported: false, duplicate: true, review_item: racedReview };
+    }
+  }
+
+  async function importChatGptAttachments(attachments, aspectRatio, batchId) {
+    const store = getReviewStore();
+    const items = await Promise.all(attachments.map(async (attachment) => {
+      try {
+        const response = await fetchImpl(attachment.downloadUrl, {
+          method: 'GET',
+          redirect: 'error'
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw serviceError('chatgpt_attachment_download_failed', 502, {
+            upstream_status: response.status
+          });
+        }
+        const responseContentType = String(response.headers?.get('content-type') || '')
+          .split(';')[0]
+          .trim()
+          .toLowerCase();
+        if (responseContentType && !['video/mp4', 'application/octet-stream'].includes(responseContentType)) {
+          await response.body?.cancel();
+          throw serviceError('chatgpt_attachment_not_mp4', 422);
+        }
+        if (!response.body) throw serviceError('chatgpt_attachment_body_missing', 502);
+
+        const contentLengthHeader = response.headers?.get('content-length');
+        const expectedBytes = contentLengthHeader == null ? null : Number(contentLengthHeader);
+        if (
+          expectedBytes != null &&
+          (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || expectedBytes > maxUploadBytes)
+        ) {
+          await response.body?.cancel();
+          throw serviceError('invalid_video_size', 422, { max_bytes: maxUploadBytes });
+        }
+        const importId = safeImportId(createImportId());
+        const guardedBody = createMp4VerificationStream(maxUploadBytes, expectedBytes);
+        await store.uploadChatGptVideo({
+          importId,
+          fileName: attachment.fileName,
+          body: Readable.fromWeb(response.body).pipe(guardedBody.stream)
+        });
+        const result = await completeVideoImport(
+          importId,
+          undefined,
+          guardedBody.contentSha256,
+          aspectRatio
+        );
+        return {
+          file_name: attachment.fileName,
+          status: result.duplicate ? 'duplicate' : 'imported',
+          review_item: result.review_item
+        };
+      } catch (error) {
+        return {
+          file_name: attachment.fileName,
+          status: 'failed',
+          error: error?.statusCode ? error.message : 'video_import_failed'
+        };
+      }
+    }));
+    const failedCount = items.filter((item) => item.status === 'failed').length;
+    return {
+      batch_id: batchId,
+      count: items.length,
+      imported_count: items.filter((item) => item.status === 'imported').length,
+      duplicate_count: items.filter((item) => item.status === 'duplicate').length,
+      failed_count: failedCount,
+      status: failedCount === items.length ? 'failed' : failedCount ? 'completed_with_errors' : 'completed',
+      completed_at: now().toISOString(),
+      items
+    };
+  }
+
   return {
+    async importChatGptVideos(event) {
+      await authorize(event);
+      const input = parseBody(event);
+      const attachments = validateChatGptAttachments(input.openaiFileIdRefs);
+      const aspectRatio = String(input.aspect_ratio || '').trim();
+      if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+        throw serviceError('invalid_video_aspect_ratio', 422, {
+          allowed: [...YOUTUBE_ASPECT_RATIOS]
+        });
+      }
+      return importChatGptAttachments(attachments, aspectRatio, '');
+    },
+
+    async queueChatGptImport(event) {
+      await authorize(event);
+      const input = parseBody(event);
+      const attachments = validateChatGptAttachments(input.openaiFileIdRefs);
+      const aspectRatio = String(input.aspect_ratio || '').trim();
+      if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+        throw serviceError('invalid_video_aspect_ratio', 422, {
+          allowed: [...YOUTUBE_ASPECT_RATIOS]
+        });
+      }
+      const store = getReviewStore();
+      const batchId = safeImportId(createImportId());
+      const createdAt = now().toISOString();
+      const batch = {
+        batch_id: batchId,
+        status: 'queued',
+        count: attachments.length,
+        imported_count: 0,
+        duplicate_count: 0,
+        failed_count: 0,
+        created_at: createdAt,
+        items: attachments.map(({ fileName }) => ({ file_name: fileName, status: 'queued' }))
+      };
+      await store.putChatGptImportBatch(batchId, batch);
+      try {
+        await store.enqueueChatGptImportBatch(batchId, {
+          openaiFileIdRefs: attachments.map(({ id, fileName, downloadUrl }) => ({
+            id,
+            name: fileName,
+            mime_type: 'video/mp4',
+            download_link: downloadUrl
+          })),
+          aspect_ratio: aspectRatio
+        });
+      } catch (error) {
+        await store.putChatGptImportBatch(batchId, {
+          ...batch,
+          status: 'failed',
+          failed_count: attachments.length,
+          error: 'chatgpt_import_enqueue_failed',
+          completed_at: now().toISOString()
+        });
+        throw error;
+      }
+      return {
+        batch_id: batchId,
+        status: 'queued',
+        count: attachments.length,
+        status_url: `/social/uploads/imports/${batchId}`
+      };
+    },
+
+    async getChatGptImportBatch(event, batchId) {
+      await authorize(event);
+      const safeIdValue = safeImportId(batchId);
+      const batch = await getReviewStore().getChatGptImportBatch(safeIdValue);
+      if (!batch) throw serviceError('chatgpt_import_batch_not_found', 404);
+      return batch;
+    },
+
+    async processChatGptImportBatch(batchId, payload) {
+      const safeIdValue = safeImportId(batchId);
+      const store = getReviewStore();
+      const batch = await store.getChatGptImportBatch(safeIdValue);
+      if (!batch) throw serviceError('chatgpt_import_batch_not_found', 404);
+      if (['completed', 'completed_with_errors', 'failed'].includes(batch.status)) {
+        return { skipped: true, status: batch.status };
+      }
+      const attachments = validateChatGptAttachments(payload.openaiFileIdRefs);
+      const aspectRatio = String(payload.aspect_ratio || '').trim();
+      if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+        throw serviceError('invalid_video_aspect_ratio', 422, {
+          allowed: [...YOUTUBE_ASPECT_RATIOS]
+        });
+      }
+      const processingBatch = {
+        ...batch,
+        status: 'processing',
+        started_at: now().toISOString()
+      };
+      await store.putChatGptImportBatch(safeIdValue, processingBatch);
+      const result = await importChatGptAttachments(attachments, aspectRatio, safeIdValue);
+      const completedBatch = { ...processingBatch, ...result };
+      await store.putChatGptImportBatch(safeIdValue, completedBatch);
+      return completedBatch;
+    },
+
+    async createVideoImport(event) {
+      await authorize(event);
+      const input = validateVideoImportInput(parseBody(event), maxUploadBytes);
+      const importId = safeImportId(createImportId());
+      const store = getReviewStore();
+      const upload = await store.createVideoImportUploadUrl({
+        importId,
+        fileName: input.fileName,
+        sizeBytes: input.sizeBytes
+      });
+      return {
+        import_id: importId,
+        default_title: input.title,
+        aspect_ratio: input.aspectRatio,
+        object_key: upload.objectKey,
+        upload_url: upload.uploadUrl,
+        upload_method: 'PUT',
+        required_headers: {
+          'Content-Type': 'video/mp4',
+          'x-amz-meta-expected_size_bytes': String(input.sizeBytes),
+          'x-amz-meta-source': 'chatgpt-video-import',
+          'x-amz-meta-file_name': input.fileName
+        },
+        expires_in_seconds: VIDEO_UPLOAD_TTL_SECONDS,
+        max_upload_bytes: maxUploadBytes
+      };
+    },
+
+    async completeVideoImport(event, importId) {
+      await authorize(event);
+      const input = parseBody(event);
+      const title = input.title == null ? undefined : String(input.title);
+      if (title != null && (!title.trim() || title.trim().length > 100)) {
+        throw serviceError('invalid_video_title', 422, { max_characters: 100 });
+      }
+      const aspectRatio = String(input.aspect_ratio || '').trim();
+      if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
+        throw serviceError('invalid_video_aspect_ratio', 422, {
+          allowed: [...YOUTUBE_ASPECT_RATIOS]
+        });
+      }
+      return completeVideoImport(importId, title, '', aspectRatio);
+    },
+
     async stageRender(event, jobId) {
       const config = await authorize(event);
       const safeJobId = safeId(jobId, 'render_job_id');
