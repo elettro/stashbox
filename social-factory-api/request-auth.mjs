@@ -67,6 +67,7 @@ export function permissionForRequest(methodValue, pathValue) {
   if (method === 'GET' && path === '/social/youtube/status') return 'youtube:read';
   if (method === 'POST' && path === '/social/uploads/presign') return 'youtube:publish';
   if (method === 'POST' && path === '/social/uploads/imports') return 'review:stage';
+  if (method === 'GET' && /^\/social\/uploads\/imports\/[^/]+$/.test(path)) return 'review:stage';
   if (method === 'POST' && path === '/social/uploads/imports/presign') return 'review:stage';
   if (method === 'POST' && /^\/social\/uploads\/imports\/[^/]+\/complete$/.test(path)) return 'review:stage';
   if (method === 'POST' && path === '/social/youtube/publish') return 'youtube:publish';

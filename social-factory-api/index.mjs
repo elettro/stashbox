@@ -116,7 +116,8 @@ function reviewRoute(path) {
 function videoImportRoute(path) {
   const completeMatch = String(path).match(/^\/social\/uploads\/imports\/([^/]+)\/complete$/);
   return {
-    completeImportId: completeMatch ? decodeURIComponent(completeMatch[1]) : ''
+    completeImportId: completeMatch ? decodeURIComponent(completeMatch[1]) : '',
+    statusBatchId: String(path).match(/^\/social\/uploads\/imports\/([^/]+)$/)?.[1] || ''
   };
 }
 
@@ -303,8 +304,17 @@ export function createHandler({
       }
 
       if (method === 'POST' && path === '/social/uploads/imports') {
-        const result = await getReviewWorkflow().importChatGptVideos(event);
-        return json(result.failed_count ? 207 : 200, { ok: result.failed_count === 0, ...result });
+        return json(202, {
+          ok: true,
+          ...(await getReviewWorkflow().queueChatGptImport(event))
+        });
+      }
+
+      if (method === 'GET' && videoImport.statusBatchId) {
+        return json(200, {
+          ok: true,
+          ...(await getReviewWorkflow().getChatGptImportBatch(event, videoImport.statusBatchId))
+        });
       }
 
       if (method === 'POST' && path === '/social/uploads/imports/presign') {

@@ -24,8 +24,8 @@ paths:
   /social/uploads/imports:
     post:
       operationId: importSocialChatGptVideos
-      summary: Import MP4 attachments from this ChatGPT conversation into Content Review.
-      description: Submit up to 10 user-attached MP4 files via openaiFileIdRefs. ChatGPT supplies short-lived download references; the API fetches only the files.oaiusercontent.com URLs, verifies and stores the videos, and creates pending review items. Import never publishes or schedules videos.
+      summary: Start an asynchronous import of MP4 attachments into Content Review.
+      description: Submit up to 10 user-attached MP4 files via openaiFileIdRefs. The API validates and queues short-lived files.oaiusercontent.com references and returns a batch ID immediately; use getSocialChatGptVideoImportStatus to retrieve per-file outcomes. Import never publishes or schedules videos.
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -40,16 +40,34 @@ paths:
                   minItems: 1
                   maxItems: 10
                   items:
-                    type: string
-                  description: Up to 10 MP4 files attached by the user in this conversation. GPT Actions supplies file reference objects at runtime, including each name, mime_type, id, and short-lived download_link.
+                    type: object
+                    required: [id, name, mime_type, download_link]
+                    properties:
+                      id: {type: string}
+                      name: {type: string}
+                      mime_type: {type: string}
+                      download_link: {type: string, format: uri}
+                    additionalProperties: true
+                  description: Up to 10 MP4 files attached by the user in this conversation; GPT Actions supplies short-lived download references.
                 aspect_ratio:
                   type: string
                   enum: ['9:16', '16:9']
                   description: Set only when the user confirms the same YouTube-supported aspect ratio for every attached video.
               additionalProperties: false
       responses:
-        '200': {description: Import outcomes and created or existing Content Review items, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
-        '207': {description: Import completed with one or more per-file failures, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+        '202': {description: Import batch queued; poll the returned status URL for per-file outcomes, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+  /social/uploads/imports/{batchId}:
+    get:
+      operationId: getSocialChatGptVideoImportStatus
+      summary: Get the status and per-file outcomes for a ChatGPT video import batch.
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Queued, processing, or completed batch and its import outcomes, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+        '404': {description: Import batch was not found}
   /social/analytics/top-songs:
     get:
       operationId: getTopSongAnalytics

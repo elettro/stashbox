@@ -168,10 +168,21 @@ function createImportService({
 function createChatGptImportService({ fetchImpl } = {}) {
   const reviews = new Map();
   const objects = new Map();
+  const batches = new Map();
+  const enqueued = [];
   const uploadIds = [];
   let nextImportId = 1;
   const store = {
     bucketName: PUBLISH_BUCKET,
+    async enqueueChatGptImportBatch(batchId, payload) {
+      enqueued.push({ batch_id: batchId, ...payload });
+    },
+    async putChatGptImportBatch(batchId, batch) {
+      batches.set(batchId, structuredClone(batch));
+    },
+    async getChatGptImportBatch(batchId) {
+      return batches.get(batchId) || null;
+    },
     async uploadChatGptVideo({ importId, fileName, body }) {
       const chunks = [];
       for await (const chunk of body) chunks.push(Buffer.from(chunk));
@@ -224,6 +235,8 @@ function createChatGptImportService({ fetchImpl } = {}) {
   return {
     reviews,
     objects,
+    batches,
+    enqueued,
     uploadIds,
     service: createReviewWorkflowService({
       secretStore: { async read() { return { admin_token: 'social-admin' }; } },
@@ -231,7 +244,7 @@ function createChatGptImportService({ fetchImpl } = {}) {
       fetchImpl,
       configSecretId: 'config',
       maxUploadBytes: 1000,
-      createImportId: () => `e2e050e5-d320-4a4c-85e0-735974210ba${nextImportId++}`,
+      createImportId: () => `00000000-0000-4000-8000-${String(nextImportId++).padStart(12, '0')}`,
       now: () => new Date('2026-07-28T01:00:00.000Z')
     })
   };
@@ -293,6 +306,87 @@ test('ChatGPT attachment imports stream OpenAI file references into Content Revi
   assert.equal(result.items[0].review_item.automation.auto_publish, false);
   assert.equal(reviews.size, 1);
   assert.equal(objects.size, 1);
+});
+
+test('ChatGPT attachment import queues promptly and records worker completion status', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const fetchCalls = [];
+  const { service, batches, enqueued, reviews } = createChatGptImportService({
+    fetchImpl: async (url) => {
+      fetchCalls.push(String(url));
+      return new Response(bytes, {
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': String(bytes.length)
+        }
+      });
+    }
+  });
+  const accepted = await service.queueChatGptImport(event({
+    body: {
+      aspect_ratio: '9:16',
+      openaiFileIdRefs: [{
+        id: 'file-abcdefgh12345678',
+        name: 'ChatGPT clip.mp4',
+        mime_type: 'video/mp4',
+        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=temporary'
+      }]
+    }
+  }));
+
+  assert.equal(accepted.status, 'queued');
+  assert.equal(fetchCalls.length, 0);
+  assert.equal((await service.getChatGptImportBatch(event(), accepted.batch_id)).status, 'queued');
+  const completed = await service.processChatGptImportBatch(accepted.batch_id, enqueued[0]);
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.imported_count, 1);
+  assert.equal(completed.items[0].review_item.video.aspect_ratio, '9:16');
+  assert.equal(batches.get(accepted.batch_id).status, 'completed');
+  assert.equal(reviews.size, 1);
+});
+
+test('25 MP4 references enqueue as three prompt batches without waiting for file downloads', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  let fetchCount = 0;
+  const { service, enqueued } = createChatGptImportService({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return new Response(bytes, {
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': String(bytes.length)
+        }
+      });
+    }
+  });
+  const batches = [];
+  for (let start = 0; start < 25; start += 10) {
+    const refs = Array.from({ length: Math.min(10, 25 - start) }, (_, offset) => {
+      const index = start + offset;
+      const id = `file-${String(index).padStart(8, '0')}`;
+      return {
+        id,
+        name: `video-${index}.mp4`,
+        mime_type: 'video/mp4',
+        download_link: `https://files.oaiusercontent.com/${id}?sig=temporary`
+      };
+    });
+    const batch = await service.queueChatGptImport(event({ body: { openaiFileIdRefs: refs } }));
+    batches.push(batch);
+    assert.equal(batch.status, 'queued');
+  }
+
+  assert.deepEqual(batches.map(({ count }) => count), [10, 10, 5]);
+  assert.equal(enqueued.length, 3);
+  assert.equal(fetchCount, 0);
+  for (let index = 0; index < batches.length; index += 1) {
+    const completed = await service.processChatGptImportBatch(batches[index].batch_id, enqueued[index]);
+    assert.equal(completed.status, 'completed');
+    assert.equal(completed.count, batches[index].count);
+  }
+  assert.equal(fetchCount, 25);
 });
 
 test('ChatGPT attachment imports deduplicate identical video bytes', async () => {

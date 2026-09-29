@@ -176,6 +176,39 @@ Resources:
         - Key: Purpose
           Value: scheduled-publish-queue
 
+  SocialChatGptImportDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: stashbox-social-chatgpt-import-dev-dlq
+      VisibilityTimeout: 960
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: chatgpt-import-dead-letter
+
+  SocialChatGptImportQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: stashbox-social-chatgpt-import-dev
+      VisibilityTimeout: 5400
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SocialChatGptImportDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Application
+          Value: stashbox-social-factory
+        - Key: Environment
+          Value: dev
+        - Key: Purpose
+          Value: chatgpt-import-queue
+
   SocialPublishSchedulerTargetRole:
     Type: AWS::IAM::Role
     Properties:
@@ -266,6 +299,12 @@ Resources:
                   StringLike:
                     s3:prefix:
                       - incoming/chatgpt-imports/*
+              - Sid: ReadWriteChatGPTImportStatuses
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/imports/chatgpt/*
               - Sid: ReadWriteReviewDrafts
                 Effect: Allow
                 Action:
@@ -305,11 +344,89 @@ Resources:
                 Condition:
                   StringEquals:
                     iam:PassedToService: scheduler.amazonaws.com
+              - Sid: QueueChatGPTVideoImports
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt SocialChatGptImportQueue.Arn
               - Sid: QueueImmediateYoutubePublish
                 Effect: Allow
                 Action:
                   - sqs:SendMessage
                 Resource: !GetAtt SocialPublishScheduleQueue.Arn
+
+  SocialChatGptImportWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stashbox-social-chatgpt-import-worker-dev-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SocialChatGptImportWorkerLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - PolicyName: SocialChatGptImportWorkerStorage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadWriteChatGPTImportVideos
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/incoming/chatgpt-imports/*
+              - Sid: ManageChatGPTImportMultipartUploads
+                Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource: !Sub ${SocialPublishBucket.Arn}/incoming/chatgpt-imports/*
+              - Sid: ListChatGPTImportMultipartUploads
+                Effect: Allow
+                Action:
+                  - s3:ListBucketMultipartUploads
+                Resource: !GetAtt SocialPublishBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - incoming/chatgpt-imports/*
+              - Sid: ReadWriteChatGPTImportStatuses
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/imports/chatgpt/*
+              - Sid: ReadWriteReviewDrafts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${SocialPublishBucket.Arn}/drafts/*
+        - PolicyName: SocialChatGptImportWorkerQueue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource: !GetAtt SocialChatGptImportQueue.Arn
 
   SocialScheduledPublishWorkerRole:
     Type: AWS::IAM::Role
@@ -400,6 +517,7 @@ Resources:
           YOUTUBE_OAUTH_TOKEN_SECRET: !Ref YoutubeOAuthTokenSecret
           SOCIAL_CUSTOM_GPT_SECRET: !Ref CustomGptCredentialSecret
           SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
+          CHATGPT_IMPORT_QUEUE_URL: !Ref SocialChatGptImportQueue
           VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
           SOCIAL_SCHEDULE_GROUP: !Ref SocialPublishScheduleGroup
           SOCIAL_SCHEDULE_QUEUE_ARN: !GetAtt SocialPublishScheduleQueue.Arn
@@ -451,6 +569,12 @@ Resources:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/uploads/imports
             Method: POST
+        SocialVideoImportStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/uploads/imports/{batchId}
+            Method: GET
         SocialVideoImportPresign:
           Type: HttpApi
           Properties:
@@ -627,6 +751,35 @@ Resources:
             FunctionResponseTypes:
               - ReportBatchItemFailures
 
+  SocialChatGptImportWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: stashbox-social-chatgpt-import-worker-dev
+      Description: Isolated Social Factory worker for asynchronous ChatGPT video imports.
+      CodeUri: ../
+      Handler: chatgpt-import-worker.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      MemorySize: 2048
+      Timeout: 900
+      Role: !GetAtt SocialChatGptImportWorkerRole.Arn
+      Environment:
+        Variables:
+          APP_ENV: !Ref EnvironmentName
+          YOUTUBE_OAUTH_CONFIG_SECRET: !Ref YoutubeOAuthConfigSecret
+          SOCIAL_PUBLISH_BUCKET: !Ref SocialPublishBucket
+          VIDEO_FACTORY_SOURCE_BUCKET: !Sub stashbox-radio-video-factory-dev-${AWS::AccountId}-${AWS::Region}
+          SOCIAL_MAX_UPLOAD_BYTES: '536870912'
+      Events:
+        ChatGptImportQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SocialChatGptImportQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
   SocialApiDevLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
@@ -643,6 +796,14 @@ Resources:
       LogGroupName: /aws/lambda/stashbox-social-publish-worker-dev
       RetentionInDays: 30
 
+  SocialChatGptImportWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/lambda/stashbox-social-chatgpt-import-worker-dev
+      RetentionInDays: 30
+
 Outputs:
   SocialApiDevFunctionName:
     Value: !Ref SocialApiDevFunction
@@ -656,6 +817,10 @@ Outputs:
     Value: !GetAtt SocialApiDevRole.Arn
   SocialScheduledPublishWorkerFunctionName:
     Value: !Ref SocialScheduledPublishWorkerFunction
+  SocialChatGptImportWorkerFunctionName:
+    Value: !Ref SocialChatGptImportWorkerFunction
+  SocialChatGptImportWorkerRoleArn:
+    Value: !GetAtt SocialChatGptImportWorkerRole.Arn
   SocialScheduledPublishWorkerRoleArn:
     Value: !GetAtt SocialScheduledPublishWorkerRole.Arn
   SocialPublishScheduleQueueUrl:
@@ -664,6 +829,10 @@ Outputs:
     Value: !GetAtt SocialPublishScheduleQueue.Arn
   SocialPublishScheduleDeadLetterQueueArn:
     Value: !GetAtt SocialPublishScheduleDeadLetterQueue.Arn
+  SocialChatGptImportQueueUrl:
+    Value: !Ref SocialChatGptImportQueue
+  SocialChatGptImportDeadLetterQueueArn:
+    Value: !GetAtt SocialChatGptImportDeadLetterQueue.Arn
   SocialPublishScheduleGroupName:
     Value: !Ref SocialPublishScheduleGroup
   SocialPublishSchedulerTargetRoleArn:

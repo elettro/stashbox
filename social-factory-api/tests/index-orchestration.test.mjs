@@ -84,13 +84,13 @@ function createApi({ orchestrator = {}, batch = {}, operations = {}, review = {}
       ...operations
     },
     reviewWorkflow: {
-      importChatGptVideos: async () => ({
+      queueChatGptImport: async () => ({
+        batch_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
+        status: 'queued',
         count: 1,
-        imported_count: 1,
-        duplicate_count: 0,
-        failed_count: 0,
-        items: [{ status: 'imported', review_item: { id: 'upload-sha256', status: 'in_review' } }]
+        status_url: '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'
       }),
+      getChatGptImportBatch: async (_event, id) => ({ batch_id: id, status: 'completed' }),
       createVideoImport: async () => ({
         import_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
         upload_url: 'https://uploads.example/signed'
@@ -212,7 +212,7 @@ test('completed render staging path delegates to the review workflow', async () 
   assert.equal(body.review_item.id, 'render-job-12345678');
 });
 
-test('ChatGPT video import routes delegate attachment import and external S3 upload', async () => {
+test('ChatGPT video import returns a batch status URL and external S3 upload remains available', async () => {
   const api = createApi();
   const imported = await api(request('/social/uploads/imports', 'POST', {
     openaiFileIdRefs: [{
@@ -222,8 +222,13 @@ test('ChatGPT video import routes delegate attachment import and external S3 upl
       download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
     }]
   }));
-  assert.equal(imported.statusCode, 200);
-  assert.equal(JSON.parse(imported.body).imported_count, 1);
+  assert.equal(imported.statusCode, 202);
+  assert.equal(JSON.parse(imported.body).status, 'queued');
+  assert.equal(JSON.parse(imported.body).status_url, '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad');
+
+  const status = await api(request('/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'));
+  assert.equal(status.statusCode, 200);
+  assert.equal(JSON.parse(status.body).status, 'completed');
 
   const created = await api(request('/social/uploads/imports/presign', 'POST', {
     file_name: 'clip.mp4',
@@ -242,19 +247,15 @@ test('ChatGPT video import routes delegate attachment import and external S3 upl
   assert.equal(JSON.parse(completed.body).review_item.status, 'in_review');
 });
 
-test('ChatGPT video import route returns explicit partial-failure status', async () => {
+test('ChatGPT video import route returns accepted immediately while processing is pending', async () => {
   const api = createApi({
     review: {
-      async importChatGptVideos() {
+      async queueChatGptImport() {
         return {
+          batch_id: 'e2e050e5-d320-4a4c-85e0-735974210bad',
+          status: 'queued',
           count: 2,
-          imported_count: 1,
-          duplicate_count: 0,
-          failed_count: 1,
-          items: [
-            { file_name: 'good.mp4', status: 'imported', review_item: { id: 'upload-good' } },
-            { file_name: 'bad.mp4', status: 'failed', error: 'chatgpt_attachment_download_failed' }
-          ]
+          status_url: '/social/uploads/imports/e2e050e5-d320-4a4c-85e0-735974210bad'
         };
       }
     }
@@ -262,10 +263,10 @@ test('ChatGPT video import route returns explicit partial-failure status', async
   const response = await api(request('/social/uploads/imports', 'POST', { openaiFileIdRefs: [] }));
   const body = JSON.parse(response.body);
 
-  assert.equal(response.statusCode, 207);
-  assert.equal(body.ok, false);
-  assert.equal(body.imported_count, 1);
-  assert.equal(body.failed_count, 1);
+  assert.equal(response.statusCode, 202);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'queued');
+  assert.equal(body.count, 2);
 });
 
 test('review list and review item routes preserve IDs', async () => {
