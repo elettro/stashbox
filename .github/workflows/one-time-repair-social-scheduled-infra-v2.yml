@@ -2,14 +2,6 @@ name: One-Time Repair Social Scheduled Infrastructure V2
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/one-time-repair-social-scheduled-infra-v2.yml'
-      - 'scripts/repair-social-scheduled-infra.sh'
-      - 'social-factory-api/infrastructure/template.yaml'
-      - 'social-factory-api/schedule-publish.mjs'
 
 permissions:
   contents: write

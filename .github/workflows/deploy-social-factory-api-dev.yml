@@ -2,12 +2,6 @@ name: Deploy Social Factory API DEV
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/deploy-social-factory-api-dev.yml'
-      - 'social-factory-api/**'
 
 permissions:
   contents: write
@@ -50,7 +44,7 @@ jobs:
         working-directory: social-factory-api
         run: |
           set -euo pipefail
-          npm install --omit=dev --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund
           npm run check
           npm test
           sam validate --template-file infrastructure/template.yaml --lint
