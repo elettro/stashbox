@@ -599,7 +599,8 @@ components:
         selection_date: {type: [string, 'null'], format: date-time}
         selection_date_source:
           type: [string, 'null']
-          enum: [release_date, published_at, created_at, updated_at, null]
+          enum: [release_date, published_at, created_at, updated_at]
+          description: Null when no usable selection date source is available.
         reasons:
           type: array
           items: {type: string}
@@ -648,7 +649,11 @@ components:
         aspect_ratio: {type: string, enum: ['9:16', '16:9', '1:1', '4:5'], default: '9:16'}
         duration_mode: {type: string, enum: [full, promo, custom], default: promo}
         duration_seconds: {type: integer, minimum: 1, maximum: 600, default: 30}
-        fps: {type: integer, enum: [24, 25, 30, 60], default: 30}
+        fps:
+          type: string
+          enum: ['24', '25', '30', '60']
+          default: '30'
+          description: Frames per second. Send one of these numeric strings; the API converts it to an integer.
         intro_enabled: {type: boolean, default: false}
         outro_enabled: {type: boolean, default: false}
         corner_bug_enabled: {type: boolean, default: false}
