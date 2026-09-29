@@ -22,6 +22,17 @@ Run these tests in the GPT editor Preview before sharing the GPT.
 - [ ] `Show current render jobs.` calls listSocialRenderJobs.
 - [ ] `Show Content Review items.` calls listSocialContentReviewItems.
 
+## ChatGPT video imports
+
+- [ ] Attach one MP4 in the conversation and call importSocialChatGptVideos; verify `openaiFileIdRefs` contains its file ID, MIME type, name, and short-lived download link.
+- [ ] Attach 10 MP4s and verify one action call imports all 10; larger batches are split across calls because GPT Actions supplies at most 10 file references per request.
+- [ ] Verify the GPT Action sends references, not file bytes, and that the API downloads only `files.oaiusercontent.com` URLs without following redirects.
+- [ ] A successful import creates one pending Content Review item and does not publish or schedule it.
+- [ ] Re-importing identical MP4 bytes returns the existing review item instead of creating a duplicate.
+- [ ] Reject non-MP4 files, mismatched sizes, and uploads over the configured 512 MiB limit.
+- [ ] Preserve a confirmed `9:16` or `16:9` ratio for a homogeneous batch; otherwise leave it unset and set the correct ratio through Content Review before publishing or scheduling.
+- [ ] Complete a GPT Preview test with representative video sizes within the 45-second GPT Action request timeout.
+
 ## Song resolution
 
 - [ ] A unique title resolves to the correct song_key.

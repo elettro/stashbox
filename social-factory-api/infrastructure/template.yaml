@@ -251,6 +251,21 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub ${SocialPublishBucket.Arn}/incoming/*
+              - Sid: ManageChatGPTImportMultipartUploads
+                Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource: !Sub ${SocialPublishBucket.Arn}/incoming/chatgpt-imports/*
+              - Sid: ListChatGPTImportMultipartUploads
+                Effect: Allow
+                Action:
+                  - s3:ListBucketMultipartUploads
+                Resource: !GetAtt SocialPublishBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - incoming/chatgpt-imports/*
               - Sid: ReadWriteReviewDrafts
                 Effect: Allow
                 Action:
@@ -429,6 +444,24 @@ Resources:
           Properties:
             ApiId: !Ref SocialFactoryHttpApi
             Path: /social/uploads/presign
+            Method: POST
+        SocialVideoImportCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/uploads/imports
+            Method: POST
+        SocialVideoImportPresign:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/uploads/imports/presign
+            Method: POST
+        SocialVideoImportComplete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SocialFactoryHttpApi
+            Path: /social/uploads/imports/{importId}/complete
             Method: POST
         YoutubePublish:
           Type: HttpApi

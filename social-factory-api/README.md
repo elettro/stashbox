@@ -21,6 +21,9 @@ This folder contains the isolated Social Factory backend. It does not extend or 
 - `GET /social/youtube/status`
 - `POST /social/youtube/disconnect`
 - `POST /social/uploads/presign`
+- `POST /social/uploads/imports`
+- `POST /social/uploads/imports/presign`
+- `POST /social/uploads/imports/{importId}/complete`
 - `POST /social/youtube/publish`
 
 ### Video Factory orchestration, Phase 1
@@ -45,6 +48,14 @@ The public presign response intentionally returns only the headers the client mu
 All direct test uploads are forced to YouTube privacy status `unlisted`. A caller cannot override this with `public` or `private` input.
 
 The synchronous direct-upload path is intentionally capped at 25 MB. Larger videos can be staged and validated, but require the later asynchronous queue worker before they can be published safely.
+
+## ChatGPT video import
+
+GPT Actions do not receive uploaded file bytes in their JSON arguments. OpenAI's file-transfer contract injects an `openaiFileIdRefs` array with each attachment's name, MIME type, file ID, and a five-minute `files.oaiusercontent.com` download URL. The `POST /social/uploads/imports` action consumes that exact parameter and streams up to 10 attached MP4s per request into the private S3 bucket. Import batches larger than 10 must be submitted in multiple action calls.
+
+The API validates the reference host and path, refuses redirects, enforces the 512 MiB per-file limit while streaming, checks the MP4 `ftyp` signature, and hashes the stored video. Identical video bytes return the existing Content Review item. Files enter pending review with publishing and scheduling disabled. The caller may provide `aspect_ratio` only when all videos in that action share a confirmed supported ratio; otherwise reviewers must set the ratio to `9:16` or `16:9` through Content Review before scheduling or publishing. The direct S3 `presign` and `complete` routes are retained for clients that can perform their own PUT; they are not the ChatGPT Action upload contract.
+
+GPT Actions time out after 45 seconds, while the current synchronous API integration can time out sooner; validate representative video sizes in GPT Preview. Larger or slower batches need a future asynchronous import worker. No YouTube publication or scheduling is performed by the import action.
 
 ## Video Factory orchestration, Phase 1
 

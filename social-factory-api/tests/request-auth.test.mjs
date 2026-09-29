@@ -29,6 +29,9 @@ test('permission mapping covers the complete Social Factory cycle', () => {
   assert.equal(permissionForRequest('POST', '/social/orchestration/batch-drafts'), 'campaigns:create_drafts');
   assert.equal(permissionForRequest('POST', '/social/orchestration/render-jobs/job-12345678/launch'), 'renders:launch');
   assert.equal(permissionForRequest('POST', '/social/orchestration/render-jobs/job-12345678/stage'), 'review:stage');
+  assert.equal(permissionForRequest('POST', '/social/uploads/imports'), 'review:stage');
+  assert.equal(permissionForRequest('POST', '/social/uploads/imports/presign'), 'review:stage');
+  assert.equal(permissionForRequest('POST', '/social/uploads/imports/import-123/complete'), 'review:stage');
   assert.equal(permissionForRequest('POST', '/social/review-items/review-12345678/save'), 'review:write');
   assert.equal(permissionForRequest('POST', '/social/review-items/review-12345678/decision'), 'review:decide');
   assert.equal(permissionForRequest('POST', '/social/review-items/review-12345678/schedule'), 'schedule:create');

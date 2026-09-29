@@ -21,6 +21,35 @@ paths:
       summary: Check whether the Stashbox YouTube account is connected and usable.
       responses:
         '200': {description: YouTube status, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+  /social/uploads/imports:
+    post:
+      operationId: importSocialChatGptVideos
+      summary: Import MP4 attachments from this ChatGPT conversation into Content Review.
+      description: Submit up to 10 user-attached MP4 files via openaiFileIdRefs. ChatGPT supplies short-lived download references; the API fetches only the files.oaiusercontent.com URLs, verifies and stores the videos, and creates pending review items. Import never publishes or schedules videos.
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [openaiFileIdRefs]
+              properties:
+                openaiFileIdRefs:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: string
+                  description: Up to 10 MP4 files attached by the user in this conversation. GPT Actions supplies file reference objects at runtime, including each name, mime_type, id, and short-lived download_link.
+                aspect_ratio:
+                  type: string
+                  enum: ['9:16', '16:9']
+                  description: Set only when the user confirms the same YouTube-supported aspect ratio for every attached video.
+              additionalProperties: false
+      responses:
+        '200': {description: Import outcomes and created or existing Content Review items, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
+        '207': {description: Import completed with one or more per-file failures, content: {application/json: {schema: {$ref: '#/components/schemas/GenericResponse'}}}}
   /social/analytics/top-songs:
     get:
       operationId: getTopSongAnalytics
@@ -392,6 +421,9 @@ paths:
                   type: string
                 selected_description:
                   type: string
+                aspect_ratio:
+                  type: string
+                  enum: ['9:16', '16:9']
                 tags:
                   type: array
                   items:

@@ -103,6 +103,140 @@ function createService({ jobStatus = 'completed', outputBucket = SOURCE_BUCKET }
   };
 }
 
+function createImportService({
+  fileBytes = Buffer.from('000000186674797069736f6d00000000', 'hex'),
+  metadata = {
+    expected_size_bytes: String(Buffer.from('000000186674797069736f6d00000000', 'hex').length),
+    source: 'chatgpt-video-import',
+    file_name: 'chatgpt-clip.mp4'
+  },
+  contentType = 'video/mp4',
+  contentLength = fileBytes.length
+} = {}) {
+  const reviews = new Map();
+  const uploads = [];
+  const store = {
+    bucketName: PUBLISH_BUCKET,
+    async createVideoImportUploadUrl(input) {
+      uploads.push(input);
+      return {
+        objectKey: `incoming/chatgpt-imports/${input.importId}/video.mp4`,
+        uploadUrl: 'https://uploads.example/signed'
+      };
+    },
+    async headImportedVideo() {
+      return { ContentType: contentType, ContentLength: contentLength, Metadata: metadata };
+    },
+    async getImportedVideo() {
+      return {
+        Body: {
+          async *[Symbol.asyncIterator]() {
+            yield fileBytes.subarray(0, 5);
+            yield fileBytes.subarray(5);
+          }
+        }
+      };
+    },
+    async getReview(key) {
+      return reviews.get(key) || null;
+    },
+    async putImportedReview(key, review) {
+      if (reviews.has(key)) {
+        const error = new Error('precondition_failed');
+        error.name = 'PreconditionFailed';
+        throw error;
+      }
+      reviews.set(key, structuredClone(review));
+      return review;
+    }
+  };
+  return {
+    reviews,
+    uploads,
+    service: createReviewWorkflowService({
+      secretStore: { async read() { return { admin_token: 'social-admin' }; } },
+      reviewStore: store,
+      fetchImpl: async () => jsonResponse({}),
+      configSecretId: 'config',
+      maxUploadBytes: 1000,
+      createImportId: () => 'e2e050e5-d320-4a4c-85e0-735974210bad',
+      now: () => new Date('2026-07-28T01:00:00.000Z')
+    })
+  };
+}
+
+function createChatGptImportService({ fetchImpl } = {}) {
+  const reviews = new Map();
+  const objects = new Map();
+  const uploadIds = [];
+  let nextImportId = 1;
+  const store = {
+    bucketName: PUBLISH_BUCKET,
+    async uploadChatGptVideo({ importId, fileName, body }) {
+      const chunks = [];
+      for await (const chunk of body) chunks.push(Buffer.from(chunk));
+      const bytes = Buffer.concat(chunks);
+      objects.set(`incoming/chatgpt-imports/${importId}/video.mp4`, {
+        bytes,
+        fileName
+      });
+      uploadIds.push(importId);
+    },
+    async headImportedVideo(key) {
+      const object = objects.get(key);
+      if (!object) {
+        const error = new Error('not_found');
+        error.name = 'NotFound';
+        throw error;
+      }
+      return {
+        ContentType: 'video/mp4',
+        ContentLength: object.bytes.length,
+        Metadata: {
+          source: 'chatgpt-video-import',
+          file_name: object.fileName
+        }
+      };
+    },
+    async getImportedVideo(key) {
+      const bytes = objects.get(key).bytes;
+      return {
+        Body: {
+          async *[Symbol.asyncIterator]() {
+            yield bytes;
+          }
+        }
+      };
+    },
+    async getReview(key) {
+      return reviews.get(key) || null;
+    },
+    async putImportedReview(key, review) {
+      if (reviews.has(key)) {
+        const error = new Error('precondition_failed');
+        error.name = 'PreconditionFailed';
+        throw error;
+      }
+      reviews.set(key, structuredClone(review));
+      return review;
+    }
+  };
+  return {
+    reviews,
+    objects,
+    uploadIds,
+    service: createReviewWorkflowService({
+      secretStore: { async read() { return { admin_token: 'social-admin' }; } },
+      reviewStore: store,
+      fetchImpl,
+      configSecretId: 'config',
+      maxUploadBytes: 1000,
+      createImportId: () => `e2e050e5-d320-4a4c-85e0-735974210ba${nextImportId++}`,
+      now: () => new Date('2026-07-28T01:00:00.000Z')
+    })
+  };
+}
+
 test('metadata generator produces editable YouTube copy and keeps the real title', () => {
   const metadata = generateReviewMetadata({
     song: {
@@ -120,6 +254,313 @@ test('metadata generator produces editable YouTube copy and keeps the real title
   assert.ok(metadata.tags.includes('Reggae'));
   assert.equal(metadata.collaborators[0].youtube_handle, '@Elettrotv');
   assert.equal(metadata.collaborator_review_required, true);
+});
+
+test('ChatGPT attachment imports stream OpenAI file references into Content Review', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const fetchCalls = [];
+  const { service, reviews, objects } = createChatGptImportService({
+    fetchImpl: async (url, options) => {
+      fetchCalls.push({ url: String(url), options });
+      return new Response(bytes, {
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': String(bytes.length)
+        }
+      });
+    }
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      aspect_ratio: '16:9',
+      openaiFileIdRefs: [{
+        id: 'file-abcdefgh12345678',
+        name: 'ChatGPT clip.mp4',
+        mime_type: 'video/mp4',
+        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=temporary'
+      }]
+    }
+  }));
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].options.redirect, 'error');
+  assert.equal(result.count, 1);
+  assert.equal(result.imported_count, 1);
+  assert.equal(result.items[0].status, 'imported');
+  assert.equal(result.items[0].review_item.status, 'in_review');
+  assert.equal(result.items[0].review_item.video.file_name, 'ChatGPT-clip.mp4');
+  assert.equal(result.items[0].review_item.video.aspect_ratio, '16:9');
+  assert.equal(result.items[0].review_item.automation.auto_publish, false);
+  assert.equal(reviews.size, 1);
+  assert.equal(objects.size, 1);
+});
+
+test('ChatGPT attachment imports deduplicate identical video bytes', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const { service, reviews } = createChatGptImportService({
+    fetchImpl: async () => new Response(bytes, {
+      headers: {
+        'content-type': 'video/mp4',
+        'content-length': String(bytes.length)
+      }
+    })
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [
+        {
+          id: 'file-abcdefgh12345678',
+          name: 'first.mp4',
+          mime_type: 'video/mp4',
+          download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=one'
+        },
+        {
+          id: 'file-bcdefghi12345678',
+          name: 'duplicate.mp4',
+          mime_type: 'video/mp4',
+          download_link: 'https://files.oaiusercontent.com/file-bcdefghi12345678?sig=two'
+        }
+      ]
+    }
+  }));
+
+  assert.equal(result.count, 2);
+  assert.equal(result.imported_count, 1);
+  assert.equal(result.duplicate_count, 1);
+  assert.equal(result.items[1].status, 'duplicate');
+  assert.equal(result.items[1].review_item.id, result.items[0].review_item.id);
+  assert.equal(reviews.size, 1);
+});
+
+test('ChatGPT attachment imports report per-file upstream failures without losing successes', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const { service } = createChatGptImportService({
+    fetchImpl: async (url) => {
+      if (String(url).includes('sig=expired')) {
+        return new Response('', { status: 403 });
+      }
+      return new Response(bytes, {
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': String(bytes.length)
+        }
+      });
+    }
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [
+        {
+          id: 'file-abcdefgh12345678',
+          name: 'good.mp4',
+          mime_type: 'video/mp4',
+          download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=valid'
+        },
+        {
+          id: 'file-bcdefghi12345678',
+          name: 'expired.mp4',
+          mime_type: 'video/mp4',
+          download_link: 'https://files.oaiusercontent.com/file-bcdefghi12345678?sig=expired'
+        }
+      ]
+    }
+  }));
+
+  assert.equal(result.imported_count, 1);
+  assert.equal(result.failed_count, 1);
+  assert.equal(result.items[0].status, 'imported');
+  assert.equal(result.items[1].status, 'failed');
+  assert.equal(result.items[1].error, 'chatgpt_attachment_download_failed');
+});
+
+test('ChatGPT attachment import rejects non-OpenAI URLs before fetching them', async () => {
+  let fetchCount = 0;
+  const { service, objects } = createChatGptImportService({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return new Response('should not fetch');
+    }
+  });
+  await assert.rejects(
+    service.importChatGptVideos(event({
+      body: {
+        openaiFileIdRefs: [{
+          id: 'file-abcdefgh12345678',
+          name: 'clip.mp4',
+          mime_type: 'video/mp4',
+          download_link: 'https://attacker.example/file-abcdefgh12345678'
+        }]
+      }
+    })),
+    (error) => error.statusCode === 422 && error.message === 'invalid_chatgpt_attachment'
+  );
+  assert.equal(fetchCount, 0);
+  assert.equal(objects.size, 0);
+});
+
+test('ChatGPT attachment import rejects more than ten files in one action call', async () => {
+  let fetchCount = 0;
+  const { service } = createChatGptImportService({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return new Response('');
+    }
+  });
+  await assert.rejects(
+    service.importChatGptVideos(event({
+      body: { openaiFileIdRefs: Array.from({ length: 11 }, (_, index) => ({
+        id: `file-${String(index).padStart(8, '0')}`,
+        name: `clip-${index}.mp4`,
+        mime_type: 'video/mp4',
+        download_link: `https://files.oaiusercontent.com/file-${String(index).padStart(8, '0')}?sig=x`
+      })) }
+    })),
+    (error) => error.statusCode === 422 && error.details.maximum === 10
+  );
+  assert.equal(fetchCount, 0);
+});
+
+test('ChatGPT attachment import verifies MP4 bytes and enforces the per-file size cap', async () => {
+  const malformed = createChatGptImportService({
+    fetchImpl: async () => new Response(Buffer.from('not-an-mp4-file!'), {
+      headers: { 'content-type': 'video/mp4' }
+    })
+  });
+  const malformedResult = await malformed.service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [{
+        id: 'file-abcdefgh12345678',
+        name: 'clip.mp4',
+        mime_type: 'video/mp4',
+        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
+      }]
+    }
+  }));
+  assert.equal(malformedResult.failed_count, 1);
+  assert.equal(malformedResult.items[0].error, 'uploaded_file_is_not_mp4');
+
+  const oversized = createChatGptImportService({
+    fetchImpl: async () => new Response(Buffer.alloc(1001), {
+      headers: { 'content-type': 'video/mp4' }
+    })
+  });
+  const oversizedResult = await oversized.service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [{
+        id: 'file-abcdefgh12345678',
+        name: 'clip.mp4',
+        mime_type: 'video/mp4',
+        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
+      }]
+    }
+  }));
+  assert.equal(oversizedResult.failed_count, 1);
+  assert.equal(oversizedResult.items[0].error, 'uploaded_video_size_mismatch');
+});
+
+test('video import returns a scoped presigned upload URL for a validated MP4', async () => {
+  const { service, uploads } = createImportService();
+  const result = await service.createVideoImport(event({
+    body: {
+      file_name: 'ChatGPT clip.mp4',
+      content_type: 'video/mp4',
+      size_bytes: 16,
+      title: 'A reviewed title'
+    }
+  }));
+
+  assert.equal(result.import_id, 'e2e050e5-d320-4a4c-85e0-735974210bad');
+  assert.equal(result.default_title, 'A reviewed title');
+  assert.equal(result.object_key, `incoming/chatgpt-imports/${result.import_id}/video.mp4`);
+  assert.equal(result.upload_method, 'PUT');
+  assert.equal(result.required_headers['Content-Type'], 'video/mp4');
+  assert.equal(result.required_headers['x-amz-meta-expected_size_bytes'], '16');
+  assert.equal(result.expires_in_seconds, 900);
+  assert.deepEqual(uploads[0], {
+    importId: result.import_id,
+    fileName: 'ChatGPT-clip.mp4',
+    sizeBytes: 16
+  });
+});
+
+test('video import rejects non-MP4 or oversized upload requests', async () => {
+  const { service } = createImportService();
+  await assert.rejects(
+    service.createVideoImport(event({
+      body: { file_name: 'clip.mov', content_type: 'video/quicktime', size_bytes: 16 }
+    })),
+    (error) => error.statusCode === 422
+  );
+  await assert.rejects(
+    service.createVideoImport(event({
+      body: { file_name: 'clip.mp4', content_type: 'video/mp4', size_bytes: 1001 }
+    })),
+    (error) => error.statusCode === 422 && error.details.max_bytes === 1000
+  );
+});
+
+test('video import verifies uploaded bytes and creates a non-publishing review item', async () => {
+  const { service, reviews } = createImportService();
+  const result = await service.completeVideoImport(
+    event({ body: { title: 'ChatGPT upload' } }),
+    'e2e050e5-d320-4a4c-85e0-735974210bad'
+  );
+
+  assert.equal(result.imported, true);
+  assert.equal(result.duplicate, false);
+  assert.equal(result.review_item.status, 'in_review');
+  assert.equal(result.review_item.approval_state, 'pending');
+  assert.equal(result.review_item.song.title, 'ChatGPT upload');
+  assert.equal(result.review_item.video.file_name, 'chatgpt-clip.mp4');
+  assert.equal(result.review_item.video.size_bytes, 16);
+  assert.equal(result.review_item.source.content_sha256.length, 64);
+  assert.equal(result.review_item.publish_settings.visibility, 'unlisted');
+  assert.equal(result.review_item.automation.auto_publish, false);
+  assert.equal(result.review_item.automation.review_required, true);
+  assert.equal(reviews.size, 1);
+});
+
+test('video import returns the existing review item for duplicate content', async () => {
+  const { service, reviews } = createImportService();
+  const first = await service.completeVideoImport(
+    event({ body: {} }),
+    'e2e050e5-d320-4a4c-85e0-735974210bad'
+  );
+  const second = await service.completeVideoImport(
+    event({ body: {} }),
+    'e2e050e5-d320-4a4c-85e0-735974210bad'
+  );
+
+  assert.equal(second.imported, false);
+  assert.equal(second.duplicate, true);
+  assert.equal(second.review_item.id, first.review_item.id);
+  assert.equal(reviews.size, 1);
+});
+
+test('video import rejects invalid MP4 bytes and metadata size mismatches', async () => {
+  const malformed = createImportService({ fileBytes: Buffer.from('not-an-mp4-file!') });
+  await assert.rejects(
+    malformed.service.completeVideoImport(
+      event({ body: {} }),
+      'e2e050e5-d320-4a4c-85e0-735974210bad'
+    ),
+    (error) => error.statusCode === 422 && error.message === 'uploaded_file_is_not_mp4'
+  );
+
+  const mismatch = createImportService({
+    metadata: {
+      expected_size_bytes: '15',
+      source: 'chatgpt-video-import',
+      file_name: 'chatgpt-clip.mp4'
+    }
+  });
+  await assert.rejects(
+    mismatch.service.completeVideoImport(
+      event({ body: {} }),
+      'e2e050e5-d320-4a4c-85e0-735974210bad'
+    ),
+    (error) => error.statusCode === 422 && error.message === 'invalid_uploaded_video'
+  );
 });
 
 test('stage route validates a completed render without copying until explicitly confirmed', async () => {
