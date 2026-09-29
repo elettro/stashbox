@@ -25,13 +25,14 @@ fi
 
 (
   cd social-factory-api
-  npm install --omit=dev --no-audit --no-fund
+  npm ci --omit=dev --no-audit --no-fund
   npm run check
   npm test
   sam validate --template-file infrastructure/template.yaml --lint
 )
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo "Verified AWS account ${ACCOUNT_ID}."
 STACK_STATUS_BEFORE=$(aws cloudformation describe-stacks \
   --stack-name "${STACK_NAME}" \
   --query 'Stacks[0].StackStatus' \
@@ -41,7 +42,11 @@ STACK_ROLE=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].RoleARN' \
   --output text)
 EXPECTED_ROLE="arn:aws:iam::${ACCOUNT_ID}:role/${SERVICE_ROLE_NAME}"
-test "${STACK_ROLE}" = "${EXPECTED_ROLE}"
+if [ "${STACK_ROLE}" != "${EXPECTED_ROLE}" ]; then
+  echo "Unexpected CloudFormation service role: ${STACK_ROLE:-<empty>}." >&2
+  exit 1
+fi
+echo "Verified CloudFormation service role ${SERVICE_ROLE_NAME}."
 
 # Remove only the retained log group that CloudFormation does not own and that
 # CloudWatch reports as containing zero stored bytes. The deployment identity
@@ -51,17 +56,25 @@ STACK_OWNS_LOG_GROUP=$(aws cloudformation list-stack-resources \
   --stack-name "${STACK_NAME}" \
   --query "length(StackResourceSummaries[?PhysicalResourceId=='${WORKER_LOG_GROUP}'])" \
   --output text)
-test "${STACK_OWNS_LOG_GROUP}" = '0'
+if [ "${STACK_OWNS_LOG_GROUP}" != '0' ]; then
+  echo "Expected the worker log group to be unowned by the stack; found ${STACK_OWNS_LOG_GROUP} matching resources." >&2
+  exit 1
+fi
 ORPHAN_REMOVED=false
 LOG_GROUP=$(aws logs describe-log-groups \
   --log-group-name-prefix "${WORKER_LOG_GROUP}" \
   --query "logGroups[?logGroupName=='${WORKER_LOG_GROUP}'] | [0]" \
   --output json)
 if [ "${LOG_GROUP}" != 'null' ] && [ -n "${LOG_GROUP}" ]; then
-  test "$(printf '%s' "${LOG_GROUP}" | jq -r '.storedBytes // 0')" = '0'
+  STORED_BYTES=$(printf '%s' "${LOG_GROUP}" | jq -r '.storedBytes // 0')
+  if [ "${STORED_BYTES}" != '0' ]; then
+    echo "Refusing to remove worker log group containing ${STORED_BYTES} stored bytes." >&2
+    exit 1
+  fi
   aws logs delete-log-group --log-group-name "${WORKER_LOG_GROUP}"
   ORPHAN_REMOVED=true
 fi
+echo "Checked rollback orphan log group; removed=${ORPHAN_REMOVED}."
 
 # Fix the live scoped CloudFormation role so tag reads work on both log-group
 # ARN forms. No broad account or production resources are added.
@@ -74,7 +87,20 @@ BASE_LOG_ARN="arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/aws/lambda/sta
 STREAM_LOG_ARN="${BASE_LOG_ARN}:*"
 jq --arg base "${BASE_LOG_ARN}" --arg streams "${STREAM_LOG_ARN}" '
   (.Statement[] | select(.Sid == "ManageSocialFactoryLogs").Resource) = [$base, $streams]
-' /tmp/social-cfn-policy.json > /tmp/social-cfn-policy-fixed.json
+' /tmp/social-cfn-policy.json > /tmp/social-cfn-policy-logs-fixed.json
+jq \
+  --arg account "${ACCOUNT_ID}" \
+  --arg region "${AWS_REGION}" '
+  .Statement |= (
+    map(select(.Sid != "ManageSocialChatGptImportQueues")) +
+    [{
+      Sid: "ManageSocialChatGptImportQueues",
+      Effect: "Allow",
+      Action: "sqs:*",
+      Resource: ("arn:aws:sqs:" + $region + ":" + $account + ":stashbox-social-chatgpt-import-dev*")
+    }]
+  )
+' /tmp/social-cfn-policy-logs-fixed.json > /tmp/social-cfn-policy-fixed.json
 aws iam put-role-policy \
   --role-name "${SERVICE_ROLE_NAME}" \
   --policy-name "${SERVICE_POLICY_NAME}" \
@@ -270,9 +296,9 @@ jq -n \
     production_changed:false
   }' > "${REPORT_PATH}"
 
-git pull --rebase origin main
 git add "${REPORT_PATH}"
 git commit -m 'Record Social Factory scheduled infrastructure repair [skip ci]'
+git pull --rebase origin main
 git push origin HEAD:main
 
 test "${STATUS}" = 'success'

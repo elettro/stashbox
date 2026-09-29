@@ -2,11 +2,6 @@ name: Bootstrap Social Factory CloudFormation Role
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/bootstrap-social-factory-cloudformation-role.yml'
 
 permissions:
   actions: write
@@ -156,6 +151,12 @@ jobs:
                 "Effect": "Allow",
                 "Action": "sqs:*",
                 "Resource": "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:stashbox-social-publish-dev*"
+              },
+              {
+                "Sid": "ManageSocialChatGptImportQueues",
+                "Effect": "Allow",
+                "Action": "sqs:*",
+                "Resource": "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:stashbox-social-chatgpt-import-dev*"
               },
               {
                 "Sid": "ManageSocialPublishSchedules",
