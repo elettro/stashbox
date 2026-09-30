@@ -19,11 +19,12 @@ function event({ body, token = 'social-admin', query } = {}) {
 function chatGptDownloadUrl(
   id,
   signature = 'test-signature',
-  expiresAt = '2026-07-28T01:05:00.000Z'
+  expiresAt = '2026-07-28T01:05:00.000Z',
+  { host = 'files.oaiusercontent.com', path = `/${id}` } = {}
 ) {
   const responseCacheControl = encodeURIComponent('max-age=31536000, immutable');
   const responseDisposition = encodeURIComponent(`attachment; filename=${id}.mp4`);
-  return `https://files.oaiusercontent.com/${id}?se=${encodeURIComponent(expiresAt)}&sp=r&sv=2021-08-06&sr=b&rscc=${responseCacheControl}&rscd=${responseDisposition}&sig=${signature}`;
+  return `https://${host}${path}?se=${encodeURIComponent(expiresAt)}&sp=r&sv=2021-08-06&sr=b&rscc=${responseCacheControl}&rscd=${responseDisposition}&sig=${signature}`;
 }
 
 function jsonResponse(payload, status = 200) {
@@ -318,6 +319,41 @@ test('ChatGPT attachment imports stream OpenAI file references into Content Revi
   assert.equal(objects.size, 1);
 });
 
+test('ChatGPT attachment import accepts current underscore IDs and signed /files/{id}/raw links', async () => {
+  const id = 'file_abc123XYZ789def456';
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const fetchCalls = [];
+  const { service, objects } = createChatGptImportService({
+    fetchImpl: async (url, options) => {
+      fetchCalls.push({ url: String(url), options });
+      return new Response(bytes, {
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': String(bytes.length)
+        }
+      });
+    }
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [{
+        id,
+        name: 'Current GPT attachment.mp4',
+        mime_type: 'video/mp4',
+        download_link: chatGptDownloadUrl(id, undefined, undefined, {
+          path: `/files/${id}/raw`
+        })
+      }]
+    }
+  }));
+
+  assert.equal(result.imported_count, 1);
+  assert.equal(new URL(fetchCalls[0].url).hostname, 'files.oaiusercontent.com');
+  assert.equal(new URL(fetchCalls[0].url).pathname, `/files/${id}/raw`);
+  assert.equal(fetchCalls[0].options.redirect, 'error');
+  assert.equal(objects.size, 1);
+});
+
 test('ChatGPT attachment import accepts realistic signed file refs without an .mp4 filename suffix', async () => {
   const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
   const { service, objects } = createChatGptImportService({
@@ -549,6 +585,66 @@ test('ChatGPT attachment import rejects non-OpenAI URLs before fetching them', a
   );
   assert.equal(fetchCount, 0);
   assert.equal(objects.size, 0);
+});
+
+test('ChatGPT attachment import rejects malformed links, lookalike hosts, and unsupported paths', async () => {
+  const id = 'file_abc123XYZ789def456';
+  let fetchCount = 0;
+  const { service } = createChatGptImportService({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return new Response('should not fetch');
+    }
+  });
+  const invalidLinks = [
+    {
+      url: 'not-a-valid-url',
+      failedRule: 'download_link_url'
+    },
+    {
+      url: chatGptDownloadUrl(id, undefined, undefined, {
+        host: 'files.oaiusercontent.com.attacker.example',
+        path: `/files/${id}/raw`
+      }),
+      failedRule: 'download_link_host'
+    },
+    {
+      url: chatGptDownloadUrl(id, undefined, undefined, {
+        host: 'evil-oaiusercontent.com',
+        path: `/files/${id}/raw`
+      }),
+      failedRule: 'download_link_host'
+    },
+    {
+      url: chatGptDownloadUrl(id, undefined, undefined, {
+        path: `/files/${id}/content`
+      }),
+      failedRule: 'download_link_path'
+    }
+  ];
+
+  for (const { url, failedRule } of invalidLinks) {
+    await assert.rejects(
+      service.importChatGptVideos(event({
+        body: {
+          openaiFileIdRefs: [{
+            id,
+            name: 'clip.mp4',
+            mime_type: 'video/mp4',
+            download_link: url
+          }]
+        }
+      })),
+      (error) => {
+        assert.equal(error.statusCode, 422);
+        assert.equal(error.message, 'invalid_chatgpt_attachment');
+        assert.deepEqual(error.details.failed_rules, [failedRule]);
+        assert.equal(JSON.stringify(error.details).includes(url), false);
+        return true;
+      }
+    );
+  }
+  assert.equal(fetchCount, 0);
 });
 
 test('ChatGPT attachment import diagnoses unsigned and expired storage links without exposing values', async () => {
