@@ -81,6 +81,7 @@ function safeReviewPublishErrorResponse(error) {
   const errorCode = /^[a-z0-9_]{1,100}$/.test(rawCode)
     ? rawCode
     : 'review_publish_validation_failed';
+  const failureDiagnostic = error?.details?.diagnostic || {};
   const safeDetails = {};
   const allowedDetailKeys = new Set([
     'allowed',
@@ -114,7 +115,34 @@ function safeReviewPublishErrorResponse(error) {
     diagnostic: {
       stage: 'review_publish_validation',
       error_code: errorCode,
-      status_code: statusCode
+      status_code: statusCode,
+      ...(typeof failureDiagnostic.stage === 'string'
+        ? { failure_stage: failureDiagnostic.stage }
+        : {}),
+      ...(typeof failureDiagnostic.category === 'string'
+        ? { failure_category: failureDiagnostic.category }
+        : {}),
+      ...(typeof failureDiagnostic.dependency === 'string'
+        ? { dependency: failureDiagnostic.dependency }
+        : {}),
+      ...(typeof failureDiagnostic.internal_error_code === 'string'
+        ? { internal_error_code: failureDiagnostic.internal_error_code }
+        : {}),
+      ...(typeof failureDiagnostic.provider_error_code === 'string'
+        ? { provider_error_code: failureDiagnostic.provider_error_code }
+        : {}),
+      ...(Number.isInteger(failureDiagnostic.upstream_status)
+        ? { upstream_status: failureDiagnostic.upstream_status }
+        : {}),
+      ...(failureDiagnostic.category === 'oauth_token_refresh_failed'
+        ? { message: 'Google OAuth rejected the access-token refresh request.' }
+        : failureDiagnostic.category === 'staging_object_head_failed'
+          ? { message: 'The staged media object could not be inspected in S3.' }
+          : failureDiagnostic.category === 'credential_read_failed' ||
+              failureDiagnostic.category === 'credential_config_read_failed' ||
+              failureDiagnostic.category === 'refreshed_token_persist_failed'
+            ? { message: 'YouTube credential data could not be accessed in Secrets Manager.' }
+            : {})
     }
   });
 }
