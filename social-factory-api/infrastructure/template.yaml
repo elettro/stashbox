@@ -416,6 +416,15 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub ${SocialPublishBucket.Arn}/drafts/*
+              - Sid: ListReviewDrafts
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt SocialPublishBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - drafts/*
         - PolicyName: SocialChatGptImportWorkerQueue
           PolicyDocument:
             Version: '2012-10-17'

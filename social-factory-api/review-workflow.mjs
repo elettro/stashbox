@@ -112,6 +112,12 @@ function chatGptImportFailureDiagnostic(error, currentStage) {
   return diagnostic;
 }
 
+function isDeduplicationBackendUnavailable(error) {
+  return error?.name === 'DeduplicationBackendUnavailable' ||
+    error?.code === 'DEDUP_BACKEND_UNAVAILABLE' ||
+    error?.message === 'deduplication_backend_unavailable';
+}
+
 function getHeader(event, name) {
   const target = String(name).toLowerCase();
   for (const [key, value] of Object.entries(event?.headers || {})) {
@@ -813,8 +819,21 @@ export function createReviewWorkflowService({
     }
     const reviewId = `upload-${contentSha256}`;
     const reviewKey = `${REVIEW_PREFIX}${reviewId}.json`;
-    setDiagnosticStage('deduplication_lookup');
-    const existing = await store.getReview(reviewKey);
+    async function lookupExistingReview() {
+      if (typeof store.getReview !== 'function') return { available: false, review: null };
+      setDiagnosticStage('deduplication_lookup');
+      try {
+        return { available: true, review: await store.getReview(reviewKey) };
+      } catch (error) {
+        if (isDeduplicationBackendUnavailable(error)) {
+          return { available: false, review: null };
+        }
+        throw error;
+      }
+    }
+    const initialLookup = await lookupExistingReview();
+    const canCheckForDuplicate = initialLookup.available;
+    const existing = initialLookup.review;
     if (existing) {
       if (existing.source?.content_sha256 !== contentSha256) {
         throw serviceError('video_import_hash_collision', 409);
@@ -900,8 +919,14 @@ export function createReviewWorkflowService({
       ) {
         throw error;
       }
-      const racedReview = await store.getReview(reviewKey);
+      const racedLookup = canCheckForDuplicate
+        ? await lookupExistingReview()
+        : { available: false, review: null };
+      const racedReview = racedLookup.review;
       if (racedReview?.source?.content_sha256 !== contentSha256) {
+        if (!racedLookup.available) {
+          return { imported: false, duplicate: true, review_item: null };
+        }
         throw serviceError('video_import_hash_collision', 409);
       }
       return { imported: false, duplicate: true, review_item: racedReview };
