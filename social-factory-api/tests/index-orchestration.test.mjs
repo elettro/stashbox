@@ -262,6 +262,10 @@ test('ChatGPT video import POST and batch-status GET routes are registered', asy
     samTemplate,
     /SocialVideoImportStatus:\s+Type: HttpApi\s+Properties:\s+ApiId: !Ref SocialFactoryHttpApi\s+Path: \/social\/uploads\/imports\/\{batchId\}\s+Method: GET/
   );
+  assert.match(
+    samTemplate,
+    /SocialChatGptImportWorkerRole:[\s\S]*?Sid: ListReviewDrafts\s+Effect: Allow\s+Action:\s+- s3:ListBucket\s+Resource: !GetAtt SocialPublishBucket\.Arn\s+Condition:[\s\S]*?s3:prefix:\s+- drafts\/\*/
+  );
 
   const calls = [];
   const api = createApi({
