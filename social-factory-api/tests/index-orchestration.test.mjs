@@ -250,6 +250,10 @@ test('ChatGPT video import returns a batch status URL and external S3 upload rem
 
 test('ChatGPT video import POST and batch-status GET routes are registered', async () => {
   const samTemplate = fs.readFileSync(new URL('../infrastructure/template.yaml', import.meta.url), 'utf8');
+  const deployWorkflow = fs.readFileSync(
+    new URL('../../.github/workflows/deploy-social-factory-api-dev.yml', import.meta.url),
+    'utf8'
+  );
   assert.match(
     samTemplate,
     /SocialApiDevFunction:\s+Type: AWS::Serverless::Function\s+Properties:\s+FunctionName: stashbox-social-api-dev[\s\S]*?Handler: index\.handler/
@@ -266,6 +270,16 @@ test('ChatGPT video import POST and batch-status GET routes are registered', asy
     samTemplate,
     /SocialChatGptImportWorkerRole:[\s\S]*?Sid: ListReviewDrafts\s+Effect: Allow\s+Action:\s+- s3:ListBucket\s+Resource: !GetAtt SocialPublishBucket\.Arn\s+Condition:[\s\S]*?s3:prefix:\s+- drafts\/\*/
   );
+  assert.match(deployWorkflow, /SocialChatGptImportWorkerFunction[\s\S]*?SocialChatGptImportWorkerRole/);
+  assert.match(
+    deployWorkflow,
+    /aws iam get-role-policy[\s\S]*?SocialChatGptImportWorkerStorage[\s\S]*?chatgpt_import_worker_dedup_permission: passed/
+  );
+  assert.match(
+    deployWorkflow,
+    /EXPECTED_CHATGPT_IMPORT_WORKER_FUNCTION: stashbox-social-chatgpt-import-worker-dev/
+  );
+  assert.match(deployWorkflow, /'drafts\/\*' in prefixes/);
 
   const calls = [];
   const api = createApi({
