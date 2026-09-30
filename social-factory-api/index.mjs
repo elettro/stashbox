@@ -75,6 +75,50 @@ function errorResponse(error) {
   return json(statusCode, body);
 }
 
+function safeReviewPublishErrorResponse(error) {
+  const statusCode = Number(error?.statusCode || 500);
+  const rawCode = String(error?.message || '');
+  const errorCode = /^[a-z0-9_]{1,100}$/.test(rawCode)
+    ? rawCode
+    : 'review_publish_validation_failed';
+  const safeDetails = {};
+  const allowedDetailKeys = new Set([
+    'allowed',
+    'aspect_ratio',
+    'content_length',
+    'content_type',
+    'expected_size_bytes',
+    'format',
+    'max_bytes',
+    'max_characters',
+    'max_direct_publish_bytes',
+    'mode',
+    'next_step',
+    'publishing_status',
+    'review_id',
+    'scheduled_at',
+    'upstream_status'
+  ]);
+  for (const [key, value] of Object.entries(error?.details || {})) {
+    if (!allowedDetailKeys.has(key)) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
+      safeDetails[key] = value;
+    } else if (Array.isArray(value) && value.every((item) => ['string', 'number', 'boolean'].includes(typeof item))) {
+      safeDetails[key] = value;
+    }
+  }
+  return json(statusCode, {
+    ok: false,
+    error: errorCode,
+    details: safeDetails,
+    diagnostic: {
+      stage: 'review_publish_validation',
+      error_code: errorCode,
+      status_code: statusCode
+    }
+  });
+}
+
 function publicPresignContract(result = {}) {
   const contentType = String(result?.required_headers?.['Content-Type'] || '').trim();
   return {
@@ -408,10 +452,14 @@ export function createHandler({
       }
 
       if (method === 'POST' && review.publishReviewId) {
-        return json(200, {
-          ok: true,
-          ...(await getReviewPublisher().publish(event, review.publishReviewId))
-        });
+        try {
+          return json(200, {
+            ok: true,
+            ...(await getReviewPublisher().publish(event, review.publishReviewId))
+          });
+        } catch (error) {
+          return safeReviewPublishErrorResponse(error);
+        }
       }
 
       if (method === 'POST' && path === '/social/review-items/batch-schedule') {

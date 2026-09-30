@@ -609,6 +609,29 @@ test('ChatGPT attachment import succeeds when no deduplication lookup backend is
   assert.equal(uploadIds.length, 1);
 });
 
+test('ChatGPT attachment import caps filename-derived review titles at YouTube limits', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const { service, reviews } = createChatGptImportService({
+    fetchImpl: async () => new Response(bytes, {
+      headers: { 'content-type': 'video/mp4', 'content-length': String(bytes.length) }
+    })
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [{
+        id: 'file-abcdefgh12345678',
+        name: `${'long-video-title-'.repeat(8)}.mp4`,
+        mime_type: 'video/mp4',
+        download_link: chatGptDownloadUrl('file-abcdefgh12345678')
+      }]
+    }
+  }));
+
+  assert.equal(result.imported_count, 1);
+  assert.equal(result.items[0].review_item.metadata.selected_title.length, 100);
+  assert.equal([...reviews.values()][0].metadata.selected_title.length, 100);
+});
+
 test('ChatGPT attachment import continues when the deduplication backend is unavailable', async () => {
   const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
   const { service, reviews } = createChatGptImportService({
