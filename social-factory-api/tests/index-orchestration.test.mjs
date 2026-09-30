@@ -16,7 +16,14 @@ function request(path, method = 'GET', body, queryStringParameters = null) {
   };
 }
 
-function createApi({ orchestrator = {}, batch = {}, operations = {}, review = {}, actions = {} } = {}) {
+function createApi({
+  orchestrator = {},
+  batch = {},
+  operations = {},
+  review = {},
+  reviewPublisher = {},
+  actions = {}
+} = {}) {
   return createHandler({
     youtubeOAuth: {
       start: async () => ({}),
@@ -107,6 +114,10 @@ function createApi({ orchestrator = {}, batch = {}, operations = {}, review = {}
       listReviewItems: async () => ({ count: 1, items: [{ id: 'render-job-12345678' }] }),
       getReviewItem: async (_event, id) => ({ item: { id, status: 'in_review' } }),
       ...review
+    },
+    reviewPublisher: {
+      publish: async () => ({ publishing_triggered: false, mode: 'validation_only', ready: true }),
+      ...reviewPublisher
     },
     reviewActions: {
       preview: async (_event, id) => ({
@@ -328,6 +339,40 @@ test('ChatGPT video import route returns accepted immediately while processing i
   assert.equal(body.ok, true);
   assert.equal(body.status, 'queued');
   assert.equal(body.count, 2);
+});
+
+test('review publish validation returns a safe error code and details', async () => {
+  const api = createApi({
+    reviewPublisher: {
+      async publish(_event, reviewId) {
+        assert.equal(reviewId, 'upload-54af0446e258d6eae1dd61907de9f5333f8b5004452fe3f27897d0a003e795ae');
+        const error = new Error('invalid_youtube_title');
+        error.statusCode = 422;
+        error.details = {
+          max_characters: 100,
+          secret: 'must-not-be-returned'
+        };
+        throw error;
+      }
+    }
+  });
+  const response = await api(request(
+    '/social/review-items/upload-54af0446e258d6eae1dd61907de9f5333f8b5004452fe3f27897d0a003e795ae/publish',
+    'POST',
+    { confirm_upload: false }
+  ));
+  const body = JSON.parse(response.body);
+
+  assert.equal(response.statusCode, 422);
+  assert.equal(body.ok, false);
+  assert.equal(body.error, 'invalid_youtube_title');
+  assert.deepEqual(body.details, { max_characters: 100 });
+  assert.deepEqual(body.diagnostic, {
+    stage: 'review_publish_validation',
+    error_code: 'invalid_youtube_title',
+    status_code: 422
+  });
+  assert.equal(response.body.includes('must-not-be-returned'), false);
 });
 
 test('review list and review item routes preserve IDs', async () => {

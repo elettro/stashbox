@@ -204,6 +204,13 @@ function safeFileName(value) {
   return cleaned || 'video.mp4';
 }
 
+function safeYoutubeTitleFromFileName(fileName) {
+  return fileName
+    .replace(/\.mp4$/i, '')
+    .slice(0, 100)
+    .trim();
+}
+
 function validateVideoImportInput(body, maxBytes) {
   if (!String(body.file_name || '').trim()) {
     throw serviceError('invalid_video_import', 422, { required: ['file_name'] });
@@ -788,7 +795,7 @@ export function createReviewWorkflowService({
     const expectedSize = Number(uploaded.Metadata?.expected_size_bytes || contentLength);
     const uploadedName = String(uploaded.Metadata?.file_name || '');
     const fileName = safeFileName(uploadedName);
-    const title = String(titleOverride || fileName.replace(/\.mp4$/i, '')).trim();
+    const title = String(titleOverride || safeYoutubeTitleFromFileName(fileName)).trim();
     if (
       uploaded.ContentType !== 'video/mp4' ||
       uploaded.Metadata?.source !== 'chatgpt-video-import' ||
