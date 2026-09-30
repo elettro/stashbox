@@ -12,7 +12,6 @@ const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbo
 const VIDEO_UPLOAD_TTL_SECONDS = 15 * 60;
 const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_CHATGPT_ATTACHMENTS = 10;
-const CHATGPT_FILE_HOSTS = new Set(['files.oaiusercontent.com']);
 const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const DEFAULT_COLLABORATORS = Object.freeze([{
   name: 'Elettro TV',
@@ -155,6 +154,10 @@ function safeImportId(value) {
   return text.toLowerCase();
 }
 
+function isTrustedChatGptFileHost(hostname) {
+  return hostname.endsWith('.oaiusercontent.com');
+}
+
 function validateChatGptAttachments(value, { currentTime = Date.now(), allowExpired = false } = {}) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHATGPT_ATTACHMENTS) {
     throw serviceError('invalid_chatgpt_attachments', 422, {
@@ -188,11 +191,14 @@ function validateChatGptAttachments(value, { currentTime = Date.now(), allowExpi
       failedRules.push('mime_type');
     }
     if (downloadUrl.protocol !== 'https:') failedRules.push('download_link_protocol');
-    if (!CHATGPT_FILE_HOSTS.has(downloadUrl.hostname)) failedRules.push('download_link_host');
+    if (!isTrustedChatGptFileHost(downloadUrl.hostname)) failedRules.push('download_link_host');
     if (downloadUrl.port || downloadUrl.username || downloadUrl.password || downloadUrl.hash) {
       failedRules.push('download_link_authority_or_fragment');
     }
-    if (downloadUrl.pathname !== `/${id}` && downloadUrl.pathname !== `/files/${id}/raw`) {
+    const hasFileIdPath = downloadUrl.pathname === `/${id}`;
+    const hasRawUuidPath = /^\/files\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/raw$/i
+      .test(downloadUrl.pathname);
+    if (!hasFileIdPath && !hasRawUuidPath) {
       failedRules.push('download_link_path');
     }
     if (!signedReadUrl) failedRules.push('download_link_signature');
