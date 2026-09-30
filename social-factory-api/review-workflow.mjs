@@ -12,6 +12,7 @@ const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbo
 const VIDEO_UPLOAD_TTL_SECONDS = 15 * 60;
 const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_CHATGPT_ATTACHMENTS = 10;
+const MAX_CHATGPT_URL_TTL_MS = 10 * 60 * 1000;
 const CHATGPT_FILE_HOST = 'files.oaiusercontent.com';
 const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const DEFAULT_COLLABORATORS = Object.freeze([{
@@ -155,7 +156,7 @@ function safeImportId(value) {
   return text.toLowerCase();
 }
 
-function validateChatGptAttachments(value) {
+function validateChatGptAttachments(value, { currentTime = Date.now(), allowExpired = false } = {}) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CHATGPT_ATTACHMENTS) {
     throw serviceError('invalid_chatgpt_attachments', 422, {
       minimum: 1,
@@ -164,24 +165,34 @@ function validateChatGptAttachments(value) {
   }
   return value.map((attachment, index) => {
     const id = String(attachment?.id || '').trim();
-    const fileName = safeFileName(attachment?.name);
+    const suppliedFileName = safeFileName(attachment?.name);
+    const fileName = suppliedFileName.toLowerCase().endsWith('.mp4')
+      ? suppliedFileName
+      : `${suppliedFileName}.mp4`;
     let downloadUrl;
     try {
       downloadUrl = new URL(String(attachment?.download_link || ''));
     } catch {
       throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
     }
+    const expiresAt = Date.parse(downloadUrl.searchParams.get('se') || '');
+    const signedReadUrl = downloadUrl.searchParams.get('sp') === 'r' &&
+      downloadUrl.searchParams.get('sr') === 'b' &&
+      Boolean(downloadUrl.searchParams.get('sv')) &&
+      Boolean(downloadUrl.searchParams.get('sig'));
     if (
       !/^file-[a-zA-Z0-9_-]{8,200}$/.test(id) ||
-      String(attachment?.mime_type || '').toLowerCase() !== 'video/mp4' ||
-      !fileName.toLowerCase().endsWith('.mp4') ||
+      String(attachment?.mime_type || '').split(';')[0].trim().toLowerCase() !== 'video/mp4' ||
       downloadUrl.protocol !== 'https:' ||
       downloadUrl.hostname !== CHATGPT_FILE_HOST ||
       downloadUrl.port ||
       downloadUrl.username ||
       downloadUrl.password ||
       downloadUrl.hash ||
-      downloadUrl.pathname !== `/${id}`
+      downloadUrl.pathname !== `/${id}` ||
+      !signedReadUrl ||
+      !Number.isFinite(expiresAt) ||
+      (!allowExpired && (expiresAt <= currentTime || expiresAt > currentTime + MAX_CHATGPT_URL_TTL_MS))
     ) {
       throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
     }
@@ -866,7 +877,9 @@ export function createReviewWorkflowService({
     async importChatGptVideos(event) {
       await authorize(event);
       const input = parseBody(event);
-      const attachments = validateChatGptAttachments(input.openaiFileIdRefs);
+      const attachments = validateChatGptAttachments(input.openaiFileIdRefs, {
+        currentTime: now().getTime()
+      });
       const aspectRatio = String(input.aspect_ratio || '').trim();
       if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
         throw serviceError('invalid_video_aspect_ratio', 422, {
@@ -879,7 +892,9 @@ export function createReviewWorkflowService({
     async queueChatGptImport(event) {
       await authorize(event);
       const input = parseBody(event);
-      const attachments = validateChatGptAttachments(input.openaiFileIdRefs);
+      const attachments = validateChatGptAttachments(input.openaiFileIdRefs, {
+        currentTime: now().getTime()
+      });
       const aspectRatio = String(input.aspect_ratio || '').trim();
       if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
         throw serviceError('invalid_video_aspect_ratio', 422, {
@@ -944,7 +959,7 @@ export function createReviewWorkflowService({
       if (['completed', 'completed_with_errors', 'failed'].includes(batch.status)) {
         return { skipped: true, status: batch.status };
       }
-      const attachments = validateChatGptAttachments(payload.openaiFileIdRefs);
+      const attachments = validateChatGptAttachments(payload.openaiFileIdRefs, { allowExpired: true });
       const aspectRatio = String(payload.aspect_ratio || '').trim();
       if (aspectRatio && !YOUTUBE_ASPECT_RATIOS.has(aspectRatio)) {
         throw serviceError('invalid_video_aspect_ratio', 422, {
