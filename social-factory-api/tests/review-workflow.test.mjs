@@ -16,6 +16,10 @@ function event({ body, token = 'social-admin', query } = {}) {
   };
 }
 
+function chatGptDownloadUrl(id, signature = 'test-signature') {
+  return `https://files.oaiusercontent.com/${id}?se=2026-07-28T01%3A05%3A00.000Z&sp=r&sv=2021-08-06&sr=b&sig=${signature}`;
+}
+
 function jsonResponse(payload, status = 200) {
   return {
     ok: status >= 200 && status < 300,
@@ -290,7 +294,7 @@ test('ChatGPT attachment imports stream OpenAI file references into Content Revi
         id: 'file-abcdefgh12345678',
         name: 'ChatGPT clip.mp4',
         mime_type: 'video/mp4',
-        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=temporary'
+        download_link: chatGptDownloadUrl('file-abcdefgh12345678')
       }]
     }
   }));
@@ -305,6 +309,32 @@ test('ChatGPT attachment imports stream OpenAI file references into Content Revi
   assert.equal(result.items[0].review_item.video.aspect_ratio, '16:9');
   assert.equal(result.items[0].review_item.automation.auto_publish, false);
   assert.equal(reviews.size, 1);
+  assert.equal(objects.size, 1);
+});
+
+test('ChatGPT attachment import accepts realistic signed file refs without an .mp4 filename suffix', async () => {
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const { service, objects } = createChatGptImportService({
+    fetchImpl: async () => new Response(bytes, {
+      headers: {
+        'content-type': 'video/mp4',
+        'content-length': String(bytes.length)
+      }
+    })
+  });
+  const result = await service.importChatGptVideos(event({
+    body: {
+      openaiFileIdRefs: [{
+        name: '2026-07-28 01.00.00',
+        id: 'file-XFlOqJYTPBPwMZE3IopCBv1Z',
+        mime_type: 'video/mp4',
+        download_link: chatGptDownloadUrl('file-XFlOqJYTPBPwMZE3IopCBv1Z')
+      }]
+    }
+  }));
+
+  assert.equal(result.imported_count, 1);
+  assert.equal(result.items[0].review_item.video.file_name, '2026-07-28-01.00.00.mp4');
   assert.equal(objects.size, 1);
 });
 
@@ -329,7 +359,7 @@ test('ChatGPT attachment import queues promptly and records worker completion st
         id: 'file-abcdefgh12345678',
         name: 'ChatGPT clip.mp4',
         mime_type: 'video/mp4',
-        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=temporary'
+        download_link: chatGptDownloadUrl('file-abcdefgh12345678')
       }]
     }
   }));
@@ -370,7 +400,7 @@ test('25 MP4 references enqueue as three prompt batches without waiting for file
         id,
         name: `video-${index}.mp4`,
         mime_type: 'video/mp4',
-        download_link: `https://files.oaiusercontent.com/${id}?sig=temporary`
+        download_link: chatGptDownloadUrl(id)
       };
     });
     const batch = await service.queueChatGptImport(event({ body: { openaiFileIdRefs: refs } }));
@@ -406,13 +436,13 @@ test('ChatGPT attachment imports deduplicate identical video bytes', async () =>
           id: 'file-abcdefgh12345678',
           name: 'first.mp4',
           mime_type: 'video/mp4',
-          download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=one'
+          download_link: chatGptDownloadUrl('file-abcdefgh12345678', 'one')
         },
         {
           id: 'file-bcdefghi12345678',
           name: 'duplicate.mp4',
           mime_type: 'video/mp4',
-          download_link: 'https://files.oaiusercontent.com/file-bcdefghi12345678?sig=two'
+          download_link: chatGptDownloadUrl('file-bcdefghi12345678', 'two')
         }
       ]
     }
@@ -448,13 +478,13 @@ test('ChatGPT attachment imports report per-file upstream failures without losin
           id: 'file-abcdefgh12345678',
           name: 'good.mp4',
           mime_type: 'video/mp4',
-          download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=valid'
+          download_link: chatGptDownloadUrl('file-abcdefgh12345678', 'valid')
         },
         {
           id: 'file-bcdefghi12345678',
           name: 'expired.mp4',
           mime_type: 'video/mp4',
-          download_link: 'https://files.oaiusercontent.com/file-bcdefghi12345678?sig=expired'
+          download_link: chatGptDownloadUrl('file-bcdefghi12345678', 'expired')
         }
       ]
     }
@@ -492,6 +522,38 @@ test('ChatGPT attachment import rejects non-OpenAI URLs before fetching them', a
   assert.equal(objects.size, 0);
 });
 
+test('ChatGPT attachment import rejects unsigned and expired storage links', async () => {
+  let fetchCount = 0;
+  const { service } = createChatGptImportService({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return new Response('should not fetch');
+    }
+  });
+  const links = [
+    'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=unsigned',
+    'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T00%3A59%3A59Z&sp=r&sv=2021-08-06&sr=b&sig=expired',
+    'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T01%3A11%3A00Z&sp=r&sv=2021-08-06&sr=b&sig=long-lived'
+  ];
+
+  for (const download_link of links) {
+    await assert.rejects(
+      service.importChatGptVideos(event({
+        body: {
+          openaiFileIdRefs: [{
+            id: 'file-abcdefgh12345678',
+            name: 'clip.mp4',
+            mime_type: 'video/mp4',
+            download_link
+          }]
+        }
+      })),
+      (error) => error.statusCode === 422 && error.message === 'invalid_chatgpt_attachment'
+    );
+  }
+  assert.equal(fetchCount, 0);
+});
+
 test('ChatGPT attachment import rejects more than ten files in one action call', async () => {
   let fetchCount = 0;
   const { service } = createChatGptImportService({
@@ -506,7 +568,7 @@ test('ChatGPT attachment import rejects more than ten files in one action call',
         id: `file-${String(index).padStart(8, '0')}`,
         name: `clip-${index}.mp4`,
         mime_type: 'video/mp4',
-        download_link: `https://files.oaiusercontent.com/file-${String(index).padStart(8, '0')}?sig=x`
+        download_link: chatGptDownloadUrl(`file-${String(index).padStart(8, '0')}`)
       })) }
     })),
     (error) => error.statusCode === 422 && error.details.maximum === 10
@@ -526,7 +588,7 @@ test('ChatGPT attachment import verifies MP4 bytes and enforces the per-file siz
         id: 'file-abcdefgh12345678',
         name: 'clip.mp4',
         mime_type: 'video/mp4',
-        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
+        download_link: chatGptDownloadUrl('file-abcdefgh12345678')
       }]
     }
   }));
@@ -544,7 +606,7 @@ test('ChatGPT attachment import verifies MP4 bytes and enforces the per-file siz
         id: 'file-abcdefgh12345678',
         name: 'clip.mp4',
         mime_type: 'video/mp4',
-        download_link: 'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=x'
+        download_link: chatGptDownloadUrl('file-abcdefgh12345678')
       }]
     }
   }));
