@@ -19,6 +19,7 @@ jobs:
       STACK_NAME: stashbox-social-api-dev
       EXPECTED_API_FUNCTION: stashbox-social-api-dev
       EXPECTED_WORKER_FUNCTION: stashbox-social-publish-worker-dev
+      EXPECTED_CHATGPT_IMPORT_WORKER_FUNCTION: stashbox-social-chatgpt-import-worker-dev
       EXPECTED_QUEUE_NAME: stashbox-social-publish-dev.fifo
       EXPECTED_DLQ_NAME: stashbox-social-publish-dev-dlq.fifo
       EXPECTED_SCHEDULE_GROUP: stashbox-social-publish-dev
@@ -155,6 +156,9 @@ jobs:
 
             API_FUNCTION=$(stack_output SocialApiDevFunctionName)
             WORKER_FUNCTION=$(stack_output SocialScheduledPublishWorkerFunctionName)
+            CHATGPT_IMPORT_WORKER_FUNCTION=$(stack_output SocialChatGptImportWorkerFunctionName)
+            CHATGPT_IMPORT_WORKER_ROLE_ARN=$(stack_output SocialChatGptImportWorkerRoleArn)
+            PUBLISH_BUCKET_ARN=$(stack_output SocialPublishBucketArn)
             QUEUE_URL=$(stack_output SocialPublishScheduleQueueUrl)
             QUEUE_ARN=$(stack_output SocialPublishScheduleQueueArn)
             DLQ_ARN=$(stack_output SocialPublishScheduleDeadLetterQueueArn)
@@ -163,6 +167,8 @@ jobs:
 
             check_equal 'api_function' "${API_FUNCTION}" "${EXPECTED_API_FUNCTION}"
             check_equal 'worker_function' "${WORKER_FUNCTION}" "${EXPECTED_WORKER_FUNCTION}"
+            check_equal 'chatgpt_import_worker_function' \
+              "${CHATGPT_IMPORT_WORKER_FUNCTION}" "${EXPECTED_CHATGPT_IMPORT_WORKER_FUNCTION}"
             check_equal 'queue_name' "${QUEUE_ARN##*:}" "${EXPECTED_QUEUE_NAME}"
             check_equal 'dead_letter_queue_name' "${DLQ_ARN##*:}" "${EXPECTED_DLQ_NAME}"
             check_equal 'schedule_group' "${SCHEDULE_GROUP}" "${EXPECTED_SCHEDULE_GROUP}"
@@ -175,6 +181,8 @@ jobs:
             for LOGICAL_ID in \
               SocialApiDevFunction \
               SocialScheduledPublishWorkerFunction \
+              SocialChatGptImportWorkerFunction \
+              SocialChatGptImportWorkerRole \
               SocialPublishScheduleQueue \
               SocialPublishScheduleDeadLetterQueue \
               SocialPublishScheduleGroup \
@@ -197,6 +205,55 @@ jobs:
                   ;;
               esac
             done
+
+            CHATGPT_IMPORT_WORKER_ROLE_NAME="${CHATGPT_IMPORT_WORKER_ROLE_ARN##*/}"
+            aws iam get-role-policy \
+              --role-name "${CHATGPT_IMPORT_WORKER_ROLE_NAME}" \
+              --policy-name SocialChatGptImportWorkerStorage \
+              --output json > /tmp/social-chatgpt-import-worker-storage-policy.json
+            python3 - "${PUBLISH_BUCKET_ARN}" <<'PY'
+            import json
+            import sys
+            from pathlib import Path
+            from urllib.parse import unquote
+
+            expected_bucket_arn = sys.argv[1]
+            response = json.loads(Path('/tmp/social-chatgpt-import-worker-storage-policy.json').read_text())
+            policy_document = response['PolicyDocument']
+            if isinstance(policy_document, str):
+                try:
+                    policy_document = json.loads(policy_document)
+                except json.JSONDecodeError:
+                    policy_document = json.loads(unquote(policy_document))
+
+            statements = policy_document.get('Statement', [])
+            if isinstance(statements, dict):
+                statements = [statements]
+
+            for statement in statements:
+                actions = statement.get('Action', [])
+                resources = statement.get('Resource', [])
+                if isinstance(actions, str):
+                    actions = [actions]
+                if isinstance(resources, str):
+                    resources = [resources]
+                prefixes = statement.get('Condition', {}).get('StringLike', {}).get('s3:prefix', [])
+                if isinstance(prefixes, str):
+                    prefixes = [prefixes]
+                if (
+                    statement.get('Effect') == 'Allow'
+                    and 's3:ListBucket' in actions
+                    and expected_bucket_arn in resources
+                    and 'drafts/*' in prefixes
+                ):
+                    print('chatgpt_import_worker_dedup_permission: passed')
+                    break
+            else:
+                raise SystemExit(
+                    'ChatGPT import worker lacks s3:ListBucket on the publish bucket for drafts/*.'
+                )
+            PY
+            echo "chatgpt_import_worker_role: ${CHATGPT_IMPORT_WORKER_ROLE_NAME}"
 
             HEALTH_STATUS=$(curl --silent --show-error --max-time 60 \
               -o /tmp/social-health.json -w '%{http_code}' \
