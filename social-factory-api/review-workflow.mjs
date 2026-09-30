@@ -27,6 +27,91 @@ function serviceError(message, statusCode = 400, details) {
   return error;
 }
 
+const CHATGPT_IMPORT_FAILURES = Object.freeze({
+  chatgpt_attachment_download_failed: {
+    stage: 'http_status',
+    category: 'upstream_http_error'
+  },
+  chatgpt_attachment_not_mp4: {
+    stage: 'content_type',
+    category: 'unsupported_content_type'
+  },
+  chatgpt_attachment_body_missing: {
+    stage: 'download_response',
+    category: 'response_body_missing'
+  },
+  invalid_video_size: {
+    stage: 'content_length',
+    category: 'invalid_content_length'
+  },
+  invalid_uploaded_video: {
+    stage: 'stored_object_validation',
+    category: 'stored_object_metadata_invalid'
+  },
+  uploaded_video_size_mismatch: {
+    stage: 'mp4_stream_validation',
+    category: 'content_length_mismatch'
+  },
+  uploaded_file_is_not_mp4: {
+    stage: 'mp4_stream_validation',
+    category: 'invalid_mp4'
+  },
+  uploaded_video_not_found: {
+    stage: 'stored_object_validation',
+    category: 'stored_object_missing'
+  },
+  invalid_video_content_hash: {
+    stage: 'content_hashing',
+    category: 'invalid_content_hash'
+  },
+  video_import_hash_collision: {
+    stage: 'deduplication_lookup',
+    category: 'content_hash_collision'
+  }
+});
+
+function chatGptImportFailureDiagnostic(error, currentStage) {
+  let errorWithKnownFailure = error;
+  let knownFailure;
+  const visited = new Set();
+  for (let depth = 0; errorWithKnownFailure && depth < 5 && !visited.has(errorWithKnownFailure); depth += 1) {
+    visited.add(errorWithKnownFailure);
+    const message = String(errorWithKnownFailure.message || '');
+    if (Object.hasOwn(CHATGPT_IMPORT_FAILURES, message)) {
+      knownFailure = CHATGPT_IMPORT_FAILURES[message];
+      break;
+    }
+    errorWithKnownFailure = errorWithKnownFailure.cause;
+  }
+  let category = knownFailure?.category;
+  if (!category) {
+    if (currentStage === 'download') category = 'network_error';
+    else if (currentStage === 's3_write') category = 'storage_error';
+    else if (currentStage === 'deduplication_lookup') category = 'deduplication_error';
+    else if (currentStage === 'content_review_creation') category = 'content_review_error';
+    else if (currentStage === 'content_length') category = 'invalid_content_length';
+    else if (currentStage === 'metadata_validation') category = 'metadata_error';
+    else if (currentStage === 'review_metadata') category = 'metadata_error';
+    else if (currentStage === 'import_id_generation') category = 'id_generation_error';
+    else if (currentStage === 'content_hashing') category = 'content_hash_error';
+    else if (currentStage === 'mp4_stream_validation') category = 'mp4_validation_error';
+    else if (currentStage === 'stored_object_validation') category = 'stored_object_error';
+    else if (currentStage === 'content_type') category = 'content_type_error';
+    else if (currentStage === 'http_status') category = 'response_handling_error';
+    else if (currentStage === 'download_response') category = 'response_handling_error';
+    else category = 'processing_error';
+  }
+  const diagnostic = {
+    stage: knownFailure?.stage || currentStage,
+    category
+  };
+  const upstreamStatus = Number(error?.details?.upstream_status);
+  if (Number.isInteger(upstreamStatus) && upstreamStatus >= 100 && upstreamStatus <= 599) {
+    diagnostic.upstream_status = upstreamStatus;
+  }
+  return diagnostic;
+}
+
 function getHeader(event, name) {
   const target = String(name).toLowerCase();
   for (const [key, value] of Object.entries(event?.headers || {})) {
@@ -631,7 +716,8 @@ export function createReviewWorkflowService({
   now = () => new Date(),
   sourceBucketName = process.env.VIDEO_FACTORY_SOURCE_BUCKET,
   maxUploadBytes = Number(process.env.SOCIAL_MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES),
-  createImportId = () => crypto.randomUUID()
+  createImportId = () => crypto.randomUUID(),
+  logImportFailure = (details) => console.error('ChatGPT video import attachment failed', details)
 } = {}) {
   if (!fetchImpl) throw new Error('fetch_unavailable');
   if (!configSecretId) throw new Error('youtube_oauth_config_secret_missing');
@@ -674,12 +760,14 @@ export function createReviewWorkflowService({
     importId,
     titleOverride,
     verifiedContentSha256 = '',
-    aspectRatio = ''
+    aspectRatio = '',
+    setDiagnosticStage = () => {}
   ) {
     const safeIdValue = safeImportId(importId);
     const objectKey = `${CHATGPT_IMPORT_PREFIX}${safeIdValue}/video.mp4`;
     const store = getReviewStore();
     let uploaded;
+    setDiagnosticStage('stored_object_validation');
     try {
       uploaded = await store.headImportedVideo(objectKey);
     } catch (error) {
@@ -689,6 +777,7 @@ export function createReviewWorkflowService({
       throw error;
     }
 
+    setDiagnosticStage('metadata_validation');
     const contentLength = Number(uploaded.ContentLength || 0);
     const expectedSize = Number(uploaded.Metadata?.expected_size_bytes || contentLength);
     const uploadedName = String(uploaded.Metadata?.file_name || '');
@@ -714,6 +803,7 @@ export function createReviewWorkflowService({
       });
     }
 
+    setDiagnosticStage('content_hashing');
     const contentSha256 = verifiedContentSha256 || await (async () => {
       const object = await store.getImportedVideo(objectKey);
       return hashAndVerifyMp4(object.Body, contentLength);
@@ -723,6 +813,7 @@ export function createReviewWorkflowService({
     }
     const reviewId = `upload-${contentSha256}`;
     const reviewKey = `${REVIEW_PREFIX}${reviewId}.json`;
+    setDiagnosticStage('deduplication_lookup');
     const existing = await store.getReview(reviewKey);
     if (existing) {
       if (existing.source?.content_sha256 !== contentSha256) {
@@ -731,6 +822,7 @@ export function createReviewWorkflowService({
       return { imported: false, duplicate: true, review_item: existing };
     }
 
+    setDiagnosticStage('review_metadata');
     const createdAt = now().toISOString();
     const review = {
       schema_version: 1,
@@ -797,6 +889,7 @@ export function createReviewWorkflowService({
     };
 
     try {
+      setDiagnosticStage('content_review_creation');
       await store.putImportedReview(reviewKey, review);
       return { imported: true, duplicate: false, review_item: review };
     } catch (error) {
@@ -817,18 +910,21 @@ export function createReviewWorkflowService({
 
   async function importChatGptAttachments(attachments, aspectRatio, batchId) {
     const store = getReviewStore();
-    const items = await Promise.all(attachments.map(async (attachment) => {
+    const items = await Promise.all(attachments.map(async (attachment, fileIndex) => {
+      let stage = 'download';
       try {
         const response = await fetchImpl(attachment.downloadUrl, {
           method: 'GET',
           redirect: 'error'
         });
+        stage = 'http_status';
         if (!response.ok) {
           await response.body?.cancel();
           throw serviceError('chatgpt_attachment_download_failed', 502, {
             upstream_status: response.status
           });
         }
+        stage = 'content_type';
         const responseContentType = String(response.headers?.get('content-type') || '')
           .split(';')[0]
           .trim()
@@ -837,8 +933,10 @@ export function createReviewWorkflowService({
           await response.body?.cancel();
           throw serviceError('chatgpt_attachment_not_mp4', 422);
         }
+        stage = 'download_response';
         if (!response.body) throw serviceError('chatgpt_attachment_body_missing', 502);
 
+        stage = 'content_length';
         const contentLengthHeader = response.headers?.get('content-length');
         const expectedBytes = contentLengthHeader == null ? null : Number(contentLengthHeader);
         if (
@@ -848,18 +946,22 @@ export function createReviewWorkflowService({
           await response.body?.cancel();
           throw serviceError('invalid_video_size', 422, { max_bytes: maxUploadBytes });
         }
+        stage = 'import_id_generation';
         const importId = safeImportId(createImportId());
         const guardedBody = createMp4VerificationStream(maxUploadBytes, expectedBytes);
+        stage = 's3_write';
         await store.uploadChatGptVideo({
           importId,
           fileName: attachment.fileName,
           body: Readable.fromWeb(response.body).pipe(guardedBody.stream)
         });
+        stage = 'stored_object_validation';
         const result = await completeVideoImport(
           importId,
           undefined,
           guardedBody.contentSha256,
-          aspectRatio
+          aspectRatio,
+          (nextStage) => { stage = nextStage; }
         );
         return {
           file_name: attachment.fileName,
@@ -867,10 +969,19 @@ export function createReviewWorkflowService({
           review_item: result.review_item
         };
       } catch (error) {
+        const diagnostic = chatGptImportFailureDiagnostic(error, stage);
+        logImportFailure({
+          ...(batchId ? { batch_id: batchId } : {}),
+          file_index: fileIndex,
+          ...diagnostic
+        });
         return {
           file_name: attachment.fileName,
           status: 'failed',
-          error: error?.statusCode ? error.message : 'video_import_failed'
+          error: error?.statusCode ? error.message : 'video_import_failed',
+          failure_stage: diagnostic.stage,
+          failure_category: diagnostic.category,
+          ...(diagnostic.upstream_status == null ? {} : { upstream_status: diagnostic.upstream_status })
         };
       }
     }));
