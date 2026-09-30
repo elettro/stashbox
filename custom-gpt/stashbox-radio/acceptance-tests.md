@@ -26,7 +26,7 @@ Run these tests in the GPT editor Preview before sharing the GPT.
 
 - [ ] Attach one MP4 in the conversation and call importSocialChatGptVideos; verify `openaiFileIdRefs` contains its file ID, MIME type, name, and short-lived download link, and that the action returns a batch ID without waiting for S3 upload.
 - [ ] Attach 25 MP4s; submit three groups (10, 10, 5), then poll each returned batch with getSocialChatGptVideoImportStatus until terminal status and verify exact per-file results.
-- [ ] Verify the GPT Action sends references, not file bytes, and that the API downloads only `files.oaiusercontent.com` URLs without following redirects.
+- [ ] Verify the GPT Action sends references, not file bytes, and that the API downloads only HTTPS URLs on OpenAI-owned `*.oaiusercontent.com` hosts without following redirects.
 - [ ] A successful import creates one pending Content Review item and does not publish or schedule it.
 - [ ] Re-importing identical MP4 bytes returns the existing review item instead of creating a duplicate.
 - [ ] Reject non-MP4 files, mismatched sizes, and uploads over the configured 512 MiB limit.

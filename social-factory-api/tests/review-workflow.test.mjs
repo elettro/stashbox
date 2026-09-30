@@ -319,8 +319,9 @@ test('ChatGPT attachment imports stream OpenAI file references into Content Revi
   assert.equal(objects.size, 1);
 });
 
-test('ChatGPT attachment import accepts current underscore IDs and signed /files/{id}/raw links', async () => {
+test('ChatGPT attachment import accepts regional hosts and signed /files/{uuid}/raw links', async () => {
   const id = 'file_abc123XYZ789def456';
+  const pathId = '123e4567-e89b-42d3-a456-426614174000';
   const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
   const fetchCalls = [];
   const { service, objects } = createChatGptImportService({
@@ -341,15 +342,16 @@ test('ChatGPT attachment import accepts current underscore IDs and signed /files
         name: 'Current GPT attachment.mp4',
         mime_type: 'video/mp4',
         download_link: chatGptDownloadUrl(id, undefined, undefined, {
-          path: `/files/${id}/raw`
+          host: 'us-east-1.oaiusercontent.com',
+          path: `/files/${pathId}/raw`
         })
       }]
     }
   }));
 
   assert.equal(result.imported_count, 1);
-  assert.equal(new URL(fetchCalls[0].url).hostname, 'files.oaiusercontent.com');
-  assert.equal(new URL(fetchCalls[0].url).pathname, `/files/${id}/raw`);
+  assert.equal(new URL(fetchCalls[0].url).hostname, 'us-east-1.oaiusercontent.com');
+  assert.equal(new URL(fetchCalls[0].url).pathname, `/files/${pathId}/raw`);
   assert.equal(fetchCalls[0].options.redirect, 'error');
   assert.equal(objects.size, 1);
 });
@@ -604,20 +606,33 @@ test('ChatGPT attachment import rejects malformed links, lookalike hosts, and un
     {
       url: chatGptDownloadUrl(id, undefined, undefined, {
         host: 'files.oaiusercontent.com.attacker.example',
-        path: `/files/${id}/raw`
+        path: `/${id}`
+      }),
+      failedRule: 'download_link_host'
+    },
+    {
+      url: chatGptDownloadUrl(id, undefined, undefined, {
+        host: 'oaiusercontent.com.evil.com',
+        path: `/${id}`
       }),
       failedRule: 'download_link_host'
     },
     {
       url: chatGptDownloadUrl(id, undefined, undefined, {
         host: 'evil-oaiusercontent.com',
-        path: `/files/${id}/raw`
+        path: `/${id}`
       }),
       failedRule: 'download_link_host'
     },
     {
       url: chatGptDownloadUrl(id, undefined, undefined, {
         path: `/files/${id}/content`
+      }),
+      failedRule: 'download_link_path'
+    },
+    {
+      url: chatGptDownloadUrl(id, undefined, undefined, {
+        path: '/files/not-a-uuid/raw'
       }),
       failedRule: 'download_link_path'
     }

@@ -25,7 +25,7 @@ paths:
     post:
       operationId: importSocialChatGptVideos
       summary: Start an asynchronous import of MP4 attachments into Content Review.
-      description: Submit up to 10 user-attached MP4 files via openaiFileIdRefs. The API validates and queues short-lived files.oaiusercontent.com references and returns a batch ID immediately; use getSocialChatGptVideoImportStatus to retrieve per-file outcomes. Import never publishes or schedules videos.
+      description: Submit up to 10 user-attached MP4 files via openaiFileIdRefs. The API validates and queues short-lived HTTPS references from OpenAI-owned *.oaiusercontent.com hosts and returns a batch ID immediately; use getSocialChatGptVideoImportStatus to retrieve per-file outcomes. Import never publishes or schedules videos.
       x-openai-isConsequential: true
       requestBody:
         required: true
