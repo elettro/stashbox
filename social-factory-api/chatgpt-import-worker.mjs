@@ -12,14 +12,17 @@ export function createChatGptImportWorker({ reviewWorkflow = null } = {}) {
     const failures = [];
     for (const record of Array.isArray(event.Records) ? event.Records : []) {
       const messageId = String(record?.messageId || '');
+      let batchId = '';
       try {
         const message = JSON.parse(String(record?.body || ''));
-        const batchId = String(message.batch_id || '');
+        batchId = String(message.batch_id || '');
         await getReviewWorkflow().processChatGptImportBatch(batchId, message);
-      } catch (error) {
+      } catch {
         console.error('ChatGPT video import batch failed', {
+          batch_id: batchId || undefined,
           messageId,
-          error: error?.name || 'chatgpt_import_batch_failed'
+          stage: 'batch_processing',
+          category: 'worker_processing_error'
         });
         if (messageId) failures.push({ itemIdentifier: messageId });
       }

@@ -176,7 +176,11 @@ function createImportService({
   };
 }
 
-function createChatGptImportService({ fetchImpl } = {}) {
+function createChatGptImportService({
+  fetchImpl,
+  uploadChatGptVideo,
+  logImportFailure = () => {}
+} = {}) {
   const reviews = new Map();
   const objects = new Map();
   const batches = new Map();
@@ -195,6 +199,10 @@ function createChatGptImportService({ fetchImpl } = {}) {
       return batches.get(batchId) || null;
     },
     async uploadChatGptVideo({ importId, fileName, body }) {
+      if (uploadChatGptVideo) {
+        await uploadChatGptVideo({ importId, fileName, body });
+        return;
+      }
       const chunks = [];
       for await (const chunk of body) chunks.push(Buffer.from(chunk));
       const bytes = Buffer.concat(chunks);
@@ -256,7 +264,8 @@ function createChatGptImportService({ fetchImpl } = {}) {
       configSecretId: 'config',
       maxUploadBytes: 1000,
       createImportId: () => `00000000-0000-4000-8000-${String(nextImportId++).padStart(12, '0')}`,
-      now: () => new Date('2026-07-28T01:00:00.000Z')
+      now: () => new Date('2026-07-28T01:00:00.000Z'),
+      logImportFailure
     })
   };
 }
@@ -354,6 +363,48 @@ test('ChatGPT attachment import accepts regional hosts and signed /files/{uuid}/
   assert.equal(new URL(fetchCalls[0].url).pathname, `/files/${pathId}/raw`);
   assert.equal(fetchCalls[0].options.redirect, 'error');
   assert.equal(objects.size, 1);
+});
+
+test('ChatGPT worker flow logs safe stage diagnostics for realistic regional GPT refs', async () => {
+  const signedUrl = chatGptDownloadUrl('file_abc123XYZ789def456', undefined, undefined, {
+    host: 'us-east-1.oaiusercontent.com',
+    path: '/files/123e4567-e89b-42d3-a456-426614174000/raw'
+  });
+  const failures = [];
+  const { service, enqueued } = createChatGptImportService({
+    fetchImpl: async () => new Response(
+      Buffer.from('000000186674797069736f6d00000000', 'hex'),
+      { headers: { 'content-type': 'video/mp4' } }
+    ),
+    uploadChatGptVideo: async () => {
+      throw new Error(`storage failed while handling ${signedUrl}`);
+    },
+    logImportFailure: (details) => failures.push(details)
+  });
+  const accepted = await service.queueChatGptImport(event({
+    body: {
+      openaiFileIdRefs: [{
+        id: 'file_abc123XYZ789def456',
+        name: 'regional clip.mp4',
+        mime_type: 'video/mp4',
+        download_link: signedUrl
+      }]
+    }
+  }));
+  const completed = await service.processChatGptImportBatch(accepted.batch_id, enqueued[0]);
+
+  assert.equal(completed.status, 'failed');
+  assert.equal(completed.items[0].error, 'video_import_failed');
+  assert.equal(completed.items[0].failure_stage, 's3_write');
+  assert.equal(completed.items[0].failure_category, 'storage_error');
+  assert.deepEqual(failures, [{
+    batch_id: accepted.batch_id,
+    file_index: 0,
+    stage: 's3_write',
+    category: 'storage_error'
+  }]);
+  assert.equal(JSON.stringify(failures).includes(signedUrl), false);
+  assert.equal(JSON.stringify(failures).includes('test-signature'), false);
 });
 
 test('ChatGPT attachment import accepts realistic signed file refs without an .mp4 filename suffix', async () => {
@@ -525,6 +576,7 @@ test('ChatGPT attachment imports deduplicate identical video bytes', async () =>
 
 test('ChatGPT attachment imports report per-file upstream failures without losing successes', async () => {
   const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const failures = [];
   const { service } = createChatGptImportService({
     fetchImpl: async (url) => {
       if (String(url).includes('sig=expired')) {
@@ -536,7 +588,8 @@ test('ChatGPT attachment imports report per-file upstream failures without losin
           'content-length': String(bytes.length)
         }
       });
-    }
+    },
+    logImportFailure: (details) => failures.push(details)
   });
   const result = await service.importChatGptVideos(event({
     body: {
@@ -562,6 +615,14 @@ test('ChatGPT attachment imports report per-file upstream failures without losin
   assert.equal(result.items[0].status, 'imported');
   assert.equal(result.items[1].status, 'failed');
   assert.equal(result.items[1].error, 'chatgpt_attachment_download_failed');
+  assert.equal(result.items[1].failure_stage, 'http_status');
+  assert.equal(result.items[1].failure_category, 'upstream_http_error');
+  assert.deepEqual(failures, [{
+    file_index: 1,
+    stage: 'http_status',
+    category: 'upstream_http_error',
+    upstream_status: 403
+  }]);
 });
 
 test('ChatGPT attachment import rejects non-OpenAI URLs before fetching them', async () => {
