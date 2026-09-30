@@ -16,8 +16,14 @@ function event({ body, token = 'social-admin', query } = {}) {
   };
 }
 
-function chatGptDownloadUrl(id, signature = 'test-signature') {
-  return `https://files.oaiusercontent.com/${id}?se=2026-07-28T01%3A05%3A00.000Z&sp=r&sv=2021-08-06&sr=b&sig=${signature}`;
+function chatGptDownloadUrl(
+  id,
+  signature = 'test-signature',
+  expiresAt = '2026-07-28T01:05:00.000Z'
+) {
+  const responseCacheControl = encodeURIComponent('max-age=31536000, immutable');
+  const responseDisposition = encodeURIComponent(`attachment; filename=${id}.mp4`);
+  return `https://files.oaiusercontent.com/${id}?se=${encodeURIComponent(expiresAt)}&sp=r&sv=2021-08-06&sr=b&rscc=${responseCacheControl}&rscd=${responseDisposition}&sig=${signature}`;
 }
 
 function jsonResponse(payload, status = 200) {
@@ -338,6 +344,29 @@ test('ChatGPT attachment import accepts realistic signed file refs without an .m
   assert.equal(objects.size, 1);
 });
 
+test('ChatGPT import endpoint accepts GPT Action references with longer-lived SAS URLs', async () => {
+  const { service, enqueued } = createChatGptImportService();
+  const result = await service.queueChatGptImport(event({
+    body: {
+      openaiFileIdRefs: [{
+        name: '2026-07-28 01.00.00',
+        id: 'file-XFlOqJYTPBPwMZE3IopCBv1Z',
+        mime_type: 'video/mp4',
+        download_link: chatGptDownloadUrl(
+          'file-XFlOqJYTPBPwMZE3IopCBv1Z',
+          'test-signature',
+          '2026-07-28T02:00:00.000Z'
+        )
+      }]
+    }
+  }));
+
+  assert.equal(result.status, 'queued');
+  assert.equal(result.count, 1);
+  assert.equal(enqueued.length, 1);
+  assert.equal(enqueued[0].openaiFileIdRefs[0].name, '2026-07-28-01.00.00.mp4');
+});
+
 test('ChatGPT attachment import queues promptly and records worker completion status', async () => {
   const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
   const fetchCalls = [];
@@ -522,7 +551,7 @@ test('ChatGPT attachment import rejects non-OpenAI URLs before fetching them', a
   assert.equal(objects.size, 0);
 });
 
-test('ChatGPT attachment import rejects unsigned and expired storage links', async () => {
+test('ChatGPT attachment import diagnoses unsigned and expired storage links without exposing values', async () => {
   let fetchCount = 0;
   const { service } = createChatGptImportService({
     fetchImpl: async () => {
@@ -531,12 +560,17 @@ test('ChatGPT attachment import rejects unsigned and expired storage links', asy
     }
   });
   const links = [
-    'https://files.oaiusercontent.com/file-abcdefgh12345678?sig=unsigned',
-    'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T00%3A59%3A59Z&sp=r&sv=2021-08-06&sr=b&sig=expired',
-    'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T01%3A11%3A00Z&sp=r&sv=2021-08-06&sr=b&sig=long-lived'
+    {
+      url: 'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T01%3A05%3A00Z&sp=r&sv=2021-08-06&sr=b',
+      failedRule: 'download_link_signature'
+    },
+    {
+      url: 'https://files.oaiusercontent.com/file-abcdefgh12345678?se=2026-07-28T00%3A59%3A59Z&sp=r&sv=2021-08-06&sr=b&sig=expired',
+      failedRule: 'download_link_expired'
+    }
   ];
 
-  for (const download_link of links) {
+  for (const { url, failedRule } of links) {
     await assert.rejects(
       service.importChatGptVideos(event({
         body: {
@@ -544,11 +578,17 @@ test('ChatGPT attachment import rejects unsigned and expired storage links', asy
             id: 'file-abcdefgh12345678',
             name: 'clip.mp4',
             mime_type: 'video/mp4',
-            download_link
+            download_link: url
           }]
         }
       })),
-      (error) => error.statusCode === 422 && error.message === 'invalid_chatgpt_attachment'
+      (error) => {
+        assert.equal(error.statusCode, 422);
+        assert.equal(error.message, 'invalid_chatgpt_attachment');
+        assert.deepEqual(error.details.failed_rules, [failedRule]);
+        assert.equal(JSON.stringify(error.details).includes(url), false);
+        return true;
+      }
     );
   }
   assert.equal(fetchCount, 0);

@@ -12,7 +12,6 @@ const DEFAULT_YOUTUBE_PLAYLIST_TITLE = 'Stashbox Radio - Video Library - Stashbo
 const VIDEO_UPLOAD_TTL_SECONDS = 15 * 60;
 const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_CHATGPT_ATTACHMENTS = 10;
-const MAX_CHATGPT_URL_TTL_MS = 10 * 60 * 1000;
 const CHATGPT_FILE_HOST = 'files.oaiusercontent.com';
 const YOUTUBE_ASPECT_RATIOS = new Set(['9:16', '16:9']);
 const DEFAULT_COLLABORATORS = Object.freeze([{
@@ -173,28 +172,35 @@ function validateChatGptAttachments(value, { currentTime = Date.now(), allowExpi
     try {
       downloadUrl = new URL(String(attachment?.download_link || ''));
     } catch {
-      throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
+      throw serviceError('invalid_chatgpt_attachment', 422, {
+        file_index: index,
+        failed_rules: ['download_link_url']
+      });
     }
     const expiresAt = Date.parse(downloadUrl.searchParams.get('se') || '');
     const signedReadUrl = downloadUrl.searchParams.get('sp') === 'r' &&
       downloadUrl.searchParams.get('sr') === 'b' &&
       Boolean(downloadUrl.searchParams.get('sv')) &&
       Boolean(downloadUrl.searchParams.get('sig'));
-    if (
-      !/^file-[a-zA-Z0-9_-]{8,200}$/.test(id) ||
-      String(attachment?.mime_type || '').split(';')[0].trim().toLowerCase() !== 'video/mp4' ||
-      downloadUrl.protocol !== 'https:' ||
-      downloadUrl.hostname !== CHATGPT_FILE_HOST ||
-      downloadUrl.port ||
-      downloadUrl.username ||
-      downloadUrl.password ||
-      downloadUrl.hash ||
-      downloadUrl.pathname !== `/${id}` ||
-      !signedReadUrl ||
-      !Number.isFinite(expiresAt) ||
-      (!allowExpired && (expiresAt <= currentTime || expiresAt > currentTime + MAX_CHATGPT_URL_TTL_MS))
-    ) {
-      throw serviceError('invalid_chatgpt_attachment', 422, { file_index: index });
+    const failedRules = [];
+    if (!/^file-[a-zA-Z0-9_-]{8,200}$/.test(id)) failedRules.push('id_format');
+    if (String(attachment?.mime_type || '').split(';')[0].trim().toLowerCase() !== 'video/mp4') {
+      failedRules.push('mime_type');
+    }
+    if (downloadUrl.protocol !== 'https:') failedRules.push('download_link_protocol');
+    if (downloadUrl.hostname !== CHATGPT_FILE_HOST) failedRules.push('download_link_host');
+    if (downloadUrl.port || downloadUrl.username || downloadUrl.password || downloadUrl.hash) {
+      failedRules.push('download_link_authority_or_fragment');
+    }
+    if (downloadUrl.pathname !== `/${id}`) failedRules.push('download_link_path');
+    if (!signedReadUrl) failedRules.push('download_link_signature');
+    if (!Number.isFinite(expiresAt)) failedRules.push('download_link_expiry');
+    else if (!allowExpired && expiresAt <= currentTime) failedRules.push('download_link_expired');
+    if (failedRules.length) {
+      throw serviceError('invalid_chatgpt_attachment', 422, {
+        file_index: index,
+        failed_rules: failedRules
+      });
     }
     return { id, fileName, downloadUrl: downloadUrl.toString() };
   });
