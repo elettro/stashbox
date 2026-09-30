@@ -22,6 +22,32 @@ function serviceError(message, statusCode = 400, details) {
   return error;
 }
 
+function attachPublishDiagnostic(error, stage, category, extra = {}) {
+  const failure = error instanceof Error ? error : new Error('publish_dependency_failed');
+  const previousDetails = failure.details && typeof failure.details === 'object'
+    ? failure.details
+    : {};
+  const rawCode = String(failure.code || failure.message || failure.name || '');
+  const safeCode = /^[a-zA-Z0-9_.-]{1,100}$/.test(rawCode) ? rawCode : '';
+  const upstreamStatus = Number.isInteger(extra.upstreamStatus)
+    ? extra.upstreamStatus
+    : previousDetails.upstream_status;
+  failure.details = {
+    ...previousDetails,
+    diagnostic: {
+      stage,
+      category,
+      dependency: extra.dependency,
+      ...(safeCode ? { internal_error_code: safeCode } : {}),
+      ...(Number.isInteger(upstreamStatus) ? { upstream_status: upstreamStatus } : {}),
+      ...(previousDetails.provider_error_code
+        ? { provider_error_code: previousDetails.provider_error_code }
+        : {})
+    }
+  };
+  return failure;
+}
+
 function getHeader(event, name) {
   const target = String(name).toLowerCase();
   for (const [key, value] of Object.entries(event?.headers || {})) {
@@ -173,10 +199,13 @@ async function refreshAccessToken({ fetchImpl, config, tokens, now }) {
   const payload = await response.json();
 
   if (!response.ok || !payload.access_token) {
-    throw serviceError(
-      payload?.error_description || payload?.error || 'youtube_token_refresh_failed',
-      502
-    );
+    const providerErrorCode = String(payload?.error || '');
+    throw serviceError('youtube_token_refresh_failed', 502, {
+      upstream_status: response.status,
+      ...(/^[a-zA-Z0-9_.-]{1,100}$/.test(providerErrorCode)
+        ? { provider_error_code: providerErrorCode }
+        : {})
+    });
   }
 
   return {
@@ -284,19 +313,44 @@ export function createYoutubePublishService({
   }
 
   async function getAccessContext(config) {
-    let tokens = await loadTokens();
+    let tokens;
+    try {
+      tokens = await loadTokens();
+    } catch (error) {
+      throw attachPublishDiagnostic(error, 'youtube_credentials', 'credential_read_failed', {
+        dependency: 'secrets_manager'
+      });
+    }
     if (!tokens.refresh_token || !tokens.channel_id) {
-      throw serviceError('youtube_not_connected', 409);
+      throw serviceError('youtube_not_connected', 409, {
+        diagnostic: {
+          stage: 'youtube_credentials',
+          category: 'credentials_missing',
+          dependency: 'youtube_oauth'
+        }
+      });
     }
 
     if (!accessTokenStillValid(tokens, now())) {
-      tokens = await refreshAccessToken({
-        fetchImpl,
-        config,
-        tokens,
-        now: now()
-      });
-      await secretStore.write(tokenSecretId, tokens);
+      try {
+        tokens = await refreshAccessToken({
+          fetchImpl,
+          config,
+          tokens,
+          now: now()
+        });
+      } catch (error) {
+        throw attachPublishDiagnostic(error, 'youtube_credentials', 'oauth_token_refresh_failed', {
+          dependency: 'google_oauth'
+        });
+      }
+      try {
+        await secretStore.write(tokenSecretId, tokens);
+      } catch (error) {
+        throw attachPublishDiagnostic(error, 'youtube_credentials', 'refreshed_token_persist_failed', {
+          dependency: 'secrets_manager'
+        });
+      }
     }
 
     return tokens;
@@ -331,12 +385,26 @@ export function createYoutubePublishService({
     },
 
     async publish(event) {
-      const config = await loadConfig();
+      let config;
+      try {
+        config = await loadConfig();
+      } catch (error) {
+        throw attachPublishDiagnostic(error, 'youtube_credentials', 'credential_config_read_failed', {
+          dependency: 'secrets_manager'
+        });
+      }
       assertAdmin(event, config);
       const body = parseBody(event);
       const objectKey = assertStagingObjectKey(body.object_key);
       const metadata = validatePublishMetadata(body);
-      const object = await stagingStore.head(objectKey);
+      let object;
+      try {
+        object = await stagingStore.head(objectKey);
+      } catch (error) {
+        throw attachPublishDiagnostic(error, 'media_object_lookup', 'staging_object_head_failed', {
+          dependency: 's3'
+        });
+      }
       const contentType = normalizeContentType(object.ContentType);
       const contentLength = Number(object.ContentLength || 0);
       const expectedSize = Number(object.Metadata?.expected_size_bytes || contentLength);
