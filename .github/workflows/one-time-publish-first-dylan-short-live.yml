@@ -1,10 +1,6 @@
 name: Publish First Dylan Short Live
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/one-time-publish-first-dylan-short-live.yml'
   workflow_dispatch:
 
 permissions:
@@ -113,7 +109,7 @@ jobs:
               }
             }' > /tmp/youtube-metadata.json
 
-          INIT_HTTP=$(curl --silent --show-error --max-time 60             -D /tmp/init.headers -o /tmp/init.body -w '%{http_code}'             -X POST             'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status,recordingDetails&notifySubscribers=false'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H 'Content-Type: application/json; charset=utf-8'             -H "X-Upload-Content-Length: $ACTUAL_SIZE"             -H 'X-Upload-Content-Type: video/mp4'             --data-binary @/tmp/youtube-metadata.json)
+          INIT_HTTP=$(curl --silent --show-error --max-time 60             -D /tmp/init.headers -o /tmp/init.body -w '%{http_code}'             -X POST             'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status,recordingDetails&notifySubscribers=true'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H 'Content-Type: application/json; charset=utf-8'             -H "X-Upload-Content-Length: $ACTUAL_SIZE"             -H 'X-Upload-Content-Type: video/mp4'             --data-binary @/tmp/youtube-metadata.json)
 
           test "$INIT_HTTP" = "200"
           SESSION_URL=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]+:[[:space:]]*/,""); sub(/\r$/,""); print; exit}' /tmp/init.headers)
@@ -169,7 +165,7 @@ jobs:
               size_bytes:$size_bytes,
               title:$title,
               privacy_status:"public",
-              notify_subscribers:false,
+              notify_subscribers:true,
               made_for_kids:false,
               contains_synthetic_media:false,
               video_id:$video_id,
