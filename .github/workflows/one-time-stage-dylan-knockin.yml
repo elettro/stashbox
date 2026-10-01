@@ -1,0 +1,100 @@
+name: One Time Stage Dylan Knockin Clip
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-stage-dylan-knockin.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      FILE_NAME: 260927-stashbox-does-dylan-knocking-on-heavens-door-9x16-01.mp4
+      FILE_SIZE: '29272215'
+      TITLE: "Knockin’ on Heaven’s Door LIVE | Stashbox Does Dylan #Shorts"
+      ASPECT_RATIO: '9:16'
+
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create protected presigned upload
+        id: presign
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SocialApiDevBaseUrl'].OutputValue" --output text)
+          CONFIG_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/config.json
+          ADMIN_TOKEN=$(jq -r '.admin_token // empty' /tmp/config.json)
+          test -n "$ADMIN_TOKEN"
+
+          jq -n             --arg file_name "$FILE_NAME"             --arg content_type "video/mp4"             --argjson size_bytes "$FILE_SIZE"             --arg title "$TITLE"             --arg aspect_ratio "$ASPECT_RATIO"             '{file_name:$file_name,content_type:$content_type,size_bytes:$size_bytes,title:$title,aspect_ratio:$aspect_ratio}'             > /tmp/request.json
+
+          HTTP=$(curl --silent --show-error --max-time 60             -o /tmp/presign.json -w '%{http_code}'             -X POST "$BASE_URL/social/uploads/imports/presign"             -H "x-admin-token: $ADMIN_TOKEN"             -H 'Content-Type: application/json'             --data-binary @/tmp/request.json)
+
+          test "$HTTP" = "201"
+          jq -e '.import_id and .upload_url and .required_headers' /tmp/presign.json >/dev/null
+          jq '{import_id,upload_url,upload_method,required_headers,expires_in_seconds,object_key,default_title,aspect_ratio}' /tmp/presign.json > /tmp/upload.json
+
+          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
+          echo "import_id=$(jq -r '.import_id' /tmp/presign.json)" >> "$GITHUB_OUTPUT"
+          echo "admin_token=$ADMIN_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload presign receipt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dylan-knockin-presign
+          path: /tmp/upload.json
+          retention-days: 1
+
+      - name: Wait for video upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SocialPublishBucketName'].OutputValue" --output text)
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            BUCKET="stashbox-social-publish-656260749296-us-east-1"
+          fi
+          OBJECT_KEY=$(jq -r '.object_key' /tmp/presign.json)
+          for i in $(seq 1 72); do
+            if aws s3api head-object --bucket "$BUCKET" --key "$OBJECT_KEY" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for uploaded video" >&2
+          exit 1
+
+      - name: Complete Content Review import
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="${{ steps.presign.outputs.base_url }}"
+          IMPORT_ID="${{ steps.presign.outputs.import_id }}"
+          ADMIN_TOKEN="${{ steps.presign.outputs.admin_token }}"
+
+          jq -n --arg title "$TITLE" --arg aspect_ratio "$ASPECT_RATIO"             '{title:$title,aspect_ratio:$aspect_ratio}' > /tmp/complete-request.json
+
+          HTTP=$(curl --silent --show-error --max-time 60             -o /tmp/complete.json -w '%{http_code}'             -X POST "$BASE_URL/social/uploads/imports/$IMPORT_ID/complete"             -H "x-admin-token: $ADMIN_TOKEN"             -H 'Content-Type: application/json'             --data-binary @/tmp/complete-request.json)
+
+          test "$HTTP" = "201"
+          jq -e '.review_item.status == "in_review"' /tmp/complete.json >/dev/null
+
+      - name: Upload completion receipt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dylan-knockin-complete
+          path: /tmp/complete.json
+          retention-days: 7
