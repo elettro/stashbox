@@ -106,7 +106,7 @@ jobs:
               status:{
                 privacyStatus:"public",
                 selfDeclaredMadeForKids:false,
-                containsSyntheticMedia:false
+                containsSyntheticMedia:true
               },
               recordingDetails:{
                 recordingDate:$recording_date
