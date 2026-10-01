@@ -1,0 +1,185 @@
+name: Publish First Dylan Short Live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-publish-first-dylan-short-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: stashbox-social-api-dev
+      EXPECTED_CHANNEL_ID: UC6C6Z_erONmKW67pF5AyYkA
+      SOURCE_FOLDER_URL: https://www.dropbox.com/scl/fo/3bupmkua8x7lxrxrd93r3/ACGxRK3PHQ6E0H6-t-AM8PI?rlkey=kdt2nntlhj5mmby0lzedzptr8&dl=1
+      FILE_NAME: 260927-stashbox-does-dylan-cold-irons-bound-9x16-01-v2.mp4
+      EXPECTED_SIZE: '37643471'
+      TITLE: "Cold Irons Bound LIVE | Stashbox Does Dylan #Shorts"
+      DESCRIPTION: |-
+        Stashbox Does Dylan performing "Cold Irons Bound" live in South Florida.
+
+        Stashbox.com
+
+        #Stashbox #StashboxDoesDylan #BobDylan #ColdIronsBound #Shorts
+      PLAYLIST_ID: PLYQleZVJh2Jo
+      RECORDING_DATE: '2026-09-27'
+
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read YouTube OAuth configuration and refresh token
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthConfigSecretArn'].OutputValue" --output text)
+          TOKEN_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='YoutubeOAuthTokenSecretArn'].OutputValue" --output text)
+          aws secretsmanager get-secret-value --secret-id "$CONFIG_SECRET" --query SecretString --output text > /tmp/config.json
+          aws secretsmanager get-secret-value --secret-id "$TOKEN_SECRET" --query SecretString --output text > /tmp/tokens.json
+
+          CLIENT_ID=$(jq -r '.client_id // empty' /tmp/config.json)
+          CLIENT_SECRET=$(jq -r '.client_secret // empty' /tmp/config.json)
+          REFRESH_TOKEN=$(jq -r '.refresh_token // empty' /tmp/tokens.json)
+          test -n "$CLIENT_ID"
+          test -n "$CLIENT_SECRET"
+          test -n "$REFRESH_TOKEN"
+
+          TOKEN_HTTP=$(curl --silent --show-error --max-time 60             -o /tmp/refresh.json -w '%{http_code}'             -X POST 'https://oauth2.googleapis.com/token'             -H 'Content-Type: application/x-www-form-urlencoded'             --data-urlencode "client_id=$CLIENT_ID"             --data-urlencode "client_secret=$CLIENT_SECRET"             --data-urlencode "refresh_token=$REFRESH_TOKEN"             --data-urlencode 'grant_type=refresh_token')
+
+          test "$TOKEN_HTTP" = "200"
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' /tmp/refresh.json)
+          test -n "$ACCESS_TOKEN"
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "ACCESS_TOKEN=$ACCESS_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Verify live connected YouTube channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP=$(curl --silent --show-error --max-time 60             -H "Authorization: Bearer $ACCESS_TOKEN"             -o /tmp/channel.json -w '%{http_code}'             --get 'https://www.googleapis.com/youtube/v3/channels'             --data-urlencode 'part=id,snippet'             --data-urlencode 'mine=true')
+          test "$HTTP" = "200"
+
+          CHANNEL_ID=$(jq -r '.items[0].id // empty' /tmp/channel.json)
+          CHANNEL_NAME=$(jq -r '.items[0].snippet.title // empty' /tmp/channel.json)
+          test "$CHANNEL_ID" = "$EXPECTED_CHANNEL_ID"
+          test -n "$CHANNEL_NAME"
+
+          echo "CHANNEL_ID=$CHANNEL_ID" >> "$GITHUB_ENV"
+          echo "CHANNEL_NAME=$CHANNEL_NAME" >> "$GITHUB_ENV"
+
+      - name: Download exact V2 source from approved Dropbox batch folder
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --max-time 900             "$SOURCE_FOLDER_URL" -o /tmp/stashbox-batch.zip
+
+          ENTRY=$(unzip -Z1 /tmp/stashbox-batch.zip | awk -v f="$FILE_NAME" 'BEGIN{IGNORECASE=0} $0==f || $0~("/" f "$"){print; exit}')
+          test -n "$ENTRY"
+          unzip -p /tmp/stashbox-batch.zip "$ENTRY" > /tmp/video.mp4
+
+          ACTUAL_SIZE=$(stat -c '%s' /tmp/video.mp4)
+          test "$ACTUAL_SIZE" = "$EXPECTED_SIZE"
+          echo "ACTUAL_SIZE=$ACTUAL_SIZE" >> "$GITHUB_ENV"
+
+      - name: Publish video publicly to YouTube
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          jq -n             --arg title "$TITLE"             --arg description "$DESCRIPTION"             --arg recording_date "$RECORDING_DATE"             '{
+              snippet:{
+                title:$title,
+                description:$description,
+                tags:["Stashbox","Stashbox Does Dylan","Bob Dylan","Cold Irons Bound","Bob Dylan tribute","live music","South Florida","Shorts"],
+                categoryId:"10"
+              },
+              status:{
+                privacyStatus:"public",
+                selfDeclaredMadeForKids:false,
+                containsSyntheticMedia:false
+              },
+              recordingDetails:{
+                recordingDate:$recording_date
+              }
+            }' > /tmp/youtube-metadata.json
+
+          INIT_HTTP=$(curl --silent --show-error --max-time 60             -D /tmp/init.headers -o /tmp/init.body -w '%{http_code}'             -X POST             'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status,recordingDetails&notifySubscribers=false'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H 'Content-Type: application/json; charset=utf-8'             -H "X-Upload-Content-Length: $ACTUAL_SIZE"             -H 'X-Upload-Content-Type: video/mp4'             --data-binary @/tmp/youtube-metadata.json)
+
+          test "$INIT_HTTP" = "200"
+          SESSION_URL=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]+:[[:space:]]*/,""); sub(/\r$/,""); print; exit}' /tmp/init.headers)
+          test -n "$SESSION_URL"
+          echo "::add-mask::$SESSION_URL"
+
+          UPLOAD_HTTP=$(curl --silent --show-error --max-time 900             -o /tmp/upload.json -w '%{http_code}'             -X PUT "$SESSION_URL"             -H 'Content-Type: video/mp4'             -H "Content-Length: $ACTUAL_SIZE"             --data-binary @/tmp/video.mp4)
+
+          if [ "$UPLOAD_HTTP" != "200" ] && [ "$UPLOAD_HTTP" != "201" ]; then
+            cat /tmp/upload.json
+            exit 1
+          fi
+
+          VIDEO_ID=$(jq -r '.id // empty' /tmp/upload.json)
+          PRIVACY=$(jq -r '.status.privacyStatus // empty' /tmp/upload.json)
+          test -n "$VIDEO_ID"
+          test "$PRIVACY" = "public"
+
+          echo "VIDEO_ID=$VIDEO_ID" >> "$GITHUB_ENV"
+          echo "YOUTUBE_URL=https://www.youtube.com/watch?v=$VIDEO_ID" >> "$GITHUB_ENV"
+
+      - name: Add published Short to Stashbox video library playlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n             --arg playlist_id "$PLAYLIST_ID"             --arg video_id "$VIDEO_ID"             '{snippet:{playlistId:$playlist_id,resourceId:{kind:"youtube#video",videoId:$video_id}}}'             > /tmp/playlist-body.json
+
+          PLAYLIST_HTTP=$(curl --silent --show-error --max-time 60             -o /tmp/playlist.json -w '%{http_code}'             -X POST 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H 'Content-Type: application/json'             --data-binary @/tmp/playlist-body.json)
+
+          if [ "$PLAYLIST_HTTP" = "200" ]; then
+            echo "PLAYLIST_STATUS=added" >> "$GITHUB_ENV"
+          else
+            echo "PLAYLIST_STATUS=not_added" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify public YouTube result
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIFY_HTTP=$(curl --silent --show-error --max-time 60             -H "Authorization: Bearer $ACCESS_TOKEN"             -o /tmp/verify.json -w '%{http_code}'             --get 'https://www.googleapis.com/youtube/v3/videos'             --data-urlencode 'part=id,snippet,status'             --data-urlencode "id=$VIDEO_ID")
+
+          test "$VERIFY_HTTP" = "200"
+          test "$(jq -r '.items[0].id // empty' /tmp/verify.json)" = "$VIDEO_ID"
+          test "$(jq -r '.items[0].snippet.channelId // empty' /tmp/verify.json)" = "$EXPECTED_CHANNEL_ID"
+          test "$(jq -r '.items[0].status.privacyStatus // empty' /tmp/verify.json)" = "public"
+
+          jq -n             --arg status "published_public"             --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"             --arg channel_id "$CHANNEL_ID"             --arg channel_name "$CHANNEL_NAME"             --arg file_name "$FILE_NAME"             --arg title "$TITLE"             --arg video_id "$VIDEO_ID"             --arg youtube_url "$YOUTUBE_URL"             --arg playlist_status "$PLAYLIST_STATUS"             --argjson size_bytes "$ACTUAL_SIZE"             '{
+              status:$status,
+              recorded_at:$recorded_at,
+              channel_id:$channel_id,
+              channel_name:$channel_name,
+              file_name:$file_name,
+              size_bytes:$size_bytes,
+              title:$title,
+              privacy_status:"public",
+              notify_subscribers:false,
+              made_for_kids:false,
+              contains_synthetic_media:false,
+              video_id:$video_id,
+              youtube_url:$youtube_url,
+              playlist_status:$playlist_status
+            }' > /tmp/publish-report.json
+
+      - name: Upload publication receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-dylan-short-publication
+          path: /tmp/publish-report.json
+          retention-days: 7
