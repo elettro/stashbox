@@ -1,0 +1,29 @@
+name: Cancel Accidental Duplicate Dylan Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-cancel-duplicate-dylan-publish.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel accidental duplicate publish run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: '36895809200'
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/cancel"
