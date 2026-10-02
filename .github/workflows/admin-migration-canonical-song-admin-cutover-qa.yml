@@ -1,0 +1,88 @@
+name: Admin Migration Canonical Song Admin Cutover QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/admin-env.js'
+      - 'radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs'
+      - 'radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs'
+      - '.github/workflows/admin-migration-canonical-song-admin-cutover-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/admin-env.js'
+      - 'radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs'
+      - 'radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs'
+      - '.github/workflows/admin-migration-canonical-song-admin-cutover-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-song-admin-cutover-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check canonical Admin cutover package
+        run: |
+          node --check radio-admin/staging/admin-env.js
+          node --check radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs
+          node --check radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs
+
+      - name: Assert central canonical PROD write lock is closed
+        run: |
+          grep -q 'phase4ProdReadApproved: true' radio-admin/staging/admin-env.js
+          grep -q 'productionWritesApproved: false' radio-admin/staging/admin-env.js
+          grep -q 'stagingProdWritesAllowed: false' radio-admin/staging/admin-env.js
+          grep -q 'writesAllowedInStaging: false' radio-admin/staging/admin-env.js
+          grep -q 'assertCanonicalSongWriteApproved' radio-admin/staging/admin-env.js
+          grep -q 'prodSongCountValidated: 84' radio-admin/staging/admin-env.js
+          grep -q 'devSongCountValidated: 84' radio-admin/staging/admin-env.js
+
+      - name: Apply Song CMS cutover only inside CI workspace
+        run: node radio-admin/staging/cutover/apply-canonical-song-admin-cutover.mjs --apply
+
+      - name: Assert transformed Song CMS targets canonical PROD and PROD media only
+        run: |
+          for file in radio-admin/staging/songs/songs.js radio-admin/staging/songs/media.js radio-admin/staging/songs/artwork.js; do
+            if grep -q "getEnvironment('dev')" "$file"; then
+              echo "DEV environment remains in canonical Song CMS file: $file"
+              exit 1
+            fi
+            grep -q 'getCanonicalSongEnvironment' "$file"
+          done
+          grep -q "assertCanonicalSongWriteApproved('songs')" radio-admin/staging/songs/songs.js
+          grep -q 'assertCanonicalSongWriteApproved' radio-admin/staging/songs/media.js
+          grep -q "assertCanonicalSongWriteApproved('song-artwork')" radio-admin/staging/songs/artwork.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/media.js
+          grep -q 'stashbox-radio-media-prod-us-east-1' radio-admin/staging/songs/artwork.js
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' radio-admin/staging/songs/artwork.js radio-admin/staging/songs/index.html radio-admin/staging/songs/media.js radio-admin/staging/songs/songs.js | sort)"
+          test "$changed" = "$expected"
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/canonical-admin-http.log 2>&1 &
+          for i in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/radio-admin/staging/songs/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/canonical-admin-http.log
+          exit 1
+
+      - name: Verify PROD reads work while all canonical Song CMS writes remain blocked
+        run: node radio-admin/staging/tests/canonical-song-admin-cutover-smoke.mjs

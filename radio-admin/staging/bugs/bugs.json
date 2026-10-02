@@ -1,0 +1,596 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-19T17:25:00-04:00",
+  "source_of_truth": "radio/docs/bug-fix/",
+  "workflow": "radio/docs/bug-fix/AGENT_WORKFLOW.md",
+  "bugs": [
+    {
+      "id": "SR-BUG-0001",
+      "title": "Desktop VEC video flickers to song artwork during unstable clips",
+      "status": "Fixed",
+      "verification": "Pending",
+      "severity": "High",
+      "area": "VEC Player",
+      "environment": "DEV V2",
+      "reported_at": "2026-08-09",
+      "fixed_at": "2026-08-09",
+      "verified_at": null,
+      "symptom": "Some desktop VEC clips flash between video and the song artwork underneath during unstable playback or clip handoff.",
+      "affected_examples": [
+        "Space Jam",
+        "Me on a bed"
+      ],
+      "working_comparisons": [
+        "Handy Dandy Sandy",
+        "Two other tested songs without flicker"
+      ],
+      "root_cause": "Video ownership could become temporarily ambiguous during startup, stall recovery, or handoff, exposing the desktop artwork background before a replacement video was stably playing.",
+      "fix_summary": "Keep the desktop artwork background suppressed for the full period the video system owns the stage, including recovery and handoff, and reassert the lock against competing style mutations.",
+      "files_changed": [
+        "radio/dev/v2/v2-media-transition-guard.js"
+      ],
+      "commits": [
+        "3f7a43f9ee7f3056e2a35c185afe8ae34ccec885"
+      ],
+      "related_bugs": [
+        "SR-BUG-0009",
+        "SR-BUG-0011"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0001.md",
+      "repair_playbook": "radio/docs/bug-fix/repairs/VEC_REPAIRS.md",
+      "future_repair": "Inspect desktop video ownership, desktopVideoArtworkLock, watchdog state, and stage background mutations before changing a song recipe or special-casing an asset."
+    },
+    {
+      "id": "SR-BUG-0002",
+      "title": "Full song titles truncate with ellipses in media players",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Player",
+      "environment": "Both",
+      "reported_at": "2026-07-24",
+      "fixed_at": "2026-08-17",
+      "verified_at": "2026-08-18",
+      "symptom": "Long song titles are shortened with ellipses instead of remaining fully visible.",
+      "affected_examples": [
+        "Media player layouts with long song titles"
+      ],
+      "working_comparisons": [
+        "Short song titles"
+      ],
+      "root_cause": "Not recorded during the original repair. Historical backfill.",
+      "fix_summary": "User confirmed on 2026-08-17 that the song-title truncation issue is fixed.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0002.md",
+      "repair_playbook": null,
+      "future_repair": "If truncation returns, inspect title container width, overflow, white-space, line-clamp, font sizing, and responsive breakpoints. Verify with the longest known titles on desktop and mobile."
+    },
+    {
+      "id": "SR-BUG-0003",
+      "title": "VEC badge duplicates and pushes controls down",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "Medium",
+      "area": "VEC",
+      "environment": "DEV",
+      "reported_at": "2026-07-25",
+      "fixed_at": "2026-08-17",
+      "verified_at": "2026-08-18",
+      "symptom": "The VEC label in the upper-left viewer area duplicates repeatedly and pushes adjacent controls downward.",
+      "affected_examples": [
+        "VEC viewer upper-left badge/control region"
+      ],
+      "working_comparisons": [
+        "Initial viewer render before duplication begins"
+      ],
+      "root_cause": "Not recorded during the original repair. Historical backfill suggested a render/update path appended a new badge instead of reusing or replacing the existing node.",
+      "fix_summary": "User confirmed on 2026-08-17 that the VEC badge duplication issue is fixed.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0003.md",
+      "repair_playbook": null,
+      "future_repair": "If the issue returns, search every VEC badge creation path and make mounting idempotent. Test repeated song and visual changes without DOM growth."
+    },
+    {
+      "id": "SR-BUG-0004",
+      "title": "Notification feed remains stale for more than a day",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Notifications",
+      "environment": "Both",
+      "reported_at": "2026-07-25",
+      "fixed_at": "2026-08-17",
+      "verified_at": "2026-08-18",
+      "symptom": "The notification feed continues showing the same notification set instead of reflecting newer activity.",
+      "affected_examples": [
+        "Notification feed observed on 2026-07-25"
+      ],
+      "working_comparisons": [],
+      "root_cause": "Not recorded during the original repair. Historical backfill awaited diagnosis of generation, persistence, API freshness, cache behavior, and client refresh logic.",
+      "fix_summary": "User confirmed on 2026-08-17 that the stale notification-feed issue is fixed.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0004.md",
+      "repair_playbook": null,
+      "future_repair": "If the issue returns, compare newest notification rows in storage with API output and rendered client state. Check timestamps, cache headers, polling/refresh logic, and generation jobs before changing UI rendering."
+    },
+    {
+      "id": "SR-BUG-0005",
+      "title": "Share events do not increment retained share counts",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Dashboard",
+      "environment": "Both",
+      "reported_at": "2026-06",
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
+      "symptom": "Sharing a song does not reliably increase the retained share statistics.",
+      "affected_examples": [
+        "Song share tracking during June 2026 stats work"
+      ],
+      "working_comparisons": [],
+      "root_cause": "Unknown. Historical backfill awaiting inspection of client event emission, API handling, persistence, and aggregation.",
+      "fix_summary": "No discrete fixing commit is documented for this historical backfill. The user marked the current behavior verified and directed closure on 2026-08-19.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [
+        "SR-BUG-0006"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0005.md",
+      "repair_playbook": null,
+      "future_repair": "If retained share counts fail again, reopen SR-BUG-0005 and trace one share end to end using a unique song and session. Confirm the browser event, API request and response, database write, aggregation, and dashboard readback. Guard against duplicate counting from client retries."
+    },
+    {
+      "id": "SR-BUG-0006",
+      "title": "Plays do not persist and 10-second play events are not recorded",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Dashboard / Analytics",
+      "environment": "DEV V2 Mobile + Desktop",
+      "reported_at": "2026-06",
+      "fixed_at": "2026-08-18",
+      "verified_at": "2026-08-18",
+      "symptom": "Song plays were not reliably retained, including the intended qualifying play event after 10 seconds of actual listening.",
+      "affected_examples": [
+        "DEV V2 mobile qualified play tracking",
+        "DEV V2 clean desktop qualified play tracking"
+      ],
+      "working_comparisons": [
+        "Exactly one total_plays increment after 10 seconds of actual listening"
+      ],
+      "root_cause": "The active V2 runtimes had no deterministic single owner responsible for accumulating 10 seconds of real listening and persisting exactly one play_start event.",
+      "fix_summary": "A dedicated v2-play-tracker.js now owns the 10-second threshold, pauses timing during pause/buffering/seeking, prevents repeat writes after qualification, loads directly on mobile and clean desktop, parses persisted total_plays, updates visible play-count nodes, and is the only active V2 play writer. Live workflow run 32187950914 verified exact +1 persistence on both mobile and desktop plus pause/resume and forward-seek protection.",
+      "files_changed": [
+        "radio/dev/v2/v2-play-tracker.js",
+        "radio/dev/v2/index.html",
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/v2-mobile-audio-stream-preference.js",
+        "radio/dev/v2/desktop/desktop-video-stall-watchdog.js",
+        "radio/dev/v2/v2-spacebar-transport.js",
+        "radio-api/scripts/smoke-test-v2-qualified-plays-live.mjs",
+        ".github/workflows/v2-qualified-plays-live.yml",
+        "radio/docs/ci/v2-qualified-plays-live.json"
+      ],
+      "commits": [
+        "859e7e578128746061e2e1665b1a46742e776775",
+        "0c2d7e76a1c93886ea4acf5ebe19aa5840bce907",
+        "990542a0bb37ecde460c464263583d452d22eca6",
+        "403b8c913904e981066464263583d452d22eca6",
+        "573ac94f0fc0f4f19c832a2a8f88be7dd2a97e9a",
+        "01237875126c00de65ad3faf3e1e701a52c6ef00",
+        "80a9f3a04e63fe9ec73e0518d26fd17d0db847f4",
+        "ecb36838cd01eccfd5eb8f6146d6ffa32353d564",
+        "4ad3afb0d00e04037f40b6c2bb97422ab474e703",
+        "049c75aaf68f3ef6f7c987760e731e8bef56f2b5",
+        "e23ac3959137f1e8b14e54d40c38162821cd6f7c",
+        "4a47aad0a35851d6d0948215cb8fd73e2b1ddc68"
+      ],
+      "related_bugs": [
+        "SR-BUG-0005"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0006.md",
+      "repair_playbook": null,
+      "future_repair": "Do not add another play writer. Preserve the live exact +1 gate. Add server-side session idempotency only if ambiguous network-retry testing later exposes duplicate committed events."
+    },
+    {
+      "id": "SR-BUG-0007",
+      "title": "Ad video uploads are rejected by presign purpose validation",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Ads",
+      "environment": "DEV",
+      "reported_at": "2026-07",
+      "fixed_at": "2026-08-18",
+      "verified_at": "2026-08-18",
+      "symptom": "The Ads CMS could not upload MP4 ads because /admin/uploads/presign rejected purpose=ad_video.",
+      "affected_examples": [
+        "Ads CMS Phase III MP4 upload flow"
+      ],
+      "working_comparisons": [
+        "audio",
+        "artwork",
+        "visual_image",
+        "visual_clip"
+      ],
+      "root_cause": "The upload-purpose allowlist did not include the Ads CMS ad_video purpose.",
+      "fix_summary": "User confirmed on 2026-08-18 that this issue should be considered fixed. No additional technical implementation details are inferred.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0007.md",
+      "repair_playbook": null,
+      "future_repair": "If this returns, test MP4 presign, upload, persisted URL, and playback from the Ads CMS before changing unrelated upload paths."
+    },
+    {
+      "id": "SR-BUG-0008",
+      "title": "VEC reuses a subset and repeats assets before the pool is exhausted",
+      "status": "Closed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "VEC",
+      "environment": "DEV",
+      "reported_at": "2026-07-18",
+      "fixed_at": null,
+      "closed_at": "2026-08-17",
+      "verified_at": "2026-08-18",
+      "symptom": "The DEV VEC controller repeatedly selects from a smaller subset instead of consuming the full eligible pool, allowing repeats before unused assets play.",
+      "affected_examples": [
+        "DEV VEC controller reports from 2026-07-18 through 2026-07-25"
+      ],
+      "working_comparisons": [
+        "Full-pool exhaustion before replay"
+      ],
+      "root_cause": "Unknown. Historical backfill awaiting current controller inspection.",
+      "fix_summary": "No technical fix was recorded. User requested this issue be closed for now on 2026-08-17 and explicitly verified the closed/resolved disposition on 2026-08-18.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/closed/SR-BUG-0008.md",
+      "repair_playbook": null,
+      "future_repair": "If reopened, log complete eligibility and selection decisions. Verify pool construction, consumed-state lifetime, same-folder anti-repeat logic, and reset conditions."
+    },
+    {
+      "id": "SR-BUG-0009",
+      "title": "Wide desktop player selects square artwork instead of wide assets",
+      "status": "Closed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Player",
+      "environment": "DEV",
+      "reported_at": "2026-08-04",
+      "fixed_at": "2026-08-17",
+      "closed_at": "2026-08-17",
+      "verified_at": "2026-08-18",
+      "symptom": "A wide desktop player selects 1:1 artwork and heavily crops it instead of using an available 16:9 or 21:9 asset.",
+      "affected_examples": [
+        "Desktop player report from 2026-08-04"
+      ],
+      "working_comparisons": [
+        "Square artwork in square or narrow placements"
+      ],
+      "root_cause": "Not recorded during the original repair. Historical backfill awaited inspection of ratio selection, asset metadata, fallback order, and responsive breakpoints.",
+      "fix_summary": "User confirmed on 2026-08-17 that the wide desktop artwork selection issue is fixed. User then closed the issue on 2026-08-17.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [
+        "SR-BUG-0001",
+        "SR-BUG-0011"
+      ],
+      "record_path": "radio/docs/bug-fix/closed/SR-BUG-0009.md",
+      "repair_playbook": null,
+      "future_repair": "If the issue returns, inspect desktop ratio selection and metadata. Verify deterministic wide-first fallback with complete and partial ratio sets."
+    },
+    {
+      "id": "SR-BUG-0010",
+      "title": "Mobile admin navigation remains visible before hamburger activation",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "Medium",
+      "area": "Dashboard",
+      "environment": "DEV",
+      "reported_at": "2026-07-30",
+      "fixed_at": "2026-08-18",
+      "verified_at": "2026-08-18",
+      "symptom": "On the affected dashboard mobile layout, navigation items remained visible before the hamburger menu was opened.",
+      "affected_examples": [
+        "Dashboard mobile navigation report from 2026-07-30"
+      ],
+      "working_comparisons": [
+        "Current admin interface after subsequent layout changes"
+      ],
+      "root_cause": "Historical issue. The interface has since changed enough that the original state is no longer considered an active defect.",
+      "fix_summary": "Marked Fixed for now at the user's direction on 2026-08-18 because the interface changed and the original bug appears obsolete.",
+      "files_changed": [],
+      "commits": [],
+      "related_bugs": [],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0010.md",
+      "repair_playbook": null,
+      "future_repair": "If similar navigation leakage returns, inspect the current dashboard navigation implementation and responsive state rather than assuming the retired July 2026 cause."
+    },
+    {
+      "id": "SR-BUG-0011",
+      "title": "VEC media flickers, video fails to trigger, and player can freeze",
+      "status": "Fixed",
+      "verification": "Pending",
+      "severity": "Critical",
+      "area": "VEC Player",
+      "environment": "DEV V2 Mobile + Desktop",
+      "reported_at": "2026-08-11",
+      "fixed_at": "2026-08-19",
+      "verified_at": null,
+      "symptom": "The active VEC visual can freeze on a single frame while playback continues. The latest recurrence is on iPhone Safari mobile after three solid songs: artwork was initially missing, a video started, and the following video froze during its handoff on Girls on Bikes around 0:32 / 5:10.",
+      "affected_examples": [
+        "Post-closure mobile recurrence: Girls on Bikes froze around 0:32 / 5:10 on iPhone Safari after missing artwork, first video startup, and the next-video handoff",
+        "Post-continuity3: She's My Guru froze at ~0:48 on desktop",
+        "Live frameheartbeat1 reproduction: She's My Guru remained in TRANSITIONING at ~0:33 and ~0:59 with the same ended 10-second video, two played assets, and zero failed",
+        "Post-continuity2: Dirty Bird froze at ~0:30 on desktop",
+        "Post-continuity2: Right Between the Eyes froze at ~0:28 on desktop",
+        "Right Between the Eyes video froze at ~0:53 on 2026-08-18",
+        "Dirty Bird video froze at ~2:45 on 2026-08-19 while audio and controls continued",
+        "Where Next? first froze at ~2:40 on 2026-08-19; screenshot at 3:00/3:59 showed audio and interface continuing with the same frozen frame",
+        "Mr. Top Mi Up video froze at ~2:00 on 2026-08-19 during rollout of the continuity build",
+        "Firefox desktop missing graphics and videos on 2026-08-17"
+      ],
+      "working_comparisons": [
+        "Audio continues normally during the frozen video",
+        "Interface controls remain responsive during the frozen video",
+        "Normal pool exhaustion is designed to clear played state and reuse the eligible pool",
+        "Where Next? full-duration live run on continuity2 passed ~2:40, reached 3:54 with 16 played/0 failed assets, and auto-advanced with VEC active",
+        "Direct mobile comparison remained visually flawless beyond 3:35 while desktop continued to reproduce",
+        "Continuity3 live desktop check: Dirty Bird passed 0:30 and reached ~1:08 with seven assets played and zero failed",
+        "Continuity3 live desktop check: Right Between the Eyes passed 0:28 and reached ~0:31 with three assets played and zero failed",
+        "Continuity5 live desktop check: She's My Guru reached ~1:13 with six played assets, zero failed, and no stuck TRANSITIONING state",
+        "User continuity5 desktop test: one newly played song completed 100% with flowing VEC video",
+        "User continuity5 desktop test: older catalog song Do You Love Me? passed the 2:00 to 2:45 failure zone and completed 100% with smooth video",
+        "Immediately before the mobile recurrence, three consecutive songs completed with solid visual playback"
+      ],
+      "root_cause": "Live She's My Guru runs reproduced the desktop engine stuck in TRANSITIONING while audio continued. advance() held the serialized advancing lock while awaiting either the shared next-asset preload chain or a prepared video's play() promise. A slow preload could span sequential asset timeouts, while a prepared video could return a play promise that never settled. Lease and watchdog recovery calls then returned because advancing was already true, leaving the same ended video visible. Normal pool exhaustion is not the cause. The 2026-08-19 mobile recurrence is not yet proven to share this desktop cause. Its missing-artwork to video to frozen-next-video sequence requires inspection of the mobile transition lifecycle and iPhone Safari media state. The mobile artwork authority also cleared the stage while validating exact 9x16 artwork. The mobile motion runtime reused one video element across clip URLs and relied on timeupdate progress, which does not prove iPhone Safari is presenting new frames.",
+      "fix_summary": "Continuity5 removes the old current layer before every replacement start, caps transition preload waiting at 2.6 seconds, caps a prepared video's play promise at 1.6 seconds, and prevents abandoned preload work from reinserting stale nodes. Live verification reached ~1:13 on She's My Guru with six handoffs and zero failed assets. User verification included multiple complete desktop songs: one new song and Do You Love Me?, which passed the prior 2:00 to 2:45 failure zone and completed 100% smoothly. The user marked the repair verified and closed it on 2026-08-19. Mobile is unchanged. The later Girls on Bikes mobile freeze reopened the bug on 2026-08-19. The prior desktop verification remains historical evidence, but mobile is now active scope. Mobilecontinuity1 keeps provisional artwork visible, replaces the video element at every clip handoff, watches presented frames with requestVideoFrameCallback, and advances after 3.2 seconds without a new frame. The cache-busted build was published on 2026-08-19. Mobile user verification is pending.",
+      "files_changed": [
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-vec2.js",
+        "radio/dev/v2/desktop/desktop-stable.css",
+        "radio/dev/v2/desktop/desktop-audio-master.js",
+        "radio/dev/v2/desktop/desktop-video-stall-watchdog.js",
+        "radio/dev/v2/v2-mobile-vec-motion-override.js",
+        "radio/dev/v2/v2-mobile-vec-flicker-guard.js",
+        "radio/dev/v2/index.html"
+      ],
+      "commits": [
+        "1db4fb5fde9a6c121834eb43addc95f761da4a17",
+        "e504f797f6134c1123381312004bf666270d3861",
+        "b0a05b1e9927b5c3029270c9d6e57131fe69c3b9",
+        "ca278754e6ecb9157ea9ae658b29a41f3f30d65e",
+        "3462fdb92bd75c10b97c2f4908ec9715aa54ccf0",
+        "d9d49fe5672521e12f4ca397c1df1c93d47cf5db",
+        "ff54fa309804383312e90a2bbb3946d481059c6b",
+        "8cceb1930ba6a6c073ce314d9d9899bca5e13d94",
+        "a13ae746a19f45ecbc7285c861a7502e281701d9",
+        "e4c8be5f58f7ae6b17b18a7e3f84db4b0f421e42",
+        "db68e14aca3b7bfc75d9535a1780e46ae851dd46",
+        "d85020c0a76f4b51e2ffab1892b6af4e4063fbb6",
+        "748e7f9b9713cbb9beaa38875cfb086f61bf061c",
+        "a680a6e243cd244b60843991a3deb603063fd971",
+        "e3b5fde73bc729f4501471f9b92fe48ef265e7ef",
+        "8b63a1ef1ec9d1715a33f42cd1d97a980efb7b5b",
+        "12f6c18296794c9747624f12d0e80c92055d3218",
+        "1798f3b6a98ebf9365f8d88d08bb59cfd571dfdd",
+        "7319b397ae724bb872de070afe6ea1dfaaf6c832",
+        "806b5818aeb78ee2dedc449262f0fd8475779295",
+        "ac16752daddc752804d7b929aff8f22dd9727134",
+        "7a2cd9a4a1ae3afdfa5e4136589e8ab36420b280",
+        "6d1cad31d23cce7247a65aa574df8bc96910135c"
+      ],
+      "related_bugs": [
+        "SR-BUG-0001",
+        "SR-BUG-0009"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0011.md",
+      "repair_playbook": null,
+      "future_repair": "Test at least four consecutive songs on iPhone Safari, prioritizing Girls on Bikes. Verify artwork remains visible before the first video, every next-video handoff produces moving frames, and any presentation stall advances within 3.2 seconds. If it returns, capture StashboxMobileVecVideoRuntime.state(), the active URL, videoTime, lastPresentedFrameAt, and lastPresentedMediaTime before changing the runtime.",
+      "reopened_at": "2026-08-19"
+    },
+    {
+      "id": "SR-BUG-0012",
+      "title": "Desktop clean runtime removes login and account interface",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Auth",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-18",
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
+      "symptom": "Desktop users lose the User ID/password login entry point and account/session interface after routing into the clean desktop runtime.",
+      "affected_examples": [
+        "DEV V2 desktop clean runtime",
+        "Desktop login/account entry point"
+      ],
+      "working_comparisons": [
+        "Standard V2 runtime with auth/session/profile stack"
+      ],
+      "root_cause": "The desktop clean runtime omitted both the .v2-header-actions mount point and the auth/session/profile scripts, so the login control had nowhere to mount and auth UI never initialized.",
+      "fix_summary": "Restored persistent desktop login/account and notification controls across clean-runtime boot and recovery rendering. The clean desktop page loads the auth/session/profile and notification runtimes, while desktop-shell-controls.js restores shell controls after direct #v2App child replacement without observing the media subtree. The user marked the repair verified and closed it on 2026-08-19.",
+      "files_changed": [
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-shell-controls.js"
+      ],
+      "commits": [
+        "8f46d70a6e0eb67f2c759979d4780f3140fdc042",
+        "38affbd8624ccd41eadf175fd617cb2fc24874eb",
+        "ce4e0e2c991f3e8471990a9f1a3e801a028b88a5"
+      ],
+      "related_bugs": [
+        "SR-BUG-0011",
+        "SR-BUG-0013"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0012.md",
+      "repair_playbook": null,
+      "future_repair": "If desktop login/account or notifications disappear again, reopen SR-BUG-0012 and inspect the clean desktop shell and recovery boundary first. Verify the routing target, header ownership, auth runtime, notification sheet runtime, and recovery rendering before changing Cognito or backend auth. Do not add a document-wide or VEC-subtree MutationObserver."
+    },
+    {
+      "id": "SR-BUG-0013",
+      "title": "Desktop login disappears after boot and notifications do not work",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Desktop Shell / Auth / Notifications",
+      "environment": "DEV V2 Desktop",
+      "reported_at": "2026-08-18",
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
+      "symptom": "On desktop, the Log In control briefly appears during initial paint and then disappears after the app finishes booting. The Notifications control is also nonfunctional.",
+      "affected_examples": [
+        "DEV V2 desktop header after full boot",
+        "Desktop notification bell"
+      ],
+      "working_comparisons": [
+        "Initial paint before recovery render"
+      ],
+      "root_cause": "The desktop clean runtime and recovery renderer both participate in header rendering. Recovery can replace #v2App after startup, discarding controls initialized earlier; notification behavior also depended on runtime wiring tied to controls inside the recoverable app container.",
+      "fix_summary": "Resolved by the persistent desktop shell repair associated with SR-BUG-0012. desktop-shell-controls.js restores Log In / Account and Notifications after recovery replaces the direct children of #v2App, while the clean desktop page loads the required auth and notification runtimes. The user marked this duplicate symptom record verified and closed it on 2026-08-19.",
+      "files_changed": [
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-shell-controls.js"
+      ],
+      "commits": [
+        "38affbd8624ccd41eadf175fd617cb2fc24874eb",
+        "ce4e0e2c991f3e8471990a9f1a3e801a028b88a5"
+      ],
+      "related_bugs": [
+        "SR-BUG-0012"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0013.md",
+      "repair_playbook": null,
+      "future_repair": "If desktop login/account or notifications disappear again, reopen SR-BUG-0013 or SR-BUG-0012 and inspect shell ownership and recovery rendering first. Verify full boot, auth sheet opening, account state, notification sheet opening, and live notification loading. Do not add a document-wide or VEC-subtree MutationObserver."
+    },
+    {
+      "id": "SR-BUG-0014",
+      "title": "Profile listening stats do not advance with desktop listening",
+      "status": "Fixed",
+      "verification": "Pending",
+      "severity": "High",
+      "area": "Profile / Analytics",
+      "environment": "DEV V2 Desktop + Profile",
+      "reported_at": "2026-08-19",
+      "fixed_at": "2026-08-19",
+      "verified_at": null,
+      "symptom": "Profile Songs Played remained stuck at 191 after additional logged-in desktop listening; Hours Listened could undercount because it uses the same authenticated history source.",
+      "affected_examples": [
+        "DEV V2 clean desktop logged-in listening",
+        "Profile Songs Played stuck at 191"
+      ],
+      "working_comparisons": [
+        "Favorites direct user_favorites count",
+        "After repair user observed Songs Played advance from 191 to 195"
+      ],
+      "root_cause": "Clean desktop public play qualification and authenticated profile history used separate persistence/detection paths. Public v2-play-tracker.js could qualify /radio/track plays while desktop did not reliably write matching user_listening_history rows. Profile stats also cached the first loaded stats object and did not automatically refetch.",
+      "fix_summary": "Profile stats now refetch on return/focus/visibility. Desktop authenticated history is bridged directly from the canonical stashbox:qualified-play event, preserving the same qualified song/session and writing /radio/me/history on finalize. The independent desktop history owner was removed and bridge sends were made session-independent.",
+      "files_changed": [
+        "radio/dev/v2/profile/profile-real-stats.js",
+        "radio/dev/v2/profile/index.html",
+        "radio/dev/v2/desktop/index.html",
+        "radio/dev/v2/desktop/desktop-profile-history-bridge.js"
+      ],
+      "commits": [
+        "ba7bf803318e9fdb2e02fe2fcff0576c085631ec",
+        "48a9104e063fe08513ae6dbf32a727d829577f21",
+        "98126660cdb24474a1bbba07f6d5db70ec1da0ac",
+        "1c24971f85b1a7c2b097748c8e7687895934c83c",
+        "d894f4b4d583f7ace63366f27fd36bdf7864504c",
+        "1bba63cd21cbe68879562e43e6dbffeb7b1a4c23",
+        "9a4250fe0cb4bd9acedf415385179c7a1681c1d6"
+      ],
+      "related_bugs": [
+        "SR-BUG-0006"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0014.md",
+      "repair_playbook": null,
+      "future_repair": "Confirm stashbox:qualified-play fires, then trace desktop-profile-history-bridge.js to /radio/me/history and /radio/me/profile-stats. Do not add a second play-threshold tracker. Hours Listened remains monitored because historical desktop gaps are not reconstructed."
+    },
+    {
+      "id": "SR-BUG-0015",
+      "title": "Profile song clicks return home instead of opening the selected song",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Profile / Player",
+      "environment": "DEV V2 Mobile + Desktop",
+      "reported_at": "2026-08-19",
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
+      "symptom": "Clicking songs from the listener Profile, including playlist items, returned to the Radio homepage instead of opening and starting the selected song. Playlist order was not preserved for subsequent playback.",
+      "affected_examples": [
+        "Profile Favorites song launch",
+        "Profile Listening History song launch",
+        "Profile saved playlist item launch"
+      ],
+      "working_comparisons": [
+        "Main Radio song cards open the full player directly"
+      ],
+      "root_cause": "Profile only wrote the legacy single-song handoff and navigated home. The existing v2-profile-queue.js consumer was not fed an ordered queue from Profile, and clean desktop did not load that consumer.",
+      "fix_summary": "Added a Profile capture-phase player handoff that writes the selected song and ordered visible library/playlist song keys to stashbox_v2_profile_queue_handoff, keeps destructive actions separate, and clears the legacy duplicate handoff. Clean desktop now loads v2-profile-queue.js; mobile already did. Playlist launches begin at the clicked item and queue subsequent playback in playlist order.",
+      "files_changed": [
+        "radio/dev/v2/profile/profile-player-handoff.js",
+        "radio/dev/v2/profile/index.html",
+        "radio/dev/v2/desktop/index.html"
+      ],
+      "commits": [
+        "70e6f66591a7875dafac018d62d214559bd7cf0d",
+        "b9f23fe4d8a7c3e445603cee853bd6f6fcc6f2e6",
+        "545071ea64c68dd3cb4d4f02692bec97335473e8"
+      ],
+      "related_bugs": [
+        "SR-BUG-0014"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0015.md",
+      "repair_playbook": null,
+      "future_repair": "Verify Profile writes stashbox_v2_profile_queue_handoff with the clicked song and ordered songKeys, then verify the active Radio runtime loads v2-profile-queue.js and can find the matching [data-song] card after catalog render."
+    },
+    {
+      "id": "SR-BUG-0016",
+      "title": "Fast login fails with missing USERNAME on mobile and desktop",
+      "status": "Fixed",
+      "verification": "Verified",
+      "severity": "High",
+      "area": "Auth / Login",
+      "environment": "DEV V2 Mobile + Desktop",
+      "reported_at": "2026-08-19",
+      "fixed_at": "2026-08-19",
+      "verified_at": "2026-08-19",
+      "symptom": "After the fast-login optimization, both mobile and desktop returned `Missing required parameter USERNAME` despite populated email and password fields.",
+      "affected_examples": [
+        "DEV V2 desktop login",
+        "DEV V2 mobile login"
+      ],
+      "working_comparisons": [
+        "Normal Cognito credential validation after the corrected request sequence"
+      ],
+      "root_cause": "The initial fast-login path prewarmed the login auth guard before the user's email/username was available. That anonymous guard request could fail with a missing USERNAME requirement even though the direct Cognito InitiateAuth payload already had the correct USERNAME/PASSWORD structure.",
+      "fix_summary": "Fast login now preloads only auth configuration while the user is typing. The login guard runs only on submit with the real email supplied as username and email, blank credentials are blocked before AWS calls, Cognito receives AuthParameters USERNAME/PASSWORD, and bounded timeout plus immediate-success behavior are retained. User verified successful login on desktop and mobile.",
+      "files_changed": [
+        "radio/dev/v2/v2-login-fast-path.js",
+        "radio/dev/v2/v2-login-direct.js"
+      ],
+      "commits": [
+        "2510866f6feae18f64cd134f94090bc8d4bf7522",
+        "586ccd900a89b9b965c3d127cee6d0e34e8e3f38"
+      ],
+      "related_bugs": [
+        "SR-BUG-0012",
+        "SR-BUG-0013"
+      ],
+      "record_path": "radio/docs/bug-fix/fixed/SR-BUG-0016.md",
+      "repair_playbook": null,
+      "future_repair": "If this returns, inspect request ordering first. Never call the login guard without the actual email/username. Preserve config prewarming, and keep credential-dependent guard/Cognito calls on submit with real credentials."
+    }
+  ]
+}

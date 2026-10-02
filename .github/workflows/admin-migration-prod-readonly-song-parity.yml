@@ -1,0 +1,55 @@
+name: Admin Migration PROD Read-Only Song Parity
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/tests/prod-readonly-song-parity.mjs'
+      - '.github/workflows/admin-migration-prod-readonly-song-parity.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/tests/prod-readonly-song-parity.mjs'
+      - '.github/workflows/admin-migration-prod-readonly-song-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prod-song-readonly-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check read-only parity probe
+        run: node --check radio-admin/staging/tests/prod-readonly-song-parity.mjs
+
+      - name: Assert probe is GET-only and token-free
+        run: |
+          if grep -E "method:[[:space:]]*['\"](POST|PUT|PATCH|DELETE)['\"]|x-admin-token|Authorization|radio_admin_token_prod|stashbox_admin_token" radio-admin/staging/tests/prod-readonly-song-parity.mjs; then
+            echo 'Phase 4 PROD-read probe contains a write method or credential binding.'
+            exit 1
+          fi
+          grep -q "method: 'GET'" radio-admin/staging/tests/prod-readonly-song-parity.mjs
+          grep -q "adminTokenUsed: false" radio-admin/staging/tests/prod-readonly-song-parity.mjs
+          grep -q "writesAttempted: false" radio-admin/staging/tests/prod-readonly-song-parity.mjs
+
+      - name: Run live DEV/PROD GET-only song parity probe
+        run: node radio-admin/staging/tests/prod-readonly-song-parity.mjs
+
+      - name: Upload parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-prod-readonly-song-parity
+          path: artifacts/phase4-prod-readonly-song-parity.json
+          if-no-files-found: error
+          retention-days: 14

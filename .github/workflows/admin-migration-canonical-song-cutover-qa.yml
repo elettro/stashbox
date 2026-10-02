@@ -1,0 +1,80 @@
+name: Admin Migration Canonical Song Cutover QA
+
+on:
+  push:
+    branches:
+      - feature/admin-unification-1077
+    paths:
+      - 'radio-admin/staging/cutover/**'
+      - 'radio-admin/staging/tests/canonical-song-cutover-smoke.mjs'
+      - '.github/workflows/admin-migration-canonical-song-cutover-qa.yml'
+  pull_request:
+    paths:
+      - 'radio-admin/staging/cutover/**'
+      - 'radio-admin/staging/tests/canonical-song-cutover-smoke.mjs'
+      - '.github/workflows/admin-migration-canonical-song-cutover-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-song-cutover-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check cutover package
+        run: |
+          node --check radio-admin/staging/cutover/canonical-song-source.js
+          node --check radio-admin/staging/cutover/apply-canonical-song-cutover.mjs
+          node --check radio-admin/staging/tests/canonical-song-cutover-smoke.mjs
+
+      - name: Assert canonical guard is read-only and PROD-only as a source
+        run: |
+          grep -q "canonicalUrl: PROD_SONGS" radio-admin/staging/cutover/canonical-song-source.js
+          grep -q "readOnly: true" radio-admin/staging/cutover/canonical-song-source.js
+          grep -q "Blocked non-read song catalog request" radio-admin/staging/cutover/canonical-song-source.js
+          if grep -q "DEV_SONGS" radio-admin/staging/cutover/canonical-song-source.js; then
+            echo 'DEV catalog fallback was reintroduced into canonical song source.'
+            exit 1
+          fi
+
+      - name: Apply cutover only inside CI workspace
+        run: node radio-admin/staging/cutover/apply-canonical-song-cutover.mjs --apply
+
+      - name: Assert only expected player files are changed by cutover
+        run: |
+          test -f radio/canonical-song-source.js
+          for file in radio/index.html radio/desktop/index.html radio/dev/v2/index.html radio/dev/v2/desktop/index.html; do
+            grep -q '/radio/canonical-song-source.js' "$file"
+          done
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' radio/desktop/index.html radio/dev/v2/desktop/index.html radio/dev/v2/index.html radio/index.html | sort)"
+          test "$changed" = "$expected"
+          untracked="$(git ls-files --others --exclude-standard)"
+          test "$untracked" = 'radio/canonical-song-source.js'
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start isolated static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/canonical-song-http.log 2>&1 &
+          for i in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/radio/canonical-song-source.js >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/canonical-song-http.log
+          exit 1
+
+      - name: Verify DEV and PROD song requests both resolve to canonical PROD
+        run: node radio-admin/staging/tests/canonical-song-cutover-smoke.mjs
