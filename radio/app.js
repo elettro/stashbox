@@ -2029,6 +2029,7 @@ function App() {
     const shouldStartVideo = Boolean(autoStart && preferVideo && track.hasVideo);
     const embedUrl = shouldStartVideo ? youtubeEmbed(track.videoLink) : '';
     setPlayerMessage('');
+    selectedRef.current = track;
     setSelected(track);
     setMediaMode(embedUrl ? 'video' : 'idle');
     setActiveVideoEmbedUrl(embedUrl);
@@ -2244,7 +2245,10 @@ function App() {
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
     if (maybeStartAdBeforeNextSong(nextSong, endedSong, { allowAfterCompletedVideo: true })) return;
-    if (nextSong) setSelected(nextSong);
+    if (nextSong) {
+      selectedRef.current = nextSong;
+      setSelected(nextSong);
+    }
     setAutoPlayRequest(nextSong ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
