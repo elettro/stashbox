@@ -374,7 +374,11 @@
     }
 
     const player = app.querySelector('[data-player]');
-    if (player) player.hidden = false;
+    if (player) {
+      player.dataset.songKey = selected.key;
+      player.dataset.currentSongKey = selected.key;
+      player.hidden = false;
+    }
     document.body.classList.add('v2-player-open');
     app.querySelector('[data-ptitle]').textContent = selected.title;
     app.querySelector('[data-partist]').textContent = selected.artist;
@@ -388,6 +392,7 @@
     app.querySelector('[data-avatar]').innerHTML = art(selected);
     app.querySelector('[data-likes]').textContent = selected.likes;
     app.querySelector('[data-backdrop]').style.backgroundImage = `url("${selected.art.replaceAll('"', '%22')}")`;
+    window.dispatchEvent(new CustomEvent('stashbox:v2-current-song', { detail: { songKey: selected.key, title: selected.title, artist: selected.artist } }));
 
     const audio = getAudio();
     if (audio) {
