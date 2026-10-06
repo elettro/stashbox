@@ -2105,6 +2105,7 @@ function App() {
 
     flushSync(() => {
       setPlayerMessage('');
+      selectedRef.current = track;
       setSelected(track);
       setMediaMode('idle');
       setActiveVideoEmbedUrl('');
@@ -2189,6 +2190,7 @@ function App() {
     setPlayerMessage('');
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
+    selectedRef.current = nextSong;
     setSelected(nextSong);
     setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     console.log("Selected next song after video cleanup:", nextSong?.song_key);
@@ -2217,6 +2219,7 @@ function App() {
     setActiveVideoEmbedUrl('');
     if (maybeStartAdBeforeNextSong(nextSong, endedSong, { allowAfterCompletedVideo: true })) return;
     if (nextSong) {
+      selectedRef.current = nextSong;
       setSelected(nextSong);
       setAutoPlayRequest({ idx: nextSong.idx, requestedAt: Date.now(), preferVideo: preferVideo || (videoFocusedList && nextSong.hasVideo) });
     } else {
@@ -2566,7 +2569,9 @@ function App() {
   }
 
   async function shareSong(song) {
-    if (!song) return;
+    const currentSong = selectedRef.current || song;
+    if (!currentSong) return;
+    song = currentSong;
     const shareUrl = getShareUrl(song);
     const songTitle = getSongTitle(song);
     const artist = getSongArtist(song);
@@ -2643,7 +2648,7 @@ function App() {
   return h('div', { className: 'radio-app' },
     h(RadioControlBar, { trackCount: tracks.length, query, onQueryChange: setQuery, genre, onGenreChange: setGenre, genreFilters, album, onAlbumChange: setAlbum, albumFilters, artist, onArtistChange: setArtist, artistFilters, mood, onMoodChange: setMood, moodFilters, videoOnly, onToggleVideos: () => setVideoOnly(current => !current), onShuffle: pickRandomTrack, onReset: resetRadioFilters, disableVideoFilter: !tracks.some(track => track.hasVideo), disableShuffle: !filtered.length }),
     h('div', { className: 'radio-interface' },
-      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
+      currentAd ? h(AdPlayer, { ad: currentAd, playerRef, adBreakDisplay, adBreakMuted, onToggleAdMute: () => setAdBreakMuted(value => !value), onStarted: handleAdStarted, onProgress: handleAdProgress, onCompleted: handleAdCompleted, onSkipped: handleAdSkipped, onBlocked: handleAdBlocked, onCtaClicked: handleAdCtaClicked, onError: handleAdError, onDurationKnown: handleAdDurationKnown }) : h(Player, { selected: selectedSong, audioRef, playerRef, youtubePlayerRef, mediaMode, activeVideoEmbedUrl, openVideo, closeVideo, products, playerMessage, onPrevious: () => shiftTrack(-1, { autoStart: mediaIsPlayingRef.current, preferVideo: videoFocusedList && selectedSong?.hasVideo }), onNext: handleManualNext, onShuffle: pickRandomTrack, onProductClick: handleProductClick, likeCount: getSongLikes(selectedSong, likeCounts), playCount: getSongPlays(selectedSong, playCounts), shareCount: getSongShares(selectedSong, shareCounts), hasLiked: likedSongIds.has(selectedSong?.songKey), onLike: () => likeSong(selectedSong), onShare: () => shareSong(selectedRef.current || selectedSong), shareCopied: copiedSongId === selectedSong?.idx, onAudioStart: () => { setMediaMode('audio'); trackPlaybackStart(selectedSong, 'audio'); }, onAudioProgress: updatePlaybackPosition, onAudioPause: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); finishPlayback('play_partial'); }, onAudioComplete: () => { setMediaSessionPlaybackState('paused'); pauseQualifiedPlayback(selectedSong); autoAdvanceFromEnded(selectedSong); }, onVideoStart: () => { if (!videoCleanupInProgressRef.current) trackPlaybackStart(selectedSong, 'video'); }, onVideoProgress: updatePlaybackPosition, onVideoComplete: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleVideoEnded(selectedSong, { preferVideo: true }); }, onYouTubeEnded: () => { if (videoCleanupInProgressRef.current) return; pauseQualifiedPlayback(selectedSong); handleYouTubeEnded(selectedSong); }, onPlaybackStatusChange: isActive => { mediaIsPlayingRef.current = isActive; setMediaSessionPlaybackState(isActive ? 'playing' : 'paused'); if (!isActive) pauseQualifiedPlayback(selectedSong); }, autoPlayRequest }),
       h('main', { className: 'radio-main' },
         h('section', { className: 'list-head' }, h('h2', null, 'Song List'), h('div', { className: 'list-actions' }, h(SortControl, { sortKey, onSortChange: setSortKey }), h('div', { className: 'count' }, `${sortedFiltered.length} of ${tracks.length} tracks`), h(SongViewToggle, { viewMode: songViewMode, onViewModeChange: setSongViewMode }))),
         !isGroupedSongView ? h(SongListContextRow, { title: listContextTitle, onShuffle: () => pickRandomTrack(), disabled: !playableFiltered.length, notice: shuffleNotice }) : (shuffleNotice ? h('p', { className: 'song-list-shuffle-notice song-list-shuffle-notice-grouped', 'aria-live': 'polite' }, shuffleNotice) : null),
