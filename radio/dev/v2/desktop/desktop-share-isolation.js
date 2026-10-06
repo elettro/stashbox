@@ -52,6 +52,27 @@
   function resolveCurrentKey() {
     const p = player();
     if (!p) return '';
+
+    // The visible player title/artist is the source of truth. The page URL can
+    // still contain the song that originally opened the player after Next/Prev.
+    const title = clean(p.querySelector('[data-ptitle]')?.textContent);
+    const artist = clean(p.querySelector('[data-partist]')?.textContent);
+    if (title) {
+      const exactSong = songs.find(song => song.title === title && (!artist || song.artist === artist));
+      if (exactSong?.key) return exactSong.key;
+      const titleSong = songs.find(song => song.title === title);
+      if (titleSong?.key) return titleSong.key;
+
+      const exactCard = songElements().find(node => {
+        const cardTitle = clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent);
+        const cardArtist = clean(node.querySelector('p')?.textContent || node.querySelector('small')?.textContent);
+        return cardTitle === title && (!artist || cardArtist === artist || cardArtist.includes(artist));
+      });
+      const titleCard = exactCard || songElements().find(node => clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent) === title);
+      const cardKey = clean(titleCard?.dataset.song);
+      if (cardKey) return cardKey;
+    }
+
     const like = p.querySelector('[data-like]');
     const share = p.querySelector('[data-share]');
     const explicit = clean(
@@ -66,17 +87,7 @@
 
     const queryKey = clean(new URLSearchParams(location.search).get('song'));
     if (queryKey && songElements().some(node => clean(node.dataset.song) === queryKey)) return queryKey;
-
-    const title = clean(p.querySelector('[data-ptitle]')?.textContent);
-    const artist = clean(p.querySelector('[data-partist]')?.textContent);
-    if (!title) return '';
-    const exact = songElements().find(node => {
-      const cardTitle = clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent);
-      const cardArtist = clean(node.querySelector('p')?.textContent || node.querySelector('small')?.textContent);
-      return cardTitle === title && (!artist || cardArtist === artist || cardArtist.includes(artist));
-    });
-    const titleOnly = exact || songElements().find(node => clean(node.querySelector('h3')?.textContent || node.querySelector('strong')?.textContent) === title);
-    return clean(titleOnly?.dataset.song);
+    return '';
   }
 
   function findShareButton() {
