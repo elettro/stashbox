@@ -8,6 +8,9 @@
   const SUMMARY_URL = `${API_ROOT}/admin/video-factory/summary`;
   const SONGS_URL = `${CONTENT_API_ROOT}/radio/songs`;
   const TOKEN_STORAGE_KEY = 'stashbox_admin_token_dev';
+  const SOCIAL_API_BASE = 'https://tnrca1ff32.execute-api.us-east-1.amazonaws.com/dev';
+  const SOCIAL_TOKEN_KEY = 'stashbox_social_factory_admin_token_dev';
+  const SOCIAL_PUBLISHABLE_RATIOS = new Set(['9:16', '16:9']);
   const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'rendering', 'uploading']);
 
   const state = {
@@ -57,6 +60,10 @@
 
   function getToken() {
     return String(localStorage.getItem(TOKEN_STORAGE_KEY) || '').trim();
+  }
+
+  function getSocialToken() {
+    return String(sessionStorage.getItem(SOCIAL_TOKEN_KEY) || localStorage.getItem(SOCIAL_TOKEN_KEY) || '').trim();
   }
 
   function headers(includeJson = false) {
@@ -209,7 +216,8 @@
     if (job.status === 'completed') {
       return `
         <button class="vf-small-button" type="button" data-job-action="preview" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Preview</button>
-        <button class="vf-small-button" type="button" data-job-action="download" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Download MP4</button>`;
+        <button class="vf-small-button" type="button" data-job-action="download" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Download MP4</button>
+        <button class="vf-small-button vf-primary-action" type="button" data-job-action="social" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Send to Social Factory</button>`;
     }
     if (ACTIVE_STATUSES.has(job.status)) {
       return `<button class="vf-small-button vf-danger-button" type="button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${busy ? 'disabled' : ''}>Cancel Render</button>`;
@@ -323,6 +331,55 @@
     window.open(body.url, '_blank', 'noopener');
   }
 
+  async function sendToSocialFactory(jobId) {
+    const job = state.jobs.find((item) => String(item.id) === String(jobId));
+    if (!job || job.status !== 'completed') throw new Error('Only completed renders can be sent to Social Factory.');
+    if (!SOCIAL_PUBLISHABLE_RATIOS.has(String(job.aspect_ratio || ''))) {
+      throw new Error('Social Factory currently accepts completed 9:16 and 16:9 renders.');
+    }
+
+    const socialToken = getSocialToken();
+    if (!socialToken) {
+      throw new Error('Save the Social Factory DEV admin token in this browser first, then return here and try again.');
+    }
+
+    const reviewId = `render-${jobId}`;
+    const existingResponse = await fetch(
+      `${SOCIAL_API_BASE}/social/review-items/${encodeURIComponent(reviewId)}`,
+      { headers: { 'x-admin-token': socialToken } }
+    );
+    if (existingResponse.ok) {
+      showMessage('This render is already in the Social Factory approval queue.');
+      return;
+    }
+    if (existingResponse.status !== 404) {
+      const existingBody = await existingResponse.json().catch(() => ({}));
+      const error = new Error(existingBody.error || `Social Factory check failed with status ${existingResponse.status}.`);
+      error.status = existingResponse.status;
+      throw error;
+    }
+
+    const response = await fetch(
+      `${SOCIAL_API_BASE}/social/orchestration/render-jobs/${encodeURIComponent(jobId)}/stage`,
+      {
+        method: 'POST',
+        headers: {
+          'x-admin-token': socialToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ confirm_stage: true })
+      }
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok === false) {
+      const error = new Error(body.error || `Social Factory handoff failed with status ${response.status}.`);
+      error.status = response.status;
+      error.body = body;
+      throw error;
+    }
+    showMessage('Render added to the Social Factory approval queue. Nothing was published.');
+  }
+
   async function handleJobAction(jobId, action) {
     if (!jobId || !action) return;
     if (action === 'copy') {
@@ -337,6 +394,8 @@
     try {
       if (action === 'preview' || action === 'download') {
         await openSignedAsset(jobId, action);
+      } else if (action === 'social') {
+        await sendToSocialFactory(jobId);
       } else {
         const body = await fetchJson(`${JOBS_URL}/${encodeURIComponent(jobId)}/${action}`, {
           method: 'POST',
