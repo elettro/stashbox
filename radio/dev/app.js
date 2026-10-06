@@ -2643,6 +2643,7 @@ function App() {
     const embedUrl = shouldStartVideo ? youtubeEmbed(track.videoLink) : '';
     playbackStartSourceRef.current = startSource;
     setPlayerMessage('');
+    selectedRef.current = track;
     setSelected(track);
     setMediaMode(embedUrl ? 'video' : 'idle');
     setActiveVideoEmbedUrl(embedUrl);
@@ -2953,6 +2954,7 @@ function App() {
     setPlayerMessage('');
     setActiveVideoEmbedUrl('');
     setMediaMode('idle');
+    selectedRef.current = nextSong;
     setSelected(nextSong);
     playbackStartSourceRef.current = 'manual_next';
     setAutoPlayRequest(wasPlaying ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo, startSource: 'manual_next' } : null);
@@ -3007,7 +3009,10 @@ function App() {
     setMediaMode('idle');
     setActiveVideoEmbedUrl('');
     if (maybeStartAdBeforeNextSong(nextSong, endedSong, { allowAfterCompletedVideo: true })) return;
-    if (nextSong) setSelected(nextSong);
+    if (nextSong) {
+      selectedRef.current = nextSong;
+      setSelected(nextSong);
+    }
     setAutoPlayRequest(nextSong ? { idx: nextSong.idx, requestedAt: Date.now(), preferVideo: videoFocusedList && nextSong.hasVideo } : null);
     window.requestAnimationFrame(() => playerRef.current?.focus?.());
   }
