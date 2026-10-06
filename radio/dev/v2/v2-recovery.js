@@ -350,6 +350,11 @@
     const selected = state.songs.find(item => item.key === key);
     if (!selected) return;
     state.selected = selected;
+    try {
+      const currentUrl = new URL(location.href);
+      currentUrl.searchParams.set('song', selected.key);
+      history.replaceState(history.state, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
+    } catch (_) {}
     let profilePlaylist = null;
     try {
       const payload = JSON.parse(sessionStorage.getItem('stashbox_v2_profile_queue_handoff') || 'null');
