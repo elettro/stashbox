@@ -618,6 +618,7 @@
 
     const player = app.querySelector('[data-player]');
     if (!player) return;
+    player.dataset.songKey = song.songKey;
     player.hidden = false;
     document.body.classList.add('v2-player-open');
     updatePlayerUi();
@@ -799,8 +800,10 @@
   }
 
   async function shareSelected() {
-    const song = state.selected;
+    const playerSongKey = app.querySelector('[data-player]')?.dataset.songKey || '';
+    const song = state.songs.find(item => item.songKey === playerSongKey) || state.selected;
     if (!song) return;
+    state.selected = song;
     const url = new URL('/radio/', location.origin);
     url.searchParams.set('song', song.songKey);
     try {
