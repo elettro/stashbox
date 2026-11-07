@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Stashbox Radio hopping test (private demo)</title>
+<style>
+:root{--bg:#141a23;--cy:#6fd8e8;--mg:#ee4b9b;--ye:#f5e32a;--tx:#f3f6f9;--mu:#a9b6c4;--ln:#2c3746}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:'Segoe UI',Arial,sans-serif;line-height:1.4}
+.wrap{max-width:1150px;margin:0 auto;padding:18px 16px 40px;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+h1{grid-column:1/-1;margin:0;font-size:22px;color:var(--cy)}
+.sub{grid-column:1/-1;color:var(--mu);font-size:13px;margin-top:-10px}
+.stage{background:#000;border:2px solid var(--cy);border-radius:14px;overflow:hidden}
+.ratio{position:relative;padding-top:56.25%;background:#000}
+.ratio>*{position:absolute;inset:0;width:100%;height:100%}
+#ytbox{pointer-events:none;visibility:hidden}#ytbox iframe{width:100%;height:100%;pointer-events:none}
+#art,#vid,#adv{object-fit:contain;display:none;background:#000}
+#vid{object-fit:cover}
+.badge{position:absolute;left:10px;top:10px;width:auto!important;height:auto!important;inset:auto!important;left:10px!important;top:10px!important;font-size:11px;padding:2px 10px;border-radius:99px;background:rgba(0,0,0,.7);border:1px solid var(--ye);color:var(--ye);z-index:3;font-weight:700}
+.badge.ad{border-color:var(--mg);color:var(--mg)}
+#skip{position:absolute;right:10px!important;bottom:10px!important;left:auto!important;top:auto!important;inset:auto!important;width:auto!important;height:auto!important;display:none;z-index:3;background:rgba(0,0,0,.75)}
+.now{padding:10px 12px 0;font-size:15px}.now b{color:var(--ye)}
+.status{padding:2px 12px 10px;font-size:12px;color:var(--mu)}
+.bar{display:flex;gap:8px;align-items:center;padding:10px;background:#0d1219;flex-wrap:wrap}
+button,select{background:#1b2431;color:var(--tx);border:1.5px solid var(--cy);border-radius:10px;padding:7px 12px;font-size:14px;cursor:pointer}
+button.pri{background:var(--cy);color:#141a23;font-weight:700}
+button.warn{border-color:var(--mg)}
+input[type=range]{accent-color:var(--cy)}#seek{flex:1;min-width:140px}
+.time{font-variant-numeric:tabular-nums;color:var(--mu);font-size:13px;min-width:92px}
+label{font-size:13px;color:var(--mu);display:flex;align-items:center;gap:6px}
+.panel{background:rgba(20,26,35,.9);border:2px solid var(--ln);border-radius:14px;padding:10px 12px}
+.panel h2{margin:0 0 6px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--cy)}
+.q{list-style:none;margin:0;padding:0;max-height:250px;overflow:auto}
+.q li{display:flex;gap:8px;padding:4px 6px;border-radius:8px;font-size:13px;color:var(--mu)}
+.q li.on{background:rgba(245,227,42,.12);color:var(--tx)}
+.q .n{color:var(--ye);width:18px}.q .s{font-size:10px;border:1px solid;border-radius:99px;padding:0 6px;margin-left:auto;white-space:nowrap}
+.s.y{color:var(--mg);border-color:var(--mg)}.s.a{color:var(--cy);border-color:var(--cy)}.s.v{color:var(--ye);border-color:var(--ye)}
+#log{height:260px;overflow:auto;font:12px/1.45 Consolas,monospace;color:var(--mu);background:#0d1219;border-radius:8px;padding:8px;white-space:pre-wrap}
+#log .ok{color:#7be28a}#log .bad{color:var(--mg)}#log .ev{color:var(--cy)}#log .adv{color:var(--ye)}
+.note{grid-column:1/-1;font-size:12px;color:var(--mu);border-left:4px solid var(--mg);padding:6px 10px;background:rgba(238,75,155,.08);border-radius:6px}
+</style></head><body><div class="wrap">
+<h1>Stashbox Radio hopping test <span style="font-size:12px;color:var(--mu);font-weight:400">private demo</span></h1>
+<div class="sub">The queue only follows your filters. Each song plays on the engine that fits it, and your real radio commercials slot in between. The source never decides what plays next.</div>
+
+<div>
+ <div class="stage">
+  <div class="ratio">
+   <div id="ytbox"><div id="yt"></div></div>
+   <img id="art" alt=""><video id="vid" muted loop playsinline></video><video id="adv" playsinline></video>
+   <span class="badge" id="badge">idle</span><button id="skip">Skip ad</button>
+  </div>
+  <div class="now" id="now">Press Start (the hop demo order is selected).</div>
+  <div class="status" id="status">idle</div>
+  <div class="bar">
+   <label>Play <select id="mode"><option value="hop">hop demo (alternate all sources)</option><option value="all">all songs (mixed)</option><option value="yt">only YouTube video songs</option><option value="sv">only server-video songs</option><option value="au">only audio + artwork songs</option></select></label>
+   <label>Genre <select id="genre"></select></label>
+   <label><input type="checkbox" id="shuf"> Shuffle</label>
+  </div>
+  <div class="bar" style="border-top:1px solid var(--ln)">
+   <label>Commercial after every <select id="adn"><option value="0">never</option><option value="1" selected>1 song</option><option value="2">2 songs</option><option value="3">3 songs</option></select></label>
+   <label><input type="checkbox" id="demo" checked> Demo speed: jump near the end after 7 s</label>
+   <button class="pri" id="start">Start</button>
+  </div>
+  <div class="bar" style="border-top:1px solid var(--ln)">
+   <button id="pp">Play / Pause</button><button id="next">Next</button>
+   <input type="range" id="seek" min="0" max="1000" value="0"><span class="time" id="time">0:00 / 0:00</span>
+   <button id="mute">Mute</button><input type="range" id="vol" min="0" max="100" value="80" style="width:80px">
+   <label><input type="checkbox" id="auto" checked> Auto-advance</label>
+  </div>
+ </div>
+</div>
+
+<div style="display:grid;gap:12px;align-content:start">
+ <div class="panel"><h2>Queue <span id="qinfo" style="color:var(--mu);letter-spacing:0;text-transform:none"></span></h2><ul class="q" id="q"></ul></div>
+ <div class="panel"><h2>What the page sees</h2><div id="log"></div></div>
+</div>
+<div class="note">Commercials are your active radio ads, fetched from your catalog. Audio-only songs here use the full WAV files (30+ MB), so they can take a few seconds to start. Server-video songs play their own clips muted over the song's audio, as the radio's visuals do.</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const log=(m,c='')=>{const d=document.createElement('div');if(c)d.className=c;d.textContent=new Date().toLocaleTimeString([], {hour12:false})+'  '+m;$('log').appendChild(d);$('log').scrollTop=1e9};
+const fmt=s=>{s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const audio=new Audio();audio.preload='auto';audio.volume=.8;
+const vid=$('vid'),adv=$('adv');
+let ALL=[],ADS=[],Q=[],cur=-1,eng=null,player,ready=false,advancing=false,lastT=0,lastMove=Date.now(),seeking=false,songsSinceAd=0,lastAd=-1,startedAt=0,jumped=false,clipI=0,pendingNext=false,curAd=null;
+const srcOf=s=>s.yt?'yt':(s.cl&&s.cl.length?'sv':'au');
+const LBL={yt:'YouTube video',sv:'server video + audio',au:'audio + artwork',ad:'COMMERCIAL'};
+
+const ADS_API='https://je3zud66nb.execute-api.us-east-1.amazonaws.com/prod-v2/radio/ads';
+const T=v=>String(v).toLowerCase()==='true';
+const loadAds=()=>fetch(ADS_API,{cache:'no-store'}).then(r=>r.json()).then(j=>(j.ads||[]).filter(a=>T(a.active)&&!T(a.hidden)&&a.video_url).map(a=>({id:a.id,u:a.video_url,r:a.ad_ratio_label||'',skip:+a.skip_after_seconds||5,ns:T(a.no_skipping)}))).then(a=>{if(!a.length)throw 0;return a}).catch(()=>fetch('ads.json').then(r=>r.json()));
+Promise.all([fetch('songs.json').then(r=>r.json()),loadAds()]).then(([s,a])=>{ALL=s;ADS=a;
+ $('genre').innerHTML='<option value="">all genres</option>'+[...new Set(ALL.map(x=>x.g))].sort().map(g=>`<option>${g}</option>`).join('');
+ log('catalog: '+ALL.length+' songs ('+ALL.filter(x=>srcOf(x)==='yt').length+' YouTube, '+ALL.filter(x=>srcOf(x)==='sv').length+' server video, '+ALL.filter(x=>srcOf(x)==='au').length+' audio only) and '+ADS.length+' commercials','ok');buildQ()});
+const tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);
+window.onYouTubeIframeAPIReady=()=>{player=new YT.Player('yt',{width:'100%',height:'100%',
+ playerVars:{controls:0,disablekb:1,fs:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,enablejsapi:1,origin:location.origin},
+ events:{onReady:()=>{ready=true;log('YouTube engine ready','ok')},onStateChange:ytState,onError:ytError}})};
+
+function buildQ(){
+ const m=$('mode').value,g=$('genre').value;
+ let L=ALL.filter(s=>(!g||s.g===g)&&(m==='all'||m==='hop'||m===srcOf(s)));
+ if($('shuf').checked)for(let i=L.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[L[i],L[j]]=[L[j],L[i]]}
+ if(m==='hop'){const gs={yt:[],sv:[],au:[]};L.forEach(s=>gs[srcOf(s)].push(s));L=[];const n=Math.max(gs.yt.length,gs.sv.length,gs.au.length);
+  for(let i=0;i<n;i++)['yt','sv','au'].forEach(k=>gs[k][i]&&L.push(gs[k][i]))}
+ Q=L;cur=-1;songsSinceAd=0;renderQ();log('queue built: '+m+', '+Q.length+' songs, commercial every '+$('adn').value,'adv');
+}
+function renderQ(){
+ $('qinfo').textContent='· '+Q.length+' songs';
+ $('q').innerHTML=Q.map((s,i)=>{const k=srcOf(s);return `<li class="${i===cur?'on':''}"><span class="n">${i+1}</span><span>${s.t} <small>· ${s.g}</small></span><span class="s ${k==='yt'?'y':k==='sv'?'v':'a'}">${LBL[k]}</span></li>`}).join('');
+}
+['mode','genre','shuf'].forEach(id=>$(id).onchange=()=>{stopAll();buildQ()});
+
+function stopAll(){
+ try{audio.pause()}catch(_){}try{vid.pause()}catch(_){}try{adv.pause()}catch(_){}try{ready&&player.stopVideo()}catch(_){}
+ $('ytbox').style.visibility='hidden';$('art').style.display='none';vid.style.display='none';adv.style.display='none';$('skip').style.display='none';eng=null;
+}
+function badge(t,ad){const b=$('badge');b.textContent=t;b.className='badge'+(ad?' ad':'')}
+function begin(){advancing=false;lastT=0;lastMove=Date.now();startedAt=Date.now();jumped=false}
+
+function playSong(i){
+ if(!Q.length){log('queue is empty','bad');return}
+ cur=((i%Q.length)+Q.length)%Q.length;renderQ();stopAll();begin();pendingNext=false;
+ const s=Q[cur],k=srcOf(s);
+ $('now').innerHTML='Now: <b>'+s.t+'</b> · '+s.a+' · '+s.g;badge(LBL[k]);
+ log('#'+(cur+1)+' '+s.t+'  ->  '+LBL[k]+' engine','adv');
+ if(k==='yt'){eng='yt';$('ytbox').style.visibility='visible';player.loadVideoById(s.yt)}
+ else if(k==='sv'){eng='sv';clipI=0;vid.src=s.cl[0];vid.style.display='block';vid.play().catch(e=>log('clip play blocked: '+e.message,'bad'));audio.src=s.au;audio.play().catch(e=>log('audio play blocked: '+e.message,'bad'))}
+ else{eng='au';$('art').src=s.art;$('art').style.display='block';audio.src=s.au;audio.play().catch(e=>log('audio play blocked: '+e.message,'bad'))}
+}
+function afterSong(why){
+ if(advancing)return;advancing=true;log('SONG OVER because: '+why,'adv');
+ if(!$('auto').checked){log('auto-advance is off','bad');return}
+ songsSinceAd++;const n=+$('adn').value;
+ if(n>0&&ADS.length&&songsSinceAd>=n){songsSinceAd=0;setTimeout(playAd,400)}
+ else setTimeout(()=>playSong(cur+1),500);
+}
+function playAd(){
+ stopAll();begin();
+ let i;do{i=Math.floor(Math.random()*ADS.length)}while(ADS.length>1&&i===lastAd);lastAd=i;curAd=ADS[i];
+ eng='ad';adv.style.display='block';adv.src=curAd.u;adv.volume=audio.volume;adv.muted=false;
+ $('now').innerHTML='<b style="color:var(--mg)">COMMERCIAL</b> · ratio '+(curAd.r||'?')+(curAd.ns?' · no skipping':' · skippable after '+curAd.skip+' s');badge('COMMERCIAL',true);
+ log('commercial #'+(i+1)+' of '+ADS.length+'  ->  ad engine','adv');
+ adv.play().catch(e=>{log('commercial blocked: '+e.message,'bad');afterAd('could not play')});
+}
+function afterAd(why){
+ if(eng!=='ad'||advancing)return;advancing=true;log('COMMERCIAL OVER because: '+why+'  ->  back to the queue','adv');$('skip').style.display='none';
+ setTimeout(()=>playSong(cur+1),400);
+}
+adv.addEventListener('ended',()=>afterAd('it finished'));
+adv.addEventListener('error',()=>{log('commercial failed to load','bad');afterAd('load error')});
+adv.addEventListener('playing',()=>eng==='ad'&&log('commercial playing','ev'));
+$('skip').onclick=()=>afterAd('you skipped it');
+
+audio.addEventListener('ended',()=>(eng==='au'||eng==='sv')&&afterSong('audio ended'));
+audio.addEventListener('error',()=>{if(eng==='au'||eng==='sv'){log('audio error','bad');afterSong('audio error, skipping')}});
+audio.addEventListener('playing',()=>(eng==='au'||eng==='sv')&&log('audio playing','ev'));
+vid.addEventListener('ended',()=>{if(eng==='sv'){const s=Q[cur];clipI=(clipI+1)%s.cl.length;vid.src=s.cl[clipI];vid.play().catch(()=>{})}});
+const ST={'-1':'unstarted',0:'ENDED',1:'playing',2:'paused',3:'buffering',5:'cued'};
+function ytState(e){
+ if(eng!=='yt')return;let ct=0,du=0;try{ct=player.getCurrentTime();du=player.getDuration()}catch(_){}
+ log('YouTube state -> '+(ST[e.data]||e.data)+'  ('+fmt(ct)+' of '+fmt(du)+')','ev');
+ if(e.data===0){du>0&&ct>=du-2?afterSong('YouTube ended at '+fmt(ct)+' of '+fmt(du)):log('IGNORED ENDED at '+fmt(ct)+' of '+fmt(du)+' (probably a YouTube ad)','bad')}
+}
+function ytError(e){if(eng!=='yt')return;log('YouTube ERROR '+e.data,'bad');afterSong('YouTube error '+e.data+', skipping')}
+
+setInterval(()=>{
+ let ct=0,du=0,st=null,playing=false;
+ if(eng==='au'||eng==='sv'){ct=audio.currentTime;du=audio.duration||0;playing=!audio.paused}
+ else if(eng==='ad'){ct=adv.currentTime;du=adv.duration||0;playing=!adv.paused;
+   if(curAd&&!curAd.ns&&ct>=curAd.skip)$('skip').style.display='block'}
+ else if(eng==='yt'&&ready){try{ct=player.getCurrentTime();du=player.getDuration();st=player.getPlayerState();playing=st===1}catch(_){return}}
+ else return;
+ if(!seeking&&du>0&&isFinite(du))$('seek').value=Math.round(ct/du*1000);
+ $('time').textContent=fmt(ct)+' / '+fmt(isFinite(du)?du:0);$('status').textContent=({yt:'YouTube',sv:'server video + audio',au:'audio + artwork',ad:'commercial'})[eng]+' · '+fmt(ct)+' / '+fmt(isFinite(du)?du:0);
+ if(Math.abs(ct-lastT)>0.05){lastT=ct;lastMove=Date.now()}
+ if($('demo').checked&&!jumped&&playing&&du>14&&isFinite(du)&&(Date.now()-startedAt)>7000){jumped=true;log('demo: jumping to 5 s before the end','adv');
+   if(eng==='yt')player.seekTo(du-5,true);else if(eng==='ad')adv.currentTime=du-5;else audio.currentTime=du-5}
+ if(playing&&du>5&&isFinite(du)&&eng!=='ad'){const still=(Date.now()-lastMove)/1000;
+   if(ct>=du-0.4)afterSong('watcher: playhead reached the end');
+   else if(ct>=du-4&&still>3)afterSong('watcher: stopped near the end for '+still.toFixed(1)+'s')}
+},500);
+
+$('start').onclick=()=>{stopAll();buildQ();songsSinceAd=0;playSong(0)};
+$('next').onclick=()=>{log('manual NEXT','adv');if(eng==='ad'){afterAd('manual next')}else{advancing=false;playSong(cur+1)}};
+$('pp').onclick=()=>{if(eng==='au'||eng==='sv'){audio.paused?(audio.play(),eng==='sv'&&vid.play()):(audio.pause(),eng==='sv'&&vid.pause())}else if(eng==='ad'){adv.paused?adv.play():adv.pause()}else if(eng==='yt'&&ready)player.getPlayerState()===1?player.pauseVideo():player.playVideo()};
+$('mute').onclick=()=>{const m=$('mute').textContent==='Mute';audio.muted=m;adv.muted=m;try{m?player.mute():player.unMute()}catch(_){}$('mute').textContent=m?'Unmute':'Mute'};
+$('vol').oninput=e=>{const v=e.target.value/100;audio.volume=v;adv.volume=v;try{player.setVolume(+e.target.value)}catch(_){}};
+$('seek').onmousedown=$('seek').ontouchstart=()=>seeking=true;
+$('seek').onchange=e=>{seeking=false;const f=e.target.value/1000;if(eng==='au'||eng==='sv'){audio.currentTime=audio.duration*f}else if(eng==='ad'){adv.currentTime=adv.duration*f}else if(eng==='yt')player.seekTo(player.getDuration()*f,true)};
+</script>
+</body></html>
