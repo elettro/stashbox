@@ -4,6 +4,7 @@
   if (window.StashboxRadioGA4) return;
   const MEASUREMENT_ID = 'G-Z7QPLH8TY9';
   const sessions = new Map();
+  let activeQualifiedSession = '';
   const clean = value => String(value ?? '').trim().slice(0, 100);
 
   // Configure the GA4 destination without sending another page_view.
@@ -38,17 +39,18 @@
     if (!songId || !sessionId || sessions.has(sessionId)) return;
     const info = { song_id: songId, ...metadata() };
     sessions.set(sessionId, info);
+    activeQualifiedSession = sessionId;
     // This matches the existing player's 10-second qualified-play definition.
     send('song_start', { ...info, play_threshold_seconds: 10 });
     if (sessions.size > 100) sessions.delete(sessions.keys().next().value);
   });
   document.addEventListener('ended', event => {
     if (!(event.target instanceof HTMLAudioElement) || !event.target.closest('#v2App')) return;
-    const state = window.StashboxV2PlayTracker?.state?.();
-    const info = state?.sessionId && sessions.get(state.sessionId);
+    const info = sessions.get(activeQualifiedSession);
     if (!info) return;
     send('song_complete', { ...info, song_duration_seconds: Math.round(event.target.duration || 0) });
-    sessions.delete(state.sessionId);
+    sessions.delete(activeQualifiedSession);
+    activeQualifiedSession = '';
   }, true);
   window.StashboxRadioGA4 = Object.freeze({ measurementId: MEASUREMENT_ID });
 })();
