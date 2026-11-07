@@ -1,0 +1,35 @@
+# Keep backend / ops / internal files OUT of the public stashbox.com site.
+# Jekyll copies everything in the repo to the website unless listed here.
+# Nothing on the site references these paths (checked 261107).
+exclude:
+  # Jekyll defaults, repeated because a custom list can replace them
+  - node_modules
+  - vendor
+  - Gemfile
+  - Gemfile.lock
+  # Backend code and AWS infrastructure
+  - social-factory-api
+  - deployed-lambda-code
+  - radio-api
+  - video-render-worker
+  - infra
+  - aws-policies
+  # Ops reports, backups, internal docs
+  - deployment-reports
+  - promotion-backups
+  - custom-gpt
+  - docs
+  - radio/docs
+  - radio/radio-backup-milestone-260526-before-products
+  # Google Apps Script server code
+  - radio/Code.gs
+  # Internal planning docs (also keeps them out if they are ever committed)
+  - CONTEXT.md
+  - CONTEXT_VERIFIED.md
+  - FABLE_KICKOFF_PROMPT.md
+  - STASHBOX_RADIO_ARCHITECTURE_MAP.md
+  - STASHBOX_RADIO_DRIFT_REPORT.md
+  - STASHBOX_RADIO_WISHLIST_FEASIBILITY.md
+  - rds_schema_columns.csv
+  - rds_schema_indexes.csv
+  - rds_schema_foreignkeys.csv
