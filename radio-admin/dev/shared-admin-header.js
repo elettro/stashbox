@@ -21,7 +21,8 @@
     { key: 'dashboard', label: 'Dashboard', href: '/radio/dashboard/dev/' },
     { key: 'system-health', label: 'System Health', href: 'https://stashbox.com/radio-admin/dev/system-health/' },
     { key: 'radio', label: 'Radio Dev', href: '/radio/dev/' },
-    { key: 'radio-v2', label: 'Radio Dev 2.0', href: 'https://stashbox.com/radio/dev/v2/' }
+    { key: 'radio-v2', label: 'Radio Dev 2.0', href: 'https://stashbox.com/radio/dev/v2/' },
+    { key: 'hopping-test', label: 'Hopping Test', href: '/radio/hopping-test/' }
   ];
 
   function normalizedPath() {
