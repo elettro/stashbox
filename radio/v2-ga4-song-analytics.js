@@ -31,7 +31,7 @@
       song_title: clean(d.songTitle || player?.querySelector('[data-ptitle]')?.textContent),
       song_artist: clean(d.songArtist || player?.querySelector('[data-partist]')?.textContent)
     };
-    sessions.set(key, { info, audio: d.audio });
+    // A reused audio element must not complete a previous track.\n    for (const [priorKey, prior] of sessions) {\n      if (prior.audio === d.audio) sessions.delete(priorKey);\n    }\n    sessions.set(key, { info, audio: d.audio, src: d.audio?.currentSrc || d.audio?.src || '' });
     send('song_start', { ...info, play_threshold_seconds: 10 });
     if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
   });
@@ -39,7 +39,7 @@
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement) || !audio.closest('#v2App')) return;
     for (const [key, session] of sessions) {
-      if (session.audio !== audio || completed.has(key)) continue;
+      if (session.audio !== audio || completed.has(key) ||\n          session.src !== (audio.currentSrc || audio.src || '')) continue;
       // Only count natural completion for the same song source.
       completed.add(key);
       send('song_complete', {
