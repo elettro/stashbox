@@ -237,7 +237,7 @@
   }
 
   async function persistQualifiedPlay(song) {
-    if (!song?.key || state.qualified || state.pending) return false;
+    if (!song?.key || state.pending) return false;
     state.pending = true;
     state.persistAttempts += 1;
     const sessionId = state.sessionId || makeSessionId(song.key);
@@ -272,7 +272,8 @@
       state.lastPersistedTotal = song.totalPlays;
       syncVisiblePlayTotal(song, song.totalPlays);
 
-      window.dispatchEvent(new CustomEvent('stashbox:qualified-play', {
+      /* GA4 qualification is emitted at the playback threshold, independently of persistence. */
+      window.dispatchEvent(new CustomEvent('stashbox:play-persisted', {
         detail: {
           songKey: song.key,
           sessionId,
@@ -309,7 +310,13 @@
     if (!Number.isFinite(delta) || delta <= 0) return;
 
     state.listenedSeconds += delta;
-    if (state.listenedSeconds >= QUALIFY_SECONDS) await persistQualifiedPlay(song);
+    if (state.listenedSeconds >= QUALIFY_SECONDS) {
+      state.qualified = true;
+      window.dispatchEvent(new CustomEvent('stashbox:qualified-play', {
+        detail: { songKey: song.key, sessionId: state.sessionId, songTitle: song.title, songArtist: song.artist, audio }
+      }));
+      await persistQualifiedPlay(song);
+    }
   }
 
   function onPlay(audio) {
