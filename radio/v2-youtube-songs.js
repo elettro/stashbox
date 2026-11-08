@@ -16,9 +16,9 @@
  */
 (function () {
   'use strict';
+  // vertical:true = the YouTube video is a 9:16 picture inside a 16:9 frame; on a portrait screen it is scaled to fill the screen
   var YT_SONGS = {
-    'yoga-pants-for-days-the-ras-box': { id: '0twKQHXB7XI' },
-    'help-jamaica-now-stashbox': { id: 'sdJMMhZ6cgo' }
+    'gazing-shoe-jam-03b-dean-jam-stashbox': { id: 'cTAlf89ivtA', vertical: true }
   };
   var NEEDTAP_AFTER_MS = 1500;     // not playing yet: show the tap hint and make the frame tappable
   var NEEDTAP_FALLBACK_MS = 10000; // still not playing: use the normal radio audio + VEC
@@ -41,6 +41,10 @@
     /* autoplay blocked: lift the frame above the radio controls so YouTube\'s own play button is visible and tappable */
     '.sb-yt-layer.sb-needtap{z-index:50;pointer-events:auto}' +
     '.sb-yt-layer.sb-needtap .sb-yt-frame iframe{pointer-events:auto}' +
+    '@media (orientation:portrait){' +
+      '.sb-yt-layer.sb-vertical{display:block;overflow:hidden}' +
+      '.sb-yt-layer.sb-vertical .sb-yt-frame{position:absolute;top:0;bottom:0;left:50%;height:100%;width:auto;max-height:none;aspect-ratio:16/9;transform:translateX(-50%)}' +
+    '}' +
     '.sb-yt-hint{display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);padding:7px 14px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font:700 14px/1.2 system-ui,sans-serif;letter-spacing:.02em;white-space:nowrap;pointer-events:none}' +
     '.sb-yt-layer.sb-needtap .sb-yt-hint{display:block}' +
     '.v2-player[data-yt-song] .v2-player-header,.v2-player[data-yt-song] .v2-player-content{position:relative;z-index:2}';
@@ -150,7 +154,7 @@
     ensurePlayer(function (failed) {
       if (cur !== me) return;
       if (failed) { fallBack('YouTube API failed'); return; }
-      yp.layer.hidden = false;
+      yp.layer.hidden = false; yp.layer.classList.toggle('sb-vertical', !!cfg.vertical);
       try { yp.player.unMute(); yp.player.setVolume(100); yp.player.loadVideoById(me.id); } catch (_) { fallBack('YouTube load failed'); return; }
       me.tapTimer = setTimeout(function () { if (cur === me && !me.started) needTap(true); }, NEEDTAP_AFTER_MS);
       me.fallbackTimer = setTimeout(function () { if (cur === me && !me.started) fallBack('nobody started the video'); }, NEEDTAP_FALLBACK_MS);
