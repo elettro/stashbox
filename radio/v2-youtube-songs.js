@@ -10,7 +10,7 @@
     'yoga-pants-for-days-the-ras-box': { id: '0twKQHXB7XI' },
     'help-jamaica-now-stashbox': { id: 'sdJMMhZ6cgo' }
   };
-  var START_TIMEOUT_MS = 9000;
+  var START_TIMEOUT_MS = 5000; // not playing by then (iPhone blocks autoplay): use the normal radio audio + VEC, never dead air
 
   var css = document.createElement('style');
   css.textContent =
@@ -41,6 +41,7 @@
     document.head.appendChild(s);
   }
 
+  var fellBack = null; // song key that fell back to radio audio; do not retry until it is selected again
   var cur = null; // { key, id, player, ready, started, timer, watch, layer, playHTML }
   var PAUSE_SVG = '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
 
@@ -89,11 +90,11 @@
     // radio audio must stay silent: YouTube is the sound source for this song
     if (a) { try { a.pause(); } catch (_) {} }
     me.timer = setTimeout(function () {
-      if (cur === me && !me.ready) { console.warn('[yt-songs] YouTube player never loaded, using radio audio'); teardown(true); }
+      if (cur === me && !me.started) { console.warn('[yt-songs] YouTube did not start playing, using radio audio'); fellBack = me.key; teardown(true); }
     }, START_TIMEOUT_MS);
     loadApi(function (failed) {
       if (cur !== me) return;
-      if (failed || !(window.YT && YT.Player)) { teardown(true); return; }
+      if (failed || !(window.YT && YT.Player)) { fellBack = me.key; teardown(true); return; }
       me.player = new YT.Player('sbYtHost', {
         width: '100%', height: '100%', videoId: me.id,
         playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, enablejsapi: 1, autoplay: 1, origin: location.origin },
@@ -109,7 +110,7 @@
               if (du > 0 && ct >= du - 2) advance(); // ignore an ad's ENDED
             }
           },
-          onError: function () { if (cur === me) { console.warn('[yt-songs] YouTube error, using radio audio'); teardown(true); } }
+          onError: function () { if (cur === me) { console.warn('[yt-songs] YouTube error, using radio audio'); fellBack = me.key; teardown(true); } }
         }
       });
       me.watch = setInterval(function () { tick(me); }, 500);
@@ -137,6 +138,7 @@
   window.addEventListener('stashbox:v2-current-song', function (e) {
     var key = e && e.detail && e.detail.songKey;
     if (cur && cur.key === key) return;
+    fellBack = null; // a fresh selection gets a fresh try
     teardown(false);
     if (key && YT_SONGS[key]) {
       // the radio calls audio.play() just after this event; wait a tick, then take over
@@ -148,7 +150,7 @@
   function catchUp() {
     var p = pl(); if (!p || p.hidden) return;
     var key = p.dataset.currentSongKey || p.dataset.songKey;
-    if (key && YT_SONGS[key] && (!cur || cur.key !== key)) { teardown(false); activate(key); }
+    if (key && YT_SONGS[key] && fellBack !== key && (!cur || cur.key !== key)) { teardown(false); activate(key); }
   }
   var tries = 0, catchTimer = setInterval(function () { catchUp(); if (++tries > 20) clearInterval(catchTimer); }, 500);
 
