@@ -12,7 +12,9 @@
  *    so the queue never sits in silence. A song that fell back is not retried until selected again.
  *  - End of song: YouTube ENDED (trusted only if the playhead is within 2 s of the end) plus a backup
  *    watcher, then the radio's own next-song handler runs (queue, shuffle, commercials work as before).
- *  - No play-tracker call is made for these plays (by design).
+ *  - Plays are counted: after 10 s of REAL playing time (YouTube state 1, per-tick gain capped, seeks ignored) the song is
+ *    reported once per start through StashboxV2PlayTracker.recordExternalPlay (same server event, GA4 and history path
+ *    as a normal play).
  */
 (function () {
   'use strict';
@@ -20,6 +22,8 @@
   var YT_SONGS = {
     'gazing-shoe-jam-03b-dean-jam-stashbox': { id: 'cTAlf89ivtA', vertical: true }
   };
+  var COUNT_AFTER_SECONDS = 10;    // same threshold as the radio's play tracker
+  var MAX_TICK_SECONDS = 1.5;      // a throttled/background timer can never add more than this per tick
   var NEEDTAP_AFTER_MS = 1500;     // not playing yet: show the tap hint and make the frame tappable
   var NEEDTAP_FALLBACK_MS = 10000; // still not playing: use the normal radio audio + VEC
 
@@ -149,7 +153,7 @@
     if (!cfg || !p) return;
     var a = audioEl();
     if (a) { try { a.pause(); } catch (_) {} } // radio audio stays silent: YouTube is the sound for this song
-    cur = { key: key, id: cfg.id, started: false, lastT: 0, lastMove: Date.now(), scrubbing: false };
+    cur = { key: key, id: cfg.id, started: false, lastT: 0, lastMove: Date.now(), scrubbing: false, listened: 0, lastTickMs: 0, prevCt: -1, counted: false };
     var me = cur;
     p.setAttribute('data-yt-song', key);
     setIcon(false); dim(true);
@@ -189,6 +193,18 @@
     setIcon(st === 1 || st === 3);
     dim(!(st === 1 || st === 3));
     var a = audioEl(); if (a && !a.paused) { try { a.pause(); } catch (_) {} } // keep the radio audio silent
+    // play counting: only real playing time counts; a seek/jump between ticks is ignored
+    var nowMs = performance.now();
+    if (st === 1 && du > 5) {
+      if (me.lastTickMs && me.prevCt >= 0 && Math.abs(ct - me.prevCt) <= 2.5) me.listened += Math.min(MAX_TICK_SECONDS, (nowMs - me.lastTickMs) / 1000);
+      me.lastTickMs = nowMs;
+    } else me.lastTickMs = 0;
+    me.prevCt = ct;
+    if (!me.counted && me.listened >= COUNT_AFTER_SECONDS) {
+      me.counted = true; // once per start of this song
+      var T = window.StashboxV2PlayTracker;
+      if (T && T.recordExternalPlay) { try { T.recordExternalPlay(me.key, me.listened, audioEl()); } catch (_) {} }
+    }
     if (Math.abs(ct - me.lastT) > 0.05) { me.lastT = ct; me.lastMove = Date.now(); }
     if (st === 1 && du > 5) {
       var still = (Date.now() - me.lastMove) / 1000;

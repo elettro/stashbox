@@ -343,6 +343,32 @@
     if (audio === state.audio) resetSession(null, '');
   }
 
+  /* A play that did not come from the radio <audio> element (YouTube-sourced songs).
+     The caller has already measured >= QUALIFY_SECONDS of real playing time. This runs the same
+     steps as a normal qualified play: new session id, stashbox:qualified-play (GA4 + history),
+     then the same POST /radio/track and the same visible-count update. */
+  async function recordExternalPlay(songKey, listenedSeconds, audio) {
+    const key = clean(songKey);
+    if (!key) return false;
+    if (!state.songs.length) await loadSongs();
+    const song = state.songs.find(item => item.key === key);
+    if (!song) return false;
+    const el = audio || currentAudio();
+    resetSession(el, song.key);
+    state.listenedSeconds = Math.max(QUALIFY_SECONDS, Number(listenedSeconds) || 0);
+    state.qualified = true;
+    window.dispatchEvent(new CustomEvent('stashbox:qualified-play', {
+      detail: {
+        songKey: song.key, sessionId: state.sessionId,
+        songId: song.key, song_id: song.key,
+        songTitle: song.title, song_title: song.title,
+        songArtist: song.artist, song_artist: song.artist,
+        session_id: state.sessionId, audio: el
+      }
+    }));
+    return persistQualifiedPlay(song);
+  }
+
   document.addEventListener('play', event => {
     if (event.target instanceof HTMLAudioElement && event.target.closest('#v2App')) onPlay(event.target);
   }, true);
@@ -385,6 +411,7 @@
 
   window.StashboxV2PlayTracker = Object.freeze({
     thresholdSeconds: QUALIFY_SECONDS,
+    recordExternalPlay,
     // Read-only lookup into the catalog this tracker already loaded. No fetch or AWS call.
     getSongMetadata: songId => {
       const song = state.songs.find(item => item.key === clean(songId));
