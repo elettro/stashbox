@@ -70,6 +70,7 @@
       .then(response => response.ok ? response.json() : Promise.reject(new Error(`songs ${response.status}`)))
       .then(payload => {
         state.songs = rows(payload).map(normalizeSong).filter(song => song.key);
+        window.dispatchEvent(new CustomEvent('stashbox:catalog-ready'));
         renderCurrentPlayStat();
         return state.songs;
       })
@@ -384,6 +385,12 @@
 
   window.StashboxV2PlayTracker = Object.freeze({
     thresholdSeconds: QUALIFY_SECONDS,
+    // Read-only lookup into the catalog this tracker already loaded. No fetch or AWS call.
+    getSongMetadata: songId => {
+      const song = state.songs.find(item => item.key === clean(songId));
+      return song ? { song_id: song.key, song_title: song.title, song_artist: song.artist } : null;
+    },
+    catalogReady: () => Boolean(state.songs.length),
     refreshCatalog: () => loadSongs(true),
     refreshUi: () => renderCurrentPlayStat(),
     state: () => ({
