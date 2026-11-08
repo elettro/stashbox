@@ -3,6 +3,7 @@
   if (window.StashboxRadioGA4) return;
   const ID = 'G-Z7QPLH8TY9';
   const sessions = new Map();
+  const seen = new Set();
   const clean = value => String(value ?? '').trim().slice(0, 100);
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
@@ -45,7 +46,7 @@
   window.addEventListener('stashbox:qualified-play', event => {
     const detail = event.detail || {};
     const key = clean(detail.session_id || detail.sessionId);
-    if (!key || sessions.has(key)) return;
+    if (!key || seen.has(key)) return;
     const info = resolveInfo(detail);
     if (!info.song_id) return; // Without identity, no safe deduplication or attribution.
     if (!info.song_title || !info.song_artist) {
@@ -57,9 +58,11 @@
     }
     const audio = detail.audio || null;
     const src = audio?.currentSrc || audio?.src || '';
+    seen.add(key);
     sessions.set(key, { info, audio, src });
     send('song_start', { ...info, play_threshold_seconds: 10 });
     if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
+    if (seen.size > 1000) seen.delete(seen.values().next().value);
   });
   document.addEventListener('ended', event => {
     const audio = event.target;
