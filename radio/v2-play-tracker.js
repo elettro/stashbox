@@ -55,7 +55,7 @@
     return {
       key: clean(row.song_key || row.songKey || row.song_id || row.id),
       title: clean(row.display_title || row.song_name || row.title),
-      artist: clean(row.artist || row.artist_name || 'Stashbox'),
+      artist: clean(row.artist || row.artist_name || row.artistName || row.band || ''),
       audioPath: canonicalPath(songAudio(row)),
       totalPlays: Number(row.total_plays ?? row.play_count ?? row.plays ?? 0) || 0
     };
@@ -313,7 +313,13 @@
     if (state.listenedSeconds >= QUALIFY_SECONDS) {
       state.qualified = true;
       window.dispatchEvent(new CustomEvent('stashbox:qualified-play', {
-        detail: { songKey: song.key, sessionId: state.sessionId, songTitle: song.title, songArtist: song.artist, audio }
+        detail: {
+          songKey: song.key, sessionId: state.sessionId,
+          songId: song.key, song_id: song.key,
+          songTitle: song.title, song_title: song.title,
+          songArtist: song.artist, song_artist: song.artist,
+          session_id: state.sessionId, audio
+        }
       }));
       await persistQualifiedPlay(song);
     }
