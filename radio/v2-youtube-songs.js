@@ -34,7 +34,7 @@
     '.v2-player[data-yt-song]:not([data-yt-dim]) .v2-player-backdrop{background-image:none!important;background:#000!important}' +
     /* video not playing (paused / ended / waiting): hide YouTube's own overlay screens, show the normal artwork */
     '.v2-player[data-yt-dim] .sb-yt-layer:not(.sb-needtap){opacity:0;visibility:hidden}' +
-    '.sb-yt-layer{position:absolute;inset:0;z-index:1;background:#000;display:flex;align-items:center;justify-content:center;pointer-events:none}' +
+    '.sb-yt-layer{position:absolute;inset:0;z-index:-2;background:#000;display:flex;align-items:center;justify-content:center;pointer-events:none}' +
     '.sb-yt-layer[hidden]{display:none!important}' +
     '.sb-yt-frame{position:relative;width:100%;max-height:100%;aspect-ratio:16/9}' +
     '.sb-yt-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}' +
@@ -47,7 +47,9 @@
     '}' +
     '.sb-yt-hint{display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);padding:7px 14px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font:700 14px/1.2 system-ui,sans-serif;letter-spacing:.02em;white-space:nowrap;pointer-events:none}' +
     '.sb-yt-layer.sb-needtap .sb-yt-hint{display:block}' +
-    '.v2-player[data-yt-song] .v2-player-header,.v2-player[data-yt-song] .v2-player-content{position:relative;z-index:2}';
+    /* same top/bottom darkening the radio's own VEC video gets, so the labels stay readable */
+    '.sb-yt-layer::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;background:linear-gradient(to bottom,rgba(2,3,4,.44) 0%,rgba(2,3,4,.04) 24%,rgba(2,3,4,.05) 56%,rgba(2,3,4,.72) 82%,#050607 100%)}' +
+    '.sb-yt-layer.sb-needtap::after{display:none}';
   document.head.appendChild(css);
 
   /* ---- YouTube API loader ---- */
